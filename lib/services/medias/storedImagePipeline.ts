@@ -35,8 +35,9 @@ export const STORED_MASK_MAX_LONG_EDGE = MASK_LONG_EDGE
 
 // The input half of a stored mask's encode: the first channel of the decoded
 // image (a mask is one 8-bit alpha, 0 outside, 255 inside), fitted inside the
-// mask box without enlarging. No `.rotate()`: a mask is in the source's pixel
-// space, which the client reads with EXIF orientation ignored.
+// mask box without enlarging. No `.rotate()`: the client's mask PNG carries no
+// orientation tag, and it is already in the editor's source space (the
+// oriented image the editor decoded), so there is nothing to turn.
 export const createStoredMaskPipeline = (input: Buffer) =>
   sharp(input)
     .extractChannel(0)

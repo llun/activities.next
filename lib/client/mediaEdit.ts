@@ -75,6 +75,19 @@ export const getMediaEdit = async (id: string): Promise<MediaEditState> => {
  */
 export const getMediaEditSourceUrl = (id: string) => `${editPath(id)}/source`
 
+/**
+ * One stored mask image, from the `url` the edit state lists for it (the
+ * owner-only mask route). Throws a `MediaEditError` when it cannot be read.
+ */
+export const getMediaEditMaskBlob = async (
+  url: string,
+  signal?: AbortSignal
+): Promise<Blob> => {
+  const response = await fetch(url, { credentials: 'include', signal })
+  if (!response.ok) throw await toError(response, 'Failed to load a mask.')
+  return response.blob()
+}
+
 export interface SaveMediaEditParams {
   blob: Blob
   recipe: Recipe

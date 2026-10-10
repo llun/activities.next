@@ -235,11 +235,32 @@ export const isNeutralRecipe = (recipe: Recipe): boolean => {
   )
 }
 
-// The recipe without its UI-only aspect state, in canonical form.
+/**
+ * The ids of the masks that change a pixel: one with a non-zero slider, and
+ * a subject whose background mask has one (the background is its inverse and
+ * is drawn from the subject's raster and points).
+ */
+export const getEffectiveMaskIds = (recipe: Recipe): Set<string> => {
+  const ids = new Set<string>()
+  for (const mask of recipe.masks) {
+    if (countChangedAdjustments(mask.adjustments) === 0) continue
+    ids.add(mask.id)
+    if (mask.kind === 'background' && mask.of) ids.add(mask.of)
+  }
+  return ids
+}
+
+// The recipe without its UI-only aspect state and without the masks that
+// change nothing, in canonical form.
 const getPixelRecipe = (recipe: Recipe) => {
-  const { geometry, ...rest } = normalizeRecipe(recipe)
+  const { geometry, masks, ...rest } = normalizeRecipe(recipe)
   const { aspect: _aspect, aspectPortrait: _portrait, ...pixels } = geometry
-  return { ...rest, geometry: pixels }
+  const effective = getEffectiveMaskIds(recipe)
+  return {
+    ...rest,
+    geometry: pixels,
+    masks: masks.filter((mask) => effective.has(mask.id))
+  }
 }
 
 const isSameValue = (left: unknown, right: unknown): boolean => {
@@ -270,7 +291,9 @@ const isSameValue = (left: unknown, right: unknown): boolean => {
  * True when two recipes render the same pixels from the same source: they
  * are equal once normalized, ignoring `aspect` and `aspectPortrait`, which
  * only say which preset the crop box follows (choosing 1:1 and then Original
- * again, or a preset whose crop is the full frame, changes no pixel).
+ * again, or a preset whose crop is the full frame, changes no pixel) and the
+ * masks that have no adjustment (a mask with all sliders at zero, and its
+ * points, feather and pixels, changes no pixel).
  */
 export const isSameRender = (left: Recipe, right: Recipe): boolean =>
   isSameValue(getPixelRecipe(left), getPixelRecipe(right))

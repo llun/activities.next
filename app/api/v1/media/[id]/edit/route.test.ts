@@ -832,6 +832,61 @@ describe('/api/v1/media/[id]/edit', () => {
       expect(saveMaskImage).not.toHaveBeenCalled()
     })
 
+    it('answers a mask with no adjustment as saved, storing nothing and editing no post', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      const statusId = await postWithMedia(id)
+      vi.mocked(refreshPostsForEditedMedia).mockResolvedValue({
+        updated: [statusId],
+        skipped: []
+      })
+      await save(id, { apply_to_posts: 'update' })
+      vi.mocked(saveEditedImage).mockClear()
+      saveMaskImage.mockClear()
+      vi.mocked(refreshPostsForEditedMedia).mockClear()
+
+      // A brush mask and a subject mask (with its background) with every
+      // slider at zero draw nothing, so the render is the same picture.
+      const response = await save(id, {
+        recipe: JSON.stringify(
+          withMasks(
+            { ...BRUSH, adjustments: {} },
+            { ...SUBJECT, adjustments: { exposure: 0 } }
+          )
+        ),
+        base_version: '1',
+        apply_to_posts: 'update',
+        masks: { [BRUSH.id]: mask, [SUBJECT.id]: mask }
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.edit.version).toBe(1)
+      expect(body.edit.recipe).toEqual(RECIPE)
+      expect(body.posts).toEqual({ updated: [], skipped: [] })
+      expect(saveEditedImage).not.toHaveBeenCalled()
+      expect(saveMaskImage).not.toHaveBeenCalled()
+      expect(refreshPostsForEditedMedia).not.toHaveBeenCalled()
+      expect(await slotsOf(id)).toEqual([])
+    })
+
+    it('still renders when a mask part is for a subject only its background adjusts', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      await save(id)
+      vi.mocked(saveEditedImage).mockClear()
+
+      const response = await save(id, {
+        recipe: JSON.stringify(
+          withMasks({ ...SUBJECT, adjustments: {} }, BACKGROUND)
+        ),
+        base_version: '1',
+        masks: { [SUBJECT.id]: mask }
+      })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).edit.version).toBe(2)
+      expect(saveEditedImage).toHaveBeenCalledTimes(1)
+    })
+
     it('keeps a stored mask whose image did not change', async () => {
       const id = await createMediaFor(ACTOR1_ID)
       await save(id, {

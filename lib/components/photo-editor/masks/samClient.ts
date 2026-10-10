@@ -23,10 +23,13 @@ export interface SamClient {
   dispose: () => void
 }
 
+const CLOSED_MESSAGE = 'The model was closed'
+
 export const createSamClient = (): SamClient => {
   const worker = new Worker(new URL('./sam.worker.ts', import.meta.url), {
     type: 'module'
   })
+  let closed = false
   let pending: {
     resolve: (message: SamResponse) => void
     reject: (error: Error) => void
@@ -56,6 +59,12 @@ export const createSamClient = (): SamClient => {
   ): Promise<SamResponse> => {
     const run = () =>
       new Promise<SamResponse>((resolve, reject) => {
+        // A request that was queued behind the one in flight, or that was
+        // made after dispose, has no worker left to answer it.
+        if (closed) {
+          reject(new Error(CLOSED_MESSAGE))
+          return
+        }
         pending = { resolve, reject }
         worker.postMessage(message, transfer)
       })
@@ -77,7 +86,8 @@ export const createSamClient = (): SamClient => {
       return { width: answer.width, height: answer.height, data: answer.data }
     },
     dispose: () => {
-      pending?.reject(new Error('The model was closed'))
+      closed = true
+      pending?.reject(new Error(CLOSED_MESSAGE))
       pending = null
       worker.terminate()
     }

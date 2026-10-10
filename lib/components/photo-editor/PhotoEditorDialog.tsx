@@ -60,8 +60,13 @@ import { loadSource } from './engine/loadSource'
 import { MaskStageLayer } from './masks/MaskStageLayer'
 import { loadMaskRasters } from './masks/loadMasks'
 import { MASK_COPY } from './masks/maskCopy'
-import { getRasters, sameRasters, withRasters } from './masks/maskRaster'
-import { getMaskName } from './masks/maskRecipe'
+import {
+  getRasters,
+  sameEffectiveRasters,
+  sameRasters,
+  withRasters
+} from './masks/maskRaster'
+import { getMaskName, removeMask } from './masks/maskRecipe'
 import { buildMaskParts } from './masks/maskUpload'
 import { useMasks } from './masks/useMasks'
 import { useEditorHistory } from './useEditorHistory'
@@ -105,6 +110,7 @@ export const PhotoEditorDialog = ({
   const isDesktop = useIsDesktop()
   const history = useEditorHistory(NEUTRAL_RECIPE)
   const [phase, setPhase] = useState<Phase>('loading')
+  const [lostMasks, setLostMasks] = useState(0)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tooLarge, setTooLarge] = useState(false)
   const [loadVersion, setLoadVersion] = useState(0)
@@ -221,7 +227,7 @@ export const PhotoEditorDialog = ({
         const stored = state.edit.recipe
           ? parseStoredRecipe(JSON.stringify(state.edit.recipe))
           : null
-        const rasters = await loadMaskRasters(
+        const { rasters, failed } = await loadMaskRasters(
           stored,
           state.edit.masks ?? [],
           controller.signal
@@ -230,13 +236,22 @@ export const PhotoEditorDialog = ({
           decoded.close?.()
           return
         }
+        // The baseline is what is saved. A mask whose image cannot be read is
+        // left out of what is edited (with the masks on top of it), so the
+        // photo still opens and can be adjusted or reverted; saving it
+        // removes the mask.
         const start = withRasters(stored ?? NEUTRAL_RECIPE, rasters)
+        const working = failed.reduce(
+          (recipe, id) => removeMask(recipe, id),
+          start
+        )
         bitmapRef.current?.close?.()
         bitmapRef.current = decoded
         setBitmap(decoded)
         setEditState(state)
         setBaseline(start)
-        resetHistory(start)
+        setLostMasks(failed.length)
+        resetHistory(working)
         setPhase('ready')
       } catch {
         if (cancelled) return
@@ -258,12 +273,21 @@ export const PhotoEditorDialog = ({
     []
   )
 
+  // A change the owner would lose on Cancel.
   const dirty =
     ready &&
     (!isSameRender(present, baseline) ||
-      !sameRasters(getRasters(present), getRasters(baseline)))
+      !sameRasters(getRasters(present), getRasters(baseline)) ||
+      JSON.stringify(normalizeRecipe(present).masks) !==
+        JSON.stringify(normalizeRecipe(baseline).masks))
+  // A change that moves a pixel. A mask with no adjustment draws nothing, so
+  // adding one (or painting it) does not enable Save until a slider moves.
+  const rendersDifferently =
+    ready &&
+    (!isSameRender(present, baseline) ||
+      !sameEffectiveRasters(present, baseline))
   const revertsToOriginal = isNeutralRecipe(present) && edited
-  const canSave = dirty && (!isNeutralRecipe(present) || edited)
+  const canSave = rendersDifferently && (!isNeutralRecipe(present) || edited)
   const statusCount = editState?.usage.statusCount ?? 0
 
   const onAdjust = useCallback(
@@ -451,7 +475,7 @@ export const PhotoEditorDialog = ({
     ]
   )
 
-  const alerts = failure ? (
+  const failureAlert = failure ? (
     <Alert
       title={failure.message}
       action={
@@ -468,6 +492,24 @@ export const PhotoEditorDialog = ({
       }
     />
   ) : null
+
+  const lostMasksAlert =
+    lostMasks > 0 ? (
+      <Alert
+        title={
+          lostMasks === 1
+            ? "A saved mask couldn't be loaded, so it is left out of this edit and is removed when you save. Cancel to keep things as they are."
+            : "Some saved masks couldn't be loaded, so they are left out of this edit and are removed when you save. Cancel to keep things as they are."
+        }
+      />
+    ) : null
+  const alerts =
+    failureAlert || lostMasksAlert ? (
+      <div className="space-y-2">
+        {lostMasksAlert}
+        {failureAlert}
+      </div>
+    ) : null
 
   const onCategoryChange = (category: ControlGroup) => {
     setPhoneCategory(category)

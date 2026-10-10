@@ -166,7 +166,7 @@ describe('PhotoEditorDialog', () => {
     vi.mocked(exportRecipe).mockResolvedValue(
       new Blob(['jpeg'], { type: 'image/jpeg' })
     )
-    vi.mocked(loadMaskRasters).mockResolvedValue({})
+    vi.mocked(loadMaskRasters).mockResolvedValue({ rasters: {}, failed: [] })
     vi.mocked(createMaskFrameBuilder).mockReturnValue({
       build: vi.fn(() => null),
       clear: vi.fn()
@@ -783,7 +783,10 @@ describe('PhotoEditorDialog', () => {
 
     it('loads the saved masks into the renderer and does not upload them again', async () => {
       const raster = createRaster({ width: 8, height: 6 }, 255)
-      vi.mocked(loadMaskRasters).mockResolvedValue({ aaaaaaaa: raster })
+      vi.mocked(loadMaskRasters).mockResolvedValue({
+        rasters: { aaaaaaaa: raster },
+        failed: []
+      })
       const { onSaved } = await setup({
         recipe: savedMasks,
         editedAt: '2026-10-09T10:00:00.000Z',
@@ -812,21 +815,76 @@ describe('PhotoEditorDialog', () => {
       expect(params.masks ?? {}).toEqual({})
     })
 
-    it('shows a load failure when a saved mask cannot be read', async () => {
-      vi.mocked(loadMaskRasters).mockRejectedValue(new Error('gone'))
-      mockGetMediaEdit.mockResolvedValue(
-        editState({
-          recipe: savedMasks,
-          editedAt: '2026-10-09T10:00:00.000Z',
-          masks: [{ id: 'aaaaaaaa', url: '/x' }]
-        })
-      )
-      render(
-        <PhotoEditorDialog mediaId="12" onClose={vi.fn()} onSaved={vi.fn()} />
-      )
+    it('opens without a mask whose image cannot be read, says so, and saves it away', async () => {
+      vi.mocked(loadMaskRasters).mockResolvedValue({
+        rasters: {},
+        failed: ['aaaaaaaa']
+      })
+      const { onSaved } = await setup({
+        recipe: {
+          ...savedMasks,
+          adjustments: { contrast: 20 }
+        } as Recipe,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/x' }]
+      })
+
       expect(
-        await screen.findByText("Couldn't load the photo.")
+        screen.getByText(/A saved mask couldn't be loaded/)
       ).toBeInTheDocument()
+      expect(screen.queryByText("Couldn't load the photo.")).toBeNull()
+      // The mask is left out of the edit: saving it away is a change.
+      expect(saveButton()).toBeEnabled()
+      fireEvent.click(saveButton())
+      await waitFor(() => expect(onSaved).toHaveBeenCalled())
+      const params = mockSaveMediaEdit.mock.calls[0][1]
+      expect(params.recipe.masks).toEqual([])
+      expect(params.recipe.adjustments).toEqual({ contrast: 20 })
+      expect(params.masks ?? {}).toEqual({})
+    })
+
+    it('still reverts to the original when the only saved mask cannot be read', async () => {
+      vi.mocked(loadMaskRasters).mockResolvedValue({
+        rasters: {},
+        failed: ['aaaaaaaa']
+      })
+      const { onSaved } = await setup({
+        recipe: savedMasks,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/x' }]
+      })
+
+      // Nothing but the lost mask was edited: the present recipe is neutral.
+      fireEvent.click(saveButton())
+      await waitFor(() => expect(onSaved).toHaveBeenCalled())
+      expect(mockRevertMediaEdit).toHaveBeenCalledTimes(1)
+      expect(mockSaveMediaEdit).not.toHaveBeenCalled()
+    })
+
+    it('does not enable Save for a mask with no adjustment until a slider moves', async () => {
+      await setup({ subjectModel: null })
+      openMasks()
+      fireEvent.click(await screen.findByRole('button', { name: 'Brush' }))
+      expect(saveButton()).toBeDisabled()
+
+      fireEvent.keyDown(
+        await screen.findByRole('slider', { name: 'Exposure' }),
+        {
+          key: 'ArrowRight'
+        }
+      )
+      expect(saveButton()).toBeEnabled()
+    })
+
+    it('still asks before discarding a mask with no adjustment', async () => {
+      const { onClose } = await setup({ subjectModel: null })
+      openMasks()
+      fireEvent.click(await screen.findByRole('button', { name: 'Brush' }))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(onClose).not.toHaveBeenCalled()
+      expect(await screen.findByText('Discard your edits?')).toBeInTheDocument()
     })
   })
 })

@@ -141,6 +141,47 @@ describe('MaskStageLayer', () => {
     expect(onStrokeEnd).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['Enter', ' '])(
+    'leaves %j on the Overlay button to the button, so it toggles instead of adding a point',
+    (key) => {
+      const { onTap, onStrokeStart, onStrokeEnd } = setup()
+      const toggle = screen.getByRole('button', { name: 'Overlay' })
+      // Not prevented: the browser goes on to click the button.
+      expect(fireEvent.keyDown(toggle, { key })).toBe(true)
+      expect(onTap).not.toHaveBeenCalled()
+      expect(onStrokeStart).not.toHaveBeenCalled()
+      expect(onStrokeEnd).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not paint a dab when Enter is pressed on the Overlay button in brush mode', () => {
+    const { onStrokeStart } = setup({ mode: 'brush' })
+    const toggle = screen.getByRole('button', { name: 'Overlay' })
+    expect(fireEvent.keyDown(toggle, { key: 'Enter' })).toBe(true)
+    expect(onStrokeStart).not.toHaveBeenCalled()
+  })
+
+  it('paints one stroke while Alt is held with the arrow keys', () => {
+    const { layer, onStrokeStart, onStrokeMove, onStrokeEnd } = setup({
+      mode: 'brush'
+    })
+    fireEvent.keyDown(layer, { key: 'ArrowRight', altKey: true })
+    fireEvent.keyDown(layer, { key: 'ArrowRight', altKey: true })
+    expect(onStrokeStart).toHaveBeenCalledTimes(1)
+    expect(onStrokeMove).toHaveBeenCalledTimes(2)
+    expect(onStrokeEnd).not.toHaveBeenCalled()
+
+    fireEvent.keyUp(layer, { key: 'Alt' })
+    expect(onStrokeEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('ends a key stroke when the layer loses focus', () => {
+    const { layer, onStrokeEnd } = setup({ mode: 'brush' })
+    fireEvent.keyDown(layer, { key: 'ArrowDown', altKey: true })
+    fireEvent.blur(layer)
+    expect(onStrokeEnd).toHaveBeenCalledTimes(1)
+  })
+
   it('names what Enter does for each mode', () => {
     setup({ mode: 'remove' })
     expect(

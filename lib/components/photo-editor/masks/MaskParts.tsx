@@ -172,6 +172,9 @@ export const MaskRefineControls = ({
           )
         })}
       </div>
+      {selected.kind === 'subject' && !tools.canSelectSubject ? (
+        <p className="text-xs text-muted-foreground">{MASK_COPY.subjectOff}</p>
+      ) : null}
       {tools.mode === 'brush' ? (
         <div className="space-y-3">
           <PillGroup

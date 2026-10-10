@@ -136,6 +136,46 @@ describe('loadSubjectModel', () => {
     await expect(loadSubjectModel(model)).rejects.toThrow(/wrong size/)
   })
 
+  it('stops reading a body as soon as it passes the expected size', async () => {
+    makeCaches()
+    const model = await makeModel()
+    let pulled = 0
+    const cancel = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        controller.enqueue(new Uint8Array(8))
+      },
+      cancel
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(body, { status: 200 }))
+    )
+
+    await expect(loadSubjectModel(model)).rejects.toThrow(/wrong size/)
+
+    // The stream is endless: the read gave up after the first chunk past 13.
+    expect(pulled).toBeLessThan(10)
+    expect(cancel).toHaveBeenCalled()
+  })
+
+  it('refuses a body whose Content-Length is already too big', async () => {
+    makeCaches()
+    const model = await makeModel()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('x', {
+            status: 200,
+            headers: { 'content-length': '2000000000' }
+          })
+      )
+    )
+    await expect(loadSubjectModel(model)).rejects.toThrow(/wrong size/)
+  })
+
   it('fails on a download error', async () => {
     makeCaches()
     const model = await makeModel()

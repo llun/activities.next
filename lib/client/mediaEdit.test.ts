@@ -5,6 +5,7 @@ import { NEUTRAL_RECIPE } from '@/lib/services/medias/edit/recipe'
 import {
   MediaEditError,
   getMediaEdit,
+  getMediaEditMaskBlob,
   getMediaEditSourceUrl,
   revertMediaEdit,
   saveMediaEdit
@@ -70,6 +71,34 @@ describe('mediaEdit client', () => {
       fetchMock.mockResponseOnce(JSON.stringify(state))
       await getMediaEdit('a/b')
       expect(lastCall().url).toBe('/api/v1/media/a%2Fb/edit')
+    })
+  })
+
+  describe('getMediaEditMaskBlob', () => {
+    it('reads the mask with the session and the abort signal', async () => {
+      fetchMock.mockResponseOnce('png-bytes')
+      const signal = new AbortController().signal
+
+      const blob = await getMediaEditMaskBlob('/m/1?v=2', signal)
+
+      expect(await blob.text()).toBe('png-bytes')
+      expect(lastCall().url).toBe('/m/1?v=2')
+      expect(lastCall().init).toMatchObject({
+        credentials: 'include',
+        signal
+      })
+    })
+
+    it('throws a typed error when the mask is gone', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Record not found' }),
+        {
+          status: 404
+        }
+      )
+      const error = await getMediaEditMaskBlob('/m/1').catch((e) => e)
+      expect(error).toBeInstanceOf(MediaEditError)
+      expect(error).toMatchObject({ status: 404, error: 'Record not found' })
     })
   })
 

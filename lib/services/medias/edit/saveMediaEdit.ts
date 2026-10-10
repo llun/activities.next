@@ -23,6 +23,7 @@ import { Size, getRecipeOutputSize } from '@/lib/services/medias/edit/geometry'
 import {
   MAX_SOURCE_PIXELS,
   Recipe,
+  getEffectiveMaskIds,
   isNeutralRecipe,
   isSameRender,
   normalizeRecipe,
@@ -679,10 +680,12 @@ export const saveMediaEdit = async ({
   // preset changed, or nothing did) is answered as saved without storing
   // anything: a new render would be the same picture, and updating the posts
   // would send every follower an edit that changes nothing.
-  // A new mask image changes the picture even when the recipe does not.
+  // A new image of a mask that has adjustments changes the picture even when
+  // the recipe does not; one of a mask with none changes nothing.
   const storedRecipe = parseStoredRecipe(state.recipe)
+  const effectiveMaskIds = getEffectiveMaskIds(recipe)
   if (
-    maskParts.length === 0 &&
+    !maskParts.some((part) => effectiveMaskIds.has(part.id)) &&
     storedRecipe &&
     isSameRender(storedRecipe, recipe)
   ) {

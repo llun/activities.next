@@ -52,8 +52,9 @@ const KEY_STEP_LARGE = 40
 /**
  * Sits over the preview on the Masks tab: a tap adds or removes a point, a
  * drag paints with the brush, and the subject's points are drawn as green +
- * and red - markers. The arrow keys move a crosshair and Enter acts there, so
- * the refine tools work without a pointer.
+ * and red - markers. The arrow keys move a crosshair and Enter acts there
+ * (with the brush, Alt held with the arrows paints a line), so the refine
+ * tools work without a pointer.
  */
 export const MaskStageLayer = ({
   css,
@@ -81,6 +82,8 @@ export const MaskStageLayer = ({
     moved: boolean
     stroking: boolean
   } | null>(null)
+  // True while Alt is held with the arrow keys in brush mode: one stroke.
+  const keyStroke = useRef(false)
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
 
   const matrix = useMemo(
@@ -147,7 +150,16 @@ export const MaskStageLayer = ({
     }
   }
 
+  const endKeyStroke = () => {
+    if (!keyStroke.current) return
+    keyStroke.current = false
+    onStrokeEnd()
+  }
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Keys pressed on a control inside the layer (the Overlay button) belong
+    // to that control, not to the photo.
+    if (event.target !== event.currentTarget) return
     if (!active) return
     const step = event.shiftKey ? KEY_STEP_LARGE : KEY_STEP
     const base = cursor ?? { x: css.width / 2, y: css.height / 2 }
@@ -167,7 +179,13 @@ export const MaskStageLayer = ({
       setCursor(next)
       moveRing(next.x, next.y, mode === 'brush')
       if (event.altKey && mode === 'brush') {
+        if (!keyStroke.current) {
+          keyStroke.current = true
+          onStrokeStart(toSource(base.x, base.y), radius)
+        }
         onStrokeMove(toSource(next.x, next.y))
+      } else {
+        endKeyStroke()
       }
       return
     }
@@ -175,6 +193,7 @@ export const MaskStageLayer = ({
       event.preventDefault()
       const at = toSource(base.x, base.y)
       if (mode === 'brush') {
+        endKeyStroke()
         onStrokeStart(at, radius)
         onStrokeEnd()
       } else {
@@ -185,7 +204,7 @@ export const MaskStageLayer = ({
 
   const label =
     mode === 'brush'
-      ? 'Mask area. Arrow keys move the pointer, Enter paints a dab.'
+      ? 'Mask area. Arrow keys move the pointer, Enter paints a dab, Alt with the arrow keys paints a line.'
       : mode === 'remove'
         ? 'Mask area. Arrow keys move the pointer, Enter removes that spot from the subject.'
         : 'Mask area. Arrow keys move the pointer, Enter adds that spot to the subject.'
@@ -199,7 +218,13 @@ export const MaskStageLayer = ({
       aria-disabled={!active}
       tabIndex={canRefine ? 0 : -1}
       onKeyDown={onKeyDown}
-      onBlur={() => setCursor(null)}
+      onKeyUp={(event) => {
+        if (event.key === 'Alt') endKeyStroke()
+      }}
+      onBlur={() => {
+        setCursor(null)
+        endKeyStroke()
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={(event) => finish(event, false)}

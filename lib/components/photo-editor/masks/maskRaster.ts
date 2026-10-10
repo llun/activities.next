@@ -1,5 +1,9 @@
 import type { Size } from '@/lib/services/medias/edit/geometry'
-import { MASK_LONG_EDGE, type Recipe } from '@/lib/services/medias/edit/recipe'
+import {
+  MASK_LONG_EDGE,
+  type Recipe,
+  getEffectiveMaskIds
+} from '@/lib/services/medias/edit/recipe'
 
 // The long edge of every stored mask and of the pixels the model returns is the
 // recipe's (the server caps a stored mask at the same size).
@@ -95,4 +99,16 @@ export const sameRasters = (a: MaskRasters, b: MaskRasters): boolean => {
   return (
     keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
   )
+}
+
+/**
+ * True when both recipes carry the same pixels for every mask that changes
+ * the picture (see `getEffectiveMaskIds`); the pixels of a mask with no
+ * adjustment are not a render change.
+ */
+export const sameEffectiveRasters = (a: Recipe, b: Recipe): boolean => {
+  const before = getRasters(a)
+  const after = getRasters(b)
+  const ids = new Set([...getEffectiveMaskIds(a), ...getEffectiveMaskIds(b)])
+  return [...ids].every((id) => before[id] === after[id])
 }

@@ -26,6 +26,10 @@ export const MASK_COPY = {
   working: 'Finding the subject',
   modelFailed: "Couldn't load the subject model.",
   modelChecksum: "The subject model download didn't check out. Try again.",
+  subjectOff:
+    'Select subject is turned off on this server. Refine this mask with the brush.',
+  subjectOffAnnounce:
+    'Adding points is turned off on this server. Use the brush to refine.',
   segmentFailed: "Couldn't find the subject. Try again.",
   stageHintSubject: 'Subject · tap to refine',
   stageHintBackground: 'Background · follows the subject',

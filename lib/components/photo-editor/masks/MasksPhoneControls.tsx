@@ -6,7 +6,11 @@ import { useState } from 'react'
 import { PhoneSliderPanel } from '@/lib/components/photo-editor/PhoneSliderPanel'
 import type { PhoneControl } from '@/lib/components/photo-editor/PhoneSliderPanel'
 import { PillGroup } from '@/lib/components/photo-editor/PillGroup'
-import { MASK_CONTROLS } from '@/lib/components/photo-editor/adjustmentControls'
+import {
+  GROUP_LABELS,
+  MASK_PHONE_CATEGORIES,
+  maskControlsIn
+} from '@/lib/components/photo-editor/adjustmentControls'
 import type { EditorControls } from '@/lib/components/photo-editor/editorControls'
 import { Button } from '@/lib/components/ui/button'
 
@@ -33,10 +37,19 @@ const FEATHER_CONTROL: PhoneControl = {
   speak: (value) => `${value}`
 }
 
-const PHONE_MASK_CONTROLS: ReadonlyArray<PhoneControl> = [
-  ...MASK_CONTROLS,
-  FEATHER_CONTROL
+/** The pills above the chips: the Adjust tab's groups (no Effects), then Feather. */
+type MaskCategory = (typeof MASK_PHONE_CATEGORIES)[number] | typeof FEATHER_KEY
+
+const CATEGORY_ITEMS = [
+  ...MASK_PHONE_CATEGORIES.map((group) => ({
+    value: group as MaskCategory,
+    label: GROUP_LABELS[group]
+  })),
+  { value: FEATHER_KEY as MaskCategory, label: MASK_COPY.feather }
 ]
+
+const chipsOf = (category: MaskCategory): ReadonlyArray<PhoneControl> =>
+  category === FEATHER_KEY ? [FEATHER_CONTROL] : maskControlsIn(category)
 
 interface Props {
   controls: EditorControls
@@ -45,8 +58,9 @@ interface Props {
 }
 
 /**
- * The phone Masks tab: a pill per mask and "+ New mask", the refine row, and
- * the mask's chips (its sliders and Feather) with one large slider.
+ * The phone Masks tab: a pill per mask and "+ New mask", the refine row, a
+ * Light / Colour / Detail / Feather category row like the Adjust tab's, and
+ * that category's chips with one large slider.
  */
 export const MasksPhoneControls = ({ controls, selected, onSelect }: Props) => {
   const tools = controls.masks
@@ -55,6 +69,14 @@ export const MasksPhoneControls = ({ controls, selected, onSelect }: Props) => {
   // The "new mask" row closes by itself once a mask is added.
   const [openAt, setOpenAt] = useState<number | null>(null)
   const newOpen = openAt === tools.masks.length
+  const [category, setCategory] = useState<MaskCategory>(
+    MASK_PHONE_CATEGORIES[0]
+  )
+  const chips = chipsOf(category)
+  const onCategoryChange = (next: MaskCategory) => {
+    setCategory(next)
+    onSelect(chipsOf(next)[0].key)
+  }
 
   return (
     <div className="space-y-3 pt-3">
@@ -107,8 +129,19 @@ export const MasksPhoneControls = ({ controls, selected, onSelect }: Props) => {
           <div className="px-3">
             <MaskRefineControls tools={tools} disabled={disabled} />
           </div>
+          <div className="px-3">
+            <PillGroup
+              aria-label="Mask adjustment category"
+              compact
+              className="flex-nowrap"
+              items={CATEGORY_ITEMS}
+              value={category}
+              disabled={disabled}
+              onValueChange={(next) => onCategoryChange(next as MaskCategory)}
+            />
+          </div>
           <PhoneSliderPanel
-            controls={PHONE_MASK_CONTROLS}
+            controls={chips}
             groupLabel={`${getMaskName(recipe, mask.id)} adjustments`}
             selected={selected}
             onSelect={onSelect}

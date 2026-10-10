@@ -64,13 +64,26 @@ const verify = async (file: ModelFile, data: ArrayBuffer) => {
   }
 }
 
+/**
+ * Reads a response body, stopping as soon as it is longer than `expected`
+ * bytes (the pinned size of the file), so a wrong URL or a hostile server
+ * cannot fill the tab's memory before the size check runs.
+ */
 const readBody = async (
   response: Response,
+  file: ModelFile,
   onChunk: (bytes: number) => void,
   signal?: AbortSignal
 ): Promise<ArrayBuffer> => {
+  const tooLong = () => new ModelIntegrityError(file.path, 'has the wrong size')
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > file.bytes) {
+    await response.body?.cancel().catch(() => undefined)
+    throw tooLong()
+  }
   if (!response.body) {
     const buffer = await response.arrayBuffer()
+    if (buffer.byteLength > file.bytes) throw tooLong()
     onChunk(buffer.byteLength)
     return buffer
   }
@@ -84,8 +97,12 @@ const readBody = async (
     }
     const { done, value } = await reader.read()
     if (done) break
-    chunks.push(value)
     length += value.byteLength
+    if (length > file.bytes) {
+      await reader.cancel().catch(() => undefined)
+      throw tooLong()
+    }
+    chunks.push(value)
     onChunk(value.byteLength)
   }
   const merged = new Uint8Array(length)
@@ -160,6 +177,7 @@ export const loadSubjectModel = async (
     let own = 0
     const data = await readBody(
       response,
+      file,
       (bytes) => {
         own += bytes
         loadedBytes += bytes

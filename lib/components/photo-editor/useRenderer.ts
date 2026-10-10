@@ -35,6 +35,7 @@ import { resolveCssColour } from './masks/cssColour'
 import { featherSigma } from './masks/feather'
 import { createMaskFrameBuilder, getMaskFrameSize } from './masks/maskFrame'
 import type { MaskRasters } from './masks/maskRaster'
+import { useThemeVersion } from './masks/useThemeVersion'
 import { useElementSize } from './useElementSize'
 
 export type EditorTab = 'adjust' | 'crop' | 'masks'
@@ -252,6 +253,8 @@ export const useRenderer = ({
     ? recipe.masks.findIndex((mask) => mask.id === overlay.maskId)
     : -1
   const overlayRemove = Boolean(overlay?.remove)
+  // Resolved again when the theme changes while the editor is open.
+  const themeVersion = useThemeVersion()
   useEffect(() => {
     if (overlayIndex < 0) {
       setOverlayTint(null)
@@ -264,7 +267,7 @@ export const useRenderer = ({
         : resolveCssColour('var(--info)', [0.15, 0.39, 0.92]),
       alpha: 0.45
     })
-  }, [overlayIndex, overlayRemove])
+  }, [overlayIndex, overlayRemove, themeVersion])
 
   // New adjustments, masks, overlay or frame schedule one colour pass.
   useEffect(() => {

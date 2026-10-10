@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 
 import { resolveCssColour } from './cssColour'
 import type { MaskRaster } from './maskRaster'
+import { useThemeVersion } from './useThemeVersion'
 
 const WIDTH = 34
 const HEIGHT = 26
@@ -23,6 +24,7 @@ export const MaskThumb = ({
   className?: string
 }) => {
   const canvas = useRef<HTMLCanvasElement>(null)
+  const themeVersion = useThemeVersion()
 
   useEffect(() => {
     const element = canvas.current
@@ -53,7 +55,7 @@ export const MaskThumb = ({
       }
     }
     context.putImageData(image, 0, 0)
-  }, [raster, inverse])
+  }, [raster, inverse, themeVersion])
 
   return (
     <canvas

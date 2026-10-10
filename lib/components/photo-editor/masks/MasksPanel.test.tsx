@@ -269,6 +269,50 @@ describe('MasksPanel', () => {
     expect(loadSubjectModel).not.toHaveBeenCalled()
   })
 
+  it('refines a stored subject with the brush when the model is off, and says why', () => {
+    const { client } = makeClient()
+    let stored = addSubjectMask(NEUTRAL_RECIPE, 'aaaaaaaa', {
+      x: 0.5,
+      y: 0.5,
+      label: 1
+    })
+    stored = withRaster(
+      stored,
+      'aaaaaaaa',
+      createRaster({ width: 8, height: 6 }, 255)
+    )
+    const onRecipe = vi.fn()
+    render(
+      <Harness
+        client={client}
+        model={null}
+        initial={stored}
+        onRecipe={onRecipe}
+      />
+    )
+
+    // Brush is the mode in use, not a disabled Add that looks chosen.
+    expect(screen.getByRole('radio', { name: 'Brush' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('radio', { name: 'Add' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+    expect(screen.getByRole('radio', { name: 'Add' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Remove' })).toBeDisabled()
+    expect(screen.getByText(/turned off on this server/)).toBeVisible()
+    expect(
+      screen.getByRole('slider', { name: 'Brush size' })
+    ).toBeInTheDocument()
+
+    // A tap does not touch the mask or start a download.
+    fireEvent.click(screen.getByText('test tap'))
+    expect(onRecipe).not.toHaveBeenCalled()
+    expect(loadSubjectModel).not.toHaveBeenCalled()
+  })
+
   it('creates a background that follows the subject', async () => {
     const { client } = makeClient()
     render(<Harness client={client} />)

@@ -48,6 +48,7 @@ import {
   ModelIntegrityError,
   type SubjectModel,
   getModelBytes,
+  isModelCached,
   loadSubjectModel
 } from './modelCache'
 import { type SamClient, type SamMask, createSamClient } from './samClient'
@@ -121,6 +122,12 @@ export const useMasks = ({
   const clientRef = useRef<SamClient | null>(null)
   const embeddedFor = useRef<ImageBitmap | null>(null)
   const readyPromise = useRef<Promise<SamClient> | null>(null)
+  // One per mount: closing the editor aborts the download and tells every
+  // step of `ensureReady` to stop and free what it made.
+  const lifecycle = useRef<{
+    disposed: boolean
+    controller: AbortController
+  } | null>(null)
   const workingRef = useRef(false)
   const stroke = useRef<{
     id: string
@@ -139,9 +146,12 @@ export const useMasks = ({
     getMask(recipe, selectedId) ?? masks[masks.length - 1] ?? undefined
   const effectiveId = selected?.id ?? null
 
+  // Taps need the model, so without it (turned off on this server) even a
+  // stored subject is refined with the brush.
   const clampMode = (mask: Mask | undefined, mode: RefineMode): RefineMode => {
     if (!mask) return mode
     if (mask.kind === 'brush') return 'brush'
+    if (mask.kind === 'subject' && !model) return 'brush'
     return mode
   }
   const mode = clampMode(selected, refineMode)
@@ -151,42 +161,67 @@ export const useMasks = ({
     embeddedFor.current = null
   }, [bitmap])
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const own = { disposed: false, controller: new AbortController() }
+    lifecycle.current = own
+    return () => {
+      own.disposed = true
+      own.controller.abort()
       clientRef.current?.dispose()
       clientRef.current = null
       readyPromise.current = null
       if (stroke.current) cancelAnimationFrame(stroke.current.frame)
-    },
-    []
-  )
+    }
+  }, [])
 
   const ensureReady = useCallback(async (): Promise<SamClient> => {
     if (!model || !bitmap) throw new Error('No subject model')
     if (readyPromise.current && embeddedFor.current === bitmap) {
       return readyPromise.current
     }
+    const life = lifecycle.current
+    if (!life) throw new Error('No subject model')
+    const closed = () => new DOMException('The editor was closed', 'AbortError')
     const run = async () => {
       let client = clientRef.current
       if (!client) {
-        setSam({
-          phase: 'downloading',
-          loadedBytes: 0,
-          totalBytes: getModelBytes(model)
-        })
+        // A cached model is read, not downloaded, so it never shows the
+        // download copy.
+        const cached = await isModelCached(model).catch(() => false)
+        if (life.disposed) throw closed()
+        setSam(
+          cached
+            ? { phase: 'preparing' }
+            : {
+                phase: 'downloading',
+                loadedBytes: 0,
+                totalBytes: getModelBytes(model)
+              }
+        )
         const files = await loadSubjectModel(model, {
-          onProgress: ({ loadedBytes, totalBytes }) =>
+          signal: life.controller.signal,
+          onProgress: ({ loadedBytes, totalBytes, cached }) => {
+            if (life.disposed || cached) return
             setSam({ phase: 'downloading', loadedBytes, totalBytes })
+          }
         })
+        if (life.disposed) throw closed()
         setSam({ phase: 'preparing' })
         const created = createClient()
+        // Held before `load` so closing the editor can end its worker.
+        clientRef.current = created
         try {
           await created.load(files.encoder, files.decoder)
         } catch (error) {
           created.dispose()
+          if (clientRef.current === created) clientRef.current = null
           throw error
         }
-        clientRef.current = created
+        if (life.disposed) {
+          created.dispose()
+          if (clientRef.current === created) clientRef.current = null
+          throw closed()
+        }
         client = created
       }
       if (embeddedFor.current !== bitmap) {
@@ -200,7 +235,12 @@ export const useMasks = ({
           resizeHeight: resized.height,
           resizeQuality: 'high'
         })
+        if (life.disposed) {
+          small.close?.()
+          throw closed()
+        }
         await client.embed(small)
+        if (life.disposed) throw closed()
         embeddedFor.current = bitmap
       }
       return client
@@ -224,9 +264,12 @@ export const useMasks = ({
         const client = await ensureReady()
         setSam({ phase: 'working' })
         const mask = await client.segment(points)
+        if (lifecycle.current?.disposed) return null
         setSam({ phase: 'ready' })
         return mask
       } catch (error) {
+        // Closing the editor is not a failure to report.
+        if (lifecycle.current?.disposed) return null
         setSam({
           phase: 'error',
           message:
@@ -361,7 +404,11 @@ export const useMasks = ({
     async (point: { x: number; y: number }) => {
       const latest = recipeRef.current
       const mask = getMask(latest, effectiveId)
-      if (disabled || !mask || mask.kind !== 'subject' || !model) return
+      if (disabled || !mask || mask.kind !== 'subject') return
+      if (!model) {
+        announce(MASK_COPY.subjectOffAnnounce)
+        return
+      }
       if (point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) return
       if (!canAddPoint(mask)) {
         announce('This mask has the most points it can hold')
