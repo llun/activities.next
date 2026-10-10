@@ -100,3 +100,62 @@ describe('MediaDetailsPanel taxonomy', () => {
     expect(hasPublicDetailsContent(noSubject)).toBe(true)
   })
 })
+
+describe('MediaDetailsPanel Edited row', () => {
+  const EDITED_AT = '2026-10-08T10:00:00.000Z'
+  const editedMs = Date.parse(EDITED_AT)
+  // `editedAt` comes from the server's public details; cast so the fixture
+  // does not depend on whether the entity type has it yet.
+  const edited = (editedAt: string | null, overrides = {}) =>
+    ({ ...details(overrides), editedAt }) as MediaPublicDetails
+
+  it.each([
+    ['the attachment has no updatedAt', undefined],
+    ['the attachment was updated after the edit', editedMs + 1000],
+    ['the attachment was updated at the edit', editedMs]
+  ])('shows when %s', (_name, updatedAt) => {
+    render(
+      <MediaDetailsPanel
+        details={edited(EDITED_AT)}
+        attachmentUpdatedAt={updatedAt}
+      />
+    )
+    expect(screen.getByText(/^Edited/)).toBeInTheDocument()
+    expect(screen.getByText(/ago$/)).toHaveAttribute('datetime', EDITED_AT)
+  })
+
+  it('is hidden for a Gallery-only post that still shows the old photo', () => {
+    render(
+      <MediaDetailsPanel
+        details={edited(EDITED_AT)}
+        attachmentUpdatedAt={editedMs - 1000}
+      />
+    )
+    expect(screen.queryByText(/^Edited/)).not.toBeInTheDocument()
+  })
+
+  it('is hidden when the photo was never edited', () => {
+    render(<MediaDetailsPanel details={edited(null)} />)
+    expect(screen.queryByText(/^Edited/)).not.toBeInTheDocument()
+  })
+
+  it('is hidden for an unreadable date', () => {
+    render(<MediaDetailsPanel details={edited('not a date')} />)
+    expect(screen.queryByText(/^Edited/)).not.toBeInTheDocument()
+  })
+
+  it('counts as content, matching what the panel shows', () => {
+    const onlyEdited = edited(EDITED_AT, { subject: null })
+    expect(hasPublicDetailsContent(onlyEdited)).toBe(true)
+    expect(hasPublicDetailsContent(onlyEdited, editedMs - 1000)).toBe(false)
+    expect(hasPublicDetailsContent(edited(null, { subject: null }))).toBe(false)
+
+    const { container } = render(
+      <MediaDetailsPanel
+        details={onlyEdited}
+        attachmentUpdatedAt={editedMs - 1000}
+      />
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+})

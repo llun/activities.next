@@ -682,6 +682,23 @@ export const PostBox: FC<Props> = ({
     }, 0)
   }
 
+  // The photo editor saved or reverted an attachment: the composer takes over
+  // its new file (url, size) and the details that came with it.
+  const onMediaEdited = (id: string, media: MediaStorageSaveFileOutput) => {
+    const current = findAttachment(id)
+    if (current) {
+      replaceAttachment(id, {
+        ...current,
+        url: media.url,
+        mediaType: media.mime_type,
+        width: media.meta.original.width,
+        height: media.meta.original.height
+      })
+    }
+    const edited = media.details
+    if (edited) setDetailsById((all) => ({ ...all, [id]: edited }))
+  }
+
   const onDetailsSaved = (saved: MediaDetailsSavedItem[]) => {
     saved.forEach((item) => {
       savedGenerationRef.current.set(
@@ -1652,6 +1669,7 @@ export const PostBox: FC<Props> = ({
           settings={gallerySettings}
           onClose={closeDetails}
           onSaved={onDetailsSaved}
+          onMediaEdited={onMediaEdited}
           onDetailsRefreshed={(id, patch, details) =>
             // Merged into the latest details, not replaced by the dialog's
             // copy, so two refreshes that finish out of order both land.
