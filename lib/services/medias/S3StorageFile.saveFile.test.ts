@@ -997,6 +997,42 @@ describe('S3FileStorage image output format', () => {
     expect(stored.exif).toBeUndefined()
     expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
   })
+
+  it('uploads a photo edit render as webp with no EXIF and no media row', async () => {
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#336699' }
+    })
+      .jpeg()
+      .withExif({ IFD0: { Make: 'LeakyCam' } })
+      .toBuffer()
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    const render = await storage.saveEditedImage({
+      actor,
+      buffer: jpeg,
+      manualFocus: { x: 0.5, y: -0.25 }
+    })
+
+    expect(putObjectInput()).toMatchObject({ ContentType: 'image/webp' })
+    expect(putObjectInput().Key).toMatch(
+      /^medias\/\d{4}-\d{2}-\d{2}\/\w+\.webp$/
+    )
+    // The same shape the local driver answers.
+    expect(render).toEqual({
+      path: putObjectInput().Key,
+      bytes: uploadedBodies[0].length,
+      mimeType: 'image/webp',
+      width: 40,
+      height: 30,
+      blurhash: expect.any(String),
+      focus: { x: 0.5, y: -0.25 }
+    })
+    const stored = await sharp(uploadedBodies[0]).metadata()
+    expect(stored.format).toBe('webp')
+    expect(stored.exif).toBeUndefined()
+    expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
 })
 
 describe('S3FileStorage saveFile image sizing', () => {

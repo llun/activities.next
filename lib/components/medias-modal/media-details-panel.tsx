@@ -7,6 +7,7 @@ import {
   getHashtagHref,
   toScientificHashtag
 } from '@/lib/components/gallery/galleryTaxonomy'
+import { EditedTime } from '@/lib/components/photo-editor/EditedTime'
 import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
 import { cn } from '@/lib/utils'
 
@@ -49,10 +50,36 @@ interface Props {
    * by <name>".
    */
   ownerName?: string | null
+  /**
+   * `updatedAt` of the attachment being viewed. The "Edited" row shows only
+   * when the attachment is not older than the edit.
+   */
+  attachmentUpdatedAt?: number | null
   className?: string
 }
 
-const summarize = (details: MediaPublicDetails) => {
+/**
+ * When the photo was edited, if THIS attachment shows the edit. A post that
+ * chose "Gallery only" keeps the old file, so its attachment is older than the
+ * edit and must not claim the photo was edited.
+ */
+const getShownEditedAt = (
+  details: MediaPublicDetails,
+  attachmentUpdatedAt?: number | null
+): Date | null => {
+  const editedAt = details.editedAt
+  if (!editedAt) return null
+  const time = Date.parse(editedAt)
+  if (Number.isNaN(time)) return null
+  if (attachmentUpdatedAt != null && attachmentUpdatedAt < time) return null
+  return new Date(time)
+}
+
+const summarize = (
+  details: MediaPublicDetails,
+  attachmentUpdatedAt?: number | null
+) => {
+  const editedAt = getShownEditedAt(details, attachmentUpdatedAt)
   const subjectName = details.subject?.name?.trim() || null
   const scientificName = details.subject?.scientificName?.trim() || null
   const category = details.subject?.category ?? null
@@ -66,8 +93,11 @@ const summarize = (details: MediaPublicDetails) => {
   const takenAt = formatTakenAt(details.takenAt)
   const hasSubject = Boolean(subjectName || scientificName || category)
   const hasContent =
-    hasSubject || gear.length > 0 || Boolean(exposure || place || takenAt)
+    hasSubject ||
+    gear.length > 0 ||
+    Boolean(exposure || place || takenAt || editedAt)
   return {
+    editedAt,
     subjectName,
     scientificName,
     category,
@@ -85,18 +115,21 @@ const summarize = (details: MediaPublicDetails) => {
 // True when the panel would render something. The viewer uses it to decide
 // whether there is anything to show, so it must match the panel exactly.
 export const hasPublicDetailsContent = (
-  details: MediaPublicDetails | null | undefined
+  details: MediaPublicDetails | null | undefined,
+  attachmentUpdatedAt?: number | null
 ): details is MediaPublicDetails =>
-  details != null && summarize(details).hasContent
+  details != null && summarize(details, attachmentUpdatedAt).hasContent
 
 // Compact, read-only summary of a photo's public details, shown in the
 // viewer's info overlay. Renders nothing when none of the details are present.
 export const MediaDetailsPanel: FC<Props> = ({
   details,
   ownerName,
+  attachmentUpdatedAt,
   className
 }) => {
   const {
+    editedAt,
     subjectName,
     scientificName,
     category,
@@ -108,7 +141,7 @@ export const MediaDetailsPanel: FC<Props> = ({
     takenAt,
     hasSubject,
     hasContent
-  } = summarize(details)
+  } = summarize(details, attachmentUpdatedAt)
 
   if (!hasContent) return null
 
@@ -166,6 +199,11 @@ export const MediaDetailsPanel: FC<Props> = ({
         </p>
       )}
       {takenAt && <p>{takenAt}</p>}
+      {editedAt && (
+        <p>
+          Edited <EditedTime date={editedAt} />
+        </p>
+      )}
     </div>
   )
 }

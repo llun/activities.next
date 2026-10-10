@@ -331,6 +331,37 @@ describe('LocalFileStorage image output format', () => {
     expect(storedBytes.includes('LeakyCam')).toBe(false)
   })
 
+  it('stores a photo edit render as webp with no EXIF and no media row', async () => {
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#336699' }
+    })
+      .jpeg()
+      .withExif({ IFD0: { Make: 'LeakyCam' } })
+      .toBuffer()
+
+    const render = await createStorage().saveEditedImage({
+      actor,
+      buffer: jpeg,
+      manualFocus: { x: 0.5, y: -0.25 }
+    })
+
+    expect(render).toEqual({
+      path: expect.stringMatching(/^[^/]+\.webp$/),
+      bytes: (await fs.stat(path.join(mediaRoot, render.path))).size,
+      mimeType: 'image/webp',
+      width: 40,
+      height: 30,
+      blurhash: expect.any(String),
+      focus: { x: 0.5, y: -0.25 }
+    })
+    const storedBytes = await fs.readFile(path.join(mediaRoot, render.path))
+    const stored = await sharp(storedBytes).metadata()
+    expect(stored.format).toBe('webp')
+    expect(stored.exif).toBeUndefined()
+    expect(storedBytes.includes('LeakyCam')).toBe(false)
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
   it('rejects a rendition that would exceed the account quota', async () => {
     database.getStorageUsageForAccount.mockResolvedValue(
       Number.MAX_SAFE_INTEGER

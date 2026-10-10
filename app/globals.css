@@ -77,6 +77,11 @@
      reads as a control rather than a pale pill. */
   --color-control-off: var(--control-off);
 
+  /* Backdrop behind the photo in the photo editor, exposed as the
+     `bg-photo-stage` utility. A neutral grey so the photo's own tones read
+     true against it. */
+  --color-photo-stage: var(--photo-stage);
+
   /* Unified desktop content width. Every top-level page in the (timeline)
      route group centers its content (and its page-header title row) at this
      single width, so the column stays aligned as you switch tabs. Exposed as
@@ -228,6 +233,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  --photo-stage: hsl(0 0% 93%);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -322,6 +328,7 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  --photo-stage: hsl(0 0% 6.5%);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

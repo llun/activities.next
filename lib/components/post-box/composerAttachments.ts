@@ -34,6 +34,25 @@ export const getEditableStatusAttachments = (
     ]
   })
 
+/**
+ * Whether the composer should take over an edited photo's new file. Not when
+ * the photo is already in the post being edited and "Gallery only" left that
+ * post alone: saving the post would otherwise publish the edit anyway.
+ */
+export const shouldTakeEditedMedia = (
+  editStatus: Pick<EditableStatus, 'id' | 'attachments'> | undefined,
+  mediaId: string,
+  updatedStatusIds: ReadonlyArray<string>
+): boolean => {
+  if (!editStatus) return true
+  const inPost = editStatus.attachments.some(
+    (attachment) =>
+      isEditableStatusMediaAttachment(attachment) &&
+      attachment.mediaId === mediaId
+  )
+  return !inPost || updatedStatusIds.includes(editStatus.id)
+}
+
 export const getPreservedStatusAttachments = (
   attachments: Attachment[]
 ): Attachment[] =>

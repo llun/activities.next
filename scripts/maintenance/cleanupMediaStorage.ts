@@ -30,6 +30,8 @@ import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
+import { getMediaEditReferencedPaths } from './mediaEditReferences'
+
 async function getAllMediaPathsFromDatabase(
   basePath?: string
 ): Promise<Set<string>> {
@@ -58,6 +60,12 @@ async function getAllMediaPathsFromDatabase(
     for (const media of medias) {
       addPath(media.original)
       addPath(media.thumbnail)
+    }
+
+    // A photo edit keeps the uploaded file and earlier renders beside the
+    // live one (see getMediaEditReferencedPaths).
+    for (const editPath of await getMediaEditReferencedPaths(database)) {
+      addPath(editPath)
     }
 
     // Fitness route maps keep a JPEG copy for the activity-import email, which

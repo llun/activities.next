@@ -132,7 +132,10 @@ export const MediasModal: FC<Props> = ({
     : null
   // Only details the panel will actually show: an all-null payload must not
   // count as something to show.
-  const currentDetails = hasPublicDetailsContent(loadedDetails)
+  const currentDetails = hasPublicDetailsContent(
+    loadedDetails,
+    currentMedia?.updatedAt
+  )
     ? loadedDetails
     : null
   const currentAltText = currentMedia?.name?.trim() ?? ''
@@ -519,6 +522,7 @@ export const MediasModal: FC<Props> = ({
               <MediaDetailsPanel
                 details={currentDetails}
                 ownerName={ownerName}
+                attachmentUpdatedAt={currentMedia.updatedAt}
                 className="pt-3 first:pt-0"
               />
             ) : null}

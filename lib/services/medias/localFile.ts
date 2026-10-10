@@ -30,10 +30,12 @@ import { assertStorageFilePath, resolveStorageFilePath } from './storagePath'
 import { createStoredImagePipeline } from './storedImagePipeline'
 import { readValidThumbnail } from './thumbnailInput'
 import {
+  EditedImageStorageOutput,
   ImageRenditionOutput,
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
+  SaveEditedImageParams,
   SaveFileOptions,
   ThumbnailStorageOutput
 } from './types'
@@ -232,6 +234,26 @@ export class LocalFileStorage implements MediaStorage {
         width: outputInfo.width,
         height: outputInfo.height
       }
+    }
+  }
+
+  async saveEditedImage({
+    buffer,
+    manualFocus
+  }: SaveEditedImageParams): Promise<EditedImageStorageOutput> {
+    // The same pipeline and encoder as every stored image: orientation
+    // applied, fitted inside the stored-image box, WebP with no EXIF, under a
+    // random name inside the storage root.
+    const { outputInfo, path, contentType, blurhash, focus } =
+      await this._saveImageBuffer(buffer, { manualFocus })
+    return {
+      path,
+      bytes: outputInfo.size,
+      mimeType: contentType,
+      width: outputInfo.width,
+      height: outputInfo.height,
+      blurhash,
+      focus
     }
   }
 

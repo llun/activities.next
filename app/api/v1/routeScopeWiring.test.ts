@@ -512,6 +512,18 @@ const EXPECTED: Array<{
     scopes: ['write', 'write:media']
   },
   {
+    module: '@/app/api/v1/media/[id]/edit/route',
+    scopes: ['write', 'write:media']
+  },
+  {
+    module: '@/app/api/v1/media/[id]/edit/source/route',
+    scopes: ['write', 'write:media']
+  },
+  {
+    module: '@/app/api/v1/media/[id]/edit/revert/route',
+    scopes: ['write', 'write:media']
+  },
+  {
     module: '@/app/api/v1/media/[id]/subject-suggestions/route',
     scopes: ['write', 'write:media']
   },

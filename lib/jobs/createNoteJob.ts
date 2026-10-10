@@ -6,7 +6,6 @@ import {
 } from '@/lib/actions/utils'
 import {
   BaseNote,
-  getAttachments,
   getContent,
   getLanguage,
   getQuoteTargetId,
@@ -16,6 +15,7 @@ import {
   getTags
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { createRemoteAttachments } from '@/lib/jobs/noteAttachments'
 import {
   getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
@@ -24,11 +24,6 @@ import {
 } from '@/lib/services/federation/forwardingDelivery'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
-import {
-  AnimationMetadataItem,
-  resolveAnimationMetadata
-} from '@/lib/services/medias/animationMetadata'
-import { normalizeBlurhash } from '@/lib/services/medias/imageAnalysis'
 import { getQueue } from '@/lib/services/queue'
 import {
   persistInboundQuoteEdge,
@@ -53,10 +48,8 @@ import {
   normalizeActorId,
   toRecipientArray
 } from '@/lib/utils/activitypub'
-import { isValidFocalPoint } from '@/lib/utils/focalPoint'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { createPollJob } from './createPollJob'
@@ -93,8 +86,6 @@ export const createNoteJob = createJobHandle(
     if (!actorMatchesVerifiedSender(note.attributedTo, message)) {
       return
     }
-
-    const attachments = getAttachments(note)
 
     const existingStatus = await database.getStatus({
       statusId: note.id,
@@ -284,66 +275,9 @@ export const createNoteJob = createJobHandle(
       })
     }
 
-    let animationMetadata: Record<string, AnimationMetadataItem> = {}
-    if (
-      attachments.some(
-        (att) => att.type === 'Document' && att.mediaType.startsWith('video')
-      )
-    ) {
-      try {
-        animationMetadata = await resolveAnimationMetadata({
-          statusUrl: getStatusUrl(note) || note.id,
-          statusId: note.id,
-          authorId: actorId,
-          attachments: attachments
-            .filter((att) => att.type === 'Document')
-            .map((att) => ({ url: att.url, mediaType: att.mediaType }))
-        })
-      } catch (error) {
-        logger.warn({
-          message: 'Failed to resolve animation metadata in createNoteJob',
-          statusId: note.id,
-          err: toLoggableError(error)
-        })
-      }
-    }
-
     await Promise.all([
       addStatusToTimelines(database, status),
-      ...attachments.map(async (attachment, index) => {
-        if (attachment.type !== 'Document') return
-        // Store what the normalizer returns, not the value it was handed:
-        // it validates the trimmed form, so a padded hash approved here and
-        // persisted verbatim would fail `decode` on every render.
-        const blurhash = normalizeBlurhash(attachment.blurhash)
-        const focus =
-          attachment.focalPoint &&
-          isValidFocalPoint(attachment.focalPoint[0], attachment.focalPoint[1])
-            ? { x: attachment.focalPoint[0], y: attachment.focalPoint[1] }
-            : null
-
-        const meta = animationMetadata[attachment.url]
-        const playbackType =
-          meta && meta.playbackType !== 'unknown'
-            ? meta.playbackType
-            : undefined
-        const thumbnailUrl = meta?.previewUrl ?? attachment.thumbnailUrl ?? null
-
-        return database.createAttachment({
-          actorId,
-          statusId: note.id,
-          mediaType: attachment.mediaType,
-          height: attachment.height,
-          width: attachment.width,
-          name: attachment.name || '',
-          url: attachment.url,
-          blurhash,
-          focus,
-          playbackType,
-          thumbnailUrl,
-          createdAt: publishedAt + index
-        })
-      })
+      createRemoteAttachments({ database, statusId: note.id, note })
     ])
 
     // A remote status gets a card too — most of a timeline is remote, so

@@ -1723,6 +1723,10 @@ export interface Media extends Omit<BaseMedia, 'details'> {
   // Always present on a row read from the database; may be absent on a Media
   // built by hand (tests, in-memory fixtures).
   details?: MediaDetailsRecord
+  // The photo edit state: `version` moves on every save and revert, and
+  // `editedAt` (epoch milliseconds) is null while the photo is unedited.
+  // Present on a row read through MEDIA_COLUMNS.
+  edit?: { version: number; editedAt: number | null }
 }
 
 export interface MediaWithStatus extends Media {
@@ -1763,6 +1767,11 @@ export type UpdateAttachmentPlaybackParams = {
 }
 export type GetAttachmentsParams = {
   statusId: string
+}
+export type ReplaceRemoteAttachmentsForStatusParams = {
+  statusId: string
+  // The rows the note now carries, created in place of the old ones.
+  attachments: CreateAttachmentParams[]
 }
 export type AttachmentWithMedia = Attachment & {
   mediaId?: string | null
@@ -1809,6 +1818,11 @@ export type DeleteMediaForAccountResult =
   | { status: 'deleted'; files: string[] }
   | { status: 'not-found' }
   | { status: 'in-use' }
+// `deleteMediaWithFiles`: `files` carries the storage paths captured inside
+// the delete's transaction (the live file, its thumbnail and every photo edit
+// file), for the caller to delete after the commit.
+export type DeleteMediaWithFilesResult =
+  { status: 'deleted'; files: string[] } | { status: 'not-found' }
 export type DeleteAttachmentsByIdsParams = {
   attachmentIds: string[]
 }
@@ -1963,6 +1977,11 @@ export interface MediaDatabase {
     params: UpdateAttachmentPlaybackParams
   ): Promise<boolean>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
+  // Replaces the status's remote attachments (no media row, not a fitness
+  // file) with `attachments`, in one transaction.
+  replaceRemoteAttachmentsForStatus(
+    params: ReplaceRemoteAttachmentsForStatusParams
+  ): Promise<void>
   getAttachmentsWithMedia(
     params: GetAttachmentsWithMediaParams
   ): Promise<AttachmentWithMedia[]>
@@ -1982,6 +2001,11 @@ export interface MediaDatabase {
   ): Promise<number>
   deleteAttachmentsByIds(params: DeleteAttachmentsByIdsParams): Promise<number>
   deleteMedia(params: DeleteMediaParams): Promise<boolean>
+  // Unscoped delete, like `deleteMedia`, that also returns every stored path
+  // the row kept so the caller can delete the files after the commit.
+  deleteMediaWithFiles(
+    params: DeleteMediaParams
+  ): Promise<DeleteMediaWithFilesResult>
   // Owner-scoped delete that only removes media not yet attached to a status.
   // Returns `not-found` when missing/owned by another account, `in-use` when
   // already attached to a posted status, and `deleted` on success.

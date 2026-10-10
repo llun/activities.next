@@ -71,7 +71,8 @@ import {
   getChangedAttachmentDescriptions,
   getEditableStatusAttachments,
   getStatusAttachmentsFromUpdateResponse,
-  getTimestamp
+  getTimestamp,
+  shouldTakeEditedMedia
 } from './composerAttachments'
 import {
   isEditSubmittable as checkIsEditSubmittable,
@@ -680,6 +681,27 @@ export const PostBox: FC<Props> = ({
         )
         ?.focus()
     }, 0)
+  }
+
+  // The photo editor saved or reverted an attachment: the composer takes over
+  // its new file (url, size) and the details that came with it.
+  const onMediaEdited = (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: { updated: string[] }
+  ) => {
+    const current = findAttachment(id)
+    if (current && shouldTakeEditedMedia(editStatus, id, posts.updated)) {
+      replaceAttachment(id, {
+        ...current,
+        url: media.url,
+        mediaType: media.mime_type,
+        width: media.meta.original.width,
+        height: media.meta.original.height
+      })
+    }
+    const edited = media.details
+    if (edited) setDetailsById((all) => ({ ...all, [id]: edited }))
   }
 
   const onDetailsSaved = (saved: MediaDetailsSavedItem[]) => {
@@ -1652,6 +1674,7 @@ export const PostBox: FC<Props> = ({
           settings={gallerySettings}
           onClose={closeDetails}
           onSaved={onDetailsSaved}
+          onMediaEdited={onMediaEdited}
           onDetailsRefreshed={(id, patch, details) =>
             // Merged into the latest details, not replaced by the dialog's
             // copy, so two refreshes that finish out of order both land.

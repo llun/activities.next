@@ -719,6 +719,63 @@ describe('StatusDatabase writes', () => {
           expect.objectContaining({ mediaId: keptMediaId, name: 'new alt' })
         ])
       })
+
+      it('points a kept attachment at the edited file of its media', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-refresh-file`
+        const keptMediaId = '9701'
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Refresh file target'
+        })
+        const existing = await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/api/v1/files/medias/upload.jpg',
+          width: 4000,
+          height: 3000,
+          name: 'alt',
+          mediaId: keptMediaId,
+          createdAt: new Date('2026-04-26T10:00:00.000Z').getTime()
+        })
+
+        await database.updateNote({
+          statusId,
+          text: 'Refresh file target',
+          summary: null,
+          attachments: [
+            {
+              type: 'upload',
+              id: keptMediaId,
+              mediaType: 'image/webp',
+              url: 'https://example.com/api/v1/files/medias/render.webp',
+              width: 2000,
+              height: 1500,
+              name: 'alt',
+              blurhash: null,
+              focus: null,
+              thumbnailUrl: null
+            }
+          ]
+        })
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0]).toMatchObject({
+          id: existing.id,
+          mediaId: keptMediaId,
+          mediaType: 'image/webp',
+          url: 'https://example.com/api/v1/files/medias/render.webp',
+          width: 2000,
+          height: 1500,
+          name: 'alt'
+        })
+        expect(attachments[0].updatedAt).toBeGreaterThan(existing.updatedAt)
+      })
     })
 
     describe('updateNoteVisibility', () => {

@@ -35,6 +35,7 @@ const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
 const takenAt = '2026-04-20T08:30:00.000Z'
 
 const kingfisherDetails: MediaPublicDetails = {
+  editedAt: null,
   subject: {
     name: 'Common Kingfisher',
     scientificName: 'Alcedo atthis',
@@ -304,5 +305,21 @@ describe('MediasModal media details', () => {
       expect(screen.getByText('Grey Heron')).toBeInTheDocument()
       expect(screen.queryByText('Common Kingfisher')).not.toBeInTheDocument()
     })
+  })
+  it.each([
+    ['a post that shows the edited photo', currentTime + 1000, true],
+    ['a Gallery-only post that kept the old photo', currentTime - 1000, false]
+  ])('shows the Edited row only for %s', async (_name, updatedAt, shown) => {
+    const editedAt = new Date(currentTime).toISOString()
+    mockGetMediaPublicDetails.mockResolvedValue({
+      ...kingfisherDetails,
+      editedAt
+    })
+    renderModal([buildAttachment({ mediaId: 'media-1', updatedAt })])
+
+    await openDetailsWhenReady()
+
+    const overlay = screen.getByRole('region', { name: 'Photo details' })
+    expect(overlay.textContent?.includes('Edited')).toBe(shown)
   })
 })

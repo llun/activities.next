@@ -55,14 +55,17 @@ export const updateNoteFromUserInput = async ({
     // attachment objects, and a `media_attributes` focus edit lands on the
     // media row moments before this — so the media row is both the trusted and
     // the freshest source. Resolved for every attachment, kept and new alike,
-    // because `updateNote` rewrites both.
+    // because `updateNote` rewrites both. The one exception is an attachment
+    // still showing an earlier file of an edited photo ("Gallery only"): it
+    // keeps the snapshot its row took of that file.
     const resolvedAttachments =
       attachments === undefined
         ? undefined
         : await withAttachmentMediaMetadata({
             database,
             currentActor,
-            attachments
+            attachments,
+            existingAttachments: status.attachments
           })
 
     let updatedStatus = await database.updateNote({

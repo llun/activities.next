@@ -322,6 +322,41 @@ describe('production archive scripts', () => {
         await database.destroy()
       }
     })
+
+    it('collects the files photo edits keep', async () => {
+      const database = knex({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+
+      try {
+        await database.schema.createTable('medias', (table) => {
+          table.increments('id').primary()
+          table.string('original')
+          table.string('thumbnail')
+        })
+        await database.schema.createTable('media_edit_files', (table) => {
+          table.string('id').primary()
+          table.string('path')
+        })
+        await database('medias').insert({ original: 'medias/live.webp' })
+        await database('media_edit_files').insert([
+          { id: 'edit-1', path: 'medias/uploaded.jpg' },
+          { id: 'edit-2', path: 'medias/superseded.webp' }
+        ])
+
+        const paths = await getReferencedStoragePaths(database)
+
+        expect(paths.mediaFilePaths.sort()).toEqual([
+          'medias/live.webp',
+          'medias/superseded.webp',
+          'medias/uploaded.jpg'
+        ])
+      } finally {
+        await database.destroy()
+      }
+    })
   })
 
   describe('createS3Client', () => {

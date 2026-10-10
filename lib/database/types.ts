@@ -1,5 +1,6 @@
 import { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
+import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
 import { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
@@ -104,6 +105,7 @@ export type Database = AccountDatabase &
   LinkPreviewDatabase &
   MarkerDatabase &
   MediaDatabase &
+  MediaEditDatabase &
   NotificationDatabase &
   OAuthDatabase &
   PushSubscriptionDatabase &
