@@ -1,20 +1,15 @@
-import { Knex } from 'knex'
-
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
-import { Database } from '@/lib/database/types'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('Wahoo import database operations', () => {
-  let database: Database
-  let instance: Knex
+  const testDb = createTestDatabase()
+  const { database, knex: instance } = testDb
   const actorId = DatabaseSeed.actors.primary.id
   const providerUserId = 'wahoo-import-user'
 
   beforeAll(async () => {
-    const testDatabase = getTestSQLDatabaseWithInstance()
-    database = testDatabase.database
-    instance = testDatabase.instance
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })
