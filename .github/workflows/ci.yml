@@ -170,9 +170,11 @@ jobs:
   # claim and replay, OAuth clients and connected apps, push subscriptions,
   # scheduled statuses), the filter, report, mute and suggestion domains
   # (filters, server filters, reports, conversation mutes, detected languages,
-  # friends-of-friends suggestions), and the Knex-backed Kysely driver (result
-  # normalisation, the mixed-transaction guard, counters, chunked IN lists,
-  # savepoints).
+  # friends-of-friends suggestions), the block, actor mute, bookmark, status
+  # quote, status reaction and link preview domains (blocks and their counters,
+  # actor mutes, bookmarks, quote edges, emoji reactions, link preview cards),
+  # and the Knex-backed Kysely driver (result normalisation, the
+  # mixed-transaction guard, counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -269,6 +271,12 @@ jobs:
             lib/database/sql/statusMute.test.ts \
             lib/database/sql/suggestion.test.ts \
             lib/services/notifications/createConversationMuteSuppression.test.ts \
+            lib/database/sql/block.test.ts \
+            lib/database/sql/mute.test.ts \
+            lib/database/sql/bookmark.test.ts \
+            lib/database/sql/statusQuote.test.ts \
+            lib/database/sql/statusReaction.test.ts \
+            lib/database/sql/linkPreview.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \

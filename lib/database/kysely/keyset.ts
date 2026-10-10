@@ -5,8 +5,9 @@ import { timestampValue } from '@/lib/database/kysely/dialect'
 
 export type KeysetCursor = {
   createdAt: number | Date
-  // The tie-breaker value of the cursor row (its id, or statusId for likes).
-  tieBreaker: string
+  // The tie-breaker value of the cursor row (its id, or statusId for likes;
+  // a number for the integer bookmark id).
+  tieBreaker: string | number
 }
 
 // Tables with a `createdAt` column, the only ones a keyset can page.

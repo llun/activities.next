@@ -1,30 +1,26 @@
 import crypto from 'crypto'
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { muteQueries } from '@/lib/database/domains/mute/queries'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 describe('MuteDatabase', () => {
-  let knexDatabase: Knex
-  let database: Database
+  const testDb = createTestDatabase()
+  const knexDatabase: Knex = testDb.knex
+  const database: Database = testDb.database
 
   beforeAll(async () => {
-    knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    database = getSQLDatabase(knexDatabase)
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })
 
   afterAll(async () => {
-    await database.destroy()
+    await testDb.destroy()
   })
 
   const targetActorId = () =>
@@ -447,6 +443,305 @@ describe('MuteDatabase', () => {
       actorId,
       targetActorId: activeTarget,
       notifications: false
+    })
+  })
+
+  describe('lookups stay inside the (actor, target) pair', () => {
+    // A lookup that drops one half of the pair finds a neighbour instead, so
+    // the neighbours are written first and sort before the pair being asked for.
+    const setup = async () => {
+      const id = crypto.randomUUID()
+      const actorId = `https://remote.test/users/m-actor-${id}`
+      const targetActorId = `https://remote.test/users/m-target-${id}`
+      const otherActorId = `https://remote.test/users/a-actor-${id}`
+      const otherTargetId = `https://remote.test/users/a-target-${id}`
+      const endsAt = Date.now() + 60_000
+
+      await database.createMute({
+        actorId: otherActorId,
+        targetActorId,
+        notifications: true,
+        endsAt
+      })
+      await database.createMute({
+        actorId,
+        targetActorId: otherTargetId,
+        notifications: true,
+        endsAt
+      })
+      const mute = await database.createMute({
+        actorId,
+        targetActorId,
+        notifications: true,
+        endsAt: null
+      })
+      return { actorId, targetActorId, otherActorId, otherTargetId, mute }
+    }
+
+    it('getMute returns the pair, not a mute that shares one side', async () => {
+      const { actorId, targetActorId, mute } = await setup()
+
+      await expect(
+        database.getMute({ actorId, targetActorId })
+      ).resolves.toEqual(mute)
+    })
+
+    it('getMute misses when only one side of the pair matches', async () => {
+      const { actorId, targetActorId, otherActorId, otherTargetId } =
+        await setup()
+
+      await expect(
+        database.getMute({
+          actorId: otherActorId,
+          targetActorId: otherTargetId
+        })
+      ).resolves.toBeNull()
+      await expect(
+        database.getMute({ actorId, targetActorId: `${targetActorId}-none` })
+      ).resolves.toBeNull()
+    })
+
+    it('deleteMute removes only the pair and leaves the neighbours', async () => {
+      const { actorId, targetActorId, otherActorId, otherTargetId, mute } =
+        await setup()
+
+      await expect(
+        database.deleteMute({ actorId, targetActorId })
+      ).resolves.toEqual(mute)
+
+      await expect(
+        database.getMute({ actorId, targetActorId })
+      ).resolves.toBeNull()
+      await expect(
+        database.getMute({ actorId: otherActorId, targetActorId })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getMute({ actorId, targetActorId: otherTargetId })
+      ).resolves.not.toBeNull()
+    })
+
+    it('deleteMute returns null instead of deleting a neighbour', async () => {
+      const { actorId, targetActorId, otherActorId, otherTargetId } =
+        await setup()
+      const stranger = `https://remote.test/users/z-stranger-${crypto.randomUUID()}`
+
+      await expect(
+        database.deleteMute({ actorId: stranger, targetActorId })
+      ).resolves.toBeNull()
+      await expect(
+        database.deleteMute({ actorId, targetActorId: stranger })
+      ).resolves.toBeNull()
+
+      await expect(
+        database.getMute({ actorId: otherActorId, targetActorId })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getMute({ actorId, targetActorId: otherTargetId })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getMute({ actorId, targetActorId })
+      ).resolves.not.toBeNull()
+    })
+
+    it('re-muting updates only the pair', async () => {
+      const { actorId, targetActorId, otherActorId, otherTargetId } =
+        await setup()
+
+      const remuted = await database.createMute({
+        actorId,
+        targetActorId,
+        notifications: false,
+        endsAt: Date.now() + 120_000
+      })
+
+      expect(remuted.notifications).toBe(false)
+      const sameActor = await database.getMute({
+        actorId,
+        targetActorId: otherTargetId
+      })
+      const sameTarget = await database.getMute({
+        actorId: otherActorId,
+        targetActorId
+      })
+      expect(sameActor?.notifications).toBe(true)
+      expect(sameTarget?.notifications).toBe(true)
+      expect(sameActor?.endsAt).not.toBe(remuted.endsAt)
+      expect(sameTarget?.endsAt).not.toBe(remuted.endsAt)
+    })
+
+    it('getMutes ignores a cursor that belongs to another actor', async () => {
+      const { actorId, otherActorId, targetActorId } = await setup()
+      const foreign = await database.getMute({
+        actorId: otherActorId,
+        targetActorId
+      })
+      expect(foreign).not.toBeNull()
+
+      for (const cursor of [
+        { maxId: foreign?.id },
+        { minId: foreign?.id },
+        { sinceId: foreign?.id }
+      ]) {
+        await expect(
+          database.getMutes({ actorId, ...cursor })
+        ).resolves.toEqual([])
+      }
+    })
+
+    it('getMutes pages through the actor mutes only', async () => {
+      const { actorId, targetActorId, otherTargetId } = await setup()
+
+      const all = await database.getMutes({ actorId })
+      expect(all.map((mute) => mute.targetActorId).sort()).toEqual(
+        [targetActorId, otherTargetId].sort()
+      )
+      const [first] = all
+      const rest = await database.getMutes({ actorId, maxId: first.id })
+      expect(rest).toHaveLength(1)
+      expect(rest[0].id).toBe(all[1].id)
+      const newer = await database.getMutes({ actorId, minId: all[1].id })
+      expect(newer.map((mute) => mute.id)).toEqual([first.id])
+      const since = await database.getMutes({ actorId, sinceId: all[1].id })
+      expect(since.map((mute) => mute.id)).toEqual([first.id])
+    })
+
+    it('getMutes ranks mutes updated at the same moment by id', async () => {
+      const actorId = `https://remote.test/users/m-tie-${crypto.randomUUID()}`
+      const prefix = crypto.randomUUID()
+      const tied = new Date(Date.now() - 5_000)
+      // Written out of id order so insertion order cannot pass for it. `0` is
+      // the lowest id but updated last and `z` the highest but updated first,
+      // so neither can be reached by the id half of the cursor alone.
+      const mutes = [
+        ['b', tied],
+        ['c', tied],
+        ['0', new Date(tied.getTime() + 1_000)],
+        ['a', tied],
+        ['z', new Date(tied.getTime() - 1_000)]
+      ] as const
+      for (const [suffix, updatedAt] of mutes) {
+        const target = targetActorId()
+        await knexDatabase('mutes').insert({
+          id: `${prefix}-${suffix}`,
+          actorId,
+          actorHost: new URL(actorId).host,
+          targetActorId: target,
+          targetActorHost: new URL(target).host,
+          notifications: true,
+          endsAt: null,
+          createdAt: updatedAt,
+          updatedAt
+        })
+      }
+      const ids = (found: { id: string }[]) =>
+        found.map((mute) => mute.id.slice(prefix.length + 1))
+
+      expect(ids(await database.getMutes({ actorId }))).toEqual([
+        '0',
+        'c',
+        'b',
+        'a',
+        'z'
+      ])
+      expect(
+        ids(await database.getMutes({ actorId, maxId: `${prefix}-b` }))
+      ).toEqual(['a', 'z'])
+      expect(
+        ids(await database.getMutes({ actorId, minId: `${prefix}-b` }))
+      ).toEqual(['0', 'c'])
+      expect(
+        ids(await database.getMutes({ actorId, sinceId: `${prefix}-b` }))
+      ).toEqual(['0', 'c'])
+    })
+
+    it('getMutes pages from the cursor by when it was last muted, not created', async () => {
+      const actorId = `https://remote.test/users/m-remuted-${crypto.randomUUID()}`
+      const insert = async (
+        id: string,
+        createdAt: number,
+        updatedAt: number
+      ) => {
+        const target = targetActorId()
+        await knexDatabase('mutes').insert({
+          id,
+          actorId,
+          actorHost: new URL(actorId).host,
+          targetActorId: target,
+          targetActorHost: new URL(target).host,
+          notifications: true,
+          endsAt: null,
+          createdAt: new Date(createdAt),
+          updatedAt: new Date(updatedAt)
+        })
+      }
+      const base = Date.now() - 60_000
+      // `remuted` was created first but muted again last, so it ranks first.
+      const remuted = `${crypto.randomUUID()}-remuted`
+      const plain = `${crypto.randomUUID()}-plain`
+      await insert(remuted, base, base + 2_000)
+      await insert(plain, base + 1_000, base + 1_000)
+
+      const all = await database.getMutes({ actorId })
+      expect(all.map((mute) => mute.id)).toEqual([remuted, plain])
+      const older = await database.getMutes({ actorId, maxId: remuted })
+      expect(older.map((mute) => mute.id)).toEqual([plain])
+    })
+
+    it('getMuteRelations needs both the actor and the target to be asked for', async () => {
+      const { actorId, targetActorId, otherActorId, otherTargetId } =
+        await setup()
+
+      const relations = await database.getMuteRelations({
+        actorIds: [actorId],
+        targetActorIds: [targetActorId]
+      })
+      expect(relations).toEqual([
+        { actorId, targetActorId, notifications: true }
+      ])
+
+      const crossed = await database.getMuteRelations({
+        actorIds: [otherActorId, actorId],
+        targetActorIds: [otherTargetId]
+      })
+      expect(crossed).toEqual([
+        { actorId, targetActorId: otherTargetId, notifications: true }
+      ])
+    })
+  })
+
+  it('updates the mute another request inserted after the lookup', async () => {
+    const id = crypto.randomUUID()
+    const actorId = `https://remote.test/users/m-race-${id}`
+    const targetActorId = `https://remote.test/users/m-race-target-${id}`
+    const winner = await database.createMute({
+      actorId,
+      targetActorId,
+      notifications: true,
+      endsAt: null
+    })
+    // The lookup misses the winner, as if it was inserted just after it: the
+    // insert then hits the real unique key on either backend.
+    const racing = withStaleFirstRead(testDb.db, 'mutes', () => [])
+
+    const mute = await muteQueries.createMute(racing, {
+      actorId,
+      targetActorId,
+      notifications: false,
+      endsAt: 5_000_000_000_000
+    })
+
+    expect(mute).toMatchObject({
+      id: winner.id,
+      createdAt: winner.createdAt,
+      notifications: false,
+      endsAt: 5_000_000_000_000
+    })
+    await expect(
+      database.getMute({ actorId, targetActorId })
+    ).resolves.toMatchObject({
+      id: winner.id,
+      notifications: false,
+      endsAt: 5_000_000_000_000
     })
   })
 })

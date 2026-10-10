@@ -1,15 +1,21 @@
 import { randomUUID } from 'node:crypto'
 
+import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
 import {
-  databaseBeforeAll,
-  getTestDatabaseTable
+  type TestDatabaseTable,
+  databaseBeforeAll
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 describe('LinkPreviewDatabase', () => {
-  const table = getTestDatabaseTable()
+  const testDb = createTestDatabase()
+  const table: TestDatabaseTable = [
+    [testDb.backend, testDb.database, testDb.prepare]
+  ]
 
   beforeAll(async () => {
     await databaseBeforeAll(table)
@@ -306,6 +312,238 @@ describe('LinkPreviewDatabase', () => {
           statusIds: [statusId]
         })
         expect(previews.get(statusId)?.title).toBe('Second')
+      })
+    })
+
+    describe('neighbouring cards and racing writers', () => {
+      const completeCard = (urlHash: string, title: string) =>
+        database.upsertLinkPreview({
+          urlHash,
+          url: `https://example.com/${title}`,
+          title,
+          fetchStatus: 'completed'
+        })
+
+      it('re-links only the status that was edited', async () => {
+        const firstHash = uniqueHash()
+        const secondHash = uniqueHash()
+        const edited = uniqueStatusId('edited')
+        const bystander = uniqueStatusId('bystander')
+        await completeCard(firstHash, 'first')
+        await completeCard(secondHash, 'second')
+        await database.linkStatusLinkPreview({
+          statusId: bystander,
+          urlHash: firstHash
+        })
+        await database.linkStatusLinkPreview({
+          statusId: edited,
+          urlHash: firstHash
+        })
+
+        await database.linkStatusLinkPreview({
+          statusId: edited,
+          urlHash: secondHash
+        })
+
+        const previews = await database.getStatusLinkPreviews({
+          statusIds: [edited, bystander]
+        })
+        expect(previews.get(edited)?.title).toBe('second')
+        expect(previews.get(bystander)?.title).toBe('first')
+      })
+
+      it('unlinks only the status asked for', async () => {
+        const urlHash = uniqueHash()
+        const unlinked = uniqueStatusId('unlinked')
+        const bystander = uniqueStatusId('still-linked')
+        await completeCard(urlHash, 'shared')
+        await database.linkStatusLinkPreview({
+          statusId: bystander,
+          urlHash
+        })
+        await database.linkStatusLinkPreview({
+          statusId: unlinked,
+          urlHash
+        })
+
+        await database.deleteStatusLinkPreview({ statusId: unlinked })
+
+        const previews = await database.getStatusLinkPreviews({
+          statusIds: [unlinked, bystander]
+        })
+        expect([...previews.keys()]).toEqual([bystander])
+      })
+
+      it('hydrates only the requested statuses, each with its own card', async () => {
+        const firstHash = uniqueHash()
+        const secondHash = uniqueHash()
+        const requested = uniqueStatusId('requested')
+        const other = uniqueStatusId('not-requested')
+        await completeCard(firstHash, 'requested-card')
+        await completeCard(secondHash, 'other-card')
+        await database.linkStatusLinkPreview({
+          statusId: other,
+          urlHash: secondHash
+        })
+        await database.linkStatusLinkPreview({
+          statusId: requested,
+          urlHash: firstHash
+        })
+
+        const previews = await database.getStatusLinkPreviews({
+          statusIds: [requested]
+        })
+
+        expect([...previews.keys()]).toEqual([requested])
+        expect(previews.get(requested)).toMatchObject({
+          urlHash: firstHash,
+          title: 'requested-card'
+        })
+      })
+
+      it('records a failure on the url asked for and no other', async () => {
+        const failing = uniqueHash()
+        const completed = uniqueHash()
+        const failed = uniqueHash()
+        await completeCard(completed, 'neighbour-completed')
+        await database.recordLinkPreviewFailure({
+          urlHash: failed,
+          url: 'https://example.com/neighbour-failed',
+          error: 'ERR_HTTP_500'
+        })
+        await completeCard(failing, 'failing')
+        await database.recordLinkPreviewFailure({
+          urlHash: failing,
+          url: 'https://example.com/failing',
+          error: 'ERR_HTTP_502'
+        })
+        const stillFailing = uniqueHash()
+        await database.recordLinkPreviewFailure({
+          urlHash: stillFailing,
+          url: 'https://example.com/still-failing',
+          error: 'ERR_HTTP_500'
+        })
+        await database.recordLinkPreviewFailure({
+          urlHash: stillFailing,
+          url: 'https://example.com/still-failing',
+          error: 'ERR_HTTP_503'
+        })
+
+        await expect(
+          database.getLinkPreview({ urlHash: completed })
+        ).resolves.toMatchObject({ fetchStatus: 'completed', error: null })
+        await expect(
+          database.getLinkPreview({ urlHash: failed })
+        ).resolves.toMatchObject({
+          fetchStatus: 'failed',
+          error: 'ERR_HTTP_500'
+        })
+        await expect(
+          database.getLinkPreview({ urlHash: failing })
+        ).resolves.toMatchObject({
+          fetchStatus: 'completed',
+          error: 'ERR_HTTP_502'
+        })
+        await expect(
+          database.getLinkPreview({ urlHash: stillFailing })
+        ).resolves.toMatchObject({
+          fetchStatus: 'failed',
+          error: 'ERR_HTTP_503'
+        })
+      })
+
+      it('replaces the card of the url that was fetched again and no other', async () => {
+        const refetched = uniqueHash()
+        const neighbour = uniqueHash()
+        await completeCard(neighbour, 'neighbour')
+        await completeCard(refetched, 'old')
+
+        await database.upsertLinkPreview({
+          urlHash: refetched,
+          url: 'https://example.com/old',
+          title: 'new',
+          fetchStatus: 'completed'
+        })
+
+        await expect(
+          database.getLinkPreview({ urlHash: neighbour })
+        ).resolves.toMatchObject({ title: 'neighbour' })
+        await expect(
+          database.getLinkPreview({ urlHash: refetched })
+        ).resolves.toMatchObject({ title: 'new' })
+      })
+
+      it('does not turn a card that completed during a failed refresh back into a failure', async () => {
+        const urlHash = uniqueHash()
+        await completeCard(urlHash, 'repaired')
+        // The refresh read the row while it was still pending, then another
+        // job completed it before this failure was written.
+        const racing = withStaleFirstRead(testDb.db, 'link_previews', (rows) =>
+          rows.map((row) => ({ ...row, fetchStatus: 'pending' }))
+        )
+
+        await linkPreviewQueries.recordLinkPreviewFailure(racing, {
+          urlHash,
+          url: 'https://example.com/repaired',
+          error: 'ERR_HTTP_502'
+        })
+
+        await expect(
+          database.getLinkPreview({ urlHash })
+        ).resolves.toMatchObject({
+          title: 'repaired',
+          fetchStatus: 'completed',
+          error: null
+        })
+      })
+
+      it('does not overwrite a card another job stored while a failure was recorded', async () => {
+        const urlHash = uniqueHash()
+        await completeCard(urlHash, 'inserted-first')
+        // The failure found no row, but one was inserted before its insert.
+        const racing = withStaleFirstRead(testDb.db, 'link_previews', () => [])
+
+        await linkPreviewQueries.recordLinkPreviewFailure(racing, {
+          urlHash,
+          url: 'https://example.com/inserted-first',
+          error: 'ERR_HTTP_502'
+        })
+
+        await expect(
+          database.getLinkPreview({ urlHash })
+        ).resolves.toMatchObject({
+          title: 'inserted-first',
+          fetchStatus: 'completed',
+          error: null
+        })
+      })
+
+      it('keeps the link another request stored while a status was being linked', async () => {
+        const firstHash = uniqueHash()
+        const secondHash = uniqueHash()
+        const statusId = uniqueStatusId('linked-first')
+        await completeCard(firstHash, 'first-link')
+        await completeCard(secondHash, 'second-link')
+        await database.linkStatusLinkPreview({ statusId, urlHash: firstHash })
+        // The link is not seen by the check, as if the other request stored
+        // it after the check ran.
+        const racing = withStaleFirstRead(
+          testDb.db,
+          'status_link_previews',
+          () => []
+        )
+
+        await expect(
+          linkPreviewQueries.linkStatusLinkPreview(racing, {
+            statusId,
+            urlHash: secondHash
+          })
+        ).resolves.toBeUndefined()
+
+        const previews = await database.getStatusLinkPreviews({
+          statusIds: [statusId]
+        })
+        expect(previews.get(statusId)?.title).toBe('first-link')
       })
     })
 
