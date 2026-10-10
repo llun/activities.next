@@ -121,10 +121,19 @@ export const useEditorHistory = (initial: Recipe) => {
     (recipe: Recipe) => dispatch({ type: 'reset', recipe }),
     []
   )
-  const beginGesture = useCallback(
-    (key: string) => dispatch({ type: 'beginGesture', key }),
-    []
-  )
+  // A gesture ends when the pointer is released, even if the value never
+  // changed (Radix commits only on a change), so a later keyboard step on the
+  // same control is its own undo step.
+  const beginGesture = useCallback((key: string) => {
+    dispatch({ type: 'beginGesture', key })
+    const end = () => {
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      dispatch({ type: 'endGesture' })
+    }
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }, [])
   const endGesture = useCallback(() => dispatch({ type: 'endGesture' }), [])
 
   return useMemo(

@@ -152,4 +152,25 @@ describe('useEditorHistory', () => {
     act(() => result.current.redo())
     expect(result.current.present).toEqual(exposure(1))
   })
+
+  it('ends a gesture on pointer-up even when the value did not change', () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useEditorHistory(NEUTRAL_RECIPE))
+      // Pointer down on the control, released without moving the thumb.
+      act(() => result.current.beginGesture('exposure'))
+      act(() => {
+        window.dispatchEvent(new Event('pointerup'))
+      })
+      act(() => result.current.set(exposure(1), { coalesceKey: 'exposure' }))
+      // Much later, and well within no keyboard window: two keyboard steps.
+      act(() => {
+        vi.advanceTimersByTime(COALESCE_MS * 4)
+      })
+      act(() => result.current.set(exposure(2), { coalesceKey: 'exposure' }))
+      expect(result.current.pastLength).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

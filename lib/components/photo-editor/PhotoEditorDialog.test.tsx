@@ -167,7 +167,8 @@ describe('PhotoEditorDialog', () => {
     expect(mockGetMediaEdit).toHaveBeenCalledWith('12')
     expect(loadSource).toHaveBeenCalledWith(
       '/api/v1/media/12/edit/source',
-      expect.anything()
+      expect.anything(),
+      { width: 4000, height: 3000 }
     )
     expect(screen.getByText('Edit photo')).toBeInTheDocument()
     expect(createRenderer).toHaveBeenCalled()

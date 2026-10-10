@@ -1,12 +1,12 @@
 'use client'
 
-import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict'
 import { SlidersHorizontal } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { type FC, type ReactNode, useState } from 'react'
 
 import {
   type ApplyToPosts,
+  MediaEditError,
   type MediaEditState,
   getMediaEdit,
   revertMediaEdit
@@ -24,6 +24,7 @@ import type {
 } from '@/lib/services/medias/types'
 
 import { ConfirmDialog } from './ConfirmDialog'
+import { EditedTime } from './EditedTime'
 import type { EditedPosts } from './PhotoEditorDialog'
 import { SavePrompt } from './SavePrompt'
 import { describeEditError, isOwnSave, withNetworkRetry } from './editErrors'
@@ -44,7 +45,11 @@ interface Props {
   item: PreviewItem
   /** The existing preview image. */
   children: ReactNode
-  onEdited: (id: string, media: MediaStorageSaveFileOutput) => void
+  onEdited: (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: EditedPosts
+  ) => void
 }
 
 const EDITABLE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -82,7 +87,7 @@ export const PhotoEditPreview: FC<Props> = ({ item, children, onEdited }) => {
     setSkipped(posts.skipped.length)
     setOpen(false)
     setRevertStep('idle')
-    onEdited(item.id, media)
+    onEdited(item.id, media, posts)
   }
 
   const startRevert = async () => {
@@ -125,6 +130,18 @@ export const PhotoEditPreview: FC<Props> = ({ item, children, onEdited }) => {
           setRevertStep('idle')
           return
         }
+      }
+      if (error instanceof MediaEditError && error.status === 409) {
+        // Stale: take the current state so the next attempt uses its version.
+        try {
+          const fresh = await getMediaEdit(item.id)
+          onEdited(item.id, fresh.media, { updated: [], skipped: [] })
+          setRevertError('This photo changed. Try again.')
+        } catch (refetchError) {
+          setRevertError(describeEditError(refetchError).message)
+        }
+        setRevertStep('idle')
+        return
       }
       setRevertError(describeEditError(error).message)
       setRevertStep('idle')
@@ -171,11 +188,7 @@ export const PhotoEditPreview: FC<Props> = ({ item, children, onEdited }) => {
       </div>
       {editable && editedAt ? (
         <p className="px-1 pt-2 text-xs text-muted-foreground">
-          Edited{' '}
-          <time dateTime={editedAt.toISOString()}>
-            {formatDistanceToNowStrict(editedAt, { addSuffix: true })}
-          </time>{' '}
-          ·{' '}
+          Edited <EditedTime date={editedAt} /> ·{' '}
           <Button
             type="button"
             variant="link"
@@ -221,6 +234,7 @@ export const PhotoEditPreview: FC<Props> = ({ item, children, onEdited }) => {
         open={revertStep === 'prompt'}
         count={revertState?.usage.statusCount ?? 0}
         latestStatusAt={revertState?.usage.latestStatusAt ?? null}
+        mode="revert"
         onKeepEditing={() => setRevertStep('idle')}
         onSave={(choice) => {
           if (revertState) void runRevert(revertState, choice)

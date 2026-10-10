@@ -71,7 +71,8 @@ import {
   getChangedAttachmentDescriptions,
   getEditableStatusAttachments,
   getStatusAttachmentsFromUpdateResponse,
-  getTimestamp
+  getTimestamp,
+  shouldTakeEditedMedia
 } from './composerAttachments'
 import {
   isEditSubmittable as checkIsEditSubmittable,
@@ -684,9 +685,13 @@ export const PostBox: FC<Props> = ({
 
   // The photo editor saved or reverted an attachment: the composer takes over
   // its new file (url, size) and the details that came with it.
-  const onMediaEdited = (id: string, media: MediaStorageSaveFileOutput) => {
+  const onMediaEdited = (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: { updated: string[] }
+  ) => {
     const current = findAttachment(id)
-    if (current) {
+    if (current && shouldTakeEditedMedia(editStatus, id, posts.updated)) {
       replaceAttachment(id, {
         ...current,
         url: media.url,

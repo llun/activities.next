@@ -49,24 +49,38 @@ describe('Slider', () => {
   })
 
   it.each([
-    [25, 50, 12.5],
-    [-50, 25, 25],
-    [0, 50, 0]
+    [25, 'left', 50, 12.5],
+    [-50, 'right', 50, 25]
   ])(
     'fills a bipolar slider from the centre (value %i)',
-    (value, left, width) => {
+    (value, side, edge, width) => {
       const { container } = renderSlider({ value })
       const fill = container.querySelector<HTMLElement>(
         '[data-slot="slider-fill"]'
       )!
-      expect(parseFloat(fill.style.left)).toBeCloseTo(value >= 0 ? 50 : left, 5)
+      expect(parseFloat(fill.style[side as 'left' | 'right'])).toBeCloseTo(
+        edge,
+        5
+      )
       expect(parseFloat(fill.style.width)).toBeCloseTo(width, 5)
       const tick = container.querySelector<HTMLElement>(
         '[data-slot="slider-tick"]'
       )!
       expect(tick.style.left).toBe('50%')
+      expect(tick).toHaveClass('bg-foreground/40')
     }
   )
+
+  it('uses a hollow thumb only on a bipolar slider', () => {
+    renderSlider()
+    expect(screen.getByRole('slider')).toHaveClass('bg-transparent')
+  })
+
+  it('draws no fill at the centre', () => {
+    const { container } = renderSlider({ value: 0 })
+    expect(container.querySelector('[data-slot="slider-fill"]')).toBeNull()
+    expect(container.querySelector('[data-slot="slider-tick"]')).not.toBeNull()
+  })
 
   it('uses the normal range when it is not bipolar', () => {
     const { container } = renderSlider({ bipolar: false, min: 0, max: 100 })

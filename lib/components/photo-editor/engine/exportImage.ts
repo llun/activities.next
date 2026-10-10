@@ -2,7 +2,11 @@ import { getRecipeOutputSize } from '@/lib/services/medias/edit/geometry'
 import type { Recipe } from '@/lib/services/medias/edit/recipe'
 
 import { BLUR_MAX_EDGE } from './colour'
-import { createCanvas, drawGeometry } from './geometryCanvas'
+import {
+  type DrawableCanvas,
+  createCanvas,
+  drawGeometry
+} from './geometryCanvas'
 import { createRenderer } from './glRenderer'
 import { fitLongEdge } from './previewSize'
 
@@ -24,6 +28,15 @@ export const exportRecipe = async (
   const renderer = createRenderer(createCanvas(1, 1))
   if (!renderer) throw new Error('WebGL 2 is not available')
 
+  // Large photos are memory-bound (iOS Safari caps all canvases together at
+  // about 384 MB), so everything but the pixels is released before encoding.
+  let disposed = false
+  const release = () => {
+    if (disposed) return
+    disposed = true
+    renderer.dispose(true)
+  }
+  let canvas: DrawableCanvas | null = null
   try {
     const blurSize = fitLongEdge(output, BLUR_MAX_EDGE)
     const blur = drawGeometry(
@@ -51,34 +64,47 @@ export const exportRecipe = async (
         )
     })
     if (renderer.isContextLost()) throw new Error('The render was interrupted')
+    blur.width = 0
+    blur.height = 0
+    release()
 
-    const canvas = createCanvas(pixels.width, pixels.height)
+    canvas = createCanvas(pixels.width, pixels.height)
     const context = canvas.getContext('2d') as
       CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
     if (!context) throw new Error('2D canvas is not available')
+    // Wrapped, not copied: `pixels.data` is already RGBA bytes.
     context.putImageData(
       new ImageData(
-        new Uint8ClampedArray(pixels.data),
+        pixels.data as Uint8ClampedArray<ArrayBuffer>,
         pixels.width,
         pixels.height
       ),
       0,
       0
     )
-    if ('convertToBlob' in canvas) {
-      return await canvas.convertToBlob({
-        type: 'image/jpeg',
-        quality: EXPORT_QUALITY
-      })
-    }
-    return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('Encoding failed'))),
-        'image/jpeg',
-        EXPORT_QUALITY
-      )
-    )
+    const blob =
+      'convertToBlob' in canvas
+        ? await canvas.convertToBlob({
+            type: 'image/jpeg',
+            quality: EXPORT_QUALITY
+          })
+        : await new Promise<Blob>((resolve, reject) =>
+            (canvas as HTMLCanvasElement).toBlob(
+              (encoded) =>
+                encoded
+                  ? resolve(encoded)
+                  : reject(new Error('Encoding failed')),
+              'image/jpeg',
+              EXPORT_QUALITY
+            )
+          )
+    if (blob.size === 0) throw new Error('Encoding failed')
+    return blob
   } finally {
-    renderer.dispose(true)
+    release()
+    if (canvas) {
+      canvas.width = 0
+      canvas.height = 0
+    }
   }
 }

@@ -166,6 +166,13 @@ describe('PhotoEditPreview', () => {
       expect(screen.queryByText(/Edited/)).not.toBeInTheDocument()
     })
 
+    it('reads "Edited just now" right after a save', () => {
+      renderPreview({
+        item: item({ details: editedDetails(new Date().toISOString()) })
+      })
+      expect(screen.getByText(/^Edited/)).toHaveTextContent('Edited just now')
+    })
+
     it('shows how long ago and a Revert link, with a short label on a phone', () => {
       renderPreview({ item: item({ details: editedDetails(editedAt) }) })
       expect(screen.getByText(/^Edited/)).toHaveTextContent(
@@ -208,7 +215,12 @@ describe('PhotoEditPreview', () => {
       )
       fireEvent.click(await screen.findByRole('button', { name: 'Revert' }))
 
-      await waitFor(() => expect(onEdited).toHaveBeenCalledWith('12', media))
+      await waitFor(() =>
+        expect(onEdited).toHaveBeenCalledWith('12', media, {
+          updated: [],
+          skipped: []
+        })
+      )
       expect(mockRevertMediaEdit).toHaveBeenCalledWith(
         '12',
         expect.objectContaining({ baseVersion: 3, applyToPosts: undefined })
@@ -234,7 +246,7 @@ describe('PhotoEditPreview', () => {
       ).toBeInTheDocument()
       expect(mockRevertMediaEdit).not.toHaveBeenCalled()
       fireEvent.click(screen.getByRole('radio', { name: 'Gallery only' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Revert' }))
 
       await waitFor(() => expect(onEdited).toHaveBeenCalled())
       expect(mockRevertMediaEdit).toHaveBeenCalledWith(
@@ -259,8 +271,51 @@ describe('PhotoEditPreview', () => {
       )
       fireEvent.click(await screen.findByRole('button', { name: 'Revert' }))
 
-      await waitFor(() => expect(onEdited).toHaveBeenCalledWith('12', media))
+      await waitFor(() =>
+        expect(onEdited).toHaveBeenCalledWith('12', media, {
+          updated: [],
+          skipped: []
+        })
+      )
       expect(mockGetMediaEdit).toHaveBeenCalledTimes(2)
+    })
+
+    it('refetches the edit state after a stale revert', async () => {
+      mockGetMediaEdit.mockResolvedValue(editState(0))
+      mockRevertMediaEdit.mockRejectedValue(
+        new MediaEditError(409, 'stale', { version: 9, saveId: 'other' })
+      )
+      const { onEdited } = renderPreview({
+        item: item({ details: editedDetails(editedAt) })
+      })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Revert to original' })
+      )
+      fireEvent.click(await screen.findByRole('button', { name: 'Revert' }))
+
+      expect(
+        await screen.findByText('This photo changed. Try again.')
+      ).toBeInTheDocument()
+      // Once to start the revert, once to pick up the current version.
+      expect(mockGetMediaEdit).toHaveBeenCalledTimes(2)
+      expect(onEdited).toHaveBeenCalledWith('12', media, {
+        updated: [],
+        skipped: []
+      })
+    })
+
+    it('words the revert prompt as a revert', async () => {
+      mockGetMediaEdit.mockResolvedValue(editState(2))
+      renderPreview({ item: item({ details: editedDetails(editedAt) }) })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Revert to original' })
+      )
+      fireEvent.click(await screen.findByRole('button', { name: 'Revert' }))
+      await screen.findByText('Update the posts too?')
+      expect(
+        screen.queryByRole('button', { name: 'Keep editing' })
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
     })
 
     it('shows an error when the revert fails', async () => {
@@ -288,7 +343,14 @@ describe('PhotoEditPreview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit photo' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Finish' }))
 
-    expect(onEdited).toHaveBeenCalledWith('12', { id: '12' })
+    expect(onEdited).toHaveBeenCalledWith(
+      '12',
+      { id: '12' },
+      {
+        updated: ['a'],
+        skipped: ['b', 'c']
+      }
+    )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(
       screen.getByText("Saved. 2 posts couldn't be updated.")

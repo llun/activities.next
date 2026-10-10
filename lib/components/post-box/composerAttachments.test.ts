@@ -13,7 +13,8 @@ import {
   getPreservedStatusAttachments,
   getStatusAttachmentsFromUpdateResponse,
   getTimestamp,
-  isEditableStatusMediaAttachment
+  isEditableStatusMediaAttachment,
+  shouldTakeEditedMedia
 } from './composerAttachments'
 
 describe('composerAttachments', () => {
@@ -353,6 +354,27 @@ describe('composerAttachments', () => {
       })
 
       expect(result).toHaveLength(1)
+    })
+  })
+
+  describe('shouldTakeEditedMedia', () => {
+    const status = { id: 'status-1', attachments: [mediaAttachment1] }
+
+    it('takes the new file for a new post', () => {
+      expect(shouldTakeEditedMedia(undefined, 'media-1', [])).toBe(true)
+    })
+
+    it('keeps the old file when "Gallery only" left the edited post alone', () => {
+      expect(shouldTakeEditedMedia(status, 'media-1', [])).toBe(false)
+      expect(shouldTakeEditedMedia(status, 'media-1', ['other'])).toBe(false)
+    })
+
+    it('takes the new file when the edited post was updated', () => {
+      expect(shouldTakeEditedMedia(status, 'media-1', ['status-1'])).toBe(true)
+    })
+
+    it('takes the new file for a photo added during the edit', () => {
+      expect(shouldTakeEditedMedia(status, 'media-9', [])).toBe(true)
     })
   })
 })

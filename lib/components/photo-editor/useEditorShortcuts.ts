@@ -3,6 +3,11 @@
 import { useEffect, useRef } from 'react'
 
 interface Handlers {
+  /**
+   * False while loading, saving or behind a prompt: the shortcuts do nothing,
+   * but Ctrl/Cmd+S is still kept from opening the browser's "Save page as".
+   */
+  active: boolean
   undo: () => void
   redo: () => void
   save: () => void
@@ -20,7 +25,7 @@ const isTextInput = (target: EventTarget | null) => {
 }
 
 /**
- * Editor shortcuts while `enabled`: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and
+ * Editor shortcuts while `enabled` (and `handlers.active`): Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and
  * Ctrl+Y redo, hold `\` to compare, Ctrl/Cmd+S save. Escape is handled by the
  * dialog (`onEscapeKeyDown`) so Radix does not close it first. Ignored while
  * focus is in a text input.
@@ -39,16 +44,19 @@ export const useEditorShortcuts = (enabled: boolean, handlers: Handlers) => {
       if (isTextInput(event.target)) return
       const modifier = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
-      if (modifier && key === 'z') {
+      const { active } = latest.current
+      if (modifier && key === 's') {
+        event.preventDefault()
+        if (active) latest.current.save()
+      } else if (!active) {
+        return
+      } else if (modifier && key === 'z') {
         event.preventDefault()
         if (event.shiftKey) latest.current.redo()
         else latest.current.undo()
       } else if (event.ctrlKey && !event.metaKey && key === 'y') {
         event.preventDefault()
         latest.current.redo()
-      } else if (modifier && key === 's') {
-        event.preventDefault()
-        latest.current.save()
       } else if (event.key === '\\' && !modifier && !comparing) {
         comparing = true
         latest.current.setComparing(true)

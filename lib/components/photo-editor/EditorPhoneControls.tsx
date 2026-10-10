@@ -3,7 +3,6 @@
 import { Crop as CropIcon, SlidersHorizontal, WandSparkles } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useId } from 'react'
 
-import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import { Slider } from '@/lib/components/ui/slider'
 import { TabsContent, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
@@ -11,6 +10,7 @@ import type { AdjustmentKey } from '@/lib/services/medias/edit/recipe'
 import { cn } from '@/lib/utils'
 
 import { CropPanel } from './CropPanel'
+import { PillGroup } from './PillGroup'
 import {
   CONTROLS_BY_KEY,
   type ControlGroup,
@@ -72,23 +72,23 @@ export const EditorPhoneControls = ({
       {alerts ? <div className="p-3 pb-0">{alerts}</div> : null}
       <TabsContent value="adjust" className="space-y-3 pt-3">
         <div className="flex items-center gap-2 px-3">
-          <SegmentedControl
+          <PillGroup
             aria-label="Adjustment category"
-            size="sm"
-            className="min-w-0 flex-1"
+            compact
+            className="min-w-0 flex-1 flex-nowrap"
             items={PHONE_CATEGORIES.map((group) => ({
               value: group,
-              label: GROUP_LABELS[group],
-              disabled
+              label: GROUP_LABELS[group]
             }))}
             value={category}
+            disabled={disabled}
             onValueChange={(next) => onCategoryChange(next as ControlGroup)}
           />
           <Button
             type="button"
             variant="pill"
             size="sm"
-            className="max-md:min-h-10"
+            className="shrink-0 px-2.5 text-[13px] max-md:min-h-10"
             disabled={disabled}
             onClick={controls.onAuto}
           >
