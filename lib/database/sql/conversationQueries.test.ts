@@ -982,7 +982,7 @@ describe('getDirectConversationStatuses', () => {
   it('lists tied statuses by status id, newest first, whatever order they were stored in', async () => {
     const p = nextPrefix()
     const a = actorIdOf(`${p}-a`)
-    // 40 statuses share one timestamp and are stored from the highest id down,
+    // 40 statuses share one timestamp and are stored from the lowest id up,
     // the reverse of the order they are listed in. A page of 35 scans exactly
     // 35 of them.
     const ids = Array.from(
@@ -992,7 +992,7 @@ describe('getDirectConversationStatuses', () => {
     await seedConversation({
       id: `${p}-c1`,
       participants: [a],
-      statuses: [...ids].reverse().map((id): [string, number] => [id, 4000])
+      statuses: ids.map((id): [string, number] => [id, 4000])
     })
     const membership = await seedMembership({
       actorId: a,
