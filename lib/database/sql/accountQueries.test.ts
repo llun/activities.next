@@ -2,6 +2,8 @@ import crypto from 'crypto'
 import { type Updateable, sql } from 'kysely'
 
 import type { Accounts } from '@/lib/database/kysely/db'
+import { findActorRowByUsername } from '@/lib/database/kysely/usernameMatch'
+import { CounterKey } from '@/lib/database/sql/utils/counter'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
@@ -204,6 +206,38 @@ describe('isAccountExists and isUsernameExists', () => {
         domain: DOMAIN
       })
     ).toBe(false)
+  })
+})
+
+describe('findActorRowByUsername', () => {
+  it('prefers the exact spelling, then the oldest folded match, on its own domain only', async () => {
+    const domain = `fold-${crypto.randomUUID().slice(0, 8)}.test`
+    const addActor = (username: string, actorDomain: string, at: number) =>
+      db()
+        .insertInto('actors')
+        .values({
+          id: `https://${actorDomain}/users/${username}`,
+          username,
+          domain: actorDomain,
+          publicKey: 'public',
+          settings: '{}',
+          createdAt: new Date(at),
+          updatedAt: new Date(at)
+        })
+        .execute()
+    await addActor('alice', domain, 3_000)
+    await addActor('Alice', domain, 2_000)
+    await addActor('ALICE', domain, 1_000)
+    await addActor('Фёдор', domain, 1_000)
+    await addActor('bob', `other-${domain}`, 1_000)
+    const find = async (username: string) =>
+      (await findActorRowByUsername(db(), { username, domain }))?.username
+
+    expect(await find('Alice')).toBe('Alice')
+    expect(await find('aLiCe')).toBe('ALICE')
+    // SQLite's lower() folds ASCII only, so only the exact arm finds this.
+    expect(await find('Фёдор')).toBe('Фёдор')
+    expect(await find('bob')).toBeUndefined()
   })
 })
 
@@ -460,6 +494,8 @@ describe('getActorsForAccount', () => {
       followingCount: 0,
       statusCount: 2,
       lastStatusAt: 2_000_000,
+      // A new actor's settings carry no flag: it reads as locked.
+      manuallyApprovesFollowers: true,
       account: { id: target.accountId, email: target.email }
     })
     expect(byId.get(secondActorId)).toMatchObject({
@@ -589,6 +625,21 @@ describe('email change', () => {
     expect((await accountRow(neighbour.accountId)).email).toBe(neighbour.email)
   })
 
+  it('issues a code that expires a day after the request', async () => {
+    const target = await newAccount('email-ttl')
+    const before = Date.now()
+    await database.requestEmailChange({
+      accountId: target.accountId,
+      newEmail: `next-${target.email}`,
+      emailChangeCode: `email-ttl-${target.accountId}`
+    })
+    const after = Date.now()
+    const day = 24 * 60 * 60 * 1000
+    const { emailChangeCodeExpiresAt } = await accountRow(target.accountId)
+    expect(emailChangeCodeExpiresAt).toBeGreaterThanOrEqual(before + day)
+    expect(emailChangeCodeExpiresAt).toBeLessThanOrEqual(after + day)
+  })
+
   it('lets an account confirm a change to its own current address', async () => {
     const target = await newAccount('email-own')
     const code = `email-own-${target.accountId}`
@@ -672,6 +723,19 @@ describe('password reset', () => {
         newPasswordHash: 'again'
       })
     ).toBeNull()
+  })
+
+  it('issues a code that expires a day after the request', async () => {
+    const target = await newAccount('reset-ttl')
+    const before = Date.now()
+    expect(await issue(target.email, `reset-ttl-${target.accountId}`)).toBe(
+      true
+    )
+    const after = Date.now()
+    const day = 24 * 60 * 60 * 1000
+    const { passwordResetCodeExpiresAt } = await accountRow(target.accountId)
+    expect(passwordResetCodeExpiresAt).toBeGreaterThanOrEqual(before + day)
+    expect(passwordResetCodeExpiresAt).toBeLessThanOrEqual(after + day)
   })
 
   it('refuses an expired code, and a code of another account', async () => {
@@ -878,6 +942,47 @@ const dumpTables = async () => {
   }
   return dump
 }
+
+describe('service counters', () => {
+  const counterTotals = async () => {
+    const rows = await db()
+      .selectFrom('counters')
+      .select(['id', 'value'])
+      .execute()
+    const sum = (match: (id: string) => boolean) =>
+      rows
+        .filter((row) => match(row.id))
+        .reduce((total, row) => total + Number(row.value), 0)
+    const bucket = (type: string) => (id: string) =>
+      id.startsWith(CounterKey.bucketKey(type, ''))
+    return {
+      users: sum((id) => id === CounterKey.nodeinfoTotalUsers()),
+      accounts: sum((id) => id === CounterKey.serviceTotalAccounts()),
+      actors: sum((id) => id === CounterKey.serviceTotalActors()),
+      accountBuckets: sum(bucket('accounts')),
+      actorBuckets: sum(bucket('actors'))
+    }
+  }
+
+  it('createAccount and createActorForAccount count what they create', async () => {
+    const before = await counterTotals()
+    const owner = await newAccount('counted')
+    await database.createActorForAccount({
+      accountId: owner.accountId,
+      username: `counted-${crypto.randomUUID().slice(0, 8)}`,
+      domain: DOMAIN,
+      privateKey: 'private',
+      publicKey: 'public'
+    })
+    expect(await counterTotals()).toEqual({
+      users: before.users + 1,
+      accounts: before.accounts + 1,
+      actors: before.actors + 2,
+      accountBuckets: before.accountBuckets + 1,
+      actorBuckets: before.actorBuckets + 2
+    })
+  })
+})
 
 describe('transactions', () => {
   it('createAccount keeps nothing when its search document write fails', async () => {

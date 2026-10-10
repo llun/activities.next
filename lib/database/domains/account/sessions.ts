@@ -31,7 +31,7 @@ export const SESSION_ID_CHUNK_SIZE = 500
  * revoked on its own through `revokeAccountConnectedApp`. Run it in the same
  * transaction as the session delete.
  */
-export const detachOAuthTokensFromSessions = async (
+const detachOAuthTokensFromSessions = async (
   db: Db,
   sessionIds: string[]
 ): Promise<void> => {

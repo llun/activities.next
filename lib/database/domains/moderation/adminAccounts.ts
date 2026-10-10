@@ -1,6 +1,6 @@
 // The Admin::Account listing and lookups: actor rows paired with their
 // account rows, filtered and keyset-paged, plus the session IPs shown with them.
-import { type ExpressionBuilder, type SqlBool, sql } from 'kysely'
+import { type SqlBool, sql } from 'kysely'
 
 import { getConfig } from '@/lib/config'
 import type {
@@ -11,9 +11,9 @@ import type {
   GetAdminAccountsParams,
   GetSessionIpsForAccountsParams
 } from '@/lib/database/domains/moderation/types'
-import type { DB, Db } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import type { EpochMs } from '@/lib/database/kysely/db'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import { pastKeyset } from '@/lib/database/kysely/keyset'
 import type { SQLAccount, SQLActor } from '@/lib/types/database/rows'
 
 const getConfiguredHost = (): string => {
@@ -54,24 +54,6 @@ const hydrateAdminAccountRecords = async (
     actor,
     account: actor.accountId ? (accountById.get(actor.accountId) ?? null) : null
   }))
-}
-
-// Actors on the far side of the cursor actor in (createdAt, id) order. The
-// columns are qualified because the listing joins `accounts`.
-const pastAdminCursor = (
-  eb: ExpressionBuilder<DB, 'actors' | 'accounts'>,
-  cursorCreatedAt: EpochMs,
-  cursorId: string,
-  operator: '<' | '>'
-) => {
-  const createdAt = timestampValue(cursorCreatedAt)
-  return eb.or([
-    eb('actors.createdAt', operator, createdAt),
-    eb.and([
-      eb('actors.createdAt', '=', createdAt),
-      eb('actors.id', operator, cursorId)
-    ])
-  ])
 }
 
 export const getAdminAccounts = async (
@@ -182,11 +164,20 @@ export const getAdminAccounts = async (
 
   // Keyset pagination on (createdAt desc, id). max_id/since_id page the newest
   // slice on either side; min_id returns the adjacent (oldest-newer) page
-  // ascending then reversed to newest-first.
+  // ascending then reversed to newest-first. The cursor columns are qualified
+  // because the listing joins `accounts`, which has its own createdAt.
   if (maxId) {
     const cursor = await cursorCreatedAt(maxId)
     if (cursor != null) {
-      query = query.where((eb) => pastAdminCursor(eb, cursor, maxId, '<'))
+      query = query.where((eb) =>
+        pastKeyset(
+          eb,
+          { createdAt: cursor, tieBreaker: maxId },
+          '<',
+          'actors.id',
+          'actors.createdAt'
+        )
+      )
     }
     const rows = await query
       .orderBy('actors.createdAt', 'desc')
@@ -197,7 +188,15 @@ export const getAdminAccounts = async (
   if (minId) {
     const cursor = await cursorCreatedAt(minId)
     if (cursor != null) {
-      query = query.where((eb) => pastAdminCursor(eb, cursor, minId, '>'))
+      query = query.where((eb) =>
+        pastKeyset(
+          eb,
+          { createdAt: cursor, tieBreaker: minId },
+          '>',
+          'actors.id',
+          'actors.createdAt'
+        )
+      )
     }
     const rows = await query
       .orderBy('actors.createdAt', 'asc')
@@ -208,7 +207,15 @@ export const getAdminAccounts = async (
   if (sinceId) {
     const cursor = await cursorCreatedAt(sinceId)
     if (cursor != null) {
-      query = query.where((eb) => pastAdminCursor(eb, cursor, sinceId, '>'))
+      query = query.where((eb) =>
+        pastKeyset(
+          eb,
+          { createdAt: cursor, tieBreaker: sinceId },
+          '>',
+          'actors.id',
+          'actors.createdAt'
+        )
+      )
     }
     const rows = await query
       .orderBy('actors.createdAt', 'desc')
