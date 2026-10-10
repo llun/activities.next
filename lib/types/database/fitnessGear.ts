@@ -2,35 +2,6 @@ import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
 
 export type { FitnessGearKind }
 
-// SQL row type for the fitness_gears table. Timestamps and floats are loose
-// because the two backends hand them back differently: SQLite stores timestamps
-// as epoch-millisecond integers and can return numerics as strings, PostgreSQL
-// returns Date objects and (for some paths) numeric strings.
-export interface SQLFitnessGear {
-  id: string
-  actorId: string
-  kind: FitnessGearKind
-  name: string
-  brand?: string | null
-  model?: string | null
-  bikeType?: string | null
-  weightKilograms?: number | string | null
-  // JSON-encoded array of canonical sport keys.
-  defaultSports?: string | null
-  alertDistanceMeters?: number | string | null
-  lastAlertedDistanceMeters?: number | string | null
-  notes?: string | null
-  retiredAt?: number | Date | string | null
-  // Devices only: the immutable identity the recorded file carried, which
-  // `resolveDeviceGear` matches an upload against. Unique per actor.
-  deviceKey?: string | null
-  productUrl?: string | null
-
-  createdAt: number | Date
-  updatedAt: number | Date
-  deletedAt?: number | Date | string | null
-}
-
 // Parsed version for application use.
 export interface FitnessGear {
   id: string
@@ -46,27 +17,14 @@ export interface FitnessGear {
   lastAlertedDistanceMeters?: number
   notes?: string
   retiredAt?: number
+  // Devices only: the immutable identity the recorded file carried, which
+  // `resolveDeviceGear` matches an upload against. Unique per actor.
   deviceKey?: string
   productUrl?: string
 
   createdAt: number
   updatedAt: number
   deletedAt?: number
-}
-
-export interface SQLFitnessGearComponent {
-  id: string
-  gearId: string
-  componentType: string
-  brand?: string | null
-  model?: string | null
-  serviceDistanceMeters?: number | string | null
-  lastAlertedDistanceMeters?: number | string | null
-
-  createdAt: number | Date
-  updatedAt: number | Date
-  deletedAt?: number | Date | string | null
-  productUrl?: string | null
 }
 
 /**
@@ -82,19 +40,6 @@ export interface SQLFitnessGearComponent {
  * is what stops two concurrent refits from both opening a period — two open
  * periods would make the rollup count every later activity twice.
  */
-export interface SQLFitnessGearComponentPeriod {
-  id: string
-  componentId: string
-  installSequence: number | string
-  // null = installed since the gear's beginning.
-  addedAt?: number | Date | string | null
-  // null = still installed.
-  removedAt?: number | Date | string | null
-
-  createdAt: number | Date
-  updatedAt: number | Date
-}
-
 export interface FitnessGearComponentPeriod {
   id: string
   componentId: string

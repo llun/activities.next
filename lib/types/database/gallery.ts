@@ -203,7 +203,7 @@ export const EMPTY_MEDIA_DETAILS: MediaDetailsRecord = {
 }
 
 // SQL row type for `gallery_gears`. Timestamps are loose because the two
-// backends hand them back differently (see SQLFitnessGear).
+// backends hand them back differently through Knex.
 export interface SQLGalleryGear {
   id: string
   actorId: string

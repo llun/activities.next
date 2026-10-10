@@ -128,8 +128,8 @@ export interface GalleryDatabase {
   // `(actorId, deviceKey)` unique index covers deleted rows, while
   // `findGalleryGearByDeviceKey` skips them. A delete must therefore set
   // `deviceKey = null` in the same update as `deletedAt` (mirroring
-  // `fitnessGear.ts`), or the next upload from that camera can neither find
-  // nor re-create its gear.
+  // `deleteFitnessGear` in `lib/database/domains/fitnessGear/queries.ts`), or
+  // the next upload from that camera can neither find nor re-create its gear.
   // Non-deleted gear of the actor, oldest first.
   getGalleryGearsByActor(params: { actorId: string }): Promise<GalleryGear[]>
   getGalleryGear(params: GetGalleryGearParams): Promise<GalleryGear | null>

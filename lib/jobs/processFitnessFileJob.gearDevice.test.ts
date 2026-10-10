@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { PROCESS_FITNESS_FILE_JOB_NAME } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { seedDatabase } from '@/lib/stub/database'
@@ -52,7 +52,8 @@ vi.mock('@/lib/services/altText/openai', () => ({
 }))
 
 describe('processFitnessFileJob', () => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const { database } = testDb
   let actor: Actor
 
   const { createStatusWithFitnessFile } = createProcessFileHelpers(
@@ -61,6 +62,7 @@ describe('processFitnessFileJob', () => {
   )
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
     actor = (await database.getActorFromUsername({

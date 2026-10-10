@@ -26,6 +26,8 @@ import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import type { FeaturedTagDatabase } from '@/lib/database/domains/featuredTag/types'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
 import type { FilterDatabase } from '@/lib/database/domains/filter/types'
+import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
+import type { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
 import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
@@ -100,7 +102,6 @@ import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
-import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
@@ -139,7 +140,10 @@ export const getSQLDatabase = (database: Knex): Database => {
   )
   const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)
   const fitnessFileRouteDatabase = FitnessFileRouteSQLDatabaseMixin(database)
-  const fitnessGearDatabase = FitnessGearSQLDatabaseMixin(database)
+  const fitnessGearDatabase: FitnessGearDatabase = bindDb(
+    kysely,
+    fitnessGearQueries
+  )
   const fitnessRouteHeatmapDatabase =
     FitnessRouteHeatmapSQLDatabaseMixin(database)
   const fitnessRouteHeatmapTileDatabase =

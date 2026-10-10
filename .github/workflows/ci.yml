@@ -191,10 +191,13 @@ jobs:
   # listing), the direct conversation domain (conversation listings and their
   # cursors, read and hidden state, syncing statuses into conversations with
   # their participants and blocks, the read-marker row lock, the legacy
-  # conversation backfill), the Kysely status visibility filter checked
-  # against its Knex original, and the Knex-backed Kysely driver (result
-  # normalisation, the mixed-transaction guard, counters, bucket counters,
-  # chunked IN lists, savepoints).
+  # conversation backfill), the fitness gear domain (bikes, shoes and recording
+  # devices, their components and install periods, default-sport auto-assign,
+  # distance, device and component rollups, service reminders and the gear a
+  # processed file is given), the Kysely status visibility and
+  # countable-activity filters checked against their Knex originals, and the
+  # Knex-backed Kysely driver (result normalisation, the mixed-transaction
+  # guard, counters, bucket counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -258,6 +261,9 @@ jobs:
             lib/database/sql/fitnessGearComponents.test.ts \
             lib/database/sql/fitnessGearDevice.test.ts \
             lib/database/sql/fitnessGearComponentPeriods.test.ts \
+            lib/database/sql/fitnessGearQueries.test.ts \
+            lib/services/fitness-gears/serviceReminders.test.ts \
+            lib/jobs/processFitnessFileJob.gearDevice.test.ts \
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
@@ -320,6 +326,7 @@ jobs:
             lib/database/sql/trends.test.ts \
             lib/database/sql/trendsQueries.test.ts \
             lib/database/kysely/visibility/visibilityEquivalence.test.ts \
+            lib/database/kysely/countableActivity.test.ts \
             lib/database/sql/admin.test.ts \
             lib/database/sql/adminDomainRules.test.ts \
             lib/database/sql/accountQueries.test.ts \
