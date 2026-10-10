@@ -457,6 +457,7 @@ describe('ActorDatabase deletion', () => {
         const actorHashtag = `actor-delete-${suffix}`
 
         let accountId: string | undefined
+        let editedMediaId = ''
         let before: Awaited<ReturnType<typeof readCounters>>
         let after: Awaited<ReturnType<typeof readCounters>>
 
@@ -570,7 +571,7 @@ describe('ActorDatabase deletion', () => {
             sharedInbox: `${peerActorId}/inbox`,
             status: 'Accepted'
           })
-          await database.createMedia({
+          const media = await database.createMedia({
             actorId,
             original: {
               path: `/tmp/delete-data-${suffix}.jpg`,
@@ -579,6 +580,7 @@ describe('ActorDatabase deletion', () => {
               metaData: { width: 100, height: 100 }
             }
           })
+          editedMediaId = media!.id
           await expect(
             database.recordPollVotes({
               statusId: pollStatusId,
@@ -595,6 +597,26 @@ describe('ActorDatabase deletion', () => {
           const actor = await database.getActorFromId({ id: actorId })
           accountId = actor?.account?.id
           expect(accountId).toBeDefined()
+          // A photo edit moves the 1700-byte upload into `media_edit_files`
+          // and makes a 300-byte render the live file.
+          await expect(
+            database.applyMediaEdit({
+              mediaId: editedMediaId,
+              accountId: accountId!,
+              baseVersion: 0,
+              saveId: 'delete-data-edit',
+              recipe: '{"v":1}',
+              render: {
+                path: `/tmp/delete-data-${suffix}-edit.webp`,
+                bytes: 300,
+                mimeType: 'image/webp',
+                width: 100,
+                height: 100,
+                blurhash: null,
+                focus: null
+              }
+            })
+          ).resolves.toMatchObject({ status: 'ok' })
           await expect(
             database.hasActorVoted({ statusId: pollStatusId, actorId })
           ).resolves.toBeTrue()
@@ -643,7 +665,14 @@ describe('ActorDatabase deletion', () => {
 
         it('decrements the hashtag counter and the account media usage', () => {
           expect(after.hashtagCount).toBe(before.hashtagCount - 1)
-          expect(after.mediaUsage).toBe(before.mediaUsage - 1700)
+          // The upload kept by the edit (1700) and the live render (300).
+          expect(after.mediaUsage).toBe(before.mediaUsage - 2000)
+        })
+
+        it('removes the photo edit rows of the actor media', async () => {
+          await expect(
+            database.listMediaEditFiles({ mediaIds: [editedMediaId] })
+          ).resolves.toEqual([])
         })
 
         it('decrements the nodeinfo user and local post counters', () => {

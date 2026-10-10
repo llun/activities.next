@@ -8,27 +8,6 @@ export interface StravaArchivePendingMediaActivity {
   mediaPaths: string[]
 }
 
-export interface SQLStravaArchiveImport {
-  id: string
-  actorId: string
-  archiveId: string
-  archiveFitnessFileId: string
-  batchId: string
-  visibility: 'public' | 'unlisted' | 'private' | 'direct'
-  status: StravaArchiveImportStatus
-  nextActivityIndex: number
-  pendingMediaActivities?: string | null
-  mediaAttachmentRetry: number
-  totalActivitiesCount?: number | null
-  completedActivitiesCount: number
-  failedActivitiesCount: number
-  firstFailureMessage?: string | null
-  lastError?: string | null
-  resolvedAt?: number | Date | null
-  createdAt: number | Date
-  updatedAt: number | Date
-}
-
 export interface StravaArchiveImport {
   id: string
   actorId: string

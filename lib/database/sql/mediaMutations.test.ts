@@ -22,6 +22,55 @@ describe('MediaDatabase', () => {
       await database.destroy()
     })
 
+    // A photo edited twice: the uploaded file sits in the `original` slot
+    // (with the presigned key it came through) and the first render is kept
+    // as a superseded slot, beside the live second render.
+    const createEditedMedia = async (name: string) => {
+      const actor = await database.getActorFromId({ id: actors.empty.id })
+      const accountId = actor!.account!.id
+      const media = await database.createMedia({
+        actorId: actors.empty.id,
+        original: {
+          path: `/test/${name}.webp`,
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: {
+            width: 100,
+            height: 100,
+            upload: {
+              state: 'verified',
+              clientPath: `/test/${name}-client.jpg`
+            }
+          }
+        }
+      })
+      const render = (suffix: string, bytes: number) => ({
+        path: `/test/${name}-${suffix}.webp`,
+        bytes,
+        mimeType: 'image/webp',
+        width: 80,
+        height: 80,
+        blurhash: null,
+        focus: null
+      })
+      for (const [index, [suffix, bytes]] of (
+        [
+          ['a', 300],
+          ['b', 400]
+        ] as const
+      ).entries()) {
+        await database.applyMediaEdit({
+          mediaId: media!.id,
+          accountId,
+          baseVersion: index,
+          saveId: suffix,
+          recipe: '{"v":1}',
+          render: render(suffix, bytes)
+        })
+      }
+      return { media: media!, accountId }
+    }
+
     describe('deleteMedia', () => {
       it('deletes media successfully', async () => {
         const media = await database.createMedia({
@@ -95,6 +144,123 @@ describe('MediaDatabase', () => {
 
       it('returns false for an id that is not a positive integer', async () => {
         expect(await database.deleteMedia({ mediaId: 'abc' })).toBe(false)
+      })
+
+      it('removes the photo edit files and frees all their bytes', async () => {
+        const { media, accountId } = await createEditedMedia('del-edited')
+        const usageBefore = await database.getStorageUsageForAccount({
+          accountId
+        })
+
+        expect(await database.deleteMedia({ mediaId: media.id })).toBe(true)
+
+        // live render (400) + uploaded original (1000) + superseded (300)
+        expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+          usageBefore - 1700
+        )
+        expect(
+          await database.listMediaEditFiles({ mediaIds: [media.id] })
+        ).toEqual([])
+      })
+    })
+
+    describe('deleteMediaWithFiles', () => {
+      it('returns every stored path the row kept, photo edit files included', async () => {
+        const { media, accountId } = await createEditedMedia('del-files')
+        const thumbnail = '/test/del-files-thumbnail.webp'
+        await database.updateMedia({
+          mediaId: media.id,
+          accountId,
+          thumbnail: {
+            path: thumbnail,
+            bytes: 50,
+            mimeType: 'image/webp',
+            metaData: { width: 10, height: 10 }
+          }
+        })
+
+        const result = await database.deleteMediaWithFiles({
+          mediaId: media.id
+        })
+
+        expect(result.status).toBe('deleted')
+        expect(
+          result.status === 'deleted' ? [...result.files].sort() : []
+        ).toEqual(
+          [
+            '/test/del-files-b.webp',
+            thumbnail,
+            '/test/del-files.webp',
+            '/test/del-files-client.jpg',
+            '/test/del-files-a.webp'
+          ].sort()
+        )
+        expect(
+          await database.listMediaEditFiles({ mediaIds: [media.id] })
+        ).toEqual([])
+      })
+
+      it('answers not-found for a missing or malformed id', async () => {
+        expect(
+          await database.deleteMediaWithFiles({ mediaId: '999999' })
+        ).toEqual({ status: 'not-found' })
+        expect(await database.deleteMediaWithFiles({ mediaId: 'abc' })).toEqual(
+          { status: 'not-found' }
+        )
+      })
+    })
+
+    describe('replaceRemoteAttachmentsForStatus', () => {
+      const statusId = 'https://remote.test/statuses/replace-attachments'
+      const remote = (name: string, createdAt: number) => ({
+        actorId: 'https://remote.test/users/someone',
+        statusId,
+        mediaType: 'image/jpeg',
+        url: `https://remote.test/media/${name}.jpg`,
+        name,
+        createdAt
+      })
+
+      it('swaps the remote rows and keeps a fitness file and a local media row', async () => {
+        await database.createAttachment(remote('old', 1000))
+        await database.createAttachment({
+          ...remote('ride', 1001),
+          mediaType: 'application/gpx+xml',
+          url: 'https://remote.test/media/ride.gpx',
+          name: 'ride.gpx'
+        })
+        await database.createAttachment({
+          ...remote('local', 1002),
+          mediaId: '424242'
+        })
+
+        await database.replaceRemoteAttachmentsForStatus({
+          statusId,
+          attachments: [remote('new', 1000)]
+        })
+
+        const urls = (await database.getAttachments({ statusId })).map(
+          (item) => item.url
+        )
+        expect(urls).toEqual([
+          'https://remote.test/media/new.jpg',
+          'https://remote.test/media/ride.gpx',
+          'https://remote.test/media/local.jpg'
+        ])
+      })
+
+      // A failure part-way must not leave the post without its media.
+      it('keeps the stored rows when storing the new ones fails', async () => {
+        const before = await database.getAttachments({ statusId })
+
+        await expect(
+          database.replaceRemoteAttachmentsForStatus({
+            statusId,
+            attachments: [remote('first', 1000), remote('broken', Number.NaN)]
+          })
+        ).rejects.toThrow()
+
+        expect(await database.getAttachments({ statusId })).toEqual(before)
       })
     })
 
@@ -613,6 +779,35 @@ describe('MediaDatabase', () => {
           accountId
         })
         expect(stillThere).toBeDefined()
+      })
+
+      it('returns the photo edit files and frees all their bytes', async () => {
+        const { media, accountId } = await createEditedMedia('del-acct-edited')
+        const usageBefore = await database.getStorageUsageForAccount({
+          accountId
+        })
+
+        const result = await database.deleteMediaForAccount({
+          mediaId: media.id,
+          accountId
+        })
+
+        expect(result.status).toBe('deleted')
+        if (result.status !== 'deleted') return
+        expect([...result.files].sort()).toEqual(
+          [
+            '/test/del-acct-edited-b.webp',
+            '/test/del-acct-edited.webp',
+            '/test/del-acct-edited-client.jpg',
+            '/test/del-acct-edited-a.webp'
+          ].sort()
+        )
+        expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+          usageBefore - 1700
+        )
+        expect(
+          await database.listMediaEditFiles({ mediaIds: [media.id] })
+        ).toEqual([])
       })
     })
 

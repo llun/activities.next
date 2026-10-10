@@ -750,6 +750,18 @@ export interface Markers {
   version: WithDefault<number>
 }
 
+export interface MediaEditFiles {
+  actorId: string
+  bytes: number
+  createdAt: WithDefault<Timestamp>
+  id: string
+  mediaId: number
+  metaData: string
+  mimeType: string
+  path: string
+  slot: string
+}
+
 export interface Medias {
   accountId: Nullable<string>
   actorId: Nullable<string>
@@ -757,6 +769,10 @@ export interface Medias {
   cameraGearId: Nullable<string>
   createdAt: WithDefault<Nullable<Timestamp>>
   description: Nullable<string>
+  editRecipe: Nullable<string>
+  editSaveId: Nullable<string>
+  editVersion: WithDefault<number>
+  editedAt: Nullable<Timestamp>
   exposure: Nullable<string>
   focusX: Nullable<number>
   focusY: Nullable<number>
@@ -1387,6 +1403,7 @@ export interface DB {
   list_accounts: ListAccounts
   lists: Lists
   markers: Markers
+  media_edit_files: MediaEditFiles
   medias: Medias
   moderation_actions: ModerationActions
   mutes: Mutes

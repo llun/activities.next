@@ -42,7 +42,7 @@ const mockCurrentActor: {
 
 const mockDatabase = {
   getMediaByIdForAccount: vi.fn(),
-  deleteMedia: vi.fn()
+  deleteMediaWithFiles: vi.fn()
 }
 
 vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
@@ -112,7 +112,10 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     vi.clearAllMocks()
     mockCurrentActor.account = { id: 'account-1' }
     mockDatabase.getMediaByIdForAccount.mockResolvedValue(sampleMedia)
-    mockDatabase.deleteMedia.mockResolvedValue(true)
+    mockDatabase.deleteMediaWithFiles.mockResolvedValue({
+      status: 'deleted',
+      files: ['uploads/original.jpg', 'uploads/thumbnail.jpg']
+    })
     mockDeleteMediaFile.mockResolvedValue(true)
   })
 
@@ -168,8 +171,10 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     expect(mockDeleteMediaFile).not.toHaveBeenCalled()
   })
 
-  it('returns 500 when database deletion fails', async () => {
-    mockDatabase.deleteMedia.mockResolvedValue(false)
+  it('returns 500 when database deletion fails, deleting no file', async () => {
+    mockDatabase.deleteMediaWithFiles.mockResolvedValue({
+      status: 'not-found'
+    })
 
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/media/media-123',
@@ -182,12 +187,13 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     expect(res.status).toBe(500)
     const json = await res.json()
     expect(json).toEqual(ERROR_500)
-    expect(mockDatabase.deleteMedia).toHaveBeenCalledWith({
+    expect(mockDatabase.deleteMediaWithFiles).toHaveBeenCalledWith({
       mediaId: 'media-123'
     })
+    expect(mockDeleteMediaFile).not.toHaveBeenCalled()
   })
 
-  it('deletes storage files (original and thumbnail) and returns 200 on success', async () => {
+  it('deletes the storage files and returns 200 on success', async () => {
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/media/media-123',
       { method: 'DELETE' }
@@ -208,7 +214,7 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
       mockDatabase,
       'uploads/thumbnail.jpg'
     )
-    expect(mockDatabase.deleteMedia).toHaveBeenCalledWith({
+    expect(mockDatabase.deleteMediaWithFiles).toHaveBeenCalledWith({
       mediaId: 'media-123'
     })
     expect(mockSpan.setAttribute).toHaveBeenCalledWith('mediaId', 'media-123')
@@ -218,13 +224,17 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     )
   })
 
-  it('also deletes the presigned client key left behind by the metadata strip', async () => {
-    mockDatabase.getMediaByIdForAccount.mockResolvedValue({
-      ...sampleMedia,
-      original: {
-        ...sampleMedia.original,
-        metaData: { upload: { clientPath: 'uploads/client.jpg' } }
-      }
+  // The paths are the ones the delete read under the media row's lock, so a
+  // photo edit saved between the ownership check and the delete is included.
+  it('deletes exactly the files the delete reports, after the row is gone', async () => {
+    mockDatabase.deleteMediaWithFiles.mockResolvedValue({
+      status: 'deleted',
+      files: [
+        'uploads/render.webp',
+        'uploads/client.jpg',
+        'uploads/edit-original.jpg',
+        'uploads/superseded.webp'
+      ]
     })
 
     const req = new NextRequest(
@@ -236,42 +246,16 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
-      mockDatabase,
-      'uploads/original.jpg'
-    )
-    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
-      mockDatabase,
-      'uploads/client.jpg'
-    )
-  })
-
-  it('handles media without thumbnail', async () => {
-    mockDatabase.getMediaByIdForAccount.mockResolvedValue({
-      id: 'media-no-thumb',
-      actorId: 'https://llun.test/users/llun',
-      original: {
-        path: 'uploads/no-thumb.png',
-        bytes: 2048,
-        mimeType: 'image/png'
-      },
-      thumbnail: null
-    })
-
-    const req = new NextRequest(
-      'https://llun.test/api/v1/accounts/media/media-no-thumb',
-      { method: 'DELETE' }
-    )
-    const res = await DELETE(req, {
-      params: Promise.resolve({ mediaId: 'media-no-thumb' })
-    })
-
-    expect(res.status).toBe(200)
-    expect(mockDeleteMediaFile).toHaveBeenCalledTimes(1)
-    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
-      mockDatabase,
-      'uploads/no-thumb.png'
-    )
+    const deleted = mockDeleteMediaFile.mock.calls.map((call) => call[1])
+    expect(deleted).toEqual([
+      'uploads/render.webp',
+      'uploads/client.jpg',
+      'uploads/edit-original.jpg',
+      'uploads/superseded.webp'
+    ])
+    expect(
+      mockDatabase.deleteMediaWithFiles.mock.invocationCallOrder[0]
+    ).toBeLessThan(mockDeleteMediaFile.mock.invocationCallOrder[0])
   })
 
   it('proceeds even if storage file deletion rejects or returns false', async () => {
@@ -286,7 +270,7 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(mockDatabase.deleteMedia).toHaveBeenCalledWith({
+    expect(mockDatabase.deleteMediaWithFiles).toHaveBeenCalledWith({
       mediaId: 'media-123'
     })
   })

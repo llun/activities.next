@@ -11,7 +11,10 @@ import type {
   MediaDetailsSavedItem
 } from '@/lib/components/media-details/media-details-dialog'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
-import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import type {
+  MediaDetailsEntity,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
 
 import { GalleryEditDetailsDialog } from './GalleryEditDetailsDialog'
@@ -29,6 +32,11 @@ interface DialogProps {
   ownerId?: string
   onClose: () => void
   onSaved: (items: MediaDetailsSavedItem[]) => void
+  onMediaEdited: (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: { updated: string[]; skipped: string[] }
+  ) => void
   onDetailsRefreshed: (
     id: string,
     patch: Partial<MediaDetailsEntity>,
@@ -257,6 +265,98 @@ describe('GalleryEditDetailsDialog', () => {
         inGallery: false
       })
     )
+  })
+
+  it('shows the edited file on the tile, then the original after a revert', async () => {
+    const onSaved = vi.fn()
+    const base = buildGalleryItem('1', {
+      attachment: {
+        ...buildGalleryItem('1').attachment,
+        width: 4000,
+        height: 3000,
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focus: { x: 0.5, y: 0.5 }
+      }
+    })
+    render(
+      <GalleryEditDetailsDialog
+        items={[base]}
+        initialMediaId="1"
+        ownerId={OWNER}
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />
+    )
+    const entity = (
+      overrides: Partial<MediaStorageSaveFileOutput>
+    ): MediaStorageSaveFileOutput => ({
+      id: '1',
+      type: 'image',
+      mime_type: 'image/webp',
+      url: 'https://activities.local/api/v1/files/medias/render.webp',
+      preview_url: 'https://activities.local/api/v1/files/medias/render.webp',
+      text_url: null,
+      remote_url: null,
+      preview_remote_url: null,
+      meta: {
+        original: { width: 1200, height: 1200, size: '1200x1200', aspect: 1 }
+      },
+      description: null,
+      blurhash: null,
+      ...overrides
+    })
+    const posts = { updated: [], skipped: [] }
+
+    // The crop's render has no BlurHash and no focal point of its own.
+    act(() => latest().onMediaEdited('1', entity({}), posts))
+    expect(onSaved).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        mediaId: '1',
+        attachment: expect.objectContaining({
+          url: 'https://activities.local/api/v1/files/medias/render.webp',
+          width: 1200,
+          height: 1200,
+          blurhash: null,
+          focus: null,
+          thumbnailUrl:
+            'https://activities.local/api/v1/files/medias/render.webp'
+        })
+      })
+    ])
+
+    act(() =>
+      latest().onMediaEdited(
+        '1',
+        entity({
+          mime_type: 'image/jpeg',
+          url: 'https://activities.local/api/v1/files/medias/1.jpg',
+          preview_url: 'https://activities.local/api/v1/files/medias/1-s.jpg',
+          meta: {
+            original: {
+              width: 4000,
+              height: 3000,
+              size: '4000x3000',
+              aspect: 4 / 3
+            },
+            focus: { x: -0.25, y: 0.4 }
+          },
+          blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH'
+        }),
+        posts
+      )
+    )
+    expect(onSaved).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        attachment: expect.objectContaining({
+          url: 'https://activities.local/api/v1/files/medias/1.jpg',
+          width: 4000,
+          height: 3000,
+          blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
+          focus: { x: -0.25, y: 0.4 },
+          thumbnailUrl: 'https://activities.local/api/v1/files/medias/1-s.jpg'
+        })
+      })
+    ])
   })
 
   it('passes close through', () => {

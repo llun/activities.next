@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { WahooHistoryImport, WahooImport } from '@/lib/database/sql/wahooImport'
+import {
+  WahooHistoryImport,
+  WahooImport
+} from '@/lib/database/domains/wahooImport/types'
 import { Database } from '@/lib/database/types'
 import {
   IMPORT_WAHOO_ACTIVITY_JOB_NAME,

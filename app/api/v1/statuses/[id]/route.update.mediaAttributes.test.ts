@@ -65,6 +65,12 @@ vi.mock('@/lib/config', async () => ({
   })
 }))
 
+// Attachments are read back ordered by createdAt, then by a random id. Give
+// the attachments a test creates distinct, increasing times (base + index,
+// as the production code does) so same-millisecond inserts cannot reorder
+// them.
+const ATTACHMENTS_CREATED_AT = Date.parse('2024-01-01T00:00:00.000Z')
+
 describe('PUT /api/v1/statuses/[id] media attachments', () => {
   const database = getTestSQLDatabase()
 
@@ -684,7 +690,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
           width: 320,
           height: 240,
           name,
-          mediaId: media!.id
+          mediaId: media!.id,
+          createdAt: ATTACHMENTS_CREATED_AT + index
         })
         medias.push(media!)
       }
@@ -696,7 +703,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
         url: 'https://llun.test/api/v1/fitness-files/realistic-route',
         width: 0,
         height: 0,
-        name: 'route.gpx'
+        name: 'route.gpx',
+        createdAt: ATTACHMENTS_CREATED_AT + names.length
       })
       const before = await database.getStatus({ statusId })
       if (!before || before.type !== StatusType.enum.Note) {
@@ -791,7 +799,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
           width: 320,
           height: 240,
           name: '',
-          mediaId: media!.id
+          mediaId: media!.id,
+          createdAt: ATTACHMENTS_CREATED_AT + index
         })
         medias.push(media!)
       }
@@ -875,7 +884,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
           width: 320,
           height: 240,
           name: photo.published,
-          mediaId: media!.id
+          mediaId: media!.id,
+          createdAt: ATTACHMENTS_CREATED_AT + index
         })
         medias.push(media!)
       }

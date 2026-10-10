@@ -810,6 +810,18 @@ CREATE TABLE public.markers (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE public.media_edit_files (
+    id character varying(36) NOT NULL,
+    "mediaId" integer NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    slot character varying(64) NOT NULL,
+    path character varying(255) NOT NULL,
+    bytes bigint NOT NULL,
+    "mimeType" character varying(64) NOT NULL,
+    "metaData" text NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.medias (
     id integer NOT NULL,
     "actorId" character varying(255),
@@ -850,7 +862,11 @@ CREATE TABLE public.medias (
     "placeCountryCode" character varying(2),
     "placeNameSource" character varying(16),
     "placeLookupStatus" character varying(16),
-    "placeLookupAt" timestamp with time zone
+    "placeLookupAt" timestamp with time zone,
+    "editRecipe" text,
+    "editVersion" integer DEFAULT 0 NOT NULL,
+    "editedAt" timestamp with time zone,
+    "editSaveId" character varying(36)
 );
 
 CREATE SEQUENCE public.medias_id_seq
@@ -1738,6 +1754,12 @@ ALTER TABLE ONLY public.markers
 ALTER TABLE ONLY public.markers
     ADD CONSTRAINT markers_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.media_edit_files
+    ADD CONSTRAINT media_edit_files_media_slot_unique UNIQUE ("mediaId", slot);
+
+ALTER TABLE ONLY public.media_edit_files
+    ADD CONSTRAINT media_edit_files_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.medias
     ADD CONSTRAINT medias_pkey PRIMARY KEY (id);
 
@@ -2057,6 +2079,8 @@ CREATE INDEX list_accounts_target ON public.list_accounts USING btree ("targetAc
 
 CREATE INDEX lists_actor_created ON public.lists USING btree ("actorId", "createdAt");
 
+CREATE INDEX media_edit_files_actor_id_idx ON public.media_edit_files USING btree ("actorId");
+
 CREATE INDEX "medias_accountId_originalMimeType_idx" ON public.medias USING btree ("accountId", "originalMimeType");
 
 CREATE INDEX "medias_actorId_createdAt_idx" ON public.medias USING btree ("actorId", "createdAt");
@@ -2261,6 +2285,9 @@ ALTER TABLE ONLY public.gallery_gears
 
 ALTER TABLE ONLY public.gallery_settings
     ADD CONSTRAINT gallery_settings_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.media_edit_files
+    ADD CONSTRAINT media_edit_files_mediaid_foreign FOREIGN KEY ("mediaId") REFERENCES public.medias(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public."oauthAccessToken"
     ADD CONSTRAINT oauthaccesstoken_clientid_foreign FOREIGN KEY ("clientId") REFERENCES public."oauthClient"("clientId");
