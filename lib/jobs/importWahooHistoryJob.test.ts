@@ -1,4 +1,4 @@
-import { WahooHistoryImport } from '@/lib/database/sql/wahooImport'
+import { WahooHistoryImport } from '@/lib/database/domains/wahooImport/types'
 import { Database } from '@/lib/database/types'
 import { importWahooHistoryJob } from '@/lib/jobs/importWahooHistoryJob'
 import {

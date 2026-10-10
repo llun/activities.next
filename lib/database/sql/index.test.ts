@@ -1,7 +1,6 @@
 import { Knex } from 'knex'
 
 import { ActorSQLDatabaseMixin } from './actor'
-import { FitnessSettingsSQLDatabaseMixin } from './fitnessSettings'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
 import { MediaSQLDatabaseMixin } from './media'
@@ -26,10 +25,6 @@ vi.mock('@/lib/database/sql/actor', () => ({
   ActorSQLDatabaseMixin: vi.fn()
 }))
 
-vi.mock('@/lib/database/sql/fitnessSettings', () => ({
-  FitnessSettingsSQLDatabaseMixin: vi.fn()
-}))
-
 vi.mock('@/lib/database/sql/follow', () => ({
   FollowerSQLDatabaseMixin: vi.fn()
 }))
@@ -48,8 +43,6 @@ vi.mock('@/lib/database/sql/timeline', () => ({
 
 describe('getSQLDatabase', () => {
   const actorMixinMock = ActorSQLDatabaseMixin as unknown as jest.Mock
-  const fitnessSettingsMixinMock =
-    FitnessSettingsSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
   const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
@@ -73,9 +66,6 @@ describe('getSQLDatabase', () => {
       getActorFromId: vi.fn(),
       testPriority: 'actor'
     }
-    const fitnessSettingsDatabase = {
-      createFitnessSettings: vi.fn()
-    }
     const followerDatabase = {
       getFollowers: vi.fn()
     }
@@ -92,7 +82,6 @@ describe('getSQLDatabase', () => {
 
     _knexMock = knexDatabase
     actorMixinMock.mockReturnValue(actorDatabase)
-    fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
     mediaMixinMock.mockReturnValue(mediaDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
@@ -104,7 +93,6 @@ describe('getSQLDatabase', () => {
       actorDatabase,
       database,
       followerDatabase,
-      fitnessSettingsDatabase,
       knexDatabase,
       mediaDatabase,
       statusDatabase,
@@ -117,7 +105,6 @@ describe('getSQLDatabase', () => {
       createComposedDatabase()
 
     expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(

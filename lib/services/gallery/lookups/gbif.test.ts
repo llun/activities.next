@@ -940,7 +940,10 @@ describe('gbif client', () => {
       const provider = createTestProvider({
         limiter: createLimiter({
           maxConcurrent: 1,
-          minIntervalMs: 1000,
+          // Real clock: the interval must outlast the first call however slow
+          // the runner is, or the second call is let through and fails to
+          // parse the stub body instead of being rate limited.
+          minIntervalMs: 60_000,
           maxWaitMs: 0,
           maxQueue: 0
         }),

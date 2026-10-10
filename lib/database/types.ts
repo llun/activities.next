@@ -1,18 +1,18 @@
+import { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
 import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
+import { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
+import { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteDatabase } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearDatabase } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapDatabase } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileDatabase } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { FitnessSettingsDatabase } from '@/lib/database/sql/fitnessSettings'
 import { GalleryDatabase } from '@/lib/database/sql/gallery'
 import { GalleryAlbumSuggestionDatabase } from '@/lib/database/sql/galleryAlbumSuggestions'
 import { GalleryAlbumDatabase } from '@/lib/database/sql/galleryAlbums'
 import { GalleryLookupCacheDatabase } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaDatabase } from '@/lib/database/sql/galleryMedia'
-import { StravaArchiveImportDatabase } from '@/lib/database/sql/stravaArchiveImport'
-import { WahooImportDatabase } from '@/lib/database/sql/wahooImport'
 import {
   AccountDatabase,
   AccountNoteDatabase,
