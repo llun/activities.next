@@ -162,7 +162,10 @@ jobs:
   # Bounded PostgreSQL integration test job covering database access layers:
   # media (and media details/gallery, incl. gallery services), fitness files, gear, component periods, heatmap tiles, queue jobs,
   # status deletion queue transactions, list membership row locking, likes,
-  # accounts (sessions and provider links), and
+  # accounts (sessions and provider links), the small Kysely-ported domains
+  # (account notes, domain blocks, custom emojis, endorsements, followed tags,
+  # idempotency keys, import locks, instance rules, markers, relays, server
+  # settings, the translation cache, keyset pagination), actor deletion, and
   # the Knex-backed Kysely driver (result normalisation, the mixed-transaction
   # guard, counters).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
@@ -238,9 +241,23 @@ jobs:
             lib/database/sql/listMembershipEligibility.test.ts \
             lib/database/sql/like.test.ts \
             lib/database/sql/account.test.ts \
+            lib/database/sql/accountNote.test.ts \
+            lib/database/sql/actorDomainBlock.test.ts \
+            lib/database/sql/customEmoji.test.ts \
+            lib/database/sql/endorsement.test.ts \
+            lib/database/sql/followedTag.test.ts \
+            lib/database/sql/idempotency.test.ts \
+            lib/database/sql/importLock.test.ts \
+            lib/database/sql/instanceRule.test.ts \
+            lib/database/sql/marker.test.ts \
+            lib/database/sql/relay.test.ts \
+            lib/database/sql/serverSetting.test.ts \
+            lib/database/sql/actorDeletion.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \
+            lib/database/kysely/keyset.test.ts \
+            lib/services/translation/translationCache.integration.test.ts \
             lib/database/testing/createTestDatabase.test.ts \
             lib/database/testing/fixtures.test.ts
         env:

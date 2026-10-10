@@ -18,7 +18,6 @@ import {
 } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
-import { ActorDomainBlock } from '@/lib/types/domain/actorDomainBlock'
 import {
   Attachment,
   AttachmentMediaMetadata,
@@ -32,8 +31,6 @@ import {
   CollectionVisibility
 } from '@/lib/types/domain/collection'
 import { ConnectedApp } from '@/lib/types/domain/connected-app'
-import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
-import { Endorsement } from '@/lib/types/domain/endorsement'
 import {
   Filter,
   FilterAction,
@@ -45,7 +42,6 @@ import {
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Mute } from '@/lib/types/domain/mute'
-import { Relay, RelayState } from '@/lib/types/domain/relay'
 import { Session } from '@/lib/types/domain/session'
 import {
   QuoteApprovalPolicy,
@@ -1347,40 +1343,13 @@ export interface BlockDatabase {
 // Actor Domain Block Database (user-level Mastodon domain blocks)
 // ============================================================================
 
-export type CreateActorDomainBlockParams = {
-  actorId: string
-  domain: string
-}
-export type DeleteActorDomainBlockParams = {
-  actorId: string
-  domain: string
-}
-export type IsDomainBlockedByActorParams = {
-  actorId: string
-  domain: string
-}
-export type GetActorDomainBlocksParams = {
-  actorId: string
-  // No limit = return every row (the timeline filter loads the viewer's full
-  // set once per page request). Routes always pass an explicit limit.
-  limit?: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-
-export interface ActorDomainBlockDatabase {
-  createActorDomainBlock(
-    params: CreateActorDomainBlockParams
-  ): Promise<ActorDomainBlock>
-  deleteActorDomainBlock(
-    params: DeleteActorDomainBlockParams
-  ): Promise<ActorDomainBlock | null>
-  isDomainBlockedByActor(params: IsDomainBlockedByActorParams): Promise<boolean>
-  getActorDomainBlocks(
-    params: GetActorDomainBlocksParams
-  ): Promise<ActorDomainBlock[]>
-}
+export type {
+  ActorDomainBlockDatabase,
+  CreateActorDomainBlockParams,
+  DeleteActorDomainBlockParams,
+  GetActorDomainBlocksParams,
+  IsDomainBlockedByActorParams
+} from '@/lib/database/domains/actorDomainBlock/types'
 
 // ============================================================================
 // Mute Database
@@ -1416,31 +1385,13 @@ export type GetMutesParams = {
   sinceId?: string | null
 }
 
-export type MarkerTimeline = 'home' | 'notifications'
-
-export interface MarkerRow {
-  actorId: string
-  timeline: MarkerTimeline
-  lastReadId: string
-  version: number
-  updatedAt: number
-}
-
-export interface GetMarkersParams {
-  actorId: string
-  timelines: MarkerTimeline[]
-}
-
-export interface UpsertMarkerParams {
-  actorId: string
-  timeline: MarkerTimeline
-  lastReadId: string
-}
-
-export interface MarkerDatabase {
-  getMarkers(params: GetMarkersParams): Promise<MarkerRow[]>
-  upsertMarker(params: UpsertMarkerParams): Promise<MarkerRow>
-}
+export type {
+  GetMarkersParams,
+  MarkerDatabase,
+  MarkerRow,
+  MarkerTimeline,
+  UpsertMarkerParams
+} from '@/lib/database/domains/marker/types'
 
 export interface MuteDatabase {
   createMute(params: CreateMuteParams): Promise<Mute>
@@ -1474,45 +1425,22 @@ export interface StatusMuteDatabase {
 // Idempotency Key Database
 // ============================================================================
 
-export type GetIdempotentStatusIdParams = { actorId: string; key: string }
-export type SaveIdempotencyKeyParams = {
-  actorId: string
-  key: string
-  statusId: string
-}
-
-export interface IdempotencyDatabase {
-  getIdempotentStatusId(
-    params: GetIdempotentStatusIdParams
-  ): Promise<string | null>
-  saveIdempotencyKey(params: SaveIdempotencyKeyParams): Promise<void>
-}
+export type {
+  GetIdempotentStatusIdParams,
+  IdempotencyDatabase,
+  SaveIdempotencyKeyParams
+} from '@/lib/database/domains/idempotency/types'
 
 // ============================================================================
 // Translation Cache Database
 // ============================================================================
 
-export type GetTranslationCacheParams = {
-  provider: string
-  sourceLanguage: string
-  targetLanguage: string
-  sourceHash: string
-}
-
-export type TranslationCacheEntry = {
-  content: string
-  detectedSourceLanguage: string | null
-}
-
-export type SaveTranslationCacheParams = GetTranslationCacheParams &
+export type {
+  GetTranslationCacheParams,
+  SaveTranslationCacheParams,
+  TranslationCacheDatabase,
   TranslationCacheEntry
-
-export interface TranslationCacheDatabase {
-  getTranslationCache(
-    params: GetTranslationCacheParams
-  ): Promise<TranslationCacheEntry | null>
-  saveTranslationCache(params: SaveTranslationCacheParams): Promise<void>
-}
+} from '@/lib/database/domains/translationCache/types'
 
 // ============================================================================
 // List Database
@@ -1856,29 +1784,14 @@ export interface CollectionDatabase {
 // Followed Tag Database
 // ============================================================================
 
-export type FollowedTag = {
-  id: string
-  actorId: string
-  name: string
-  createdAt: number
-}
-export type FollowTagParams = { actorId: string; name: string }
-export type UnfollowTagParams = { actorId: string; name: string }
-export type GetFollowedTagsParams = {
-  actorId: string
-  limit?: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-export type IsFollowingTagParams = { actorId: string; name: string }
-
-export interface FollowedTagDatabase {
-  followTag(params: FollowTagParams): Promise<FollowedTag>
-  unfollowTag(params: UnfollowTagParams): Promise<FollowedTag | null>
-  getFollowedTags(params: GetFollowedTagsParams): Promise<FollowedTag[]>
-  isFollowingTag(params: IsFollowingTagParams): Promise<boolean>
-}
+export type {
+  FollowTagParams,
+  FollowedTag,
+  FollowedTagDatabase,
+  GetFollowedTagsParams,
+  IsFollowingTagParams,
+  UnfollowTagParams
+} from '@/lib/database/domains/followedTag/types'
 
 // ============================================================================
 // Featured Tag Database
@@ -2006,122 +1919,40 @@ export interface ScheduledStatusDatabase {
 // Instance Rule Database
 // ============================================================================
 
-// A moderation rule shown on the instance's about page and returned from
-// GET /api/v1/instance/rules. `position` drives the display order (ascending,
-// with `createdAt` as a stable tiebreaker); `hint` is the optional longer
-// explanation Mastodon 4.3+ renders under the rule. `createdAt`/`updatedAt`
-// are epoch milliseconds in the domain shape regardless of the backend's
-// timestamp storage.
-export type InstanceRuleData = {
-  id: string
-  position: number
-  text: string
-  hint: string
-  createdAt: number
-  updatedAt: number
-}
-
-export type CreateInstanceRuleParams = {
-  text: string
-  hint: string
-  position?: number
-}
-export type UpdateInstanceRuleParams = {
-  id: string
-  text?: string
-  hint?: string
-  position?: number
-}
-export type DeleteInstanceRuleParams = { id: string }
-
-export interface InstanceRuleDatabase {
-  createInstanceRule(
-    params: CreateInstanceRuleParams
-  ): Promise<InstanceRuleData>
-  // Partial update; bumps updatedAt and returns the updated row, or null when
-  // the rule does not exist.
-  updateInstanceRule(
-    params: UpdateInstanceRuleParams
-  ): Promise<InstanceRuleData | null>
-  // True when a row was removed.
-  deleteInstanceRule(params: DeleteInstanceRuleParams): Promise<boolean>
-  // All rules ordered by position ascending, then createdAt ascending.
-  getInstanceRules(): Promise<InstanceRuleData[]>
-}
+export type {
+  CreateInstanceRuleParams,
+  DeleteInstanceRuleParams,
+  InstanceRuleData,
+  InstanceRuleDatabase,
+  UpdateInstanceRuleParams
+} from '@/lib/database/domains/instanceRule/types'
 
 // ============================================================================
 // Server Setting Database
 // ============================================================================
 
-// A single database-backed instance server setting, stored as one key/value
-// row. `key` is the registry key (e.g. `posts.maxCharacters`) and `value` is
-// the decoded JSON value. `createdAt`/`updatedAt` are epoch milliseconds in the
-// domain shape regardless of the backend's timestamp storage. The env ->
-// database -> default resolver overlays these rows onto env/default values.
-export type ServerSettingValue = string | number | boolean | string[] | null
-
-export type ServerSettingData = {
-  key: string
-  value: ServerSettingValue
-  createdAt: number
-  updatedAt: number
-}
-
-export type SetServerSettingParams = { key: string; value: ServerSettingValue }
-export type DeleteServerSettingParams = { key: string }
-
-export interface ServerSettingDatabase {
-  // Every stored setting row, ordered by key ascending.
-  getAllServerSettings(): Promise<ServerSettingData[]>
-  // Upsert several settings in a single transaction (all-or-nothing).
-  setServerSettings(params: SetServerSettingParams[]): Promise<void>
-}
+export type {
+  DeleteServerSettingParams,
+  ServerSettingData,
+  ServerSettingDatabase,
+  ServerSettingValue,
+  SetServerSettingParams
+} from '@/lib/database/domains/serverSetting/types'
 
 // ============================================================================
 // Relay Database
 // ============================================================================
 
-// A subscription to an ActivityPub relay. See lib/types/domain/relay.ts for
-// the field semantics. `createdAt`/`updatedAt` are epoch milliseconds in the
-// domain shape regardless of the backend's timestamp storage.
-export type RelayData = Relay
-
-export type CreateRelayParams = { inboxUrl: string }
-export type UpdateRelayParams = {
-  id: string
-  state?: RelayState
-  actorId?: string | null
-  followActivityId?: string | null
-  lastError?: string | null
-}
-export type DeleteRelayParams = { id: string }
-export type GetRelayByIdParams = { id: string }
-export type GetRelayByActorIdParams = { actorId: string }
-export type GetRelayByFollowActivityIdParams = { followActivityId: string }
-
-export interface RelayDatabase {
-  // Creates a relay row in the `idle` state. Throws on a duplicate inboxUrl.
-  createRelay(params: CreateRelayParams): Promise<RelayData>
-  // Partial update; bumps updatedAt and returns the updated row, or null when
-  // the relay does not exist. Passing actorId/followActivityId/lastError as
-  // null clears the column.
-  updateRelay(params: UpdateRelayParams): Promise<RelayData | null>
-  // True when a row was removed.
-  deleteRelay(params: DeleteRelayParams): Promise<boolean>
-  // All relays ordered by createdAt ascending.
-  getRelays(): Promise<RelayData[]>
-  getRelayById(params: GetRelayByIdParams): Promise<RelayData | null>
-  // Resolve a relay by its actor id (used to recognise an inbound
-  // relay-forwarded activity's HTTP signer). Returns null when unknown.
-  getRelayByActorId(params: GetRelayByActorIdParams): Promise<RelayData | null>
-  // Resolve a relay by the Follow id we sent (used to match the relay's
-  // Accept/Reject back to the subscription). Returns null when unknown.
-  getRelayByFollowActivityId(
-    params: GetRelayByFollowActivityIdParams
-  ): Promise<RelayData | null>
-  // Accepted relays only — the fan-out targets for local public posts.
-  getAcceptedRelays(): Promise<RelayData[]>
-}
+export type {
+  CreateRelayParams,
+  DeleteRelayParams,
+  GetRelayByActorIdParams,
+  GetRelayByFollowActivityIdParams,
+  GetRelayByIdParams,
+  RelayData,
+  RelayDatabase,
+  UpdateRelayParams
+} from '@/lib/database/domains/relay/types'
 
 // ============================================================================
 // Suggestion Database
@@ -2576,61 +2407,23 @@ export interface AdminAccountDatabase {
 // Account Note Database
 // ============================================================================
 
-export type UpsertAccountNoteParams = {
-  actorId: string
-  targetActorId: string
-  comment: string
-}
-export type GetAccountNoteParams = {
-  actorId: string
-  targetActorId: string
-}
-
-export interface AccountNoteDatabase {
-  // Sets the private note for (actorId -> targetActorId). An empty comment
-  // clears the note. Returns the stored comment (empty string when cleared).
-  upsertAccountNote(params: UpsertAccountNoteParams): Promise<string>
-  getAccountNote(params: GetAccountNoteParams): Promise<string>
-}
+export type {
+  AccountNoteDatabase,
+  GetAccountNoteParams,
+  UpsertAccountNoteParams
+} from '@/lib/database/domains/accountNote/types'
 
 // ============================================================================
 // Endorsement Database
 // ============================================================================
 
-export type CreateEndorsementParams = {
-  actorId: string
-  targetActorId: string
-}
-export type DeleteEndorsementParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetEndorsementParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetEndorsementsParams = {
-  actorId: string
-  limit: number
-  maxId?: string | null
-  // min_id and since_id have distinct Mastodon semantics and are ordered
-  // differently: min_id returns the oldest band immediately after the cursor,
-  // since_id returns the newest band above the cursor.
-  minId?: string | null
-  sinceId?: string | null
-}
-
-export interface EndorsementDatabase {
-  // Idempotently endorse (feature) targetActorId from actorId. Returns the
-  // stored endorsement.
-  createEndorsement(params: CreateEndorsementParams): Promise<Endorsement>
-  // Removes the endorsement if present (no-op otherwise).
-  deleteEndorsement(params: DeleteEndorsementParams): Promise<void>
-  // Returns the endorsement for (actorId -> targetActorId), or null.
-  getEndorsement(params: GetEndorsementParams): Promise<Endorsement | null>
-  // Endorsements made BY actorId, newest first, paginated by numeric id cursor.
-  getEndorsements(params: GetEndorsementsParams): Promise<Endorsement[]>
-}
+export type {
+  CreateEndorsementParams,
+  DeleteEndorsementParams,
+  EndorsementDatabase,
+  GetEndorsementParams,
+  GetEndorsementsParams
+} from '@/lib/database/domains/endorsement/types'
 
 // ============================================================================
 // Filter Database
@@ -4189,38 +3982,12 @@ export type GetInstancePeersParams = {
 // Custom Emoji Database
 // ============================================================================
 
-export type CreateCustomEmojiParams = {
-  shortcode: string
-  url: string
-  staticUrl: string
-  category?: string | null
-  visibleInPicker?: boolean
-  disabled?: boolean
-}
-
-export type GetCustomEmojisParams = {
-  // When false (default) only enabled emoji are returned. The admin surface
-  // passes `true` to also list disabled emoji.
-  includeDisabled?: boolean
-}
-
-export type UpdateCustomEmojiParams = {
-  id: string
-  category?: string | null
-  visibleInPicker?: boolean
-  disabled?: boolean
-}
-
-export interface CustomEmojiDatabase {
-  createCustomEmoji(params: CreateCustomEmojiParams): Promise<CustomEmojiData>
-  getCustomEmojis(params?: GetCustomEmojisParams): Promise<CustomEmojiData[]>
-  getCustomEmojiById(id: string): Promise<CustomEmojiData | null>
-  getCustomEmojiByShortcode(shortcode: string): Promise<CustomEmojiData | null>
-  updateCustomEmoji(
-    params: UpdateCustomEmojiParams
-  ): Promise<CustomEmojiData | null>
-  deleteCustomEmoji(id: string): Promise<CustomEmojiData | null>
-}
+export type {
+  CreateCustomEmojiParams,
+  CustomEmojiDatabase,
+  GetCustomEmojisParams,
+  UpdateCustomEmojiParams
+} from '@/lib/database/domains/customEmoji/types'
 
 // ============================================================================
 // Dead Letter Jobs Database

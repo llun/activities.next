@@ -1,3 +1,4 @@
+import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteDatabase } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearDatabase } from '@/lib/database/sql/fitnessGear'
@@ -9,7 +10,6 @@ import { GalleryAlbumSuggestionDatabase } from '@/lib/database/sql/galleryAlbumS
 import { GalleryAlbumDatabase } from '@/lib/database/sql/galleryAlbums'
 import { GalleryLookupCacheDatabase } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaDatabase } from '@/lib/database/sql/galleryMedia'
-import { ImportLockDatabase } from '@/lib/database/sql/importLock'
 import { StravaArchiveImportDatabase } from '@/lib/database/sql/stravaArchiveImport'
 import { WahooImportDatabase } from '@/lib/database/sql/wahooImport'
 import {

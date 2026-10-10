@@ -91,9 +91,10 @@ type Query<P, R> = (db: Db, params: P) => Promise<R>
 // `never` params accept a query function of any parameter type.
 type QueryMap = Record<string, Query<never, unknown>>
 
+// Keeps the query's own arguments after `db`: none, optional or required.
 export type BoundQueries<Q extends QueryMap> = {
-  [K in keyof Q]: Q[K] extends Query<infer P, infer R>
-    ? (params: P) => Promise<R>
+  [K in keyof Q]: Q[K] extends (db: Db, ...args: infer A) => Promise<infer R>
+    ? (...args: A) => Promise<R>
     : never
 }
 
@@ -109,6 +110,10 @@ export const bindDb = <Q extends QueryMap>(
   Object.fromEntries(
     Object.entries(queries).map(([name, query]) => [
       name,
-      (params: never) => query(getDb(), params)
+      (...args: never[]) =>
+        (query as (db: Db, ...args: never[]) => Promise<unknown>)(
+          getDb(),
+          ...args
+        )
     ])
   ) as BoundQueries<Q>

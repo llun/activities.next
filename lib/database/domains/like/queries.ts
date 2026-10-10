@@ -1,5 +1,3 @@
-import type { ExpressionBuilder } from 'kysely'
-
 import type {
   CreateLikeParams,
   DeleteLikeParams,
@@ -8,35 +6,15 @@ import type {
   IsActorLikedStatusParams,
   Like
 } from '@/lib/database/domains/like/types'
-import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
+import { type Db, inTransaction } from '@/lib/database/kysely'
 import {
   decreaseCounterValue,
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import { pastKeyset } from '@/lib/database/kysely/keyset'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
-import {
-  type FavouriteCursor,
-  decodeFavouriteCursor
-} from '@/lib/database/sql/utils/favouriteCursor'
-
-// Rows strictly older (`<`) or newer (`>`) than the cursor in
-// (createdAt, statusId) order.
-const pastCursor = (
-  eb: ExpressionBuilder<DB, 'likes'>,
-  cursor: FavouriteCursor,
-  operator: '<' | '>'
-) => {
-  const createdAt = timestampValue(cursor.createdAt)
-  return eb.or([
-    eb('createdAt', operator, createdAt),
-    eb.and([
-      eb('createdAt', '=', createdAt),
-      eb('statusId', operator, cursor.statusId)
-    ])
-  ])
-}
+import { decodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 
 export const createLike = (
   db: Db,
@@ -143,10 +121,24 @@ export const getLikes = async (
     .select(['actorId', 'statusId', 'createdAt'])
     .where('actorId', '=', actorId)
   if (olderCursor) {
-    query = query.where((eb) => pastCursor(eb, olderCursor, '<'))
+    query = query.where((eb) =>
+      pastKeyset(
+        eb,
+        { createdAt: olderCursor.createdAt, tieBreaker: olderCursor.statusId },
+        '<',
+        'statusId'
+      )
+    )
   }
   if (newerCursor) {
-    query = query.where((eb) => pastCursor(eb, newerCursor, '>'))
+    query = query.where((eb) =>
+      pastKeyset(
+        eb,
+        { createdAt: newerCursor.createdAt, tieBreaker: newerCursor.statusId },
+        '>',
+        'statusId'
+      )
+    )
   }
   const rows = await query
     .orderBy('createdAt', direction)

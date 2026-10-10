@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Status } from '@/lib/types/mastodon/status'
 
 import { translateStatus } from './translateStatus'
@@ -16,14 +16,17 @@ const buildStatus = (content: string): Status =>
   }) as unknown as Status
 
 /**
- * Exercises the real translation_cache table (migration + SQL mixin) against
- * SQLite so the second translation of the same string is served from cache and
- * never reaches the backend.
+ * Exercises the real translation_cache table (migration + queries) against
+ * the test database (SQLite, or PostgreSQL under TEST_DATABASE_TYPE=pg) so the
+ * second translation of the same string is served from cache and never
+ * reaches the backend.
  */
-describe('translation cache (SQLite)', () => {
-  const database = getTestSQLDatabase()
+describe('translation cache', () => {
+  const testDb = createTestDatabase()
+  const { database } = testDb
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
   })
 
@@ -65,7 +68,7 @@ describe('translation cache (SQLite)', () => {
       targetLanguage: 'fr'
     })
     expect(second.content).toBe('fr:<p>Hello</p>')
-    // Served from the SQLite cache: the backend was not hit a second time.
+    // Served from the database cache: the backend was not hit a second time.
     expect(backendCalls).toBe(1)
 
     const cached = await database.getTranslationCache({

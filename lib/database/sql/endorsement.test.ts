@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -6,9 +6,11 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 
 describe('EndorsementSQLDatabaseMixin', () => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const { database } = testDb
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })
