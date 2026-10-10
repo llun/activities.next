@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
-import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
+import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
+import { kyselyFor } from '@/lib/database/kysely'
 import { indexActorSearchDocument } from '@/lib/database/sql/search'
 import {
   CounterKey,
@@ -240,7 +241,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       createdAt: currentTime,
       updatedAt: currentTime
     })
-    await recordWeeklyLoginSafely(database, accountId, currentTime)
+    await recordWeeklyLoginSafely(kyselyFor(database), accountId, currentTime)
   },
 
   async getAccountAllSessions({

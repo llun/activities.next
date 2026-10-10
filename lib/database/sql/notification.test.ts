@@ -2,7 +2,12 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
-import { NotificationType } from '@/lib/types/database/operations'
+import {
+  type CreateNotificationParams,
+  type GetNotificationsCountParams,
+  type GetNotificationsParams,
+  NotificationType
+} from '@/lib/types/database/operations'
 import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
 
 describe('Notification Database', () => {
@@ -838,6 +843,396 @@ describe('Notification Database', () => {
         })
 
         expect(notifications).toHaveLength(0)
+      })
+    })
+
+    describe('queries only touch their own rows', () => {
+      const at = (second: number) => Date.UTC(2031, 0, 1) + second * 1000
+      const source = (n: number) =>
+        `https://example.com/users/scoped-source${n}`
+      const ids = (rows: { id: string }[]) => rows.map((row) => row.id)
+      let recipient: string
+      let other: string
+      let sequence = 0
+
+      beforeEach(() => {
+        sequence += 1
+        recipient = `https://example.com/users/scoped-recipient${sequence}`
+        other = `https://example.com/users/scoped-other${sequence}`
+        vi.useFakeTimers({ toFake: ['Date'] })
+      })
+
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      // A like from source 1 to the recipient, created `second` seconds into
+      // the test's clock, unless the params say otherwise.
+      const create = (
+        second: number,
+        params: Partial<CreateNotificationParams> = {}
+      ) => {
+        vi.setSystemTime(at(second))
+        return database.createNotification({
+          actorId: recipient,
+          type: NotificationType.enum.like,
+          sourceActorId: source(1),
+          ...params
+        })
+      }
+
+      const list = async (params: Partial<GetNotificationsParams> = {}) =>
+        ids(
+          await database.getNotifications({
+            actorId: recipient,
+            limit: 10,
+            ...params
+          })
+        )
+
+      const count = (params: Partial<GetNotificationsCountParams> = {}) =>
+        database.getNotificationsCount({ actorId: recipient, ...params })
+
+      const requestSources = async (
+        params: Partial<Parameters<typeof database.getNotificationRequests>[0]>
+      ) =>
+        (
+          await database.getNotificationRequests({
+            actorId: recipient,
+            limit: 10,
+            ...params
+          })
+        ).map((request) => request.sourceActorId)
+
+      // The recipient's requests: source 1 (two rows, the last at 2s), sources 2
+      // and 3 (last at 3s, a tie) and source 4 (1s). Around them: another
+      // recipient's newer filtered rows, one from source 1 and one from a source
+      // only they have, and the recipient's own visible rows.
+      const seedRequests = async () => {
+        await create(1, { sourceActorId: source(1), filtered: true })
+        await create(1, { sourceActorId: source(4), filtered: true })
+        const lastOfSource1 = await create(2, {
+          sourceActorId: source(1),
+          filtered: true
+        })
+        await create(3, { sourceActorId: source(2), filtered: true })
+        await create(3, { sourceActorId: source(3), filtered: true })
+        await create(4, {
+          actorId: other,
+          sourceActorId: source(1),
+          filtered: true
+        })
+        await create(4, {
+          actorId: other,
+          sourceActorId: source(5),
+          filtered: true
+        })
+        const visible = await create(5, { sourceActorId: source(1) })
+        await create(5, { sourceActorId: source(6) })
+        return { lastOfSource1, visible }
+      }
+
+      it('reads rows back with null for unset ids and undefined for the rest', async () => {
+        const follow = await create(1, { type: NotificationType.enum.follow })
+        const reaction = await create(2, {
+          type: NotificationType.enum.emoji_reaction,
+          statusId,
+          groupKey: 'emoji:1',
+          reactionName: ':blob:'
+        })
+
+        expect(follow.statusId).toBeUndefined()
+        const [reactionRow, followRow] = await database.getNotifications({
+          actorId: recipient,
+          limit: 10
+        })
+        expect(reactionRow).toMatchObject({
+          id: reaction.id,
+          statusId,
+          groupKey: 'emoji:1',
+          reactionName: ':blob:'
+        })
+        // The stored null comes back as it always has, not as undefined.
+        expect(followRow).toEqual({
+          id: follow.id,
+          actorId: recipient,
+          type: 'follow',
+          sourceActorId: source(1),
+          statusId: null,
+          followId: null,
+          groupKey: null,
+          isRead: false,
+          filtered: false,
+          createdAt: at(1),
+          updatedAt: at(1)
+        })
+        expect(followRow.reactionName).toBeUndefined()
+        expect(followRow.readAt).toBeUndefined()
+      })
+
+      it("does not resolve another recipient's notification as a cursor", async () => {
+        const older = await create(1)
+        const foreign = await create(2, { actorId: other })
+        const newer = await create(3)
+
+        // The foreign id resolves to nothing, as a deleted one does: max_id
+        // keeps every row and a lower bound ends the pagination.
+        expect(await list({ maxNotificationId: foreign.id })).toEqual([
+          newer.id,
+          older.id
+        ])
+        expect(await list({ minNotificationId: foreign.id })).toEqual([])
+        expect(await list({ sinceNotificationId: foreign.id })).toEqual([])
+      })
+
+      it('filters by type, read state and filtered flag, in lists and counts', async () => {
+        const like = await create(1)
+        const mention = await create(2, { type: NotificationType.enum.mention })
+        const reblog = await create(3, { type: NotificationType.enum.reblog })
+        await create(4, { filtered: true })
+        await create(5, { actorId: other, type: NotificationType.enum.mention })
+        await database.markNotificationsRead({ notificationIds: [like.id] })
+
+        expect(await list()).toEqual([reblog.id, mention.id, like.id])
+        expect(await list({ types: ['like', 'mention'] })).toEqual([
+          mention.id,
+          like.id
+        ])
+        expect(await list({ onlyUnread: true })).toEqual([
+          reblog.id,
+          mention.id
+        ])
+        expect(await count()).toBe(3)
+        expect(await count({ includeFiltered: true })).toBe(4)
+        expect(await count({ filteredOnly: true })).toBe(1)
+        expect(await count({ types: ['like'] })).toBe(1)
+        expect(await count({ types: ['mention', 'reblog'] })).toBe(2)
+        expect(await count({ onlyUnread: true })).toBe(2)
+      })
+
+      it('marks only the given notifications read', async () => {
+        const read = await create(1)
+        const unread = await create(2)
+
+        vi.setSystemTime(at(10))
+        await database.markNotificationsRead({ notificationIds: [read.id] })
+
+        const rows = await database.getNotifications({
+          actorId: recipient,
+          limit: 10
+        })
+        expect(rows.map((row) => [row.id, row.isRead, row.readAt])).toEqual([
+          [unread.id, false, undefined],
+          [read.id, true, at(10)]
+        ])
+      })
+
+      it("lists requests newest first from the recipient's filtered rows, with cursors", async () => {
+        const { lastOfSource1 } = await seedRequests()
+
+        const requests = await database.getNotificationRequests({
+          actorId: recipient,
+          limit: 10
+        })
+        expect(requests.map((request) => request.sourceActorId)).toEqual(
+          [2, 3, 1, 4].map(source)
+        )
+        expect(requests.map((request) => request.notificationsCount)).toEqual([
+          1, 1, 2, 1
+        ])
+        expect(requests[2]).toMatchObject({
+          createdAt: at(1),
+          updatedAt: at(2)
+        })
+        expect(requests[2].lastNotification.id).toBe(lastOfSource1.id)
+
+        expect(await requestSources({ limit: 2, offset: 1 })).toEqual(
+          [3, 1].map(source)
+        )
+        // A group at the cursor's time is older when its source id sorts after
+        // the cursor's, and newer when it sorts before.
+        const maxCursor = (n: number) => ({
+          updatedAt: at(3),
+          sourceActorId: source(n)
+        })
+        expect(await requestSources({ maxCursor: maxCursor(2) })).toEqual(
+          [3, 1, 4].map(source)
+        )
+        expect(await requestSources({ maxCursor: maxCursor(3) })).toEqual(
+          [1, 4].map(source)
+        )
+        // A newer group stays off a max_id page, whatever its source id.
+        expect(
+          await requestSources({
+            maxCursor: { updatedAt: at(2), sourceActorId: source(1) }
+          })
+        ).toEqual([source(4)])
+        expect(
+          await requestSources({
+            sinceCursor: { updatedAt: at(2), sourceActorId: source(1) }
+          })
+        ).toEqual([2, 3].map(source))
+        expect(await requestSources({ sinceCursor: maxCursor(3) })).toEqual([
+          source(2)
+        ])
+      })
+
+      it("builds a single request from the recipient's filtered rows of that source", async () => {
+        const { lastOfSource1 } = await seedRequests()
+        const get = (n: number) =>
+          database.getNotificationRequest({
+            actorId: recipient,
+            sourceActorId: source(n)
+          })
+
+        const first = await get(1)
+        expect(first).toMatchObject({
+          sourceActorId: source(1),
+          notificationsCount: 2,
+          createdAt: at(1),
+          updatedAt: at(2)
+        })
+        expect(first?.lastNotification.id).toBe(lastOfSource1.id)
+        expect(await get(2)).toMatchObject({
+          notificationsCount: 1,
+          createdAt: at(3),
+          updatedAt: at(3)
+        })
+        // Source 5 only requests from the other recipient, source 6 is visible.
+        expect(await get(5)).toBeNull()
+        expect(await get(6)).toBeNull()
+      })
+
+      it("counts the recipient's requesting sources, at most 100", async () => {
+        await seedRequests()
+        const countRequests = () =>
+          database.getNotificationRequestsCount({ actorId: recipient })
+        expect(await countRequests()).toBe(4)
+
+        await Promise.all(
+          Array.from({ length: 100 }, (_, i) =>
+            create(6, { sourceActorId: source(100 + i), filtered: true })
+          )
+        )
+        expect(await countRequests()).toBe(100)
+      })
+
+      it("accepts only the recipient's filtered rows of the given sources", async () => {
+        const { visible } = await seedRequests()
+
+        vi.setSystemTime(at(100))
+        await database.acceptNotificationRequests({
+          actorId: recipient,
+          sourceActorIds: [source(1)]
+        })
+
+        const rows = await database.getNotifications({
+          actorId: recipient,
+          limit: 50,
+          includeFiltered: true
+        })
+        expect(
+          rows
+            .filter((row) => row.filtered)
+            .map((row) => row.sourceActorId)
+            .sort()
+        ).toEqual([2, 3, 4].map(source))
+        // The two accepted rows are touched, the already visible one is not.
+        expect(rows.filter((row) => row.updatedAt === at(100))).toHaveLength(2)
+        expect(rows.find((row) => row.id === visible.id)?.updatedAt).toBe(at(5))
+        const others = await database.getNotifications({
+          actorId: other,
+          limit: 50,
+          includeFiltered: true
+        })
+        expect(others.map((row) => row.filtered)).toEqual([true, true])
+      })
+
+      it("dismisses only the recipient's filtered rows of the given sources", async () => {
+        await seedRequests()
+
+        await database.dismissNotificationRequests({
+          actorId: recipient,
+          sourceActorIds: [source(1)]
+        })
+
+        const rows = await database.getNotifications({
+          actorId: recipient,
+          limit: 50,
+          includeFiltered: true
+        })
+        expect(
+          rows.map((row) => `${row.sourceActorId}:${row.filtered}`).sort()
+        ).toEqual([
+          `${source(1)}:false`,
+          `${source(2)}:true`,
+          `${source(3)}:true`,
+          `${source(4)}:true`,
+          `${source(6)}:false`
+        ])
+        expect(
+          await database.getNotifications({
+            actorId: other,
+            limit: 50,
+            includeFiltered: true
+          })
+        ).toHaveLength(2)
+      })
+
+      it.each([
+        'acceptNotificationRequests',
+        'dismissNotificationRequests'
+      ] as const)(
+        '%s resolves sources beyond the first list of ids',
+        async (method) => {
+          await create(1, { sourceActorId: source(1), filtered: true })
+          await create(1, { sourceActorId: source(2), filtered: true })
+          const filler = Array.from(
+            { length: 1500 },
+            (_, i) => `https://example.com/users/nobody${i}`
+          )
+
+          await database[method]({
+            actorId: recipient,
+            sourceActorIds: [source(1), ...filler, source(2)]
+          })
+
+          expect(await requestSources({})).toEqual([])
+        }
+      )
+
+      it('looks up and dismisses a group for the recipient only', async () => {
+        const first = await create(1, { groupKey: 'like:x' })
+        const second = await create(2, { groupKey: 'like:x' })
+        const unrelated = await create(3, { groupKey: 'like:y' })
+        const ungrouped = await create(4)
+        await create(5, { actorId: other, groupKey: 'like:x' })
+        const lookup = async (actorId: string, groupKey: string) =>
+          ids(await database.getNotificationsForGroupKey({ actorId, groupKey }))
+
+        expect(await lookup(recipient, 'like:x')).toEqual([second.id, first.id])
+        expect(await lookup(recipient, ungrouped.id)).toEqual([ungrouped.id])
+
+        await database.dismissNotificationGroup({
+          actorId: recipient,
+          groupKey: 'like:x'
+        })
+        expect(await list()).toEqual([ungrouped.id, unrelated.id])
+        await database.dismissNotificationGroup({
+          actorId: recipient,
+          groupKey: ungrouped.id
+        })
+        expect(await list()).toEqual([unrelated.id])
+        expect(await lookup(other, 'like:x')).toHaveLength(1)
+      })
+
+      it('deletes only the notification asked for', async () => {
+        const keep = await create(1)
+        const drop = await create(2)
+
+        await database.deleteNotification(drop.id)
+
+        expect(await list()).toEqual([keep.id])
       })
     })
   })

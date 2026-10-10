@@ -4,6 +4,8 @@ import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import type { AccountNoteDatabase } from '@/lib/database/domains/accountNote/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
 import type { ActorDomainBlockDatabase } from '@/lib/database/domains/actorDomainBlock/types'
+import { announcementQueries } from '@/lib/database/domains/announcement/queries'
+import type { AnnouncementDatabase } from '@/lib/database/domains/announcement/types'
 import { blockQueries } from '@/lib/database/domains/block/queries'
 import type { BlockDatabase } from '@/lib/database/domains/block/types'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
@@ -22,6 +24,8 @@ import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
 import type { IdempotencyDatabase } from '@/lib/database/domains/idempotency/types'
 import { importLockQueries } from '@/lib/database/domains/importLock/queries'
 import type { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
+import { instanceActivityQueries } from '@/lib/database/domains/instanceActivity/queries'
+import type { InstanceActivityDatabase } from '@/lib/database/domains/instanceActivity/types'
 import { instanceRuleQueries } from '@/lib/database/domains/instanceRule/queries'
 import type { InstanceRuleDatabase } from '@/lib/database/domains/instanceRule/types'
 import { likeQueries } from '@/lib/database/domains/like/queries'
@@ -32,6 +36,8 @@ import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
 import { muteQueries } from '@/lib/database/domains/mute/queries'
 import type { MuteDatabase } from '@/lib/database/domains/mute/types'
+import { notificationQueries } from '@/lib/database/domains/notification/queries'
+import type { NotificationDatabase } from '@/lib/database/domains/notification/types'
 import { oauthQueries } from '@/lib/database/domains/oauth/queries'
 import type { OAuthDatabase } from '@/lib/database/domains/oauth/types'
 import { pushSubscriptionQueries } from '@/lib/database/domains/pushSubscription/queries'
@@ -68,7 +74,6 @@ import {
 import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
-import { AnnouncementSQLDatabaseMixin } from '@/lib/database/sql/announcement'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
@@ -84,11 +89,9 @@ import { GalleryAlbumSuggestionSQLDatabaseMixin } from '@/lib/database/sql/galle
 import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
 import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
-import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
-import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
@@ -115,7 +118,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     actorDomainBlockQueries
   )
   const adminDatabase = AdminSQLDatabaseMixin(database)
-  const announcementDatabase = AnnouncementSQLDatabaseMixin(database)
+  const announcementDatabase: AnnouncementDatabase = bindDb(
+    kysely,
+    announcementQueries
+  )
   const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)
   const fitnessFileRouteDatabase = FitnessFileRouteSQLDatabaseMixin(database)
   const fitnessGearDatabase = FitnessGearSQLDatabaseMixin(database)
@@ -190,7 +196,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     followedTagQueries
   )
-  const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
+  const instanceActivityDatabase: InstanceActivityDatabase = bindDb(
+    kysely,
+    instanceActivityQueries
+  )
   const instanceRuleDatabase: InstanceRuleDatabase = bindDb(
     kysely,
     instanceRuleQueries
@@ -202,7 +211,10 @@ export const getSQLDatabase = (database: Knex): Database => {
   )
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const moderationDatabase = ModerationSQLDatabaseMixin(database)
-  const notificationDatabase = NotificationSQLDatabaseMixin(database)
+  const notificationDatabase: NotificationDatabase = bindDb(
+    kysely,
+    notificationQueries
+  )
   const pushSubscriptionDatabase: PushSubscriptionDatabase = bindDb(
     kysely,
     pushSubscriptionQueries

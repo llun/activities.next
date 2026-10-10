@@ -23,13 +23,14 @@ const DESCRIPTORS: Record<AnnouncementStatus, AnnouncementStatusDescriptor> = {
 // - published, otherwise (active)              -> Published
 //
 // The "Scheduled" state matches getActiveAnnouncements' start-window filter
-// (`startsAt IS NULL OR startsAt <= now` in lib/database/sql/announcement.ts):
+// (`startsAt IS NULL OR startsAt <= now` in lib/database/domains/announcement/queries.ts):
 // a published announcement whose `starts_at` is still in the future is hidden
 // from the public banner, so the admin badge must not read "Published" for it.
 //
 // A future *publish-at* (as opposed to event start) state is intentionally not
 // modeled: the backend stamps `published_at` only when an announcement is
-// published (publishedAt = published ? currentTime : null in lib/database/sql),
+// published (publishedAt = published ? currentTime : null in
+// lib/database/domains/announcement/queries.ts),
 // so an unpublished announcement always has `published_at === null` and the
 // admin form exposes no publish-at input. Re-add it when scheduled publishing
 // ships.

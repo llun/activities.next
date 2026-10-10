@@ -6,7 +6,8 @@ import {
 } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
-import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
+import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
+import { kyselyFor } from '@/lib/database/kysely'
 import { deleteSessionsWithTokenDetach } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
@@ -513,7 +514,7 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
             await db(tableName).insert(record)
             const row = await db(tableName).where(`${tableName}.id`, id).first()
             if (!row) throw new Error('Failed to create record')
-            await recordWeeklyLoginSafely(db, accountId, createdAt)
+            await recordWeeklyLoginSafely(kyselyFor(db), accountId, createdAt)
             return hydrateDateFields(row) as any
           }
 

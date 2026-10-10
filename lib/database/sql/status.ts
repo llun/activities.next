@@ -1,10 +1,10 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { kyselyFor } from '@/lib/database/kysely'
 import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
-import { incrementLocalStatusBucket } from '@/lib/database/sql/instanceActivity'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
 import {
   CounterKey,
@@ -543,7 +543,7 @@ export const StatusSQLDatabaseMixin = (
     if (actor?.accountId) {
       await adjust(trx, CounterKey.nodeinfoLocalPosts(), 1, currentTime)
       if (step === 'increment') {
-        await incrementLocalStatusBucket(trx, currentTime)
+        await incrementLocalStatusBucket(kyselyFor(trx), currentTime)
       }
     }
 

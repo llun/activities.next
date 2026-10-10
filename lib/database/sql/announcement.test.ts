@@ -1,4 +1,9 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { announcementQueries } from '@/lib/database/domains/announcement/queries'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
+import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
 import { Database } from '@/lib/database/types'
 import { MAX_ANNOUNCEMENT_REACTION_NAMES } from '@/lib/services/announcements/reactionLimits'
 
@@ -6,14 +11,15 @@ const ACTOR1_ID = 'https://announcements.test/users/actor1'
 const ACTOR2_ID = 'https://announcements.test/users/actor2'
 
 const withFreshDatabase = async (
-  test: (database: Database) => Promise<void>
+  test: (database: Database, testDb: TestDatabase) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  await testDb.database.migrate()
   try {
-    await test(database)
+    await test(testDb.database, testDb)
   } finally {
-    await database.destroy()
+    await testDb.destroy()
   }
 }
 
@@ -496,6 +502,303 @@ describe('deleteAnnouncement', () => {
           actorId: ACTOR1_ID
         })
       ).toEqual([])
+    })
+  })
+})
+
+describe('active window boundaries', () => {
+  it('includes an announcement whose window starts and ends exactly now', async () => {
+    await withFreshDatabase(async (database) => {
+      const now = Date.now()
+      const created = await database.createAnnouncement({
+        text: 'edges',
+        published: true,
+        startsAt: now,
+        endsAt: now
+      })
+
+      const active = await database.getActiveAnnouncements({ now })
+      expect(active.map((announcement) => announcement.id)).toEqual([
+        created.id
+      ])
+    })
+  })
+})
+
+// Each query must touch only the row it is asked about, so these seed a
+// neighbouring announcement (or actor, or name) alongside.
+describe('announcement queries only touch their own rows', () => {
+  it('reads and updates one announcement among several', async () => {
+    await withFreshDatabase(async (database) => {
+      const first = await database.createAnnouncement({ text: 'first' })
+      const second = await database.createAnnouncement({ text: 'second' })
+
+      expect((await database.getAnnouncement({ id: second.id }))?.text).toBe(
+        'second'
+      )
+      const updated = await database.updateAnnouncement({
+        id: second.id,
+        text: 'second changed',
+        published: true
+      })
+
+      expect(updated).toMatchObject({
+        id: second.id,
+        text: 'second changed',
+        published: true
+      })
+      expect(await database.getAnnouncement({ id: first.id })).toEqual(first)
+    })
+  })
+
+  it('returns null when the announcement is deleted between the read and the update', async () => {
+    await withFreshDatabase(async (database, testDb) => {
+      const created = await database.createAnnouncement({ text: 'gone' })
+      const [row] = await testDb.db
+        .selectFrom('announcements')
+        .selectAll()
+        .execute()
+      await database.deleteAnnouncement({ id: created.id })
+      // The first read still sees the row, as if the delete landed just after.
+      const racing = withStaleFirstRead(testDb.db, 'announcements', () => [row])
+
+      await expect(
+        announcementQueries.updateAnnouncement(racing, {
+          id: created.id,
+          text: 'late'
+        })
+      ).resolves.toBeNull()
+    })
+  })
+
+  it('leaves publishedAt alone when the announcement is already published', async () => {
+    await withFreshDatabase(async (database, testDb) => {
+      // Published without ever being stamped, e.g. a row written by hand.
+      const now = new Date()
+      await testDb.db
+        .insertInto('announcements')
+        .values({
+          id: 'unstamped',
+          text: 'unstamped',
+          published: true,
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+
+      const updated = await database.updateAnnouncement({
+        id: 'unstamped',
+        published: true
+      })
+
+      expect(updated?.publishedAt).toBeNull()
+    })
+  })
+
+  it('deletes one announcement with its own reads and reactions only', async () => {
+    await withFreshDatabase(async (database) => {
+      const kept = await database.createAnnouncement({ text: 'kept' })
+      const removed = await database.createAnnouncement({ text: 'removed' })
+      for (const { id } of [kept, removed]) {
+        await database.markAnnouncementRead({
+          announcementId: id,
+          actorId: ACTOR1_ID
+        })
+        await database.addAnnouncementReaction({
+          announcementId: id,
+          actorId: ACTOR1_ID,
+          name: 'tada'
+        })
+      }
+
+      await database.deleteAnnouncement({ id: removed.id })
+
+      expect((await database.getAnnouncements()).map(({ id }) => id)).toEqual([
+        kept.id
+      ])
+      expect(
+        await database.getAnnouncementReadIds({
+          actorId: ACTOR1_ID,
+          announcementIds: [kept.id, removed.id]
+        })
+      ).toEqual([kept.id])
+      expect(
+        await database.getAnnouncementReactions({
+          announcementIds: [kept.id, removed.id],
+          actorId: ACTOR1_ID
+        })
+      ).toEqual([{ announcementId: kept.id, name: 'tada', count: 1, me: true }])
+    })
+  })
+
+  it('answers an empty list of announcements with nothing', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createAnnouncement({ text: 'read' })
+      await database.markAnnouncementRead({
+        announcementId: created.id,
+        actorId: ACTOR1_ID
+      })
+
+      expect(
+        await database.getAnnouncementReadIds({
+          actorId: ACTOR1_ID,
+          announcementIds: []
+        })
+      ).toEqual([])
+      expect(
+        await database.getAnnouncementReactions({
+          announcementIds: [],
+          actorId: ACTOR1_ID
+        })
+      ).toEqual([])
+    })
+  })
+
+  it('lists the read ids of the requested announcements only', async () => {
+    await withFreshDatabase(async (database) => {
+      const first = await database.createAnnouncement({ text: 'first' })
+      const second = await database.createAnnouncement({ text: 'second' })
+      for (const { id } of [first, second]) {
+        await database.markAnnouncementRead({
+          announcementId: id,
+          actorId: ACTOR1_ID
+        })
+      }
+
+      expect(
+        await database.getAnnouncementReadIds({
+          actorId: ACTOR1_ID,
+          announcementIds: [second.id]
+        })
+      ).toEqual([second.id])
+    })
+  })
+
+  it('removes only the named reaction of the given actor on the given announcement', async () => {
+    await withFreshDatabase(async (database) => {
+      const target = await database.createAnnouncement({ text: 'target' })
+      const other = await database.createAnnouncement({ text: 'other' })
+      const react = (announcementId: string, actorId: string, name: string) =>
+        database.addAnnouncementReaction({ announcementId, actorId, name })
+      await react(target.id, ACTOR1_ID, 'tada')
+      await react(target.id, ACTOR2_ID, 'tada')
+      await react(target.id, ACTOR1_ID, 'party')
+      await react(other.id, ACTOR1_ID, 'tada')
+
+      await database.removeAnnouncementReaction({
+        announcementId: target.id,
+        actorId: ACTOR1_ID,
+        name: 'tada'
+      })
+
+      const rollup = (announcementId: string) =>
+        database.getAnnouncementReactions({
+          announcementIds: [announcementId],
+          actorId: ACTOR1_ID
+        })
+      expect(await rollup(target.id)).toEqual([
+        { announcementId: target.id, name: 'party', count: 1, me: true },
+        { announcementId: target.id, name: 'tada', count: 1, me: false }
+      ])
+      expect(await rollup(other.id)).toEqual([
+        { announcementId: other.id, name: 'tada', count: 1, me: true }
+      ])
+    })
+  })
+
+  it('rolls up reactions per announcement and name, only for the requested announcements', async () => {
+    await withFreshDatabase(async (database) => {
+      const first = await database.createAnnouncement({ text: 'first' })
+      const second = await database.createAnnouncement({ text: 'second' })
+      const unrequested = await database.createAnnouncement({ text: 'other' })
+      const [low, high] = [first.id, second.id].sort()
+      const react = (announcementId: string, actorId: string, name: string) =>
+        database.addAnnouncementReaction({ announcementId, actorId, name })
+      // Added in the reverse of the order they are returned in.
+      await react(high, ACTOR2_ID, 'b')
+      await react(high, ACTOR1_ID, 'b')
+      await react(high, ACTOR2_ID, 'a')
+      await react(low, ACTOR1_ID, 'z')
+      await react(unrequested.id, ACTOR1_ID, 'c')
+
+      expect(
+        await database.getAnnouncementReactions({
+          announcementIds: [high, low],
+          actorId: ACTOR1_ID
+        })
+      ).toEqual([
+        { announcementId: low, name: 'z', count: 1, me: true },
+        { announcementId: high, name: 'a', count: 1, me: false },
+        { announcementId: high, name: 'b', count: 2, me: true }
+      ])
+    })
+  })
+
+  it('counts a name against the ceiling of its own announcement', async () => {
+    await withFreshDatabase(async (database) => {
+      const full = await database.createAnnouncement({ text: 'full' })
+      const other = await database.createAnnouncement({ text: 'other' })
+      for (let index = 0; index < MAX_ANNOUNCEMENT_REACTION_NAMES; index++) {
+        await database.addAnnouncementReaction({
+          announcementId: full.id,
+          actorId: ACTOR1_ID,
+          name: `name${index}`
+        })
+      }
+      // The same name on another announcement does not make it a known name
+      // of the full one.
+      await database.addAnnouncementReaction({
+        announcementId: other.id,
+        actorId: ACTOR1_ID,
+        name: 'elsewhere'
+      })
+
+      expect(
+        await database.addAnnouncementReaction({
+          announcementId: full.id,
+          actorId: ACTOR2_ID,
+          name: 'elsewhere'
+        })
+      ).toBeFalse()
+    })
+  })
+
+  it('row-locks the announcement row before counting its reactions', async () => {
+    await withFreshDatabase(async (database, testDb) => {
+      const created = await database.createAnnouncement({
+        text: 'locked',
+        published: true
+      })
+      // The lock is what holds the reaction ceiling under concurrent requests
+      // on PostgreSQL. SQLite has no row locks, so read the statements sent.
+      const statements: string[] = []
+      const record = ({ sql }: { sql: string }) => statements.push(sql)
+      testDb.knex.on('query', record)
+      try {
+        await database.addAnnouncementReaction({
+          announcementId: created.id,
+          actorId: ACTOR1_ID,
+          name: 'tada'
+        })
+      } finally {
+        testDb.knex.removeListener('query', record)
+      }
+
+      const locking = statements.filter((sql) => /\bfor update\b/i.test(sql))
+      if (testDb.backend === 'pg') {
+        // This announcement's row only, locked before its reactions are read:
+        // a lock taken after the count lets two requests both see seven names.
+        expect(locking).toEqual([
+          'select "id" from "announcements" where "id" = $1 for update'
+        ])
+        expect(statements.indexOf(locking[0])).toBeLessThan(
+          statements.findIndex((sql) =>
+            sql.includes('"announcement_reactions"')
+          )
+        )
+      } else {
+        expect(locking).toEqual([])
+      }
     })
   })
 })
