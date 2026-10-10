@@ -21,7 +21,7 @@ export const GallerySubjectsView: FC<Props> = ({ data }) => (
       linkSubjects
       mapHref="/gallery/map"
       getSeeAllHref={(category) =>
-        `/gallery/recent?category=${encodeURIComponent(category)}`
+        `/gallery/media?category=${encodeURIComponent(category)}`
       }
     />
   </div>

@@ -114,6 +114,7 @@ export const renderDialog = (
     settings: GallerySettingsEntity | null
     suggestionsPending: Record<string, true>
     ownerId: string
+    context: 'composer' | 'gallery'
   }> = {}
 ) => {
   const onClose = vi.fn()
@@ -129,6 +130,7 @@ export const renderDialog = (
       onDetailsRefreshed={onDetailsRefreshed}
       suggestionsPending={props.suggestionsPending}
       ownerId={props.ownerId}
+      context={props.context}
     />
   )
   return { onClose, onSaved, onDetailsRefreshed }

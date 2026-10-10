@@ -1,10 +1,14 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -564,6 +568,118 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
       })
       // Explicit null clears the stored alt text (blank/null normalise to null).
       expect(updatedMedia?.description ?? null).toBeNull()
+    })
+
+    // How Gallery saves the alt text of a posted photo: only the description
+    // goes in, as a Mastodon status edit.
+    it('treats a description-only media_attributes edit as a post edit that keeps the text and sends an Update', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-only`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Words that stay',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-alt-only.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-alt-only.jpg'
+        },
+        description: 'Old alt'
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-alt-only.webp',
+        width: 320,
+        height: 240,
+        name: 'Old alt',
+        mediaId: media!.id
+      })
+      // More than the 255 characters this route used to cap alt text at: the
+      // details dialog allows 1500.
+      const longAlt = 'A kingfisher on a branch. '.repeat(20).trim()
+      expect(longAlt.length).toBeGreaterThan(255)
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: media!.id, description: longAlt }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments[0].description).toBe(longAlt)
+
+      const status = await database.getStatus({ statusId })
+      if (!status || status.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      // The words are untouched and the edit is on the record.
+      expect(status.text).toBe('Words that stay')
+      expect(status.attachments[0].name).toBe(longAlt)
+      expect(status.edits).toHaveLength(1)
+      expect(status.edits[0].text).toBe('Words that stay')
+      expect(getQueue().publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_UPDATE_NOTE_JOB_NAME,
+          data: { actorId: ACTOR1_ID, statusId }
+        })
+      )
+    })
+
+    it('rejects alt text over the media description limit', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-too-long`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Too long target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                {
+                  id: '1',
+                  description: 'a'.repeat(MAX_MEDIA_DESCRIPTION_LENGTH + 1)
+                }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(400)
     })
 
     it('rejects media_attributes for media the actor does not own', async () => {

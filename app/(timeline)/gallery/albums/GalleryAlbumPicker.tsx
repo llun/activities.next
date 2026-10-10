@@ -231,8 +231,8 @@ export const GalleryAlbumPicker: FC<Props> = ({
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href="/gallery/recent" prefetch={false}>
-            Go to Recent
+          <Link href="/gallery/media" prefetch={false}>
+            Go to All media
           </Link>
         </Button>
       </div>

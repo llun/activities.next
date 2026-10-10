@@ -22,6 +22,7 @@ import {
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { FocusSchema } from '@/lib/services/medias/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
@@ -117,16 +118,18 @@ export const GET = traceApiRoute(
   )
 )
 
-// Matches PUT /api/v1/media/:id's update rules: description capped at the
-// varchar(255) column with blank/explicit-null normalised to null (clears alt
-// text), focus parsed from Mastodon's "x,y" string form. `.optional()` stays
+// Matches PUT /api/v1/media/:id's update rules: description capped at
+// MAX_MEDIA_DESCRIPTION_LENGTH (the same cap the media details dialog and the
+// upload path use, so an alt text the dialog accepts can be saved as a status
+// edit) with blank/explicit-null normalised to null (clears alt text), focus
+// parsed from Mastodon's "x,y" string form. `.optional()` stays
 // OUTERMOST on description so an omitted field short-circuits to undefined
 // (leave untouched) instead of running the transform and clearing alt text.
 const EditMediaAttributeSchema = z.object({
   id: z.coerce.string(),
   description: z
     .string()
-    .max(255)
+    .max(MAX_MEDIA_DESCRIPTION_LENGTH)
     .nullable()
     .transform((value) => (value && value.trim() ? value : null))
     .optional(),

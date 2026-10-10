@@ -1,6 +1,6 @@
 'use client'
 
-import { FolderPlus, X } from 'lucide-react'
+import { FolderPlus, Pencil, X } from 'lucide-react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -22,11 +22,12 @@ interface Props {
   onSelectAllLoaded: () => void
   onClear: () => void
   onAddToAlbum: () => void
+  onEditDetails: () => void
 }
 
 /**
  * The bar that rides the bottom of the page while photos are selected:
- * "N selected" and the Add to album action. It is a toolbar region, so a screen
+ * "N selected" with the Edit details and Add to album actions. It is a toolbar region, so a screen
  * reader can find it, and the count is a polite live region so every tick of a
  * tile is spoken.
  */
@@ -35,7 +36,8 @@ export const GallerySelectionBar: FC<Props> = ({
   loadedCount,
   onSelectAllLoaded,
   onClear,
-  onAddToAlbum
+  onAddToAlbum,
+  onEditDetails
 }) => {
   const allSelected = loadedCount === 0 || count >= loadedCount
   return (
@@ -78,6 +80,19 @@ export const GallerySelectionBar: FC<Props> = ({
         >
           <X aria-hidden="true" />
           Clear
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={cn('pointer-coarse:h-10', DISABLED_CLASS)}
+          onClick={() => {
+            if (count > 0) onEditDetails()
+          }}
+          aria-disabled={count === 0 || undefined}
+        >
+          <Pencil aria-hidden="true" />
+          Edit details
         </Button>
         <Button
           type="button"

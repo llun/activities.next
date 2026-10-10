@@ -2,7 +2,7 @@ import { pluralize } from '@/lib/components/gallery/galleryCategories'
 import type { GalleryAlbumItemsResult } from '@/lib/services/gallery/galleryAlbumEntities'
 import { MAX_GALLERY_ALBUM_ITEMS } from '@/lib/types/database/galleryAlbums'
 
-// Wording for adding a selection from Recent to an album: what the server
+// Wording for adding a selection from All media to an album: what the server
 // answered, and what to tell the owner when it stopped part way.
 
 type Outcome = Pick<GalleryAlbumItemsResult, 'added' | 'existing' | 'skipped'>

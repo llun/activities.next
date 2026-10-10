@@ -1,7 +1,15 @@
 'use client'
 
 import { Images } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  FC,
+  RefObject,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState
+} from 'react'
 
 import { getGalleryMedia } from '@/lib/client'
 import {
@@ -16,7 +24,20 @@ import type {
   GalleryItemEntity,
   GalleryMediaPage
 } from '@/lib/services/gallery/galleryEntities'
-import type { MediaSubjectCategory } from '@/lib/types/database/gallery'
+import type {
+  GalleryShow,
+  MediaSubjectCategory
+} from '@/lib/types/database/gallery'
+
+/** What a page holding the grid can do to the photos it has loaded. */
+export interface GalleryPagedGridController {
+  /**
+   * Replaces loaded tiles with their edited copies (matched by media id), for
+   * an edit made outside the grid, such as Select mode's Edit details. A tile
+   * that no longer belongs under the grid's `show` filter leaves the list.
+   */
+  updateItems: (items: GalleryItemEntity[]) => void
+}
 
 interface Props {
   actorId: string
@@ -25,6 +46,8 @@ interface Props {
   category?: MediaSubjectCategory
   /** Owner only: one camera or lens. */
   gearId?: string
+  /** Owner only: `all` posted media, or just the `hidden` ones. */
+  show?: GalleryShow
   /** A page the server already loaded; without it the grid loads its own. */
   initialPage?: GalleryMediaPage
   emptyTitle?: string
@@ -35,6 +58,8 @@ interface Props {
   albumsOwnerId?: string | null
   /** Told the photos loaded so far each time they change. */
   onItemsChange?: (items: GalleryItemEntity[]) => void
+  /** Lets the page update tiles it edited itself. */
+  controllerRef?: RefObject<GalleryPagedGridController | null>
 }
 
 const PAGE_SIZE = 30
@@ -61,12 +86,14 @@ export const GalleryPagedGrid: FC<Props> = ({
   subject,
   category,
   gearId,
+  show,
   initialPage,
   emptyTitle = 'No photos in your gallery yet',
   showCaption = true,
   selection,
   albumsOwnerId,
-  onItemsChange
+  onItemsChange,
+  controllerRef
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>(
     initialPage?.items ?? []
@@ -91,7 +118,8 @@ export const GalleryPagedGrid: FC<Props> = ({
             maxId: cursor,
             subject,
             category,
-            gearId
+            gearId,
+            show
           })
           if (!isMounted.current) return
           const append = !replace
@@ -120,7 +148,42 @@ export const GalleryPagedGrid: FC<Props> = ({
         if (isMounted.current) setIsLoading(false)
       }
     },
-    [actorId, subject, category, gearId]
+    [actorId, subject, category, gearId, show]
+  )
+
+  // An edit can move a photo out of the list this grid shows (hidden under
+  // "In gallery", back in the gallery under "Hidden from gallery"). It is
+  // dropped from the list only once told to, so the viewer a tile was edited
+  // from keeps the photos it is paging through.
+  const belongsHere = useCallback(
+    (item: GalleryItemEntity) =>
+      show === 'in_gallery'
+        ? item.inGallery !== false
+        : show === 'hidden'
+          ? item.inGallery !== true
+          : true,
+    [show]
+  )
+  const replaceItems = useCallback((edited: GalleryItemEntity[]) => {
+    const byId = new Map(edited.map((item) => [item.mediaId, item]))
+    setItems((current) => current.map((item) => byId.get(item.mediaId) ?? item))
+  }, [])
+  const dropMisfiled = useCallback(
+    () =>
+      setItems((current) =>
+        current.every(belongsHere) ? current : current.filter(belongsHere)
+      ),
+    [belongsHere]
+  )
+  useImperativeHandle(
+    controllerRef,
+    () => ({
+      updateItems: (edited) => {
+        replaceItems(edited)
+        dropMisfiled()
+      }
+    }),
+    [replaceItems, dropMisfiled]
   )
 
   // A ref, so a parent that passes a new callback each render does not make
@@ -154,6 +217,8 @@ export const GalleryPagedGrid: FC<Props> = ({
           showCaption={showCaption}
           selection={selection}
           albumsOwnerId={albumsOwnerId}
+          onItemEdited={(item) => replaceItems([item])}
+          onViewerClosed={dropMisfiled}
         />
       ) : error || nextMaxId ? null : (
         <EmptyState icon={Images} title={emptyTitle} />

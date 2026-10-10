@@ -2,12 +2,17 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createRef } from 'react'
 
 import { getGalleryMedia } from '@/lib/client'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
+import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 
-import { GalleryPagedGrid } from './GalleryPagedGrid'
+import {
+  GalleryPagedGrid,
+  type GalleryPagedGridController
+} from './GalleryPagedGrid'
 
 vi.mock('@/lib/client', () => ({
   getGalleryMedia: vi.fn()
@@ -17,11 +22,15 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
     selection,
-    albumsOwnerId
+    albumsOwnerId,
+    onItemEdited,
+    onViewerClosed
   }: {
-    items: { mediaId: string }[]
+    items: GalleryItemEntity[]
     selection?: unknown
     albumsOwnerId?: string | null
+    onItemEdited?: (item: GalleryItemEntity) => void
+    onViewerClosed?: () => void
   }) => (
     <ul
       data-testid="grid"
@@ -31,6 +40,19 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
       {items.map((item) => (
         <li key={item.mediaId}>{item.mediaId}</li>
       ))}
+      <button
+        onClick={() =>
+          onItemEdited?.({
+            ...items[0],
+            inGallery: false,
+            attachment: { ...items[0].attachment, name: 'Edited' }
+          })
+        }
+      >
+        Edit first
+      </button>
+      <button onClick={() => onViewerClosed?.()}>Close viewer</button>
+      <li data-testid="first-name">{items[0]?.attachment.name}</li>
     </ul>
   )
 }))
@@ -218,5 +240,99 @@ describe('GalleryPagedGrid', () => {
 
     expect(first).toHaveBeenCalledTimes(1)
     expect(second).not.toHaveBeenCalled()
+  })
+  it('asks for the show filter it was given', async () => {
+    getGalleryMediaMock.mockResolvedValue({
+      items: [buildGalleryItem('1')],
+      nextMaxId: null
+    })
+    render(<GalleryPagedGrid actorId="actor-1" show="hidden" />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('1')
+    )
+    expect(getGalleryMediaMock).toHaveBeenCalledWith(
+      'actor-1',
+      expect.objectContaining({ show: 'hidden' })
+    )
+  })
+
+  describe('editing from the grid', () => {
+    const page = (show?: 'in_gallery' | 'hidden' | 'all') => (
+      <GalleryPagedGrid
+        actorId="actor-1"
+        show={show}
+        initialPage={{
+          items: [
+            buildGalleryItem('2', { inGallery: true }),
+            buildGalleryItem('1', { inGallery: true })
+          ],
+          nextMaxId: null
+        }}
+      />
+    )
+
+    it('swaps in the edited tile but keeps it until the viewer closes', () => {
+      render(page('in_gallery'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit first' }))
+
+      expect(screen.getByTestId('first-name')).toHaveTextContent('Edited')
+      expect(screen.getByTestId('grid')).toHaveTextContent('21')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(screen.getByTestId('grid')).toHaveTextContent('1')
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('2')
+    })
+
+    it('keeps an edited tile that still belongs under Everything', () => {
+      render(page('all'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit first' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(screen.getByTestId('grid')).toHaveTextContent('21')
+    })
+
+    it('drops a tile that is shown again under Hidden from gallery', () => {
+      render(page('hidden'))
+
+      // Both tiles are in the gallery, so neither belongs here.
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(screen.queryByTestId('grid')).not.toBeInTheDocument()
+      expect(screen.getByText('No photos in your gallery yet')).toBeVisible()
+    })
+
+    it('lets the page replace tiles it edited itself', () => {
+      const controller = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          show="in_gallery"
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('2', { inGallery: true }),
+              buildGalleryItem('1', { inGallery: true })
+            ],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      act(() =>
+        controller.current?.updateItems([
+          buildGalleryItem('1', { inGallery: false }),
+          buildGalleryItem('9', { inGallery: false })
+        ])
+      )
+
+      // Tile 1 was hidden so it leaves; 9 was never loaded so it is not added.
+      expect(screen.getByTestId('grid')).toHaveTextContent('2')
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('9')
+    })
   })
 })

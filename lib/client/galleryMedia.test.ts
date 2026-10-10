@@ -39,7 +39,8 @@ describe('gallery media client module', () => {
         limit: 30,
         subject: 'sci:alcedo atthis',
         category: 'bird',
-        gearId: 'gear-1'
+        gearId: 'gear-1',
+        show: 'hidden'
       })
 
       const url = new URL(
@@ -52,7 +53,8 @@ describe('gallery media client module', () => {
         limit: '30',
         subject: 'sci:alcedo atthis',
         category: 'bird',
-        gear_id: 'gear-1'
+        gear_id: 'gear-1',
+        show: 'hidden'
       })
     })
 

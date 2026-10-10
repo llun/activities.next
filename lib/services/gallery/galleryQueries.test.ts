@@ -140,6 +140,13 @@ describe('gallery queries', () => {
         subjectCategory: 'bird',
         takenAt: Date.UTC(2024, 0, 1)
       })
+      // Posted, but with Show in my gallery switched off: only the owner's
+      // All media list can reach it.
+      await createPostedMedia('hidden-bird', publicStatus, {
+        inGallery: false,
+        subjectName: 'Hidden Bird',
+        subjectCategory: 'bird'
+      })
 
       // What the subject job would write: every species above is Least
       // Concern, so the threatened-species rule (on by default) lets their
@@ -382,6 +389,128 @@ describe('gallery queries', () => {
           latitude: 40.7,
           longitude: -74,
           countryCode: null
+        })
+      })
+
+      describe('show', () => {
+        const idsOf = (page: { items: { mediaId: string }[] }) =>
+          page.items.map((item) => item.mediaId)
+
+        it.each([
+          { show: 'all' as const, first: 'hidden-bird', count: 8 },
+          { show: 'in_gallery' as const, first: 'kingfisher-2', count: 7 },
+          { show: 'hidden' as const, first: 'hidden-bird', count: 1 }
+        ])('gives the owner the $show list', async ({ show, first, count }) => {
+          const page = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30,
+            show
+          })
+
+          expect(page.items).toHaveLength(count)
+          expect(page.items[0].mediaId).toBe(ids[first])
+        })
+
+        it('defaults to the gallery', async () => {
+          const page = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30
+          })
+
+          expect(idsOf(page)).not.toContain(ids['hidden-bird'])
+        })
+
+        it('tells the owner which tiles are in the gallery, and nobody else', async () => {
+          const ownerPage = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30,
+            show: 'all'
+          })
+          const publicPage = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            limit: 30
+          })
+
+          const hidden = ownerPage.items.find(
+            (item) => item.mediaId === ids['hidden-bird']
+          )
+          expect(hidden?.inGallery).toBe(false)
+          expect(
+            ownerPage.items.find((item) => item.mediaId === ids.fox)?.inGallery
+          ).toBe(true)
+          for (const item of publicPage.items) {
+            expect(item).not.toHaveProperty('inGallery')
+          }
+        })
+
+        it('applies to a category filter, which reads the index', async () => {
+          const all = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30,
+            category: 'bird',
+            show: 'all'
+          })
+          const hidden = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30,
+            category: 'bird',
+            show: 'hidden'
+          })
+          const inGallery = await getGalleryMediaPage({
+            database,
+            owner,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30,
+            category: 'bird'
+          })
+
+          expect(idsOf(all)).toEqual([
+            ids['hidden-bird'],
+            ids['kingfisher-2'],
+            ids.heron,
+            ids['kingfisher-1']
+          ])
+          expect(idsOf(hidden)).toEqual([ids['hidden-bird']])
+          expect(idsOf(inGallery)).toEqual([
+            ids['kingfisher-2'],
+            ids.heron,
+            ids['kingfisher-1']
+          ])
+        })
+
+        it.each([
+          { description: 'logged out', audience: PUBLIC_GALLERY_AUDIENCE },
+          { description: 'a follower', audience: follower }
+        ])('is ignored for $description', async ({ audience }) => {
+          const baseline = await getGalleryMediaPage({
+            database,
+            owner,
+            audience,
+            limit: 30
+          })
+          for (const show of ['all', 'hidden', 'in_gallery'] as const) {
+            const page = await getGalleryMediaPage({
+              database,
+              owner,
+              audience,
+              limit: 30,
+              show
+            })
+            expect(page).toEqual(baseline)
+            expect(idsOf(page)).not.toContain(ids['hidden-bird'])
+          }
         })
       })
 

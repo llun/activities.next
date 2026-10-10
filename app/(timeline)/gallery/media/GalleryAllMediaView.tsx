@@ -5,7 +5,12 @@ import Link from 'next/link'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
-import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
+import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
+import {
+  GalleryPagedGrid,
+  type GalleryPagedGridController
+} from '@/lib/components/gallery/GalleryPagedGrid'
+import { GalleryShowSelect } from '@/lib/components/gallery/GalleryShowSelect'
 import {
   GALLERY_CATEGORY_ICONS,
   GALLERY_CATEGORY_LABELS
@@ -21,6 +26,7 @@ import type {
   GalleryMediaPage
 } from '@/lib/services/gallery/galleryEntities'
 import {
+  type GalleryShow,
   MEDIA_SUBJECT_CATEGORIES,
   type MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -34,6 +40,7 @@ import {
 interface Props {
   actorId: string
   initialCategory: MediaSubjectCategory | null
+  initialShow: GalleryShow
   initialPage: GalleryMediaPage
 }
 
@@ -50,16 +57,27 @@ const FILTER_TABS: SectionNavSelectTab<Filter>[] = [
 
 interface Outcome {
   message: string
-  albumId: string
+  /** The album the message links to, when it is about one. */
+  albumId?: string
 }
 
-export const GalleryRecentView: FC<Props> = ({
+const EMPTY_TITLES: Record<GalleryShow, string> = {
+  all: 'No photos or videos yet',
+  in_gallery: 'No photos in your gallery yet',
+  hidden: 'Nothing is hidden from your gallery'
+}
+
+export const GalleryAllMediaView: FC<Props> = ({
   actorId,
   initialCategory,
+  initialShow,
   initialPage
 }) => {
   const [filter, setFilterState] = useState<Filter>(initialCategory ?? 'all')
   const startFilter = initialCategory ?? 'all'
+  const [show, setShowState] = useState<GalleryShow>(initialShow)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const gridController = useRef<GalleryPagedGridController | null>(null)
   const [isSelecting, setIsSelecting] = useState(false)
   // In the order they were picked: the first is the cover of a new album.
   const [selected, setSelected] = useState<string[]>([])
@@ -78,11 +96,20 @@ export const GalleryRecentView: FC<Props> = ({
     () => loaded.filter((item) => selectedSet.has(item.mediaId)),
     [loaded, selectedSet]
   )
+  // The photos Edit details was opened for: fixed while the dialog is open, so
+  // a tile that drops out of the list after a save does not pull the item from
+  // under it.
+  const [editItems, setEditItems] = useState<GalleryItemEntity[]>([])
 
   const setFilter = (next: Filter) => {
     // A different filter is a different list: a selection does not carry over.
     setSelected([])
     setFilterState(next)
+  }
+
+  const setShow = (next: GalleryShow) => {
+    setSelected([])
+    setShowState(next)
   }
 
   const toggle = useCallback((item: GalleryItemEntity) => {
@@ -127,8 +154,8 @@ export const GalleryRecentView: FC<Props> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Recent"
-        description="Your newest photos and videos first"
+        title="All media"
+        description="Every photo and video you've posted or added, newest first"
         actions={
           <Button
             ref={selectButton}
@@ -150,26 +177,34 @@ export const GalleryRecentView: FC<Props> = ({
           </Button>
         }
       />
-      <SectionNavSelect
-        label="Category"
-        tabs={FILTER_TABS}
-        active={filter}
-        onChange={setFilter}
-      />
+      <div className="flex flex-wrap gap-2">
+        <SectionNavSelect
+          label="Category"
+          tabs={FILTER_TABS}
+          active={filter}
+          onChange={setFilter}
+        />
+        <GalleryShowSelect value={show} onChange={setShow} />
+      </div>
       {/* Always on the page (hidden visually while empty), so the result is
           announced when it appears. */}
       <div role="status" aria-live="polite" className="empty:sr-only">
         {outcome ? (
           <div className="bg-card flex items-start gap-3 rounded-lg border px-3 py-2.5 text-sm">
             <p className="min-w-0 flex-1 break-words">
-              {outcome.message}{' '}
-              <Link
-                href={`/gallery/albums/${encodeURIComponent(outcome.albumId)}`}
-                prefetch={false}
-                className="text-primary-text font-medium hover:underline"
-              >
-                Open album
-              </Link>
+              {outcome.message}
+              {outcome.albumId ? (
+                <>
+                  {' '}
+                  <Link
+                    href={`/gallery/albums/${encodeURIComponent(outcome.albumId)}`}
+                    prefetch={false}
+                    className="text-primary-text font-medium hover:underline"
+                  >
+                    Open album
+                  </Link>
+                </>
+              ) : null}
             </p>
             <button
               type="button"
@@ -184,7 +219,7 @@ export const GalleryRecentView: FC<Props> = ({
       </div>
       <div role="status" aria-live="polite" className="sr-only">
         {isSelecting
-          ? 'Select mode is on. Choose photos, then add them to an album.'
+          ? 'Select mode is on. Choose photos, then edit their details or add them to an album.'
           : ''}
       </div>
       {isSelecting ? (
@@ -200,13 +235,19 @@ export const GalleryRecentView: FC<Props> = ({
       ) : null}
       <GalleryPagedGrid
         // A different filter is a different query, so a fresh grid.
-        key={filter}
+        key={`${filter}:${show}`}
         actorId={actorId}
         category={filter === 'all' ? undefined : filter}
-        initialPage={filter === startFilter ? initialPage : undefined}
+        show={show}
+        initialPage={
+          filter === startFilter && show === initialShow
+            ? initialPage
+            : undefined
+        }
+        controllerRef={gridController}
         emptyTitle={
           filter === 'all'
-            ? 'No photos in your gallery yet'
+            ? EMPTY_TITLES[show]
             : `No ${GALLERY_CATEGORY_LABELS[filter].toLowerCase()} yet`
         }
         selection={selection}
@@ -220,6 +261,28 @@ export const GalleryRecentView: FC<Props> = ({
           onSelectAllLoaded={selectAllLoaded}
           onClear={() => setSelected([])}
           onAddToAlbum={() => setIsAddOpen(true)}
+          onEditDetails={() => {
+            setEditItems(selectedItems)
+            setIsEditOpen(true)
+          }}
+        />
+      ) : null}
+
+      {isEditOpen && editItems.length > 0 ? (
+        <GalleryEditDetailsDialog
+          items={editItems}
+          initialMediaId={editItems[0].mediaId}
+          ownerId={actorId}
+          onClose={() => setIsEditOpen(false)}
+          onSaved={(saved) => {
+            gridController.current?.updateItems(saved)
+            setOutcome({
+              message:
+                saved.length === 1
+                  ? 'Details saved for 1 item.'
+                  : `Details saved for ${saved.length} items.`
+            })
+          }}
         />
       ) : null}
 
