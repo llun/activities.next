@@ -245,6 +245,26 @@ describe('PageHeader', () => {
     expect(getTitleColumn()).not.toHaveClass('self-center')
   })
 
+  it('centres a section title without a description on the row', () => {
+    const actions = <button type="button">Add</button>
+    const { rerender } = render(
+      <PageHeaderSectionProvider>
+        <PageHeader title="Gear" actions={actions} />
+      </PageHeaderSectionProvider>
+    )
+    const getTitleColumn = () =>
+      screen.getByRole('heading', { name: 'Gear' }).parentElement
+
+    expect(getTitleColumn()).toHaveClass('self-center')
+
+    rerender(
+      <PageHeaderSectionProvider>
+        <PageHeader title="Gear" description="Bikes" actions={actions} />
+      </PageHeaderSectionProvider>
+    )
+    expect(getTitleColumn()).not.toHaveClass('self-center')
+  })
+
   describe('mobile compact bar', () => {
     it('puts only the title in the bar and keeps description, actions and sub-nav in the content', () => {
       const { container } = render(
