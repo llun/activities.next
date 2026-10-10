@@ -206,6 +206,14 @@ describe('/admin/federation', () => {
     expect(within(nav).getByRole('button', { name: /Previous/ })).toBeDisabled()
   })
 
+  it('starts from the first rule when an offset is not a safe integer', async () => {
+    await renderPage({ blockOffset: '1e21', allowOffset: '9007199254740993' })
+
+    // 1e21 as a bound parameter makes SQLite and PostgreSQL throw.
+    expect(getDomainBlocks).toHaveBeenCalledWith({ limit: 100, offset: 0 })
+    expect(getDomainAllows).toHaveBeenCalledWith({ limit: 100, offset: 0 })
+  })
+
   it('shows a saved status as a success alert and a failure as an error', async () => {
     const { unmount } = await renderPage({ status: 'block-saved' })
     expect(
