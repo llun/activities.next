@@ -977,7 +977,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
             width: 320,
             height: 240,
             name: published,
-            mediaId: media!.id
+            mediaId: media!.id,
+            createdAt: ATTACHMENTS_CREATED_AT + index
           })
         )
       }
@@ -1043,7 +1044,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
           width: 320,
           height: 240,
           name: published,
-          mediaId: media!.id
+          mediaId: media!.id,
+          createdAt: ATTACHMENTS_CREATED_AT + index
         })
         medias.push(media!)
       }

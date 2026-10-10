@@ -6,7 +6,7 @@ import {
   Eye,
   SlidersHorizontal
 } from 'lucide-react'
-import { FC, ReactNode, useId, useSyncExternalStore } from 'react'
+import { FC, ReactNode, useId } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -56,30 +56,8 @@ interface Props {
 
 const QUOTE_POLL_EXPLANATION = 'A quote post cannot include a poll'
 
-// Tailwind's `max-md` (`md` is 48rem): below it the menu is too narrow to open
-// a submenu beside itself.
-const PHONE_QUERY = '(width < 48rem)'
-
-const subscribeToPhoneQuery = (onChange: () => void) => {
-  if (typeof window.matchMedia !== 'function') return () => {}
-  const query = window.matchMedia(PHONE_QUERY)
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
-}
-
-const isPhoneViewport = () =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia(PHONE_QUERY).matches
-
-const useIsPhoneViewport = () =>
-  useSyncExternalStore(subscribeToPhoneQuery, isPhoneViewport, () => false)
-
-// The submenu's width, set once and used for its offset too. The offset is
-// measured from the Visibility row (the SubTrigger), not from the menu edge:
-// pulling the submenu back by its own width plus 8px puts its right edge 8px
-// short of that row's right edge, whatever the menu's position.
+// The submenu's width beside the menu on desktop; on a phone it opens inline.
 const SUBMENU_WIDTH = 256
-const PHONE_SUBMENU_OFFSET = -(SUBMENU_WIDTH + 8)
 
 const ITEM_CLASS = 'min-h-10 cursor-pointer gap-3 md:min-h-9'
 
@@ -146,7 +124,6 @@ export const PostOptionsMenu: FC<Props> = ({
   previewShowing,
   onTogglePreview
 }) => {
-  const isPhone = useIsPhoneViewport()
   const pollLabelId = useId()
   const pollDescriptionId = useId()
   const active = pollShowing || contentWarningVisible || previewShowing
@@ -263,11 +240,6 @@ export const PostOptionsMenu: FC<Props> = ({
             </span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
-            // Beside the menu on desktop. A phone has no room for two menus
-            // side by side, so there the submenu is pulled back over its
-            // parent (still on the right side, so it cannot flip off-screen):
-            // its right edge stays 8px short of the Visibility row's.
-            sideOffset={isPhone ? PHONE_SUBMENU_OFFSET : undefined}
             collisionPadding={16}
             style={{ width: SUBMENU_WIDTH }}
             className="max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto"
