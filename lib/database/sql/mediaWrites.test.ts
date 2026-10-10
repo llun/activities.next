@@ -1045,11 +1045,14 @@ describe('media deletes', () => {
       300,
       { upload: { clientPath: `edits/${key}-client.jpg` } }
     )
+    // A render's metadata naming an upload key: only the original slot's
+    // presigned key is a file of its own, so this one is not returned.
     const editRender = await addEditFile(
       media,
       owner.actorId,
-      'superseded:1',
-      400
+      'superseded',
+      400,
+      { upload: { clientPath: `edits/${key}-render-client.jpg` } }
     )
     const neighbourEdit = await addEditFile(
       neighbour,
@@ -1318,6 +1321,41 @@ describe('media deletes', () => {
       )
     })
   })
+
+  // better-sqlite3 enforces foreign keys, so the edit files and album items
+  // would cascade with the media row; a SQLite database may run without them,
+  // where only the delete's own statements remove them. (PostgreSQL always
+  // cascades, so there this repeats the tests above.)
+  describe('where nothing cascades', () => {
+    beforeAll(async () => {
+      if (!isPostgres()) await sql`PRAGMA foreign_keys = OFF`.execute(db)
+    })
+
+    afterAll(async () => {
+      if (!isPostgres()) await sql`PRAGMA foreign_keys = ON`.execute(db)
+    })
+
+    it('deleteMediaWithFiles removes the edit files and album rows itself', async () => {
+      const seeded = await seedDeletable()
+
+      expect(
+        await database.deleteMediaWithFiles({ mediaId: String(seeded.media) })
+      ).toMatchObject({ status: 'deleted' })
+      await expectDeleted(seeded)
+    })
+
+    it('deleteMediaForAccount removes the edit files and album rows itself', async () => {
+      const seeded = await seedDeletable()
+
+      expect(
+        await database.deleteMediaForAccount({
+          mediaId: String(seeded.media),
+          accountId: seeded.owner.accountId
+        })
+      ).toMatchObject({ status: 'deleted' })
+      await expectDeleted(seeded)
+    })
+  })
 })
 
 describe('setMediaSubjectLookup', () => {
@@ -1577,7 +1615,7 @@ describe('the gallery album lock', () => {
       const media = await seedMedia(owner.actorId, { inGallery: true })
       const albumId = await addAlbum(owner.actorId, null)
       await addAlbumItem(albumId, media, owner.actorId)
-      const calls = {
+      const calls: Record<typeof method, () => Promise<unknown>> = {
         createGalleryAlbumWithinLimit: () =>
           database.createGalleryAlbumWithinLimit({
             actorId: owner.actorId,
