@@ -411,14 +411,14 @@ const SourceFileRow: FC<{
       </span>
       <span className="shrink-0 uppercase">{fileType}</span>
       {position ? (
-        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
           {position}
         </span>
       ) : null}
     </>
   )
   const className =
-    'inline-flex min-w-0 items-center gap-2 self-start text-xs text-muted-foreground'
+    'inline-flex min-w-0 max-w-full items-center gap-2 self-start text-xs text-muted-foreground'
 
   if (!href) {
     return (
