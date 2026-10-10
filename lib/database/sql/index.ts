@@ -22,6 +22,8 @@ import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import type { FeaturedTagDatabase } from '@/lib/database/domains/featuredTag/types'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
 import type { FilterDatabase } from '@/lib/database/domains/filter/types'
+import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
+import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
 import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
 import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
@@ -68,12 +70,16 @@ import { statusQuoteQueries } from '@/lib/database/domains/statusQuote/queries'
 import type { StatusQuoteDatabase } from '@/lib/database/domains/statusQuote/types'
 import { statusReactionQueries } from '@/lib/database/domains/statusReaction/queries'
 import type { StatusReactionDatabase } from '@/lib/database/domains/statusReaction/types'
+import { stravaArchiveImportQueries } from '@/lib/database/domains/stravaArchiveImport/queries'
+import type { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { suggestionQueries } from '@/lib/database/domains/suggestion/queries'
 import type { SuggestionDatabase } from '@/lib/database/domains/suggestion/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
 import type { TranslationCacheDatabase } from '@/lib/database/domains/translationCache/types'
 import { trendsQueries } from '@/lib/database/domains/trends/queries'
 import type { TrendsDatabase } from '@/lib/database/domains/trends/types'
+import { wahooImportQueries } from '@/lib/database/domains/wahooImport/queries'
+import type { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
 import {
   bindDb,
   installKnexKyselyGuard,
@@ -88,7 +94,6 @@ import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile
 import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { GallerySQLDatabaseMixin } from '@/lib/database/sql/gallery'
 import { GalleryAlbumSuggestionSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbumSuggestions'
@@ -99,9 +104,7 @@ import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
-import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
-import { WahooImportSQLDatabaseMixin } from '@/lib/database/sql/wahooImport'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
@@ -133,7 +136,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     FitnessRouteHeatmapSQLDatabaseMixin(database)
   const fitnessRouteHeatmapTileDatabase =
     FitnessRouteHeatmapTileSQLDatabaseMixin(database)
-  const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
+  const fitnessSettingsDatabase: FitnessSettingsDatabase = bindDb(
+    kysely,
+    fitnessSettingsQueries
+  )
   const galleryDatabase = GallerySQLDatabaseMixin(database)
   const galleryAlbumDatabase = GalleryAlbumSQLDatabaseMixin(database)
   const galleryAlbumSuggestionDatabase =
@@ -235,9 +241,14 @@ export const getSQLDatabase = (database: Knex): Database => {
   )
   const oauthDatabase: OAuthDatabase = bindDb(kysely, oauthQueries)
   const searchDatabase: SearchDatabase = bindDb(kysely, searchQueries)
-  const stravaArchiveImportDatabase =
-    StravaArchiveImportSQLDatabaseMixin(database)
-  const wahooImportDatabase = WahooImportSQLDatabaseMixin(database)
+  const stravaArchiveImportDatabase: StravaArchiveImportDatabase = bindDb(
+    kysely,
+    stravaArchiveImportQueries
+  )
+  const wahooImportDatabase: WahooImportDatabase = bindDb(
+    kysely,
+    wahooImportQueries
+  )
   const suggestionDatabase: SuggestionDatabase = bindDb(
     kysely,
     suggestionQueries

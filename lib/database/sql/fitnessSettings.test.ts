@@ -1,5 +1,5 @@
-import { parseStoredPrivacyLocations } from '@/lib/database/sql/fitnessSettings'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { parseStoredPrivacyLocations } from '@/lib/database/domains/fitnessSettings/queries'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { SQLFitnessSettings } from '@/lib/types/database/fitnessSettings'
 import { logger } from '@/lib/utils/logger'
 
@@ -21,12 +21,13 @@ vi.mock('@/lib/services/fitness-files/privacy', async (importOriginal) => {
 })
 
 describe('FitnessSettings database operations', () => {
-  let database: Awaited<ReturnType<typeof getTestSQLDatabase>>
+  const testDb = createTestDatabase()
+  const { database } = testDb
   const testActorId = 'test-actor-123'
   const testActorId2 = 'test-actor-456'
 
   beforeAll(async () => {
-    database = getTestSQLDatabase()
+    await testDb.prepare()
     await database.migrate()
 
     // Create test actors for foreign key constraints
