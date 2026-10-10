@@ -133,8 +133,9 @@ export const POST = traceApiRoute(
           // through a backend-specific insert.
           //
           // `toMediaRowId` is the repo's one answer to "is this string a media
-          // row id", shared with every lookup in `lib/database/sql/media.ts`,
-          // so the route cannot drift from what the column will accept. The id
+          // row id", shared with every lookup in the media domain
+          // (`lib/database/domains/media/`), so the route cannot drift from
+          // what the column will accept. The id
           // is only shape-checked, never rewritten: the resolved number is
           // discarded and the original string is forwarded untouched, because
           // whether the row EXISTS (and belongs to this actor) is
