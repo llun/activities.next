@@ -298,6 +298,8 @@ describe('getTagDailyHistory', () => {
         createdAt: WINDOW_START + HOUR,
         tags: ['#tqh', ['tqh', 'tqh']]
       })
+      // The same author again on that day: one more use, no new account.
+      await tagged(db, { createdAt: WINDOW_START + 2 * HOUR, tags: ['#tqh'] })
       // Not counted: before the window, followers-only, an Announce, a
       // spelling that only folds to the name, and another name.
       await tagged(db, { createdAt: WINDOW_START - 1, tags: ['#tqh'] })
@@ -321,7 +323,7 @@ describe('getTagDailyHistory', () => {
             'tqh',
             [
               { dayBucketMs: DAY0, uses: 2, accounts: 2 },
-              { dayBucketMs: WINDOW_START, uses: 1, accounts: 1 }
+              { dayBucketMs: WINDOW_START, uses: 2, accounts: 1 }
             ]
           ],
           ['tqother', []]

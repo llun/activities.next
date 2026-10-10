@@ -194,11 +194,12 @@ const deleteStaleHashtagSearchDocuments = async (db: Db) => {
 }
 
 const reindexHashtagSearchDocuments = async (db: Db, hashtags: string[]) => {
+  // Sorted so concurrent refreshes take the row locks in the same order.
   const names = [
     ...new Set(
       hashtags.map(normalizeHashtagSearchName).filter((name) => name.length > 0)
     )
-  ]
+  ].sort()
   if (names.length === 0) return
 
   await inTransaction(db, async (trx) => {

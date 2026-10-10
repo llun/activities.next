@@ -4,7 +4,10 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
-import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
+import {
+  getHashtagStorageNames,
+  normalizeHashtagSearchName
+} from '@/lib/database/domains/search/rows'
 import {
   type StatusSearchRow,
   deleteStatusSearchDocumentsByStatusIds
@@ -1815,7 +1818,7 @@ export const StatusSQLDatabaseMixin = (
     }
 
     if (tagged !== undefined && tagged !== null) {
-      const normalizedNames = getHashtagLookupNames(tagged)
+      const normalizedNames = getHashtagStorageNames(tagged)
       if (normalizedNames.length === 0) {
         query = query.whereRaw('1 = 0')
       } else {
@@ -3154,11 +3157,6 @@ export const StatusSQLDatabaseMixin = (
     await database('tags').where({ statusId, type }).delete()
   }
 
-  function getHashtagLookupNames(hashtag: string): string[] {
-    const bare = normalizeHashtagSearchName(hashtag)
-    return bare ? [bare, `#${bare}`] : []
-  }
-
   async function getStatusesByHashtag({
     hashtag,
     currentActorId,
@@ -3174,7 +3172,9 @@ export const StatusSQLDatabaseMixin = (
   }: GetStatusesByHashtagParams): Promise<Status[]> {
     // `any[]` widens the primary tag match: a status qualifies when it carries
     // the main hashtag OR any of the additional tags (Mastodon semantics).
-    const normalizedNames = [hashtag, ...anyTags].flatMap(getHashtagLookupNames)
+    const normalizedNames = [hashtag, ...anyTags].flatMap(
+      getHashtagStorageNames
+    )
     let query = database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
@@ -3190,7 +3190,7 @@ export const StatusSQLDatabaseMixin = (
 
     // `all[]`: every additional tag must also be present on the status.
     for (const tag of allTags) {
-      const lookupNames = getHashtagLookupNames(tag)
+      const lookupNames = getHashtagStorageNames(tag)
       if (lookupNames.length === 0) {
         query = query.whereRaw('1 = 0')
         continue
@@ -3205,7 +3205,7 @@ export const StatusSQLDatabaseMixin = (
     }
 
     // `none[]`: statuses carrying any of these tags are excluded.
-    const noneLookupNames = noneTags.flatMap(getHashtagLookupNames)
+    const noneLookupNames = noneTags.flatMap(getHashtagStorageNames)
     if (noneLookupNames.length > 0) {
       query = query.whereNotExists(function () {
         this.select(database.raw('1'))
@@ -3297,7 +3297,7 @@ export const StatusSQLDatabaseMixin = (
     limit,
     offset
   }: GetHashtagStatusesPageParams) {
-    const normalizedNames = getHashtagLookupNames(hashtag)
+    const normalizedNames = getHashtagStorageNames(hashtag)
     const baseQuery = () =>
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')

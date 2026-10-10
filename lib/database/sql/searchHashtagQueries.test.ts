@@ -1,3 +1,7 @@
+import { sql } from 'kysely'
+
+import { reindexSearchHashtags } from '@/lib/database/domains/search/hashtags'
+import { kyselyFor } from '@/lib/database/kysely'
 import {
   createSearchActor,
   readSearchDocument,
@@ -425,3 +429,165 @@ describe('reindexSearchHashtags with a spaced stored name', () => {
     expect(await readSearchDocument(db, 'hashtag', ' hqspaced')).toBeUndefined()
   })
 })
+
+// Reindex pages by tag name, so it must visit every name even when the
+// database would return the names in another order.
+describe('reindexSearchHashtags paging', () => {
+  const testDb = createTestDatabase()
+  const { database, db } = testDb
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+    await createSearchActor(database, { id: AUTHOR, username: 'author' })
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  it('indexes every name when the names are not read through the index', async () => {
+    const names = Array.from(
+      { length: 30 },
+      (_, index) => `hqpage${String(index).padStart(2, '0')}`
+    )
+    await seedPublicNote(
+      db,
+      'paging',
+      10,
+      names.map((name) => `#${name}`)
+    )
+
+    await db.transaction().execute(async (trx) => {
+      if (testDb.backend === 'pg') {
+        // Hash the distinct names instead of walking the name index.
+        for (const setting of [
+          sql`set local enable_indexscan = off`,
+          sql`set local enable_indexonlyscan = off`,
+          sql`set local enable_bitmapscan = off`,
+          sql`set local enable_sort = off`
+        ]) {
+          await setting.execute(trx)
+        }
+      }
+      let afterId: string | null = null
+      do {
+        afterId = (await reindexSearchHashtags(trx, { afterId, limit: 3 }))
+          .nextCursor
+      } while (afterId !== null)
+    })
+
+    const documents = await db
+      .selectFrom('search_documents')
+      .select(['entityId', 'postCount'])
+      .where('entityType', '=', 'hashtag')
+      .orderBy('entityId')
+      .execute()
+    expect(documents).toEqual(
+      names.map((entityId) => ({ entityId, postCount: 1 }))
+    )
+  })
+})
+
+// The refresh reads the counts only after it holds the document row, so a use
+// committed while it waits for that row is counted.
+describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
+  'indexHashtagSearchDocument with a concurrent writer',
+  () => {
+    const testDb = createTestDatabase()
+    const { database, db, knex } = testDb
+
+    beforeAll(async () => {
+      await testDb.prepare()
+      await database.migrate()
+      await createSearchActor(database, { id: AUTHOR, username: 'author' })
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    const waitForLockWait = async () => {
+      for (let attempt = 0; attempt < 250; attempt += 1) {
+        const { rows } = await knex.raw(
+          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
+        )
+        if (rows[0].waiting > 0) return
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+      throw new Error('The refresh never waited for the document row')
+    }
+
+    it('counts a use committed while it waits for the document row', async () => {
+      await seedPublicNote(db, 'lock-1', 10, ['#hqlock'])
+      await database.indexHashtagSearchDocument({ hashtag: 'hqlock' })
+
+      const trx = await knex.transaction()
+      let refresh: Promise<void> | undefined
+      try {
+        const writer = kyselyFor(trx)
+        await writer
+          .selectFrom('search_documents')
+          .select('id')
+          .where('id', '=', 'hashtag:hqlock')
+          .forUpdate()
+          .execute()
+        refresh = database.indexHashtagSearchDocument({ hashtag: 'hqlock' })
+        await waitForLockWait()
+        const statusId = await seedStatus(writer, {
+          id: statusIdOf('lock-2'),
+          actorId: AUTHOR,
+          createdAt: 20,
+          to: [PUBLIC]
+        })
+        await seedTag(writer, { statusId, name: '#hqlock' })
+        await trx.commit()
+      } catch (error) {
+        await trx.rollback()
+        throw error
+      }
+      await refresh
+
+      expect(await readSearchDocument(db, 'hashtag', 'hqlock')).toMatchObject({
+        postCount: 2,
+        lastPostAt: 20
+      })
+    })
+
+    it('waits for another placeholder of a new name and counts uses committed meanwhile', async () => {
+      await seedPublicNote(db, 'new-1', 10, ['#hqnew'])
+
+      // Another refresh has inserted its placeholder and not committed yet.
+      const trx = await knex.transaction()
+      let refresh: Promise<void> | undefined
+      try {
+        const now = new Date()
+        await kyselyFor(trx)
+          .insertInto('search_documents')
+          .values({
+            id: 'hashtag:hqnew',
+            entityType: 'hashtag',
+            entityId: 'hqnew',
+            documentText: 'hqnew #hqnew',
+            postCount: 0,
+            createdAt: now,
+            updatedAt: now
+          })
+          .execute()
+        refresh = database.indexHashtagSearchDocument({ hashtag: 'hqnew' })
+        await waitForLockWait()
+        await seedPublicNote(db, 'new-2', 20, ['#hqnew'])
+        await trx.commit()
+      } catch (error) {
+        await trx.rollback()
+        throw error
+      }
+      await refresh
+
+      expect(await readSearchDocument(db, 'hashtag', 'hqnew')).toMatchObject({
+        postCount: 2,
+        lastPostAt: 20
+      })
+    })
+  }
+)
