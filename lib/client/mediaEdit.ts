@@ -11,34 +11,11 @@ import type {
 // here instead of at runtime. These are type-only imports.
 export type { ApplyToPosts, MediaEditEntity as MediaEditInfo, MediaEditUsage }
 
-/**
- * The subject model the server offers (`capabilities.subjectModel`): where to
- * fetch the two ONNX files and the size and sha256 each must have. Null when
- * the instance turned Select subject off.
- */
-export interface SubjectModelCapability {
-  /** Ends with "/". */
-  baseUrl: string
-  files: {
-    encoder: { path: string; bytes: number; sha256: string }
-    decoder: { path: string; bytes: number; sha256: string }
-  }
-}
-
-type WithSubjectModel<T extends { capabilities: object }> = Omit<
-  T,
-  'capabilities'
-> & {
-  capabilities: Omit<T['capabilities'], 'subjectModel'> & {
-    subjectModel: SubjectModelCapability | null
-  }
-}
-
 /** What `GET /api/v1/media/:id/edit` answers. */
-export type MediaEditState = WithSubjectModel<MediaEditResponse>
+export type MediaEditState = MediaEditResponse
 
 /** What a save or revert answers: the state plus the posts it touched. */
-export type MediaEditSaveResult = WithSubjectModel<MediaEditWriteResponse>
+export type MediaEditSaveResult = MediaEditWriteResponse
 
 /**
  * A failed edit request. `status` is the HTTP status, `error` the server's

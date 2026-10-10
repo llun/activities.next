@@ -3,6 +3,8 @@ import { z } from 'zod'
 export const RECIPE_VERSION = 1
 export const MAX_MASKS = 4
 export const MAX_MASK_POINTS = 32
+/** Long edge, in pixels, of a stored mask: the server's cap and the size the browser renders. */
+export const MASK_LONG_EDGE = 1024
 export const MAX_OUTPUT_LONG_EDGE = 4000
 export const MAX_SOURCE_PIXELS = 50_000_000
 export const MAX_RECIPE_BYTES = 16 * 1024
@@ -281,7 +283,8 @@ export type ParseRecipeResult =
  * result is `{ ok: true, recipe }` or `{ ok: false, error }`, so a route can
  * answer 422 with the reason (the 16 KiB cap is checked before parsing).
  *
- * `allowMasks` defaults to false (phase 1): a recipe with masks is rejected.
+ * `allowMasks` defaults to false: a recipe with masks is rejected. The save
+ * route and `parseStoredRecipe` pass true.
  * To read a stored recipe use `parseStoredRecipe`, which yields `null`.
  */
 export const parseRecipe = (

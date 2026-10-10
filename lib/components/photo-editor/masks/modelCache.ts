@@ -4,20 +4,17 @@
  * from the server (`capabilities.subjectModel`); a file that does not match
  * is an error and is never cached or used.
  */
+import type {
+  PhotoEditorModelFile,
+  PhotoEditorSubjectModel
+} from '@/lib/config/photoEditor'
 
 export const MODEL_CACHE_NAME = 'photo-editor-models-v1'
 
-export interface ModelFile {
-  path: string
-  bytes: number
-  sha256: string
-}
-
-export interface SubjectModel {
-  /** Ends with "/". */
-  baseUrl: string
-  files: { encoder: ModelFile; decoder: ModelFile }
-}
+// The server's own types, so the files the client checks are the files the
+// server names.
+export type ModelFile = PhotoEditorModelFile
+export type SubjectModel = PhotoEditorSubjectModel
 
 export interface ModelProgress {
   loadedBytes: number

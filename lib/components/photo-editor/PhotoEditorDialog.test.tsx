@@ -266,7 +266,8 @@ describe('PhotoEditorDialog', () => {
       nudgeExposure()
       expect(exposure()).toHaveAttribute('aria-valuetext', '+0.01 EV')
       expect(saveButton()).toBeEnabled()
-      expect(renderer.renderPreview).toHaveBeenCalled()
+      // The preview renders on the next animation frame.
+      await waitFor(() => expect(renderer.renderPreview).toHaveBeenCalled())
     })
 
     it('undo and redo with the keyboard', async () => {

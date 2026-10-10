@@ -1,8 +1,9 @@
 import type { Size } from '@/lib/services/medias/edit/geometry'
-import { type Recipe } from '@/lib/services/medias/edit/recipe'
+import { MASK_LONG_EDGE, type Recipe } from '@/lib/services/medias/edit/recipe'
 
-/** Long edge of every stored mask and of the pixels the model returns. */
-export const MASK_LONG_EDGE = 1024
+// The long edge of every stored mask and of the pixels the model returns is the
+// recipe's (the server caps a stored mask at the same size).
+export { MASK_LONG_EDGE }
 
 /**
  * One mask's pixels in source space (0 = outside, 255 = inside). The size

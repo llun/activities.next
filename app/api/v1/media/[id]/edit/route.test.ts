@@ -886,7 +886,10 @@ describe('/api/v1/media/[id]/edit', () => {
         recipe: JSON.stringify(withMasks(SUBJECT, BRUSH)),
         masks: { [SUBJECT.id]: mask, [BRUSH.id]: mask }
       })
-      const [subjectSlot, brushSlot] = await slotsOf(id)
+      // The files of one save can share a created_at, so look them up by slot.
+      const slots = await slotsOf(id)
+      const subjectSlot = slots.find(([slot]) => slot === `mask:${SUBJECT.id}`)!
+      const brushSlot = slots.find(([slot]) => slot === `mask:${BRUSH.id}`)!
       const usageBefore = await database.getStorageUsageForAccount({
         accountId: await accountId()
       })
