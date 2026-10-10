@@ -1,3 +1,4 @@
+import type { EnhanceResponse } from '@/lib/services/medias/edit/enhanceSchema'
 import type { Recipe } from '@/lib/services/medias/edit/recipe'
 import type {
   ApplyToPosts,
@@ -9,7 +10,12 @@ import type {
 
 // The response shapes are the server's own, so a route change breaks the build
 // here instead of at runtime. These are type-only imports.
-export type { ApplyToPosts, MediaEditEntity as MediaEditInfo, MediaEditUsage }
+export type {
+  ApplyToPosts,
+  EnhanceResponse,
+  MediaEditEntity as MediaEditInfo,
+  MediaEditUsage
+}
 
 /** What `GET /api/v1/media/:id/edit` answers. */
 export type MediaEditState = MediaEditResponse
@@ -151,6 +157,29 @@ export const revertMediaEdit = async (
   })
   if (!response.ok) {
     throw await toError(response, 'Failed to revert the photo.')
+  }
+  return response.json()
+}
+
+/**
+ * Asks the server's vision model for suggested adjustments. `preview` is a
+ * small JPEG of the photo with the current crop and no adjustments; the server
+ * forgets it as soon as it has answered.
+ */
+export const enhanceMediaEdit = async (
+  id: string,
+  preview: Blob,
+  signal?: AbortSignal
+): Promise<EnhanceResponse> => {
+  const form = new FormData()
+  form.append('preview', preview, 'preview.jpg')
+  const response = await fetch(`${editPath(id)}/enhance`, {
+    method: 'POST',
+    body: form,
+    signal
+  })
+  if (!response.ok) {
+    throw await toError(response, "Couldn't get a suggestion")
   }
   return response.json()
 }

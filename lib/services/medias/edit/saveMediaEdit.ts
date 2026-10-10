@@ -106,6 +106,8 @@ export interface MediaEditResponse {
   usage: MediaEditUsage
   capabilities: {
     subjectModel: PhotoEditorSubjectModel | null
+    // AI enhance: the server has a model for it and the owner has not turned
+    // it off. `model` is shown as "Suggested by {model}".
     enhance: { available: boolean; model: string | null }
   }
 }
@@ -288,6 +290,22 @@ const buildEditEntity = (
   }
 }
 
+const getCapabilities = async (
+  database: Database,
+  actorId: string
+): Promise<MediaEditResponse['capabilities']> => {
+  const { subjectModel, enhance } = getPhotoEditorConfig()
+  const { photoEnhance } = await database.getGallerySettings({ actorId })
+  const enhanceAvailable = enhance !== null && photoEnhance
+  return {
+    subjectModel,
+    enhance: {
+      available: enhanceAvailable,
+      model: enhanceAvailable ? enhance.model : null
+    }
+  }
+}
+
 const buildResponse = async ({
   database,
   media,
@@ -309,10 +327,7 @@ const buildResponse = async ({
     statusCount: usage.statusCount,
     latestStatusAt: usage.latestStatusAt
   },
-  capabilities: {
-    subjectModel: getPhotoEditorConfig().subjectModel,
-    enhance: { available: false, model: null }
-  }
+  capabilities: await getCapabilities(database, media.actorId)
 })
 
 // Deletes stored files after the commit. A failure leaves an orphan for the

@@ -26,6 +26,7 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_GALLERY_SUBJECTS_MODEL:
       process.env.ACTIVITIES_GALLERY_SUBJECTS_MODEL,
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
+    ACTIVITIES_PHOTO_ENHANCE_MODEL: process.env.ACTIVITIES_PHOTO_ENHANCE_MODEL,
     ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL:
       process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL,
     NODE_ENV: process.env.NODE_ENV
@@ -46,6 +47,8 @@ describe('next config runtime isolation', () => {
     process.env.ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT = 'http://10.0.0.1'
     process.env.ACTIVITIES_GALLERY_SUBJECTS_MODEL = 'x'
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
+    // AI enhance is server-side only, like the gallery lookups.
+    process.env.ACTIVITIES_PHOTO_ENHANCE_MODEL = 'x'
     // The photo editor's model origins reach the CSP at request time only.
     process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL =
       'https://build-model-should-not-be-used.example.com/'

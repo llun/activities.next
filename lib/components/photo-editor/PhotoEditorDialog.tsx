@@ -71,6 +71,7 @@ import {
 import { getMaskName, removeMask } from './masks/maskRecipe'
 import { buildMaskParts } from './masks/maskUpload'
 import { useMasks } from './masks/useMasks'
+import { useAiEnhance } from './useAiEnhance'
 import { useEditorHistory } from './useEditorHistory'
 import { useEditorShortcuts } from './useEditorShortcuts'
 import { useIsDesktop } from './useIsDesktop'
@@ -174,6 +175,17 @@ export const PhotoEditorDialog = ({
     model: editState?.capabilities.subjectModel ?? null,
     disabled: !ready,
     announce: setAnnouncement
+  })
+
+  const enhanceCapability = editState?.capabilities.enhance
+  const ai = useAiEnhance({
+    mediaId,
+    available: Boolean(enhanceCapability?.available),
+    model: enhanceCapability?.model ?? null,
+    bitmap,
+    recipe: present,
+    onChange: change,
+    disabled: !ready
   })
 
   // The mask pixels the preview draws: the recipe's, with a stroke in progress.
@@ -467,7 +479,8 @@ export const PhotoEditorDialog = ({
             onAuto,
             autoStatus,
             onGeometryChange,
-            masks: maskTools
+            masks: maskTools,
+            ai
           }
         : null,
     [
@@ -481,7 +494,8 @@ export const PhotoEditorDialog = ({
       onAuto,
       autoStatus,
       onGeometryChange,
-      maskTools
+      maskTools,
+      ai
     ]
   )
 

@@ -36,7 +36,7 @@ vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
   getPhotoEditorConfig: vi
     .fn()
-    .mockReturnValue({ subjectModel: null, connectOrigins: [] }),
+    .mockReturnValue({ subjectModel: null, connectOrigins: [], enhance: null }),
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',

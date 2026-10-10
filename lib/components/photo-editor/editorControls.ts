@@ -7,6 +7,7 @@ import type {
 
 import type { ControlGroup } from './adjustmentControls'
 import type { MaskTools } from './masks/useMasks'
+import type { AiTools } from './useAiEnhance'
 
 /** What the Adjust and Crop panels (desktop and phone) read and change. */
 export interface EditorControls {
@@ -25,4 +26,6 @@ export interface EditorControls {
   onGeometryChange: (geometry: Geometry, coalesceKey?: string) => void
   /** The Masks tab's state and actions. */
   masks: MaskTools
+  /** The AI tab's state and actions; the tab exists only when available. */
+  ai: AiTools
 }

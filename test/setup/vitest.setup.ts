@@ -170,13 +170,18 @@ vi.mock('@/lib/config', async () => {
     await vi.importActual<typeof import('@/lib/stub/const')>('@/lib/stub/const')
   const { MOCK_SECRET_PHASES } =
     await vi.importActual<typeof import('@/lib/stub/actor')>('@/lib/stub/actor')
+  const { getAltTextConfig } = await vi.importActual<
+    typeof import('@/lib/config/altText')
+  >('@/lib/config/altText')
   const photoEditor = await vi.importActual<
     typeof import('@/lib/config/photoEditor')
   >('@/lib/config/photoEditor')
   return {
     getBaseURL: vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`),
     // Reads the environment like the real one, without the warning.
-    getPhotoEditorConfig: vi.fn(() => photoEditor.getPhotoEditorConfig()),
+    getPhotoEditorConfig: vi.fn(() =>
+      photoEditor.getPhotoEditorConfig({ altText: getAltTextConfig()?.altText })
+    ),
     getAuthScheme: vi.fn().mockReturnValue('https'),
     buildBaseURL: vi.fn((host: string) =>
       host.includes('://') ? host : `https://${host}`

@@ -2,6 +2,9 @@ const { MOCK_SECRET_PHASES } =
   await vi.importActual<typeof import('@/lib/stub/actor')>('@/lib/stub/actor')
 const { TEST_DOMAIN } =
   await vi.importActual<typeof import('@/lib/stub/const')>('@/lib/stub/const')
+const { getAltTextConfig } = await vi.importActual<
+  typeof import('@/lib/config/altText')
+>('@/lib/config/altText')
 const photoEditor = await vi.importActual<
   typeof import('@/lib/config/photoEditor')
 >('@/lib/config/photoEditor')
@@ -19,5 +22,5 @@ export const getBaseURL = vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`)
 
 // Reads the environment like the real one, without the warning.
 export const getPhotoEditorConfig = vi.fn(() =>
-  photoEditor.getPhotoEditorConfig()
+  photoEditor.getPhotoEditorConfig({ altText: getAltTextConfig()?.altText })
 )

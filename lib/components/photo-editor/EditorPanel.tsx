@@ -1,12 +1,18 @@
 'use client'
 
-import { CircleDashed, Crop as CropIcon, SlidersHorizontal } from 'lucide-react'
+import {
+  CircleDashed,
+  Crop as CropIcon,
+  SlidersHorizontal,
+  Sparkles
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { TabsContent, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 
 import { AdjustPanel } from './AdjustPanel'
+import { AiPanel } from './AiPanel'
 import { CropPanel } from './CropPanel'
 import { Histogram } from './Histogram'
 import type { EditorControls } from './editorControls'
@@ -58,7 +64,11 @@ export const EditorPanel = ({
         ) : null}
       </div>
       <div className="px-4 pt-3">
-        <TabsList className="w-full">
+        {/* Four tabs do not fit this 292 px panel with their icons, so the
+            labels carry them alone once the AI tab is there. */}
+        <TabsList
+          className={controls.ai.available ? 'w-full [&_svg]:hidden' : 'w-full'}
+        >
           <TabsTrigger value="adjust" className="px-2">
             <SlidersHorizontal aria-hidden="true" />
             Adjust
@@ -71,6 +81,12 @@ export const EditorPanel = ({
             <CircleDashed aria-hidden="true" />
             Masks
           </TabsTrigger>
+          {controls.ai.available ? (
+            <TabsTrigger value="ai" className="px-2">
+              <Sparkles aria-hidden="true" />
+              AI
+            </TabsTrigger>
+          ) : null}
         </TabsList>
       </div>
       <TabsContent value="adjust">
@@ -88,6 +104,11 @@ export const EditorPanel = ({
           onGestureEnd={controls.onGestureEnd}
         />
       </TabsContent>
+      {controls.ai.available ? (
+        <TabsContent value="ai">
+          <AiPanel controls={controls} />
+        </TabsContent>
+      ) : null}
     </aside>
   )
 }

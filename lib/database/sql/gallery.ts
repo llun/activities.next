@@ -114,6 +114,7 @@ export interface UpdateGallerySettingsParams {
   // 50 to 95 in steps of 5; anything else is refused by the request schema
   // and read back as the default.
   subjectConfidenceThreshold?: number
+  photoEnhance?: boolean
 }
 
 export interface GalleryDatabase {
@@ -230,7 +231,12 @@ const parseSQLGallerySettings = (row: SQLGallerySettings): GallerySettings => ({
     : DEFAULT_GALLERY_SETTINGS.subjectSuggestionMode,
   subjectConfidenceThreshold: parseSubjectConfidenceThreshold(
     row.subjectConfidenceThreshold
-  )
+  ),
+  // A missing value is the default, on.
+  photoEnhance:
+    row.photoEnhance === null || row.photoEnhance === undefined
+      ? DEFAULT_GALLERY_SETTINGS.photoEnhance
+      : Boolean(row.photoEnhance)
 })
 
 export const GallerySQLDatabaseMixin = (database: Knex): GalleryDatabase => {

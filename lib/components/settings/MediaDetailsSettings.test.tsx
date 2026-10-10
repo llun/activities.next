@@ -35,11 +35,14 @@ const baseSettings: GallerySettingsEntity = {
   hideThreatenedPlaces: true,
   subjectSuggestionMode: 'model',
   subjectConfidenceThreshold: 70,
+  photoEnhance: true,
   altTextAvailable: true,
   subjectSuggestionsAvailable: true,
   subjectModel: 'test-vision-model',
   speciesLookupsAvailable: true,
-  placeLookupsAvailable: true
+  placeLookupsAvailable: true,
+  photoEnhanceAvailable: true,
+  photoEnhanceModel: 'test-vision-model'
 }
 
 const AUTO_DESCRIBE = 'Describe new photos and videos automatically'
@@ -302,6 +305,65 @@ describe('MediaDetailsSettings', () => {
     await waitFor(() =>
       expect(allowEmpty).toHaveAttribute('aria-busy', 'false')
     )
+  })
+
+  describe('AI enhance', () => {
+    const AI_ENHANCE = 'AI enhance'
+
+    it('shows the switch on, naming the model and what is sent', async () => {
+      render(<MediaDetailsSettings />)
+
+      const toggle = await screen.findByRole('switch', { name: AI_ENHANCE })
+      expect(toggle).toBeEnabled()
+      expect(toggle).toBeChecked()
+      expect(
+        screen.getByText(
+          'Suggest edits with test-vision-model. A small preview of the photo is sent to it.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('saves only photoEnhance when it is switched off', async () => {
+      render(<MediaDetailsSettings />)
+
+      const toggle = await screen.findByRole('switch', { name: AI_ENHANCE })
+      fireEvent.click(toggle)
+
+      await waitFor(() =>
+        expect(mockUpdateGallerySettings).toHaveBeenCalledWith({
+          photoEnhance: false
+        })
+      )
+      expect(toggle).not.toBeChecked()
+    })
+
+    it('is disabled, off and says why when the server has no model', async () => {
+      mockGetGallerySettings.mockResolvedValue({
+        ...baseSettings,
+        photoEnhanceAvailable: false,
+        photoEnhanceModel: null
+      })
+
+      render(<MediaDetailsSettings />)
+
+      const toggle = await screen.findByRole('switch', { name: AI_ENHANCE })
+      expect(toggle).toBeDisabled()
+      expect(toggle).not.toBeChecked()
+      expect(screen.getByText('Not set up on this server')).toBeInTheDocument()
+    })
+
+    it('shows the switch off when the person turned it off', async () => {
+      mockGetGallerySettings.mockResolvedValue({
+        ...baseSettings,
+        photoEnhance: false
+      })
+
+      render(<MediaDetailsSettings />)
+
+      const toggle = await screen.findByRole('switch', { name: AI_ENHANCE })
+      expect(toggle).toBeEnabled()
+      expect(toggle).not.toBeChecked()
+    })
   })
 
   describe('subject suggestions', () => {

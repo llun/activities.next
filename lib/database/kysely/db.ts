@@ -656,6 +656,7 @@ export interface GallerySettings {
   hideThreatenedPlaces: WithDefault<boolean>
   lifeListPublic: WithDefault<boolean>
   mapPublic: WithDefault<boolean>
+  photoEnhance: WithDefault<boolean>
   showGear: WithDefault<boolean>
   subjectConfidenceThreshold: WithDefault<number>
   subjectHashtags: WithDefault<boolean>

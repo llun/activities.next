@@ -688,7 +688,8 @@ CREATE TABLE public.gallery_settings (
     "updatedAt" timestamp with time zone NOT NULL,
     "hideThreatenedPlaces" boolean DEFAULT true NOT NULL,
     "subjectSuggestionMode" character varying(16) DEFAULT 'model'::character varying NOT NULL,
-    "subjectConfidenceThreshold" integer DEFAULT 70 NOT NULL
+    "subjectConfidenceThreshold" integer DEFAULT 70 NOT NULL,
+    "photoEnhance" boolean DEFAULT true NOT NULL
 );
 
 CREATE TABLE public.idempotency_keys (

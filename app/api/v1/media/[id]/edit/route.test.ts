@@ -181,7 +181,8 @@ describe('/api/v1/media/[id]/edit', () => {
     vi.clearAllMocks()
     vi.mocked(getPhotoEditorConfig).mockReturnValue({
       subjectModel: null,
-      connectOrigins: []
+      connectOrigins: [],
+      enhance: null
     })
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
@@ -753,6 +754,78 @@ describe('/api/v1/media/[id]/edit', () => {
     })
   })
 
+  describe('enhance capability', () => {
+    const ENHANCE = {
+      endpoint: 'https://vision.example.com/v1/chat/completions',
+      apiKey: 'sk-test',
+      model: 'vision-1'
+    }
+    const configured = () =>
+      vi.mocked(getPhotoEditorConfig).mockReturnValue({
+        subjectModel: null,
+        connectOrigins: [],
+        enhance: ENHANCE
+      })
+
+    afterEach(async () => {
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        photoEnhance: true
+      })
+    })
+
+    it('is available, with the model, when the server has one and the switch is on', async () => {
+      configured()
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const body = await (await get(id)).json()
+
+      expect(body.capabilities.enhance).toEqual({
+        available: true,
+        model: 'vision-1'
+      })
+    })
+
+    it('is off when the owner switched AI enhance off', async () => {
+      configured()
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        photoEnhance: false
+      })
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const body = await (await get(id)).json()
+
+      expect(body.capabilities.enhance).toEqual({
+        available: false,
+        model: null
+      })
+    })
+
+    it('never leaks the endpoint or the key', async () => {
+      configured()
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const text = await (await get(id)).text()
+
+      expect(text).not.toContain(ENHANCE.apiKey)
+      expect(text).not.toContain(ENHANCE.endpoint)
+    })
+
+    it('is on the save response too', async () => {
+      configured()
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id)
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).capabilities.enhance).toEqual({
+        available: true,
+        model: 'vision-1'
+      })
+    })
+  })
+
   describe('masks', () => {
     const withMasks = (...items: Mask[]): Recipe => ({
       ...RECIPE,
@@ -772,7 +845,8 @@ describe('/api/v1/media/[id]/edit', () => {
     it('answers the subject model the config offers', async () => {
       vi.mocked(getPhotoEditorConfig).mockReturnValue({
         subjectModel: SUBJECT_MODEL,
-        connectOrigins: ['https://models.example.com']
+        connectOrigins: ['https://models.example.com'],
+        enhance: null
       })
       const id = await createMediaFor(ACTOR1_ID)
 
