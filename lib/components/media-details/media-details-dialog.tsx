@@ -905,12 +905,13 @@ export const MediaDetailsDialog: FC<Props> = ({
   const draft = drafts[item.id]
   const video = isVideo(item)
   // What Add to gallery would lose by cancelling: anything the owner typed or
-  // chose, or already saved to the uploads.
+  // chose, or already saved to the uploads (photo edits included).
   const hasEdits =
     Object.values(editedDrafts).some(
       (edited) => Object.keys(edited).length > 0
     ) ||
     Object.keys(savedOriginals).length > 0 ||
+    Object.keys(editedFiles).length > 0 ||
     Boolean(shared.subject || shared.gear || shared.place)
   const requestClose = () => {
     if (!isAdd) {
@@ -1517,7 +1518,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                           : 'opacity-80 hover:opacity-100'
                       )}
                       style={{
-                        backgroundImage: `url("${thumb.posterUrl || thumb.url}")`
+                        backgroundImage: `url("${editedFiles[thumb.id]?.url || thumb.posterUrl || thumb.url}")`
                       }}
                     >
                       {isVideo(thumb) ? (

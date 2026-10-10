@@ -49,8 +49,8 @@ const DETAILS_CONCURRENCY = 4
 
 /**
  * Edit details for gallery photos (posted, or added in Gallery and not posted
- * yet, which can also be posted or deleted from here): the media details dialog the composer
- * uses, loaded with the owner's own details for each photo. The photo it opens
+ * yet, which can also be posted or deleted from here): the media details
+ * dialog the composer uses, loaded with the owner's own details for each photo. The photo it opens
  * on is read first; a photo's details that have not arrived yet do not block
  * the dialog (they fill in when they do, and a field nobody touched is never
  * sent back). A posted photo's alt text is saved as an edit of its post.

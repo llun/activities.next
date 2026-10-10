@@ -41,8 +41,8 @@ interface Props {
 
 /**
  * The bar that rides the bottom of the page while photos are selected:
- * "N selected" with the Edit details, Add to album, Post and Delete actions. Albums hold only
- * photos shown in the gallery, so Add to album is off while only hidden photos
+ * "N selected" with the Edit details, Add to album, Post and Delete actions.
+ * Albums hold only photos shown in the gallery, so Add to album is off while only hidden photos
  * are selected, and says so. It is a toolbar region, so a screen reader can find
  * it, and the count is a polite live region so every tick of a
  * tile is spoken.
