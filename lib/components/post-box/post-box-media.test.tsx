@@ -109,6 +109,19 @@ describe('PostBox media details', () => {
     ).toBeInTheDocument()
   })
 
+  it('lays the attached tiles out as one row that scrolls sideways', async () => {
+    renderPostBox()
+
+    attach('heron.png', 'egret.png')
+
+    const row = await screen.findByRole('list', { name: '2 attached media' })
+    expect(row).toHaveClass('flex', 'overflow-x-auto', 'no-scrollbar')
+    expect(row).not.toHaveClass('grid', 'flex-wrap')
+    for (const tile of within(row).getAllByRole('listitem')) {
+      expect(tile).toHaveClass('flex-none')
+    }
+  })
+
   it('shows the description and detail icons once the server has read them', async () => {
     getMediaMock.mockResolvedValue(
       mediaEntity('media-heron.png', 'A heron', {

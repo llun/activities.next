@@ -2281,6 +2281,12 @@ legacy shape left to copy.
   this for every surface that renders a post. A lone picture keeps its own
   aspect ratio and starts on the post text's left line, scaled by WIDTH;
   the branch this replaced cropped every portrait photo to a full-width 16:9.
+- The composer's attached-media tiles (`composer-attachment-tiles.tsx`) follow
+  the same rule: one `no-scrollbar` row that scrolls sideways, never a grid.
+  Tiles are fixed-width (`w-36`, `sm:w-40`) and `flex-none`. The scroller clips
+  both axes, so it pads its top and right by 8px for the Remove button that
+  sits outside each tile's corner (the 12px gap above the row is a 4px margin
+  plus that padding), and the tile's focus ring is inset.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and

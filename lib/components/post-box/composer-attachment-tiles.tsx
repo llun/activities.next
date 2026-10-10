@@ -224,7 +224,15 @@ export const ComposerAttachmentTiles: FC<Props> = ({
       <p role="status" aria-live="polite" className="sr-only">
         {announcements.join('. ')}
       </p>
-      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+      {/* One row that scrolls sideways, like a status's media strip. The
+          scroller clips on both axes, so the Remove button (which sits 8px
+          outside its tile's top-right corner) gets that much padding on the
+          top and right; the 12px gap above the row is the 4px margin plus the
+          8px padding. The focus ring is inset for the same reason. */}
+      <ul
+        aria-label={`${attachments.length} attached media`}
+        className="no-scrollbar mt-1 flex gap-3 overflow-x-auto pt-2 pr-2"
+      >
         {attachments.map((item, index) => {
           const label = getAttachmentLabel(item, fileNames, index)
           const error = uploadErrors[item.id]
@@ -247,7 +255,10 @@ export const ComposerAttachmentTiles: FC<Props> = ({
               // A suggestion waits for the author's say.
               (subjectLine !== null && !subjectLine.confirmed))
           return (
-            <li key={clientKeys[item.id] ?? item.id} className="relative">
+            <li
+              key={clientKeys[item.id] ?? item.id}
+              className="relative w-36 flex-none sm:w-40"
+            >
               <button
                 type="button"
                 data-attachment-tile={item.id}
@@ -255,7 +266,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                 onClick={() => onOpen(item.id)}
                 className={cn(
                   'block w-full space-y-1.5 rounded-lg border p-1.5 text-left outline-none transition-colors',
-                  'focus-visible:ring-[3px] focus-visible:ring-ring/50 enabled:cursor-pointer enabled:hover:bg-accent/50',
+                  'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset enabled:cursor-pointer enabled:hover:bg-accent/50',
                   needsReview && 'border-primary',
                   error && 'border-destructive/60'
                 )}
