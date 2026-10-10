@@ -92,7 +92,7 @@ const SwitchIndicator: FC<{ checked: boolean }> = ({ checked }) => (
   <span
     aria-hidden="true"
     data-state={checked ? 'checked' : 'unchecked'}
-    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 border border-transparent items-center rounded-full bg-control-off transition-colors data-[state=checked]:bg-primary"
+    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent bg-control-off transition-colors data-[state=checked]:bg-primary"
   >
     <span
       className={cn(
@@ -244,7 +244,7 @@ export const PostOptionsMenu: FC<Props> = ({
           >
             <VisibilityIcon />
             <span className="shrink-0">Visibility</span>{' '}
-            <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            <span className="flex min-w-0 flex-1 items-center justify-end gap-1 text-xs text-muted-foreground">
               <span className="min-w-0 truncate">
                 {currentVisibility.label}
               </span>

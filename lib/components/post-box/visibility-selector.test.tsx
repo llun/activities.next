@@ -38,7 +38,7 @@ describe('VisibilitySelector', () => {
     expect(onVisibilityChange).toHaveBeenCalledWith('direct')
   })
 
-  it('omits the who-can-quote section when no quote props are provided', async () => {
+  it('never shows the who-can-quote section', async () => {
     render(
       <VisibilitySelector visibility="public" onVisibilityChange={vi.fn()} />
     )

@@ -247,23 +247,34 @@ describe('PostOptionsMenu', () => {
     expect(onVisibilityChange).toHaveBeenCalledWith('direct')
   })
 
-  it('changes who can quote from the Visibility submenu', async () => {
-    const onQuotePolicyChange = vi.fn()
-    renderMenu({ onQuotePolicyChange })
-    await openMenu()
+  it.each([
+    { label: /^anyone$/i, policy: 'public' },
+    { label: /^followers$/i, policy: 'followers' },
+    { label: /^no one$/i, policy: 'nobody' }
+  ] as const)(
+    'changes who can quote to $policy from the Visibility submenu',
+    async ({ label, policy }) => {
+      const onQuotePolicyChange = vi.fn()
+      // Start from a different policy so the picked row is a real change.
+      renderMenu({
+        onQuotePolicyChange,
+        quotePolicy: policy === 'followers' ? 'nobody' : 'followers'
+      })
+      await openMenu()
 
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Visibility/ }), {
-      key: 'ArrowRight'
-    })
-    const quoteGroup = await screen.findByRole('group', {
-      name: /who can quote/i
-    })
-    fireEvent.click(
-      within(quoteGroup).getByRole('menuitemradio', { name: /^no one$/i })
-    )
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Visibility/ }), {
+        key: 'ArrowRight'
+      })
+      const quoteGroup = await screen.findByRole('group', {
+        name: /who can quote/i
+      })
+      fireEvent.click(
+        within(quoteGroup).getByRole('menuitemradio', { name: label })
+      )
 
-    expect(onQuotePolicyChange).toHaveBeenCalledWith('nobody')
-  })
+      expect(onQuotePolicyChange).toHaveBeenCalledWith(policy)
+    }
+  )
 
   describe('active state of the Post options button', () => {
     it('is not tinted while every option is off', () => {
