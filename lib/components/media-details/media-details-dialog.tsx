@@ -34,6 +34,7 @@ import {
   updateMediaDetails
 } from '@/lib/client'
 import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
+import { PhotoEditPreview } from '@/lib/components/photo-editor/PhotoEditPreview'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -59,7 +60,10 @@ import {
   STALE_PLACE_LOOKUP_MS,
   STALE_SUBJECT_LOOKUP_MS
 } from '@/lib/services/medias/lookupStaleness'
-import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import type {
+  MediaDetailsEntity,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 import {
   IucnCategory,
   MEDIA_PLACE_PRECISIONS,
@@ -132,6 +136,11 @@ interface Props {
    * made, separately from Save details.
    */
   ownerId?: string
+  /**
+   * The photo editor saved (or reverted) an item: `media` is the fresh owner
+   * entity, with the new url and size. The composer takes them over.
+   */
+  onMediaEdited?: (id: string, media: MediaStorageSaveFileOutput) => void
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
@@ -531,7 +540,8 @@ export const MediaDetailsDialog: FC<Props> = ({
   onSaved,
   onDetailsRefreshed,
   suggestionsPending = {},
-  ownerId
+  ownerId,
+  onMediaEdited
 }) => {
   const uid = useId()
   // Details the dialog fetched itself; each is only used while the details the
@@ -617,7 +627,19 @@ export const MediaDetailsDialog: FC<Props> = ({
   // The selected item can disappear (removed or failed upload); clamp.
   const foundIndex = items.findIndex((entry) => entry.id === selectedId)
   const index = Math.max(0, foundIndex)
-  const item: MediaDetailsDialogItem | undefined = items[index]
+  // Photos saved from the editor show their new file at once, even before the
+  // parent hands over updated items.
+  const [editedFiles, setEditedFiles] = useState<
+    Record<string, Pick<MediaDetailsDialogItem, 'url' | 'width' | 'height'>>
+  >({})
+  const listedItem: MediaDetailsDialogItem | undefined = items[index]
+  const item = useMemo(
+    () =>
+      listedItem && editedFiles[listedItem.id]
+        ? { ...listedItem, ...editedFiles[listedItem.id] }
+        : listedItem,
+    [listedItem, editedFiles]
+  )
   const total = items.length
   const suggestError = item ? (suggestErrors[item.id] ?? null) : null
   const retryError = item ? (retryErrors[item.id] ?? null) : null
@@ -635,6 +657,26 @@ export const MediaDetailsDialog: FC<Props> = ({
       active = false
     }
   }, [])
+
+  const handleMediaEdited = (id: string, media: MediaStorageSaveFileOutput) => {
+    setEditedFiles((current) => ({
+      ...current,
+      [id]: {
+        url: media.url,
+        width: media.meta.original.width,
+        height: media.meta.original.height
+      }
+    }))
+    if (media.details) {
+      const fresh = media.details
+      const base = itemsRef.current.find((entry) => entry.id === id)
+      setFetched((current) => ({
+        ...current,
+        [id]: { base: base?.details ?? null, value: fresh }
+      }))
+    }
+    onMediaEdited?.(id, media)
+  }
 
   const patchDraft = useCallback(
     (patch: Partial<MediaDetailsDraft>) => {
@@ -1178,14 +1220,19 @@ export const MediaDetailsDialog: FC<Props> = ({
                   className="max-h-[50dvh] w-full object-contain"
                 />
               ) : (
-                <img
-                  src={item.url}
-                  alt={
-                    effectiveDescription(draft) ??
-                    `Preview of item ${index + 1}`
-                  }
-                  className="max-h-[50dvh] w-full object-contain"
-                />
+                <PhotoEditPreview
+                  item={{ ...item, details }}
+                  onEdited={handleMediaEdited}
+                >
+                  <img
+                    src={item.url}
+                    alt={
+                      effectiveDescription(draft) ??
+                      `Preview of item ${index + 1}`
+                    }
+                    className="max-h-[50dvh] w-full object-contain"
+                  />
+                </PhotoEditPreview>
               )}
             </div>
             {total > 1 ? (
