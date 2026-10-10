@@ -184,10 +184,14 @@ jobs:
   # import), the account and moderation domains (account and actor creation
   # with their counters and search documents, sessions and the OAuth token
   # detach, e-mail change and password reset, actor and account moderation
-  # state, the admin account listing), the Kysely status visibility filter
-  # checked against its Knex original, and the Knex-backed Kysely driver
-  # (result normalisation, the mixed-transaction guard, counters, bucket
-  # counters, chunked IN lists, savepoints).
+  # state, the admin account listing), the actor domain (actor rows with their
+  # search documents, profile settings and the accepted-senders row lock,
+  # counters and NodeInfo statistics, the Mastodon account view and the
+  # profile directory, the federation signing actor, publicId and
+  # case-insensitive username lookups, deletion scheduling), the Kysely status
+  # visibility filter checked against its Knex original, and the Knex-backed
+  # Kysely driver (result normalisation, the mixed-transaction guard, counters,
+  # bucket counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -312,6 +316,15 @@ jobs:
             lib/database/sql/sessionTokenDetach.test.ts \
             lib/database/sql/moderation.test.ts \
             lib/database/sql/moderationQueries.test.ts \
+            lib/database/sql/actor.test.ts \
+            lib/database/sql/actorQueries.test.ts \
+            lib/database/sql/actorMastodonQueries.test.ts \
+            lib/database/sql/actorFederationSigner.test.ts \
+            lib/database/sql/actorLastStatusAt.test.ts \
+            lib/database/sql/actorMastodon.test.ts \
+            lib/database/sql/actorPublicId.test.ts \
+            lib/database/sql/directory.test.ts \
+            lib/database/sql/utils/usernameMatch.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \

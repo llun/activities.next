@@ -1,11 +1,13 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  const { database } = testDb
   await database.migrate()
   try {
     await test(database)
@@ -118,6 +120,20 @@ describe('case-insensitive actor username lookup', () => {
         })
 
         expect(actor?.id).toBe(`https://${TEST_DOMAIN}/users/Alice`)
+      }))
+
+    it('breaks a tie on the claim time by the lowest id', () =>
+      withFreshDatabase(async (database) => {
+        // Written first, though its id sorts last.
+        await createActorWithRawUsername(database, 'Bob', TEST_DOMAIN, 1000)
+        await createActorWithRawUsername(database, 'BOB', TEST_DOMAIN, 1000)
+
+        const actor = await database.getActorFromUsername({
+          username: 'bob',
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor?.id).toBe(`https://${TEST_DOMAIN}/users/BOB`)
       }))
 
     // The folded arm folds CASE, not whitespace. `normalizeUsername` trims as

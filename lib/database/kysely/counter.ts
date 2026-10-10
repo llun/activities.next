@@ -54,6 +54,36 @@ export const getCounterValues = async (
   )
 }
 
+/**
+ * Sets the counter to `value` (clamped to 0..Number.MAX_SAFE_INTEGER and
+ * truncated, as clampCounterValue does; a non-finite value is 0), creating the
+ * row when it is missing. updatedAt is `currentTime` either way, createdAt only
+ * on create; bucketHour is left alone.
+ */
+export const setCounterValue = async (
+  db: Db,
+  id: string,
+  value: number,
+  currentTime = new Date()
+): Promise<void> => {
+  const nextValue = Number.isFinite(value) ? clampForInsert(value) : 0
+  await db
+    .insertInto('counters')
+    .values({
+      id,
+      value: nextValue,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    .onConflict((conflict) =>
+      conflict.column('id').doUpdateSet({
+        value: nextValue,
+        updatedAt: currentTime
+      })
+    )
+    .execute()
+}
+
 export const adjustCounterValue = async (
   db: Db,
   id: string,

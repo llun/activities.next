@@ -6,12 +6,14 @@ import {
   decreaseCounterValue,
   getCounterValue,
   getCounterValues,
-  increaseCounterValue
+  increaseCounterValue,
+  setCounterValue
 } from '@/lib/database/kysely/counter'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import {
   getCounterValues as getKnexCounterValues,
-  increaseCounterValue as increaseKnexCounterValue
+  increaseCounterValue as increaseKnexCounterValue,
+  setCounterValue as setKnexCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
@@ -172,6 +174,51 @@ describe('Kysely counter helpers', () => {
     const values = await getCounterValues(db, ids)
     expect(values).toEqual({ [ids[0]]: 3, [ids[1]]: 8 })
     expect(await getKnexCounterValues(instance, ids)).toEqual(values)
+  })
+
+  it('sets a missing counter, then overwrites it and moves only updatedAt', async () => {
+    const created = new Date('2026-04-01T00:00:00.000Z')
+    const updated = new Date('2026-04-02T00:00:00.000Z')
+    const db = kyselyFor(instance)
+    await increaseCounterValue(db, 'counter-set-neighbour', 7)
+    await setCounterValue(db, 'counter-set', 12, created)
+    expect(await readRow('counter-set')).toEqual({
+      value: 12,
+      createdAt: created.getTime(),
+      updatedAt: created.getTime()
+    })
+    await setCounterValue(db, 'counter-set', 4, updated)
+    expect(await readRow('counter-set')).toEqual({
+      value: 4,
+      createdAt: created.getTime(),
+      updatedAt: updated.getTime()
+    })
+    expect(await getCounterValue(db, 'counter-set-neighbour')).toBe(7)
+  })
+
+  it('sets the value the Knex helper sets, clamped and truncated', async () => {
+    const db = kyselyFor(instance)
+    const values = [
+      -5,
+      0,
+      0.5,
+      7.9,
+      Number.MAX_SAFE_INTEGER,
+      Number.MAX_SAFE_INTEGER * 4,
+      Number.NaN,
+      Number.POSITIVE_INFINITY
+    ]
+    for (const [index, value] of values.entries()) {
+      await setCounterValue(db, `counter-set-kysely-${index}`, value)
+      await setKnexCounterValue(instance, `counter-set-knex-${index}`, value)
+      expect(await getCounterValue(db, `counter-set-kysely-${index}`)).toBe(
+        await getCounterValue(db, `counter-set-knex-${index}`)
+      )
+    }
+    expect(await getCounterValue(db, 'counter-set-kysely-3')).toBe(7)
+    expect(await getCounterValue(db, 'counter-set-kysely-5')).toBe(
+      Number.MAX_SAFE_INTEGER
+    )
   })
 
   it('reads 0 for a missing counter', async () => {
