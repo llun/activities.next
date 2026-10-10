@@ -1,16 +1,10 @@
 import { Knex } from 'knex'
 
+import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
-import {
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-} from '@/lib/utils/activitystream'
 
-export const PUBLIC_ACTIVITY_RECIPIENTS = [
-  ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
-]
+export { PUBLIC_ACTIVITY_RECIPIENTS }
 
 // The stored followers-collection URL of the actor joined as `actorsAlias`. The
 // alias is interpolated into raw SQL, so pass only a fixed identifier.
@@ -28,6 +22,8 @@ export const statusActorFollowersUrlExpression = (
   return `json_extract(${actorsAlias}.settings, '$.followersUrl')`
 }
 
+// The Kysely twin is potentiallyReadableStatus
+// (lib/database/kysely/visibility/potentiallyReadable.ts): change both together.
 export const applyPotentiallyReadableStatusFilter = ({
   database,
   query,

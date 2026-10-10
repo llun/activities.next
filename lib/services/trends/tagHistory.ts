@@ -1,4 +1,4 @@
-import { normalizeHashtagSearchName } from '@/lib/database/sql/search/hashtag'
+import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { Database } from '@/lib/database/types'
 import { TagDailyHistoryPoint } from '@/lib/types/database/operations'
 import { TagHistory } from '@/lib/types/mastodon/tag'

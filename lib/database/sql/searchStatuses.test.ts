@@ -1,28 +1,21 @@
-import knex from 'knex'
-
 import { getSearchDocumentId } from '@/lib/database/domains/search/rows'
-import { getSQLDatabase } from '@/lib/database/sql'
 import {
   createSearchActor,
   insertRowsInChunks
 } from '@/lib/database/sql/searchTestHelpers'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('SearchDatabase statuses', () => {
   it('indexes status text, strips HTML, and updates status search documents on edits', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/status-search-update`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -82,18 +75,13 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('preserves word boundaries when indexing status HTML', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/status-search-html-spacing`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -122,18 +110,13 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('rebuilds status search documents in batches', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/status-search-reindex`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -166,19 +149,14 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('indexes legacy raw-string status content', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/raw-string-search`
     const currentTime = new Date()
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -219,19 +197,14 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('uses status creation time for stable reindex pagination', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const firstStatusId = `${actorId}/statuses/m-cursor`
     const secondStatusId = `${actorId}/statuses/a-newer-status`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -283,16 +256,11 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('treats malformed status reindex cursors as invalid cursors', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
 
       await expect(
@@ -307,20 +275,15 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('bounds status search pagination when cursor search documents are missing', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const newestStatusId = `${actorId}/statuses/pagination-newest`
     const cursorStatusId = `${actorId}/statuses/pagination-cursor`
     const oldestStatusId = `${actorId}/statuses/pagination-oldest`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -377,14 +340,8 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('deletes stale status search documents in SQLite-safe batches', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusCount = 1005
     const currentTime = new Date()
@@ -407,6 +364,7 @@ describe('SearchDatabase statuses', () => {
     })
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -451,19 +409,14 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('requires status search matches to be interacted-with or owned', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const viewerId = 'https://remote.test/users/viewer'
     const authorId = 'https://remote.test/users/author'
     const statusId = `${authorId}/statuses/public-search`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: viewerId,
@@ -516,20 +469,15 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('returns mentioned statuses and filters blocked authors', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const viewerId = 'https://remote.test/users/viewer'
     const authorId = 'https://remote.test/users/author'
     const statusId = `${authorId}/statuses/mention-search`
     const missingHrefStatusId = `${authorId}/statuses/mention-search-empty-value`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: authorId,
@@ -627,14 +575,8 @@ describe('SearchDatabase statuses', () => {
   })
 
   it('deletes actor status search documents in SQLite-safe batches', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusCount = 1005
     const currentTime = new Date()
@@ -657,6 +599,7 @@ describe('SearchDatabase statuses', () => {
     })
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,

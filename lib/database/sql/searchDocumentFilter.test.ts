@@ -1,8 +1,10 @@
 import type { Knex } from 'knex'
 
-import { getSearchTokens } from '@/lib/database/domains/search/rows'
-import { normalizeHashtagSearchName } from '@/lib/database/sql/search/hashtag'
-import { indexStatusSearchDocument } from '@/lib/database/sql/search/status'
+import {
+  getSearchTokens,
+  normalizeHashtagSearchName
+} from '@/lib/database/domains/search/rows'
+import { indexStatusSearchDocument } from '@/lib/database/domains/search/statuses'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
@@ -114,7 +116,7 @@ describe('SearchDatabase document filtering', () => {
       await testDb.prepare()
       await database.migrate()
 
-      await indexStatusSearchDocument(knexDatabase, {
+      await indexStatusSearchDocument(testDb.db, {
         status: {
           id: statusId,
           actorId: 'https://remote.test/users/alice',

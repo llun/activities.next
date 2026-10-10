@@ -1,31 +1,28 @@
-import knex from 'knex'
-
-import { getSQLDatabase } from '@/lib/database/sql'
 import { createSearchActor } from '@/lib/database/sql/searchTestHelpers'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 
+// Captured SQL in lower case without identifier quotes, so the assertions read
+// the same for Knex and Kysely statements on SQLite and PostgreSQL.
+const normalizeSql = (sql: string) => sql.toLowerCase().replace(/[`"]/g, '')
+
 describe('SearchDatabase hashtags', () => {
   it('indexes public hashtags and returns Mastodon tag-shaped results', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/hashtag-search`
     const queries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(sql.toLowerCase())
+      queries.push(normalizeSql(sql))
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -64,13 +61,11 @@ describe('SearchDatabase hashtags', () => {
         })
       ])
       const aggregateSql =
-        queries.find((sql) => sql.includes('as `hashtag_statuses`')) ?? ''
-      expect(aggregateSql).not.toContain('inner join `recipients`')
-      expect(aggregateSql).toContain(
-        '`recipients`.`statusid` = `statuses`.`id`'
-      )
-      expect(aggregateSql).toContain('`recipients`.`actorid` in')
-      expect(aggregateSql).not.toContain('`statuses`.`id` in (select')
+        queries.find((sql) => sql.includes('as hashtag_statuses')) ?? ''
+      expect(aggregateSql).not.toContain('inner join recipients')
+      expect(aggregateSql).toContain('recipients.statusid = statuses.id')
+      expect(aggregateSql).toContain('recipients.actorid in')
+      expect(aggregateSql).not.toContain('statuses.id in (select')
       expect(aggregateSql).toContain('exists')
     } finally {
       knexDatabase.off('query', handleQuery)
@@ -79,19 +74,14 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('preserves zero-valued hashtag aggregate timestamps', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/epoch-hashtag`
     const createdAt = new Date(0)
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -154,18 +144,13 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('rebuilds and removes hashtag search aggregates as statuses change', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/reindex-hashtag`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -214,16 +199,11 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('removes stale hashtag search documents during full reindex', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.upsertSearchDocument({
         entityType: 'hashtag',
@@ -258,16 +238,11 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('limits stale hashtag search cleanup to a full reindex start', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.upsertSearchDocument({
         entityType: 'hashtag',
@@ -305,19 +280,14 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('reports reindex progress using the raw scanned row count', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/duplicate-normalized-hashtag`
     const createdAt = new Date(1)
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -381,14 +351,8 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('uses bounded lookups when removing stale hashtag search documents', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const queries: { bindings: unknown[]; sql: string }[] = []
     const handleQuery = ({
       bindings,
@@ -399,11 +363,12 @@ describe('SearchDatabase hashtags', () => {
     }) => {
       queries.push({
         bindings: bindings ?? [],
-        sql: sql.toLowerCase()
+        sql: normalizeSql(sql)
       })
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.upsertSearchDocument({
         entityType: 'hashtag',
@@ -423,14 +388,14 @@ describe('SearchDatabase hashtags', () => {
       expect(
         queries.some(
           ({ sql }) =>
-            sql.includes('from `tags`') && sql.includes('`namenormalized` in')
+            sql.includes('from tags') && sql.includes('namenormalized in')
         )
       ).toBe(true)
       const staleCleanupSelect = queries.find(
         ({ sql }) =>
           sql.startsWith('select') &&
-          sql.includes('from `search_documents`') &&
-          sql.includes('order by `entityid` asc') &&
+          sql.includes('from search_documents') &&
+          sql.includes('order by entityid asc') &&
           sql.includes('limit')
       )
       expect(Number(staleCleanupSelect?.bindings.at(-1))).toBeLessThanOrEqual(
@@ -443,18 +408,13 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('rebuilds hashtag search aggregates from legacy bare normalized tag names', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/legacy-hashtag`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -502,14 +462,8 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('deduplicates hashtag search aggregates across legacy tag name variants', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const firstStatusId = `${actorId}/statuses/duplicate-hashtag-1`
     const secondStatusId = `${actorId}/statuses/duplicate-hashtag-2`
@@ -524,6 +478,7 @@ describe('SearchDatabase hashtags', () => {
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -598,18 +553,13 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('counts a status once when it has both hashtag storage variants', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/duplicate-variant-hashtag`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -669,22 +619,17 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('replaces hashtag search documents inside a transaction', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/transactional-hashtag`
     const queries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(sql.toLowerCase())
+      queries.push(normalizeSql(sql))
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -732,16 +677,11 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('chunks hashtag reindex queries below SQLite bind limits', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
 
       await expect(
@@ -755,18 +695,13 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('refreshes hashtag search aggregates after visibility changes', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/visibility-hashtag`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -824,22 +759,17 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('reads visibility-change hashtags inside the update transaction', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/transaction-visibility-hashtag`
     const queries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(sql.toLowerCase())
+      queries.push(normalizeSql(sql))
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -871,8 +801,8 @@ describe('SearchDatabase hashtags', () => {
 
       const tagReadIndex = queries.findIndex(
         (sql) =>
-          sql.startsWith('select `statusid`, `name` from `tags`') &&
-          sql.includes('`statusid` in')
+          sql.startsWith('select statusid, name from tags') &&
+          sql.includes('statusid in')
       )
       const beginIndex = queries.findLastIndex(
         (sql, index) => index < tagReadIndex && sql.startsWith('begin')
@@ -891,18 +821,13 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('refreshes hashtag search aggregates when deleting actor data', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/actor-delete-hashtag`
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -945,14 +870,8 @@ describe('SearchDatabase hashtags', () => {
   })
 
   it('refreshes deleted actor hashtag search aggregates after actor data commits', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/actor-delete-commit-hashtag`
     const queries: { bindings: unknown[]; sql: string }[] = []
@@ -963,10 +882,11 @@ describe('SearchDatabase hashtags', () => {
       bindings?: unknown[]
       sql: string
     }) => {
-      queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
+      queries.push({ bindings: bindings ?? [], sql: normalizeSql(sql) })
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,

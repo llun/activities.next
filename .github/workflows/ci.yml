@@ -175,13 +175,16 @@ jobs:
   # actor mutes, bookmarks, quote edges, emoji reactions, link preview cards),
   # the announcement, notification and instance activity domains
   # (announcements with their reads and reactions, notifications and their
-  # requests queue, weekly activity and login buckets), the search document and
-  # account search domains (the full-text index, account search by profile text,
-  # exact handle and followed accounts, and which indexed statuses a viewer can
-  # find), the admin domain (account and hashtag listings, service statistics,
-  # domain block and allow rules with their import), and the Knex-backed Kysely
-  # driver (result normalisation, the mixed-transaction guard, counters, bucket
-  # counters, chunked IN lists, savepoints).
+  # requests queue, weekly activity and login buckets), the search, featured
+  # tag and trends domains (the full-text index, account search by profile
+  # text, exact handle and followed accounts, hashtag aggregates, status search
+  # and which indexed statuses a viewer can find, featured tags with their
+  # stats, trending tags and statuses), the admin domain (account and hashtag
+  # listings, service statistics, domain block and allow rules with their
+  # import), the Kysely status visibility filter checked against its Knex
+  # original, and the Knex-backed Kysely driver (result normalisation, the
+  # mixed-transaction guard, counters, bucket counters, chunked IN lists,
+  # savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -291,6 +294,15 @@ jobs:
             lib/database/sql/searchAccountQueries.test.ts \
             lib/database/sql/searchDocuments.test.ts \
             lib/database/sql/searchDocumentFilter.test.ts \
+            lib/database/sql/searchHashtags.test.ts \
+            lib/database/sql/searchHashtagQueries.test.ts \
+            lib/database/sql/searchStatuses.test.ts \
+            lib/database/sql/searchStatusQueries.test.ts \
+            lib/database/sql/featuredTag.test.ts \
+            lib/database/sql/featuredTagQueries.test.ts \
+            lib/database/sql/trends.test.ts \
+            lib/database/sql/trendsQueries.test.ts \
+            lib/database/kysely/visibility/visibilityEquivalence.test.ts \
             lib/database/sql/admin.test.ts \
             lib/database/sql/adminDomainRules.test.ts \
             lib/database/kysely/driver.test.ts \
