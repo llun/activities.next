@@ -1516,6 +1516,35 @@ describe('pins', () => {
     }
   )
 
+  it("pinStatus with a cap locks only the actor's row, before it reads a pin", async () => {
+    const { alice, statuses } = await setupPins()
+    const { result, statements } = await capture(() =>
+      pinStatus(db, {
+        actorId: alice,
+        statusId: statuses[0],
+        maxPinnedStatuses: 3
+      })
+    )
+    expect(result).toBe(true)
+    // SQLite has no row locks: Knex's forUpdate() wrote nothing there either.
+    const lock =
+      testDb.backend === 'pg'
+        ? 'select "id" from "actors" where "id" = $1 for update'
+        : 'select "id" from "actors" where "id" = ?'
+    // One transaction, the lock first.
+    expect(statements.map(({ sql: text }) => text)).toEqual([
+      'begin',
+      lock,
+      expect.stringMatching(/^select "statusId" from "status_pins" /),
+      expect.stringMatching(
+        /^select count\(\*\) as "count" from "status_pins" /
+      ),
+      expect.stringMatching(/^insert into "status_pins" /),
+      'commit'
+    ])
+    expect(statements[1].bindings).toEqual([alice])
+  })
+
   it('pinStatus with a cap reads at most one existing pin', async () => {
     const { alice, statuses } = await setupPins()
     const { result, statements } = await capture(() =>
