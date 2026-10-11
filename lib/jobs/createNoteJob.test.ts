@@ -1,6 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
@@ -17,10 +17,11 @@ import { FRIEND_ACTOR_ID } from './createNoteJob.testUtils'
 enableFetchMocks()
 
 describe('createNoteJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({

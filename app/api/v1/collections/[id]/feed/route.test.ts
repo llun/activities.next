@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -14,7 +15,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -41,12 +42,13 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/collections/[id]/feed', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let publicCollectionId: string
   let privateCollectionId: string
   let publicPostId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
 

@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { mockRequests } from '@/lib/stub/activities'
@@ -75,9 +75,10 @@ const notificationsForStatus = async (
 }
 
 describe('notifyRemoteReplyAndMention', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

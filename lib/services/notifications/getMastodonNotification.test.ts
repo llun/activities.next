@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { groupNotifications } from '@/lib/services/notifications/groupNotifications'
 import { NotificationType } from '@/lib/types/database/operations'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -9,13 +9,14 @@ import {
 } from './getMastodonNotification'
 
 describe('getMastodonNotification', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   const actor1Id = 'https://example.com/users/actor1'
   const actor2Id = 'https://example.com/users/actor2'
   const statusId = 'https://example.com/statuses/status1'
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
 
     // Create test actors
