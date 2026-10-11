@@ -39,11 +39,13 @@ const DOMAIN = 'galleryalbums.test'
 // rows the database would not return in that order unaided: ids that sort
 // against `updatedAt` and insertion, ties inserted in id order in one group
 // and against it in another, and media ids that sort against their capture
-// dates. Each write's transaction is read off the statements it sends, and
-// rolls back as a whole when its last write is made to fail. On PostgreSQL,
-// the actor row lock is pinned by holding it from a second connection: every
-// write waits on it before anything else, and two creates (or two item adds)
-// racing at the limit leave exactly `limit` rows. Runs on PostgreSQL in CI.
+// dates. Each write's transaction is read off the statements it sends, and,
+// where it has an earlier write to undo (a create with first photos, delete,
+// add and remove), rolls back as a whole when its last write is made to fail.
+// On PostgreSQL, the actor row lock is pinned by holding it from a second
+// connection: every write waits on it before anything else, and two creates
+// (or two item adds) racing at the limit leave exactly `limit` rows. Runs on
+// PostgreSQL in CI.
 
 const testDb = createTestDatabase()
 const { database, knex } = testDb
@@ -1408,7 +1410,11 @@ describe('createGalleryAlbumWithinLimit', () => {
     ])
   })
 
-  it('rolls back the album when its insert fails', async () => {
+  // The album insert is the create's only write here (the count before it
+  // only reads), so the tables are unchanged with or without a transaction:
+  // this pins that the error propagates and nothing else changes, not a
+  // rollback. The test below has an earlier write to undo.
+  it('passes on the error and changes nothing when its album insert fails', async () => {
     const owner = await newActor()
     await seedAlbum(owner)
     const drop = await failWrite(
