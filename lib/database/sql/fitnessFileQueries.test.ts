@@ -354,6 +354,15 @@ describe('file reads', () => {
     })
   })
 
+  it('getFitnessFile reads an epoch-0 activityStartTime as unset', async () => {
+    const actorId = await newActor()
+    const id = await seedFile(actorId, { activityStartTime: new Date(0) })
+
+    expect(
+      (await database.getFitnessFile({ id }))?.activityStartTime
+    ).toBeUndefined()
+  })
+
   it('getFitnessFile reads the asked file, never a neighbour or a deleted one', async () => {
     const actorId = await newActor()
     await seedFile(actorId, { createdAt: at('2026-01-01') })
@@ -1147,6 +1156,11 @@ describe('the fitness overview reads', () => {
     // Fractions round down, and a page holds at least one activity.
     expect(idsOf((await page(1.9, 1.9)).activities)).toEqual(['overview-5'])
     expect(idsOf((await page(0, 0)).activities)).toEqual(['overview-9'])
+    // A negative offset starts at the first activity.
+    expect(idsOf((await page(2, -3)).activities)).toEqual([
+      'overview-9',
+      'overview-5'
+    ])
   })
 
   it('getFitnessActivitiesInWindow caps a page at 100 activities', async () => {
@@ -1759,6 +1773,19 @@ describe('status and activity writes', () => {
       activityType: 'running',
       deviceName: 'Kept',
       totalWorkKj: 99
+    })
+
+    // One key leaves every other column alone.
+    const before = await fileRow(id)
+    expect(
+      await database.updateFitnessFileActivityData(id, {
+        activityType: 'cycling'
+      })
+    ).toBe(true)
+    expect(await fileRow(id)).toEqual({
+      ...before,
+      activityType: 'cycling',
+      updatedAt: expect.anything()
     })
 
     expect(
