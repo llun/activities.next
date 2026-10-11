@@ -17,7 +17,11 @@ import {
   type GalleryGridSelection
 } from '@/lib/components/gallery/GalleryGrid'
 import { GalleryGridSkeleton } from '@/lib/components/gallery/GalleryGridSkeleton'
-import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import {
+  LOAD_MORE_CONTAINER_CLASS,
+  LoadMoreButton
+} from '@/lib/components/load-more-button/load-more-button'
+import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import type {
@@ -72,7 +76,7 @@ interface Props {
   controllerRef?: RefObject<GalleryPagedGridController | null>
 }
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 24
 // The server caps how much it scans per request, so a rare subject can come
 // back as an empty page that still carries `nextMaxId`. Follow such a cursor
 // this many more times on its own, then leave "Load more" to the reader.
@@ -116,6 +120,11 @@ export const GalleryPagedGrid: FC<Props> = ({
   const [isLoading, setIsLoading] = useState(!initialPage)
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
+
+  const isLoadingRef = useRef(isLoading)
+  useEffect(() => {
+    isLoadingRef.current = isLoading
+  }, [isLoading])
 
   const load = useCallback(
     async (maxId?: string) => {
@@ -228,6 +237,13 @@ export const GalleryPagedGrid: FC<Props> = ({
     // Loads once per mount: the query is fixed for this component's life.
   }, [])
 
+  const { loadMoreRef } = useLoadMoreOnVisible({
+    enabled: !!nextMaxId,
+    onLoadMore: useCallback(() => {
+      if (!isLoadingRef.current && nextMaxId) void load(nextMaxId)
+    }, [load, nextMaxId])
+  })
+
   if (isLoading && items.length === 0) {
     return <GalleryGridSkeleton label="Loading photos" />
   }
@@ -258,12 +274,18 @@ export const GalleryPagedGrid: FC<Props> = ({
       {error ? <Alert title={error} /> : null}
       {nextMaxId ? (
         <LoadMoreButton
+          containerRef={loadMoreRef}
           isLoading={isLoading}
           loadingText="Loading more"
           onClick={() => void load(nextMaxId)}
         />
       ) : error && items.length === 0 ? (
-        <LoadMoreButton onClick={() => void load()}>Try again</LoadMoreButton>
+        <LoadMoreButton
+          containerClassName={LOAD_MORE_CONTAINER_CLASS}
+          onClick={() => void load()}
+        >
+          Try again
+        </LoadMoreButton>
       ) : null}
     </div>
   )

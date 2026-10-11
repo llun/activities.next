@@ -54,7 +54,7 @@ const notFound = (req: Parameters<typeof apiResponse>[0]['req']) =>
   })
 
 const DetailQuery = GalleryAlbumItemsQuery.pick({ sort: true }).extend({
-  limit: clampedLimit(60, 30)
+  limit: clampedLimit(60, 24)
 })
 
 // GET /api/v1/gallery/albums/:id — the owner's album page: the album, its

@@ -37,7 +37,7 @@ describe('gallery media client module', () => {
 
       await getGalleryMedia(ACTOR_ID, {
         maxId: '42',
-        limit: 30,
+        limit: 24,
         subject: 'sci:alcedo atthis',
         category: 'bird',
         gearId: 'gear-1',
@@ -51,7 +51,7 @@ describe('gallery media client module', () => {
       expect(url.pathname).toBe(`/api/v1/accounts/${SEGMENT}/gallery/media`)
       expect(Object.fromEntries(url.searchParams)).toEqual({
         max_id: '42',
-        limit: '30',
+        limit: '24',
         subject: 'sci:alcedo atthis',
         category: 'bird',
         gear_id: 'gear-1',

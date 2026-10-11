@@ -195,7 +195,7 @@ describe('GalleryAllMediaView', () => {
     )
     expect(screen.getByTestId('grid')).not.toHaveTextContent('5')
     expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
-      limit: 30,
+      limit: 24,
       maxId: undefined,
       subject: undefined,
       category: 'mammal',
@@ -351,7 +351,7 @@ describe('GalleryAllMediaView', () => {
           expect(screen.getByTestId('grid')).toHaveTextContent('8')
         )
         expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
-          limit: 30,
+          limit: 24,
           maxId: undefined,
           subject: undefined,
           category: 'bird',

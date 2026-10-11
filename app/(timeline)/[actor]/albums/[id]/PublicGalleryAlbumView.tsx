@@ -2,7 +2,7 @@
 
 import { Check, Folder, Link2 } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { GalleryAlbumHero } from '@/app/(timeline)/gallery/albums/GalleryAlbumHero'
 import { GalleryAlbumSpeciesFilter } from '@/app/(timeline)/gallery/albums/GalleryAlbumSpeciesFilter'
@@ -14,8 +14,12 @@ import {
 import { getAccountGalleryAlbum } from '@/lib/client'
 import { BackLink } from '@/lib/components/back-link'
 import { GalleryGrid } from '@/lib/components/gallery/GalleryGrid'
-import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import {
+  LOAD_MORE_CONTAINER_CLASS,
+  LoadMoreButton
+} from '@/lib/components/load-more-button/load-more-button'
 import { profileBack } from '@/lib/components/navigation-history/backDestination'
+import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
@@ -76,6 +80,10 @@ export const PublicGalleryAlbumView: FC<Props> = ({
   const [sort, setSort] = useState<GalleryAlbumSort>(album.sortOrder)
   const [subject, setSubject] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const isLoadingRef = useRef(isLoading)
+  useEffect(() => {
+    isLoadingRef.current = isLoading
+  }, [isLoading])
   const [loadError, setLoadError] = useState<string | null>(null)
   // Bumped by every new query, so a slow older answer is dropped.
   const generation = useRef(0)
@@ -122,7 +130,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
     }
   }
 
-  const loadMore = async () => {
+  const loadMore = useCallback(async () => {
     if (!nextMaxId) return
     const current = generation.current
     setIsLoading(true)
@@ -144,7 +152,14 @@ export const PublicGalleryAlbumView: FC<Props> = ({
     } finally {
       if (current === generation.current) setIsLoading(false)
     }
-  }
+  }, [nextMaxId, sort, subject, fetchPage])
+
+  const { loadMoreRef } = useLoadMoreOnVisible({
+    enabled: !!nextMaxId,
+    onLoadMore: useCallback(() => {
+      if (!isLoadingRef.current && nextMaxId) void loadMore()
+    }, [loadMore, nextMaxId])
+  })
 
   const handleSortChange = (next: GalleryAlbumSort) => {
     setSort(next)
@@ -271,12 +286,17 @@ export const PublicGalleryAlbumView: FC<Props> = ({
           {loadError ? <Alert title={loadError} /> : null}
           {nextMaxId ? (
             <LoadMoreButton
+              containerRef={loadMoreRef}
+              containerClassName={LOAD_MORE_CONTAINER_CLASS}
               isLoading={isLoading}
               loadingText="Loading more"
               onClick={() => void loadMore()}
             />
           ) : loadError && items.length === 0 ? (
-            <LoadMoreButton onClick={() => void reload(sort, subject)}>
+            <LoadMoreButton
+              containerClassName={LOAD_MORE_CONTAINER_CLASS}
+              onClick={() => void reload(sort, subject)}
+            >
               Try again
             </LoadMoreButton>
           ) : null}

@@ -33,7 +33,7 @@ interface Params {
 
 const GalleryMediaQueryParams = z.object({
   max_id: z.string().regex(/^\d+$/).max(10).optional(),
-  limit: clampedLimit(60, 30),
+  limit: clampedLimit(60, 24),
   subject: z.string().trim().min(1).max(520).optional(),
   category: z.enum(MEDIA_SUBJECT_CATEGORIES).optional(),
   gear_id: z.string().max(255).optional(),
