@@ -255,6 +255,10 @@ docker run -p 3000:3000 \
 
 #### Custom Docker Builds with Optional Workspaces
 
+Docker image builds, including the migration step, do not need a production
+`ACTIVITIES_SECRET_PHASE`. Set a real, stable secret of at least 32 characters
+when running the image; the production runtime enforces that minimum.
+
 Optional dependencies (such as PostgreSQL, Cloud Tasks, QStash, and optional email providers) are isolated in Yarn workspaces under `packages/`:
 
 - `@activities/pg` — PostgreSQL driver (`pg`)

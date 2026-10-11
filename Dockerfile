@@ -44,10 +44,10 @@ RUN yarn config set -H enableGlobalCache true
 RUN yarn config set -H enableImmutableInstalls true
 RUN yarn workspaces focus ${WORKSPACES}
 COPY --chown=app:app . /opt/activities.next/
-RUN mkdir -p .next && ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
+RUN mkdir -p .next && yarn knex migrate:latest --disable-transactions
 # Keep compiler cache outside image layers, isolated by platform and build user.
 RUN --mount=type=cache,id=activities-next-${TARGETPLATFORM}-${UID}-${GID}-${WORKSPACES},target=/opt/activities.next/.next/cache,uid=${UID},gid=${GID},sharing=locked \
-  ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
+  BUILD_STANDALONE=true yarn build
 
 FROM base AS output
 ENV NODE_ENV="production"
