@@ -182,10 +182,31 @@ describe('getSQLDatabase', () => {
     expect(createLikeMock).toHaveBeenCalledWith(kyselyDb, params)
   })
 
-  it('merges properties with later mixins taking precedence', () => {
+  it('merges properties with later mixins taking precedence', async () => {
+    // The status facade is spread after the media one.
     const { database } = createComposedDatabase()
     const merged = database as unknown as Record<string, string>
     expect(merged.testPriority).toBe('status')
+
+    // The timeline queries are the last spread: a property they define wins
+    // over the status facade's, and is bound to the Kysely instance of this
+    // Knex one.
+    const kyselyDb = { name: 'kysely' }
+    kyselyForMock.mockReturnValue(kyselyDb)
+    const testPriority = vi.fn().mockResolvedValue('timeline')
+    createTimelineQueriesMock.mockReturnValueOnce({
+      testPriority
+    } as unknown as ReturnType<typeof createTimelineQueries>)
+    const { database: withTimeline, knexDatabase } = createComposedDatabase()
+    const mergedWithTimeline = withTimeline as unknown as Record<
+      string,
+      (...args: unknown[]) => Promise<string>
+    >
+    await expect(mergedWithTimeline.testPriority('arg')).resolves.toBe(
+      'timeline'
+    )
+    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
+    expect(testPriority).toHaveBeenCalledWith(kyselyDb, 'arg')
   })
 
   it('proxies migrate and destroy to knex lifecycle methods', async () => {

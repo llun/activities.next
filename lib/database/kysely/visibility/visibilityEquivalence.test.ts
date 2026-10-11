@@ -24,8 +24,9 @@ import {
 
 // The Kysely visibility predicates must select exactly the rows their Knex
 // originals select while both are in use: the Knex ones still serve status,
-// or are kept as the reference the Kysely twin is checked against here. Each describe runs both over the same rows, for every
-// viewer, and compares the id sets; the named cases say which arm broke.
+// or are kept as the reference the Kysely twin is checked against here. Each
+// describe runs both over the same rows, for every viewer, and compares the id
+// sets; the named cases say which arm broke.
 describe('Kysely visibility predicates match their Knex originals', () => {
   const testDb = createTestDatabase()
   const { database, knex } = testDb

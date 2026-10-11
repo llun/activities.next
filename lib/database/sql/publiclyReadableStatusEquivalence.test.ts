@@ -20,9 +20,9 @@ import {
 // which the local public timeline and the public collection feed read through.
 //
 // Keeping several spellings of one subtle predicate is only safe with a test
-// that runs them all over the SAME rows and compares. That is what the sweep at the
-// bottom does; the named cases above it exist so a failure says which shape
-// broke rather than only that the two lists differ.
+// that runs them all over the SAME rows and compares. That is what the sweep
+// at the bottom does; the named cases above it exist so a failure says which
+// shape broke rather than only that the lists differ.
 describe('publicly readable status predicate equivalence', () => {
   const { database, instance, prepare } = getTestDatabaseWithInstance()
 
