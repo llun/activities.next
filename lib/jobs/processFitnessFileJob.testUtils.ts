@@ -168,8 +168,9 @@ export const resetProcessMocks = () => {
   mockParseFitnessFile.mockResolvedValue(defaultActivityData)
   mockGenerateMapImage.mockResolvedValue(Buffer.from('png-map-image'))
 
+  // Numeric ids: attachments.mediaId is an integer column on PostgreSQL.
   mockSaveMedia.mockResolvedValue({
-    id: 'generated-map-media-id',
+    id: '9001',
     type: 'image',
     mime_type: 'image/webp',
     url: 'https://llun.test/api/v1/files/medias/route-map.webp',

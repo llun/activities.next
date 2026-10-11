@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
@@ -29,11 +29,12 @@ vi.mock('@/lib/services/timelines', () => ({
 }))
 
 describe('Create note action with attachments', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor
   let actor2: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = (await database.getActorFromUsername({

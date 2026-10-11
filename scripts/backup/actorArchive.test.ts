@@ -3,7 +3,8 @@ import os from 'os'
 import path from 'path'
 
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -553,12 +554,14 @@ describe('database-backed collectors', () => {
   // A fresh database per test: the forEachActorStatus test asserts an exact
   // count, so it must not inherit the statuses the forEachLike test creates for
   // the same actor.
-  let database: ReturnType<typeof getTestSQLDatabase>
+  let database: Database
   let actorId: string
   let followersUrl: string
 
   beforeEach(async () => {
-    database = getTestSQLDatabase()
+    const testDb = createTestDatabase()
+    database = testDb.database
+    await testDb.prepare()
     await database.migrate()
 
     await database.createAccount({

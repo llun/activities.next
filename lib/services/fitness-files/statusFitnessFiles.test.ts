@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -8,9 +8,10 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getStatusFitnessFiles } from './statusFitnessFiles'
 
 describe('getStatusFitnessFiles', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

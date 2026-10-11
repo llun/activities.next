@@ -8,9 +8,9 @@ import {
 
 // The Kysely actorVisibleStatusIds must select exactly the status ids its Knex
 // original buildActorVisibleStatusIdsQuery selects while both are in use: the
-// Knex one still serves the gallery, fitness file and status mixins. Both run
-// over the same rows, for every combination of the audience flags, with each
-// subquery used as the media reads use it (`status id in (…)`), and the id
+// Knex one still serves the gallery and status mixins. Both run over the same
+// rows, for every combination of the audience flags, with each subquery used
+// as the media and fitness file reads use it (`status id in (…)`), and the id
 // sets are compared; the named cases say which arm broke.
 describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => {
   const testDb = createTestDatabase()

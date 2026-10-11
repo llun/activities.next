@@ -9,7 +9,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -65,7 +65,8 @@ const { exportActorArchive } = await import('./actorArchive')
 
 describe('exportActorArchive photo edits', () => {
   it('archives the edit files of the actor media next to the live file', async () => {
-    const database = getTestSQLDatabase()
+    const testDb = createTestDatabase()
+    const database = testDb.database
     holder.database = database
     holder.mediaFilePaths = null
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
@@ -74,6 +75,7 @@ describe('exportActorArchive photo edits', () => {
     )
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.createAccount({
         domain: DOMAIN,
