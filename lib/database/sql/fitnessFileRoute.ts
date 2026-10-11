@@ -47,10 +47,11 @@ export interface FitnessFileRouteDatabase {
   deleteFitnessFileRoutesForActor(params: { actorId: string }): Promise<number>
   /**
    * Counts the actor's countable activities whose route intersects `bounds`.
-   * Shares `applyCountableActivityFilter` with the gear rollups and the fitness
-   * overview, so a region heatmap's activity count can never disagree with the
-   * totals shown elsewhere. Activities with no GPS never intersect anything and
-   * so are never counted.
+   * Filters with `applyCountableActivityFilter`, whose Kysely twin
+   * `countableActivity` the gear rollups and the fitness overview use, so a
+   * region heatmap's activity count can never disagree with the totals shown
+   * elsewhere. Activities with no GPS never intersect anything and so are never
+   * counted.
    */
   countFitnessFileRoutesIntersecting(params: {
     actorId: string

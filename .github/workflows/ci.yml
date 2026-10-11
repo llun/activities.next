@@ -220,10 +220,10 @@ jobs:
   # summary, calendar, window and earliest activity, whether an actor has
   # fitness data for a viewer) with the fitness routes, the import,
   # processing, map regeneration and heatmap jobs and the services over it,
-  # the Kysely status visibility,
-  # countable-activity, actor-visible status, list eligibility, replies policy,
-  # block/mute, follow-target, exclusive-list and publicly-readable predicates
-  # checked against their Knex originals, and the Knex-backed Kysely driver
+  # the Kysely status visibility, countable-activity, actor-visible status,
+  # list eligibility, replies policy, block/mute, follow-target,
+  # exclusive-list and publicly-readable predicates checked against their
+  # Knex originals, and the Knex-backed Kysely driver
   # (result normalisation, the mixed-transaction guard, counters, bucket
   # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
