@@ -153,7 +153,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        <div data-testid="scroll-container" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-1 -m-1">
           <Button
             type="button"
             variant="outline"

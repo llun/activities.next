@@ -453,4 +453,9 @@ describe('GalleryAlbumFormDialog', () => {
       expect(screen.queryByText(/you chose are already/)).toBeNull()
     })
   })
+
+  it('pads and offsets the scroll container to prevent highlight clipping', () => {
+    renderDialog()
+    expect(screen.getByTestId('scroll-container')).toHaveClass('p-1', '-m-1')
+  })
 })
