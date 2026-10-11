@@ -449,6 +449,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
       >
         <Frame form>
           <FormRow
+            inline
             label="Sign out of this device"
             hint="You can sign in again at any time."
           >
