@@ -3335,7 +3335,7 @@ describe('null and undefined keys', () => {
   })
 })
 
-describe('null and undefined keys (review r1)', () => {
+describe('null and undefined keys, continued', () => {
   it('deleteStatusTagsByType with a null or undefined type deletes nothing (Knex deleted the untyped tags, or threw)', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
@@ -3512,22 +3512,25 @@ describe('null and undefined keys (review r1)', () => {
           updatedAt: new Date(BASE)
         })
         .execute()
-      const before = await dumpTables()
-      await expect(
-        updatePoll(db, hydration, {
-          statusId: null as unknown as string,
-          text: 'edited',
-          choices: []
-        })
-      ).resolves.toBeNull()
-      await expect(
-        updateStatusQuoteApprovalPolicy(db, hydration, {
-          statusId: null as unknown as string,
-          quoteApprovalPolicy: 'public'
-        })
-      ).resolves.toBeNull()
-      expect(await dumpTables()).toEqual(before)
-      await db.deleteFrom('statuses').where('id', 'is', null).execute()
+      try {
+        const before = await dumpTables()
+        await expect(
+          updatePoll(db, hydration, {
+            statusId: null as unknown as string,
+            text: 'edited',
+            choices: []
+          })
+        ).resolves.toBeNull()
+        await expect(
+          updateStatusQuoteApprovalPolicy(db, hydration, {
+            statusId: null as unknown as string,
+            quoteApprovalPolicy: 'public'
+          })
+        ).resolves.toBeNull()
+        expect(await dumpTables()).toEqual(before)
+      } finally {
+        await db.deleteFrom('statuses').where('id', 'is', null).execute()
+      }
     }
   )
 
@@ -3544,6 +3547,49 @@ describe('null and undefined keys (review r1)', () => {
         value: string
       }>`select value::text as value from counters where id = ${id}`.execute(db)
       expect(rows).toEqual([{ value: '9007199254740991' }])
+    }
+  )
+})
+
+describe('counters above 2^53 - 1', () => {
+  it.runIf(testDb.backend === 'sqlite')(
+    'an increase, a decrease and a create leave a counter stored above 2^53 - 1 at 2^53 - 1 (Knex failed "after concurrent updates" and changed nothing)',
+    async () => {
+      const p = nextPrefix()
+      const author = await seedActor(`${p}-author`)
+      const up = CounterKey.totalHashtag(`hugeup${p}`)
+      const down = CounterKey.totalHashtag(`hugedown${p}`)
+      const total = CounterKey.totalStatus(author)
+      for (const id of [up, down, total]) {
+        await sql`insert into counters (id, value, "createdAt", "updatedAt") values (${id}, 9007199254740995, 0, 0)`.execute(
+          db
+        )
+      }
+      await increaseHashtagCounter(db, { hashtag: `#Hugeup${p}` })
+      await decreaseHashtagCounter(db, { hashtag: `#Hugedown${p}` })
+      const id = `${author}/statuses/huge`
+      await createNote(db, hydration, {
+        id,
+        url: id,
+        actorId: author,
+        text: 'x',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const { rows } = await sql<{
+        id: string
+        value: string
+      }>`select id, cast(value as text) as value from counters where id in (${up}, ${down}, ${total})`.execute(
+        db
+      )
+      expect(
+        Object.fromEntries(rows.map((row) => [row.id, row.value]))
+      ).toEqual({
+        [up]: '9007199254740991',
+        [down]: '9007199254740991',
+        [total]: '9007199254740991'
+      })
+      expect(await statusRow(id)).toMatchObject({ id })
     }
   )
 })
