@@ -539,6 +539,17 @@ describe('createGalleryGearWithinLimit', () => {
     ).toBe('created')
   })
 
+  it('matches a name only on gear of the same kind', async () => {
+    const actorId = await newActor()
+    await seedGear(actorId, { kind: 'lens', name: 'Shared name' })
+
+    const camera = await create(actorId, 'Shared name')
+    expect(camera).toEqual({
+      status: 'created',
+      gear: expect.objectContaining({ kind: 'camera', name: 'Shared name' })
+    })
+  })
+
   it('locks the actor row first, inside its own transaction', async () => {
     const actorId = await newActor()
 
@@ -1289,7 +1300,12 @@ describe('getGalleryGearUsageRows', () => {
       await seedAttachment(id, post, owner)
     }
 
-    await posted(ids(2), { cameraGearId: first, takenAt: at('2026-01-02') })
+    // The lens is not requested: only the camera row comes back.
+    await posted(ids(2), {
+      cameraGearId: first,
+      lensGearId: unrequested,
+      takenAt: at('2026-01-02')
+    })
     await posted(ids(4), {
       cameraGearId: second,
       lensGearId: first,
@@ -1366,7 +1382,8 @@ describe('unposted media', () => {
       secondFree,
       alreadyAdded,
       notRequested,
-      requested: [...requested, 'not-an-id', String(free)]
+      requested: [...requested, 'not-an-id', String(free)],
+      unavailable: [attached, attachedByOther, othersFree].map(String)
     }
   }
 
@@ -1433,6 +1450,22 @@ describe('unposted media', () => {
       database.addMediaToGallery({ actorId: owner, mediaIds: requested })
     )
     expect(statements).toHaveLength(2)
+  })
+
+  it('addMediaToGallery writes nothing when every requested media is used or another actor’s', async () => {
+    const { owner, unavailable } = await seed()
+    const before = await dumpTables()
+
+    const statements = await expectOneTransaction(async () =>
+      expect(
+        await database.addMediaToGallery({
+          actorId: owner,
+          mediaIds: unavailable
+        })
+      ).toEqual([])
+    )
+    expect(statements).toHaveLength(1)
+    expect(await dumpTables()).toEqual(before)
   })
 
   it('addMediaToGallery rolls back as a whole when its write fails', async () => {
@@ -1584,7 +1617,7 @@ describe('getGalleryAlbumItemSets', () => {
     const other = await newActor()
     const ids = mediaIds()
     for (const id of [1, 2, 3, 4]) await seedMedia(ids(id), owner)
-    const album = async (actorId: string, id: string) => {
+    const album = async (actorId: string, id: string, updatedAt: string) => {
       await db()
         .insertInto('gallery_albums')
         .values({
@@ -1592,7 +1625,7 @@ describe('getGalleryAlbumItemSets', () => {
           actorId,
           title: id,
           createdAt: at('2026-01-01'),
-          updatedAt: at('2026-01-01')
+          updatedAt: at(updatedAt)
         })
         .execute()
       return id
@@ -1603,9 +1636,11 @@ describe('getGalleryAlbumItemSets', () => {
         .values({ albumId, mediaId, actorId, createdAt: at('2026-01-01') })
         .execute()
     const prefix = `${owner}/albums`
-    const second = await album(owner, `${prefix}/2`)
-    const first = await album(owner, `${prefix}/1`)
-    const theirs = await album(other, `${prefix}/3`)
+    // The album that sorts last comes first by insertion, by updatedAt and by
+    // its lowest media id, so only the album sort puts it last.
+    const second = await album(owner, `${prefix}/2`, '2026-01-01')
+    const first = await album(owner, `${prefix}/1`, '2026-01-03')
+    const theirs = await album(other, `${prefix}/3`, '2026-01-02')
     await item(second, ids(1), owner)
     await item(first, ids(2), owner)
     await item(first, ids(1), owner)
