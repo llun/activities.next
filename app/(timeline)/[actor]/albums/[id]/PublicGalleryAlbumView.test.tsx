@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -46,7 +47,7 @@ const PAGE_URL = 'https://activities.test/@ann@activities.test/albums/a1'
 
 const renderView = (
   initial = buildAlbumView(),
-  pageSize = 30,
+  pageSize = 24,
   ownerNotice?: ComponentProps<typeof PublicGalleryAlbumView>['ownerNotice']
 ) =>
   render(
@@ -115,7 +116,7 @@ describe('PublicGalleryAlbumView', () => {
     })
 
     it('tells the owner a private album cannot be opened by visitors, and links to the owner page', () => {
-      renderView(buildAlbumView(), 30, {
+      renderView(buildAlbumView(), 24, {
         reason: 'private',
         manageHref: '/gallery/albums/a1'
       })
@@ -132,7 +133,7 @@ describe('PublicGalleryAlbumView', () => {
     })
 
     it('tells the owner when no photo is visible to visitors', () => {
-      renderView(buildAlbumView(), 30, {
+      renderView(buildAlbumView(), 24, {
         reason: 'nothing-public',
         manageHref: '/gallery/albums/a1'
       })
@@ -249,7 +250,7 @@ describe('PublicGalleryAlbumView', () => {
       expect(load).toHaveBeenCalledWith(
         'https://activities.test/users/ann',
         'a1',
-        { limit: 30, sort: 'taken_desc', subject: 'sci:panthera leo' }
+        { limit: 24, sort: 'taken_desc', subject: 'sci:panthera leo' }
       )
       expect(
         within(group).getByRole('button', { name: /African Lion/ })
@@ -286,7 +287,7 @@ describe('PublicGalleryAlbumView', () => {
       expect(load).toHaveBeenCalledWith(
         'https://activities.test/users/ann',
         'a1',
-        { limit: 30, sort: 'taken_asc', subject: undefined }
+        { limit: 24, sort: 'taken_asc', subject: undefined }
       )
     })
   })
@@ -315,7 +316,7 @@ describe('PublicGalleryAlbumView', () => {
       expect(load).toHaveBeenCalledWith(
         'https://activities.test/users/ann',
         'a1',
-        { limit: 30, sort: 'taken_desc', subject: undefined, maxId: '5:2' }
+        { limit: 24, sort: 'taken_desc', subject: undefined, maxId: '5:2' }
       )
       expect(
         screen.queryByRole('button', { name: /load more/i })
@@ -357,7 +358,7 @@ describe('PublicGalleryAlbumView', () => {
       expect(load).toHaveBeenLastCalledWith(
         'https://activities.test/users/ann',
         'a1',
-        { limit: 30, sort: 'taken_desc', subject: undefined, maxId: '5:2' }
+        { limit: 24, sort: 'taken_desc', subject: undefined, maxId: '5:2' }
       )
     })
 
@@ -429,6 +430,63 @@ describe('PublicGalleryAlbumView', () => {
       await Promise.resolve()
 
       expect(screen.getByTestId('grid')).not.toHaveTextContent('stale-1')
+    })
+
+    describe('auto-loading', () => {
+      let mockObserverCallback:
+        ((entries: IntersectionObserverEntry[]) => void) | null = null
+
+      beforeEach(() => {
+        mockObserverCallback = null
+        Object.defineProperty(globalThis, 'IntersectionObserver', {
+          writable: true,
+          configurable: true,
+          value: class {
+            constructor(
+              callback: (entries: IntersectionObserverEntry[]) => void
+            ) {
+              mockObserverCallback = callback
+            }
+            observe = vi.fn()
+            unobserve = vi.fn()
+            disconnect = vi.fn()
+          }
+        })
+      })
+
+      afterEach(() => {
+        Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+      })
+
+      it('loads more automatically on observer intersection and uses a centered container', async () => {
+        load.mockResolvedValueOnce(
+          buildAlbumView({
+            items: [buildGalleryItem('p-3')],
+            nextMaxId: null
+          })
+        )
+
+        const { container } = renderView(paged())
+
+        const loadMoreContainer = container.querySelector('.text-center.py-4')
+        expect(loadMoreContainer).toBeInTheDocument()
+
+        expect(mockObserverCallback).not.toBeNull()
+
+        act(() => {
+          mockObserverCallback!([
+            { isIntersecting: true } as IntersectionObserverEntry
+          ])
+        })
+
+        await waitFor(() =>
+          expect(load).toHaveBeenCalledWith(
+            'https://activities.test/users/ann',
+            'a1',
+            expect.objectContaining({ maxId: '5:2' })
+          )
+        )
+      })
     })
   })
 })

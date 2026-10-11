@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 }
 
 // The first page of the grid; "Load more" fetches the rest.
-const PAGE_SIZE = 30
+const PAGE_SIZE = 24
 
 interface PageProps {
   params: Promise<{ id: string }>

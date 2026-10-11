@@ -350,7 +350,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
       {isLoading && items.length === 0 ? (
         <div className="grid grid-cols-3 gap-1 sm:grid-cols-4" aria-busy="true">
           <span className="sr-only">Loading photos</span>
-          {Array.from({ length: 8 }, (_, index) => (
+          {Array.from({ length: 12 }, (_, index) => (
             <div
               key={index}
               aria-hidden="true"

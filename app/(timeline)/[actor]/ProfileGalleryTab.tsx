@@ -123,7 +123,7 @@ const PanelSkeleton: FC = () => (
       aria-hidden="true"
       className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3"
     >
-      {Array.from({ length: 8 }, (_, index) => (
+      {Array.from({ length: 12 }, (_, index) => (
         <div key={index} className="skeleton aspect-square rounded-lg" />
       ))}
     </div>

@@ -3,7 +3,7 @@ import { FC } from 'react'
 import { cn } from '@/lib/utils'
 
 interface Props {
-  /** How many placeholder tiles (default 8). */
+  /** How many placeholder tiles (default 12). */
   tiles?: number
   /**
    * What a screen reader hears, as one polite `role="status"`. Leave it out
@@ -21,7 +21,7 @@ interface Props {
  * the photos arrive. Used by the paged grid and by the gallery `loading.tsx`s.
  */
 export const GalleryGridSkeleton: FC<Props> = ({
-  tiles = 8,
+  tiles = 12,
   label,
   captions = false,
   className
