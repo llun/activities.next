@@ -1,9 +1,9 @@
+import type { GalleryIndexRow } from '@/lib/database/domains/gallery/types'
 import type {
   GalleryAlbumCursor,
   GalleryAlbumIndexRow,
   GalleryAlbumSummary
 } from '@/lib/database/sql/galleryAlbums'
-import type { GalleryIndexRow } from '@/lib/database/sql/galleryMedia'
 import { Database } from '@/lib/database/types'
 import {
   GalleryAlbumCardEntity,

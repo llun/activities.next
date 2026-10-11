@@ -32,6 +32,7 @@ describe('Create note action', () => {
     database,
     actors,
     mockSendNotificationAlerts,
+    settleNotificationAlerts,
     clearSettledNotificationAlerts
   } = useCreateNoteFixtures()
   let actor1: Actor
@@ -136,7 +137,7 @@ describe('Create note action', () => {
             visibility: 'direct',
             database
           })) as StatusNote
-          await new Promise((resolve) => setTimeout(resolve, 0))
+          await settleNotificationAlerts()
         })
 
         it('stores only the explicit direct recipient', () => {
@@ -198,7 +199,7 @@ describe('Create note action', () => {
           replyNoteId: parentStatus.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         expect(replyStatus.to).toContain(actor2.id)
         expect(replyStatus.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
@@ -240,7 +241,7 @@ describe('Create note action', () => {
           replyNoteId: parentStatus.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const inheritedRecipientNotifications = await database.getNotifications(
           {
