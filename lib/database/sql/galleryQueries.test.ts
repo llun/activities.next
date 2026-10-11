@@ -2396,8 +2396,8 @@ describe('driver differences', () => {
     ])
   })
 
-  // PostgreSQL only: SQLite has no int8 parsing, and reads the number it
-  // stored (a JS number cannot hold the value in the first place).
+  // PostgreSQL only: SQLite has no int8 parsing, so it reads the stored integer
+  // as a rounded JS number and does not throw.
   it.skipIf(!isPostgres())(
     'throws the driver’s RangeError for a byte count above 2^53 - 1 in the whole-row media reads only',
     async () => {
@@ -2405,7 +2405,7 @@ describe('driver differences', () => {
         const actorId = await newActor()
         const gearId = await seedGear(actorId)
         const mediaId = await seedMedia(mediaIds()(1), actorId, {
-          // As text, so the literal reaches the column intact.
+          // As a SQL literal: a JS number would round it before it is bound.
           [column]: sql<number>`9007199254740993`,
           thumbnail: `medias/${column}.thumb.jpg`,
           galleryAddedAt: at('2026-01-02'),
