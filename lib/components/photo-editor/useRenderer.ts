@@ -38,7 +38,7 @@ import type { MaskRasters } from './masks/maskRaster'
 import { useThemeVersion } from './masks/useThemeVersion'
 import { useElementSize } from './useElementSize'
 
-export type EditorTab = 'adjust' | 'crop' | 'masks'
+export type EditorTab = 'adjust' | 'crop' | 'masks' | 'ai'
 export type RendererStatus = 'idle' | 'ready' | 'lost' | 'error'
 
 const HISTOGRAM_INTERVAL_MS = 150

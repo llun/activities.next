@@ -111,7 +111,7 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
         description="Public information shown on the about page and in the API."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(DETAILS_KEYS)}
@@ -203,7 +203,7 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
         description="Control who can create an account on this instance."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(REGISTRATION_KEYS)}
@@ -262,7 +262,7 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
         description="Turn a feature off to remove it from navigation for every account on this instance."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(FEATURE_KEYS)}

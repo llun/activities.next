@@ -23,6 +23,11 @@ import { ListRepliesPolicy } from '@/lib/types/domain/list'
 // Mastodon's list filter is filter_from_list? OR filter_from_home: under
 // show_followed? the first never filters, and the second returns early for the
 // receiver's own statuses.
+//
+// The list domain now uses the Kysely twin, listRepliesPolicyAllows
+// (lib/database/kysely/visibility/listEligible.ts). This Knex form is kept
+// only as the reference visibilityEquivalence.test.ts checks the twin
+// against: change both together.
 export const applyListRepliesPolicyFilter = ({
   database,
   query,

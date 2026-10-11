@@ -217,7 +217,7 @@ const Page = async ({ searchParams }: Props) => {
       <Section title="Add domain block">
         <form action={createDomainBlockAction}>
           <Frame
-            divided
+            form
             footer={
               <div className="flex justify-end">
                 <Button type="submit">Save block</Button>
@@ -286,7 +286,7 @@ const Page = async ({ searchParams }: Props) => {
       <Section title="Add domain allow">
         <form action={createDomainAllowAction}>
           <Frame
-            divided
+            form
             footer={
               <div className="flex justify-end">
                 <Button type="submit">Save allow</Button>

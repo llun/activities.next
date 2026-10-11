@@ -29,6 +29,18 @@ export const forUpdate = <
   of?: Of
 ): QB => (getDialectName(db) === 'sqlite' ? query : query.forUpdate(of))
 
+type ShareLockable<QB> = { forShare(): QB }
+
+// Shared row lock for a SELECT inside a transaction: other transactions can
+// still read the rows, but an update or delete of them waits until this
+// transaction ends. SQLite has no row locks and rejects `for share`; it runs
+// one connection, so a read inside a transaction is already atomic with the
+// writes after it. Knex's forShare() was gated on PostgreSQL the same way.
+export const forShare = <QB extends ShareLockable<QB>>(
+  db: Db,
+  query: QB
+): QB => (getDialectName(db) === 'sqlite' ? query : query.forShare())
+
 // Compare timestamp columns only through timestampValue(). A bare number does
 // not type-check, but a value read back from a timestamp column is also EpochMs
 // and still type-checks, so pass it through timestampValue() too. Timestamp

@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
-import { FollowerSQLDatabaseMixin } from './follow'
+import { createListQueries } from '@/lib/database/domains/list/queries'
+
 import { getSQLDatabase } from './index'
 import { StatusSQLDatabaseMixin } from './status'
 import { TimelineSQLDatabaseMixin } from './timeline'
@@ -19,9 +20,13 @@ vi.mock('@/lib/database/domains/like/queries', () => ({
   likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() }
 }))
 
-vi.mock('@/lib/database/sql/follow', () => ({
-  FollowerSQLDatabaseMixin: vi.fn()
-}))
+// The list factory runs for real; the spy records the status hydration the
+// facade injects into it.
+vi.mock('@/lib/database/domains/list/queries', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/database/domains/list/queries')>()
+  return { ...original, createListQueries: vi.fn(original.createListQueries) }
+})
 
 vi.mock('@/lib/database/sql/status', () => ({
   StatusSQLDatabaseMixin: vi.fn()
@@ -32,7 +37,7 @@ vi.mock('@/lib/database/sql/timeline', () => ({
 }))
 
 describe('getSQLDatabase', () => {
-  const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
+  const createListQueriesMock = vi.mocked(createListQueries)
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
   const timelineMixinMock = TimelineSQLDatabaseMixin as unknown as jest.Mock
 
@@ -50,11 +55,9 @@ describe('getSQLDatabase', () => {
       destroy: vi.fn().mockResolvedValue(undefined)
     } as unknown as Knex
 
-    const followerDatabase = {
-      getFollowers: vi.fn()
-    }
     const statusDatabase = {
-      getStatus: vi.fn()
+      getStatus: vi.fn(),
+      getStatusesByIds: vi.fn()
     }
     const timelineDatabase = {
       getTimeline: vi.fn(),
@@ -62,7 +65,6 @@ describe('getSQLDatabase', () => {
     }
 
     _knexMock = knexDatabase
-    followerMixinMock.mockReturnValue(followerDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
     timelineMixinMock.mockReturnValue(timelineDatabase)
 
@@ -70,7 +72,6 @@ describe('getSQLDatabase', () => {
 
     return {
       database,
-      followerDatabase,
       knexDatabase,
       statusDatabase,
       timelineDatabase
@@ -88,7 +89,6 @@ describe('getSQLDatabase', () => {
       deleteActorData: expect.any(Function)
     })
 
-    expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
@@ -124,6 +124,19 @@ describe('getSQLDatabase', () => {
       })
     )
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
+  })
+
+  it('hydrates the list timeline through the status facade', async () => {
+    const { statusDatabase } = createComposedDatabase()
+    const [getStatusesByIds] = createListQueriesMock.mock.calls[0]
+    const statuses = [{ id: 'status' }]
+    statusDatabase.getStatusesByIds.mockResolvedValue(statuses)
+
+    await expect(getStatusesByIds(['status'], 'viewer')).resolves.toBe(statuses)
+    expect(statusDatabase.getStatusesByIds).toHaveBeenCalledWith({
+      statusIds: ['status'],
+      currentActorId: 'viewer'
+    })
   })
 
   it('binds like queries to kyselyFor(knex), resolved on each call', async () => {

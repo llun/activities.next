@@ -1,20 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { FC, useRef, useState } from 'react'
+import { FC, ReactNode, useRef, useState } from 'react'
 
+import { AuthCardActions, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
 import { resetPassword } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
-import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 
 type Props = {
   initialCode?: string
+  /** The "Need a new reset link?" line, in the card's action band. */
+  footer?: ReactNode
 }
 
-export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
+export const ResetPasswordForm: FC<Props> = ({ initialCode, footer }) => {
   const [code, setCode] = useState(initialCode ?? '')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -94,9 +96,9 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the reset code and new
     // password out of the URL if a `name` attribute is added later.
-    <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <Frame divided>
-        <FormRow stacked label="Reset code" htmlFor="code">
+    <form onSubmit={handleSubmit} method="post">
+      <AuthCardBody>
+        <FormRow stacked className="p-0" label="Reset code" htmlFor="code">
           <Input
             ref={codeInputRef}
             id="code"
@@ -119,7 +121,12 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
             </p>
           )}
         </FormRow>
-        <FormRow stacked label="New password" htmlFor="newPassword">
+        <FormRow
+          stacked
+          className="p-0"
+          label="New password"
+          htmlFor="newPassword"
+        >
           <Input
             ref={newPasswordInputRef}
             id="newPassword"
@@ -150,7 +157,12 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
             </p>
           )}
         </FormRow>
-        <FormRow stacked label="Confirm new password" htmlFor="confirmPassword">
+        <FormRow
+          stacked
+          className="p-0"
+          label="Confirm new password"
+          htmlFor="confirmPassword"
+        >
           <Input
             ref={confirmPasswordInputRef}
             id="confirmPassword"
@@ -180,20 +192,23 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
             </p>
           )}
         </FormRow>
-      </Frame>
 
-      {error && <Alert title={error} />}
-      {message && <Alert tone="success" title={message} />}
+        {error && <Alert title={error} />}
+        {message && <Alert tone="success" title={message} />}
+      </AuthCardBody>
 
-      {isSuccess ? (
-        <Button asChild type="button" className="w-full">
-          <Link href="/auth/signin">Continue to sign in</Link>
-        </Button>
-      ) : (
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Resetting…' : 'Reset password'}
-        </Button>
-      )}
+      <AuthCardActions>
+        {isSuccess ? (
+          <Button asChild type="button" className="w-full">
+            <Link href="/auth/signin">Continue to sign in</Link>
+          </Button>
+        ) : (
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Resetting…' : 'Reset password'}
+          </Button>
+        )}
+        {footer}
+      </AuthCardActions>
     </form>
   )
 }

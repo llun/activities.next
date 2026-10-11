@@ -3,7 +3,11 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import {
+  AuthCard,
+  AuthCardActions,
+  AuthCardFooter
+} from '@/app/(nosidebar)/AuthCard'
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -74,30 +78,40 @@ const Page: FC<Props> = async ({ searchParams }) => {
   } = await getResolvedServerSettings(database)
   const credentialEnabled = auth?.enableCredential !== false
 
+  const signUpLine = registrationOpen ? (
+    <AuthCardFooter>
+      Don&apos;t have an account?{' '}
+      <Link href="/auth/signup" className="text-primary-text hover:underline">
+        Sign up
+      </Link>
+    </AuthCardFooter>
+  ) : null
+  const passkeyButton = (
+    <PasskeySigninButton credentialEnabled={credentialEnabled} />
+  )
+
   return (
     <AuthCard
       logoSrc={getAuthLogoSrc()}
       title={`Sign in to ${serviceName ?? 'Activities'}`}
       description="Your self-hosted corner of the Fediverse."
-      footer={
-        registrationOpen ? (
-          <AuthCardFooter>
-            Don&apos;t have an account?{' '}
-            <Link
-              href="/auth/signup"
-              className="text-primary-text hover:underline"
-            >
-              Sign up
-            </Link>
-          </AuthCardFooter>
-        ) : undefined
-      }
     >
-      {credentialEnabled && (
-        <CredentialForm providerName={serviceName ?? 'credentials'} />
+      {credentialEnabled ? (
+        <CredentialForm
+          providerName={serviceName ?? 'credentials'}
+          actions={
+            <>
+              {passkeyButton}
+              {signUpLine}
+            </>
+          }
+        />
+      ) : (
+        <AuthCardActions afterHeader>
+          {passkeyButton}
+          {signUpLine}
+        </AuthCardActions>
       )}
-
-      <PasskeySigninButton credentialEnabled={credentialEnabled} />
     </AuthCard>
   )
 }

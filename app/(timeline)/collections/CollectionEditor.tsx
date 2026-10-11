@@ -321,7 +321,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
 
       <Section title="Details">
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty}

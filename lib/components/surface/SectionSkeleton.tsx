@@ -8,9 +8,18 @@ import { SkeletonBar } from './Skeleton'
 interface Props {
   /**
    * One entry per section: how many rows its frame holds. `[3, 2]` draws two
-   * sections, the first with three rows.
+   * sections, the first with three rows. An entry that is itself an array is
+   * ONE form box of `FormGroup`s (General, Preferences): a heading bar inside
+   * the box per group, with that many rows, and a Save bar footer, with no
+   * section heading above it. Such an entry is always drawn in the form look.
    */
-  sections?: number[]
+  sections?: (number | number[])[]
+  /**
+   * Draw the numeric sections in the form look (a `Frame form`: no hairlines,
+   * rows spaced like `FormRow`, `py-2.5`) instead of as a divided list. Turn it
+   * on for a page of settings forms; leave it off for lists.
+   */
+  form?: boolean
   /** Draw the child page's own title and description above the sections. */
   title?: boolean
   /**
@@ -29,6 +38,21 @@ interface Props {
   className?: string
 }
 
+const Row: FC<{ form: boolean }> = ({ form }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between gap-6 px-4',
+      form ? 'py-2.5' : 'py-4'
+    )}
+  >
+    <div className="min-w-0 flex-1 space-y-2">
+      <SkeletonBar className="h-4 w-40 max-w-full" />
+      <SkeletonBar className="h-3 w-64 max-w-full" />
+    </div>
+    <SkeletonBar className="h-9 w-24 shrink-0 sm:w-48" />
+  </div>
+)
+
 /**
  * The shape of a section route while it loads, for a `loading.tsx`: the page's
  * title line, then each `Section` as a heading bar and a `Frame` outline with
@@ -37,6 +61,7 @@ interface Props {
  */
 export const SectionSkeleton: FC<Props> = ({
   sections = [3],
+  form = false,
   title = true,
   headings = true,
   descriptions = true,
@@ -56,36 +81,53 @@ export const SectionSkeleton: FC<Props> = ({
         <SkeletonBar className="h-4 w-80 max-w-full" />
       </div>
     ) : null}
-    {sections.map((rows, section) => (
-      <div key={section} className="space-y-3">
-        {headings ? (
-          // `Section`'s heading row (a 24px line) over its 20px description.
-          <div className="space-y-1">
-            <div className="flex h-6 items-center">
-              <SkeletonBar className="h-5 w-36" />
-            </div>
-            {descriptions ? (
-              <div className="flex h-5 items-center">
-                <SkeletonBar className="h-4 w-64 max-w-full" />
+    {sections.map((rows, section) =>
+      Array.isArray(rows) ? (
+        // One box of `FormGroup`s with its Save footer: no section heading.
+        <Frame key={section} form footer={<SkeletonBar className="h-9 w-20" />}>
+          {rows.map((groupRows, group) => (
+            <div key={group}>
+              {/* `FormGroup`'s heading block: `px-4 pt-5 pb-0.5`, `pt-2.5` first. */}
+              <div
+                className={cn('px-4 pb-0.5', group === 0 ? 'pt-2.5' : 'pt-5')}
+              >
+                <div className="flex h-6 items-center">
+                  <SkeletonBar className="h-5 w-28" />
+                </div>
+                {descriptions ? (
+                  <div className="mt-0.5 flex h-5 items-center">
+                    <SkeletonBar className="h-4 w-56 max-w-full" />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-        ) : null}
-        <Frame divided>
-          {Array.from({ length: rows }, (_, row) => (
-            <div
-              key={row}
-              className="flex items-center justify-between gap-6 px-4 py-4"
-            >
-              <div className="min-w-0 flex-1 space-y-2">
-                <SkeletonBar className="h-4 w-40 max-w-full" />
-                <SkeletonBar className="h-3 w-64 max-w-full" />
-              </div>
-              <SkeletonBar className="h-9 w-24 shrink-0 sm:w-48" />
+              {Array.from({ length: groupRows }, (_, row) => (
+                <Row key={row} form />
+              ))}
             </div>
           ))}
         </Frame>
-      </div>
-    ))}
+      ) : (
+        <div key={section} className="space-y-3">
+          {headings ? (
+            // `Section`'s heading row (a 24px line) over its 20px description.
+            <div className="space-y-1">
+              <div className="flex h-6 items-center">
+                <SkeletonBar className="h-5 w-36" />
+              </div>
+              {descriptions ? (
+                <div className="flex h-5 items-center">
+                  <SkeletonBar className="h-4 w-64 max-w-full" />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <Frame form={form} divided={!form}>
+            {Array.from({ length: rows }, (_, row) => (
+              <Row key={row} form={form} />
+            ))}
+          </Frame>
+        </div>
+      )
+    )}
   </div>
 )

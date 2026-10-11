@@ -130,7 +130,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
       >
         <form onSubmit={onSubmit}>
           <Frame
-            divided
+            form
             footer={
               <div className="flex justify-end">
                 <Button type="submit" disabled={submitting}>

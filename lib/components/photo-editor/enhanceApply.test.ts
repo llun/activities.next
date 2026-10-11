@@ -1,0 +1,358 @@
+import { describe, expect, it } from 'vitest'
+
+import type { AiStyle } from '@/lib/services/medias/edit/enhanceSchema'
+import {
+  type Mask,
+  NEUTRAL_RECIPE,
+  type Recipe
+} from '@/lib/services/medias/edit/recipe'
+
+import {
+  ENHANCE_GLOBAL_KEYS,
+  applyEnhance,
+  getEnhanceBase,
+  hasBackgroundValues,
+  hasMaskValues,
+  resolveEnhanceBase,
+  scaleEnhanceValue
+} from './enhanceApply'
+
+const STYLE: AiStyle = {
+  global: {
+    exposure: 0.5,
+    contrast: 20,
+    highlights: -30,
+    temperature: 10,
+    clarity: 15
+  },
+  subject: { exposure: 0.3, shadows: 25 },
+  background: { saturation: -20, exposure: -0.2 }
+}
+
+const subject: Mask = {
+  id: 'subj0001',
+  kind: 'subject',
+  points: [{ x: 0.5, y: 0.5, label: 1 }],
+  feather: 8,
+  adjustments: { contrast: 5 }
+}
+const background: Mask = {
+  id: 'back0001',
+  kind: 'background',
+  of: 'subj0001',
+  points: [],
+  feather: 8,
+  adjustments: {}
+}
+const withMasks = (...masks: Mask[]): Recipe => ({
+  ...NEUTRAL_RECIPE,
+  masks
+})
+
+describe('scaleEnhanceValue', () => {
+  it.each([
+    ['contrast', 20, 100, 20],
+    ['contrast', 20, 80, 16],
+    ['contrast', 20, 50, 10],
+    ['contrast', 20, 0, 0],
+    ['contrast', -33, 50, -17],
+    ['contrast', 3, 10, 0],
+    ['exposure', 0.5, 80, 0.4],
+    ['exposure', 1.5, 33, 0.5],
+    ['exposure', -0.37, 100, -0.37],
+    ['exposure', -0.5, 0, 0]
+  ])('scales %s %d at strength %d to %d', (key, value, strength, expected) => {
+    expect(scaleEnhanceValue(key, value, strength)).toBe(expected)
+  })
+
+  // Half values round away from zero on both sides, so a suggestion and its
+  // mirror image scale to mirror images.
+  it.each([
+    ['contrast', 5, 50, 3],
+    ['contrast', -5, 50, -3],
+    ['shadows', 25, 30, 8],
+    ['shadows', -25, 30, -8],
+    ['exposure', 0.25, 50, 0.13],
+    ['exposure', -0.25, 50, -0.13]
+  ])('scales %s %d at %d symmetrically to %d', (key, value, strength, want) => {
+    expect(scaleEnhanceValue(key, value, strength)).toBe(want)
+    expect(scaleEnhanceValue(key, -value, strength)).toBe(-want)
+  })
+
+  it('never returns negative zero', () => {
+    expect(Object.is(scaleEnhanceValue('contrast', -3, 10), 0)).toBeTrue()
+  })
+})
+
+describe('applyEnhance', () => {
+  it('sets the global light, colour and detail keys, scaled', () => {
+    const next = applyEnhance(NEUTRAL_RECIPE, STYLE, 80)
+    expect(next.adjustments).toEqual({
+      exposure: 0.4,
+      contrast: 16,
+      highlights: -24,
+      temperature: 8,
+      clarity: 12
+    })
+  })
+
+  it('replaces the previous values of those keys', () => {
+    const before: Recipe = {
+      ...NEUTRAL_RECIPE,
+      adjustments: { exposure: -1, saturation: 30, texture: 9, vignette: -15 }
+    }
+    const next = applyEnhance(before, STYLE, 100)
+    // Saturation and texture are not in the style: back to neutral. The
+    // vignette is an effect, not light, colour or detail: it is kept.
+    expect(next.adjustments).toEqual({
+      exposure: 0.5,
+      contrast: 20,
+      highlights: -30,
+      temperature: 10,
+      clarity: 15,
+      vignette: -15
+    })
+  })
+
+  it('leaves the geometry alone', () => {
+    const before: Recipe = {
+      ...NEUTRAL_RECIPE,
+      geometry: { ...NEUTRAL_RECIPE.geometry, rotate90: 1, flipH: true }
+    }
+    expect(applyEnhance(before, STYLE, 80).geometry).toEqual(before.geometry)
+  })
+
+  it('does not touch the recipe it is given', () => {
+    const before = withMasks(subject, background)
+    const snapshot = JSON.stringify(before)
+    applyEnhance(before, STYLE, 80)
+    expect(JSON.stringify(before)).toBe(snapshot)
+  })
+
+  it('drops every value at strength 0', () => {
+    const before: Recipe = {
+      ...NEUTRAL_RECIPE,
+      adjustments: { exposure: 1, contrast: 10 }
+    }
+    expect(applyEnhance(before, STYLE, 0).adjustments).toEqual({})
+  })
+
+  it('ignores subject and background values when there is no subject mask', () => {
+    const brush: Mask = {
+      id: 'brsh0001',
+      kind: 'brush',
+      points: [],
+      feather: 8,
+      adjustments: { exposure: 0.1 }
+    }
+    const before = withMasks(brush)
+    const next = applyEnhance(before, STYLE, 100)
+    expect(next.masks).toEqual(before.masks)
+    expect(applyEnhance(NEUTRAL_RECIPE, STYLE, 100).masks).toEqual([])
+  })
+
+  it('never creates a mask', () => {
+    expect(applyEnhance(NEUTRAL_RECIPE, STYLE, 100).masks).toHaveLength(0)
+  })
+
+  it('applies the subject values to the subject mask and the background values to its background', () => {
+    const next = applyEnhance(withMasks(subject, background), STYLE, 80)
+    expect(next.masks).toEqual([
+      { ...subject, adjustments: { exposure: 0.24, shadows: 20 } },
+      { ...background, adjustments: { saturation: -16, exposure: -0.16 } }
+    ])
+  })
+
+  it('applies the subject values when the subject has no background mask', () => {
+    const next = applyEnhance(withMasks(subject), STYLE, 100)
+    expect(next.masks).toEqual([
+      { ...subject, adjustments: { exposure: 0.3, shadows: 25 } }
+    ])
+  })
+
+  it('leaves a mask alone when the style has null for it', () => {
+    const style: AiStyle = { ...STYLE, subject: null, background: null }
+    const before = withMasks(subject, background)
+    expect(applyEnhance(before, style, 100).masks).toEqual(before.masks)
+  })
+
+  it('targets the first subject and the background that follows it', () => {
+    const second: Mask = { ...subject, id: 'subj0002', adjustments: {} }
+    const secondBackground: Mask = {
+      ...background,
+      id: 'back0002',
+      of: 'subj0002'
+    }
+    const next = applyEnhance(
+      withMasks(subject, second, background, secondBackground),
+      STYLE,
+      100
+    )
+    expect(next.masks.map((mask) => mask.adjustments)).toEqual([
+      { exposure: 0.3, shadows: 25 },
+      {},
+      { saturation: -20, exposure: -0.2 },
+      {}
+    ])
+  })
+
+  it('only sets keys a mask has', () => {
+    const next = applyEnhance(withMasks(subject), STYLE, 100)
+    for (const key of Object.keys(next.masks[0].adjustments)) {
+      expect(ENHANCE_GLOBAL_KEYS).toContain(key)
+    }
+    expect(ENHANCE_GLOBAL_KEYS).not.toContain('vignette')
+  })
+})
+
+describe('hasMaskValues', () => {
+  it.each([
+    [STYLE, true],
+    [{ ...STYLE, background: null }, true],
+    [{ ...STYLE, subject: null }, true],
+    [{ ...STYLE, subject: null, background: null }, false],
+    [{ ...STYLE, subject: {}, background: {} }, false]
+  ])('reports %j as %s', (style, expected) => {
+    expect(hasMaskValues(style)).toBe(expected)
+  })
+})
+
+describe('applyEnhance with a base', () => {
+  const masked = (): Recipe =>
+    withMasks(
+      { ...subject, adjustments: { contrast: 5, shadows: 9 } },
+      { ...background, adjustments: { saturation: -4 } }
+    )
+  const NO_MASK_VALUES: AiStyle = {
+    global: { contrast: 30 },
+    subject: null,
+    background: null
+  }
+
+  it('reads the subject and its background as they are', () => {
+    expect(getEnhanceBase(masked())).toEqual({
+      subj0001: { contrast: 5, shadows: 9 },
+      back0001: { saturation: -4 }
+    })
+  })
+
+  it('reads nothing without a subject, and copies what it reads', () => {
+    expect(getEnhanceBase(NEUTRAL_RECIPE)).toEqual({})
+    const recipe = masked()
+    const base = getEnhanceBase(recipe)
+    base.subj0001.contrast = 99
+    expect(recipe.masks[0].adjustments.contrast).toBe(5)
+  })
+
+  it('puts the base back when a style has nothing for a mask', () => {
+    const before = masked()
+    const base = getEnhanceBase(before)
+    const withValues = applyEnhance(before, STYLE, 80, base)
+    expect(withValues.masks[0].adjustments).toEqual({
+      exposure: 0.24,
+      shadows: 20
+    })
+
+    const next = applyEnhance(withValues, NO_MASK_VALUES, 80, base)
+
+    expect(next.masks[0].adjustments).toEqual({ contrast: 5, shadows: 9 })
+    expect(next.masks[1].adjustments).toEqual({ saturation: -4 })
+    expect(next.adjustments).toEqual({ contrast: 24 })
+  })
+
+  it('restores the base whatever the Strength, even 0', () => {
+    const before = masked()
+    const base = getEnhanceBase(before)
+    const withValues = applyEnhance(before, STYLE, 100, base)
+
+    const next = applyEnhance(withValues, NO_MASK_VALUES, 0, base)
+
+    expect(next.masks.map((mask) => mask.adjustments)).toEqual([
+      { contrast: 5, shadows: 9 },
+      { saturation: -4 }
+    ])
+    expect(next.adjustments).toEqual({})
+  })
+
+  it('does not hand out the base object itself', () => {
+    const before = masked()
+    const base = getEnhanceBase(before)
+
+    const next = applyEnhance(before, NO_MASK_VALUES, 80, base)
+    next.masks[0].adjustments.contrast = 77
+
+    expect(base.subj0001.contrast).toBe(5)
+  })
+
+  it('leaves a null mask as it is without a base', () => {
+    const before = masked()
+    const next = applyEnhance(before, NO_MASK_VALUES, 80)
+    expect(next.masks[0].adjustments).toEqual({ contrast: 5, shadows: 9 })
+  })
+
+  it('ignores a base for a mask the recipe no longer has', () => {
+    const next = applyEnhance(NEUTRAL_RECIPE, NO_MASK_VALUES, 80, {
+      gone0001: { contrast: 3 }
+    })
+    expect(next.masks).toEqual([])
+  })
+})
+
+describe('resolveEnhanceBase', () => {
+  const before = withMasks(
+    { ...subject, adjustments: { contrast: 5 } },
+    { ...background, adjustments: { saturation: -4 } }
+  )
+  const applied = () => {
+    const base = getEnhanceBase(before)
+    const next = applyEnhance(before, STYLE, 80, base)
+    return { base, wrote: getEnhanceBase(next), next }
+  }
+  const edit = (recipe: Recipe, index: number): Recipe => ({
+    ...recipe,
+    masks: recipe.masks.map((mask, at) =>
+      at === index
+        ? { ...mask, adjustments: { ...mask.adjustments, tint: 9 } }
+        : mask
+    )
+  })
+
+  it('reads the recipe as it is without a last style', () => {
+    expect(resolveEnhanceBase(before)).toEqual(getEnhanceBase(before))
+  })
+
+  it('goes back to the earlier base for masks left as written', () => {
+    const { base, wrote, next } = applied()
+    expect(resolveEnhanceBase(next, { base, wrote })).toEqual(base)
+  })
+
+  it('keeps a mask the hand edit changed, and reverts the rest', () => {
+    const { base, wrote, next } = applied()
+    const resolved = resolveEnhanceBase(edit(next, 0), { base, wrote })
+    expect(resolved).toEqual({
+      subj0001: { exposure: 0.24, shadows: 20, tint: 9 },
+      back0001: { saturation: -4 }
+    })
+  })
+
+  it('does not hand out the earlier base object itself', () => {
+    const { base, wrote, next } = applied()
+    const resolved = resolveEnhanceBase(next, { base, wrote })
+    resolved.subj0001.contrast = 77
+    expect(base.subj0001.contrast).toBe(5)
+  })
+
+  it('reads a mask the last style did not know as it is', () => {
+    const { next } = applied()
+    const resolved = resolveEnhanceBase(next, { base: {}, wrote: {} })
+    expect(resolved).toEqual(getEnhanceBase(next))
+  })
+})
+
+describe('hasBackgroundValues', () => {
+  it('is true only for a background with a value', () => {
+    expect(hasBackgroundValues(STYLE)).toBeTrue()
+    expect(hasBackgroundValues({ ...STYLE, background: null })).toBeFalse()
+    expect(hasBackgroundValues({ ...STYLE, background: {} })).toBeFalse()
+  })
+})

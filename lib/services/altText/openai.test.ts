@@ -2,7 +2,11 @@ import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
-import { generateAltText, generateRouteAltText } from './openai'
+import {
+  generateAltText,
+  generateRouteAltText,
+  requestVisionCompletion
+} from './openai'
 
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({
   safeRemoteFetch: vi.fn()
@@ -335,5 +339,51 @@ describe('generateRouteAltText', () => {
 
     expect(result).toHaveLength(MAX_MEDIA_DESCRIPTION_LENGTH)
     expect(result).toBe(longText.slice(0, MAX_MEDIA_DESCRIPTION_LENGTH))
+  })
+})
+
+describe('requestVisionCompletion redirects', () => {
+  const options = { systemPrompt: 'system', prompt: 'prompt' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: chatResponse('ok'),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
+  })
+
+  it('leaves the fetch helper’s redirect default alone unless asked', async () => {
+    await requestVisionCompletion(
+      config,
+      Buffer.from('x'),
+      'image/jpeg',
+      options
+    )
+
+    const args = vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]
+    expect(args).not.toHaveProperty('allowCrossHostRedirects')
+  })
+
+  it('passes allowCrossHostRedirects: false through when asked', async () => {
+    await requestVisionCompletion(config, Buffer.from('x'), 'image/jpeg', {
+      ...options,
+      allowCrossHostRedirects: false
+    })
+
+    expect(
+      vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]?.allowCrossHostRedirects
+    ).toBe(false)
+  })
+
+  it('does not change what alt text sends', async () => {
+    await generateAltText(config, Buffer.from('x'), 'image/jpeg')
+
+    expect(vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]).not.toHaveProperty(
+      'allowCrossHostRedirects'
+    )
   })
 })

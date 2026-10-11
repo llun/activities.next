@@ -81,7 +81,7 @@ const Page = async ({ searchParams }: Props) => {
       <Section title="Add relay">
         <form action={addRelayAction}>
           <Frame
-            divided
+            form
             footer={
               <div className="flex justify-end">
                 <Button type="submit">Add relay</Button>

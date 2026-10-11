@@ -148,7 +148,7 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
         description="Limits for new posts, advertised to apps via the instance API."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(POSTS_KEYS)}
@@ -213,7 +213,7 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
         description="Shape of polls people can attach to posts."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(POLL_KEYS)}
@@ -301,7 +301,7 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
         description="Upload policy. The storage backend itself is infrastructure and stays in the environment."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(MEDIA_KEYS)}

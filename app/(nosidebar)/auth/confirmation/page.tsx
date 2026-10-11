@@ -3,7 +3,11 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import {
+  AuthCard,
+  AuthCardActions,
+  AuthCardBody
+} from '@/app/(nosidebar)/AuthCard'
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
@@ -47,19 +51,31 @@ const Page: FC<Props> = async ({ searchParams }) => {
     <AuthCard logoSrc={getAuthLogoSrc()} title="Confirm your account">
       {isAccountVerify ? (
         <>
-          <Alert tone="success" live={false} title="Your account is verified" />
-          <Button asChild className="w-full">
-            <Link href="/auth/signin">Continue to sign in</Link>
-          </Button>
+          <AuthCardBody>
+            <Alert
+              tone="success"
+              live={false}
+              title="Your account is verified"
+            />
+          </AuthCardBody>
+          <AuthCardActions>
+            <Button asChild className="w-full">
+              <Link href="/auth/signin">Continue to sign in</Link>
+            </Button>
+          </AuthCardActions>
         </>
       ) : (
         <>
-          <Alert live={false} title="Invalid verification code">
-            Check that you opened the whole link from your email.
-          </Alert>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/auth/signin">Back to sign in</Link>
-          </Button>
+          <AuthCardBody>
+            <Alert live={false} title="Invalid verification code">
+              Check that you opened the whole link from your email.
+            </Alert>
+          </AuthCardBody>
+          <AuthCardActions>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/auth/signin">Back to sign in</Link>
+            </Button>
+          </AuthCardActions>
         </>
       )}
     </AuthCard>

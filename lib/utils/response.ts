@@ -25,6 +25,7 @@ export const ERROR_422 = { error: 'Unprocessable entity' }
 export const ERROR_429 = { error: 'Too Many Requests' }
 export const ERROR_413 = { error: 'Payload Too Large' }
 export const ERROR_501 = { error: 'Not Implemented' }
+export const ERROR_502 = { error: 'Bad Gateway' }
 export const ERROR_503 = { error: 'Service Unavailable' }
 
 // Success acknowledgements are not errors, so they keep the `{ status }` shape.
@@ -45,6 +46,7 @@ export const HTTP_STATUS = {
   TOO_MANY_REQUESTS: 429,
   INTERNAL_SERVER_ERROR: 500,
   NOT_IMPLEMENTED: 501,
+  BAD_GATEWAY: 502,
   SERVICE_UNAVAILABLE: 503
 } as const
 
@@ -64,6 +66,7 @@ export const codeMap = {
 
   [HTTP_STATUS.INTERNAL_SERVER_ERROR]: ERROR_500,
   [HTTP_STATUS.NOT_IMPLEMENTED]: ERROR_501,
+  [HTTP_STATUS.BAD_GATEWAY]: ERROR_502,
   [HTTP_STATUS.SERVICE_UNAVAILABLE]: ERROR_503
 }
 
@@ -86,6 +89,7 @@ export const REASON_PHRASE: Record<StatusCode, string> = {
   [HTTP_STATUS.TOO_MANY_REQUESTS]: 'Too Many Requests',
   [HTTP_STATUS.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
   [HTTP_STATUS.NOT_IMPLEMENTED]: 'Not Implemented',
+  [HTTP_STATUS.BAD_GATEWAY]: 'Bad Gateway',
   [HTTP_STATUS.SERVICE_UNAVAILABLE]: 'Service Unavailable'
 }
 

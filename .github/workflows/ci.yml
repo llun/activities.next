@@ -195,15 +195,15 @@ jobs:
   # documents, profile settings and the accepted-senders row lock, counters
   # and NodeInfo statistics, the Mastodon account view and the profile
   # directory, the federation signing actor, publicId and case-insensitive
-  # username lookups, deletion scheduling), the follow domain and the local
-  # actor predicate, the two heaviest users of the actor facade (follow edges
-  # and requests with their cursors, follower and following counters,
-  # remote actors stored with an empty key kept out of the local timelines,
-  # followers collections and fan-out), the fitness gear domain (bikes, shoes
-  # and recording devices, their components and install periods,
-  # default-sport auto-assign, distance, device and component rollups, service
-  # reminders, the gear a processed file is given and the gear and device
-  # names a status returns), the media reads (a status's attachments, an
+  # username lookups, deletion scheduling), the follow and list domains with
+  # the local actor predicate (follow edges and requests with their counters
+  # and cursors, remote actors stored with an empty key kept out of the local
+  # timelines, followers collections and fan-out, lists and their members, the
+  # materialized list timeline with its backfill and fan-out), the fitness gear
+  # domain (bikes, shoes and recording devices, their components and install
+  # periods, default-sport auto-assign, distance, device and component rollups,
+  # service reminders, the gear a processed file is given and the gear and
+  # device names a status returns), the media reads (a status's attachments, an
   # actor's attachments behind the Kysely actor-visible status filter checked
   # against its Knex original, the account's media listing with its counter
   # total and paging, media by id and the statuses its owner's account
@@ -218,10 +218,11 @@ jobs:
   # media on a real database (the media describe, album and photo-edit routes,
   # status edits with media, the photo editor domain, status writes and
   # deletes that hydrate attachments, the profile page data), the Kysely
-  # status visibility and countable-activity filters checked against their
-  # Knex originals, and the Knex-backed Kysely driver (result normalisation,
-  # the mixed-transaction guard, counters, bucket counters, chunked IN lists,
-  # savepoints).
+  # status visibility, countable-activity, actor-visible status, list
+  # eligibility, replies policy, block/mute and follow-target predicates
+  # checked against their Knex originals, and the Knex-backed Kysely driver
+  # (result normalisation, the mixed-transaction guard, counters, bucket
+  # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -326,6 +327,10 @@ jobs:
             lib/database/sql/wahooImportDates.test.ts \
             lib/database/sql/list.test.ts \
             lib/database/sql/listMembershipEligibility.test.ts \
+            lib/database/sql/listTimeline.test.ts \
+            lib/database/sql/listMemberBackfill.test.ts \
+            lib/database/sql/listQueries.test.ts \
+            lib/database/sql/followQueries.test.ts \
             lib/database/sql/like.test.ts \
             lib/database/sql/account.test.ts \
             lib/database/sql/accountNote.test.ts \

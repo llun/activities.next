@@ -111,7 +111,7 @@ describe('POST /api/oauth/revoke', () => {
   })
 
   it('maps a 5xx status outside the supported set to 500', async () => {
-    mockAuthHandler.mockResolvedValue(new Response('{}', { status: 502 }))
+    mockAuthHandler.mockResolvedValue(new Response('{}', { status: 504 }))
 
     const response = await POST(createRequest(), {
       params: Promise.resolve({})

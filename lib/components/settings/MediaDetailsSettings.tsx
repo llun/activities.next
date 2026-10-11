@@ -1,6 +1,6 @@
 'use client'
 
-import { Captions, Sparkles } from 'lucide-react'
+import { Captions, SlidersHorizontal, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -28,6 +28,7 @@ type ToggleKey = keyof Pick<
   | 'subjectHashtags'
   | 'subjectSuggestionMode'
   | 'subjectConfidenceThreshold'
+  | 'photoEnhance'
 >
 
 const THRESHOLDS = Array.from(
@@ -59,6 +60,7 @@ export const MediaDetailsSettings: FC = () => {
   // `classifier` is reserved and never offered: it reads as "model" here.
   const suggesting =
     suggestionsAvailable && settings?.subjectSuggestionMode === 'model'
+  const enhanceAvailable = settings?.photoEnhanceAvailable ?? false
   const modeBusy = savingKeys.has('subjectSuggestionMode')
 
   return (
@@ -84,7 +86,7 @@ export const MediaDetailsSettings: FC = () => {
           />
         }
       >
-        <Frame divided>
+        <Frame form>
           <ToggleRow
             id="media-auto-describe"
             label="Describe new photos and videos automatically"
@@ -128,7 +130,7 @@ export const MediaDetailsSettings: FC = () => {
           />
         }
       >
-        <Frame divided>
+        <Frame form>
           <FormRow label="Suggest subjects with">
             {({ labelledBy }) => (
               <fieldset
@@ -215,6 +217,29 @@ export const MediaDetailsSettings: FC = () => {
             onCheckedChange={(checked) =>
               handleSave('subjectHashtags', checked)
             }
+          />
+        </Frame>
+      </Section>
+
+      <Section
+        icon={SlidersHorizontal}
+        title="Photo editor"
+        description="Edit a photo from its details, before or after you post it."
+        actions={<SavedIndicator saved={savedKey === 'photoEnhance'} />}
+      >
+        <Frame form>
+          <ToggleRow
+            id="media-photo-enhance"
+            label="AI enhance"
+            description={
+              loaded && !enhanceAvailable
+                ? 'Not set up on this server'
+                : `Suggest edits with ${settings?.photoEnhanceModel ?? 'the server image model'}. A small preview of the photo is sent to it.`
+            }
+            checked={enhanceAvailable && (settings?.photoEnhance ?? false)}
+            disabled={!loaded || !enhanceAvailable}
+            busy={savingKeys.has('photoEnhance')}
+            onCheckedChange={(checked) => handleSave('photoEnhance', checked)}
           />
         </Frame>
       </Section>

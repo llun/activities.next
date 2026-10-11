@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import { Timeline } from '@/lib/services/timelines/types'
-import { Actor } from '@/lib/types/domain/actor'
 import {
   Attachment,
   AttachmentMediaMetadata,
@@ -13,8 +12,6 @@ import {
   CollectionFeatureState,
   CollectionVisibility
 } from '@/lib/types/domain/collection'
-import { Follow, FollowStatus } from '@/lib/types/domain/follow'
-import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import * as Mastodon from '@/lib/types/mastodon'
@@ -614,112 +611,24 @@ export type {
 // Follow Database
 // ============================================================================
 
-export type CreateFollowParams = {
-  actorId: string
-  targetActorId: string
-  status: FollowStatus
-  inbox: string
-  sharedInbox: string
-  // Optional local follow preferences (Mastodon follow params). Default when
-  // omitted: reblogs=true, notify=false, languages=null (no language filter).
-  reblogs?: boolean
-  notify?: boolean
-  languages?: string[] | null
-}
-export type UpdateFollowPreferencesParams = {
-  actorId: string
-  targetActorId: string
-  // Only the fields actually provided are updated; omitted fields are left as-is.
-  reblogs?: boolean
-  notify?: boolean
-  languages?: string[] | null
-}
-export type GetLocalFollowersForActorIdParams = { targetActorId: string }
-export type GetLocalActorsFromFollowerUrlParams = { followerUrl: string }
-export type GetLocalFollowsFromInboxUrlParams = {
-  targetActorId: string
-  followerInboxUrl: string
-}
-export type GetFollowFromIdParams = { followId: string }
-export type GetAcceptedOrRequestedFollowParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetAcceptedFollowTargetActorIdsParams = {
-  actorId: string
-  targetActorIds: string[]
-}
-export type GetFollowersInboxParams = { targetActorId: string }
-export type UpdateFollowStatusParams = {
-  followId: string
-  status: FollowStatus
-}
-// New type for getting follows with pagination
-export type GetFollowingParams = {
-  actorId: string
-  limit: number
-  maxId?: string | null
-  // min_id and since_id are ordered differently: min_id returns the oldest band
-  // immediately after the cursor, since_id the newest band above it.
-  minId?: string | null
-  sinceId?: string | null
-}
-export type GetFollowersParams = {
-  targetActorId: string
-  limit: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-export type GetAcceptedOrRequestedFollowsWithDomainParams = {
-  actorId: string
-  domain: string
-  limit: number
-}
-export type GetFollowRequestsParams = {
-  targetActorId: string
-  limit: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-export type GetFollowRequestsCountParams = {
-  targetActorId: string
-}
-
-export interface FollowDatabase {
-  createFollow(params: CreateFollowParams): Promise<Follow>
-  updateFollowPreferences(
-    params: UpdateFollowPreferencesParams
-  ): Promise<Follow | null>
-  getFollowFromId(params: GetFollowFromIdParams): Promise<Follow | null>
-  getLocalFollowersForActorId(
-    params: GetLocalFollowersForActorIdParams
-  ): Promise<Follow[]>
-  getLocalFollowsFromInboxUrl(
-    params: GetLocalFollowsFromInboxUrlParams
-  ): Promise<Follow[]>
-  getLocalActorsFromFollowerUrl(
-    params: GetLocalActorsFromFollowerUrlParams
-  ): Promise<Actor[]>
-  getAcceptedOrRequestedFollow(
-    params: GetAcceptedOrRequestedFollowParams
-  ): Promise<Follow | null>
-  getAcceptedOrRequestedFollowsWithDomain(
-    params: GetAcceptedOrRequestedFollowsWithDomainParams
-  ): Promise<Follow[]>
-  getAcceptedFollowTargetActorIds(
-    params: GetAcceptedFollowTargetActorIdsParams
-  ): Promise<string[]>
-  getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
-  updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
-  // New method for getting following with pagination
-  getFollowing(params: GetFollowingParams): Promise<Follow[]>
-  getFollowers(params: GetFollowersParams): Promise<Follow[]>
-  // Follow requests methods
-  getFollowRequests(params: GetFollowRequestsParams): Promise<Follow[]>
-  getFollowRequestsCount(params: GetFollowRequestsCountParams): Promise<number>
-}
+export type {
+  CreateFollowParams,
+  FollowDatabase,
+  GetAcceptedFollowTargetActorIdsParams,
+  GetAcceptedOrRequestedFollowParams,
+  GetAcceptedOrRequestedFollowsWithDomainParams,
+  GetFollowersInboxParams,
+  GetFollowersParams,
+  GetFollowFromIdParams,
+  GetFollowingParams,
+  GetFollowRequestsCountParams,
+  GetFollowRequestsParams,
+  GetLocalActorsFromFollowerUrlParams,
+  GetLocalFollowersForActorIdParams,
+  GetLocalFollowsFromInboxUrlParams,
+  UpdateFollowPreferencesParams,
+  UpdateFollowStatusParams
+} from '@/lib/database/domains/follow/types'
 
 // ============================================================================
 // Block Database
@@ -810,99 +719,23 @@ export type {
 // List Database
 // ============================================================================
 
-export type CreateListParams = {
-  actorId: string
-  title: string
-  repliesPolicy?: ListRepliesPolicy
-  exclusive?: boolean
-}
-export type UpdateListParams = {
-  id: string
-  actorId: string
-  title?: string
-  repliesPolicy?: ListRepliesPolicy
-  exclusive?: boolean
-}
-export type GetListParams = { id: string; actorId: string }
-export type GetListsParams = { actorId: string }
-export type DeleteListParams = { id: string; actorId: string }
-export type GetListAccountsParams = {
-  listId: string
-  actorId: string
-  limit?: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-export type ListAccountsPage = {
-  accounts: Mastodon.Account[]
-  // Membership-row id of the oldest/newest row on this page, used to build the
-  // Mastodon max_id/min_id pagination cursors. Null when the page is empty.
-  nextMaxId: string | null
-  prevMinId: string | null
-}
-export type AddListAccountsParams = {
-  listId: string
-  actorId: string
-  targetActorIds: string[]
-  // Admit only the owner and accounts the owner follows or has asked to
-  // follow, checked in the same transaction as the insert (see
-  // addListAccounts). Without it the members are inserted unconditionally.
-  requireFollowOrRequest?: boolean
-}
-export type AddListAccountsResult = {
-  // Accounts refused by requireFollowOrRequest: neither followed nor requested.
-  // When any are refused, nothing is added.
-  unrelatedActorIds: string[]
-}
-export type RemoveListAccountsParams = {
-  listId: string
-  actorId: string
-  targetActorIds: string[]
-}
-export type GetListsWithAccountParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetListAccountCountsParams = {
-  actorId: string
-  listIds: string[]
-}
-export type GetListTimelineParams = {
-  listId: string
-  actorId: string
-  limit?: number
-  maxStatusId?: string | null
-  minStatusId?: string | null
-  sinceStatusId?: string | null
-}
-export type AddStatusToListTimelinesParams = {
-  status: Status
-}
-
-export interface ListDatabase {
-  createList(params: CreateListParams): Promise<List>
-  updateList(params: UpdateListParams): Promise<List | null>
-  getList(params: GetListParams): Promise<List | null>
-  getLists(params: GetListsParams): Promise<List[]>
-  deleteList(params: DeleteListParams): Promise<boolean>
-  getListAccounts(params: GetListAccountsParams): Promise<ListAccountsPage>
-  // Member counts keyed by list id for the supplied lists. Lists with no
-  // members are present in the result with a count of 0.
-  getListAccountCounts(
-    params: GetListAccountCountsParams
-  ): Promise<Record<string, number>>
-  addListAccounts(params: AddListAccountsParams): Promise<AddListAccountsResult>
-  removeListAccounts(params: RemoveListAccountsParams): Promise<void>
-  getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>
-  getListTimeline(params: GetListTimelineParams): Promise<Status[]>
-  // Fan a newly created status into every list (in the `timelines` table) whose
-  // membership includes the status author, except one whose owner is still
-  // waiting on a follow request to them. Called from addStatusToTimelines.
-  addStatusToListTimelines(
-    params: AddStatusToListTimelinesParams
-  ): Promise<void>
-}
+export type {
+  AddListAccountsParams,
+  AddListAccountsResult,
+  AddStatusToListTimelinesParams,
+  CreateListParams,
+  DeleteListParams,
+  GetListAccountCountsParams,
+  GetListAccountsParams,
+  GetListParams,
+  GetListsParams,
+  GetListsWithAccountParams,
+  GetListTimelineParams,
+  ListAccountsPage,
+  ListDatabase,
+  RemoveListAccountsParams,
+  UpdateListParams
+} from '@/lib/database/domains/list/types'
 
 export type CreateCollectionParams = {
   actorId: string

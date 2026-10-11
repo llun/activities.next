@@ -5,10 +5,10 @@ import { FC, useMemo, useState } from 'react'
 import { PreferencesInput, updatePreferences } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { usePlaybackPreferences } from '@/lib/components/preferences/PlaybackPreferencesContext'
+import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
-import { Section } from '@/lib/components/surface/Section'
 import { Label } from '@/lib/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
 import { Select } from '@/lib/components/ui/select'
@@ -141,11 +141,25 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
         description="Defaults for what you post and how your timeline reads. Apps using the Mastodon API pick these up automatically."
       />
 
-      <Section
-        title="Posting defaults"
-        description="Applied to every new post; you can still change them per post in the composer."
+      <Frame
+        form
+        stickyFooter
+        footer={
+          /* Dirty wins over "Saved": if the user edits again (even while a
+             save is in flight) the bar must not claim the form is saved. */
+          <SaveBar
+            dirty={dirty}
+            saving={saving}
+            saved={saved}
+            error={error}
+            onSave={handleSave}
+          />
+        }
       >
-        <Frame divided>
+        <FormGroup
+          title="Posting defaults"
+          description="Applied to every new post; you can still change them per post in the composer."
+        >
           <FormRow label="Posting privacy" htmlFor="posting-visibility">
             <Select
               id="posting-visibility"
@@ -221,14 +235,12 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
               />
             )}
           </FormRow>
-        </Frame>
-      </Section>
+        </FormGroup>
 
-      <Section
-        title="Reading"
-        description="How posts from other people display for you."
-      >
-        <Frame divided>
+        <FormGroup
+          title="Reading"
+          description="How posts from other people display for you."
+        >
           <FormRow label="Media display">
             {({ labelledBy }) => (
               <RadioGroup
@@ -300,19 +312,7 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
               />
             )}
           </FormRow>
-        </Frame>
-      </Section>
-
-      <Frame className="px-4 py-3">
-        {/* Dirty wins over "Saved": if the user edits again (even while a save
-            is in flight) the bar must not claim the form is saved. */}
-        <SaveBar
-          dirty={dirty}
-          saving={saving}
-          saved={saved}
-          error={error}
-          onSave={handleSave}
-        />
+        </FormGroup>
       </Frame>
     </div>
   )

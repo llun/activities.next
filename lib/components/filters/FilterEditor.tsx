@@ -8,10 +8,10 @@ import type {
   FilterInput,
   FilterKeywordInput
 } from '@/lib/client'
+import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
-import { Section } from '@/lib/components/surface/Section'
 import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -232,11 +232,27 @@ export const FilterEditor: FC<FilterEditorProps> = ({
         </h2>
       </div>
 
-      <Section
-        title="Filter"
-        description="Name this filter and choose how long it stays active."
+      <Frame
+        form
+        stickyFooter
+        footer={
+          <SaveBar
+            // A filter with no non-empty keywords matches nothing, so block
+            // saving until at least one keyword has text, and say so rather
+            // than claim there is nothing to save.
+            dirty={dirty}
+            disabledReason={hasKeyword ? undefined : 'Add a keyword to save'}
+            saving={saving}
+            saved={false}
+            error={error}
+            onSave={handleSave}
+          />
+        }
       >
-        <Frame divided>
+        <FormGroup
+          title="Filter"
+          description="Name this filter and choose how long it stays active."
+        >
           <FormRow
             label="Title"
             htmlFor="filterTitle"
@@ -272,14 +288,12 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               </Select>
             )}
           </FormRow>
-        </Frame>
-      </Section>
+        </FormGroup>
 
-      <Section
-        title="Filter contexts"
-        description="Choose where this filter applies."
-      >
-        <Frame divided>
+        <FormGroup
+          title="Filter contexts"
+          description="Choose where this filter applies."
+        >
           {FILTER_CONTEXTS.map((option) => (
             <FormRow
               key={option.id}
@@ -299,18 +313,17 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               )}
             </FormRow>
           ))}
-        </Frame>
-      </Section>
+        </FormGroup>
 
-      <Section
-        title="Filter action"
-        description="What happens when a post matches."
-      >
-        <Frame>
+        <FormGroup
+          title="Filter action"
+          headingId="filter-action-heading"
+          description="What happens when a post matches."
+        >
           <div
-            className="divide-y"
+            className="space-y-0.5 px-2 pt-2"
             role="radiogroup"
-            aria-label="Filter action"
+            aria-labelledby="filter-action-heading"
           >
             {ACTION_CARDS.map((card, index) => {
               const selected = action === card.id
@@ -327,7 +340,7 @@ export const FilterEditor: FC<FilterEditorProps> = ({
                   onClick={() => setAction(card.id)}
                   onKeyDown={(event) => handleActionKeyDown(event, index)}
                   className={cn(
-                    'focus-visible:ring-ring/50 flex w-full items-start gap-3 px-4 py-3 text-left transition-colors outline-none first:rounded-t-lg last:rounded-b-lg focus-visible:ring-[3px] focus-visible:ring-inset',
+                    'focus-visible:ring-ring/50 flex w-full items-start gap-3 rounded-md px-2 py-2.5 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-inset',
                     selected ? 'bg-primary/5' : 'hover:bg-muted/50'
                   )}
                 >
@@ -357,7 +370,7 @@ export const FilterEditor: FC<FilterEditorProps> = ({
           {action === 'warn' && (
             // The bare bar a warned post collapses to, as the Filter management
             // board draws it: no dashed frame, no caption.
-            <div className="border-t px-4 py-3">
+            <div className="px-4 pt-1.5 pb-1">
               <div className="bg-muted flex items-center justify-between gap-3 rounded-md px-3 py-2">
                 <span className="text-muted-foreground text-sm">
                   Filtered: {title.trim() || 'Untitled filter'}
@@ -368,31 +381,22 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               </div>
             </div>
           )}
-        </Frame>
-      </Section>
+        </FormGroup>
 
-      <Section
-        title="Keywords"
-        description="Matched against post text, content warnings, media descriptions, and poll options."
-      >
-        <Frame
-          footer={
-            <Button variant="outline" size="sm" onClick={addKeyword}>
-              <Plus className="size-3.5" />
-              Add keyword
-            </Button>
-          }
+        <FormGroup
+          title="Keywords"
+          description="Matched against post text, content warnings, media descriptions, and poll options."
         >
           {keywords.length === 0 ? (
-            <p className="text-muted-foreground px-4 py-6 text-center text-sm">
+            <p className="text-muted-foreground px-4 py-4 text-sm">
               No keywords yet — add at least one.
             </p>
           ) : (
-            <>
+            <div className="mx-4 mt-2 mb-1 overflow-hidden rounded-md border">
               <div
                 className={cn(
                   TABLE_HEAD_ROW_CLASS,
-                  'flex items-center gap-3 rounded-t-lg px-4 py-2.5 font-medium'
+                  'flex items-center gap-3 px-4 py-2.5 font-medium'
                 )}
               >
                 <span className="min-w-0 flex-1">Keyword or phrase</span>
@@ -442,23 +446,15 @@ export const FilterEditor: FC<FilterEditorProps> = ({
                 or punctuation — off, it matches anywhere, even inside other
                 words.
               </p>
-            </>
+            </div>
           )}
-        </Frame>
-      </Section>
-
-      <Frame className="px-4 py-3">
-        <SaveBar
-          // A filter with no non-empty keywords matches nothing, so block
-          // saving until at least one keyword has text, and say so rather than
-          // claim there is nothing to save.
-          dirty={dirty}
-          disabledReason={hasKeyword ? undefined : 'Add a keyword to save'}
-          saving={saving}
-          saved={false}
-          error={error}
-          onSave={handleSave}
-        />
+          <div className="px-4 py-2.5">
+            <Button variant="outline" size="sm" onClick={addKeyword}>
+              <Plus className="size-3.5" />
+              Add keyword
+            </Button>
+          </div>
+        </FormGroup>
       </Frame>
     </div>
   )

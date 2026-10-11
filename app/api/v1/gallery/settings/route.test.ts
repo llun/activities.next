@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { getConfig, getPhotoEditorConfig } from '@/lib/config'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -35,7 +35,8 @@ vi.mock('next/headers', () => ({
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
-  getConfig: vi.fn()
+  getConfig: vi.fn(),
+  getPhotoEditorConfig: vi.fn()
 }))
 
 // `gallery.subjects` is derived from alt text the way lib/config/gallery.ts
@@ -60,7 +61,9 @@ const NO_LOOKUP_CONFIG = {
   subjectSuggestionsAvailable: false,
   subjectModel: null,
   speciesLookupsAvailable: true,
-  placeLookupsAvailable: true
+  placeLookupsAvailable: true,
+  photoEnhanceAvailable: false,
+  photoEnhanceModel: null
 }
 
 describe('/api/v1/gallery/settings', () => {
@@ -91,6 +94,11 @@ describe('/api/v1/gallery/settings', () => {
       ...DEFAULT_GALLERY_SETTINGS
     })
     vi.mocked(getConfig).mockReturnValue(configWith() as never)
+    vi.mocked(getPhotoEditorConfig).mockReturnValue({
+      subjectModel: null,
+      connectOrigins: [],
+      enhance: null
+    })
     vi.mocked(getResolvedServerSettings).mockImplementation(
       resolveServerSettings
     )
@@ -181,6 +189,37 @@ describe('/api/v1/gallery/settings', () => {
       })
     })
 
+    it('reports AI enhance and its model when the server has one', async () => {
+      vi.mocked(getPhotoEditorConfig).mockReturnValue({
+        subjectModel: null,
+        connectOrigins: [],
+        enhance: {
+          endpoint: 'https://x',
+          apiKey: 'k',
+          model: 'enhance-1'
+        }
+      })
+
+      expect(await (await GET(getRequest(), context)).json()).toMatchObject({
+        photoEnhance: true,
+        photoEnhanceAvailable: true,
+        photoEnhanceModel: 'enhance-1'
+      })
+    })
+
+    it('keeps the AI enhance switch even when the server has no model', async () => {
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        photoEnhance: false
+      })
+
+      expect(await (await GET(getRequest(), context)).json()).toMatchObject({
+        photoEnhance: false,
+        photoEnhanceAvailable: false,
+        photoEnhanceModel: null
+      })
+    })
+
     it.each([
       [false, true],
       [true, false]
@@ -235,6 +274,21 @@ describe('/api/v1/gallery/settings', () => {
       expect(
         await database.getGallerySettings({ actorId: ACTOR1_ID })
       ).toMatchObject({ autoDescribe: false, galleryDefault: 'always' })
+    })
+
+    it('saves the AI enhance switch', async () => {
+      const response = await PUT(putRequest({ photoEnhance: false }), context)
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ photoEnhance: false })
+      expect(
+        await database.getGallerySettings({ actorId: ACTOR1_ID })
+      ).toMatchObject({ photoEnhance: false })
+
+      await PUT(putRequest({ photoEnhance: true }), context)
+      expect(
+        await database.getGallerySettings({ actorId: ACTOR1_ID })
+      ).toMatchObject({ photoEnhance: true })
     })
 
     it('saves the subject and threatened-species settings', async () => {

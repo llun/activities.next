@@ -4,6 +4,7 @@ import {
   CircleDashed,
   Crop as CropIcon,
   SlidersHorizontal,
+  Sparkles,
   WandSparkles
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -12,6 +13,7 @@ import { Button } from '@/lib/components/ui/button'
 import { TabsContent, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import type { AdjustmentKey } from '@/lib/services/medias/edit/recipe'
 
+import { AiPanel } from './AiPanel'
 import { CropPanel } from './CropPanel'
 import { PhoneSliderPanel } from './PhoneSliderPanel'
 import { PillGroup } from './PillGroup'
@@ -43,8 +45,8 @@ const TAB_CLASS =
 /**
  * The phone controls: a category control with Auto, a row of 58 px chips
  * (a dot marks a changed value), one large slider for the chosen chip, and
- * the Adjust / Crop / Masks tab bar. The Crop and Masks tabs replace the chip
- * area.
+ * the Adjust / Crop / Masks tab bar, plus AI when enhance is available. The
+ * Crop, Masks and AI tabs replace the chip area.
  */
 export const EditorPhoneControls = ({
   controls,
@@ -121,6 +123,11 @@ export const EditorPhoneControls = ({
           onSelect={onMaskSelect}
         />
       </TabsContent>
+      {controls.ai.available ? (
+        <TabsContent value="ai">
+          <AiPanel controls={controls} compact />
+        </TabsContent>
+      ) : null}
       <TabsList className="h-[58px] w-full rounded-none border-t bg-background p-0">
         <TabsTrigger value="adjust" className={TAB_CLASS}>
           <SlidersHorizontal aria-hidden="true" />
@@ -134,6 +141,12 @@ export const EditorPhoneControls = ({
           <CircleDashed aria-hidden="true" />
           Masks
         </TabsTrigger>
+        {controls.ai.available ? (
+          <TabsTrigger value="ai" className={TAB_CLASS}>
+            <Sparkles aria-hidden="true" />
+            AI
+          </TabsTrigger>
+        ) : null}
       </TabsList>
     </div>
   )

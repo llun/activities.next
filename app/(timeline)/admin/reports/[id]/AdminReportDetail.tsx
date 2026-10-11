@@ -148,7 +148,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
       ) : null}
 
       <Section title="Moderation">
-        <Frame divided>
+        <Frame form>
           <FormRow label="Category" htmlFor="report-category">
             <Select
               id="report-category"

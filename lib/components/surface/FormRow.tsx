@@ -49,7 +49,8 @@ export const formRowLabelId = (htmlFor: string) => `${htmlFor}-label`
 export const formRowHintId = (htmlFor: string) => `${htmlFor}-hint`
 
 /**
- * One row of a settings form, to be set inside a `Frame divided`: the label
+ * One row of a settings form, to be set inside a `Frame form` (rows are
+ * `px-4 py-2.5`, so two rows sit about 20px apart with no rule): the label
  * and its hint on the left and the control on the right from `sm` up, stacked
  * (label and hint above, control full width below) on a phone. `inline` keeps
  * the control on the label's row everywhere; `wide` gives it the row's
@@ -73,7 +74,7 @@ export const FormRow: FC<Props> = ({
     <div
       data-slot="form-row"
       className={cn(
-        'px-4 py-4',
+        'px-4 py-2.5',
         inline
           ? 'flex items-center justify-between gap-4'
           : stacked
