@@ -296,9 +296,12 @@ export const buildPubliclyReadableStatusIdsQuery = ({
 
 // The set of one actor's status ids a given audience may be shown, as a
 // subquery to filter against. `getActorStatuses` filters `statuses.id` by it;
-// `getAttachmentsForActor` filters `attachments.statusId` by the same set, so
-// a followers-only post's images are withheld from exactly the viewers the post
-// itself is withheld from.
+// `getAttachmentsForActor` filters `attachments.statusId` by the same set (its
+// Kysely twin actorVisibleStatusIds in
+// lib/database/kysely/visibility/actorVisible.ts, which
+// actorVisibleEquivalence.test.ts holds to the same ids; change both
+// together), so a followers-only post's images are withheld from exactly the
+// viewers the post itself is withheld from.
 //
 // Returns `null` for "no filter", which is a real audience rather than a
 // missing one — the owner viewing their own timeline, and the complete history

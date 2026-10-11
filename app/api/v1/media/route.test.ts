@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
+import type { Database } from '@/lib/database/types'
 import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
 import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
@@ -17,7 +17,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => () => ({
@@ -95,9 +95,10 @@ const postRequest = (token?: string) => {
 }
 
 describe('POST /api/v1/media', () => {
-  const { database, db } = createTestDatabase({ backend: 'sqlite' })
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

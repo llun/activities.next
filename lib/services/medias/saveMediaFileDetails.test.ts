@@ -4,7 +4,7 @@ import path from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { readMediaExif } from '@/lib/services/medias/exif/readMediaExif'
 import { LocalFileStorage } from '@/lib/services/medias/localFile'
 import { seedDatabase } from '@/lib/stub/database'
@@ -15,11 +15,12 @@ import { Actor } from '@/lib/types/domain/actor'
 // EXIF has to be read from the ORIGINAL (the stored copy has none), and it has
 // to land on the media row, the gear table and the owner's entity.
 describe('uploading a photo with EXIF', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let tempDir: string
   let actor: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor = (await database.getActorFromId({ id: ACTOR1_ID }))!
