@@ -4,7 +4,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 // The Kysely countable-activity predicate must select exactly the rows its Knex
 // original selects while both are in use: the Knex one still serves the
-// unported fitness file and route queries. Both run over the same rows, for
+// unported route queries. Both run over the same rows, for
 // both forms of the predicate, and the id sets are compared; the named cases
 // say which rule broke.
 describe('countableActivity matches applyCountableActivityFilter', () => {

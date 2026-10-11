@@ -4,7 +4,7 @@ import {
   statusRecipientsCC,
   statusRecipientsTo
 } from '@/lib/actions/createNote'
-import { UpdateFitnessFileActivityData } from '@/lib/database/sql/fitnessFile'
+import { UpdateFitnessFileActivityData } from '@/lib/database/domains/fitnessFile/types'
 import { Database } from '@/lib/database/types'
 import {
   OVERLAP_CONTEXT_SCAN_LIMIT,

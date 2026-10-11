@@ -1,4 +1,4 @@
-import { MAX_FITNESS_IMPORT_ERROR_LENGTH } from '@/lib/database/sql/fitnessFile'
+import { MAX_FITNESS_IMPORT_ERROR_LENGTH } from '@/lib/database/domains/fitnessFile/rows'
 import {
   databaseBeforeAll,
   getTestDatabaseTable

@@ -1,5 +1,5 @@
 import { getConfig } from '@/lib/config'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
@@ -66,10 +66,11 @@ const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
 >
 
 describe('regenerateFitnessMapsJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor = (await database.getActorFromUsername({
@@ -108,8 +109,9 @@ describe('regenerateFitnessMapsJob', () => {
     })
     mockGenerateMapImage.mockResolvedValue(Buffer.from('new-map-image'))
     mockDeleteMediaFile.mockResolvedValue(true)
+    // Numeric ids: attachments.mediaId is an integer column on PostgreSQL.
     mockSaveMedia.mockResolvedValue({
-      id: 'new-map-media-id',
+      id: '9101',
       type: 'image',
       mime_type: 'image/webp',
       url: 'https://llun.test/api/v1/files/medias/new-route-map.webp',
@@ -720,7 +722,7 @@ describe('regenerateFitnessMapsJob', () => {
 
     mockSaveMedia
       .mockResolvedValueOnce({
-        id: 'new-map-media-id-1',
+        id: '9111',
         type: 'image',
         mime_type: 'image/webp',
         url: 'https://llun.test/api/v1/files/medias/new-route-map-1.webp',
@@ -739,7 +741,7 @@ describe('regenerateFitnessMapsJob', () => {
         blurhash: null
       })
       .mockResolvedValueOnce({
-        id: 'new-map-media-id-2',
+        id: '9112',
         type: 'image',
         mime_type: 'image/webp',
         url: 'https://llun.test/api/v1/files/medias/new-route-map-2.webp',

@@ -31,6 +31,8 @@ import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import type { FeaturedTagDatabase } from '@/lib/database/domains/featuredTag/types'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
 import type { FilterDatabase } from '@/lib/database/domains/filter/types'
+import { fitnessFileQueries } from '@/lib/database/domains/fitnessFile/queries'
+import type { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
 import type { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
@@ -113,7 +115,6 @@ import {
   kyselyFor
 } from '@/lib/database/kysely'
 import { deleteActorData } from '@/lib/database/sql/actor'
-import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
@@ -155,7 +156,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     announcementQueries
   )
-  const fitnessFileDatabase = FitnessFileSQLDatabaseMixin(database)
+  const fitnessFileDatabase: FitnessFileDatabase = bindDb(
+    kysely,
+    fitnessFileQueries
+  )
   const fitnessFileRouteDatabase = FitnessFileRouteSQLDatabaseMixin(database)
   const fitnessGearDatabase: FitnessGearDatabase = bindDb(
     kysely,

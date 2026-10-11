@@ -230,12 +230,18 @@ jobs:
   # behind the Kysely set form of the publicly-readable predicate) with the
   # status action, boost, pin and account status routes, the announce action
   # and the Mastodon status, filter, context, mention and client id services
-  # over them, the Kysely status visibility, countable-activity,
-  # actor-visible status, list eligibility, replies policy, block/mute,
-  # follow-target, exclusive-list and publicly-readable predicates checked
-  # against their Knex originals, and the Knex-backed Kysely driver (result
-  # normalisation, the mixed-transaction guard, counters, bucket counters,
-  # chunked IN lists, savepoints).
+  # over them, the fitness file domain (uploads with their storage and file
+  # counters and hourly buckets, deletes, processing and import status,
+  # primary assignment, the actor listing with its cursor and Knex paging, the
+  # account listing with its counter total, the overview summary, calendar,
+  # window and earliest activity, whether an actor has fitness data for a
+  # viewer) with the fitness routes, the import, processing, map regeneration
+  # and heatmap jobs, the actor archive export and the services over it, the
+  # Kysely status visibility, countable-activity, actor-visible status, list
+  # eligibility, replies policy, block/mute, follow-target, exclusive-list and
+  # publicly-readable predicates checked against their Knex originals, and the
+  # Knex-backed Kysely driver (result normalisation, the mixed-transaction
+  # guard, counters, bucket counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -325,6 +331,36 @@ jobs:
             lib/database/sql/fitnessGearQueries.test.ts \
             lib/services/fitness-gears/serviceReminders.test.ts \
             lib/jobs/processFitnessFileJob.gearDevice.test.ts \
+            lib/database/sql/fitnessFileQueries.test.ts \
+            lib/database/sql/fitnessFileRoute.test.ts \
+            lib/database/sql/fitnessRouteHeatmap.test.ts \
+            "app/api/v1/fitness-files/[id]/route.test.ts" \
+            "app/api/v1/fitness-files/[id]/route-data/route.test.ts" \
+            app/api/v1/fitness-files/by-status/route.test.ts \
+            "app/api/v1/statuses/[id]/retry-fitness/route.test.ts" \
+            "app/api/v1/statuses/[id]/route.delete.test.ts" \
+            lib/actions/createNote.attachment.test.ts \
+            lib/jobs/importFitnessFilesJob.test.ts \
+            lib/jobs/importFitnessFilesJob.optIns.test.ts \
+            lib/jobs/importFitnessFilesJob.primary.test.ts \
+            lib/jobs/importStravaActivityJob.federation.test.ts \
+            lib/jobs/importStravaActivityJob.merge.test.ts \
+            lib/jobs/processFitnessFileJob.test.ts \
+            lib/jobs/processFitnessFileJob.notification.test.ts \
+            lib/jobs/processFitnessFileJob.routeCache.test.ts \
+            lib/jobs/processFitnessFileJob.routeMap.test.ts \
+            lib/jobs/regenerateFitnessMapsJob.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidBuild.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidContinuation.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidFlush.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidLoss.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.routeCache.test.ts \
+            lib/services/fitness-files/statusFitnessFiles.test.ts \
+            lib/services/mastodon/getMastodonStatus.fields.test.ts \
+            scripts/backup/actorArchive.test.ts \
+            scripts/backup/actorArchiveExport.test.ts \
+            scripts/backup/actorArchive.mediaEdits.test.ts \
             lib/database/sql/status.test.ts \
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
@@ -439,7 +475,6 @@ jobs:
             lib/actions/announce.test.ts \
             lib/jobs/sendUpdateNoteJob.test.ts \
             lib/services/mastodon/getMastodonStatus.bulk.test.ts \
-            lib/services/mastodon/getMastodonStatus.fields.test.ts \
             lib/services/mastodon/getMastodonStatus.quotes.test.ts \
             lib/services/mastodon/getMastodonFilter.test.ts \
             lib/services/mastodon/resolveClientId.test.ts \
