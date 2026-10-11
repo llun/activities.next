@@ -1784,8 +1784,7 @@ describe('getFavouritedBy', () => {
   it('answers a malformed cursor with an empty page, and a like with no createdAt as 0', async () => {
     const { status } = await setupLikes()
 
-    for (const token of ['not-a-cursor', 'MTIz', '']) {
-      if (!token) continue
+    for (const token of ['not-a-cursor', 'MTIz']) {
       await expect(
         getFavouritedBy(db, { statusId: status, limit: 10, maxId: token })
       ).resolves.toEqual([])
@@ -1969,15 +1968,8 @@ describe('getRebloggedBy', () => {
   it('refuses a cursor it cannot place', async () => {
     const { target, booster, boosts } = await setupReblogs()
     const missing = `${booster(1)}/statuses/missing`
-    const undated = await seedStatus({
-      id: `${booster(11)}/statuses/undated`,
-      actorId: booster(11),
-      type: StatusType.enum.Announce,
-      originalStatusId: target,
-      createdAt: null
-    })
 
-    for (const cursor of [missing, boosts.a10, undated]) {
+    for (const cursor of [missing, boosts.a10]) {
       await expect(
         listed({ statusId: target, limit: 40, maxStatusId: cursor })
       ).resolves.toEqual([])
@@ -1988,5 +1980,95 @@ describe('getRebloggedBy', () => {
         listed({ statusId: target, limit: 40, sinceStatusId: cursor })
       ).resolves.toEqual([])
     }
+  })
+
+  // Knex's tie arm was the two-argument where('createdAt', null), which
+  // compiles to IS NULL: a cursor boost with no createdAt pages through the
+  // other undated boosts by id, and a dated boost is never past it.
+  it('pages an undated cursor boost through the other undated boosts, by id', async () => {
+    const { target, booster, boosts } = await setupReblogs()
+    const { a1, a2, a3, a4, a5dup2, a6 } = boosts
+    const undated = (index: number) =>
+      seedStatus({
+        id: `${booster(index)}/statuses/undated`,
+        actorId: booster(index),
+        type: StatusType.enum.Announce,
+        originalStatusId: target,
+        content: target,
+        createdAt: null
+      })
+    // Written out of id order; the ids differ in a digit.
+    const u12 = await undated(12)
+    const u11 = await undated(11)
+    const u13 = await undated(13)
+    const viewer = await seedActor(actorIn('c.test', `${nextPrefix()}-v`))
+
+    for (const visibleToActorId of [undefined, viewer]) {
+      const page = (params: Partial<Parameters<typeof getRebloggedBy>[1]>) =>
+        listed({ statusId: target, limit: 40, visibleToActorId, ...params })
+
+      await expect(page({ maxStatusId: u13 })).resolves.toEqual([u12, u11])
+      await expect(page({ maxStatusId: u12 })).resolves.toEqual([u11])
+      await expect(page({ maxStatusId: u11 })).resolves.toEqual([])
+      // The min cursor takes the boosts just above it, still newest first.
+      await expect(page({ minStatusId: u11 })).resolves.toEqual([u13, u12])
+      await expect(page({ minStatusId: u11, limit: 1 })).resolves.toEqual([u12])
+      await expect(page({ minStatusId: u13 })).resolves.toEqual([])
+      await expect(page({ sinceStatusId: u11 })).resolves.toEqual([u13, u12])
+      await expect(page({ sinceStatusId: u11, limit: 1 })).resolves.toEqual([
+        u13
+      ])
+      await expect(page({ sinceStatusId: u13 })).resolves.toEqual([])
+      await expect(
+        page({ maxStatusId: u13, sinceStatusId: u11 })
+      ).resolves.toEqual([u12])
+
+      // A dated cursor never reaches an undated boost.
+      await expect(page({ maxStatusId: a4 })).resolves.toEqual([
+        a3,
+        a5dup2,
+        a2,
+        a1
+      ])
+      await expect(page({ minStatusId: a2 })).resolves.toEqual([
+        a6,
+        a4,
+        a3,
+        a5dup2
+      ])
+    }
+  })
+
+  it('reads nothing for a null status id, where Knex matched the legacy boosts', async () => {
+    const { booster } = await setupReblogs()
+    const viewer = await seedActor(actorIn('c.test', `${nextPrefix()}-v`))
+    const nullKey = null as unknown as string
+
+    // a6 boosted the status through a legacy row: no originalStatusId, the
+    // id in `content`. Knex's two-argument where read a null key as IS NULL,
+    // so it listed (and hydrated) that row; a null key now matches nothing.
+    await expect(
+      getRebloggedBy(db, { statusId: nullKey, limit: 40 })
+    ).resolves.toEqual([])
+    await expect(
+      getRebloggedBy(db, {
+        statusId: nullKey,
+        limit: 40,
+        visibleToActorId: viewer
+      })
+    ).resolves.toEqual([])
+    await expect(
+      getActorAnnouncedStatusId(db, {
+        actorId: booster(6),
+        originalStatusId: nullKey
+      })
+    ).resolves.toBeNull()
+    await expect(
+      getActorAnnounceStatus(db, hydration, {
+        actorId: booster(6),
+        statusId: nullKey
+      })
+    ).resolves.toBeNull()
+    expect(hydrationCalls).toEqual([])
   })
 })

@@ -165,15 +165,11 @@ export const getRebloggedBy = async (
   if (minStatusId && !minCursor) return []
   if (sinceStatusId && !sinceCursor) return []
 
-  // A cursor boost with no createdAt reads an empty page: Knex compared
-  // `createdAt < NULL` (or `>`), which is never true, on both arms.
   const cursors: [ReblogRow | null, '<' | '>'][] = [
     [maxCursor, '<'],
     [minCursor, '>'],
     [sinceCursor, '>']
   ]
-  if (cursors.some(([cursor]) => cursor !== null && cursor.createdAt === null))
-    return []
 
   const direction = minStatusId ? 'asc' : 'desc'
   let query = db
@@ -217,10 +213,21 @@ export const getRebloggedBy = async (
     .orderBy('visible_reblogs.createdAt', direction)
     .orderBy('visible_reblogs.id', direction)
 
-  // Rows strictly past each cursor in (createdAt, id) order.
+  // Rows strictly past each cursor in (createdAt, id) order. A cursor boost
+  // with no createdAt reads the other undated boosts past its id: Knex's tie
+  // arm was the two-argument where('createdAt', null), so IS NULL.
   for (const [cursor, operator] of cursors) {
     if (!cursor) continue
-    const createdAt = timestampValue(cursor.createdAt!)
+    if (cursor.createdAt === null) {
+      query = query.where((eb) =>
+        eb.and([
+          eb('visible_reblogs.createdAt', 'is', null),
+          eb('visible_reblogs.id', operator, cursor.id)
+        ])
+      )
+      continue
+    }
+    const createdAt = timestampValue(cursor.createdAt)
     query = query.where((eb) =>
       eb.or([
         eb('visible_reblogs.createdAt', operator, createdAt),
