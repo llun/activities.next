@@ -95,7 +95,7 @@ describe('getTokenFromHeader', () => {
 })
 
 describe('OAuthGuard', () => {
-  const { database } = getTestSQLDatabaseWithInstance()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -260,6 +260,51 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       expect(capturedActor?.id).toBe(primaryActor?.id)
+    })
+
+    test('resolves the earliest-created actor when there is no actor-id cookie and the account has several actors and no default', async () => {
+      const accountId = await database.createAccount({
+        domain: 'llun.test',
+        email: 'session-several-actors@llun.test',
+        username: 'sessionseveral',
+        passwordHash: 'several-password-hash',
+        privateKey: 'several-private-key',
+        publicKey: 'several-public-key'
+      })
+      await database.createActorForAccount({
+        accountId,
+        username: 'sessionseveral-b',
+        domain: 'llun.test',
+        privateKey: 'several-private-key-b',
+        publicKey: 'several-public-key-b'
+      })
+      const earliestActorId = await database.createActorForAccount({
+        accountId,
+        username: 'sessionseveral-c',
+        domain: 'llun.test',
+        privateKey: 'several-private-key-c',
+        publicKey: 'several-public-key-c'
+      })
+      // The last row inserted, with the greatest id, is the one created first.
+      await instance('actors')
+        .where('id', earliestActorId)
+        .update({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
+
+      mockGetServerSession.mockResolvedValue({
+        user: { email: 'session-several-actors@llun.test' }
+      })
+      mockCookieValue.value = undefined
+
+      let capturedActor: Actor | undefined
+      const handler = vi.fn().mockImplementation((_req, context) => {
+        capturedActor = context.currentActor
+        return NextResponse.json({ success: true }, { status: 200 })
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], handler)
+      await guard(createRequest(), { params: Promise.resolve({}) })
+
+      expect(capturedActor?.id).toBe(earliestActorId)
     })
 
     test('resolves sub-actor when actor-id cookie is set to sub-actor', async () => {
