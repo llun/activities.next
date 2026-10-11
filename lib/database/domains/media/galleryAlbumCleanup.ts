@@ -26,8 +26,8 @@ export const lockGalleryAlbumActor = async (
 /**
  * Drops one media from every album when the media row goes: removes its
  * `gallery_album_items` and clears any album cover that pointed at it. Items
- * cascade on PostgreSQL and covers are a plain column, and SQLite runs without
- * foreign keys, so every media delete path calls this inside its own
+ * cascade on PostgreSQL and covers are a plain column, and SQLite may run
+ * without foreign keys, so every media delete path calls this inside its own
  * transaction, after `lockGalleryAlbumActor` for the media's owner and before
  * it deletes the `medias` row.
  */
