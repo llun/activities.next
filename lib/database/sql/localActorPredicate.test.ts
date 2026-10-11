@@ -1,4 +1,4 @@
-import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -28,7 +28,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // carried both halves and were only re-spelled through the shared modifier, so
 // there is no behaviour change to pin and each has its own suite.
 describe('local actor predicate', () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  const { database, db, prepare } = createTestDatabase({ isolated: true })
 
   const DOMAIN = 'llun.test'
   const REMOTE_DOMAIN = 'remote.test'
@@ -106,14 +106,18 @@ describe('local actor predicate', () => {
   it('stores the empty-string key the fixture depends on', async () => {
     // Guards the fixture itself: if `createActor` ever normalized '' away, the
     // assertions below would all pass while testing nothing.
-    const row = await instance('actors')
-      .where('id', EMPTY_KEY_ACTOR_ID)
-      .first<{ privateKey: string | null }>('privateKey')
+    const row = await db
+      .selectFrom('actors')
+      .select('privateKey')
+      .where('id', '=', EMPTY_KEY_ACTOR_ID)
+      .executeTakeFirst()
     expect(row?.privateKey).toBe('')
 
-    const nullRow = await instance('actors')
-      .where('id', NULL_KEY_ACTOR_ID)
-      .first<{ privateKey: string | null }>('privateKey')
+    const nullRow = await db
+      .selectFrom('actors')
+      .select('privateKey')
+      .where('id', '=', NULL_KEY_ACTOR_ID)
+      .executeTakeFirst()
     expect(nullRow?.privateKey).toBeNull()
   })
 
@@ -242,9 +246,13 @@ describe('local actor predicate', () => {
       })
       await addStatusToTimelines(database, status)
 
-      const fannedOutActorIds = await instance('timelines')
-        .where('statusId', `${LOCAL_ACTOR_ID}/statuses/fanout-1`)
-        .pluck<string[]>('actorId')
+      const fannedOutActorIds = (
+        await db
+          .selectFrom('timelines')
+          .select('actorId')
+          .where('statusId', '=', `${LOCAL_ACTOR_ID}/statuses/fanout-1`)
+          .execute()
+      ).map((row) => row.actorId)
 
       expect(fannedOutActorIds).not.toContain(EMPTY_KEY_ACTOR_ID)
       expect(fannedOutActorIds).not.toContain(NULL_KEY_ACTOR_ID)
@@ -252,10 +260,11 @@ describe('local actor predicate', () => {
       await database.deleteStatus({
         statusId: `${LOCAL_ACTOR_ID}/statuses/fanout-1`
       })
-      await instance('follows')
-        .where('targetActorId', LOCAL_ACTOR_ID)
-        .whereIn('actorId', [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID])
-        .delete()
+      await db
+        .deleteFrom('follows')
+        .where('targetActorId', '=', LOCAL_ACTOR_ID)
+        .where('actorId', 'in', [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID])
+        .execute()
     }
   })
 })

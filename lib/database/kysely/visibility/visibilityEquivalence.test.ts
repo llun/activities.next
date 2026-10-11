@@ -1,4 +1,5 @@
 import { withoutBlockedOrMutedAuthors } from '@/lib/database/kysely/visibility/blockMute'
+import { notFromExclusiveListMember } from '@/lib/database/kysely/visibility/exclusiveLists'
 import { selectFollowTargetActorIds } from '@/lib/database/kysely/visibility/followTarget'
 import {
   listEligibleStatus,
@@ -7,6 +8,7 @@ import {
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { applyBlockMuteFilter } from '@/lib/database/sql/utils/blockMuteFilter'
+import { applyExclusiveListFilter } from '@/lib/database/sql/utils/exclusiveLists'
 import { selectFollowTargetActorIds as selectFollowTargetActorIdsByKnex } from '@/lib/database/sql/utils/followTargetActorIds'
 import { applyListEligibleStatusFilter } from '@/lib/database/sql/utils/listEligibleStatus'
 import { applyListRepliesPolicyFilter } from '@/lib/database/sql/utils/listRepliesPolicy'
@@ -21,10 +23,10 @@ import {
 } from '@/lib/utils/activitystream'
 
 // The Kysely visibility predicates must select exactly the rows their Knex
-// originals select while both are in use: the Knex ones still serve
-// collection and status, or are kept as the reference the Kysely twin is
-// checked against here. Each describe runs both over the same rows, for every
-// viewer, and compares the id sets; the named cases say which arm broke.
+// originals select while both are in use: the Knex ones still serve status,
+// or are kept as the reference the Kysely twin is checked against here. Each
+// describe runs both over the same rows, for every viewer, and compares the id
+// sets; the named cases say which arm broke.
 describe('Kysely visibility predicates match their Knex originals', () => {
   const testDb = createTestDatabase()
   const { database, knex } = testDb
@@ -850,5 +852,133 @@ describe('Kysely visibility predicates match their Knex originals', () => {
         [FollowStatus.enum.Accepted]
       )
     ).toEqual([])
+  })
+
+  // Seeded last, so the exclusive lists added here reach none of the list
+  // cases above. Each `timelines` row is told apart by its statusId.
+  describe('exclusive lists', () => {
+    const timelineRows: Record<string, string | null> = {
+      'excl-author': author,
+      'excl-follower': follower,
+      'excl-stranger': stranger,
+      'excl-remote': remoteAuthor,
+      'excl-bare': bareAuthor,
+      'excl-no-author': null
+    }
+
+    beforeAll(async () => {
+      const now = new Date()
+      await knex('lists').insert([
+        // follower's exclusive list holds author and follower itself.
+        {
+          id: 'follower-exclusive',
+          actorId: follower,
+          title: 'Exclusive',
+          repliesPolicy: 'list',
+          exclusive: true,
+          createdAt: now,
+          updatedAt: now
+        },
+        // follower's ordinary list holds stranger.
+        {
+          id: 'follower-ordinary',
+          actorId: follower,
+          title: 'Ordinary',
+          repliesPolicy: 'list',
+          exclusive: false,
+          createdAt: now,
+          updatedAt: now
+        },
+        // Another owner's exclusive list, holding remoteAuthor.
+        {
+          id: 'recipient-exclusive',
+          actorId: recipient,
+          title: 'Exclusive',
+          repliesPolicy: 'list',
+          exclusive: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+      await knex('list_accounts').insert(
+        [
+          ['follower-exclusive', follower, author],
+          ['follower-exclusive', follower, follower],
+          ['follower-ordinary', follower, stranger],
+          ['recipient-exclusive', recipient, remoteAuthor],
+          // The list's owner decides, not the membership row's own actorId.
+          ['follower-exclusive', stranger, bareAuthor]
+        ].map(([listId, actorId, targetActorId]) => ({
+          id: `${listId}:${targetActorId}`,
+          listId,
+          actorId,
+          targetActorId,
+          createdAt: now
+        }))
+      )
+      await knex('timelines').insert(
+        Object.entries(timelineRows).map(([key, statusActorId]) => ({
+          actorId: follower,
+          timeline: 'main',
+          statusId: key,
+          statusActorId,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+    })
+
+    const shownByKnex = async (viewerId: string) => {
+      const query = knex('timelines').select('timelines.statusId')
+      applyExclusiveListFilter({
+        database: knex,
+        query,
+        viewerActorId: viewerId
+      })
+      return ((await query) as { statusId: string }[])
+        .map(({ statusId }) => statusId)
+        .sort()
+    }
+
+    const shownByKysely = async (viewerId: string) =>
+      (
+        await testDb.db
+          .selectFrom('timelines')
+          .select('timelines.statusId')
+          .where((eb) => notFromExclusiveListMember(eb, viewerId))
+          .execute()
+      )
+        .map(({ statusId }) => statusId as string)
+        .sort()
+
+    it.each(Object.entries(viewers))(
+      'shows the same timeline rows to %s',
+      async (_name, viewerId) => {
+        const [knexIds, kyselyIds] = await Promise.all([
+          shownByKnex(viewerId),
+          shownByKysely(viewerId)
+        ])
+        expect(kyselyIds).toEqual(knexIds)
+        expect(knexIds.length).toBeGreaterThan(0)
+      }
+    )
+
+    it.each([
+      { key: 'excl-author', viewer: follower, shown: false },
+      { key: 'excl-bare', viewer: follower, shown: false },
+      { key: 'excl-follower', viewer: follower, shown: true },
+      { key: 'excl-stranger', viewer: follower, shown: true },
+      { key: 'excl-remote', viewer: follower, shown: true },
+      { key: 'excl-no-author', viewer: follower, shown: true },
+      { key: 'excl-remote', viewer: recipient, shown: false },
+      { key: 'excl-author', viewer: recipient, shown: true },
+      { key: 'excl-author', viewer: stranger, shown: true }
+    ])(
+      'agrees that $key is shown=$shown to $viewer',
+      async ({ key, viewer, shown }) => {
+        expect((await shownByKnex(viewer)).includes(key)).toBe(shown)
+        expect((await shownByKysely(viewer)).includes(key)).toBe(shown)
+      }
+    )
   })
 })

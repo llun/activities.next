@@ -17,6 +17,8 @@ import { blockQueries } from '@/lib/database/domains/block/queries'
 import type { BlockDatabase } from '@/lib/database/domains/block/types'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
 import type { BookmarkDatabase } from '@/lib/database/domains/bookmark/types'
+import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
+import type { CollectionDatabase } from '@/lib/database/domains/collection/types'
 import { createConversationQueries } from '@/lib/database/domains/conversation/queries'
 import type { DirectConversationDatabase } from '@/lib/database/domains/conversation/types'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
@@ -96,6 +98,8 @@ import { stravaArchiveImportQueries } from '@/lib/database/domains/stravaArchive
 import type { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { suggestionQueries } from '@/lib/database/domains/suggestion/queries'
 import type { SuggestionDatabase } from '@/lib/database/domains/suggestion/types'
+import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
+import type { TimelineDatabase } from '@/lib/database/domains/timeline/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
 import type { TranslationCacheDatabase } from '@/lib/database/domains/translationCache/types'
 import { trendsQueries } from '@/lib/database/domains/trends/queries'
@@ -108,7 +112,6 @@ import {
   kyselyFor
 } from '@/lib/database/kysely'
 import { deleteActorData } from '@/lib/database/sql/actor'
-import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
@@ -120,7 +123,6 @@ import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLo
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
-import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
@@ -298,24 +300,20 @@ export const getSQLDatabase = (database: Knex): Database => {
     statusReactionDatabase,
     linkPreviewDatabase
   )
-  // The list timeline hydrates through the Knex status facade, outside this
-  // domain's transactions, until status is ported. currentActorId hydrates the
-  // viewer's action state. getListTimeline already enforces visibility on its
-  // own query (before LIMIT), so no visibleToActorId is needed here.
+  // The list, collection and timeline feeds hydrate through the Knex status
+  // facade, outside their domains' transactions, until status is ported.
+  // currentActorId hydrates the viewer's action state: each feed already
+  // enforces visibility on its own query (before LIMIT), so no
+  // visibleToActorId is needed here.
+  const getStatusesByIds = (statusIds: string[], currentActorId?: string) =>
+    statusDatabase.getStatusesByIds({ statusIds, currentActorId })
   const listDatabase: ListDatabase = bindDb(
     kysely,
-    createListQueries((statusIds, currentActorId) =>
-      statusDatabase.getStatusesByIds({ statusIds, currentActorId })
-    )
+    createListQueries(getStatusesByIds)
   )
-  const collectionDatabase = CollectionSQLDatabaseMixin(
-    database,
-    (actorIds) => actorDatabase.getMastodonActors(actorIds),
-    // getCollectionTimeline enforces visibility on its own query (owner
-    // projection) or restricts to public posts (public projection), so the
-    // currentActorId here only hydrates the owner's action state.
-    (statusIds, currentActorId) =>
-      statusDatabase.getStatusesByIds({ statusIds, currentActorId })
+  const collectionDatabase: CollectionDatabase = bindDb(
+    kysely,
+    createCollectionQueries(getStatusesByIds)
   )
   // The reads hydrate through the Knex status facade, outside this domain's
   // transactions, until status is ported.
@@ -323,7 +321,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     createConversationQueries(statusDatabase)
   )
-  const timelineDatabase = TimelineSQLDatabaseMixin(database, statusDatabase)
+  const timelineDatabase: TimelineDatabase = bindDb(
+    kysely,
+    createTimelineQueries(getStatusesByIds)
+  )
 
   return {
     async migrate() {

@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -17,9 +17,11 @@ import { addStatusToTimelines } from '.'
 import { Timeline } from './types'
 
 describe('addStatusToTimelines', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const testDb = createTestDatabase()
+  const { database, db } = testDb
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })
@@ -32,8 +34,8 @@ describe('addStatusToTimelines', () => {
   beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    await instance('timelines').delete()
-    await instance('blocks').delete()
+    await db.deleteFrom('timelines').execute()
+    await db.deleteFrom('blocks').execute()
   })
 
   test('it adds status to local users main timeline', async () => {
