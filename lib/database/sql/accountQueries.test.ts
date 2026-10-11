@@ -7,6 +7,7 @@ import { CounterKey } from '@/lib/database/sql/utils/counter'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
+import { selectAccountActor } from '@/lib/utils/selectAccountActor'
 
 // Every `where` in the account queries, each pinned with a neighbouring row the
 // query must not touch, plus the transactions of createAccount,
@@ -507,6 +508,142 @@ describe('getActorsForAccount', () => {
     expect(
       await database.getActorsForAccount({ accountId: 'missing' })
     ).toEqual([])
+  })
+
+  // createActorForAccount stamps "now" and inserts in call order, so it can
+  // produce neither a backdated createdAt nor an insertion order that differs
+  // from createdAt order. These tests seed the rows straight into the table.
+  const EPOCH = Date.UTC(2024, 0, 1)
+  const insertActorAt = async (
+    accountId: string,
+    username: string,
+    createdAt: number
+  ) => {
+    const actorId = getLocalActorId({ domain: DOMAIN, username })
+    await db()
+      .insertInto('actors')
+      .values({
+        id: actorId,
+        type: 'Person',
+        accountId,
+        username,
+        domain: DOMAIN,
+        settings: JSON.stringify({
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `https://${DOMAIN}/inbox`
+        }),
+        publicKey: `public-${username}`,
+        privateKey: `private-${username}`,
+        createdAt: new Date(createdAt),
+        updatedAt: new Date(createdAt)
+      })
+      .execute()
+    return actorId
+  }
+
+  it('returns the actors oldest first, whatever order they were inserted in', async () => {
+    // Three orders that all differ. Created: -c, -b, -a, then newAccount's own
+    // actor (created now). Sorted by id: the own actor (its id is a prefix of
+    // the others), -a, -b, -c. Inserted: the own actor, -a, -c, -b.
+    const target = await newAccount('order-t')
+    const neighbour = await newAccount('order-n')
+    const latest = await insertActorAt(
+      target.accountId,
+      `${target.username}-a`,
+      EPOCH + 2_000
+    )
+    const earliest = await insertActorAt(
+      target.accountId,
+      `${target.username}-c`,
+      EPOCH
+    )
+    const middle = await insertActorAt(
+      target.accountId,
+      `${target.username}-b`,
+      EPOCH + 1_000
+    )
+    // Created before all of the target's actors; it must not appear in them.
+    await insertActorAt(neighbour.accountId, `${neighbour.username}-x`, EPOCH)
+
+    const actors = await database.getActorsForAccount({
+      accountId: target.accountId
+    })
+
+    expect(actors.map((actor) => actor.id)).toEqual([
+      earliest,
+      middle,
+      latest,
+      target.actorId
+    ])
+  })
+
+  it('orders actors created at the same time by id', async () => {
+    const target = await newAccount('tie-t')
+    // Inserted in the reverse of id order. The ids share a prefix and differ in
+    // one lower-case letter, so every collation agrees that -d sorts before -e.
+    const second = await insertActorAt(
+      target.accountId,
+      `${target.username}-e`,
+      EPOCH
+    )
+    const first = await insertActorAt(
+      target.accountId,
+      `${target.username}-d`,
+      EPOCH
+    )
+
+    const actors = await database.getActorsForAccount({
+      accountId: target.accountId
+    })
+
+    expect(actors.map((actor) => actor.id)).toEqual([
+      first,
+      second,
+      target.actorId
+    ])
+  })
+
+  it('puts the actor selectAccountActor falls back to first: the earliest-created usable one', async () => {
+    const target = await newAccount('fallback-t')
+    await insertActorAt(target.accountId, `${target.username}-a`, EPOCH + 2_000)
+    const earliest = await insertActorAt(
+      target.accountId,
+      `${target.username}-c`,
+      EPOCH
+    )
+    const middle = await insertActorAt(
+      target.accountId,
+      `${target.username}-b`,
+      EPOCH + 1_000
+    )
+    const pick = async () => {
+      const [account, actors] = await Promise.all([
+        database.getAccountFromId({ id: target.accountId }),
+        database.getActorsForAccount({ accountId: target.accountId })
+      ])
+      return selectAccountActor(actors, account?.defaultActorId)?.id
+    }
+
+    expect(
+      (await database.getAccountFromId({ id: target.accountId }))
+        ?.defaultActorId
+    ).toBeFalsy()
+    expect(await pick()).toEqual(earliest)
+
+    // The earliest actor is pending deletion, so the next one is picked, with
+    // no default and with a default that is itself the unusable actor.
+    await db()
+      .updateTable('actors')
+      .set({ deletionStatus: 'scheduled' })
+      .where('id', '=', earliest)
+      .execute()
+    expect(await pick()).toEqual(middle)
+    await database.setDefaultActor({
+      accountId: target.accountId,
+      actorId: earliest
+    })
+    expect(await pick()).toEqual(middle)
   })
 })
 
