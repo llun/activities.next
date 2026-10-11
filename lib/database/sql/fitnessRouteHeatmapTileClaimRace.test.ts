@@ -4,6 +4,8 @@ import {
   createActor,
   expectOneTransaction,
   fence,
+  interfereAfterStatement,
+  outsideDatabaseContext,
   recordStatements
 } from '@/lib/database/sql/fitnessRouteHeatmapTileTestHelpers'
 import {
@@ -137,7 +139,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(resumedClaim.resumed).toBe(true)
 
           const resumedWhere = whereOfLastUpdate()
-          // BOTH cursor columns, exactly as `parseSQLFitnessRouteHeatmapPyramid`
+          // BOTH cursor columns, exactly as `toFitnessRouteHeatmapPyramid`
           // reads them: a premise that tested one would call a half-written
           // cursor resumable on one side and not the other, and that row's
           // claim can then never match its own decision.
@@ -193,29 +195,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // an incumbent that moves the row in between must be caught by the
         // write re-asserting the read's premises. Staged from the claim's own
         // SELECT, which IS that window, rather than raced.
-        const stageOnClaimRead = (
-          instance: Knex,
-          interfere: () => Promise<unknown>
-        ) => {
-          const state = { fired: false }
-          const onRead = async ({ sql }: { sql: string }) => {
-            if (
-              state.fired ||
-              !sql.trimStart().toLowerCase().startsWith('select') ||
-              !sql.includes('fitness_route_heatmap_pyramids')
-            ) {
-              return
-            }
-            state.fired = true
-            await interfere()
-          }
-          instance.on(
-            'query-response',
-            (_response: unknown, query: unknown) =>
-              void onRead(query as { sql: string })
+        const stageOnClaimRead = (interfere: () => Knex.QueryBuilder) =>
+          interfereAfterStatement(
+            (sql) =>
+              sql.trimStart().toLowerCase().startsWith('select') &&
+              sql.includes('fitness_route_heatmap_pyramids'),
+            interfere
           )
-          return state
-        }
 
         it('refuses a claim whose build heartbeats exactly onto the boundary', async () => {
           // The SQL half of `updatedAt >= staleBefore`. The JS classifier
@@ -247,7 +233,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               .update({ updatedAt: new Date(staleBefore - 60_000) })
 
             // The owner heartbeats onto the boundary itself.
-            const staged = stageOnClaimRead(instance, () =>
+            const staged = stageOnClaimRead(() =>
               instance('fitness_route_heatmap_pyramids')
                 .where('actorId', actorId)
                 .update({ updatedAt: new Date(staleBefore) })
@@ -309,7 +295,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
             const requestedAt = Date.now()
             // ...and finished by its owner before the write lands.
-            const staged = stageOnClaimRead(instance, () =>
+            const staged = stageOnClaimRead(() =>
               instance('fitness_route_heatmap_pyramids')
                 .where('actorId', actorId)
                 .update({
@@ -396,7 +382,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               await instance('fitness_route_heatmap_pyramids')
                 .where('actorId', actorId)
                 .update({ updatedAt: new Date(Date.now() - 600_000) })
-              const staged = stageOnClaimRead(instance, () =>
+              const staged = stageOnClaimRead(() =>
                 instance('fitness_route_heatmap_pyramids')
                   .where('actorId', actorId)
                   .update({ updatedAt: new Date() })
@@ -454,7 +440,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' }
             })
 
-            const staged = stageOnClaimRead(instance, () =>
+            const staged = stageOnClaimRead(() =>
               instance('fitness_route_heatmap_pyramids')
                 .where('actorId', actorId)
                 .update({ status: 'failed' })
@@ -518,7 +504,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
                 cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' }
               })
 
-              const staged = stageOnClaimRead(instance, () =>
+              const staged = stageOnClaimRead(() =>
                 instance('fitness_route_heatmap_pyramids')
                   .where('actorId', actorId)
                   .update(
@@ -707,8 +693,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               updatedAt: new Date()
             })
           }
+          // Outside the claim's own async context, where the claim's
+          // connection is held: like a rival worker, the interference waits
+          // for the claim's transaction (for SQLite's one connection, or on
+          // PostgreSQL for the row lock the compare-and-swap holds).
           instance.on('query-response', (_response, query) => {
-            void swapTheRowOut(query)
+            void outsideDatabaseContext(() => swapTheRowOut(query))
           })
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({

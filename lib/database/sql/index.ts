@@ -39,6 +39,8 @@ import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
 import type { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { fitnessRouteHeatmapQueries } from '@/lib/database/domains/fitnessRouteHeatmap/queries'
 import type { FitnessRouteHeatmapDatabase } from '@/lib/database/domains/fitnessRouteHeatmap/types'
+import { fitnessRouteHeatmapTileQueries } from '@/lib/database/domains/fitnessRouteHeatmapTile/queries'
+import type { FitnessRouteHeatmapTileDatabase } from '@/lib/database/domains/fitnessRouteHeatmapTile/types'
 import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
 import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { followQueries } from '@/lib/database/domains/follow/queries'
@@ -126,7 +128,6 @@ import {
   kyselyFor
 } from '@/lib/database/kysely'
 import { deleteActorData } from '@/lib/database/sql/actor'
-import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
 import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { Database } from '@/lib/database/types'
@@ -177,8 +178,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     fitnessRouteHeatmapQueries
   )
-  const fitnessRouteHeatmapTileDatabase =
-    FitnessRouteHeatmapTileSQLDatabaseMixin(database)
+  const fitnessRouteHeatmapTileDatabase: FitnessRouteHeatmapTileDatabase =
+    bindDb(kysely, fitnessRouteHeatmapTileQueries)
   const fitnessSettingsDatabase: FitnessSettingsDatabase = bindDb(
     kysely,
     fitnessSettingsQueries
