@@ -313,8 +313,10 @@ const lockStatement = () => (isPostgres() ? `${LOCK} for update` : LOCK)
 
 // Every statement of `action` ran between one `begin` and its `commit`, on
 // that transaction's connection; returns them without the two.
-const expectOneTransaction = async (action: () => Promise<unknown>) => {
-  const { statements } = await captureStatements(action)
+const expectOneTransaction = async (action: () => Promise<unknown>) =>
+  expectOneTransactionOf((await captureStatements(action)).statements)
+
+const expectOneTransactionOf = (statements: CapturedStatement[]) => {
   const texts = statements.map((statement) => plain(statement.sql))
   expect(texts[0]).toBe('begin')
   expect(texts.at(-1)).toBe('commit')
@@ -1610,7 +1612,10 @@ describe('updateGalleryAlbum', () => {
     ).toEqual([lockStatement(), read])
   })
 
-  it('rolls back when its write fails', async () => {
+  // The update's only write is the one forced to fail, so the tables are
+  // unchanged with or without a transaction: this pins that the error
+  // propagates and nothing else changes, not a rollback.
+  it('passes on the error and changes nothing when its only write fails', async () => {
     const { owner, albumId } = await seedAlbumWithNeighbours()
     const drop = await failWrite(
       'gallery_albums',
@@ -2134,16 +2139,46 @@ describe('the actor row lock', () => {
         })
     }
 
-    const holder = await holdTransaction(lockActorRow(owner))
+    // Every statement the test sends, to tell the write's from the holder's
+    // and from the poll's.
+    const sent: CapturedStatement[] = []
+    const listener = (query: { sql: string; __knexUid?: string }) => {
+      sent.push({ sql: plain(query.sql), connection: query.__knexUid })
+    }
+    knex.on('query', listener)
     let operation: Promise<unknown> | undefined
     try {
-      operation = calls[method]()
-      const waiting = await untilWaiting(holder.pid, 1, [operation])
-      expect(waiting).toEqual([`${LOCK} for update`])
+      const holder = await holdTransaction(lockActorRow(owner))
+      const holderConnection = sent.find((statement) =>
+        statement.sql.startsWith('select pg_backend_pid()')
+      )?.connection
+      expect(holderConnection).toBeDefined()
+      const writes = () =>
+        sent.filter(
+          (statement) =>
+            statement.connection !== holderConnection &&
+            !statement.sql.includes('pg_stat_activity')
+        )
+      try {
+        operation = calls[method]()
+        const waiting = await untilWaiting(holder.pid, 1, [operation])
+        expect(waiting).toEqual([`${LOCK} for update`])
+        // Nothing ran before the lock, and the lock is inside the write's
+        // transaction.
+        expect(writes().map((statement) => statement.sql)).toEqual([
+          'begin',
+          `${LOCK} for update`
+        ])
+      } finally {
+        await holder.release()
+      }
+      await expect(operation).resolves.toBeDefined()
+      // The lock and the write share one transaction: a lock committed on its
+      // own would send the same first two statements.
+      expectOneTransactionOf(writes())
     } finally {
-      await holder.release()
+      knex.removeListener('query', listener)
     }
-    await expect(operation).resolves.toBeDefined()
   })
 
   it('lets two creates racing at the limit leave exactly `limit` albums', async () => {
@@ -2215,8 +2250,9 @@ describe('the actor row lock', () => {
   it('clears a cover set on the photo while the remove waits', async () => {
     if (!isPostgres()) return
     const { owner, albumId, publicA } = await seedAlbumWithNeighbours()
-    // The cover is set (and committed) while the remove waits for the lock;
-    // the remove reads the album after taking it, so it clears the cover.
+    // The cover is set before the remove starts and committed while it waits
+    // for the lock; the remove reads the album after taking it, so it clears
+    // the cover.
     const holder = await holdTransaction(async (trx) => {
       await lockActorRow(owner)(trx)
       await trx
@@ -2246,8 +2282,9 @@ describe('the actor row lock', () => {
   it('refuses a cover whose photo is removed while the update waits', async () => {
     if (!isPostgres()) return
     const { owner, albumId, publicA } = await seedAlbumWithNeighbours()
-    // The photo leaves the album (committed) while the update waits; the
-    // update checks the cover after taking the lock, so it refuses it.
+    // The photo leaves the album before the update starts and that is
+    // committed while it waits for the lock; the update checks the cover after
+    // taking the lock, so it refuses it.
     const holder = await holdTransaction(async (trx) => {
       await lockActorRow(owner)(trx)
       await trx
