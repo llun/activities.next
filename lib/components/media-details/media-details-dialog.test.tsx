@@ -163,6 +163,72 @@ describe('MediaDetailsDialog', () => {
     }
   })
 
+  it('turns on the single-item gallery switch and applies gallery to all items when the all-items gallery option is checked', async () => {
+    // Arrange
+    const { onClose } = renderDialog([makeItem('a'), makeItem('b')])
+    const gallerySwitch = screen.getByLabelText('Show in my gallery')
+    const allGalleryCheckbox = screen.getByLabelText(
+      'Show all 2 items in my gallery'
+    )
+    expect(gallerySwitch).not.toBeChecked()
+    expect(allGalleryCheckbox).not.toBeChecked()
+
+    // Act
+    fireEvent.click(allGalleryCheckbox)
+
+    // Assert
+    expect(gallerySwitch).toBeChecked()
+    expect(allGalleryCheckbox).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).toHaveBeenCalledTimes(2)
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('a', {
+      in_gallery: true
+    })
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('b', {
+      in_gallery: true
+    })
+  })
+
+  it('unchecks the all-items gallery option when the single-item gallery switch is toggled off', () => {
+    // Arrange
+    renderDialog([makeItem('a'), makeItem('b')])
+    const gallerySwitch = screen.getByLabelText('Show in my gallery')
+    const allGalleryCheckbox = screen.getByLabelText(
+      'Show all 2 items in my gallery'
+    )
+    fireEvent.click(allGalleryCheckbox)
+    expect(gallerySwitch).toBeChecked()
+    expect(allGalleryCheckbox).toBeChecked()
+
+    // Act
+    fireEvent.click(gallerySwitch)
+
+    // Assert
+    expect(gallerySwitch).not.toBeChecked()
+    expect(allGalleryCheckbox).not.toBeChecked()
+  })
+
+  it('leaves the single-item gallery switch checked when unchecking the all-items gallery option', () => {
+    // Arrange
+    renderDialog([makeItem('a'), makeItem('b')])
+    const gallerySwitch = screen.getByLabelText('Show in my gallery')
+    const allGalleryCheckbox = screen.getByLabelText(
+      'Show all 2 items in my gallery'
+    )
+    fireEvent.click(allGalleryCheckbox)
+    expect(gallerySwitch).toBeChecked()
+    expect(allGalleryCheckbox).toBeChecked()
+
+    // Act
+    fireEvent.click(allGalleryCheckbox)
+
+    // Assert
+    expect(allGalleryCheckbox).not.toBeChecked()
+    expect(gallerySwitch).toBeChecked()
+  })
+
   it('applies a gear choice to all items when asked', async () => {
     const { onClose } = renderDialog([makeItem('a'), makeItem('b')])
     await screen.findByRole('option', { name: 'Nikon Z9' })
