@@ -242,12 +242,6 @@ const getActorTimeline = async (
   if (maxStatusId && !maxRow) return []
   if (lowerBoundStatusId && !minRow) return []
 
-  // min_id scans ascending (oldest rows just newer than the cursor) so the
-  // keyset seek and limit land on the page adjacent to the cursor; the id
-  // list is reversed below to the newest-first response shape. Every other
-  // cursor kind (since_id / max_id / none) stays newest-first DESC. The
-  // filtered home/direct feed (getFilteredStatusPage) mirrors this: it
-  // backfills DESC for since/max and ascends for min_id.
   if (hasNullCreatedAt(maxRow, minRow)) return []
 
   let query = db
@@ -268,6 +262,12 @@ const getActorTimeline = async (
     query = query.where((eb) => pastStoredKeyset(eb, minRow, '>', 'id'))
   }
 
+  // min_id scans ascending (oldest rows just newer than the cursor) so the
+  // keyset seek and limit land on the page adjacent to the cursor; the id
+  // list is reversed below to the newest-first response shape. Every other
+  // cursor kind (since_id / max_id / none) stays newest-first DESC. The
+  // filtered home/direct feed (getFilteredStatusPage) mirrors this: it
+  // backfills DESC for since/max and ascends for min_id.
   const order = ascending ? 'asc' : 'desc'
   const rows = await query
     .orderBy('createdAt', order)

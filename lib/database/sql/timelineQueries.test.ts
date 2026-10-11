@@ -791,6 +791,55 @@ describe('the public feeds', () => {
     expect(statusCalls).toEqual([])
   })
 
+  // Knex compared a cursor status's NULL createdAt with operators
+  // (`createdAt < NULL`), so the page was empty. lookupStatusCursor returns
+  // the status id as the tie-breaker, so pastStoredKeyset's NULL arm
+  // (`createdAt IS NULL AND id < x`) would find the other NULL statuses
+  // instead; the feeds stop before it. Two NULL statuses that are in the
+  // feed, n1 below n2 by id, so that without that stop max_id = n2 would
+  // read n1, and min_id = n1 would read n2. The tests above use a NULL status
+  // outside the feed, which a missing stop changes only in whether an empty
+  // page is hydrated.
+  it.each([Timeline.LOCAL_PUBLIC, Timeline.FEDERATED_PUBLIC])(
+    'ends the %s feed at a feed status without createdAt',
+    async (timeline) => {
+      const author = actorIn('local.test', 'null-created')
+      await seedActor(author, 'key-null-created')
+      const ids: Record<string, string> = {}
+      for (const [key, digit, createdAt] of [
+        ['n1', 1, null],
+        ['n2', 2, null],
+        ['dated', 3, BASE]
+      ] as const) {
+        ids[key] = await seedStatus({
+          id: `https://local.test/n/${digit}`,
+          actorId: author,
+          createdAt
+        })
+        await db
+          .insertInto('federated_timeline')
+          .values({
+            statusId: ids[key],
+            statusActorId: author,
+            createdAt: new Date(BASE)
+          })
+          .execute()
+      }
+      for (const cursor of [
+        { maxStatusId: ids.n1 },
+        { maxStatusId: ids.n2 },
+        { minStatusId: ids.n1 },
+        { minStatusId: ids.n2 },
+        { minStatusId: ids.n1, maxStatusId: ids.n2 }
+      ]) {
+        expect(await read({ timeline, ...cursor })).toEqual([])
+      }
+      expect((await read({ timeline })).sort()).toEqual(
+        Object.values(ids).sort()
+      )
+    }
+  )
+
   it('appends a status to the federated timeline once', async () => {
     const author = actorIn('remote.test', 'first')
     for (const id of ['https://remote.test/f/x', 'https://remote.test/f/y']) {
