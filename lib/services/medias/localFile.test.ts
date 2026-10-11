@@ -9,8 +9,10 @@ import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { Actor } from '@/lib/types/domain/actor'
 
+import { createBrowserResizedJpeg } from './browserResizedJpeg.fixture'
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { MediaValidationError } from './errors'
+import { readMediaExif } from './exif/readMediaExif'
 import { LocalFileStorage } from './localFile'
 import { getQuotaLimit } from './quota'
 
@@ -329,6 +331,27 @@ describe('LocalFileStorage image output format', () => {
     const storedBytes = await fs.readFile(path.join(mediaRoot, storedPath))
     expect((await sharp(storedBytes).metadata()).exif).toBeUndefined()
     expect(storedBytes.includes('LeakyCam')).toBe(false)
+  })
+
+  it('strips the EXIF grafted into a browser-resized JPEG', async () => {
+    const jpeg = await createBrowserResizedJpeg()
+    expect((await sharp(jpeg).metadata()).exif).toBeDefined()
+    expect((await readMediaExif(Buffer.from(jpeg))).latitude).not.toBeNull()
+
+    await createStorage().saveFile(actor, {
+      file: new File([new Uint8Array(jpeg)], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+    })
+
+    const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
+      .path
+    const storedBytes = await fs.readFile(path.join(mediaRoot, storedPath))
+    expect((await sharp(storedBytes).metadata()).exif).toBeUndefined()
+    expect(storedBytes.includes('LeakyCam')).toBe(false)
+    const exif = await readMediaExif(storedBytes)
+    expect(exif.latitude).toBeNull()
+    expect(exif.longitude).toBeNull()
   })
 
   it('stores a photo edit render as webp with no EXIF and no media row', async () => {

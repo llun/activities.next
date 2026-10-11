@@ -164,6 +164,13 @@ const announceOriginalIsPublicNote = (database: Knex, table: string) =>
 // row to answer one page. Measured on the same seed, that turned 476 buffers
 // into 11,294 and 0.63ms into 82ms. The recursive CTE resists that rewrite,
 // which is the only reason this reads as one branch rather than two.
+//
+// The Kysely twin is publiclyReadableStatus
+// (lib/database/kysely/visibility/publiclyReadable.ts), which the local public
+// timeline and the public collection feed use; it has no MySQL branch.
+// publiclyReadableStatusEquivalence.test.ts runs it, this form and the set
+// form over the same rows, and statusReadableSql.test.ts pins its compiled
+// SQL: change them together.
 export const wherePubliclyReadableStatus = (
   query: Knex.QueryBuilder,
   database: Knex,

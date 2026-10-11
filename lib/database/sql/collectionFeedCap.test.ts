@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -22,10 +22,14 @@ vi.mock('@/lib/services/timelines/types', async (importOriginal) => ({
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
+  // On the backend TEST_DATABASE_TYPE names; `prepare` drops and recreates
+  // the PostgreSQL database, so each test starts empty.
+  const testDb = createTestDatabase()
+  const database = testDb.database
   try {
     // Inside the try so a migrate failure still runs destroy() and never leaks
     // the connection.
+    await testDb.prepare()
     await database.migrate()
     await test(database)
   } finally {

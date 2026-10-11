@@ -2,10 +2,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
-import {
-  getTestSQLDatabase,
-  getTestSQLDatabaseWithInstance
-} from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { ingestCollectionMemberJob } from '@/lib/jobs/ingestCollectionMemberJob'
 import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
 import { getFederationSigningActorId } from '@/lib/services/federation/instanceActor'
@@ -71,7 +68,8 @@ const noteStatus = (overrides: Partial<Status>): Status =>
   }) as Status
 
 describe('ingestCollectionMemberJob', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const testDb = createTestDatabase()
+  const { database, db } = testDb
   let signingActorId: string
 
   const runJob = (memberActorId: string) =>
@@ -82,6 +80,7 @@ describe('ingestCollectionMemberJob', () => {
     })
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
     // Bootstraps (and persists) the headless instance actor at TEST_DOMAIN.
@@ -96,9 +95,11 @@ describe('ingestCollectionMemberJob', () => {
 
   beforeEach(async () => {
     if (signingActorId) {
-      await instance('follows')
-        .where({ actorId: signingActorId, targetActorId: EXTERNAL_ACTOR1 })
-        .delete()
+      await db
+        .deleteFrom('follows')
+        .where('actorId', '=', signingActorId)
+        .where('targetActorId', '=', EXTERNAL_ACTOR1)
+        .execute()
     }
     mockFollow.mockReset().mockResolvedValue(true)
     mockGetActorPerson
@@ -141,10 +142,12 @@ describe('ingestCollectionMemberJob', () => {
       const backfilled = await database.getStatus({ statusId })
       expect(backfilled).toMatchObject({ id: statusId, text: 'hello world' })
     } finally {
-      await instance('follows')
-        .where({ actorId: signingActorId, targetActorId: EXTERNAL_ACTOR1 })
-        .delete()
-      await instance('statuses').where({ id: statusId }).delete()
+      await db
+        .deleteFrom('follows')
+        .where('actorId', '=', signingActorId)
+        .where('targetActorId', '=', EXTERNAL_ACTOR1)
+        .execute()
+      await db.deleteFrom('statuses').where('id', '=', statusId).execute()
     }
   })
 
@@ -176,12 +179,15 @@ describe('ingestCollectionMemberJob', () => {
         id: ownId
       })
     } finally {
-      await instance('follows')
-        .where({ actorId: signingActorId, targetActorId: EXTERNAL_ACTOR1 })
-        .delete()
-      await instance('statuses')
-        .whereIn('id', [forgedLocalId, foreignHostId, ownId])
-        .delete()
+      await db
+        .deleteFrom('follows')
+        .where('actorId', '=', signingActorId)
+        .where('targetActorId', '=', EXTERNAL_ACTOR1)
+        .execute()
+      await db
+        .deleteFrom('statuses')
+        .where('id', 'in', [forgedLocalId, foreignHostId, ownId])
+        .execute()
     }
   })
 
@@ -215,7 +221,11 @@ describe('ingestCollectionMemberJob', () => {
   })
 
   it('does not follow when there is no federation signing actor', async () => {
-    const freshDatabase = getTestSQLDatabase()
+    // Its own database (PostgreSQL's per-worker `_isolated` one), so
+    // `prepare()` does not drop the one the suite runs on.
+    const fresh = createTestDatabase({ isolated: true })
+    const freshDatabase = fresh.database
+    await fresh.prepare()
     await freshDatabase.migrate()
     await seedDatabase(freshDatabase)
     try {
@@ -238,7 +248,9 @@ describe('ingestCollectionMemberJob', () => {
   it("surfaces a backfilled note in the owner's collection feed", async () => {
     // Isolated DB so this test's follow/collection state can't collide with the
     // shared-DB cases above (an existing follow would short-circuit the job).
-    const freshDatabase = getTestSQLDatabase()
+    const fresh = createTestDatabase({ isolated: true })
+    const freshDatabase = fresh.database
+    await fresh.prepare()
     await freshDatabase.migrate()
     await seedDatabase(freshDatabase)
     try {
@@ -313,12 +325,11 @@ describe('ingestCollectionMemberJob', () => {
       expect(mockFollow).not.toHaveBeenCalled()
       expect(mockGetActorPosts).not.toHaveBeenCalled()
     } finally {
-      await instance('follows')
-        .where({
-          actorId: signingActorId,
-          targetActorId: EXTERNAL_ACTOR1
-        })
-        .delete()
+      await db
+        .deleteFrom('follows')
+        .where('actorId', '=', signingActorId)
+        .where('targetActorId', '=', EXTERNAL_ACTOR1)
+        .execute()
     }
   })
   // recordActorIfNeeded keys the row on the canonical id, so an alias listed
@@ -327,10 +338,11 @@ describe('ingestCollectionMemberJob', () => {
     const aliasId = `${EXTERNAL_ACTOR1}?alias`
 
     afterEach(async () => {
-      await instance('follows')
-        .where({ actorId: signingActorId })
-        .whereIn('targetActorId', [EXTERNAL_ACTOR1, aliasId])
-        .delete()
+      await db
+        .deleteFrom('follows')
+        .where('actorId', '=', signingActorId)
+        .where('targetActorId', 'in', [EXTERNAL_ACTOR1, aliasId])
+        .execute()
     })
 
     it('follows and fetches the recorded canonical id', async () => {
@@ -351,10 +363,12 @@ describe('ingestCollectionMemberJob', () => {
         })
       ).resolves.toMatchObject({ status: FollowStatus.enum.Requested })
       await expect(
-        instance('follows').where({
-          actorId: signingActorId,
-          targetActorId: aliasId
-        })
+        db
+          .selectFrom('follows')
+          .select('id')
+          .where('actorId', '=', signingActorId)
+          .where('targetActorId', '=', aliasId)
+          .execute()
       ).resolves.toHaveLength(0)
     })
 
@@ -372,9 +386,12 @@ describe('ingestCollectionMemberJob', () => {
       expect(mockFollow).not.toHaveBeenCalled()
       expect(mockGetActorPosts).not.toHaveBeenCalled()
       await expect(
-        instance('follows')
-          .where({ actorId: signingActorId })
-          .whereIn('targetActorId', [EXTERNAL_ACTOR1, aliasId])
+        db
+          .selectFrom('follows')
+          .select('id')
+          .where('actorId', '=', signingActorId)
+          .where('targetActorId', 'in', [EXTERNAL_ACTOR1, aliasId])
+          .execute()
       ).resolves.toHaveLength(1)
     })
   })

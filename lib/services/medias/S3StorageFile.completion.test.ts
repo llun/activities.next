@@ -21,6 +21,8 @@ import {
   createPresignedFixtures,
   readUploadBody
 } from '@/lib/services/medias/S3StorageFile.helpers'
+import { createBrowserResizedJpeg } from '@/lib/services/medias/browserResizedJpeg.fixture'
+import { readMediaExif } from '@/lib/services/medias/exif/readMediaExif'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMetaFromFile } from '@/lib/services/medias/extractVideoMeta'
 import { StreamByteLimitError } from '@/lib/utils/streamLimit'
@@ -327,6 +329,29 @@ describe('S3FileStorage presigned upload completion', () => {
       )
       // Only once the swap is committed does the unstripped object go.
       expect(deletedKeys).toEqual(['medias/2026-01-01/photo.jpg'])
+    })
+
+    it('stores a stripped copy of a browser-resized JPEG with grafted EXIF', async () => {
+      const original = Buffer.from(await createBrowserResizedJpeg())
+      expect((await readMediaExif(original)).latitude).not.toBeNull()
+
+      const puts = await completeUpload(original, 'image/jpeg', 'photo.jpg')
+
+      expect(puts).toHaveLength(1)
+      expect((await sharp(puts[0]).metadata()).exif).toBeUndefined()
+      expect(puts[0].includes('LeakyCam')).toBe(false)
+      const exif = await readMediaExif(puts[0])
+      expect(exif.latitude).toBeNull()
+      expect(exif.longitude).toBeNull()
+      // The server read the GPS from the original before stripping it.
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+        expect.objectContaining({
+          details: expect.objectContaining({
+            placeLatitude: expect.closeTo(52.5167, 3),
+            placeLongitude: expect.closeTo(13.4, 3)
+          })
+        })
+      )
     })
 
     it('keeps the upload pending and intact for a retry when verification fails', async () => {

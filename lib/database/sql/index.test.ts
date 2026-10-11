@@ -1,11 +1,12 @@
 import { Knex } from 'knex'
 
+import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
 import { createListQueries } from '@/lib/database/domains/list/queries'
+import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
 
 import { getSQLDatabase } from './index'
 import { MediaSQLDatabaseMixin } from './media'
 import { StatusSQLDatabaseMixin } from './status'
-import { TimelineSQLDatabaseMixin } from './timeline'
 
 const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
   kyselyForMock: vi.fn(),
@@ -21,12 +22,34 @@ vi.mock('@/lib/database/domains/like/queries', () => ({
   likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() }
 }))
 
-// The list factory runs for real; the spy records the status hydration the
-// facade injects into it.
+// The list, collection and timeline factories run for real; the spies record
+// the status hydration the facade injects into each.
 vi.mock('@/lib/database/domains/list/queries', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/database/domains/list/queries')>()
   return { ...original, createListQueries: vi.fn(original.createListQueries) }
+})
+
+vi.mock('@/lib/database/domains/collection/queries', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('@/lib/database/domains/collection/queries')
+    >()
+  return {
+    ...original,
+    createCollectionQueries: vi.fn(original.createCollectionQueries)
+  }
+})
+
+vi.mock('@/lib/database/domains/timeline/queries', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('@/lib/database/domains/timeline/queries')
+    >()
+  return {
+    ...original,
+    createTimelineQueries: vi.fn(original.createTimelineQueries)
+  }
 })
 
 vi.mock('@/lib/database/sql/media', () => ({
@@ -37,15 +60,12 @@ vi.mock('@/lib/database/sql/status', () => ({
   StatusSQLDatabaseMixin: vi.fn()
 }))
 
-vi.mock('@/lib/database/sql/timeline', () => ({
-  TimelineSQLDatabaseMixin: vi.fn()
-}))
-
 describe('getSQLDatabase', () => {
   const createListQueriesMock = vi.mocked(createListQueries)
+  const createCollectionQueriesMock = vi.mocked(createCollectionQueries)
+  const createTimelineQueriesMock = vi.mocked(createTimelineQueries)
   const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
-  const timelineMixinMock = TimelineSQLDatabaseMixin as unknown as jest.Mock
 
   let _knexMock: Knex
 
@@ -62,21 +82,18 @@ describe('getSQLDatabase', () => {
     } as unknown as Knex
 
     const mediaDatabase = {
-      createMedia: vi.fn()
+      createMedia: vi.fn(),
+      testPriority: 'media'
     }
     const statusDatabase = {
       getStatus: vi.fn(),
-      getStatusesByIds: vi.fn()
-    }
-    const timelineDatabase = {
-      getTimeline: vi.fn(),
-      testPriority: 'timeline'
+      getStatusesByIds: vi.fn(),
+      testPriority: 'status'
     }
 
     _knexMock = knexDatabase
     mediaMixinMock.mockReturnValue(mediaDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
-    timelineMixinMock.mockReturnValue(timelineDatabase)
 
     const database = getSQLDatabase(knexDatabase)
 
@@ -84,14 +101,12 @@ describe('getSQLDatabase', () => {
       database,
       knexDatabase,
       mediaDatabase,
-      statusDatabase,
-      timelineDatabase
+      statusDatabase
     }
   }
 
   it('wires mixin dependencies correctly', () => {
-    const { knexDatabase, mediaDatabase, statusDatabase } =
-      createComposedDatabase()
+    const { knexDatabase, mediaDatabase } = createComposedDatabase()
     // Actors are Kysely queries bound lazily to this Knex instance, plus the
     // row mapper and the Knex deleteActorData.
     const actorDatabase = expect.objectContaining({
@@ -135,21 +150,29 @@ describe('getSQLDatabase', () => {
         getStatusLinkPreviews: expect.any(Function)
       })
     )
-    expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
   })
 
-  it('hydrates the list timeline through the status facade', async () => {
-    const { statusDatabase } = createComposedDatabase()
-    const [getStatusesByIds] = createListQueriesMock.mock.calls[0]
-    const statuses = [{ id: 'status' }]
-    statusDatabase.getStatusesByIds.mockResolvedValue(statuses)
+  it.each([
+    { feed: 'list', factory: () => createListQueriesMock },
+    { feed: 'collection', factory: () => createCollectionQueriesMock },
+    { feed: 'timeline', factory: () => createTimelineQueriesMock }
+  ])(
+    'hydrates the $feed feeds through the status facade',
+    async ({ factory }) => {
+      const { statusDatabase } = createComposedDatabase()
+      const [getStatusesByIds] = factory().mock.calls[0]
+      const statuses = [{ id: 'status' }]
+      statusDatabase.getStatusesByIds.mockResolvedValue(statuses)
 
-    await expect(getStatusesByIds(['status'], 'viewer')).resolves.toBe(statuses)
-    expect(statusDatabase.getStatusesByIds).toHaveBeenCalledWith({
-      statusIds: ['status'],
-      currentActorId: 'viewer'
-    })
-  })
+      await expect(getStatusesByIds(['status'], 'viewer')).resolves.toBe(
+        statuses
+      )
+      expect(statusDatabase.getStatusesByIds).toHaveBeenCalledWith({
+        statusIds: ['status'],
+        currentActorId: 'viewer'
+      })
+    }
+  )
 
   it('binds like queries to kyselyFor(knex), resolved on each call', async () => {
     const { database, knexDatabase } = createComposedDatabase()
@@ -165,10 +188,31 @@ describe('getSQLDatabase', () => {
     expect(createLikeMock).toHaveBeenCalledWith(kyselyDb, params)
   })
 
-  it('merges properties with later mixins taking precedence', () => {
+  it('merges properties with later mixins taking precedence', async () => {
+    // The status facade is spread after the media one.
     const { database } = createComposedDatabase()
     const merged = database as unknown as Record<string, string>
-    expect(merged.testPriority).toBe('timeline')
+    expect(merged.testPriority).toBe('status')
+
+    // The timeline queries are the last spread: a property they define wins
+    // over the status facade's, and is bound to the Kysely instance of this
+    // Knex one.
+    const kyselyDb = { name: 'kysely' }
+    kyselyForMock.mockReturnValue(kyselyDb)
+    const testPriority = vi.fn().mockResolvedValue('timeline')
+    createTimelineQueriesMock.mockReturnValueOnce({
+      testPriority
+    } as unknown as ReturnType<typeof createTimelineQueries>)
+    const { database: withTimeline, knexDatabase } = createComposedDatabase()
+    const mergedWithTimeline = withTimeline as unknown as Record<
+      string,
+      (...args: unknown[]) => Promise<string>
+    >
+    await expect(mergedWithTimeline.testPriority('arg')).resolves.toBe(
+      'timeline'
+    )
+    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
+    expect(testPriority).toHaveBeenCalledWith(kyselyDb, 'arg')
   })
 
   it('proxies migrate and destroy to knex lifecycle methods', async () => {

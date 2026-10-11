@@ -3,6 +3,27 @@
  */
 import { resizeImage } from './resizeImage'
 
+// A valid little-endian Exif APP1 with Orientation 6.
+const exifJpegBytes = () => {
+  const tiff = [
+    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x12, 0x01,
+    0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00
+  ]
+  const payload = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff]
+  const length = payload.length + 2
+  return new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xe1,
+    length >> 8,
+    length & 0xff,
+    ...payload,
+    0xff,
+    0xd9
+  ])
+}
+
 type FakeContext = { drawImage: ReturnType<typeof vi.fn> }
 
 describe('resizeImage', () => {
@@ -225,5 +246,81 @@ describe('resizeImage', () => {
     )
 
     await expect(resizeImage(jpeg(), 4000, 4000)).rejects.toBe(failure)
+  })
+
+  describe('keepMetadata', () => {
+    const resizedJpeg = () =>
+      new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], {
+        type: 'image/jpeg'
+      })
+    const bytesOf = async (file: File) =>
+      Array.from(new Uint8Array(await file.arrayBuffer()))
+
+    it('grafts the source Exif (orientation reset) into the resized JPEG', async () => {
+      decoded = { width: 8000, height: 6000 }
+      toBlobResult = resizedJpeg()
+      const source = new File([exifJpegBytes()], 'p.jpg', {
+        type: 'image/jpeg'
+      })
+
+      const resized = await resizeImage(source, 4000, 4000, {
+        keepMetadata: true
+      })
+
+      const bytes = await bytesOf(resized)
+      expect(bytes.slice(0, 4)).toEqual([0xff, 0xd8, 0xff, 0xe1])
+      expect(bytes.slice(-2)).toEqual([0xff, 0xd9])
+      // Orientation value (offset: SOI 2 + marker/len 4 + Exif\0\0 6 + 8 + 2 + 8).
+      expect(bytes[2 + 4 + 6 + 8 + 2 + 8]).toBe(1)
+      expect(resized.type).toBe('image/jpeg')
+    })
+
+    it('is unchanged without the option', async () => {
+      decoded = { width: 8000, height: 6000 }
+      toBlobResult = resizedJpeg()
+      const source = new File([exifJpegBytes()], 'p.jpg', {
+        type: 'image/jpeg'
+      })
+
+      const resized = await resizeImage(source, 4000, 4000)
+
+      expect(await bytesOf(resized)).toEqual([0xff, 0xd8, 0xff, 0xd9])
+    })
+
+    it('returns the resized blob as is when the source has no Exif', async () => {
+      decoded = { width: 8000, height: 6000 }
+      toBlobResult = resizedJpeg()
+
+      const resized = await resizeImage(jpeg(), 4000, 4000, {
+        keepMetadata: true
+      })
+
+      expect(await bytesOf(resized)).toEqual([0xff, 0xd8, 0xff, 0xd9])
+    })
+
+    it('returns the resized blob as is when the canvas output is not a JPEG', async () => {
+      decoded = { width: 8000, height: 6000 }
+      toBlobResult = new Blob(['resized-bytes'], { type: 'image/jpeg' })
+      const source = new File([exifJpegBytes()], 'p.jpg', {
+        type: 'image/jpeg'
+      })
+
+      const resized = await resizeImage(source, 4000, 4000, {
+        keepMetadata: true
+      })
+
+      expect(await resized.text()).toBe('resized-bytes')
+    })
+
+    it('does not graft into a PNG', async () => {
+      decoded = { width: 8000, height: 6000 }
+      const file = new File(['png-bytes'], 'shot.png', { type: 'image/png' })
+
+      const resized = await resizeImage(file, 4000, 4000, {
+        keepMetadata: true
+      })
+
+      expect(await resized.text()).toBe('resized-bytes')
+    })
   })
 })

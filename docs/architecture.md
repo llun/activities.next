@@ -468,6 +468,14 @@ Settings/Account avatar and header pickers actually use. The only cap there is
 the browser-side canvas resize in `lib/utils/resizeImage.ts`, which a
 non-browser API client never runs.
 
+`canvas.toBlob` drops all EXIF, so the composer and Add to gallery call
+`resizeImage` with `{ keepMetadata: true }`: for a JPEG that actually gets
+resized, the original's Exif APP1 segment is grafted into the resized bytes
+(`lib/utils/jpegExif.ts`) with Orientation reset to 1, because the canvas is
+already upright and the server applies EXIF orientation again. The server can
+therefore still read the taken date, gear and GPS of a 12 MP phone photo.
+Avatars and headers (`ImageUploadField`) do not keep it.
+
 Images written by the server-side route before the cap became downscale-only
 were enlarged on disk to fill the box. The `medias` row was not:
 `original.metaData` and `original.bytes` are read from the uploaded file, so
