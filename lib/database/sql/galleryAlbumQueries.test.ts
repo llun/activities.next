@@ -990,13 +990,23 @@ describe('album reads', () => {
         audience: PUBLIC
       })
     ).toEqual([])
-    expect(
-      await database.getAlbumsForMedia({
-        mediaId: 'not-an-id',
-        actorId: owner,
-        audience: OWNER
-      })
-    ).toEqual([])
+    // Neither a visitor nor an id that is no media id sends a statement.
+    const { result: notAnId, statements } = await captureStatements(
+      async () => [
+        await database.getAlbumsForMedia({
+          mediaId: 'not-an-id',
+          actorId: owner,
+          audience: OWNER
+        }),
+        await database.getAlbumsForMedia({
+          mediaId: String(photo),
+          actorId: owner,
+          audience: PUBLIC
+        })
+      ]
+    )
+    expect(notAnId).toEqual([[], []])
+    expect(statements).toEqual([])
   })
 })
 
@@ -1355,6 +1365,21 @@ describe('createGalleryAlbumWithinLimit', () => {
       'select count(*) as "total" from "gallery_albums" where "actorId" = ? limit ?',
       expect.stringMatching(/^insert into "gallery_albums" /)
     ])
+    // An empty list of first photos is no list: nothing is read for it.
+    expect(
+      await expectOneTransaction(() =>
+        database.createGalleryAlbumWithinLimit({
+          actorId: owner,
+          title: 'No photos',
+          limit: 10,
+          mediaIds: []
+        })
+      )
+    ).toEqual([
+      lockStatement(),
+      'select count(*) as "total" from "gallery_albums" where "actorId" = ? limit ?',
+      expect.stringMatching(/^insert into "gallery_albums" /)
+    ])
 
     const statements = await expectOneTransaction(() =>
       database.createGalleryAlbumWithinLimit({
@@ -1563,6 +1588,26 @@ describe('updateGalleryAlbum', () => {
       'update "gallery_albums" set "coverMediaId" = ?, "updatedAt" = ? where "id" = ? and "actorId" = ?',
       read
     ])
+    // A cover that is no media id is refused without a read, and a missing
+    // album stops at the read.
+    expect(
+      await expectOneTransaction(() =>
+        database.updateGalleryAlbum({
+          id: albumId,
+          actorId: owner,
+          coverMediaId: 'not-an-id'
+        })
+      )
+    ).toEqual([lockStatement(), read])
+    expect(
+      await expectOneTransaction(() =>
+        database.updateGalleryAlbum({
+          id: 'missing-album',
+          actorId: owner,
+          title: 'Never'
+        })
+      )
+    ).toEqual([lockStatement(), read])
   })
 
   it('rolls back when its write fails', async () => {
@@ -1905,6 +1950,21 @@ describe('removeGalleryAlbumItems', () => {
         mediaIds: ['999999', 'nope']
       })
     ).toEqual({ status: 'removed', removed: [] })
+    // A chunk with nothing to remove sends no delete, and nothing removed
+    // leaves the album's updatedAt alone.
+    expect(
+      await expectOneTransaction(() =>
+        database.removeGalleryAlbumItems({
+          albumId,
+          actorId: owner,
+          mediaIds: ['999999']
+        })
+      )
+    ).toEqual([
+      lockStatement(),
+      'select * from "gallery_albums" where "id" = ? and "actorId" = ? limit ?',
+      'select "mediaId" from "gallery_album_items" where "albumId" = ? and "mediaId" in (?)'
+    ])
     expect(
       await database.removeGalleryAlbumItems({
         albumId,
