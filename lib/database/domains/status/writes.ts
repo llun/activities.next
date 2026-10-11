@@ -73,7 +73,7 @@ export const resolveParentStatusIdByReply = async (
 // `lastStatusAt`, the local post total and bucket for a local author, the
 // boosted status's reblog total and the parent's reply total. Deletion moves
 // them back with its own batched adjustments (still the Knex mixin).
-const incrementStatusCounters = async (
+const updateStatusCounters = async (
   trx: Db,
   {
     actorId,
@@ -270,7 +270,7 @@ export const createNoteWithResult = async (
             updatedAt: statusUpdatedAt
           })
           .execute()
-        await incrementStatusCounters(trx, {
+        await updateStatusCounters(trx, {
           actorId,
           type: StatusType.enum.Note,
           reply,
@@ -390,7 +390,7 @@ export const createAnnounce = async (
             updatedAt: statusUpdatedAt
           })
           .execute()
-        await incrementStatusCounters(trx, {
+        await updateStatusCounters(trx, {
           actorId,
           type: StatusType.enum.Announce,
           reply: '',
@@ -504,7 +504,7 @@ export const createPollWithResult = async (
             updatedAt: statusUpdatedAt
           })
           .execute()
-        await incrementStatusCounters(trx, {
+        await updateStatusCounters(trx, {
           actorId,
           type: StatusType.enum.Poll,
           reply,

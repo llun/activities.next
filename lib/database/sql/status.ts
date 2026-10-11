@@ -1296,10 +1296,11 @@ export const StatusSQLDatabaseMixin = (
         .whereIn('id', actorIdChunk)
         .update({
           // Direct statuses never advanced `lastStatusAt` on create (see
-          // `updateStatusCounters`), so they must not set it here either —
-          // deleting the newest public post would otherwise reveal the date of
-          // a later direct message. "Not direct" is `getVisibility`'s rule:
-          // addressed to the public collection or to a followers collection.
+          // `updateStatusCounters` in `lib/database/domains/status/writes.ts`),
+          // so they must not set it here either — deleting the newest public
+          // post would otherwise reveal the date of a later direct message.
+          // "Not direct" is `getVisibility`'s rule: addressed to the public
+          // collection or to a followers collection.
           lastStatusAt: trx('statuses')
             .max('createdAt')
             .where('statuses.actorId', trx.ref('actors.id'))
