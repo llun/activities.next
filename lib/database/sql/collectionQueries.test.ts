@@ -649,14 +649,20 @@ describe('addCollectionMembers', () => {
     ])
     expect(await feedOf(collection)).toHaveLength(2)
 
-    // A re-add backfills under t1's seq in THIS collection, though a later
-    // collection holds t1 under a seq above every other on both backends.
+    // A re-add backfills only the re-added member, under its seq in THIS
+    // collection, though a later collection holds t1 under a seq above every
+    // other on both backends.
     const later = await seedCollection({ id: `${prefix}-y`, owner: other })
     await seedMember({ collectionSeq: later, targetActorId: t1, seq: 2 ** 40 })
     const p3 = await seedStatus({
       id: `${t1}/statuses/3`,
       actorId: t1,
       createdAt: BASE + 4000
+    })
+    await seedStatus({
+      id: `${t2}/statuses/2`,
+      actorId: t2,
+      createdAt: BASE + 5000
     })
     expect(
       await addCollectionMembers(db, {
@@ -1656,6 +1662,8 @@ describe('collection feed', () => {
       actorId: a,
       createdAt: null
     })
+    // Stored nowhere.
+    statuses.missing = `${a}/statuses/missing`
     return { prefix, owner, statuses }
   }
 
@@ -1703,7 +1711,9 @@ describe('collection feed', () => {
     { cursor: { minStatusId: 'elsewhere' }, limit: 40, expected: [] },
     // Without a createdAt, as if it were 0.
     { cursor: { maxStatusId: 'undated' }, limit: 40, expected: [] },
-    { cursor: { minStatusId: 'undated' }, limit: 40, expected: OWNER_ORDER }
+    { cursor: { minStatusId: 'undated' }, limit: 40, expected: OWNER_ORDER },
+    { cursor: { maxStatusId: 'missing' }, limit: 40, expected: [] },
+    { cursor: { minStatusId: 'missing' }, limit: 40, expected: [] }
   ])(
     'reads the owner projection with $cursor and limit $limit',
     async ({ cursor, limit, expected }) => {
