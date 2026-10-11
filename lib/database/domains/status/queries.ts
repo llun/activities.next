@@ -78,13 +78,15 @@ import type { Db } from '@/lib/database/kysely'
 // The methods that return hydrated statuses read or write their rows here and
 // hydrate them through `hydration`, the Knex mixin's getStatus,
 // getStatusesByIds and row hydration, injected until hydration is ported.
-// Nothing here calls hydration inside a transaction: the edits read the status
-// they rewrite before theirs, and every write returns its status hydrated
-// after it (a create that lost a race on the status id, after its failed
-// transaction). The mixin's own hydration calls getTags,
-// getActorAnnouncedStatusId, hasActorVoted and getActorPollVotes from this
-// domain, through the root Kysely instance and never inside a Knex
-// transaction.
+// Nothing here calls hydration inside a transaction: updateNote and
+// updateNoteVisibility read the status they rewrite before theirs, every edit
+// returns its status hydrated after it, createAnnounce reads the boosted status
+// before and after its own, and a create that lost a race on the status id
+// hydrates the winner after its failed transaction (the other creates build the
+// status they return from what they wrote, as before). The mixin's own
+// hydration calls getTags, getActorAnnouncedStatusId, hasActorVoted and
+// getActorPollVotes from this domain, through the root Kysely instance and
+// never inside a Knex transaction.
 export const createStatusQueries = (hydration: StatusHydration) => ({
   getStatusFromUrl: (db: Db, params: GetStatusFromUrlParams) =>
     getStatusFromUrl(db, hydration, params),

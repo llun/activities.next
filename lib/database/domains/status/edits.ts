@@ -27,11 +27,13 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 // The status edits: a note's text and media, a note's audience, a poll's
-// content, options and tallies, and a status's quote-approval policy. The
-// edits that keep a revision write it to `status_history` in the same
-// transaction as the change. Each reads the status it edits before its
-// transaction and returns it re-read after, both through the Knex mixin's
-// hydration; search is reindexed after the transaction too.
+// content, options and tallies, and a status's quote-approval policy. The edits
+// that keep a revision write it to `status_history` in the same transaction as
+// the change. updateNote and updateNoteVisibility read the status they edit
+// through the Knex mixin's hydration before their transaction (updatePoll and
+// updateStatusQuoteApprovalPolicy read its row here), and each edit returns it
+// re-read through that hydration after. The three that open a transaction
+// reindex search after it.
 
 const isReplaceableMediaAttachment = (
   attachment: Attachment
