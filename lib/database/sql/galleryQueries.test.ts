@@ -2309,3 +2309,195 @@ describe('undefined and null keys', () => {
     }
   )
 })
+
+// What the Kysely driver does differently from Knex, as the gallery reads and
+// writes meet it: the three differences the part 23 description lists.
+describe('driver differences', () => {
+  const EPOCH_0 = new Date(0)
+
+  // The reads that return whole media rows, with the media they answer for the
+  // owner. A media in the gallery without an attachment is shown bare to its
+  // owner, and an unattached one is what getUnattachedMedia reads.
+  const readMedia = async (actorId: string, mediaId: number) => {
+    const audience = OWNER_GALLERY_AUDIENCE
+    const id = String(mediaId)
+    const listed = (
+      await database.getGalleryMedia({ actorId, audience, limit: 20 })
+    ).find((row) => row.media.id === id)
+    const byIds = (
+      await database.getGalleryMediaByIds({ actorId, audience, mediaIds: [id] })
+    ).find((row) => row.media.id === id)
+    const unattached = (
+      await database.getUnattachedMedia({ actorId, mediaIds: [id] })
+    ).find((media) => media.id === id)
+    // Each read answers with the media, so the null times below are the
+    // parser's doing and not a missing row.
+    if (!listed || !byIds || !unattached) {
+      throw new Error(`A whole-row media read dropped media ${id}`)
+    }
+    return { listed: listed.media, byIds: byIds.media, unattached }
+  }
+
+  it('reads epoch-0 media times as absent, and keeps 0 in the index rows', async () => {
+    const actorId = await newActor()
+    const ids = mediaIds()
+    const times = {
+      takenAt: EPOCH_0,
+      editedAt: EPOCH_0,
+      subjectLookupAt: EPOCH_0,
+      placeLookupAt: EPOCH_0
+    }
+    // The same columns with ordinary times, so the reads below are shown to
+    // return a time when there is one.
+    const realTimes = {
+      takenAt: at('2026-01-02'),
+      editedAt: at('2026-01-03'),
+      subjectLookupAt: at('2026-01-04'),
+      placeLookupAt: at('2026-01-05')
+    }
+    const epoch = await seedMedia(ids(1), actorId, {
+      ...times,
+      galleryAddedAt: at('2026-01-02')
+    })
+    const real = await seedMedia(ids(2), actorId, {
+      ...realTimes,
+      galleryAddedAt: at('2026-01-02')
+    })
+
+    const read = await readMedia(actorId, epoch)
+    for (const media of Object.values(read)) {
+      expect(media.details?.takenAt).toBeNull()
+      expect(media.details?.subjectLookupAt).toBeNull()
+      expect(media.details?.placeLookupAt).toBeNull()
+      expect(media.edit?.editedAt).toBeNull()
+    }
+
+    const control = await readMedia(actorId, real)
+    for (const media of Object.values(control)) {
+      expect(media.details?.takenAt).toBe(realTimes.takenAt.getTime())
+      expect(media.details?.subjectLookupAt).toBe(
+        realTimes.subjectLookupAt.getTime()
+      )
+      expect(media.details?.placeLookupAt).toBe(
+        realTimes.placeLookupAt.getTime()
+      )
+      expect(media.edit?.editedAt).toBe(realTimes.editedAt.getTime())
+    }
+
+    // The index rows go through parseNullableTime, which keeps 0.
+    const index = await database.getGalleryMediaIndex({
+      actorId,
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 20
+    })
+    expect(index.map((row) => [row.id, row.takenAt])).toEqual([
+      [String(real), realTimes.takenAt.getTime()],
+      [String(epoch), 0]
+    ])
+  })
+
+  // PostgreSQL only: SQLite has no int8 parsing, and reads the number it
+  // stored (a JS number cannot hold the value in the first place).
+  it.skipIf(!isPostgres())(
+    'throws the driver’s RangeError for a byte count above 2^53 - 1 in the whole-row media reads only',
+    async () => {
+      for (const column of ['originalBytes', 'thumbnailBytes'] as const) {
+        const actorId = await newActor()
+        const gearId = await seedGear(actorId)
+        const mediaId = await seedMedia(mediaIds()(1), actorId, {
+          // As text, so the literal reaches the column intact.
+          [column]: sql<number>`9007199254740993`,
+          thumbnail: `medias/${column}.thumb.jpg`,
+          galleryAddedAt: at('2026-01-02'),
+          cameraGearId: gearId,
+          placeLatitude: 13.75,
+          placeLongitude: 100.5,
+          placePrecision: 'exact'
+        })
+        const audience = OWNER_GALLERY_AUDIENCE
+        const params = { actorId, audience }
+
+        await expect(
+          database.getGalleryMedia({ ...params, limit: 20 })
+        ).rejects.toThrow(RangeError)
+        await expect(
+          database.getGalleryMediaByIds({
+            ...params,
+            mediaIds: [String(mediaId)]
+          })
+        ).rejects.toThrow(RangeError)
+        await expect(
+          database.getUnattachedMedia({ actorId, mediaIds: [String(mediaId)] })
+        ).rejects.toThrow(RangeError)
+
+        // The reads that select no byte count are unchanged.
+        expect(
+          (await database.getGalleryMediaIndex({ ...params, limit: 20 })).map(
+            (row) => row.id
+          )
+        ).toEqual([String(mediaId)])
+        expect(
+          (await database.getGalleryMapRows({ ...params, limit: 20 })).map(
+            (row) => row.id
+          )
+        ).toEqual([String(mediaId)])
+        expect(
+          (
+            await database.getGalleryGearUsageRows({
+              actorId,
+              gearIds: [gearId]
+            })
+          ).map((row) => row.mediaId)
+        ).toEqual([String(mediaId)])
+      }
+    }
+  )
+
+  // The driver's own message, without Knex's "insert into ... - " prefix. The
+  // patterns are anchored, so a prefixed message does not match.
+  const DRIVER_MESSAGE = isPostgres()
+    ? /^insert or update on table "gallery_gears" violates foreign key constraint "gallery_gears_actorid_foreign"$/
+    : /^FOREIGN KEY constraint failed$/
+
+  const messageOf = async (action: Promise<unknown>) => {
+    try {
+      await action
+    } catch (error) {
+      return (error as Error).message
+    }
+    throw new Error('Expected the call to reject')
+  }
+
+  it('database errors carry the driver’s message, without a statement prefix', async () => {
+    const nobody = `https://${DOMAIN}/users/nobody-${Date.now()}`
+
+    const created = await messageOf(
+      database.createGalleryGear({
+        actorId: nobody,
+        kind: 'camera',
+        name: 'Orphan'
+      })
+    )
+    const createdWithinLimit = await messageOf(
+      database.createGalleryGearWithinLimit({
+        actorId: nobody,
+        kind: 'camera',
+        name: 'Orphan',
+        limit: 10,
+        dedupeByName: true
+      })
+    )
+
+    expect(created).toMatch(DRIVER_MESSAGE)
+    expect(createdWithinLimit).toMatch(DRIVER_MESSAGE)
+    // What Knex wrote in front of the driver's message.
+    for (const message of [created, createdWithinLimit]) {
+      expect(message).not.toContain('insert into')
+      expect(message).not.toContain(' - ')
+    }
+    // The anchored patterns reject a prefixed message.
+    expect(
+      `insert into "gallery_gears" (...) values (...) - ${created}`
+    ).not.toMatch(DRIVER_MESSAGE)
+  })
+})
