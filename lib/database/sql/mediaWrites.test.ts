@@ -310,7 +310,7 @@ const expectRolledBack = async (
 type CapturedStatement = { sql: string; connection?: string }
 
 // The statements `action` sends, as Knex's `query` event reports them (Kysely
-// statements emit it too), with the Knex transaction each ran in.
+// statements emit it too), with the connection each ran on.
 const captureStatements = async <T>(action: () => Promise<T>) => {
   const statements: CapturedStatement[] = []
   const listener = (query: { sql: string; __knexUid?: string }) => {
