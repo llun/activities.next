@@ -1,7 +1,7 @@
 import { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
@@ -148,10 +148,12 @@ describe('runBackfill', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     // The real `medias` table, from the same schema dump the app migrates
-    // with, so a renamed column breaks this test too.
-    const { database: sqlDatabase, instance } = getTestSQLDatabaseWithInstance()
+    // with, so a renamed column breaks this test too. Honours
+    // TEST_DATABASE_TYPE, so it runs on PostgreSQL in CI.
+    const { database: sqlDatabase, knex, prepare } = createTestDatabase()
     realDatabase = sqlDatabase
-    testDb = instance
+    testDb = knex
+    await prepare()
     await realDatabase.migrate()
     await testDb('medias').insert([
       // 1: GPS, never looked up

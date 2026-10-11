@@ -1,4 +1,4 @@
-import type { GalleryIndexRow } from '@/lib/database/sql/galleryMedia'
+import type { GalleryIndexRow } from '@/lib/database/domains/gallery/types'
 import {
   PublicPlaceSettings,
   getPublicPlace

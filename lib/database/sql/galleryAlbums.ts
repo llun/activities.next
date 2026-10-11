@@ -1,24 +1,27 @@
 import crypto from 'crypto'
 import { Knex } from 'knex'
 
-import { lockGalleryAlbumActor } from '@/lib/database/domains/media/galleryAlbumCleanup'
-import { toMediaRowId } from '@/lib/database/domains/media/rows'
-import { kyselyFor } from '@/lib/database/kysely'
+import { getGalleryMediaByIds } from '@/lib/database/domains/gallery/media'
 import {
   GALLERY_INDEX_COLUMNS,
-  GalleryIndexRow,
-  GalleryMediaRow,
-  GalleryMediaSQLDatabaseMixin,
-  buildGalleryMediaScope,
   normalizeLimit,
   parseNullableTime,
   toGalleryIndexRow
-} from '@/lib/database/sql/galleryMedia'
+} from '@/lib/database/domains/gallery/rows'
+import type {
+  GalleryIndexRow,
+  GalleryMediaRow
+} from '@/lib/database/domains/gallery/types'
+import { lockGalleryAlbumActor } from '@/lib/database/domains/media/galleryAlbumCleanup'
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
+import { kyselyFor } from '@/lib/database/kysely'
+import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
   getInsertBatchSize,
-  getWhereInBatchSize
+  getWhereInBatchSize,
+  isSQLiteClient
 } from '@/lib/database/sql/utils/knex'
 import {
   type GalleryAudience,
@@ -38,8 +41,9 @@ import {
 
 // Albums: owner-curated groups of the owner's own gallery media. An album item
 // says nothing about who may see the photo. Every read of items goes through
-// `buildGalleryMediaScope` with a REQUIRED `GalleryAudience`, the one place
-// that decides what "visible gallery media" means, so an album never shows a
+// `buildGalleryMediaScope` (below) with a REQUIRED `GalleryAudience`, the Knex
+// twin of `galleryMediaScope`, which decides what "visible gallery media" means
+// for every other gallery read, so an album never shows a
 // photo outside the viewer's gallery scope, and every count, date range, cover
 // and preview below is computed from the VISIBLE items only.
 //
@@ -55,8 +59,101 @@ const ALBUMS = 'gallery_albums'
 const ITEMS = 'gallery_album_items'
 
 // Bindings a scoped query spends beyond its `whereIn` list, as in
-// `galleryMedia.ts`: generous, so SQLite's 999-variable cap is never hit.
+// `domains/gallery/media.ts`: generous, so SQLite's 999-variable cap is never
+// hit.
 const RESERVED_BINDINGS = 64
+
+// The gallery scope for the album reads: the Knex twin of `galleryMediaScope`
+// (lib/database/kysely/visibility/galleryMedia.ts, which explains the scope),
+// with that helper's default options only: no `show`, and `inGallery`
+// required. It stays here until these album reads move to Kysely;
+// galleryMediaEquivalence.test.ts runs both over the same rows, for every
+// audience. Change both together.
+const SCOPE_ATTACHMENTS = 'gallery_attachments'
+const SCOPE_STATUSES = 'gallery_statuses'
+
+// The status ids of `actorId` the audience may read, or `null` for the owner's
+// unfiltered view. Fails closed: only `kind: 'owner'` is unfiltered, and a
+// viewer whose flags are all falsy is coerced to `publicOnly`.
+const buildGalleryVisibleStatusIds = (
+  database: Knex,
+  actorId: string,
+  audience: GalleryAudience
+): Knex.QueryBuilder | null => {
+  if (audience?.kind === 'owner') return null
+
+  const viewer = audience?.kind === 'viewer' ? audience : null
+  const scoped = buildActorVisibleStatusIdsQuery({
+    database,
+    actorId,
+    publicOnly: viewer?.publicOnly === true,
+    visibleToActorId: viewer?.visibleToActorId ?? null,
+    includeFollowersOnly: viewer?.includeFollowersOnly === true,
+    followersAudience: viewer?.followersAudience ?? null
+  })
+  if (scoped) return scoped
+
+  const publicOnly = buildActorVisibleStatusIdsQuery({
+    database,
+    actorId,
+    publicOnly: true
+  })
+  if (!publicOnly) {
+    throw new Error('Gallery visibility subquery is unexpectedly unfiltered')
+  }
+  return publicOnly
+}
+
+// `attachments.mediaId` is varchar on SQLite: compared with the TEXT form of
+// `medias.id` there so `attachments_mediaId_idx` stays usable.
+const mediaIdRef = (database: Knex) =>
+  isSQLiteClient(database)
+    ? database.raw('CAST(?? AS TEXT)', ['medias.id'])
+    : database.ref('medias.id')
+
+export const buildGalleryMediaScope = (
+  database: Knex,
+  actorId: string,
+  audience: GalleryAudience
+) => {
+  const isOwner = audience?.kind === 'owner'
+  return (query: Knex.QueryBuilder): Knex.QueryBuilder => {
+    query.where('medias.actorId', actorId).where('medias.inGallery', true)
+
+    // An attachment the owner wrote on a status of their own the audience may
+    // read. The join to `statuses` drops one whose status row is gone.
+    const posted = database(`attachments as ${SCOPE_ATTACHMENTS}`)
+      .select(database.raw('1'))
+      .where(`${SCOPE_ATTACHMENTS}.mediaId`, mediaIdRef(database))
+      .innerJoin(
+        `statuses as ${SCOPE_STATUSES}`,
+        `${SCOPE_STATUSES}.id`,
+        `${SCOPE_ATTACHMENTS}.statusId`
+      )
+      .where(`${SCOPE_ATTACHMENTS}.actorId`, actorId)
+      .where(`${SCOPE_STATUSES}.actorId`, actorId)
+      .whereNotNull(`${SCOPE_ATTACHMENTS}.statusId`)
+      .where(`${SCOPE_ATTACHMENTS}.statusId`, '<>', '')
+    const visibleStatusIds = buildGalleryVisibleStatusIds(
+      database,
+      actorId,
+      audience
+    )
+    if (visibleStatusIds) {
+      posted.whereIn(`${SCOPE_ATTACHMENTS}.statusId`, visibleStatusIds)
+    }
+
+    if (!isOwner) {
+      query.whereExists(posted)
+    } else {
+      // Posted, or kept in Gallery without a post.
+      query.where((builder) =>
+        builder.whereExists(posted).orWhereNotNull('medias.galleryAddedAt')
+      )
+    }
+    return query
+  }
+}
 
 // The columns the "places hidden" count reads: the subject (for the
 // threatened-species rule) and the place.
@@ -415,8 +512,6 @@ const compareItems = (
 export const GalleryAlbumSQLDatabaseMixin = (
   database: Knex
 ): GalleryAlbumDatabase => {
-  const galleryMedia = GalleryMediaSQLDatabaseMixin(database)
-
   const readAlbum = async (
     id: string,
     actorId: string,
@@ -941,7 +1036,8 @@ export const GalleryAlbumSQLDatabaseMixin = (
       ).slice(0, size)
       if (page.length === 0) return []
 
-      const full = await galleryMedia.getGalleryMediaByIds({
+      // The Kysely gallery read, outside any transaction.
+      const full = await getGalleryMediaByIds(kyselyFor(database), {
         actorId,
         audience,
         mediaIds: page.map((item) => String(item.mediaId))

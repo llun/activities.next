@@ -2,7 +2,7 @@ import { getConfig } from '@/lib/config'
 import type {
   GalleryMapRow,
   GalleryMediaRow
-} from '@/lib/database/sql/galleryMedia'
+} from '@/lib/database/domains/gallery/types'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import {
   GalleryItemEntity,

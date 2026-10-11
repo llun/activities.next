@@ -1,7 +1,7 @@
 import type {
   GalleryMapRow,
   GalleryMediaRow
-} from '@/lib/database/sql/galleryMedia'
+} from '@/lib/database/domains/gallery/types'
 import {
   OWNER_GALLERY_AUDIENCE,
   PUBLIC_GALLERY_AUDIENCE

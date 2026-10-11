@@ -2,7 +2,7 @@ import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import type {
   GalleryIndexRow,
   GalleryMediaRow
-} from '@/lib/database/sql/galleryMedia'
+} from '@/lib/database/domains/gallery/types'
 import { Database } from '@/lib/database/types'
 import {
   type GalleryAudience,

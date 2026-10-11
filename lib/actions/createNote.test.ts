@@ -40,6 +40,7 @@ describe('Create note action', () => {
     database,
     actors,
     mockSendNotificationAlerts,
+    settleNotificationAlerts,
     clearSettledNotificationAlerts
   } = useCreateNoteFixtures()
   let actor1: Actor
@@ -147,7 +148,7 @@ describe('Create note action', () => {
       })) as StatusNote
       expect(hydrated.quote?.state).toBe('accepted')
 
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await settleNotificationAlerts()
       expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: actor1.id,
@@ -306,7 +307,7 @@ describe('Create note action', () => {
           replyNoteId: originalStatus.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -346,7 +347,7 @@ describe('Create note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -387,7 +388,7 @@ describe('Create note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -428,7 +429,7 @@ describe('Create note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -468,7 +469,7 @@ describe('Create note action', () => {
         replyNoteId: originalStatus.id,
         database
       })) as StatusNote
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await settleNotificationAlerts()
 
       const notifications = await database.getNotifications({
         actorId: actor2.id,
@@ -517,7 +518,7 @@ describe('Create note action', () => {
           replyNoteId: originalStatus.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
