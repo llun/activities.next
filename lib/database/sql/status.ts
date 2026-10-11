@@ -12,6 +12,16 @@ import {
   type StatusSearchRow,
   deleteStatusSearchDocumentsByStatusIds
 } from '@/lib/database/domains/search/statuses'
+import { getTags } from '@/lib/database/domains/status/hashtags'
+import { getActorAnnouncedStatusId } from '@/lib/database/domains/status/lookups'
+import {
+  getActorPollVotes,
+  hasActorVoted
+} from '@/lib/database/domains/status/polls'
+import type {
+  StatusHydration,
+  StatusLookupDatabase
+} from '@/lib/database/domains/status/types'
 import { kyselyFor } from '@/lib/database/kysely'
 import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
@@ -24,7 +34,6 @@ import {
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
-import { decodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
@@ -32,12 +41,7 @@ import {
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
-import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
-import {
-  resolveIdsByPublicIds,
-  resolvePublicIdsByIds
-} from '@/lib/database/sql/utils/publicIdLookup'
 import {
   announceOriginalPointer,
   wherePubliclyReadableStatus
@@ -74,35 +78,16 @@ import {
   DeleteStatusParams,
   DeleteStatusTagsByTypeParams,
   DeleteStatusWithQueueJobParams,
-  FavouritedByAccount,
-  GetActorPollVotesForStatusesParams,
-  GetActorPollVotesParams,
-  GetActorStatusFromPathSegmentParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
-  GetFavouritedByParams,
-  GetHashtagStatusesPageParams,
-  GetPinnedStatusIdsParams,
-  GetRebloggedByParams,
   GetStatusCountsParams,
   GetStatusEditHistoryParams,
-  GetStatusFromPublicIdParams,
-  GetStatusFromUrlHashParams,
-  GetStatusFromUrlParams,
-  GetStatusIdByPublicIdParams,
-  GetStatusIdsByPublicIdsParams,
   GetStatusParams,
-  GetStatusPublicIdsParams,
   GetStatusReblogsCountParams,
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
-  GetStatusesByHashtagParams,
   GetStatusesByIdsParams,
-  GetTagsParams,
-  HasActorAnnouncedStatusParams,
-  HasActorVotedParams,
   IncrementPollChoiceVotesParams,
-  PinStatusParams,
   RecordPollVotesParams,
   StatusDatabase,
   StatusDetectedLanguageDatabase,
@@ -129,16 +114,11 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { normalizeActorId } from '@/lib/utils/activitypub'
-import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
-import {
-  generatePublicId,
-  isPublicId,
-  toPublicIdLookupKey
-} from '@/lib/utils/publicId'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
@@ -207,6 +187,9 @@ type StatusHydrationContext = {
   reactionRollups?: Map<string, StatusReaction[]>
 }
 
+// The Kysely twin is publiclyReadableStatusIds
+// (lib/database/kysely/visibility/publiclyReadable.ts), which getRebloggedBy
+// uses; publiclyReadableStatusEquivalence.test.ts runs both over the same rows.
 export const buildPubliclyReadableStatusIdsQuery = ({
   database,
   targetStatusIds
@@ -351,6 +334,17 @@ export const buildActorVisibleStatusIdsQuery = ({
     .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
 }
 
+// The status methods still on Knex (the writes, hydration, the actor and reply
+// feeds, the counts and deletion), plus the row hydration the Kysely status
+// queries (lib/database/domains/status/queries.ts) read through. getSQLDatabase
+// spreads the methods into the facade beside the Kysely ones and hands
+// hydrateStatusRow to those queries only.
+export type StatusKnexDatabase = Omit<
+  StatusDatabase,
+  keyof StatusLookupDatabase
+> &
+  Pick<StatusHydration, 'hydrateStatusRow'>
+
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -360,7 +354,7 @@ export const StatusSQLDatabaseMixin = (
   statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase,
   statusReactionDatabase: StatusReactionDatabase,
   linkPreviewDatabase: LinkPreviewDatabase
-): StatusDatabase => {
+): StatusKnexDatabase => {
   // The stored row carries fetch bookkeeping (status, error, hashes) the UI has
   // no use for; the domain object gets only what a card renders. Only completed
   // cards reach here, so a missing title would be a bug rather than a state —
@@ -1678,22 +1672,6 @@ export const StatusSQLDatabaseMixin = (
     return statusesWithAttachments
   }
 
-  async function getActorAnnounceStatus({
-    actorId,
-    statusId
-  }: HasActorAnnouncedStatusParams): Promise<Status | null> {
-    if (!actorId) return null
-
-    const data = await database('statuses')
-      .where('type', StatusType.enum.Announce)
-      .where('originalStatusId', statusId)
-      .where('actorId', actorId)
-      .first()
-
-    if (!data) return null
-    return getStatusWithAttachmentsFromData(data)
-  }
-
   async function getActorStatusesCount({
     actorId,
     publicOnly = false
@@ -1709,7 +1687,8 @@ export const StatusSQLDatabaseMixin = (
       // already decided.
       //
       // One of the two readability call sites that keep the set-based form
-      // (`getRebloggedBy` is the other, for a different reason recorded there).
+      // (`getRebloggedBy` in lib/database/domains/status/interactions.ts is the
+      // other, for a different reason recorded there).
       // The correlated `wherePubliclyReadableStatus` costs one recursive-CTE
       // instantiation per Announce row — a LIMIT amortises that to a page, and
       // a COUNT over the actor's whole history cannot amortise it at all. On
@@ -1933,86 +1912,6 @@ export const StatusSQLDatabaseMixin = (
       )
     ).filter((status): status is Status => status !== null)
     return statusesWithAttachments
-  }
-
-  async function pinStatus({
-    actorId,
-    statusId,
-    maxPinnedStatuses
-  }: PinStatusParams) {
-    const currentTime = new Date()
-    return database.transaction(async (trx) => {
-      if (maxPinnedStatuses !== undefined) {
-        await trx('actors').where({ id: actorId }).select('id').forUpdate()
-
-        const existingPin = await trx('status_pins')
-          .where({ actorId, statusId })
-          .first<{ statusId: string }>('statusId')
-        if (existingPin) return true
-
-        const [{ count }] = await trx('status_pins')
-          .where({ actorId })
-          .count<{ count: string | number }[]>({ count: '*' })
-        if (Number(count) >= maxPinnedStatuses) return false
-      }
-
-      await trx('status_pins')
-        .insert({
-          actorId,
-          statusId,
-          createdAt: currentTime,
-          updatedAt: currentTime
-        })
-        .onConflict(['actorId', 'statusId'])
-        .ignore()
-      return true
-    })
-  }
-
-  async function unpinStatus({ actorId, statusId }: PinStatusParams) {
-    await database('status_pins').where({ actorId, statusId }).delete()
-  }
-
-  async function getPinnedStatusIds({
-    actorId,
-    statusIds
-  }: GetPinnedStatusIdsParams) {
-    if (statusIds && statusIds.length === 0) return []
-
-    if (statusIds) {
-      const uniqueStatusIds = [...new Set(statusIds)]
-      const rows: { statusId: string; createdAt: Date | string | number }[] = []
-      for (const statusIdChunk of chunkArray(
-        uniqueStatusIds,
-        getWhereInBatchSize(database, 1)
-      )) {
-        const chunkRows = await database('status_pins')
-          .where({ actorId })
-          .whereIn('statusId', statusIdChunk)
-          .select<{ statusId: string; createdAt: Date | string | number }[]>(
-            'statusId',
-            'createdAt'
-          )
-        rows.push(...chunkRows)
-      }
-
-      return rows
-        .sort((a, b) => {
-          const timeA = new Date(a.createdAt).getTime()
-          const timeB = new Date(b.createdAt).getTime()
-          if (timeA !== timeB) return timeB - timeA
-          return b.statusId.localeCompare(a.statusId)
-        })
-        .map((row) => row.statusId)
-    }
-
-    let query = database('status_pins').where({ actorId })
-
-    const rows = await query
-      .select<{ statusId: string }[]>('statusId')
-      .orderBy('createdAt', 'desc')
-      .orderBy('statusId', 'desc')
-    return rows.map((row) => row.statusId)
   }
 
   async function getStatusesByIds({
@@ -2883,238 +2782,6 @@ export const StatusSQLDatabaseMixin = (
     return true
   }
 
-  async function getFavouritedBy({
-    statusId,
-    limit,
-    maxId,
-    minId,
-    sinceId
-  }: GetFavouritedByParams): Promise<FavouritedByAccount[]> {
-    const olderCursorToken = maxId
-    const newerCursorToken = minId || sinceId
-
-    // Reject malformed cursors with an empty page instead of scanning from the
-    // top, matching the favourites/bookmarks pagination contract.
-    if (
-      (olderCursorToken && !decodeFavouritedByCursor(olderCursorToken)) ||
-      (newerCursorToken && !decodeFavouritedByCursor(newerCursorToken))
-    ) {
-      return []
-    }
-
-    const applyCursor = (
-      builder: Knex.QueryBuilder,
-      cursor: { createdAt: number; actorId: string },
-      direction: 'newer' | 'older'
-    ) => {
-      const operator = direction === 'older' ? '<' : '>'
-      const createdAtValue = new Date(cursor.createdAt)
-      builder.andWhere((inner) => {
-        inner
-          .where('createdAt', operator, createdAtValue)
-          .orWhere((tieBreaker) => {
-            tieBreaker
-              .where('createdAt', createdAtValue)
-              .andWhere('actorId', operator, cursor.actorId)
-          })
-      })
-    }
-
-    const query = database('likes').where({ statusId }).limit(limit)
-
-    const olderCursor = decodeFavouritedByCursor(olderCursorToken)
-    if (olderCursor) applyCursor(query, olderCursor, 'older')
-
-    const newerCursor = decodeFavouritedByCursor(newerCursorToken)
-    if (newerCursor) applyCursor(query, newerCursor, 'newer')
-
-    if (minId) {
-      query.orderBy('createdAt', 'asc').orderBy('actorId', 'asc')
-    } else {
-      query.orderBy('createdAt', 'desc').orderBy('actorId', 'desc')
-    }
-
-    const rows = await query
-    const ordered = minId ? rows.reverse() : rows
-    return ordered.map((row) => ({
-      actorId: row.actorId,
-      createdAt: getCompatibleTime(row.createdAt)
-    }))
-  }
-
-  async function getRebloggedBy({
-    statusId,
-    limit,
-    maxStatusId,
-    minStatusId,
-    sinceStatusId,
-    visibleToActorId
-  }: GetRebloggedByParams) {
-    const reblogBase = database('statuses')
-      .where('type', StatusType.enum.Announce)
-      .where((builder) => {
-        builder.where('originalStatusId', statusId).orWhere((legacyBuilder) => {
-          legacyBuilder.whereNull('originalStatusId').where('content', statusId)
-        })
-      })
-    let visibleReblogsQuery = reblogBase
-      .clone()
-      .select('statuses.id', 'statuses.actorId', 'statuses.createdAt')
-
-    if (visibleToActorId) {
-      visibleReblogsQuery = applyPotentiallyReadableStatusFilter({
-        query: visibleReblogsQuery,
-        visibleToActorId
-      })
-    } else {
-      // The set-based readability form, for the same reason
-      // `getActorStatusesCount` uses it — but far more sharply here.
-      // `visibleReblogsQuery` is embedded TWICE below: once as the
-      // `visible_reblogs` FROM subquery and again inside the correlated
-      // `whereNotExists` that keeps only each actor's newest reblog. A
-      // correlated readability predicate is therefore re-evaluated per row
-      // PAIR, instantiating one recursive CTE each time, while a materialised
-      // id set is computed once and reused by both copies.
-      //
-      // The rows it would be evaluated over are not this status's reblogs
-      // either. `reblogBase`'s legacy `originalStatusId IS NULL` branch has no
-      // index to narrow it — `statuses_announce_original_actor_idx` covers
-      // `(type, "originalStatusId", "actorId")` and nothing indexes `content` —
-      // so every pre-backfill Announce in the instance is a candidate row the
-      // planner must filter, and the correlated cost tracks instance-wide
-      // legacy Announce volume rather than this status. The final result set is
-      // unaffected; only the work to reach it.
-      //
-      // Measured on the production-shaped PostgreSQL 18 seed: 49,474 buffers /
-      // 33ms set-based against 11,383 / 415ms correlated — four times fewer
-      // buffers and twelve times the wall clock. Shipped correlated on this
-      // branch and caught in review; `publiclyReadableStatusQueryShape.test.ts`
-      // pins it now.
-      visibleReblogsQuery = visibleReblogsQuery.whereIn(
-        'statuses.id',
-        buildPubliclyReadableStatusIdsQuery({
-          database,
-          targetStatusIds: reblogBase.clone().select('id')
-        })
-      )
-    }
-
-    const dedupedReblogsQuery = database
-      .select<{ id: string; actorId: string; createdAt: Date }[]>(
-        'visible_reblogs.id',
-        'visible_reblogs.actorId',
-        'visible_reblogs.createdAt'
-      )
-      .from(visibleReblogsQuery.clone().as('visible_reblogs'))
-      .whereNotExists(function () {
-        this.select(database.raw('1'))
-          .from(visibleReblogsQuery.clone().as('newer_reblogs'))
-          .whereRaw('?? = ??', [
-            'newer_reblogs.actorId',
-            'visible_reblogs.actorId'
-          ])
-          .where((builder) => {
-            builder
-              .whereRaw('?? > ??', [
-                'newer_reblogs.createdAt',
-                'visible_reblogs.createdAt'
-              ])
-              .orWhere((sameTimestampBuilder) => {
-                sameTimestampBuilder
-                  .whereRaw('?? = ??', [
-                    'newer_reblogs.createdAt',
-                    'visible_reblogs.createdAt'
-                  ])
-                  .whereRaw('?? > ??', [
-                    'newer_reblogs.id',
-                    'visible_reblogs.id'
-                  ])
-              })
-          })
-      })
-
-    const [maxCursor, minCursor, sinceCursor] = await Promise.all([
-      maxStatusId
-        ? visibleReblogsQuery.clone().where('statuses.id', maxStatusId).first<{
-            id: string
-            createdAt: Date
-          }>('statuses.id', 'statuses.createdAt')
-        : null,
-      minStatusId
-        ? visibleReblogsQuery.clone().where('statuses.id', minStatusId).first<{
-            id: string
-            createdAt: Date
-          }>('statuses.id', 'statuses.createdAt')
-        : null,
-      sinceStatusId
-        ? visibleReblogsQuery
-            .clone()
-            .where('statuses.id', sinceStatusId)
-            .first<{
-              id: string
-              createdAt: Date
-            }>('statuses.id', 'statuses.createdAt')
-        : null
-    ])
-    if (maxStatusId && !maxCursor) return []
-    if (minStatusId && !minCursor) return []
-    if (sinceStatusId && !sinceCursor) return []
-
-    let query = dedupedReblogsQuery.clone()
-    if (minStatusId) {
-      query = query.orderBy('createdAt', 'asc').orderBy('id', 'asc')
-    } else {
-      query = query.orderBy('createdAt', 'desc').orderBy('id', 'desc')
-    }
-
-    if (maxCursor) {
-      query = query.where((builder) => {
-        builder
-          .where('createdAt', '<', maxCursor.createdAt)
-          .orWhere((sameTimestampBuilder) => {
-            sameTimestampBuilder
-              .where('createdAt', maxCursor.createdAt)
-              .where('id', '<', maxCursor.id)
-          })
-      })
-    }
-
-    if (minCursor) {
-      query = query.where((builder) => {
-        builder
-          .where('createdAt', '>', minCursor.createdAt)
-          .orWhere((sameTimestampBuilder) => {
-            sameTimestampBuilder
-              .where('createdAt', minCursor.createdAt)
-              .where('id', '>', minCursor.id)
-          })
-      })
-    }
-
-    if (sinceCursor) {
-      query = query.where((builder) => {
-        builder
-          .where('createdAt', '>', sinceCursor.createdAt)
-          .orWhere((sameTimestampBuilder) => {
-            sameTimestampBuilder
-              .where('createdAt', sinceCursor.createdAt)
-              .where('id', '>', sinceCursor.id)
-          })
-      })
-    }
-
-    if (typeof limit === 'number') {
-      query = query.limit(limit)
-    }
-
-    const result = await query
-    const ordered = minStatusId ? result.reverse() : result
-    return ordered.map((item) => ({
-      actorId: item.actorId,
-      statusId: item.id
-    }))
-  }
-
   async function createTag({
     statusId,
     name,
@@ -3151,193 +2818,11 @@ export const StatusSQLDatabaseMixin = (
     return data
   }
 
-  async function getTags({ statusId }: GetTagsParams) {
-    const data = await database<Tag>('tags').where('statusId', statusId)
-    return data.map((item) =>
-      Tag.parse({
-        ...item,
-        createdAt: getCompatibleTime(item.createdAt),
-        updatedAt: getCompatibleTime(item.updatedAt)
-      })
-    )
-  }
-
   async function deleteStatusTagsByType({
     statusId,
     type
   }: DeleteStatusTagsByTypeParams) {
     await database('tags').where({ statusId, type }).delete()
-  }
-
-  async function getStatusesByHashtag({
-    hashtag,
-    currentActorId,
-    limit = PER_PAGE_LIMIT,
-    minStatusId,
-    maxStatusId,
-    onlyMedia = false,
-    local = false,
-    remote = false,
-    anyTags = [],
-    allTags = [],
-    noneTags = []
-  }: GetStatusesByHashtagParams): Promise<Status[]> {
-    // `any[]` widens the primary tag match: a status qualifies when it carries
-    // the main hashtag OR any of the additional tags (Mastodon semantics).
-    const normalizedNames = [hashtag, ...anyTags].flatMap(
-      getHashtagStorageNames
-    )
-    let query = database('tags')
-      .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-      .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-      .where('tags.type', 'hashtag')
-      .whereIn('tags.nameNormalized', normalizedNames)
-      .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-      .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-      .select('statuses.id', 'statuses.createdAt')
-      .distinct()
-      .orderBy('statuses.createdAt', 'desc')
-      .orderBy('statuses.id', 'desc')
-      .limit(limit)
-
-    // `all[]`: every additional tag must also be present on the status.
-    for (const tag of allTags) {
-      const lookupNames = getHashtagStorageNames(tag)
-      if (lookupNames.length === 0) {
-        query = query.whereRaw('1 = 0')
-        continue
-      }
-      query = query.whereExists(function () {
-        this.select(database.raw('1'))
-          .from('tags as all_tags')
-          .whereRaw('?? = ??', ['all_tags.statusId', 'statuses.id'])
-          .where('all_tags.type', 'hashtag')
-          .whereIn('all_tags.nameNormalized', lookupNames)
-      })
-    }
-
-    // `none[]`: statuses carrying any of these tags are excluded.
-    const noneLookupNames = noneTags.flatMap(getHashtagStorageNames)
-    if (noneLookupNames.length > 0) {
-      query = query.whereNotExists(function () {
-        this.select(database.raw('1'))
-          .from('tags as none_tags')
-          .whereRaw('?? = ??', ['none_tags.statusId', 'statuses.id'])
-          .where('none_tags.type', 'hashtag')
-          .whereIn('none_tags.nameNormalized', noneLookupNames)
-      })
-    }
-
-    if (onlyMedia) {
-      query = query.whereExists(function () {
-        this.select(database.raw('1'))
-          .from('attachments')
-          .whereRaw('?? = ??', ['attachments.statusId', 'statuses.id'])
-      })
-    }
-
-    // Mastodon `local`/`remote` scope. A status is local when its author is an
-    // actor this server hosts (privateKey set), mirroring the LOCAL_PUBLIC
-    // timeline selection; remote is the complement (including statuses whose
-    // author has no actors row at all).
-    if (local && !remote) {
-      query = query.whereExists(function () {
-        this.select(database.raw('1'))
-          .from('actors')
-          .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
-          .modify(whereLocalActor, 'actors.privateKey')
-      })
-    } else if (remote && !local) {
-      query = query.whereNotExists(function () {
-        this.select(database.raw('1'))
-          .from('actors')
-          .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
-          .modify(whereLocalActor, 'actors.privateKey')
-      })
-    }
-
-    if (maxStatusId) {
-      const cursor = await database('statuses')
-        .where('id', maxStatusId)
-        .select('createdAt')
-        .first<{ createdAt: Date }>()
-      // An unresolvable cursor yields no page, matching the repo-wide keyset
-      // convention (bookmark/block/follow/mute/scheduledStatus) rather than
-      // silently falling back to the first page.
-      if (!cursor) return []
-      query = query.where((wb) => {
-        wb.where('statuses.createdAt', '<', cursor.createdAt).orWhere((wb2) => {
-          wb2
-            .where('statuses.createdAt', '=', cursor.createdAt)
-            .where('statuses.id', '<', maxStatusId)
-        })
-      })
-    }
-
-    if (minStatusId) {
-      const cursor = await database('statuses')
-        .where('id', minStatusId)
-        .select('createdAt')
-        .first<{ createdAt: Date }>()
-      if (!cursor) return []
-      query = query.where((wb) => {
-        wb.where('statuses.createdAt', '>', cursor.createdAt).orWhere((wb2) => {
-          wb2
-            .where('statuses.createdAt', '=', cursor.createdAt)
-            .where('statuses.id', '>', minStatusId)
-        })
-      })
-    }
-
-    const rows = await query
-    const statusIds = rows.map((row: { id: string }) => row.id)
-    if (statusIds.length === 0) return []
-    return getStatusesByIds({ statusIds, currentActorId })
-  }
-
-  async function getHashtagCounter({
-    hashtag
-  }: {
-    hashtag: string
-  }): Promise<number> {
-    const tagName = normalizeHashtagSearchName(hashtag)
-    return getCounterValue(database, CounterKey.totalHashtag(tagName))
-  }
-
-  async function getHashtagStatusesPage({
-    hashtag,
-    limit,
-    offset
-  }: GetHashtagStatusesPageParams) {
-    const normalizedNames = getHashtagStorageNames(hashtag)
-    const baseQuery = () =>
-      database('tags')
-        .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-        .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
-        .where('tags.type', 'hashtag')
-        .whereIn('tags.nameNormalized', normalizedNames)
-        .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-        .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
-
-    const [rows, countResult] = await Promise.all([
-      baseQuery()
-        .distinct('statuses.id', 'statuses.createdAt')
-        .orderBy('statuses.createdAt', 'desc')
-        .orderBy('statuses.id', 'desc')
-        .limit(limit)
-        .offset(offset),
-      baseQuery()
-        .countDistinct<{ count: string }>({ count: 'statuses.id' })
-        .first()
-    ])
-
-    const statusIds = (rows as { id: string }[]).map((row) => row.id)
-    const statuses =
-      statusIds.length > 0 ? await getStatusesByIds({ statusIds }) : []
-    return {
-      statuses,
-      total: parseInt(String(countResult?.count ?? '0'), 10)
-    }
   }
 
   async function increaseHashtagCounter({
@@ -3439,7 +2924,7 @@ export const StatusSQLDatabaseMixin = (
       reactions
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
-      getTags({ statusId: data.id }),
+      getTags(kyselyFor(database), { statusId: data.id }),
       withReplies
         ? database('statuses')
             .select('id')
@@ -3469,7 +2954,7 @@ export const StatusSQLDatabaseMixin = (
       currentActorId
         ? hydrationContext.announcedStatusIds
           ? (hydrationContext.announcedStatusIds.get(data.id) ?? null)
-          : getActorAnnouncedStatusId({
+          : getActorAnnouncedStatusId(kyselyFor(database), {
               originalStatusId: data.id,
               actorId: currentActorId
             })
@@ -3751,10 +3236,16 @@ export const StatusSQLDatabaseMixin = (
       const [votersCount, voted, ownVotes] = await Promise.all([
         getPollVotersCount(data.id),
         currentActorId
-          ? hasActorVoted({ statusId: data.id, actorId: currentActorId })
+          ? hasActorVoted(kyselyFor(database), {
+              statusId: data.id,
+              actorId: currentActorId
+            })
           : false,
         currentActorId
-          ? getActorPollVotes({ statusId: data.id, actorId: currentActorId })
+          ? getActorPollVotes(kyselyFor(database), {
+              statusId: data.id,
+              actorId: currentActorId
+            })
           : []
       ])
       return StatusPoll.parse({
@@ -3954,54 +3445,6 @@ export const StatusSQLDatabaseMixin = (
     })
   }
 
-  async function hasActorVoted({
-    statusId,
-    actorId
-  }: HasActorVotedParams): Promise<boolean> {
-    const result = await database('poll_answers')
-      .where({ statusId, actorId })
-      .first()
-    return Boolean(result)
-  }
-
-  async function getActorPollVotes({
-    statusId,
-    actorId
-  }: GetActorPollVotesParams): Promise<number[]> {
-    const results = await database('poll_answers')
-      .where({ statusId, actorId })
-      .select('choice')
-    return results.map((r) => r.choice)
-  }
-
-  async function getActorPollVotesForStatuses({
-    statusIds,
-    actorId
-  }: GetActorPollVotesForStatusesParams): Promise<Record<string, number[]>> {
-    const uniqueStatusIds = [...new Set(statusIds)]
-    const votesByStatusId = Object.fromEntries(
-      uniqueStatusIds.map((statusId) => [statusId, []])
-    ) as Record<string, number[]>
-
-    for (const statusIdChunk of chunkArray(
-      uniqueStatusIds,
-      getWhereInBatchSize(database, 1)
-    )) {
-      const results = await database('poll_answers')
-        .where('actorId', actorId)
-        .whereIn('statusId', statusIdChunk)
-        .select<{ statusId: string; choice: number }[]>('statusId', 'choice')
-        .orderBy('statusId', 'asc')
-        .orderBy('choice', 'asc')
-
-      for (const result of results) {
-        votesByStatusId[result.statusId]?.push(Number(result.choice))
-      }
-    }
-
-    return votesByStatusId
-  }
-
   async function incrementPollChoiceVotes({
     statusId,
     choiceIndex
@@ -4016,131 +3459,6 @@ export const StatusSQLDatabaseMixin = (
     await database('poll_choices')
       .where({ statusId, choiceId: choice.choiceId })
       .increment('totalVotes', 1)
-  }
-
-  async function getStatusFromUrl({
-    url,
-    currentActorId
-  }: GetStatusFromUrlParams) {
-    const status = await database('statuses')
-      .where('urlHash', getStatusUrlHash(url))
-      .andWhere('url', url)
-      .first<{ id: string }>('id')
-
-    if (status?.id) {
-      return getStatus({ statusId: status.id, currentActorId })
-    }
-
-    return null
-  }
-
-  async function getStatusFromUrlHash({
-    urlHash,
-    actorId,
-    currentActorId
-  }: GetStatusFromUrlHashParams) {
-    const query = database('statuses').where('urlHash', urlHash)
-    if (actorId) {
-      query.andWhere('actorId', actorId)
-    }
-
-    const status = await query.first()
-    if (!status) return null
-
-    return getStatusWithAttachmentsFromData(status, currentActorId)
-  }
-
-  // The lookup parameter is normalized here, at the single choke point every
-  // resolution site goes through, rather than in each caller — see
-  // toPublicIdLookupKey.
-  async function getStatusIdByPublicId({
-    publicId
-  }: GetStatusIdByPublicIdParams) {
-    const row = await database('statuses')
-      .where('publicId', toPublicIdLookupKey(publicId))
-      .first<{ id: string }>('id')
-    return row?.id ?? null
-  }
-
-  // Batch counterpart of getStatusIdByPublicId, so a request carrying an array
-  // of ids costs one query instead of one per id. The returned map is keyed by
-  // the publicIds as REQUESTED, so callers can zip it back against their input.
-  async function getStatusIdsByPublicIds({
-    publicIds
-  }: GetStatusIdsByPublicIdsParams) {
-    return resolveIdsByPublicIds({
-      publicIds,
-      batchSize: getWhereInBatchSize(database),
-      selectChunk: (lookupKeys) =>
-        database('statuses')
-          .whereIn('publicId', lookupKeys)
-          .select('id', 'publicId')
-    })
-  }
-
-  async function getStatusFromPublicId({
-    publicId,
-    currentActorId
-  }: GetStatusFromPublicIdParams) {
-    const status = await database('statuses')
-      .where('publicId', toPublicIdLookupKey(publicId))
-      .first()
-    if (!status) return null
-    return getStatusWithAttachmentsFromData(status, currentActorId)
-  }
-
-  async function getStatusPublicIds({ statusIds }: GetStatusPublicIdsParams) {
-    return resolvePublicIdsByIds({
-      ids: statusIds,
-      batchSize: getWhereInBatchSize(database),
-      selectChunk: (ids) =>
-        database('statuses')
-          .whereIn('id', ids)
-          .whereNotNull('publicId')
-          .select<{ id: string; publicId: string }[]>('id', 'publicId')
-    })
-  }
-
-  async function getActorStatusFromPathSegment({
-    actorId,
-    pathSegment,
-    withReplies
-  }: GetActorStatusFromPathSegmentParams) {
-    const status = await getStatus({
-      statusId: getLocalStatusId({ actorId, statusId: pathSegment }),
-      withReplies
-    })
-    if (status) return status
-    if (!isPublicId(pathSegment)) return null
-
-    const uriFromPublicId = await getStatusIdByPublicId({
-      publicId: pathSegment
-    })
-    if (!uriFromPublicId) return null
-
-    const candidate = await getStatus({
-      statusId: uriFromPublicId,
-      withReplies
-    })
-    // Serve only this actor's own statuses — a publicId belonging to another
-    // actor must not resolve under this actor's URL space.
-    if (candidate?.actorId !== actorId) return null
-    return candidate
-  }
-
-  async function getActorAnnouncedStatusId({
-    actorId,
-    originalStatusId
-  }: {
-    actorId: string
-    originalStatusId: string
-  }) {
-    const result = await database('statuses')
-      .where('type', StatusType.enum.Announce)
-      .where('originalStatusId', originalStatusId)
-      .where('actorId', actorId)
-      .first<{ id: string }>('id')
-    return result?.id ?? null
   }
 
   async function updateStatusQuoteApprovalPolicy({
@@ -4179,31 +3497,13 @@ export const StatusSQLDatabaseMixin = (
     getStatusReplies,
     getStatusEditHistory,
     deleteStatusEditHistory,
-    getStatusFromUrl,
-    getStatusFromUrlHash,
-    getStatusIdByPublicId,
-    getStatusIdsByPublicIds,
-    getStatusFromPublicId,
-    getStatusPublicIds,
-    getActorStatusFromPathSegment,
-    getActorAnnouncedStatusId,
-    getActorAnnounceStatus,
     getActorStatusesCount,
     getActorStatuses,
-    pinStatus,
-    unpinStatus,
-    getPinnedStatusIds,
     getStatusesByIds,
     deleteStatus,
     deleteStatusWithQueueJob,
-    getFavouritedBy,
-    getRebloggedBy,
     createTag,
-    getTags,
     deleteStatusTagsByType,
-    getStatusesByHashtag,
-    getHashtagStatusesPage,
-    getHashtagCounter,
     increaseHashtagCounter,
     decreaseHashtagCounter,
     getStatusReblogsCount,
@@ -4211,10 +3511,9 @@ export const StatusSQLDatabaseMixin = (
     getStatusRepliesCount,
     getStatusRepliesCounts,
     createPollAnswer,
-    hasActorVoted,
-    getActorPollVotes,
-    getActorPollVotesForStatuses,
     incrementPollChoiceVotes,
-    recordPollVotes
+    recordPollVotes,
+    hydrateStatusRow: (row, currentActorId) =>
+      getStatusWithAttachmentsFromData(row, currentActorId)
   }
 }

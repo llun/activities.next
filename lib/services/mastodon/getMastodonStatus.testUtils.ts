@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, vi } from 'vitest'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 
 /**
@@ -8,7 +8,7 @@ import { seedDatabase } from '@/lib/stub/database'
  * suite reads from. Call it inside the top-level `describe`.
  */
 export const useSeededStatusDatabase = () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   // publicIds are minted at insert and are random per run, so every expectation
   // reads the id back off the stored row instead of hard-coding a literal.
@@ -18,6 +18,7 @@ export const useSeededStatusDatabase = () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })
