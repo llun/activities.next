@@ -149,10 +149,11 @@ export const deleteFitnessFile = (
     // `fitness_file_routes` already joins through this soft delete, so a
     // leftover row would never be counted — but it would hold the whole
     // polyline forever, and that blob is the bulk of what the cache costs.
-    // Written against `trx` rather than through the route mixin because that
-    // mixin is bound to the non-transactional handle; the delete has to land
-    // or roll back with the soft delete itself. Losing it is safe either way:
-    // the row is a cache of the source file, re-derived on the next miss.
+    // Written against `trx` rather than through the facade's
+    // `deleteFitnessFileRoute`, which is bound to the root instance; the delete
+    // has to land or roll back with the soft delete itself. Losing it is safe
+    // either way: the row is a cache of the source file, re-derived on the
+    // next miss.
     await trx
       .deleteFrom('fitness_file_routes')
       .where('fitnessFileId', '=', id)

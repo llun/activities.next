@@ -19,51 +19,17 @@ export interface FitnessRouteHeatmapBounds {
   maxLng: number
 }
 
-export interface SQLFitnessRouteHeatmap {
-  id: string
-  actorId: string
-  activityType: string | null
-  activityTypeKey: string
-  periodType: string
-  periodKey: string
-  /**
-   * Serialized region scope: a sorted, semicolon-joined list of `rect:` tokens
-   * (e.g. "rect:52.60,5.60,52.00,6.20"). Empty string '' means world-wide (no
-   * region filter). See `serializeRegions` in `lib/fitness/regions`.
-   */
-  region: string
-  periodStart: Date | string | number | null
-  periodEnd: Date | string | number | null
-  bounds: string | null
-  segments: string | null
-  status: string
-  error: string | null
-  activityCount: number
-  pointCount: number
-  /**
-   * Total number of fitness files the generation run needs to scan, used as the
-   * denominator for progress reporting. 0 means "not yet computed" (the job sets
-   * it on the first pass of each run).
-   */
-  totalCount: number
-  cursorOffset: number
-  isPartial: boolean | number | string
-  /**
-   * Opt-in public share token. When set, the heatmap is reachable through the
-   * unauthenticated `/embed/heatmap/<token>` surface; null means private.
-   */
-  shareToken: string | null
-  createdAt: Date | string | number
-  updatedAt: Date | string | number
-  deletedAt: Date | string | number | null
-}
-
 export interface FitnessRouteHeatmap {
   id: string
   actorId: string
   activityType?: string
   periodType: FitnessRouteHeatmapPeriodType
   periodKey: string
+  /**
+   * Serialized region scope: a sorted, semicolon-joined list of `rect:` tokens
+   * (e.g. "rect:52.60,5.60,52.00,6.20"). Empty string '' means world-wide (no
+   * region filter). See `serializeRegions` in `lib/fitness/regions`.
+   */
   region: string
   periodStart?: number
   periodEnd?: number
@@ -98,17 +64,9 @@ export type FitnessRouteHeatmapSummary = Omit<
 /**
  * A user-facing label for a route-heatmap region, scoped to one `(actorId,
  * region)` pair. The region label is deliberately NOT part of the serialized
- * region cache key (see `lib/fitness/regions`), so it is persisted here to
- * survive reloads instead of reverting to the generic "Map area".
+ * region cache key (see `lib/fitness/regions`), so it is persisted to survive
+ * reloads instead of reverting to the generic "Map area".
  */
-export interface SQLFitnessRouteHeatmapRegionName {
-  actorId: string
-  region: string
-  name: string
-  createdAt: Date | string | number
-  updatedAt: Date | string | number
-}
-
 export interface FitnessRouteHeatmapRegionName {
   region: string
   name: string
