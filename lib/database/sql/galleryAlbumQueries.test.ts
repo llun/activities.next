@@ -2079,15 +2079,26 @@ describe('the actor row lock', () => {
         }
       )
     }
-    const deadline = Date.now() + 20_000
-    for (;;) {
-      const { rows } = await sql<{
+    const waiting = () =>
+      sql<{
         pid: number
         query: string
       }>`select pid, query from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and pid <> pg_backend_pid() and pid <> ${holder}`.execute(
         db()
       )
-      if (rows.length >= count) return rows.map((row) => plain(row.query))
+    const deadline = Date.now() + 20_000
+    for (;;) {
+      const { rows } = await waiting()
+      if (rows.length >= count) {
+        // `query` is read from an earlier snapshot than the wait event, so a
+        // backend caught just as it began to wait can still show the
+        // statement before the one it waits on (`begin`). It cannot send
+        // another while it waits, so a second read shows the one it waits on.
+        const { rows: settledRows } = await waiting()
+        if (settledRows.length >= count) {
+          return settledRows.map((row) => plain(row.query))
+        }
+      }
       if (settled) throw new Error('an operation finished without waiting')
       if (Date.now() > deadline) throw new Error('nothing waited on the lock')
     }
