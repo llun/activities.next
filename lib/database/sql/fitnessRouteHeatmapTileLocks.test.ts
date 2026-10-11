@@ -27,10 +27,25 @@ const isStatement =
   (verb: 'select' | 'insert' | 'update' | 'delete') => (sql: string) =>
     sql.trimStart().toLowerCase().startsWith(verb) && sql.includes(PYRAMIDS)
 
-// The ownership check of a tile flush or a sweep, whatever statement it is: the
-// test stops right after it, and the claim must then wait, so a check that
-// took no lock (or took it later) fails the wait.
-const ownershipCheck = (sql: string) => sql.includes(PYRAMIDS)
+const TILES = 'fitness_route_heatmap_tiles'
+
+// A statement on the tile table. Each lock-holder is stopped after the LAST
+// statement of its transaction, so the lock must cover every write the comment
+// says it protects: a lock taken by an earlier statement but released before
+// this one (a transaction split in two, a write moved out of it) lets the
+// waiter through and fails the wait.
+const isTileStatement = (verb: 'insert' | 'delete') => (sql: string) =>
+  sql.trimStart().toLowerCase().startsWith(verb) && sql.includes(TILES)
+
+// The `n`th statement `matches` accepts from here on.
+const nth = (matches: (sql: string) => boolean, n: number) => {
+  let seen = 0
+  return (sql: string) => matches(sql) && (seen += 1) === n
+}
+
+// The first DELETE of any table.
+const anyDelete = (sql: string) =>
+  sql.trimStart().toLowerCase().startsWith('delete')
 
 // Runs `operation` without awaiting it, recording when it settles, so a test
 // can tell an operation that waited for a lock from one that never needed to.
@@ -138,7 +153,7 @@ describe.runIf(testDb.backend === 'pg')(
       )
       await claimRead.reached
 
-      const guard = pauseAfterStatement(ownershipCheck)
+      const guard = pauseAfterStatement(isTileStatement('insert'))
       const flush = start(() =>
         database.upsertFitnessRouteHeatmapTiles({
           actorId,
@@ -191,7 +206,7 @@ describe.runIf(testDb.backend === 'pg')(
       )
       await claimRead.reached
 
-      const guard = pauseAfterStatement(ownershipCheck)
+      const guard = pauseAfterStatement(isTileStatement('delete'))
       const sweep = start(() =>
         database.deleteStaleFitnessRouteHeatmapTiles({
           actorId,
@@ -235,7 +250,7 @@ describe.runIf(testDb.backend === 'pg')(
           })
         }
 
-        const cleared = pauseAfterStatement(isStatement('delete'))
+        const cleared = pauseAfterStatement(isTileStatement('delete'))
         const clear = start(() =>
           database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({ actorId })
         )
@@ -291,7 +306,7 @@ describe.runIf(testDb.backend === 'pg')(
       const actorId = await createActor(database)
       const previous = await staleBuild(actorId)
 
-      const swapped = pauseAfterStatement(isStatement('update'))
+      const swapped = pauseAfterStatement(nth(isStatement('select'), 2))
       const claim = start(() =>
         database.claimFitnessRouteHeatmapPyramidBuild(claimParams(actorId))
       )
@@ -329,7 +344,7 @@ describe.runIf(testDb.backend === 'pg')(
       )
       await loserRead.reached
 
-      const winnerSwap = pauseAfterStatement(isStatement('update'))
+      const winnerSwap = pauseAfterStatement(nth(isStatement('select'), 2))
       const winner = start(() =>
         database.claimFitnessRouteHeatmapPyramidBuild(claimParams(actorId))
       )
@@ -352,6 +367,43 @@ describe.runIf(testDb.backend === 'pg')(
         claimSeq: previous.claimSeq + 1,
         version: previous.version + 1
       })
+    })
+
+    // deleteFitnessRouteHeatmapPyramidAndTilesForActor: "Deleting the pyramid
+    // row is what fences a build already running ... and holding that row's
+    // lock for the rest of the transaction is what stops a claim landing
+    // between this and the tile delete below".
+    it('makes a tile flush wait for a clear, which then refuses it', async () => {
+      const actorId = await createActor(database)
+      const build = await staleBuild(actorId)
+      await database.upsertFitnessRouteHeatmapTiles({
+        actorId,
+        ...fence(build),
+        version: build.version,
+        tiles: [tile('5:4:1')]
+      })
+
+      const cleared = pauseAfterStatement(anyDelete)
+      const clear = start(() =>
+        database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({ actorId })
+      )
+      await cleared.reached
+
+      const flush = start(() =>
+        database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(build),
+          version: build.version,
+          tiles: [tile('5:4:2')]
+        })
+      )
+      await waitForLockWait(flush)
+      cleared.release()
+
+      expect(await clear.result()).toBe(1)
+      expect(await flush.result()).toBe(false)
+      expect(await pyramidRow(actorId)).toBeUndefined()
+      expect(await tileKeys(actorId)).toEqual([])
     })
   }
 )
