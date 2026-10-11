@@ -8,8 +8,9 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 // The row locks the route heatmap pyramid writes rely on, raced on two real
 // PostgreSQL connections. Each test stops one operation inside its
-// transaction, right after the last statement of that transaction, starts the
-// other, waits until PostgreSQL reports that one waiting on a lock (polling
+// transaction, right after the last statement of that transaction (the clear
+// in the last test stops after its pyramid DELETE), starts the other, waits
+// until PostgreSQL reports that one waiting on a lock (polling
 // pg_stat_activity; no sleep stands in for it), then lets the first finish and
 // checks the outcome the comments in
 // lib/database/domains/fitnessRouteHeatmapTile/ promise. If the second
@@ -29,11 +30,12 @@ const isStatement =
 
 const TILES = 'fitness_route_heatmap_tiles'
 
-// A statement on the tile table. Each lock-holder is stopped after the LAST
-// statement of its transaction, so the lock must cover every write the comment
-// says it protects: a lock taken by an earlier statement but released before
-// this one (a transaction split in two, a write moved out of it) lets the
-// waiter through and fails the wait.
+// A statement on the tile table. Each lock-holder except the clear in the last
+// test (stopped after its pyramid DELETE, the statement that takes the row
+// lock) is stopped after the LAST statement of its transaction, so the lock
+// must cover every write the comment says it protects: a lock taken by an
+// earlier statement but released before this one (a transaction split in two,
+// a write moved out of it) lets the waiter through and fails the wait.
 const isTileStatement = (verb: 'insert' | 'delete') => (sql: string) =>
   sql.trimStart().toLowerCase().startsWith(verb) && sql.includes(TILES)
 
