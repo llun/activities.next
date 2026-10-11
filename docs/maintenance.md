@@ -1105,8 +1105,10 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   set a moment earlier outlive its photo. `galleryAlbums.test.ts` pins the
   media and actor-delete cleanup on both backends (the actor delete with
   SQLite's foreign keys switched off) and the races on PostgreSQL;
-  `mediaWrites.test.ts` pins the lock order of both media deletes and that each
-  album write takes the lock first inside its own transaction.
+  `mediaWrites.test.ts` pins the statement order of both media deletes (the
+  actor lock, the media row lock, the album rows, then the `medias` row) and
+  that each album write takes the lock first, and runs every statement, inside
+  its own transaction.
 
 - **Deleting a media deletes the files its photo edits keep.** The uploaded
   original and every superseded render live in `media_edit_files`.

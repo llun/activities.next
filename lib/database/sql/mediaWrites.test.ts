@@ -325,6 +325,37 @@ const captureStatements = async <T>(action: () => Promise<T>) => {
   }
 }
 
+// What the statements of a media delete do, for the ones whose order is the
+// lock order: the owner's actor-row lock, the media row, then the album rows,
+// then the `medias` row itself. The same statements run on both backends;
+// PostgreSQL adds `for update` to the two locks, which the tests read off the
+// statement text.
+const lockOrderSteps = (statements: CapturedStatement[]) =>
+  statements.flatMap(({ sql: text }) => {
+    if (
+      /^select "id" from "actors" where "id" = (\$1|\?)( for update)?$/.test(
+        text
+      )
+    )
+      return ['lock the actor row']
+    if (/^select .*"originalBytes".* from "medias" where "id" = /.test(text))
+      return ['lock the media row']
+    if (text.startsWith('delete from "gallery_album_items"'))
+      return ['delete the album items']
+    if (text.startsWith('update "gallery_albums" set "coverMediaId"'))
+      return ['clear the album covers']
+    if (text.startsWith('delete from "medias"')) return ['delete the media row']
+    return []
+  })
+
+const LOCK_ORDER = [
+  'lock the actor row',
+  'lock the media row',
+  'delete the album items',
+  'clear the album covers',
+  'delete the media row'
+]
+
 const isPostgres = () => testDb.backend === 'pg'
 
 describe('createMedia', () => {
@@ -734,6 +765,25 @@ describe('updateAttachmentPlayback', () => {
     })
   })
 
+  it('stamps updatedAt on the attachment it writes and on no other', async () => {
+    const owner = await newOwner()
+    const statusId = `${owner.actorId}/statuses/${nextKey()}`
+    const target = await addAttachment({ actorId: owner.actorId, statusId })
+    const sibling = await addAttachment({ actorId: owner.actorId, statusId })
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(777000))
+    await database.updateAttachmentPlayback({
+      id: target,
+      statusId,
+      playbackType: 'gifv'
+    })
+    vi.useRealTimers()
+
+    expect(await attachmentRow(target)).toMatchObject({ updatedAt: 777000 })
+    expect(await attachmentRow(sibling)).toMatchObject({ updatedAt: 1000 })
+  })
+
   it('leaves a set playback alone with onlyIfUnset and keeps an omitted thumbnail', async () => {
     const owner = await newOwner()
     const statusId = `${owner.actorId}/statuses/${nextKey()}`
@@ -841,6 +891,51 @@ describe('replaceRemoteAttachmentsForStatus', () => {
     ])
   })
 
+  // With nothing to remove the delete is left out: PostgreSQL rejects an empty
+  // `in ()` list, and SQLite would only match no row.
+  it('writes the new rows on a status with no remote rows to remove', async () => {
+    const owner = await newOwner()
+    const emptyStatusId = `${owner.actorId}/statuses/${nextKey()}`
+    const localStatusId = `${owner.actorId}/statuses/${nextKey()}`
+    const media = await seedMedia(owner.actorId)
+    // Only a local media attachment and a fitness file: both are kept.
+    await addAttachment({
+      actorId: owner.actorId,
+      statusId: localStatusId,
+      key: 'local',
+      mediaId: media
+    })
+    await addAttachment({
+      actorId: owner.actorId,
+      statusId: localStatusId,
+      key: 'ride',
+      mediaType: 'application/gpx+xml'
+    })
+
+    for (const statusId of [emptyStatusId, localStatusId]) {
+      const { statements } = await captureStatements(() =>
+        database.replaceRemoteAttachmentsForStatus({
+          statusId,
+          attachments: [newAttachment(statusId, 'fresh')]
+        })
+      )
+      expect(
+        statements.filter((statement) =>
+          statement.sql.startsWith('delete from "attachments"')
+        )
+      ).toEqual([])
+    }
+
+    expect(await urlsOf(emptyStatusId)).toEqual([
+      'https://remote.test/media/fresh.jpg'
+    ])
+    expect(await urlsOf(localStatusId)).toEqual([
+      `https://${DOMAIN}/files/local.jpg`,
+      `https://${DOMAIN}/files/ride.gpx`,
+      'https://remote.test/media/fresh.jpg'
+    ])
+  })
+
   it('keeps the stored rows when its last write fails', async () => {
     const owner = await newOwner()
     const statusId = `${owner.actorId}/statuses/${nextKey()}`
@@ -925,6 +1020,27 @@ describe('updateMedia', () => {
       })
     ).toMatchObject({ replacedThumbnailPath: null })
     expect(await counterValue(`media-usage:${owner.accountId}`)).toBe(4960)
+  })
+
+  it('stamps updatedAt on the media it writes and on no other', async () => {
+    const owner = await newOwner()
+    const neighbour = await seedMedia(owner.actorId)
+    const media = await seedMedia(owner.actorId)
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(777000))
+    await database.updateMedia({
+      mediaId: String(media),
+      accountId: owner.accountId,
+      description: 'Edited'
+    })
+    vi.useRealTimers()
+
+    expect(await mediaRow(media)).toMatchObject({
+      description: 'Edited',
+      updatedAt: 777000
+    })
+    expect(await mediaRow(neighbour)).toMatchObject({ updatedAt: 1000 })
   })
 
   it('stores a trimmed taxon key, and a blank one as no key', async () => {
@@ -1220,7 +1336,7 @@ describe('media deletes', () => {
       ).toEqual(counters)
     })
 
-    it('takes the owner album lock, then the media row lock, on PostgreSQL', async () => {
+    it('takes the owner album lock, then the media row lock, then clears the album rows', async () => {
       const seeded = await seedDeletable()
 
       const { statements } = await captureStatements(() =>
@@ -1238,6 +1354,9 @@ describe('media deletes', () => {
       } else {
         expect(locks).toEqual([])
       }
+      // Both locks come before the album rows are touched, and the `medias`
+      // row goes last.
+      expect(lockOrderSteps(statements)).toEqual(LOCK_ORDER)
     })
 
     it('answers not-found when another delete removed the media after its first read', async () => {
@@ -1330,7 +1449,7 @@ describe('media deletes', () => {
       await expectDeleted(seeded)
     })
 
-    it('takes the owner album lock, then the media row lock, on PostgreSQL', async () => {
+    it('takes the owner album lock, then the media row lock, then clears the album rows', async () => {
       const seeded = await seedDeletable()
 
       const { statements } = await captureStatements(() =>
@@ -1353,6 +1472,9 @@ describe('media deletes', () => {
             ]
           : []
       )
+      // Both locks come before the album rows are touched, and the `medias`
+      // row goes last.
+      expect(lockOrderSteps(statements)).toEqual(LOCK_ORDER)
     })
 
     it('answers not-found when another delete removed the media after its first read', async () => {
@@ -1530,6 +1652,52 @@ describe('setMediaSubjectLookup', () => {
     expect(await mediaRow(media)).toMatchObject({ subjectTaxonKey: null })
   })
 
+  it('keeps the stored taxon key, path and IUCN category when the patch omits them', async () => {
+    const owner = await newOwner()
+    const taxonPath = JSON.stringify(['Animalia', 'Chordata', 'Aves'])
+    const media = await seedMedia(owner.actorId, {
+      ...subject,
+      subjectIucnCategory: 'LC',
+      subjectTaxonPath: taxonPath
+    })
+    const write = (
+      patch: Parameters<typeof database.setMediaSubjectLookup>[0]['patch']
+    ) =>
+      database.setMediaSubjectLookup({
+        mediaId: String(media),
+        expect: {
+          subjectName: subject.subjectName,
+          subjectScientificName: subject.subjectScientificName,
+          subjectTaxonKey: subject.subjectTaxonKey
+        },
+        patch
+      })
+
+    // A lookup that found nothing new writes its status and time alone.
+    expect(await write({ subjectLookupStatus: null })).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({
+      subjectLookupStatus: null,
+      subjectTaxonKey: subject.subjectTaxonKey,
+      subjectTaxonPath: taxonPath,
+      subjectIucnCategory: 'LC'
+    })
+
+    // A null key or path clears it, and leaves the other columns alone.
+    expect(
+      await write({
+        subjectLookupStatus: 'no-match',
+        subjectTaxonKey: null,
+        subjectTaxonPath: null
+      })
+    ).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({
+      subjectLookupStatus: 'no-match',
+      subjectTaxonKey: null,
+      subjectTaxonPath: null,
+      subjectIucnCategory: 'LC'
+    })
+  })
+
   it('refuses an unknown status or IUCN category without writing', async () => {
     const owner = await newOwner()
     const media = await seedMedia(owner.actorId, subject)
@@ -1645,6 +1813,43 @@ describe('setMediaPlaceLookup', () => {
       placeCountryCode: null,
       placeName: null,
       placeNameSource: null
+    })
+  })
+
+  it('keeps the stored country code and geocoded name when the patch omits them', async () => {
+    const owner = await newOwner()
+    const media = await seedMedia(owner.actorId, {
+      ...point,
+      placeCountryCode: 'NL',
+      placeName: 'Amsterdam',
+      placeNameSource: 'geocoder'
+    })
+    const write = (
+      patch: Parameters<typeof database.setMediaPlaceLookup>[0]['patch']
+    ) =>
+      database.setMediaPlaceLookup({
+        mediaId: String(media),
+        expect: point,
+        patch
+      })
+
+    expect(await write({ placeLookupStatus: null })).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({
+      placeLookupStatus: null,
+      placeCountryCode: 'NL',
+      placeName: 'Amsterdam',
+      placeNameSource: 'geocoder'
+    })
+
+    // A null code clears it, and still leaves the name alone.
+    expect(
+      await write({ placeLookupStatus: 'no-match', placeCountryCode: null })
+    ).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({
+      placeLookupStatus: 'no-match',
+      placeCountryCode: null,
+      placeName: 'Amsterdam',
+      placeNameSource: 'geocoder'
     })
   })
 
@@ -1841,6 +2046,11 @@ describe('the gallery album lock', () => {
 
       const { statements } = await captureStatements(calls[method])
 
+      // Nothing runs outside the transaction (a second connection would read
+      // or write without the lock).
+      expect(
+        statements.filter((statement) => !statement.txId).map((s) => s.sql)
+      ).toEqual([])
       // Knex logs its own BEGIN/COMMIT with the transaction id too.
       const inTransaction = statements.filter(
         (statement) =>
