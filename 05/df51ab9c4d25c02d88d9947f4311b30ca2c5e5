@@ -1,0 +1,14 @@
+app/(timeline)/gallery/media/GalleryAddToAlbumDialog.tsx
+  h_580a04e334fef4 156-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05df51ab9c4d25c02d88d9947f4311b30ca2c5e5",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
