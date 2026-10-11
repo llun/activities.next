@@ -10,8 +10,8 @@ import type { DB } from '@/lib/database/kysely'
  *
  * The Kysely twin of applyCountableActivityFilter
  * (lib/database/sql/utils/countableActivity.ts), which explains each rule and
- * still serves the unported fitness file and route queries;
- * countableActivity.test.ts runs both over the same rows.
+ * still serves the unported route queries; countableActivity.test.ts runs both
+ * over the same rows.
  */
 export const countableActivity = (
   eb: ExpressionBuilder<DB, 'fitness_files'>,

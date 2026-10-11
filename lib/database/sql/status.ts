@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { parseElevationSeries } from '@/lib/database/domains/fitnessFile/rows'
 import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
@@ -13,7 +14,6 @@ import {
   deleteStatusSearchDocumentsByStatusIds
 } from '@/lib/database/domains/search/statuses'
 import { kyselyFor } from '@/lib/database/kysely'
-import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
 import {
   CounterKey,

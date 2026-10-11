@@ -208,7 +208,14 @@ jobs:
   # against its Knex original, the account's media listing with its counter
   # total and paging, media by id and the statuses its owner's account
   # attached it to, storage usage) with the media routes and the upload and
-  # attach services over them, the Kysely status visibility,
+  # attach services over them, the fitness file domain (uploads with their
+  # storage and file counters and hourly buckets, deletes, processing and
+  # import status, primary assignment, the actor listing with its cursor and
+  # Knex paging, the account listing with its counter total, the overview
+  # summary, calendar, window and earliest activity, whether an actor has
+  # fitness data for a viewer) with the fitness routes, the import,
+  # processing, map regeneration and heatmap jobs and the services over it,
+  # the Kysely status visibility,
   # countable-activity, actor-visible status, list eligibility, replies policy,
   # block/mute and follow-target predicates checked against their Knex
   # originals, and the Knex-backed Kysely driver (result normalisation, the
@@ -287,6 +294,36 @@ jobs:
             lib/database/sql/fitnessGearQueries.test.ts \
             lib/services/fitness-gears/serviceReminders.test.ts \
             lib/jobs/processFitnessFileJob.gearDevice.test.ts \
+            lib/database/sql/fitnessFileQueries.test.ts \
+            lib/database/sql/fitnessFileRoute.test.ts \
+            lib/database/sql/fitnessRouteHeatmap.test.ts \
+            "app/(timeline)/[actor]/getProfileData.test.ts" \
+            "app/api/v1/fitness-files/[id]/route.test.ts" \
+            "app/api/v1/fitness-files/[id]/route-data/route.test.ts" \
+            app/api/v1/fitness-files/by-status/route.test.ts \
+            "app/api/v1/statuses/[id]/retry-fitness/route.test.ts" \
+            "app/api/v1/statuses/[id]/route.delete.test.ts" \
+            lib/actions/createNote.attachment.test.ts \
+            lib/jobs/importFitnessFilesJob.test.ts \
+            lib/jobs/importFitnessFilesJob.optIns.test.ts \
+            lib/jobs/importFitnessFilesJob.primary.test.ts \
+            lib/jobs/importStravaActivityJob.federation.test.ts \
+            lib/jobs/importStravaActivityJob.merge.test.ts \
+            lib/jobs/processFitnessFileJob.test.ts \
+            lib/jobs/processFitnessFileJob.notification.test.ts \
+            lib/jobs/processFitnessFileJob.routeCache.test.ts \
+            lib/jobs/processFitnessFileJob.routeMap.test.ts \
+            lib/jobs/regenerateFitnessMapsJob.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidBuild.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidContinuation.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidFlush.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.pyramidLoss.test.ts \
+            lib/jobs/generateFitnessRouteHeatmapJob.routeCache.test.ts \
+            lib/services/fitness-files/statusFitnessFiles.test.ts \
+            lib/services/medias/quota.test.ts \
+            lib/services/mastodon/getMastodonStatus.fields.test.ts \
+            scripts/backup/actorArchive.test.ts \
             lib/database/sql/status.test.ts \
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \

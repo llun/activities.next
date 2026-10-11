@@ -1,7 +1,7 @@
-import knex from 'knex'
 import { NextRequest } from 'next/server'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
@@ -30,7 +30,7 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-let mockDatabase: ReturnType<typeof getSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -60,10 +60,7 @@ const callRetry = (statusId: string) =>
     { params: Promise.resolve({ id: urlToId(statusId) }) }
   )
 
-const seedFitnessStatus = async (
-  database: ReturnType<typeof getSQLDatabase>,
-  suffix: string
-) => {
+const seedFitnessStatus = async (database: Database, suffix: string) => {
   const status = await database.createNote({
     id: `${ACTOR1_ID}/statuses/retry-fitness-${suffix}`,
     url: `${ACTOR1_ID}/statuses/retry-fitness-${suffix}`,
@@ -85,14 +82,10 @@ const seedFitnessStatus = async (
 }
 
 describe('POST /api/v1/statuses/[id]/retry-fitness', () => {
-  const knexInstance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const database = getSQLDatabase(knexInstance)
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

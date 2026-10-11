@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import {
@@ -115,10 +115,11 @@ const mockBuildGpx = buildGpxFromStravaStreams as jest.MockedFunction<
 const RIDE_START = '2026-03-01T08:00:00.000Z'
 
 describe('importStravaActivityJob same-ride merge', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor = (await database.getActorFromUsername({
@@ -198,11 +199,12 @@ describe('importStravaActivityJob same-ride merge', () => {
     } as never)
 
     mockGenerateMapImage.mockResolvedValue(Buffer.from('map-image'))
+    // Numeric ids: attachments.mediaId is an integer column on PostgreSQL.
     let mediaCounter = 0
     mockSaveMedia.mockImplementation(async () => {
       mediaCounter += 1
       return {
-        id: `map-media-${mediaCounter}`,
+        id: String(9200 + mediaCounter),
         type: 'image',
         mime_type: 'image/webp',
         url: `https://llun.test/api/v1/files/medias/route-map-${mediaCounter}.webp`,

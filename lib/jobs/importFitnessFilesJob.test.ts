@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   importFitnessFiles,
   importFitnessFilesJob
@@ -54,10 +54,11 @@ const mockDeleteMediaFile = deleteMediaFile as jest.MockedFunction<
 >
 
 describe('importFitnessFilesJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor = (await database.getActorFromUsername({
