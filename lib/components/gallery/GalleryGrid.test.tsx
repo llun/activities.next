@@ -109,6 +109,23 @@ describe('GalleryGrid', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders tile buttons with cursor-pointer in both default and selection modes', () => {
+    const { rerender } = render(<GalleryGrid items={items} />)
+    expect(screen.getByRole('button', { name: 'Open media 2' })).toHaveClass(
+      'cursor-pointer'
+    )
+
+    rerender(
+      <GalleryGrid
+        items={items}
+        selection={{ selected: new Set(), onToggle: vi.fn() }}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Select media 2' })).toHaveClass(
+      'cursor-pointer'
+    )
+  })
+
   it('shows the subject and capture date only when asked to', () => {
     const { rerender } = render(<GalleryGrid items={items} />)
     expect(screen.queryByText('Red Fox · 14 Mar 2025')).not.toBeInTheDocument()

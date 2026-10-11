@@ -137,7 +137,7 @@ describe('public album page', () => {
         ownerId: matrix.ownerId,
         profileHref: '/@test6@llun.test',
         pageUrl: `https://llun.test/@test6@llun.test/albums/${matrix.albums.mixed}`,
-        pageSize: 30
+        pageSize: 24
       })
       expect(view.props.initial.album.title).toBe('Mixed')
     })

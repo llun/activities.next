@@ -32,7 +32,7 @@ const Loading: FC = () => (
         aria-hidden="true"
         className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2"
       >
-        {Array.from({ length: 8 }, (_, index) => (
+        {Array.from({ length: 12 }, (_, index) => (
           <div key={index} className="skeleton aspect-square rounded-md" />
         ))}
       </div>

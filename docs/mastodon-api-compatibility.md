@@ -546,7 +546,7 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   latest photo that viewer can see joined the album, and the list order uses the
   latter. The album returns `album`, `facts`, `species` and a page
   of `items` with `nextMaxId` (`?max_id&limit&sort&subject`; `limit` 1 to 60,
-  default 30, clamped; a bad `max_id`, `sort` or `subject` is a 422). A private
+  default 24, clamped; a bad `max_id`, `sort` or `subject` is a 422). A private
   album, a missing one, another account's, and one with no photo the viewer can
   see are all the same 404, answered before the query is checked, and so is a
   missing or remote account. `place` on an item is exactly `getPublicPlace`;

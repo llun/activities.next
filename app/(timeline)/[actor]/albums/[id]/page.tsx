@@ -26,7 +26,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 // The first page of the grid; "Load more" fetches the rest.
-const PAGE_SIZE = 30
+const PAGE_SIZE = 24
 
 interface Props {
   params: Promise<{ actor: string; id: string }>

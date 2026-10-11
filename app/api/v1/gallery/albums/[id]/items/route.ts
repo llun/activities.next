@@ -63,7 +63,7 @@ const invalid = (req: Parameters<typeof apiResponse>[0]['req']) =>
   })
 
 const PageQuery = GalleryAlbumItemsQuery.extend({
-  limit: clampedLimit(60, 30)
+  limit: clampedLimit(60, 24)
 })
 
 // GET /api/v1/gallery/albums/:id/items?max_id&limit&sort&subject — a page of

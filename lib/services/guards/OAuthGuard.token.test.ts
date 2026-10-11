@@ -76,7 +76,7 @@ vi.mock('better-auth/oauth2', () => ({
 }))
 
 describe('OAuthGuard', () => {
-  const { database } = getTestSQLDatabaseWithInstance()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -399,6 +399,59 @@ describe('OAuthGuard', () => {
         })
       )
       expect(mockVerifyBearerToken).not.toHaveBeenCalled()
+    })
+
+    test('acts as the earliest-created actor when the token has no actor referenceId and the account has several actors and no default', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const accountId = await database.createAccount({
+        domain: 'llun.test',
+        email: 'token-several-actors@llun.test',
+        username: 'tokenseveral',
+        passwordHash: 'several-password-hash',
+        privateKey: 'several-private-key',
+        publicKey: 'several-public-key'
+      })
+      await database.createActorForAccount({
+        accountId,
+        username: 'tokenseveral-b',
+        domain: 'llun.test',
+        privateKey: 'several-private-key-b',
+        publicKey: 'several-public-key-b'
+      })
+      const earliestActorId = await database.createActorForAccount({
+        accountId,
+        username: 'tokenseveral-c',
+        domain: 'llun.test',
+        privateKey: 'several-private-key-c',
+        publicKey: 'several-public-key-c'
+      })
+      // The last row inserted, with the greatest id, is the one created first.
+      await instance('actors')
+        .where('id', earliestActorId)
+        .update({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
+
+      mockStoredTokens.set(hashToken('several-actors-token'), {
+        token: hashToken('several-actors-token'),
+        referenceId: '',
+        userId: accountId,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const req = createRequest({
+        Authorization: 'Bearer several-actors-token'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        req,
+        expect.objectContaining({
+          currentActor: expect.objectContaining({ id: earliestActorId })
+        })
+      )
     })
 
     test('allows request with lowercase bearer opaque token', async () => {

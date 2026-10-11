@@ -105,7 +105,7 @@ const renderView = (detail = buildAlbumDetail()) =>
       ownerId="owner"
       shareUrl={SHARE_URL}
       detail={detail}
-      pageSize={30}
+      pageSize={24}
     />
   )
 
@@ -302,7 +302,7 @@ describe('GalleryAlbumDetailView', () => {
       await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
       await waitFor(() =>
         expect(items).toHaveBeenCalledWith('a1', {
-          limit: 30,
+          limit: 24,
           sort: 'taken_desc',
           subject: undefined,
           maxId: undefined
@@ -379,7 +379,7 @@ describe('GalleryAlbumDetailView', () => {
     fireEvent.click(screen.getByRole('button', { name: /African Lion\s*2/ }))
     await waitFor(() =>
       expect(items).toHaveBeenLastCalledWith('a1', {
-        limit: 30,
+        limit: 24,
         sort: 'taken_desc',
         subject: 'sci:panthera leo',
         maxId: undefined
@@ -395,7 +395,7 @@ describe('GalleryAlbumDetailView', () => {
     })
     await waitFor(() =>
       expect(items).toHaveBeenLastCalledWith('a1', {
-        limit: 30,
+        limit: 24,
         sort: 'taken_asc',
         subject: 'sci:panthera leo',
         maxId: undefined
@@ -432,7 +432,7 @@ describe('GalleryAlbumDetailView', () => {
         expect(screen.getByTestId('grid').children).toHaveLength(3)
       )
       expect(items).toHaveBeenLastCalledWith('a1', {
-        limit: 30,
+        limit: 24,
         sort: 'taken_desc',
         subject: undefined,
         maxId: '5:2'
@@ -471,7 +471,7 @@ describe('GalleryAlbumDetailView', () => {
           ownerId="owner"
           shareUrl={SHARE_URL}
           detail={buildAlbumDetail({ species: [] })}
-          pageSize={30}
+          pageSize={24}
         />
       )
 
@@ -512,7 +512,7 @@ describe('GalleryAlbumDetailView', () => {
         ownerId="owner"
         shareUrl={SHARE_URL}
         detail={buildAlbumDetail({ species: [] })}
-        pageSize={30}
+        pageSize={24}
       />
     )
 
@@ -852,6 +852,64 @@ describe('GalleryAlbumDetailView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(del).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('auto-loading and presentation', () => {
+    let mockObserverCallback:
+      ((entries: IntersectionObserverEntry[]) => void) | null = null
+
+    beforeEach(() => {
+      mockObserverCallback = null
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        writable: true,
+        configurable: true,
+        value: class {
+          constructor(
+            callback: (entries: IntersectionObserverEntry[]) => void
+          ) {
+            mockObserverCallback = callback
+          }
+          observe = vi.fn()
+          unobserve = vi.fn()
+          disconnect = vi.fn()
+        }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+    })
+
+    it('loads more automatically on observer intersection and uses a centered container', async () => {
+      items.mockResolvedValueOnce({
+        items: [buildGalleryItem('a1-2')],
+        nextMaxId: null
+      })
+
+      const { container } = renderView(
+        buildAlbumDetail({
+          page: { items: [buildGalleryItem('a1-1')], nextMaxId: '90' }
+        })
+      )
+
+      const loadMoreContainer = container.querySelector('.text-center.py-4')
+      expect(loadMoreContainer).toBeInTheDocument()
+
+      expect(mockObserverCallback).not.toBeNull()
+
+      act(() => {
+        mockObserverCallback!([
+          { isIntersecting: true } as IntersectionObserverEntry
+        ])
+      })
+
+      await waitFor(() =>
+        expect(items).toHaveBeenCalledWith(
+          'a1',
+          expect.objectContaining({ maxId: '90' })
+        )
+      )
     })
   })
 })

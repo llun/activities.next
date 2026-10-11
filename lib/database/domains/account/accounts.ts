@@ -324,6 +324,12 @@ export const getActorsForAccount = async (
     .selectAll()
     .$narrowType<{ id: string }>()
     .where('accountId', '=', accountId)
+    // Callers pick "the account's first actor" when there is no default, so the
+    // order has to be the same on every backend: the first-created actor first,
+    // with the id settling actors that share a createdAt. Without it PostgreSQL
+    // returns rows in whatever order the heap happens to hold them.
+    .orderBy('createdAt', 'asc')
+    .orderBy('id', 'asc')
     .execute()
   if (sqlActors.length === 0) return []
 

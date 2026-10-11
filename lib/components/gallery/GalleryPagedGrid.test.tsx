@@ -98,7 +98,7 @@ describe('GalleryPagedGrid', () => {
       expect(screen.getByTestId('grid')).toHaveTextContent('321')
     )
     expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
-      limit: 30,
+      limit: 24,
       maxId: '2',
       subject: 'sci:x',
       category: undefined
@@ -123,7 +123,7 @@ describe('GalleryPagedGrid', () => {
       expect(screen.getByTestId('grid')).toHaveTextContent('9')
     )
     expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
-      limit: 30,
+      limit: 24,
       maxId: undefined,
       subject: undefined,
       category: 'bird'
@@ -432,6 +432,78 @@ describe('GalleryPagedGrid', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Delete first' }))
       expect(onItemsDeleted).toHaveBeenCalledWith(['2'])
       expect(screen.getByTestId('grid')).not.toHaveTextContent('2')
+    })
+  })
+
+  describe('auto-loading and presentation', () => {
+    let mockObserverCallback:
+      ((entries: IntersectionObserverEntry[]) => void) | null = null
+
+    beforeEach(() => {
+      mockObserverCallback = null
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        writable: true,
+        configurable: true,
+        value: class {
+          constructor(
+            callback: (entries: IntersectionObserverEntry[]) => void
+          ) {
+            mockObserverCallback = callback
+          }
+          observe = vi.fn()
+          unobserve = vi.fn()
+          disconnect = vi.fn()
+        }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+    })
+
+    it('loads more automatically on observer intersection and uses a centered container', async () => {
+      getGalleryMediaMock
+        .mockResolvedValueOnce({
+          items: [buildGalleryItem('5')],
+          nextMaxId: '90'
+        })
+        .mockResolvedValueOnce({
+          items: [buildGalleryItem('6')],
+          nextMaxId: null
+        })
+
+      const { container } = render(
+        <GalleryPagedGrid actorId="actor-1" subject="sci:x" />
+      )
+
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('5')
+      )
+
+      // Verify the centered container class is applied to the wrapper
+      // text-center is in LOAD_MORE_CONTAINER_CLASS
+      const loadMoreContainer = container.querySelector('.text-center.py-4')
+      expect(loadMoreContainer).toBeInTheDocument()
+
+      expect(mockObserverCallback).not.toBeNull()
+
+      // Trigger the intersection observer
+      act(() => {
+        mockObserverCallback!([
+          { isIntersecting: true } as IntersectionObserverEntry
+        ])
+      })
+
+      // Ensure the second page loads
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('56')
+      )
+
+      expect(getGalleryMediaMock).toHaveBeenCalledTimes(2)
+      expect(getGalleryMediaMock).toHaveBeenLastCalledWith(
+        'actor-1',
+        expect.objectContaining({ maxId: '90' })
+      )
     })
   })
 })

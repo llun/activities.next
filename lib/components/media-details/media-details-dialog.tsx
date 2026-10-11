@@ -1659,9 +1659,12 @@ export const MediaDetailsDialog: FC<Props> = ({
                         <Switch
                           id={idFor('gallery')}
                           checked={draft.inGallery}
-                          onCheckedChange={(checked) =>
+                          onCheckedChange={(checked) => {
                             patchDraft({ inGallery: checked })
-                          }
+                            if (!checked && shared.gallery) {
+                              setShared((s) => ({ ...s, gallery: false }))
+                            }
+                          }}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -1672,9 +1675,21 @@ export const MediaDetailsDialog: FC<Props> = ({
                         <CheckRow
                           id={idFor('gallery-all')}
                           checked={shared.gallery}
-                          onChange={(checked) =>
+                          onChange={(checked) => {
                             setShared((s) => ({ ...s, gallery: checked }))
-                          }
+                            if (checked) {
+                              setDrafts((current) => {
+                                const next = { ...current }
+                                for (const entry of items) {
+                                  next[entry.id] = {
+                                    ...next[entry.id],
+                                    inGallery: true
+                                  }
+                                }
+                                return next
+                              })
+                            }
+                          }}
                         >
                           Show all {total} items in my gallery
                         </CheckRow>
