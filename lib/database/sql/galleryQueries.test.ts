@@ -512,11 +512,13 @@ describe('createGalleryGearWithinLimit', () => {
     expect((await create(actorId, 'Fourth', { limit: 4 })).status).toBe(
       'created'
     )
+    // Sorted by name: gear created in the same millisecond ties on createdAt
+    // and then orders by its random id. The order itself is pinned above.
     expect(
-      (await database.getGalleryGearsByActor({ actorId })).map(
-        (gear) => gear.name
-      )
-    ).toEqual(['Kept', 'Old', 'Theirs', 'Fourth'])
+      (await database.getGalleryGearsByActor({ actorId }))
+        .map((gear) => gear.name)
+        .sort()
+    ).toEqual(['Fourth', 'Kept', 'Old', 'Theirs'])
   })
 
   it('matches a device key without dedupeByName, and a name only with it', async () => {
