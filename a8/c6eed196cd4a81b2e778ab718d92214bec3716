@@ -1,0 +1,20 @@
+app/(timeline)/account/LogoutButton.test.tsx
+  h_580a04e334fef4 33-45
+app/(timeline)/account/LogoutButton.tsx
+  h_580a04e334fef4 8,10-18,36-46
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  h_580a04e334fef4 432,436-437
+app/(timeline)/account/sessions/AccountSessions.tsx
+  h_580a04e334fef4 455-457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8c6eed196cd4a81b2e778ab718d92214bec3716",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
