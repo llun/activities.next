@@ -5,6 +5,7 @@ import sharp from 'sharp'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { createBrowserResizedJpeg } from '@/lib/services/medias/browserResizedJpeg.fixture'
 import { readMediaExif } from '@/lib/services/medias/exif/readMediaExif'
 import { LocalFileStorage } from '@/lib/services/medias/localFile'
 import { seedDatabase } from '@/lib/stub/database'
@@ -145,6 +146,36 @@ describe('uploading a photo with EXIF', () => {
     expect(exif.latitude).toBeNull()
     expect(exif.make).toBeNull()
     expect(exif.takenAt).toBeNull()
+  })
+
+  it('reads a browser-resized JPEG’s grafted EXIF, then strips it from the stored file', async () => {
+    const entity = await storage().saveFile(
+      actor,
+      {
+        file: new File(
+          [new Uint8Array(await createBrowserResizedJpeg())],
+          'resized.jpg',
+          { type: 'image/jpeg' }
+        )
+      },
+      { withGalleryDetails: true }
+    )
+    const stored = await database.getMediaByIdForAccount({
+      mediaId: entity!.id,
+      accountId: actor.account!.id
+    })
+
+    expect(stored?.details).toMatchObject({
+      takenAt: Date.UTC(2024, 4, 6, 7, 8, 9),
+      placeLatitude: expect.closeTo(52.5167, 3),
+      placeLongitude: expect.closeTo(13.4, 3)
+    })
+    const bytes = await fs.readFile(path.join(tempDir, stored!.original.path))
+    expect((await sharp(bytes).metadata()).exif).toBeUndefined()
+    expect(bytes.includes('LeakyCam')).toBe(false)
+    const exif = await readMediaExif(bytes)
+    expect(exif.latitude).toBeNull()
+    expect(exif.longitude).toBeNull()
   })
 
   it('reuses one gear row across uploads from the same camera', async () => {

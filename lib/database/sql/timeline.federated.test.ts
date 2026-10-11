@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -9,7 +9,11 @@ const REMOTE = 'https://remote.example/users/relayed'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
+  // On the backend TEST_DATABASE_TYPE names; `prepare` drops and recreates
+  // the PostgreSQL database, so each test starts empty.
+  const testDb = createTestDatabase()
+  const database = testDb.database
+  await testDb.prepare()
   await database.migrate()
   try {
     await test(database)

@@ -1,9 +1,41 @@
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
+import {
+  extractJpegExifSegment,
+  insertJpegExifSegment
+} from '@/lib/utils/jpegExif'
+
+export interface ResizeImageOptions {
+  /**
+   * Carry the source JPEG's EXIF (date, gear, GPS) into the resized file with
+   * Orientation reset to 1, since the canvas output is already upright.
+   */
+  keepMetadata?: boolean
+}
+
+const isJpegBytes = (bytes: Uint8Array) =>
+  bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8
+
+const graftExif = async (
+  blob: Blob,
+  sourceBuffer: ArrayBuffer
+): Promise<Blob> => {
+  try {
+    const segment = extractJpegExifSegment(sourceBuffer)
+    if (!segment) return blob
+    const resized = new Uint8Array(await blob.arrayBuffer())
+    if (!isJpegBytes(resized)) return blob
+    const merged = insertJpegExifSegment(resized, segment)
+    return new Blob([merged as BlobPart], { type: blob.type })
+  } catch {
+    return blob
+  }
+}
 
 export async function resizeImage(
   file: File,
   widthLimitPixel: number,
-  heightLimitPixel: number
+  heightLimitPixel: number,
+  options?: ResizeImageOptions
 ): Promise<File> {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
     return file
@@ -74,12 +106,16 @@ export async function resizeImage(
   // Convert to blob and return as new File
   return new Promise((resolve) => {
     destinationImageCanvas.toBlob(
-      (blob) => {
+      async (blob) => {
         if (!blob) {
           resolve(file)
           return
         }
-        resolve(new File([blob], file.name, { type: file.type }))
+        const output =
+          options?.keepMetadata && file.type === 'image/jpeg'
+            ? await graftExif(blob, fileBuffer)
+            : blob
+        resolve(new File([output], file.name, { type: file.type }))
       },
       file.type,
       0.8
