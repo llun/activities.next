@@ -119,8 +119,7 @@ export const postedGalleryAttachment = (
  * text form on SQLite, so `attachments_mediaId_idx` stays usable (see
  * `castToTextOnSqlite`). `createAttachment` writes the canonical `String(id)`.
  */
-export const galleryMediaIdRef = (db: Db) =>
-  castToTextOnSqlite(db, 'medias.id')
+export const galleryMediaIdRef = (db: Db) => castToTextOnSqlite(db, 'medias.id')
 
 export type GalleryMediaScopeOptions = {
   // `false` only for the owner's gear usage, which counts every photo

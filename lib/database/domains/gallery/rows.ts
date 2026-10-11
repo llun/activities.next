@@ -63,8 +63,10 @@ export const toRowIds = (mediaIds: Array<string | number>): number[] => [
 ]
 
 /** Sorts `rows` in place by their numeric id, highest first. */
-export const sortByIdDesc = <T>(rows: T[], getId: (row: T) => string | number) =>
-  rows.sort((a, b) => Number(getId(b)) - Number(getId(a)))
+export const sortByIdDesc = <T>(
+  rows: T[],
+  getId: (row: T) => string | number
+) => rows.sort((a, b) => Number(getId(b)) - Number(getId(a)))
 
 export const isPresent = (value: unknown) =>
   value !== null && value !== undefined && value !== ''

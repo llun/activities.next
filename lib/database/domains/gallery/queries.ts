@@ -125,43 +125,46 @@ export const createGalleryGearWithinLimit = (
   db: Db,
   { limit, dedupeByName, ...params }: CreateGalleryGearWithinLimitParams
 ): Promise<CreateGalleryGearWithinLimitResult> =>
-  inTransaction(db, async (trx): Promise<CreateGalleryGearWithinLimitResult> => {
-    // Serialise one actor's gear creates on their actor row, as
-    // `createCollection` does. SQLite's single writer connection already
-    // serialises transactions, so the lock is PostgreSQL-only.
-    await forUpdate(
-      trx,
-      trx.selectFrom('actors').select('id').where('id', '=', params.actorId)
-    ).execute()
+  inTransaction(
+    db,
+    async (trx): Promise<CreateGalleryGearWithinLimitResult> => {
+      // Serialise one actor's gear creates on their actor row, as
+      // `createCollection` does. SQLite's single writer connection already
+      // serialises transactions, so the lock is PostgreSQL-only.
+      await forUpdate(
+        trx,
+        trx.selectFrom('actors').select('id').where('id', '=', params.actorId)
+      ).execute()
 
-    const rows = (
-      await trx
-        .selectFrom('gallery_gears')
-        .selectAll()
-        .where('actorId', '=', params.actorId)
-        .where('deletedAt', 'is', null)
-        .orderBy('createdAt', 'asc')
-        .orderBy('id', 'asc')
-        .execute()
-    ).map(asGalleryGearRow)
+      const rows = (
+        await trx
+          .selectFrom('gallery_gears')
+          .selectAll()
+          .where('actorId', '=', params.actorId)
+          .where('deletedAt', 'is', null)
+          .orderBy('createdAt', 'asc')
+          .orderBy('id', 'asc')
+          .execute()
+      ).map(asGalleryGearRow)
 
-    const requestedName = normalizeGalleryGearName(params.name)
-    const existing = rows.find(
-      (row) =>
-        (params.deviceKey && row.deviceKey === params.deviceKey) ||
-        (dedupeByName &&
-          row.kind === params.kind &&
-          normalizeGalleryGearName(row.name) === requestedName)
-    )
-    if (existing) {
-      return { status: 'existing', gear: parseSQLGalleryGear(existing) }
+      const requestedName = normalizeGalleryGearName(params.name)
+      const existing = rows.find(
+        (row) =>
+          (params.deviceKey && row.deviceKey === params.deviceKey) ||
+          (dedupeByName &&
+            row.kind === params.kind &&
+            normalizeGalleryGearName(row.name) === requestedName)
+      )
+      if (existing) {
+        return { status: 'existing', gear: parseSQLGalleryGear(existing) }
+      }
+      if (rows.length >= limit) return { status: 'limit-reached' }
+
+      const data = buildGearRow(params)
+      await insertGearRow(trx, data)
+      return { status: 'created', gear: parseSQLGalleryGear(data) }
     }
-    if (rows.length >= limit) return { status: 'limit-reached' }
-
-    const data = buildGearRow(params)
-    await insertGearRow(trx, data)
-    return { status: 'created', gear: parseSQLGalleryGear(data) }
-  })
+  )
 
 export const createGalleryGear = async (
   db: Db,

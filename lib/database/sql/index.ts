@@ -37,6 +37,10 @@ import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
 import type { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
 import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
+import { followQueries } from '@/lib/database/domains/follow/queries'
+import type { FollowDatabase } from '@/lib/database/domains/follow/types'
+import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
+import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
 import { galleryQueries } from '@/lib/database/domains/gallery/queries'
 import type {
   GalleryAlbumSuggestionDatabase,
@@ -44,10 +48,6 @@ import type {
   GalleryLookupCacheDatabase,
   GalleryMediaDatabase
 } from '@/lib/database/domains/gallery/types'
-import { followQueries } from '@/lib/database/domains/follow/queries'
-import type { FollowDatabase } from '@/lib/database/domains/follow/types'
-import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
-import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
 import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
 import type { IdempotencyDatabase } from '@/lib/database/domains/idempotency/types'
 import { importLockQueries } from '@/lib/database/domains/importLock/queries'
