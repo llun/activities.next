@@ -9,7 +9,7 @@ import {
   vi
 } from 'vitest'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { seedDatabase } from '@/lib/stub/database'
@@ -22,11 +22,12 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('getStatusContext', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor
   let actor3: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = (await database.getActorFromId({ id: ACTOR1_ID }))!

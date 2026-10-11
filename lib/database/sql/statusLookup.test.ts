@@ -1,15 +1,15 @@
+import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import {
   emptyActorId,
   extraActorId,
   primaryActorId,
   replyAuthorId
 } from '@/lib/database/sql/statusTestHelpers'
-import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
-  getTestDatabaseTable,
-  getTestSQLDatabaseWithInstance
+  getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -208,8 +208,14 @@ describe('StatusDatabase lookups', () => {
       })
 
       it('getStatusPublicIds returns a map covering only requested ids that have publicIds', async () => {
-        const { database: freshDatabase, instance } =
-          getTestSQLDatabaseWithInstance()
+        // A database of its own (PostgreSQL's per-worker `_isolated` one), so
+        // the rows it writes stay out of the suite's shared fixtures.
+        const {
+          database: freshDatabase,
+          knex: instance,
+          prepare
+        } = createTestDatabase({ isolated: true })
+        await prepare()
         await freshDatabase.migrate()
         try {
           await freshDatabase.createAccount({
@@ -263,13 +269,19 @@ describe('StatusDatabase lookups', () => {
         }
       })
 
-      it('getStatusPublicIds chunks a request wider than the SQLite bind limit', async () => {
-        // A full timeline page can carry more ids than SQLITE_MAX_BINDINGS
+      it('getStatusPublicIds chunks a request wider than one IN list', async () => {
+        // A full timeline page can carry more ids than SQLite's bind limit
         // allows in one statement, so the lookup has to chunk like its
-        // getStatusIdsByPublicIds counterpart does.
-        const { database: freshDatabase, instance } =
-          getTestSQLDatabaseWithInstance()
+        // getStatusIdsByPublicIds counterpart does; PostgreSQL chunks at 1000.
+        const {
+          database: freshDatabase,
+          db,
+          knex: instance,
+          prepare
+        } = createTestDatabase({ isolated: true })
+        await prepare()
         await freshDatabase.migrate()
+        const batchSize = getWhereInBatchSize(db)
         const queries: { bindings: unknown[]; sql: string }[] = []
         const handleQuery = ({
           bindings,
@@ -303,7 +315,7 @@ describe('StatusDatabase lookups', () => {
           })) as StatusNote
           const statusIds = [
             ...Array.from(
-              { length: SQLITE_MAX_BINDINGS + 10 },
+              { length: batchSize + 10 },
               (_unused, index) =>
                 `${actorId}/statuses/public-ids-chunk-missing-${index}`
             ),
@@ -317,13 +329,11 @@ describe('StatusDatabase lookups', () => {
           const bindingCounts = queries
             .filter(
               ({ sql }) =>
-                sql.includes('from `statuses`') && sql.includes('`id` in')
+                sql.includes('from "statuses"') && sql.includes('"id" in')
             )
             .map(({ bindings }) => bindings.length)
-          expect(bindingCounts.length).toBeGreaterThan(1)
-          expect(Math.max(...bindingCounts)).toBeLessThanOrEqual(
-            SQLITE_MAX_BINDINGS
-          )
+          // The chunks run concurrently, so their statements may interleave.
+          expect(bindingCounts.sort((a, b) => b - a)).toEqual([batchSize, 11])
           expect(map.size).toBe(1)
           expect(map.get(statusId)).toBe(status.publicId)
         } finally {

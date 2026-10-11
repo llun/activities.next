@@ -92,6 +92,7 @@ import { serverFilterQueries } from '@/lib/database/domains/serverFilter/queries
 import type { ServerFilterDatabase } from '@/lib/database/domains/serverFilter/types'
 import { serverSettingQueries } from '@/lib/database/domains/serverSetting/queries'
 import type { ServerSettingDatabase } from '@/lib/database/domains/serverSetting/types'
+import { createStatusQueries } from '@/lib/database/domains/status/queries'
 import { statusDetectedLanguageQueries } from '@/lib/database/domains/statusDetectedLanguage/queries'
 import type { StatusDetectedLanguageDatabase } from '@/lib/database/domains/statusDetectedLanguage/types'
 import { statusMuteQueries } from '@/lib/database/domains/statusMute/queries'
@@ -126,6 +127,7 @@ import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLo
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { Database } from '@/lib/database/types'
+import type { StatusDatabase } from '@/lib/types/database/operations'
 
 export const getSQLDatabase = (database: Knex): Database => {
   // Track Knex transactions from the start, so a Kysely call inside one is
@@ -296,7 +298,12 @@ export const getSQLDatabase = (database: Knex): Database => {
     suggestionQueries
   )
   const trendsDatabase: TrendsDatabase = bindDb(kysely, trendsQueries)
-  const statusDatabase = StatusSQLDatabaseMixin(
+  // The status lookups, poll reads, hashtag reads, pins and favourited-by and
+  // reblogged-by pages are Kysely queries; the rest of the status domain is
+  // still the Knex mixin. The queries hydrate statuses through the mixin's
+  // getStatus, getStatusesByIds and row hydration, outside any transaction,
+  // until hydration is ported. hydrateStatusRow stays off the facade.
+  const { hydrateStatusRow, ...statusKnexDatabase } = StatusSQLDatabaseMixin(
     database,
     actorDatabase,
     likeDatabase,
@@ -306,6 +313,18 @@ export const getSQLDatabase = (database: Knex): Database => {
     statusReactionDatabase,
     linkPreviewDatabase
   )
+  const statusDatabase: StatusDatabase = {
+    ...statusKnexDatabase,
+    ...bindDb(
+      kysely,
+      createStatusQueries({
+        getStatus: (params) => statusKnexDatabase.getStatus(params),
+        getStatusesByIds: (params) =>
+          statusKnexDatabase.getStatusesByIds(params),
+        hydrateStatusRow
+      })
+    )
+  }
   // The list, collection and timeline feeds hydrate through the Knex status
   // facade, outside their domains' transactions, until status is ported.
   // currentActorId hydrates the viewer's action state: each feed already

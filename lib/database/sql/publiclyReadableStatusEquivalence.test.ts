@@ -1,5 +1,8 @@
 import { kyselyFor } from '@/lib/database/kysely'
-import { publiclyReadableStatus } from '@/lib/database/kysely/visibility/publiclyReadable'
+import {
+  publiclyReadableStatus,
+  publiclyReadableStatusIds
+} from '@/lib/database/kysely/visibility/publiclyReadable'
 import { buildPubliclyReadableStatusIdsQuery } from '@/lib/database/sql/status'
 import { wherePubliclyReadableStatus } from '@/lib/database/sql/utils/publiclyReadableStatus'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
@@ -17,7 +20,9 @@ import {
 // COUNT has to touch every row anyway and the correlated form costs a recursive
 // CTE instantiation per Announce (measured three times slower there). The
 // third is the Kysely twin of the correlated form, `publiclyReadableStatus`,
-// which the local public timeline and the public collection feed read through.
+// which the local public timeline and the public collection feed read through,
+// and the fourth the Kysely twin of the set form, `publiclyReadableStatusIds`,
+// which the anonymous reblogged-by list reads through.
 //
 // Keeping several spellings of one subtle predicate is only safe with a test
 // that runs them all over the SAME rows and compares. That is what the sweep
@@ -63,6 +68,46 @@ describe('publicly readable status predicate equivalence', () => {
     )
       .map(({ id }) => id as string)
       .sort()
+
+  // The Kysely twin of the set form, over the same unscoped target set.
+  const readableByKyselySetForm = async () => {
+    const db = kyselyFor(instance)
+    return (
+      await publiclyReadableStatusIds(
+        db,
+        db.selectFrom('statuses').select('statuses.id')
+      ).execute()
+    )
+      .map(({ id }) => id as string)
+      .sort()
+  }
+
+  // Both set forms over a target set that holds only the Announces, so every
+  // chain they follow leaves the target set at its first hop: the recursion
+  // has to read the boosted statuses from the whole table and still answer
+  // with the Announce it started from.
+  const readableAnnouncesBySetForms = async () => {
+    const db = kyselyFor(instance)
+    const [knexForm, kyselyForm] = await Promise.all([
+      buildPubliclyReadableStatusIdsQuery({
+        database: instance,
+        targetStatusIds: instance('statuses')
+          .select('statuses.id')
+          .where('statuses.type', 'Announce')
+      }),
+      publiclyReadableStatusIds(
+        db,
+        db
+          .selectFrom('statuses')
+          .select('statuses.id')
+          .where('statuses.type', '=', 'Announce')
+      ).execute()
+    ])
+    return {
+      knexForm: knexForm.map(({ id }: { id: string }) => id).sort(),
+      kyselyForm: kyselyForm.map(({ id }) => id as string).sort()
+    }
+  }
 
   const note = async (
     id: string,
@@ -282,24 +327,29 @@ describe('publicly readable status predicate equivalence', () => {
       const id = ids[key]
       expect(id).toBeDefined()
 
-      const [setForm, correlatedForm, kyselyForm] = await Promise.all([
-        readableBySetForm(),
-        readableByCorrelatedForm(),
-        readableByKyselyForm()
-      ])
+      const [setForm, correlatedForm, kyselyForm, kyselySetForm] =
+        await Promise.all([
+          readableBySetForm(),
+          readableByCorrelatedForm(),
+          readableByKyselyForm(),
+          readableByKyselySetForm()
+        ])
 
       expect(setForm.includes(id)).toBe(readable)
       expect(correlatedForm.includes(id)).toBe(readable)
       expect(kyselyForm.includes(id)).toBe(readable)
+      expect(kyselySetForm.includes(id)).toBe(readable)
     }
   )
 
   it('selects exactly the same ids by every form across every fixture', async () => {
-    const [setForm, correlatedForm, kyselyForm] = await Promise.all([
-      readableBySetForm(),
-      readableByCorrelatedForm(),
-      readableByKyselyForm()
-    ])
+    const [setForm, correlatedForm, kyselyForm, kyselySetForm] =
+      await Promise.all([
+        readableBySetForm(),
+        readableByCorrelatedForm(),
+        readableByKyselyForm(),
+        readableByKyselySetForm()
+      ])
 
     // Not `toEqual` alone: an empty result on both sides would satisfy it while
     // proving nothing, and these fixtures are built so that some rows are
@@ -308,5 +358,23 @@ describe('publicly readable status predicate equivalence', () => {
     expect(setForm.length).toBeLessThan(Object.keys(ids).length)
     expect(correlatedForm).toEqual(setForm)
     expect(kyselyForm).toEqual(setForm)
+    expect(kyselySetForm).toEqual(setForm)
+  })
+
+  it('selects the same ids by both set forms over a target set of Announces', async () => {
+    const { knexForm, kyselyForm } = await readableAnnouncesBySetForms()
+
+    // The readable boosts among the fixtures, and none of the notes they
+    // reach: the answer is the target, not the end of its chain.
+    expect(knexForm).toEqual(
+      [
+        ids.boostOfCompactPublic,
+        ids.boostOfPublic,
+        ids.boostOfBoost,
+        ids.legacyBoost,
+        ids.disagreeingBoost
+      ].sort()
+    )
+    expect(kyselyForm).toEqual(knexForm)
   })
 })

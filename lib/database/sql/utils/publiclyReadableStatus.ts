@@ -150,7 +150,8 @@ const announceOriginalIsPublicNote = (database: Knex, table: string) =>
 //     way a LIMIT does — see the note at `getActorStatusesCount`.
 //   - The query embeds the predicate MORE THAN ONCE, so a correlated form is
 //     re-evaluated per row PAIR while a materialised id set is computed once
-//     and shared — see the note at `getRebloggedBy` in `status.ts`.
+//     and shared — see the note at `getRebloggedBy` in
+//     `lib/database/domains/status/interactions.ts`.
 //
 // Being unlimited is not by itself disqualifying. `getStatusRepliesCount` is an
 // unbounded COUNT and measures the same either way (1,448 buffers / 1.1ms

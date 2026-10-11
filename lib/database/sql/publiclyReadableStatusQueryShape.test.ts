@@ -141,7 +141,8 @@ describe('publicly readable status query shape', () => {
       description: 'the anonymous reblogged-by list',
       // Shipped correlated on this branch and caught in review, which is why
       // it is pinned. Reasoning and measurements at `getRebloggedBy` in
-      // `status.ts`.
+      // `lib/database/domains/status/interactions.ts`; it runs on Kysely now,
+      // through the `publiclyReadableStatusIds` twin of the set form.
       run: () => database.getRebloggedBy({ statusId: `${actorId}/statuses/1` })
     }
   ])(

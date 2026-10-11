@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { resolveStatusFromPath } from '@/app/(timeline)/[actor]/[status]/resolveStatusFromPath'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { type Actor } from '@/lib/types/domain/actor'
@@ -350,7 +350,7 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
   // against a live database, then feed the Location's own path segments to the
   // page's resolver and check it finds the same status back.
   describe('html redirect resolves through the web status page', () => {
-    const database = getTestSQLDatabase()
+    const { database, prepare } = createTestDatabase()
     const legacyUri = `${ACTOR1_ID}/statuses/legacy-tail`
     // Strava fallback notes take a deterministic sha256 as their URI tail, so
     // the tail itself looks exactly like a web-page url hash.
@@ -371,6 +371,7 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     }
 
     beforeAll(async () => {
+      await prepare()
       await database.migrate()
       await seedDatabase(database)
 

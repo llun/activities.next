@@ -1,12 +1,16 @@
 import knex, { Knex } from 'knex'
 
 import { kyselyFor } from '@/lib/database/kysely'
-import { publiclyReadableStatus } from '@/lib/database/kysely/visibility/publiclyReadable'
+import {
+  publiclyReadableStatus,
+  publiclyReadableStatusIds
+} from '@/lib/database/kysely/visibility/publiclyReadable'
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
   primaryActorId,
   replyAuthorId
 } from '@/lib/database/sql/statusTestHelpers'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -235,16 +239,15 @@ describe('StatusDatabase readable status SQL', () => {
     })
 
     it('includes publicly readable legacy Announces that only store the target in content', async () => {
-      const knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sqlDatabase = getSQLDatabase(knexDatabase)
+      // getRebloggedBy runs on Kysely; this one reaches PostgreSQL too.
+      const {
+        database: sqlDatabase,
+        knex: knexDatabase,
+        prepare
+      } = createTestDatabase()
 
       try {
+        await prepare()
         await sqlDatabase.migrate()
         await seedDatabase(sqlDatabase)
 
@@ -538,6 +541,76 @@ describe('StatusDatabase readable status SQL', () => {
         )
         expect(unquoted).toContain(
           'inner join announce_chain as chain_previous on chain_previous.originalPointer = chain_next.id'
+        )
+        // UNION, not UNION ALL, is what ends a boost cycle.
+        expect(unquoted).toContain(' union ')
+        expect(unquoted).not.toContain('union all')
+        expect(unquoted).not.toContain('originalStatusId is null and')
+      }
+    )
+  })
+
+  describe('publiclyReadableStatusIds (Kysely twin of the set form) SQL', () => {
+    const targetActorId = 'https://llun.test/users/set-twin'
+
+    // Compiles only: neither instance connects.
+    const compile = async (client: 'pg' | 'better-sqlite3') => {
+      const database = knex({ client, useNullAsDefault: true, connection: {} })
+      try {
+        const db = kyselyFor(database)
+        return publiclyReadableStatusIds(
+          db,
+          db
+            .selectFrom('statuses')
+            .select('statuses.id')
+            .where('statuses.actorId', '=', targetActorId)
+        ).compile()
+      } finally {
+        await database.destroy()
+      }
+    }
+
+    it.each([['pg' as const], ['better-sqlite3' as const]])(
+      'inlines the Announce literal into the %s chain pointer',
+      async (client) => {
+        const { sql, parameters } = await compile(client)
+
+        expect(sql).toContain(`= 'Announce' then coalesce(`)
+        expect(sql.match(/then coalesce\(/g)).toHaveLength(2)
+        // The two bound Announce values are the hop test and the chain's end
+        // test; the caller's target-set value is bound once, where the target
+        // set reads it.
+        expect(
+          parameters.filter((value) => value === StatusType.enum.Announce)
+        ).toHaveLength(2)
+        expect(
+          parameters.filter((value) => value === targetActorId)
+        ).toHaveLength(1)
+        expect(sql).not.toContain(`'${targetActorId}'`)
+      }
+    )
+
+    it.each([['pg' as const], ['better-sqlite3' as const]])(
+      'seeds the %s recursion with the target set and follows one pointer equality',
+      async (client) => {
+        const { sql } = await compile(client)
+        const unquoted = sql.replace(/"/g, '')
+
+        expect(unquoted).toContain(
+          'with recursive publicly_readable_statuses(targetId, id, type, originalPointer)'
+        )
+        expect(unquoted).toContain(
+          'from (select statuses.id from statuses where statuses.actorId = '
+        )
+        expect(unquoted).toContain(
+          'inner join statuses as target_statuses on target_statuses.id = target_status_ids.id'
+        )
+        expect(unquoted).toContain(
+          'inner join publicly_readable_statuses as readable_statuses on readable_statuses.originalPointer = original_statuses.id'
+        )
+        // Each row carries the target it started from; that is the answer.
+        expect(unquoted).toContain(
+          'select publicly_readable_statuses.targetId as id from publicly_readable_statuses'
         )
         // UNION, not UNION ALL, is what ends a boost cycle.
         expect(unquoted).toContain(' union ')
