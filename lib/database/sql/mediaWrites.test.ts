@@ -820,9 +820,11 @@ describe('replaceRemoteAttachmentsForStatus', () => {
       key: 'r3'
     })
 
+    // The new row names another status: the swap writes it under the one it
+    // replaces.
     await database.replaceRemoteAttachmentsForStatus({
       statusId,
-      attachments: [newAttachment(statusId, 'fresh')]
+      attachments: [newAttachment(otherStatusId, 'fresh')]
     })
 
     expect(await urlsOf(statusId)).toEqual([
@@ -909,6 +911,35 @@ describe('updateMedia', () => {
       thumbnail: thumbnail('medias/newer-thumb.jpg', 50)
     })
     expect(await counterValue(`media-usage:${owner.accountId}`)).toBe(4950)
+
+    // Rewriting the same path replaces no file.
+    expect(
+      await database.updateMedia({
+        mediaId: String(media),
+        accountId: owner.accountId,
+        thumbnail: thumbnail('medias/newer-thumb.jpg', 60)
+      })
+    ).toMatchObject({ replacedThumbnailPath: null })
+    expect(await counterValue(`media-usage:${owner.accountId}`)).toBe(4960)
+  })
+
+  it('stores a trimmed taxon key, and a blank one as no key', async () => {
+    const owner = await newOwner()
+    const media = await seedMedia(owner.actorId)
+
+    await database.updateMedia({
+      mediaId: String(media),
+      accountId: owner.accountId,
+      details: { subjectTaxonKey: ' 2481 ' }
+    })
+    expect(await mediaRow(media)).toMatchObject({ subjectTaxonKey: '2481' })
+
+    await database.updateMedia({
+      mediaId: String(media),
+      accountId: owner.accountId,
+      details: { subjectTaxonKey: '   ' }
+    })
+    expect(await mediaRow(media)).toMatchObject({ subjectTaxonKey: null })
   })
 
   it('answers null for another account or another actor of the account', async () => {
@@ -1418,6 +1449,84 @@ describe('setMediaSubjectLookup', () => {
     })
   })
 
+  it('writes the resolved taxon key trimmed and its path, and a blank key as none', async () => {
+    const owner = await newOwner()
+    const media = await seedMedia(owner.actorId, {
+      ...subject,
+      subjectTaxonKey: null
+    })
+    const resolve = (subjectTaxonKey: string | null) =>
+      database.setMediaSubjectLookup({
+        mediaId: String(media),
+        expect: {
+          subjectName: subject.subjectName,
+          subjectScientificName: subject.subjectScientificName,
+          subjectTaxonKey: null
+        },
+        patch: {
+          subjectLookupStatus: 'resolved',
+          subjectLookupAt: 5000,
+          subjectTaxonKey,
+          subjectTaxonPath: ['Animalia', 'Chordata', 'Aves']
+        }
+      })
+
+    expect(await resolve(' 2481139 ')).toBeTrue()
+    const row = await mediaRow(media)
+    expect(row).toMatchObject({
+      subjectTaxonKey: '2481139',
+      subjectLookupAt: 5000
+    })
+    // A JSON text column.
+    expect(JSON.parse(String(row?.subjectTaxonPath))).toEqual([
+      'Animalia',
+      'Chordata',
+      'Aves'
+    ])
+
+    await db
+      .updateTable('medias')
+      .set({ subjectTaxonKey: null })
+      .where('id', '=', media)
+      .execute()
+    expect(await resolve('  ')).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({ subjectTaxonKey: null })
+  })
+
+  it('refuses an unknown status or IUCN category without writing', async () => {
+    const owner = await newOwner()
+    const media = await seedMedia(owner.actorId, subject)
+    const expectSubject = {
+      subjectName: subject.subjectName,
+      subjectScientificName: subject.subjectScientificName,
+      subjectTaxonKey: subject.subjectTaxonKey
+    }
+
+    await expect(
+      database.setMediaSubjectLookup({
+        mediaId: String(media),
+        expect: expectSubject,
+        patch: {
+          subjectLookupStatus: 'done' as unknown as 'resolved'
+        }
+      })
+    ).rejects.toThrow('Unknown subject lookup status: done')
+    await expect(
+      database.setMediaSubjectLookup({
+        mediaId: String(media),
+        expect: expectSubject,
+        patch: {
+          subjectLookupStatus: 'resolved',
+          subjectIucnCategory: 'XX' as unknown as 'LC'
+        }
+      })
+    ).rejects.toThrow('Unknown IUCN category: XX')
+    expect(await lookupState(media)).toEqual({
+      subjectLookupStatus: null,
+      subjectIucnCategory: null
+    })
+  })
+
   it('compares a null expectation as IS NULL', async () => {
     const owner = await newOwner()
     const media = await seedMedia(owner.actorId, { subjectName: 'Fern' })
@@ -1442,6 +1551,23 @@ describe('setMediaSubjectLookup', () => {
 
 describe('setMediaPlaceLookup', () => {
   const point = { placeLatitude: 52.37, placeLongitude: 4.89 }
+
+  it('refuses an unknown status without writing', async () => {
+    const owner = await newOwner()
+    const media = await seedMedia(owner.actorId, point)
+
+    await expect(
+      database.setMediaPlaceLookup({
+        mediaId: String(media),
+        expect: point,
+        patch: { placeLookupStatus: 'done' as unknown as 'resolved' }
+      })
+    ).rejects.toThrow('Unknown place lookup status: done')
+    expect(await mediaRow(media)).toMatchObject({
+      placeLookupStatus: null,
+      placeLookupAt: null
+    })
+  })
 
   it('writes only the named media while the point is the one it read', async () => {
     const owner = await newOwner()
@@ -1517,6 +1643,29 @@ describe('setMediaPlaceLookup', () => {
     })
   })
 
+  it('trims the geocoded name and caps it at 255 characters, and a blank one is no name', async () => {
+    const owner = await newOwner()
+    const media = await seedMedia(owner.actorId, point)
+    const write = (placeName: string) =>
+      database.setMediaPlaceLookup({
+        mediaId: String(media),
+        expect: point,
+        patch: { placeLookupStatus: 'resolved', placeName }
+      })
+
+    expect(await write(`  ${'a'.repeat(300)}  `)).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({
+      placeName: 'a'.repeat(255),
+      placeNameSource: 'geocoder'
+    })
+
+    expect(await write('   ')).toBeTrue()
+    expect(await mediaRow(media)).toMatchObject({
+      placeName: null,
+      placeNameSource: null
+    })
+  })
+
   it('compares a null point as IS NULL', async () => {
     const owner = await newOwner()
     const media = await seedMedia(owner.actorId)
@@ -1582,6 +1731,14 @@ describe('setMediaSubjectSuggestions', () => {
       })
     ).toBeTrue()
     expect(await mediaRow(media)).toMatchObject({ subjectSuggestions: null })
+
+    // No such media: nothing written.
+    expect(
+      await database.setMediaSubjectSuggestions({
+        mediaId: String(media + 1000),
+        suggestions
+      })
+    ).toBeFalse()
   })
 })
 
