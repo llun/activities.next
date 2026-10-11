@@ -103,6 +103,7 @@ describe('GalleryAlbumPicker', () => {
     const robin = await screen.findByRole('button', {
       name: 'Select Robin, photo 2'
     })
+    expect(robin).toHaveClass('cursor-pointer')
     fireEvent.click(robin)
     fireEvent.click(
       screen.getByRole('button', { name: 'Select Heron, photo 1' })
@@ -257,6 +258,7 @@ describe('GalleryAlbumPicker', () => {
     expect(member).toBeDisabled()
     expect(member).toHaveTextContent('In album')
     expect(member).not.toHaveAttribute('aria-pressed')
+    expect(member).toHaveClass('cursor-pointer')
 
     fireEvent.click(screen.getByRole('button', { name: 'Select all shown' }))
     expect(screen.getByTestId('selected')).toHaveTextContent('1,3')

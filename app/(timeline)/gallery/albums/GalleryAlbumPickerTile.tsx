@@ -43,7 +43,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
     disabled={disabled || isMember || isBlocked}
     onClick={() => onToggle(item.mediaId)}
     className={cn(
-      'focus-visible:outline-primary bg-muted/20 relative block aspect-square w-full overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 disabled:cursor-not-allowed',
+      'focus-visible:outline-primary bg-muted/20 relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 disabled:cursor-not-allowed',
       isMember ? 'disabled:opacity-60' : 'disabled:opacity-40',
       isSelected && 'ring-primary ring-2 ring-inset'
     )}

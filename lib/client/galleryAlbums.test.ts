@@ -55,14 +55,14 @@ describe('gallery albums client module', () => {
 
     await getGalleryAlbumItems('a1', {
       maxId: '10:2',
-      limit: 30,
+      limit: 24,
       sort: 'added_desc',
       subject: 'sci:alcedo atthis'
     })
 
     const [url] = fetchMock.mock.calls[0]
     expect(String(url)).toBe(
-      '/api/v1/gallery/albums/a1/items?max_id=10%3A2&limit=30&sort=added_desc&subject=sci%3Aalcedo+atthis'
+      '/api/v1/gallery/albums/a1/items?max_id=10%3A2&limit=24&sort=added_desc&subject=sci%3Aalcedo+atthis'
     )
   })
 
@@ -276,13 +276,13 @@ describe('gallery albums client module', () => {
 
       await getAccountGalleryAlbum(ACCOUNT, 'a/b', {
         maxId: '10:2',
-        limit: 30,
+        limit: 24,
         sort: 'taken_asc',
         subject: 'sci:alcedo atthis'
       })
 
       expect(String(fetchMock.mock.calls[0][0])).toBe(
-        '/api/v1/accounts/llun.test:users:ann/gallery/albums/a%2Fb?max_id=10%3A2&limit=30&sort=taken_asc&subject=sci%3Aalcedo+atthis'
+        '/api/v1/accounts/llun.test:users:ann/gallery/albums/a%2Fb?max_id=10%3A2&limit=24&sort=taken_asc&subject=sci%3Aalcedo+atthis'
       )
       expect(fetchMock.mock.calls[0][1]).toEqual({
         method: 'GET',

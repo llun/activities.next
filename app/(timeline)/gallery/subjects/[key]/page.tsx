@@ -68,7 +68,7 @@ const Page = async ({ params }: PageProps) => {
       database,
       owner: actor,
       audience: OWNER_GALLERY_AUDIENCE,
-      limit: 30,
+      limit: 24,
       subjectKey
     }),
     getGallerySubjects({

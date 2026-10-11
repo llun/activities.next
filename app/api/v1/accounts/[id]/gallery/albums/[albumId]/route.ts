@@ -36,7 +36,7 @@ interface Params {
 const MAX_ALBUM_ID_LENGTH = 128
 
 const AlbumViewQuery = GalleryAlbumItemsQuery.extend({
-  limit: clampedLimit(60, 30)
+  limit: clampedLimit(60, 24)
 })
 
 // GET /api/v1/accounts/:id/gallery/albums/:albumId — an album as the

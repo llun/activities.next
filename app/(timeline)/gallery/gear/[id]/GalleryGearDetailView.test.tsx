@@ -251,7 +251,7 @@ describe('GalleryGearDetailView', () => {
     ).toBeVisible()
     expect(mockMediaPage).toHaveBeenCalledWith('https://llun.test/users/me', {
       maxId: '5',
-      limit: 30,
+      limit: 24,
       gearId: 'cam-1',
       subject: undefined,
       category: undefined
