@@ -1,0 +1,64 @@
+app/(timeline)/[actor]/ProfileGalleryTab.tsx
+  h_580a04e334fef4 126
+app/(timeline)/[actor]/albums/[id]/PublicGalleryAlbumView.test.tsx
+  h_580a04e334fef4 49,118,135,252,289,318,360
+app/(timeline)/[actor]/albums/[id]/PublicGalleryAlbumView.tsx
+  h_580a04e334fef4 5,17-20,22,83-86,133,155-162,289-290,296-299
+app/(timeline)/[actor]/albums/[id]/loading.tsx
+  h_580a04e334fef4 35
+app/(timeline)/[actor]/albums/[id]/page.test.tsx
+  h_580a04e334fef4 140
+app/(timeline)/[actor]/albums/[id]/page.tsx
+  h_580a04e334fef4 29
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  h_580a04e334fef4 353
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview.tsx
+  h_580a04e334fef4 277
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.test.tsx
+  h_580a04e334fef4 108,305,382,398,435,474,515
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.tsx
+  h_580a04e334fef4 39-43,101-104,180,202-209,624-625,631-634
+app/(timeline)/gallery/albums/[id]/page.tsx
+  h_580a04e334fef4 19
+app/(timeline)/gallery/gear/[id]/GalleryGearDetailView.test.tsx
+  h_580a04e334fef4 254
+app/(timeline)/gallery/gear/[id]/page.tsx
+  h_580a04e334fef4 21
+app/(timeline)/gallery/media/GalleryAllMediaView.test.tsx
+  h_580a04e334fef4 198,354
+app/(timeline)/gallery/media/page.tsx
+  h_580a04e334fef4 61
+app/(timeline)/gallery/subjects/[key]/page.tsx
+  h_580a04e334fef4 71
+app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.ts
+  h_580a04e334fef4 39
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  h_580a04e334fef4 36
+app/api/v1/gallery/albums/[id]/items/route.ts
+  h_580a04e334fef4 66
+app/api/v1/gallery/albums/[id]/route.ts
+  h_580a04e334fef4 57
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 549
+lib/client/galleryAlbums.test.ts
+  h_580a04e334fef4 58,65,279,285
+lib/client/galleryMedia.test.ts
+  h_580a04e334fef4 40,54
+lib/components/gallery/GalleryGridSkeleton.tsx
+  h_580a04e334fef4 6,24
+lib/components/gallery/GalleryPagedGrid.test.tsx
+  h_580a04e334fef4 101,126,437-508
+lib/components/gallery/GalleryPagedGrid.tsx
+  h_580a04e334fef4 20-24,79,124-128,240-246,277,283-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b6442e9cc4e4f962e3aaf638db6e9c7d0b49d4a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
