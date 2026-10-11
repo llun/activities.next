@@ -165,7 +165,7 @@ export const GalleryGrid: FC<Props> = ({
               <button
                 type="button"
                 className={cn(
-                  'group bg-muted/20 focus-visible:outline-primary relative block aspect-square w-full overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2',
+                  'group bg-muted/20 focus-visible:outline-primary relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2',
                   isSelected && 'ring-primary ring-3 ring-inset'
                 )}
                 onClick={() =>
