@@ -40,6 +40,7 @@ describe('Create note action', () => {
     database,
     actors,
     mockSendNotificationAlerts,
+    settleNotificationAlerts,
     clearSettledNotificationAlerts
   } = useCreateNoteFixtures()
   let actor1: Actor
@@ -147,16 +148,14 @@ describe('Create note action', () => {
       })) as StatusNote
       expect(hydrated.quote?.state).toBe('accepted')
 
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      await vi.waitFor(() =>
-        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-          expect.objectContaining({
-            actorId: actor1.id,
-            events: expect.arrayContaining([
-              expect.objectContaining({ type: 'quote' })
-            ])
-          })
-        )
+      await settleNotificationAlerts()
+      expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor1.id,
+          events: expect.arrayContaining([
+            expect.objectContaining({ type: 'quote' })
+          ])
+        })
       )
     })
 
@@ -308,7 +307,7 @@ describe('Create note action', () => {
           replyNoteId: originalStatus.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -348,7 +347,7 @@ describe('Create note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -389,7 +388,7 @@ describe('Create note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -430,7 +429,7 @@ describe('Create note action', () => {
           currentActor: actor1,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
@@ -441,14 +440,12 @@ describe('Create note action', () => {
             (notification) => notification.statusId === status.id
           )
         ).toHaveLength(1)
-        await vi.waitFor(() =>
-          expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-            expect.objectContaining({
-              actorId: actor2.id,
-              sourceActorId: actor1.id,
-              statusId: status.id
-            })
-          )
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor2.id,
+            sourceActorId: actor1.id,
+            statusId: status.id
+          })
         )
       } finally {
         await database.deleteMute({
@@ -472,7 +469,7 @@ describe('Create note action', () => {
         replyNoteId: originalStatus.id,
         database
       })) as StatusNote
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await settleNotificationAlerts()
 
       const notifications = await database.getNotifications({
         actorId: actor2.id,
@@ -488,17 +485,12 @@ describe('Create note action', () => {
         NotificationType.enum.reply
       )
 
-      // A single reply alert is dispatched for the parent author. It goes out
-      // after a fire-and-forget actor lookup, which on PostgreSQL can still be
-      // in flight here.
-      const replyAlertCalls = await vi.waitFor(() => {
-        const calls = mockSendNotificationAlerts.mock.calls.filter(
-          ([call]) =>
-            call.actorId === actor2.id && call.statusId === replyStatus.id
-        )
-        expect(calls).toHaveLength(1)
-        return calls
-      })
+      // A single reply alert is dispatched for the parent author.
+      const replyAlertCalls = mockSendNotificationAlerts.mock.calls.filter(
+        ([call]) =>
+          call.actorId === actor2.id && call.statusId === replyStatus.id
+      )
+      expect(replyAlertCalls).toHaveLength(1)
       expect(replyAlertCalls[0][0].events).toEqual([
         expect.objectContaining({ type: NotificationType.enum.reply })
       ])
@@ -526,7 +518,7 @@ describe('Create note action', () => {
           replyNoteId: originalStatus.id,
           database
         })) as StatusNote
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await settleNotificationAlerts()
 
         const notifications = await database.getNotifications({
           actorId: actor2.id,
