@@ -1362,6 +1362,24 @@ describe('collection items', () => {
     expect(await getCollectionItems(db, { collectionIds: [] })).toEqual({})
   })
 
+  it('reads each collection once when the ids span several IN chunks', async () => {
+    const s = await setup()
+    const { i1, i2, i3, j1 } = s.items
+    // a sits in the first chunk and b in the second on both backends (998 ids
+    // a chunk on SQLite, 1,000 on PostgreSQL), so a chunk that read more than
+    // its own ids would return a's and b's rows twice.
+    const missing = Array.from(
+      { length: 1000 },
+      (_, n) => `${s.prefix}-missing-${n}`
+    )
+    const ids = [`${s.prefix}-a`, ...missing, `${s.prefix}-b`]
+    const items = await getCollectionItems(db, { collectionIds: ids })
+    expect(items[`${s.prefix}-a`]).toEqual([i2, i3, i1])
+    expect(items[`${s.prefix}-b`]).toEqual([j1])
+    expect(Object.keys(items)).toHaveLength(1002)
+    expect(missing.every((id) => items[id].length === 0)).toBe(true)
+  })
+
   it('reads one item of a collection by id or by account', async () => {
     const s = await setup()
     const { i3, j1 } = s.items
