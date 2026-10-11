@@ -150,6 +150,15 @@ describe('publicly readable status predicate equivalence', () => {
       { isPublic: true }
     )
 
+    // Depth 2 whose second hop is not public: the chain starts at a public
+    // boost, but the note that boost points at is followers-only, so the
+    // chain never reaches a public note.
+    ids.boostOfBoostOfPrivate = await announce(
+      'boost-of-boost-of-private',
+      ids.boostOfPrivate,
+      { isPublic: true }
+    )
+
     // Legacy shape: before `20260517000000_add_status_original_status_id.js`
     // the boosted id lived only in `content`. `COALESCE` is what still reads
     // it, and no writer produces this row today.
@@ -243,6 +252,11 @@ describe('publicly readable status predicate equivalence', () => {
     {
       description: 'a boost through a private hop',
       key: 'boostOfPrivateBoost',
+      readable: false
+    },
+    {
+      description: 'a boost of a public boost of a private note',
+      key: 'boostOfBoostOfPrivate',
       readable: false
     },
     {

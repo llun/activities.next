@@ -582,6 +582,35 @@ describe('the public feeds', () => {
     expect(await getLocalPublicStatusesCount(db, 100)).toBe(LOCAL_ORDER.length)
   })
 
+  // Three posts sharing a createdAt, written in neither id order nor its
+  // reverse. A scan in write order and a backward index scan both leave such
+  // a tie out of id order, so only the id tie-break puts it in id order.
+  it.each([Timeline.LOCAL_PUBLIC, Timeline.FEDERATED_PUBLIC])(
+    'breaks a three-way createdAt tie on the status id in the %s feed',
+    async (timeline) => {
+      const author = actorIn('local.test', 'tie')
+      await seedActor(author, 'key-tie')
+      for (const digit of [2, 3, 1]) {
+        const id = await seedStatus({
+          id: `https://local.test/t/${digit}`,
+          actorId: author,
+          createdAt: BASE + 1000
+        })
+        await db
+          .insertInto('federated_timeline')
+          .values({
+            statusId: id,
+            statusActorId: author,
+            createdAt: new Date(BASE)
+          })
+          .execute()
+      }
+      expect(await read({ timeline, limit: 40 })).toEqual(
+        [3, 2, 1].map((digit) => `https://local.test/t/${digit}`)
+      )
+    }
+  )
+
   it('ends the local public feed on an unknown cursor or one without createdAt', async () => {
     const ids = await setupLocal()
     ids.undated = await seedStatus({

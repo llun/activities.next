@@ -786,6 +786,48 @@ describe('addCollectionMembers', () => {
       `${undatedPost}@0#${await memberSeqOf(undatedCollection, undated)}`
     ])
   })
+
+  it('trims the feed back to the cap when a backfill takes it past the slack', async () => {
+    const prefix = nextPrefix()
+    const owner = actorIn('home.test', `${prefix}-owner`)
+    const [existing, added] = ['existing', 'added'].map((name) =>
+      actorIn('m.test', `${prefix}-${name}`)
+    )
+    const collection = await seedCollection({ id: `${prefix}-a`, owner })
+    const { seq: existingSeq } = await seedMember({
+      collectionSeq: collection,
+      targetActorId: existing
+    })
+    // Two older rows already in the feed: with the three backfilled posts
+    // the feed holds five, past the cap of three plus the slack of one.
+    for (const n of [1, 2]) {
+      await seedFeedRow({
+        collectionSeq: collection,
+        memberSeq: existingSeq,
+        statusId: `${existing}/statuses/${n}`,
+        sortKey: BASE + n * 100
+      })
+    }
+    for (const n of [1, 2, 3]) {
+      await seedStatus({
+        id: `${added}/statuses/${n}`,
+        actorId: added,
+        createdAt: BASE + n * 1000
+      })
+    }
+
+    await addCollectionMembers(db, {
+      id: `${prefix}-a`,
+      actorId: owner,
+      targetActorIds: [added]
+    })
+    const seq = await memberSeqOf(collection, added)
+    expect(await feedOf(collection)).toEqual(
+      [1, 2, 3]
+        .map((n) => `${added}/statuses/${n}@${BASE + n * 1000}#${seq}`)
+        .sort()
+    )
+  })
 })
 
 describe('feed trimming', () => {
@@ -996,8 +1038,11 @@ describe('setOwnCollectionMembershipState', () => {
 
 describe('getCollectionMembers', () => {
   // Members 1..5, ids sorting against time, 2 and 3 added at the same time
-  // and written out of id order; 2 and 5 approved. Neighbours: a member of
-  // the owner's other collection, and of another owner's.
+  // and written out of id order, with actor ids that sort against their
+  // member ids too, so neither the write order nor the (collectionSeq,
+  // targetActorId) index puts the tie in id order; 2 and 5 approved.
+  // Neighbours: a member of the owner's other collection, and of another
+  // owner's.
   const setup = async () => {
     const prefix = nextPrefix()
     const owner = actorIn('home.test', `${prefix}-owner`)
@@ -1015,7 +1060,7 @@ describe('getCollectionMembers', () => {
     const ids: Record<number, string> = {}
     const members: Record<number, string> = {}
     for (const [n, offset, idDigit, featureState] of plan) {
-      members[n] = actorIn('m.test', `${prefix}-member${n}`)
+      members[n] = actorIn('m.test', `${prefix}-member${10 - n}`)
       ids[n] = (
         await seedMember({
           collectionSeq: collection,
@@ -1029,14 +1074,14 @@ describe('getCollectionMembers', () => {
     const neighbourId = (
       await seedMember({
         collectionSeq: neighbour,
-        targetActorId: actorIn('m.test', `${prefix}-member6`),
+        targetActorId: actorIn('m.test', `${prefix}-member11`),
         createdAt: BASE + 2500,
         id: `${prefix}-id6`
       })
     ).id
     await seedMember({
       collectionSeq: foreign,
-      targetActorId: actorIn('m.test', `${prefix}-member7`),
+      targetActorId: actorIn('m.test', `${prefix}-member12`),
       createdAt: BASE + 2500
     })
     return { prefix, owner, other, ids, members, neighbourId }
