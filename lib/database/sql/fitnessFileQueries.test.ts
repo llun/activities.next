@@ -912,6 +912,68 @@ describe('file reads', () => {
     ).toEqual(['batch-3', 'batch-2', 'batch-1'])
   })
 
+  // Knex compiled `where(column, null)` to `column IS NULL`, so a null id used
+  // to be handed every actor's unattached, unbatched or accountless files.
+  // Kysely binds `= NULL`, which matches nothing. The types forbid a null id;
+  // this pins what a caller that slips one in gets.
+  it('answers nothing for a null statusId, batchId or accountId', async () => {
+    const nullId = null as unknown as string
+    const accountId = await newAccount()
+    const actorId = await newActor(accountId)
+    const statusId = await newStatus(actorId)
+    const accountlessActorId = await newActor()
+    const accountlessStatusId = await newStatus(accountlessActorId)
+    // No status, but a batch and an account.
+    const unattached = await seedFile(actorId, { importBatchId: 'null-batch' })
+    // A status and an account, but no batch.
+    const unbatched = await seedFile(actorId, { statusId })
+    // A status and a batch, but its actor has no account.
+    const accountless = await seedFile(accountlessActorId, {
+      statusId: accountlessStatusId,
+      importBatchId: 'null-batch'
+    })
+
+    // The same files are found by their real ids.
+    expect(idsOf(await database.getFitnessFilesByStatus({ statusId }))).toEqual(
+      [unbatched]
+    )
+    expect(
+      (
+        await database.getFitnessFileByStatus({
+          statusId: accountlessStatusId
+        })
+      )?.id
+    ).toBe(accountless)
+    expect(
+      idsOf(
+        await database.getFitnessFilesByBatchId({ batchId: 'null-batch' })
+      ).sort()
+    ).toEqual([unattached, accountless].sort())
+    expect(
+      idsOf(
+        (await database.getFitnessFilesWithStatusForAccount({ accountId }))
+          .items
+      ).sort()
+    ).toEqual([unattached, unbatched].sort())
+
+    expect(
+      await database.getFitnessFilesByStatus({ statusId: nullId })
+    ).toEqual([])
+    expect(
+      await database.getFitnessFileByStatus({ statusId: nullId })
+    ).toBeNull()
+    expect(
+      await database.getFitnessFilesByBatchId({ batchId: nullId })
+    ).toEqual([])
+    expect(
+      (
+        await database.getFitnessFilesWithStatusForAccount({
+          accountId: nullId
+        })
+      ).items
+    ).toEqual([])
+  })
+
   it('getFitnessStorageUsageForAccount reads the account’s usage counter', async () => {
     const accountId = await newAccount()
     await setCounter(CounterKey.fitnessUsage(accountId), 1234)
@@ -1103,6 +1165,19 @@ describe('the fitness overview reads', () => {
         totalElevationGainMeters: 300
       }
     ])
+    // An empty type is no filter, as it was under Knex (`if (activityType)`),
+    // not a filter on the empty string that matches no activity.
+    expect(
+      (
+        await database.getFitnessActivityCalendarData({
+          actorId,
+          startDate: windowStart,
+          endDate: windowEnd,
+          timeZone: 'UTC',
+          activityType: ''
+        })
+      ).map((day) => day.date)
+    ).toEqual(['2026-03-10', '2026-03-11', '2026-03-12'])
     await expect(
       database.getFitnessActivityCalendarData({
         actorId,
@@ -1288,6 +1363,18 @@ describe('the fitness overview reads', () => {
 })
 
 describe('createFitnessFile', () => {
+  // The clock is frozen mid-hour: the write and the reads that check its
+  // buckets then agree on the hour, however close the real clock is to the
+  // next one.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-15T10:30:00.000Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   const bucketId = (type: string) =>
     CounterKey.bucketKey(type, formatBucketHour(new Date()))
 
@@ -1646,6 +1733,25 @@ describe('status and activity writes', () => {
         importStatus: 'failed'
       })
     ).toBe(0)
+  })
+
+  it('updateFitnessFilesImportStatus caps the reason it records', async () => {
+    const first = await seedFile(actorId)
+    const second = await seedFile(actorId, { importError: 'second' })
+
+    expect(
+      await database.updateFitnessFilesImportStatus({
+        fitnessFileIds: [first, second],
+        importStatus: 'failed',
+        importError: 'q'.repeat(MAX_FITNESS_IMPORT_ERROR_LENGTH + 500)
+      })
+    ).toBe(2)
+    for (const id of [first, second]) {
+      expect(await fileRow(id)).toMatchObject({
+        importStatus: 'failed',
+        importError: 'q'.repeat(MAX_FITNESS_IMPORT_ERROR_LENGTH)
+      })
+    }
   })
 
   it('updateFitnessFilePrimary flips the one file', async () => {

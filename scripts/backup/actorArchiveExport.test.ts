@@ -1,7 +1,8 @@
 /**
- * `exportActorArchive` end to end, against a real SQLite database, for the one
- * property no unit test of `registerAttachmentUrl` can reach: that
- * `--remote-fetch-budget` is ONE budget spent across the whole run.
+ * `exportActorArchive` end to end, against a real database (SQLite, or
+ * PostgreSQL when `TEST_DATABASE_TYPE=pg`), for the one property no unit test
+ * of `registerAttachmentUrl` can reach: that `--remote-fetch-budget` is ONE
+ * budget spent across the whole run.
  *
  * It lives in its own file because reaching `exportActorArchive` at all means
  * mocking `@/lib/database`, `@/lib/config` and half of `./productionArchive` at
@@ -24,7 +25,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -125,7 +126,8 @@ const runExport = async ({
   attachmentCount: number
   budgetSeconds: number
 }) => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const database = testDb.database
   holder.database = database
   holder.stagingManifest = null
   holder.nowMs = 1_700_000_000_000
@@ -138,6 +140,7 @@ const runExport = async ({
   )
 
   try {
+    await testDb.prepare()
     await database.migrate()
     await database.createAccount({
       domain: DOMAIN,
