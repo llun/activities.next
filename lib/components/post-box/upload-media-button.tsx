@@ -103,7 +103,9 @@ export const UploadMediaButton: FC<Props> = ({
             }
 
             const tempId = crypto.randomUUID()
-            const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
+            const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT, {
+              keepMetadata: true
+            })
             // The upload endpoint enforces the instance's resolved
             // media.maxFileSize, so reject over-cap files here rather than
             // after a full upload round trip. Checked after resizing, which is
