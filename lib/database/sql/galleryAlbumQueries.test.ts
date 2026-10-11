@@ -1145,10 +1145,11 @@ describe('getGalleryAlbumMedia', () => {
       audience: OWNER,
       sort: 'taken_desc',
       limit: 100,
-      subjectKey: toSubjectKey({
-        name: 'Common Kingfisher',
-        scientificName: 'Alcedo atthis'
-      })
+      subjectKey:
+        toSubjectKey({
+          name: 'Common Kingfisher',
+          scientificName: 'Alcedo atthis'
+        }) ?? undefined
     })
     expect(rows.map((row) => Number(row.media.id))).toEqual([m.undated, m.jan])
     expect(rows[0].statusId).toMatch(/\/statuses\//)
@@ -2151,7 +2152,7 @@ describe('the actor row lock', () => {
     expect(await itemsOf(albumId)).toHaveLength(2)
   })
 
-  it('keeps a cover set while its photo is removed out of the album', async () => {
+  it('clears a cover set on the photo while the remove waits', async () => {
     if (!isPostgres()) return
     const { owner, albumId, publicA } = await seedAlbumWithNeighbours()
     // The cover is set (and committed) while the remove waits for the lock;
@@ -2419,6 +2420,16 @@ describe('driver errors', () => {
         title: null as unknown as string
       })
     ).rejects.toThrow(notNull)
+    if (isPostgres()) {
+      // Only PostgreSQL enforces the varchar(120) title.
+      await expect(
+        database.createGalleryAlbumWithinLimit({
+          actorId: owner,
+          title: 'x'.repeat(121),
+          limit: 100
+        })
+      ).rejects.toThrow(/^value too long for type character varying\(120\)$/)
+    }
     expect(await dumpTables()).toEqual(before)
   })
 })
