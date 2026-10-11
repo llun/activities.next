@@ -183,7 +183,7 @@ interface TileColumns {
  *
  * `tilesForBounds` signals a wrap by answering `minX > maxX` and says in its
  * own docblock that splitting it is the caller's job — its previous callers
- * were server reads whose `whereBetween` harmlessly matched nothing. Doing the
+ * were server reads whose `between` harmlessly matched nothing. Doing the
  * split here is what lets someone in Fiji or Chukotka see street detail at all;
  * without it every view containing 180 degrees fell back to the whole-history
  * geometry, permanently, while a neighbour 20 km west got tiles.

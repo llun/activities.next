@@ -292,7 +292,7 @@ describe('buildHeatmapSegmentsFromTiles', () => {
   })
 
   it('reads both sides of the antimeridian as two ranges', async () => {
-    // The range read is a `whereBetween`, which matches nothing when minX
+    // The range read is a `between`, which matches nothing when minX
     // exceeds maxX rather than wrapping around.
     await buildHeatmapSegmentsFromTiles(database, {
       heatmap: scope,

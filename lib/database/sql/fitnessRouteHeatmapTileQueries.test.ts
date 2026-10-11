@@ -1619,9 +1619,13 @@ describe('what changed with the move off Knex', () => {
 // it as a rounded number. The table is swapped for a view in this worker's
 // separate database, as four million real rows would take minutes to write.
 describe.runIf(testDb.backend === 'pg')('an int8 total past 2^53 - 1', () => {
-  const isolated = createTestDatabase({ isolated: true })
+  // Created in `beforeAll`: `describe.runIf` still runs this body when the
+  // suite is collected on SQLite, and a database made here would never be
+  // destroyed.
+  let isolated: ReturnType<typeof createTestDatabase>
 
   beforeAll(async () => {
+    isolated = createTestDatabase({ isolated: true })
     await isolated.prepare()
     await isolated.database.migrate()
     await sql

@@ -214,7 +214,7 @@ describe('tilesForBounds', () => {
   })
 
   it('reports minX past maxX for an antimeridian-straddling box, for the caller to split', () => {
-    // Deliberate: the range read uses `whereBetween`, which matches nothing in
+    // Deliberate: the range read uses `between`, which matches nothing in
     // that state rather than silently wrapping across the whole map.
     const range = tilesForBounds(
       { minLat: -10, maxLat: 10, minLng: 170, maxLng: -170 },
