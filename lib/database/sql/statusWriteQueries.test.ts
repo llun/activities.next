@@ -903,18 +903,31 @@ describe('createNote', () => {
     })
     expect(await counterValue(CounterKey.totalReply(parent))).toBeNull()
 
-    await createNote(db, hydration, {
-      id: `${local}/statuses/unknown`,
-      url: `${local}/statuses/unknown`,
-      actorId: local,
-      text: 'reply',
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [],
-      reply: `${remote}/statuses/missing`
-    })
+    const { statements } = await capture(() =>
+      createNote(db, hydration, {
+        id: `${local}/statuses/unknown`,
+        url: `${local}/statuses/unknown`,
+        actorId: local,
+        text: 'reply',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        reply: `${remote}/statuses/missing`
+      })
+    )
     expect(
       await counterValue(CounterKey.totalReply(`${remote}/statuses/missing`))
     ).toBeNull()
+    // It looks the parent up, finds none and counts no reply at all.
+    const steps = transactionSteps(statements)
+    expect(steps).toEqual(
+      expect.arrayContaining([
+        `parent by id ${remote}/statuses/missing`,
+        `parent by url ${remote}/statuses/missing`
+      ])
+    )
+    expect(
+      steps.filter((step) => step.startsWith('count total-reply'))
+    ).toEqual([])
     expect(await counterValue(CounterKey.totalStatus(local))).toBe(3)
   })
 
@@ -1376,6 +1389,36 @@ describe('createAnnounce', () => {
     expect(await dumpTables()).toEqual(before)
   })
 
+  it('returns null, keeping the boost, when the original is gone by the time it is read back', async () => {
+    const { local, original } = await setup()
+    const id = `${local}/statuses/boost`
+    let reads = 0
+    const vanishing: StatusHydration = {
+      ...hydration,
+      // The original is there before the transaction and deleted by a
+      // concurrent request before the read after it.
+      getStatus: async (params) => {
+        reads += 1
+        return reads === 1 ? hydration.getStatus(params) : null
+      }
+    }
+    expect(
+      await createAnnounce(db, vanishing, {
+        id,
+        actorId: local,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: original
+      })
+    ).toBeNull()
+    expect(reads).toBe(2)
+    expect(await statusRow(id)).toMatchObject({
+      id,
+      originalStatusId: original
+    })
+    expect(await counterValue(CounterKey.totalReblog(original))).toBe(1)
+  })
+
   it('runs its statements in one transaction, in order', async () => {
     const { remote, original } = await setup()
     const id = `${remote}/statuses/boost`
@@ -1589,6 +1632,7 @@ describe('updateNote', () => {
     const previous = await testDb.database.getStatus({ statusId: id })
     const attachmentsBefore = await attachmentsOf(id)
     const neighbourBefore = await attachmentsOf(neighbour)
+    const neighbourRowBefore = await statusRow(neighbour)
 
     const status = await updateNote(db, hydration, {
       statusId: id,
@@ -1668,8 +1712,9 @@ describe('updateNote', () => {
       [attachments.noMedia]: before[attachments.noMedia],
       [added!.id]: added
     })
-    // The other status's attachment of the same media is untouched.
+    // The other status, and its attachment of the same media, are untouched.
     expect(await attachmentsOf(neighbour)).toEqual(neighbourBefore)
+    expect(await statusRow(neighbour)).toEqual(neighbourRowBefore)
 
     expect(await searchDocumentOf(id)).toMatchObject({
       documentText: expect.stringContaining('after'),
@@ -1701,6 +1746,26 @@ describe('updateNote', () => {
       sensitive: false,
       language: 'th'
     })
+    expect(await attachmentsOf(id)).toEqual(attachmentsBefore)
+    expect(transactionSteps(statements)).toEqual([
+      'begin',
+      'insert history',
+      'update status',
+      'commit'
+    ])
+  })
+
+  it('deletes no attachment when the edit keeps every replaceable one', async () => {
+    const { id } = await setup()
+    const attachmentsBefore = await attachmentsOf(id)
+    const { statements } = await capture(() =>
+      updateNote(db, hydration, {
+        statusId: id,
+        text: 'after',
+        summary: '',
+        attachments: [incoming('9101'), incoming('9102'), incoming('9103')]
+      })
+    )
     expect(await attachmentsOf(id)).toEqual(attachmentsBefore)
     expect(transactionSteps(statements)).toEqual([
       'begin',
@@ -1745,6 +1810,25 @@ describe('updateNote', () => {
       ['9104', now, now],
       ['9106', now + 1, now + 1]
     ])
+  })
+
+  it("never deletes another actor's attachment on the status", async () => {
+    const { id, attachments } = await setup()
+    const other = await seedActor(`${nextPrefix()}-other`)
+    const foreign = await seedAttachment({
+      statusId: id,
+      actorId: other,
+      mediaId: '9107'
+    })
+    await updateNote(db, hydration, {
+      statusId: id,
+      text: 'after',
+      summary: '',
+      attachments: [incoming('9101'), incoming('9102')]
+    })
+    const remaining = (await attachmentsOf(id)).map((row) => row.id)
+    expect(remaining).toContain(foreign)
+    expect(remaining).not.toContain(attachments.removed)
   })
 
   it('rolls back the revision, the content and the attachments when its last write fails', async () => {
@@ -2030,6 +2114,35 @@ describe('updateNoteVisibility', () => {
     ])
   })
 
+  it('looks up no parent for a status that is no reply when it crosses the public line', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = await seedStatus({
+      id: `${author}/statuses/1`,
+      actorId: author,
+      cc: [`${author}/followers`]
+    })
+    await seedTag(id, `#Solo${p}`)
+    const key = CounterKey.totalHashtag(`solo${p}`)
+    await setCounter(key, 2)
+    const { statements } = await capture(() =>
+      updateNoteVisibility(db, hydration, {
+        statusId: id,
+        ...FOLLOWERS_ONLY(author)
+      })
+    )
+    expect(await counterValue(key)).toBe(1)
+    expect(transactionSteps(statements)).toEqual([
+      'begin',
+      'delete recipients',
+      'delete timelines',
+      `recipient to ${author}/followers`,
+      'read hashtags',
+      `count ${key}`,
+      'commit'
+    ])
+  })
+
   it('runs its statements in one transaction, in order', async () => {
     const { author, reader, parent, id, hashtagKeys } = await setup(['#Cats'])
     // Narrowing, then widening.
@@ -2302,6 +2415,36 @@ describe('updatePoll', () => {
     ])
   })
 
+  it('records a revision for a reset that changes nothing else', async () => {
+    const { id } = await setup()
+    const { statements } = await capture(() =>
+      updatePoll(db, hydration, {
+        statusId: id,
+        text: `poll ${id}`,
+        choices: [{ title: 'yes', totalVotes: 3 }],
+        resetVotes: true
+      })
+    )
+    expect(await historyOf(id)).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({
+          pollOptions: ['red', 'green', 'blue']
+        })
+      })
+    ])
+    expect(transactionSteps(statements)).toEqual([
+      'begin',
+      'read choice titles',
+      'insert history',
+      'update status',
+      'delete answers',
+      'delete voters',
+      'delete choices',
+      'insert choice yes',
+      'commit'
+    ])
+  })
+
   it('resets the votes and replaces the options of that poll only', async () => {
     const { id, neighbour } = await setup()
     const neighbourBefore = await neighbourRows(neighbour)
@@ -2532,12 +2675,18 @@ describe('tag writes', () => {
       type: 'hashtag',
       skipSearchIndex: true
     })
-    await createTag(db, {
-      statusId: id,
-      name: `@bob${p}`,
-      value: `https://${DOMAIN}/users/bob`,
-      type: 'mention'
-    })
+    // A mention is written with no search document work at all.
+    const mention = await capture(() =>
+      createTag(db, {
+        statusId: id,
+        name: `@bob${p}`,
+        value: `https://${DOMAIN}/users/bob`,
+        type: 'mention'
+      })
+    )
+    expect(mention.statements.map(({ sql: text }) => text)).toEqual([
+      expect.stringMatching(/^insert into "tags" /)
+    ])
     expect(await tagsOf(id)).toEqual([
       {
         type: 'hashtag',
@@ -2703,6 +2852,12 @@ describe('poll votes', () => {
         recordPollVotes(db, { statusId: id, actorId: alice, choices })
       ).resolves.toBe(false)
     }
+    // No choice at all is refused before any statement.
+    const { result, statements } = await capture(() =>
+      recordPollVotes(db, { statusId: id, actorId: alice, choices: [] })
+    )
+    expect(result).toBe(false)
+    expect(statements).toEqual([])
     const { bob } = await setup()
     await expect(
       recordPollVotes(db, { statusId: id, actorId: bob, choices: [0, 3] })
