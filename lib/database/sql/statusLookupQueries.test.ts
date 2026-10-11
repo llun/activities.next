@@ -652,7 +652,27 @@ describe('status lookups', () => {
       () =>
         getActorAnnounceStatus(db, hydration, { actorId: 'x', statusId: 'y' })
     ],
-    ['hasActorVoted', () => hasActorVoted(db, { statusId: 'x', actorId: 'y' })]
+    ['hasActorVoted', () => hasActorVoted(db, { statusId: 'x', actorId: 'y' })],
+    [
+      "getStatusesByHashtag's cursor",
+      () =>
+        getStatusesByHashtag(db, hydration, {
+          hashtag: 'none',
+          maxStatusId: 'missing'
+        })
+    ],
+    [
+      "getStatusesByHashtag's min cursor",
+      () =>
+        getStatusesByHashtag(db, hydration, {
+          hashtag: 'none',
+          minStatusId: 'missing'
+        })
+    ],
+    [
+      "getRebloggedBy's cursor",
+      () => getRebloggedBy(db, { statusId: 'x', maxStatusId: 'missing' })
+    ]
   ])('%s reads at most one row', async (_name, run) => {
     const { statements } = await capture(run)
     expect(statementsReadingOneRow(statements)).toEqual([
@@ -747,6 +767,32 @@ describe('poll reads', () => {
     expect(result[statusIds[0]]).toEqual([1])
     expect(result[statusIds[batchSize + 1]]).toEqual([4])
     expect(Object.keys(result)).toHaveLength(batchSize + 2)
+  })
+
+  it('getActorPollVotesForStatuses reads a repeated id once, even when the repeat would fall in another chunk', async () => {
+    const prefix = nextPrefix()
+    const alice = actorIn('a.test', `${prefix}-alice`)
+    const batchSize = getWhereInBatchSize(db, 1)
+    const voted = `${alice}/statuses/voted`
+    await seedVote(voted, alice, 1)
+    const statusIds = [
+      voted,
+      ...Array.from(
+        { length: batchSize },
+        (_unused, index) => `${alice}/statuses/unvoted${index}`
+      ),
+      voted
+    ]
+
+    const { result, statements } = await capture(() =>
+      getActorPollVotesForStatuses(db, { statusIds, actorId: alice })
+    )
+    expect(statements.map(({ bindings }) => bindings.length)).toEqual([
+      batchSize + 1,
+      2
+    ])
+    expect(result[voted]).toEqual([1])
+    expect(Object.keys(result)).toHaveLength(batchSize + 1)
   })
 })
 
@@ -987,6 +1033,15 @@ describe('hashtag reads', () => {
       listed({ hashtag: tag, minStatusId: s2, maxStatusId: s4 })
     ).resolves.toEqual([s3])
 
+    // A tagged status from the epoch itself, with an id below the undated
+    // cursor's: the cursor's missing createdAt must not be read as 0.
+    const epoch = await seedStatus({
+      id: undated.replace(/undated$/, 'epoch'),
+      actorId: undated.split('/statuses/')[0],
+      createdAt: 0
+    })
+    await seedTag({ statusId: epoch, name: tag })
+
     hydrationCalls.length = 0
     await expect(
       listed({ hashtag: tag, maxStatusId: missing })
@@ -1005,6 +1060,20 @@ describe('hashtag reads', () => {
 
   it('getStatusesByHashtag narrows by any, all and none tags', async () => {
     const { prefix, tag, s1, s2, s3, s4, s5, otherTag } = await setupHashtag()
+    // Emoji rows under the normalized names of an all and a none tag count for
+    // neither.
+    await seedTag({
+      statusId: s5,
+      name: `:${prefix}u:`,
+      type: 'emoji',
+      nameNormalized: `#${prefix}u`
+    })
+    await seedTag({
+      statusId: s1,
+      name: `:${prefix}v:`,
+      type: 'emoji',
+      nameNormalized: `#${prefix}v`
+    })
 
     await expect(
       listed({ hashtag: tag, anyTags: [`${prefix}w`] })
@@ -1098,6 +1167,48 @@ describe('hashtag reads', () => {
     )
     expect(result).toEqual({ statuses: [], total: 0 })
     expect(statements).toEqual([])
+  })
+
+  it('getHashtagStatusesPage breaks createdAt ties by id, descending', async () => {
+    const { tag, s1 } = await setupHashtag()
+    const local = s1.split('/statuses/')[0]
+    // Four newest statuses on one createdAt, written neither in id order nor
+    // against it.
+    const tied: Record<string, string> = {}
+    for (const name of ['p2', 'p4', 'p1', 'p3']) {
+      tied[name] = await seedStatus({
+        id: `${local}/statuses/${name}`,
+        actorId: local,
+        createdAt: BASE + 5000
+      })
+      await seedTag({ statusId: tied[name], name: tag })
+    }
+
+    await expect(
+      getHashtagStatusesPage(db, hydration, {
+        hashtag: tag,
+        limit: 4,
+        offset: 0
+      })
+    ).resolves.toEqual({
+      statuses: [
+        { id: tied.p4 },
+        { id: tied.p3 },
+        { id: tied.p2 },
+        { id: tied.p1 }
+      ],
+      total: 9
+    })
+    await expect(
+      getHashtagStatusesPage(db, hydration, {
+        hashtag: tag,
+        limit: 2,
+        offset: 1
+      })
+    ).resolves.toEqual({
+      statuses: [{ id: tied.p3 }, { id: tied.p2 }],
+      total: 9
+    })
   })
 
   it('getHashtagCounter reads the counter of the normalized tag', async () => {
@@ -1360,6 +1471,69 @@ describe('pins', () => {
     }
   )
 
+  it.runIf(testDb.backend === 'pg')(
+    'concurrent pins with a cap hold the row lock until they commit, so only one gets in',
+    async () => {
+      const { alice, statuses } = await setupPins()
+      for (const index of [5, 6, 7, 8]) {
+        statuses.push(
+          await seedStatus({ id: `${alice}/statuses/${index}`, actorId: alice })
+        )
+      }
+
+      let release = () => {}
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let lockTaken = () => {}
+      const locked = new Promise<void>((resolve) => {
+        lockTaken = resolve
+      })
+      // Hold alice's row so the eight pins below queue on it together.
+      const holder = inTransaction(db, async (trx) => {
+        await trx
+          .selectFrom('actors')
+          .select('id')
+          .where('id', '=', alice)
+          .forUpdate()
+          .execute()
+        lockTaken()
+        await released
+      })
+      await locked
+
+      const pins = statuses.map((statusId) =>
+        pinStatus(db, { actorId: alice, statusId, maxPinnedStatuses: 1 })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      release()
+      await holder
+
+      // Each pin counts only after the one before it committed.
+      const results = await Promise.all(pins)
+      expect(results.filter(Boolean)).toHaveLength(1)
+      expect(await pinsOf(alice)).toHaveLength(1)
+    }
+  )
+
+  it('pinStatus with a cap reads at most one existing pin', async () => {
+    const { alice, statuses } = await setupPins()
+    const { result, statements } = await capture(() =>
+      pinStatus(db, {
+        actorId: alice,
+        statusId: statuses[0],
+        maxPinnedStatuses: 3
+      })
+    )
+    expect(result).toBe(true)
+    const existingPinReads = statements.filter(({ sql: text }) =>
+      text.startsWith('select "statusId" from "status_pins"')
+    )
+    expect(statementsReadingOneRow(existingPinReads)).toEqual([
+      { limited: true, lastBinding: 1 }
+    ])
+  })
+
   it('unpinStatus removes only that pin of that actor', async () => {
     const { alice, bob, statuses } = await setupPins()
     const [s1, s2] = statuses
@@ -1445,6 +1619,30 @@ describe('pins', () => {
     ])
     // s2 came back in the second chunk and still sorts first.
     expect(result).toEqual([s2, s1])
+  })
+
+  it('getPinnedStatusIds reads a repeated id once, even when the repeat would fall in another chunk', async () => {
+    const { alice, statuses } = await setupPins()
+    const [s1] = statuses
+    await seedPin(alice, s1, BASE + 1000)
+    const batchSize = getWhereInBatchSize(db, 1)
+    const statusIds = [
+      s1,
+      ...Array.from(
+        { length: batchSize },
+        (_unused, index) => `${s1}/unpinned${index}`
+      ),
+      s1
+    ]
+
+    const { result, statements } = await capture(() =>
+      getPinnedStatusIds(db, { actorId: alice, statusIds })
+    )
+    expect(statements.map(({ bindings }) => bindings.length)).toEqual([
+      batchSize + 1,
+      2
+    ])
+    expect(result).toEqual([s1])
   })
 })
 
