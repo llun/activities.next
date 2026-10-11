@@ -1,7 +1,11 @@
 import { type Insertable, sql } from 'kysely'
 
 import { lockGalleryAlbumActor } from '@/lib/database/domains/media/galleryAlbumCleanup'
-import { markMediaUploadVerified } from '@/lib/database/domains/media/writes'
+import {
+  deleteMediaForAccount,
+  deleteMediaWithFiles,
+  markMediaUploadVerified
+} from '@/lib/database/domains/media/writes'
 import type { Medias } from '@/lib/database/kysely/db'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
@@ -1236,6 +1240,21 @@ describe('media deletes', () => {
       }
     })
 
+    it('answers not-found when another delete removed the media after its first read', async () => {
+      const seeded = await seedDeletable()
+      await database.deleteMedia({ mediaId: String(seeded.media) })
+      const before = await dumpTables()
+      // The first read still sees the row the other delete removed.
+      const stale = withStaleFirstRead(db, 'medias', () => [
+        { id: seeded.media, actorId: seeded.owner.actorId }
+      ])
+
+      expect(
+        await deleteMediaWithFiles(stale, { mediaId: String(seeded.media) })
+      ).toEqual({ status: 'not-found' })
+      expect(await dumpTables()).toEqual(before)
+    })
+
     it('keeps everything when its last write fails', async () => {
       const seeded = await seedDeletable()
       const drop = await failWrite(
@@ -1334,6 +1353,24 @@ describe('media deletes', () => {
             ]
           : []
       )
+    })
+
+    it('answers not-found when another delete removed the media after its first read', async () => {
+      const seeded = await seedDeletable()
+      await database.deleteMedia({ mediaId: String(seeded.media) })
+      const before = await dumpTables()
+      // The first read still sees the row the other delete removed.
+      const stale = withStaleFirstRead(db, 'medias', () => [
+        { id: seeded.media, actorId: seeded.owner.actorId }
+      ])
+
+      expect(
+        await deleteMediaForAccount(stale, {
+          mediaId: String(seeded.media),
+          accountId: seeded.owner.accountId
+        })
+      ).toEqual({ status: 'not-found' })
+      expect(await dumpTables()).toEqual(before)
     })
 
     it('keeps everything when its last write fails', async () => {
