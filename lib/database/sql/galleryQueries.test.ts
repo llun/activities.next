@@ -1028,6 +1028,29 @@ describe('gallery media reads', () => {
     }
   })
 
+  it('getGalleryMedia breaks a tie between attachments by the highest id', async () => {
+    const actorId = await newActor()
+    const post = await publicNote(actorId)
+    const secondPost = await publicNote(actorId)
+    const tied = mediaIds()(1)
+    await seedMedia(tied, actorId)
+    // The same createdAt, the higher id inserted first.
+    const higher = await seedAttachment(tied, post, actorId, {
+      id: `${actorId}/attachments/b`,
+      createdAt: new Date(4000)
+    })
+    await seedAttachment(tied, secondPost, actorId, {
+      id: `${actorId}/attachments/a`,
+      createdAt: new Date(4000)
+    })
+
+    for (const audience of [OWNER_GALLERY_AUDIENCE, PUBLIC_GALLERY_AUDIENCE]) {
+      expect(
+        shown(await database.getGalleryMedia({ actorId, audience, limit: 20 }))
+      ).toEqual([[tied, higher]])
+    }
+  })
+
   it('getGalleryMedia pages by limit and an exclusive max id', async () => {
     const page = (limit: number, maxId?: string) =>
       database
@@ -1201,7 +1224,11 @@ describe('getGalleryMapRows', () => {
     country: ids(5),
     area: ids(1),
     addedHidden: ids(6),
-    unplaced: ids(3)
+    unplaced: ids(3),
+    // Placed, but outside the gallery scope; their ids sort first.
+    postedHidden: ids(9),
+    othersPosted: ids(10),
+    unposted: ids(2)
   }
 
   beforeAll(async () => {
@@ -1232,6 +1259,15 @@ describe('getGalleryMapRows', () => {
       galleryAddedAt: at('2026-01-02')
     })
     await posted(ROWS.unplaced, place(null, null, 'exact'))
+    // Switched off in the gallery, though its post is public.
+    await posted(ROWS.postedHidden, {
+      ...place(13.75, 100.5, 'exact'),
+      inGallery: false
+    })
+    const other = await newActor()
+    await seedMedia(ROWS.othersPosted, other, place(13.75, 100.5, 'exact'))
+    await seedAttachment(ROWS.othersPosted, await publicNote(other), other)
+    await seedMedia(ROWS.unposted, owner, place(13.75, 100.5, 'exact'))
   })
 
   const map = (audience: typeof OWNER_GALLERY_AUDIENCE, limit: number) =>
@@ -1664,5 +1700,63 @@ describe('getGalleryAlbumItemSets', () => {
     expect(
       await database.getGalleryAlbumItemSets({ actorId: owner, mediaIds: [] })
     ).toEqual([])
+  })
+})
+
+describe('requests that cannot match', () => {
+  it('send no statement', async () => {
+    const actorId = await newActor()
+    const audience = OWNER_GALLERY_AUDIENCE
+    const { statements } = await captureStatements(async () => {
+      expect(
+        await database.getGalleryMedia({ actorId, audience, limit: 0 })
+      ).toEqual([])
+      expect(
+        await database.getGalleryMedia({
+          actorId,
+          audience,
+          limit: 20,
+          maxId: 'not-an-id'
+        })
+      ).toEqual([])
+      expect(
+        await database.getGalleryMediaIndex({ actorId, audience, limit: 0 })
+      ).toEqual([])
+      expect(
+        await database.getGalleryMediaIndex({
+          actorId,
+          audience,
+          limit: 20,
+          maxId: 'not-an-id'
+        })
+      ).toEqual([])
+      expect(
+        await database.getGalleryMapRows({ actorId, audience, limit: 0 })
+      ).toEqual([])
+      expect(
+        await database.getGalleryMediaByIds({
+          actorId,
+          audience,
+          mediaIds: ['not-an-id']
+        })
+      ).toEqual([])
+      expect(
+        await database.getGalleryGearUsageRows({ actorId, gearIds: [] })
+      ).toEqual([])
+      expect(await database.getGalleryGearNamesByIds({ ids: [] })).toEqual({})
+      expect(
+        await database.getUnattachedMedia({ actorId, mediaIds: ['not-an-id'] })
+      ).toEqual([])
+      expect(
+        await database.addMediaToGallery({ actorId, mediaIds: ['not-an-id'] })
+      ).toEqual([])
+      expect(
+        await database.getGalleryAlbumItemSets({ actorId, mediaIds: [] })
+      ).toEqual([])
+      expect(
+        await database.pruneGalleryLookups({ before: Date.now(), limit: 0 })
+      ).toBe(0)
+    })
+    expect(statements).toEqual([])
   })
 })

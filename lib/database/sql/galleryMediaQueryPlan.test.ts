@@ -49,6 +49,74 @@ describe('gallery scope query plan on SQLite', () => {
   )
 })
 
+// Every statement the gallery reads and writes send that compares
+// `attachments.mediaId` with `medias.id` (the scope's posted check, the
+// attachment pick's join and the unattached check) probes the index on SQLite.
+describe('gallery statements on SQLite', () => {
+  it('probe attachments_mediaId_idx wherever they match attachments to media', async () => {
+    const { database, db, knex, destroy } = createTestDatabase({
+      backend: 'sqlite'
+    })
+    try {
+      await database.migrate()
+      // In the owner's gallery without a post, so the read picks attachments.
+      const media = await db
+        .insertInto('medias')
+        .values({
+          actorId: 'actor',
+          original: 'medias/plan.jpg',
+          originalBytes: 1,
+          originalMimeType: 'image/jpeg',
+          originalMetaData: JSON.stringify({ width: 1, height: 1 }),
+          inGallery: true,
+          galleryAddedAt: new Date(1000),
+          createdAt: new Date(1000),
+          updatedAt: new Date(1000)
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+      const mediaIds = [String(media.id)]
+
+      const statements: { sql: string; bindings: unknown[] }[] = []
+      const listener = (query: { sql: string; bindings: unknown[] }) => {
+        statements.push(query)
+      }
+      knex.on('query', listener)
+      try {
+        const rows = await database.getGalleryMediaByIds({
+          actorId: 'actor',
+          audience: OWNER_GALLERY_AUDIENCE,
+          mediaIds
+        })
+        expect(rows.map((row) => row.media.id)).toEqual(mediaIds)
+        await database.getUnattachedMedia({ actorId: 'actor', mediaIds })
+      } finally {
+        knex.removeListener('query', listener)
+      }
+
+      const matching = statements.filter((statement) =>
+        statement.sql.includes('"mediaId" = cast("medias"."id" as text)')
+      )
+      // The scope's posted check and the pick's join, then the unattached
+      // check.
+      expect(matching).toHaveLength(3)
+      for (const statement of matching) {
+        const plan = await db.executeQuery<{ detail: string }>(
+          CompiledQuery.raw(
+            `explain query plan ${statement.sql}`,
+            statement.bindings
+          )
+        )
+        expect(plan.rows.map((row) => row.detail).join('\n')).toContain(
+          'attachments_mediaId_idx (mediaId=?)'
+        )
+      }
+    } finally {
+      await destroy()
+    }
+  })
+})
+
 // The scope's comparison relies on `attachments.mediaId` holding the canonical
 // `String(id)`, on both backends.
 describe('canonical attachment media ids', () => {

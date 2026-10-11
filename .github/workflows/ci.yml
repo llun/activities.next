@@ -233,15 +233,15 @@ jobs:
   # over it, the gallery domain (gear with its limit and device keys, gallery
   # settings, the gallery media, index, map and gear-usage reads with their
   # cursors, unposted media and adding it to the gallery, the lookup cache and
-  # its prune, the album suggestions' item read, the gallery scope's SQLite
-  # query plan) with the account gallery, gallery gear, media and settings
-  # routes, the v2 media upload, note creation and the gallery lookup backfill
-  # over it, the Kysely status visibility, countable-activity, actor-visible
-  # status, gallery media scope, list eligibility, replies policy, block/mute,
-  # follow-target, exclusive-list and publicly-readable predicates checked
-  # against their Knex originals, and the Knex-backed Kysely driver (result
-  # normalisation, the mixed-transaction guard, counters, bucket counters,
-  # chunked IN lists, savepoints).
+  # its prune, the album suggestions' item read, the SQLite query plans of the
+  # gallery statements) with the account gallery, gallery gear, media and
+  # settings routes, the v2 media upload, note creation and the gallery lookup
+  # backfill over it, the Kysely status visibility, countable-activity,
+  # actor-visible status, gallery media scope, list eligibility, replies
+  # policy, block/mute, follow-target, exclusive-list and publicly-readable
+  # predicates checked against their Knex originals, and the Knex-backed
+  # Kysely driver (result normalisation, the mixed-transaction guard,
+  # counters, bucket counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
