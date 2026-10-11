@@ -1,7 +1,7 @@
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
-  getTestSQLDatabaseWithInstance
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
@@ -191,10 +191,15 @@ describe('FitnessFileRouteDatabase', () => {
         // 999-binding floor, so an unchunked query of this size still succeeds
         // HERE and would only fail on a stricter build or another backend
         // (PostgreSQL caps parameters at 65535). Needs the raw knex instance
-        // for its query event, so it builds its own database rather than using
-        // the shared one; no rows are required, only the statements.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        // for its query event (which the Kysely statements also emit), so it
+        // builds its own database rather than using the shared one; no rows
+        // are required, only the statements.
+        const {
+          database: isolated,
+          instance,
+          prepare
+        } = getTestDatabaseWithInstance(true)
+        await prepare()
         await isolated.migrate()
         try {
           const statements: string[] = []
@@ -209,7 +214,7 @@ describe('FitnessFileRouteDatabase', () => {
             )
           })
 
-          // ceil(2500 / 999)
+          // ceil(2500 / 999) on SQLite, ceil(2500 / 1000) on PostgreSQL
           expect(statements).toHaveLength(3)
         } finally {
           await isolated.destroy()

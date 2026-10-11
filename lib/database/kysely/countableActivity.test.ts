@@ -1,15 +1,15 @@
 import { countableActivity } from '@/lib/database/kysely/countableActivity'
-import { applyCountableActivityFilter } from '@/lib/database/sql/utils/countableActivity'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
-// The Kysely countable-activity predicate must select exactly the rows its Knex
-// original selects while both are in use: the Knex one still serves the
-// unported route queries. Both run over the same rows, for
-// both forms of the predicate, and the id sets are compared; the named cases
-// say which rule broke.
-describe('countableActivity matches applyCountableActivityFilter', () => {
+// The countable-activity predicate, for both of its forms, over every
+// combination of the columns it reads (compared with the rule written out in
+// JavaScript below) and over named cases that say which rule broke. Its Knex
+// original, applyCountableActivityFilter, was checked against it here until
+// its last caller (the cached route aggregates) moved to Kysely and it was
+// deleted.
+describe('countableActivity', () => {
   const testDb = createTestDatabase()
-  const { database, knex } = testDb
+  const { database } = testDb
 
   const actorId = 'https://countable.test/users/rider'
   const otherActorId = 'https://countable.test/users/other'
@@ -53,16 +53,31 @@ describe('countableActivity matches applyCountableActivityFilter', () => {
       .execute()
   }
 
-  const byKnex = async (forDeviceLink: boolean, prefix: string) => {
-    const query = applyCountableActivityFilter(
-      knex,
-      knex('fitness_files'),
-      'fitness_files',
-      { forDeviceLink }
-    )
-      .where('fitness_files.id', 'like', `${prefix}%`)
-      .select('fitness_files.id')
-    return ((await query) as { id: string }[]).map(({ id }) => id).sort()
+  // The rule as the comment on countableActivity states it, over `rows`
+  // alone: not deleted and completed, then either primary or, with the device
+  // link, beaten by no countable sibling of the same post and device (the
+  // primary beats a secondary, and among equals the lowest id wins). NULL
+  // never equals NULL, so a file with no post or no device has no siblings.
+  const byRule = (rows: Row[], forDeviceLink: boolean) => {
+    const counts = (row: Row) =>
+      !row.deleted && row.processingStatus === 'completed'
+    return rows
+      .filter((row) => {
+        if (!counts(row)) return false
+        if (!forDeviceLink) return row.isPrimary
+        return !rows.some(
+          (sibling) =>
+            counts(sibling) &&
+            sibling.statusId !== null &&
+            sibling.statusId === row.statusId &&
+            sibling.deviceGearId !== null &&
+            sibling.deviceGearId === row.deviceGearId &&
+            ((sibling.isPrimary && !row.isPrimary) ||
+              (sibling.isPrimary === row.isPrimary && sibling.id < row.id))
+        )
+      })
+      .map(({ id }) => id)
+      .sort()
   }
 
   const byKysely = async (forDeviceLink: boolean, prefix: string) => {
@@ -113,7 +128,7 @@ describe('countableActivity matches applyCountableActivityFilter', () => {
 
   // Every combination of the columns the predicate reads, twice over, with the
   // ids shuffled so "lowest id" falls on a different shape in every group.
-  it('selects the same rows over every combination of the columns it reads', async () => {
+  it('selects the rows the rule selects over every combination of the columns it reads', async () => {
     const rows: Row[] = []
     const shapes: Omit<Row, 'id'>[] = []
     for (const deleted of [false, true])
@@ -145,12 +160,12 @@ describe('countableActivity matches applyCountableActivityFilter', () => {
     await insert(rows)
 
     for (const forDeviceLink of [false, true]) {
-      const knexIds = await byKnex(forDeviceLink, 'all-')
+      const expected = byRule(rows, forDeviceLink)
       const kyselyIds = await byKysely(forDeviceLink, 'all-')
-      expect(kyselyIds).toEqual(knexIds)
+      expect(kyselyIds).toEqual(expected)
       // Neither everything nor nothing, so the comparison says something.
-      expect(knexIds.length).toBeGreaterThan(0)
-      expect(knexIds.length).toBeLessThan(rows.length)
+      expect(expected.length).toBeGreaterThan(0)
+      expect(expected.length).toBeLessThan(rows.length)
     }
   })
 
@@ -165,9 +180,7 @@ describe('countableActivity matches applyCountableActivityFilter', () => {
           deviceGearId: row.deviceGearId && `${prefix}${row.deviceGearId}`
         }))
       )
-      const knexIds = await byKnex(forDeviceLink, prefix)
       const kyselyIds = await byKysely(forDeviceLink, prefix)
-      expect(kyselyIds).toEqual(knexIds)
       expect(kyselyIds).toEqual(expected.map((id) => `${prefix}${id}`).sort())
     }
     const tag = forDeviceLink ? 'd' : 'p'

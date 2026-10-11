@@ -87,6 +87,13 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install --immutable
+      - name: Cache Next.js build
+        uses: actions/cache@v5
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-v1-${{ hashFiles('yarn.lock') }}-${{ hashFiles('next.config.ts', 'tsconfig*.json', 'postcss.config.mjs', 'package.json', '.yarnrc.yml') }}-${{ hashFiles('app/**', 'lib/**', 'public/**', 'packages/**', 'proxy.ts', 'instrumentation.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-v1-${{ hashFiles('yarn.lock') }}-
       - name: Build
         run: yarn build
 
@@ -233,26 +240,33 @@ jobs:
   # collection feed and status filter routes, the announce, note emoji and
   # poll actions, the create-note, create-poll and update-note jobs and the
   # Mastodon status, filter, context, mention, notification and client id
-  # services over them, the fitness file domain (uploads with their storage and
-  # file counters and hourly buckets, deletes, processing and import status,
-  # primary assignment, the actor listing with its cursor and Knex paging, the
-  # account listing with its counter total, the overview summary, calendar,
-  # window and earliest activity, whether an actor has fitness data for a
-  # viewer) with the fitness routes, the import, processing, map regeneration
-  # and heatmap jobs, the actor archive export and the services over it, the
-  # gallery domain (gear with its limit and device keys, gallery settings, the
-  # gallery media, index, map and gear-usage reads with their cursors,
-  # unposted media and adding it to the gallery, the lookup cache and its
-  # prune, the album suggestions' item read, the SQLite query plans of the
+  # services over them, the fitness file domain (uploads with their storage
+  # and file counters and hourly buckets, deletes, processing and import
+  # status, primary assignment, the actor listing with its cursor and Knex
+  # paging, the account listing with its counter total, the overview summary,
+  # calendar, window and earliest activity, whether an actor has fitness data
+  # for a viewer) with the fitness routes, the import, processing, map
+  # regeneration and heatmap jobs, the actor archive export and the services
+  # over it, the gallery domain (gear with its limit and device keys, gallery
+  # settings, the gallery media, index, map and gear-usage reads with their
+  # cursors, unposted media and adding it to the gallery, the lookup cache and
+  # its prune, the album suggestions' item read, the SQLite query plans of the
   # gallery statements) with the account gallery, gallery gear, media and
   # settings routes, the gallery album routes and the album page, the v2 media
   # upload, note creation and the gallery lookup backfill (with its real place
-  # lookup) over it, the Kysely status visibility, countable-activity,
-  # actor-visible status, gallery media scope, list eligibility, replies
-  # policy, block/mute, follow-target, exclusive-list and publicly-readable
-  # predicates checked against their Knex originals, and the Knex-backed
-  # Kysely driver (result normalisation, the mixed-transaction guard,
-  # counters, bucket counters, chunked IN lists, savepoints).
+  # lookup) over it, the cached activity routes and route heatmap domain
+  # (route upserts with their bounding box, chunked route reads, the region
+  # count and bounds over countable activities, heatmaps by id, key and share
+  # token, the pyramid subscribers and their progress mirror, the per-actor
+  # listings and their filters, status updates with the clear-deleted cutoff,
+  # share tokens, cancels, soft deletes, region names), the Kysely
+  # countable-activity predicate checked against its rule written out in
+  # JavaScript, the Kysely status visibility, actor-visible status, gallery
+  # media scope, list eligibility, replies policy, block/mute, follow-target,
+  # exclusive-list and publicly-readable predicates checked against their Knex
+  # originals, and the Knex-backed Kysely driver (result normalisation, the
+  # mixed-transaction guard, counters, bucket counters, chunked IN lists,
+  # savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -371,6 +385,8 @@ jobs:
             lib/database/sql/fitnessFileQueries.test.ts \
             lib/database/sql/fitnessFileRoute.test.ts \
             lib/database/sql/fitnessRouteHeatmap.test.ts \
+            lib/database/sql/fitnessFileRouteQueries.test.ts \
+            lib/database/sql/fitnessRouteHeatmapQueries.test.ts \
             "app/api/v1/fitness-files/[id]/route.test.ts" \
             "app/api/v1/fitness-files/[id]/route-data/route.test.ts" \
             app/api/v1/fitness-files/by-status/route.test.ts \
