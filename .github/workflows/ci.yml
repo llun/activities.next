@@ -250,14 +250,22 @@ jobs:
   # update-note and visibility actions, the remote fetch, the announce, note,
   # relay announce, forwarded activity, poll vote, update-note, update-poll,
   # remote status fetch, follow backfill and scheduled status jobs and the
-  # edited-media refresh service over them, the fitness file domain (uploads
-  # with their storage and file counters and hourly buckets, deletes,
-  # processing and import status, primary assignment, the actor listing with
-  # its cursor and Knex paging, the account listing with its counter total, the
-  # overview summary, calendar, window and earliest activity, whether an actor
-  # has fitness data for a viewer) with the fitness routes, the import,
-  # processing, map regeneration and heatmap jobs, the actor archive export and
-  # the services over it, the cached activity routes and route heatmap domain
+  # edited-media refresh service over them, and the suites whose tests write
+  # their statuses through them (the home and album pages, the timeline,
+  # notification, trend, favourite, featured tag, quote, quote authorization,
+  # status, context, history, source, account media, gallery and admin report
+  # routes, the delete, like and unannounce actions, the actor posts reader,
+  # the send-note, send-announce, quote request, quote revoke and delete-object
+  # jobs, the favourites page, forwarding, status edits, quote notification,
+  # reaction, timeline and trending status services, the status type and the
+  # status text processing), the fitness file domain (uploads with their
+  # storage and file counters and hourly buckets, deletes, processing and
+  # import status, primary assignment, the actor listing with its cursor and
+  # Knex paging, the account listing with its counter total, the overview
+  # summary, calendar, window and earliest activity, whether an actor has
+  # fitness data for a viewer) with the fitness routes, the import, processing,
+  # map regeneration and heatmap jobs, the actor archive export and the
+  # services over it, the cached activity routes and route heatmap domain
   # (route upserts with their bounding box, chunked route reads, the region
   # count and bounds over countable activities, heatmaps by id, key and share
   # token, the pyramid subscribers and their progress mirror, the per-actor
@@ -545,6 +553,54 @@ jobs:
             lib/jobs/updateNoteJob.test.ts \
             lib/jobs/updatePollJob.test.ts \
             lib/services/medias/edit/refreshPostsForEditedMedia.test.ts \
+            'app/(timeline)/(home)/homePageEnrichment.test.tsx' \
+            'app/(timeline)/[actor]/albums/[id]/page.test.tsx' \
+            'app/api/users/[username]/quote_authorizations/[id]/route.test.ts' \
+            'app/api/v1/accounts/[id]/featured_tags/route.test.ts' \
+            'app/api/v1/accounts/[id]/media/route.test.ts' \
+            app/api/v1/admin/reports/adminReports.test.ts \
+            app/api/v1/favourites/route.test.ts \
+            app/api/v1/featured_tags/suggestions/route.test.ts \
+            app/api/v1/gallery/albums/suggestions/route.test.ts \
+            app/api/v1/gallery/gears/route.test.ts \
+            'app/api/v1/gallery/media/[mediaId]/details/route.test.ts' \
+            app/api/v1/gallery/media/route.test.ts \
+            'app/api/v1/notifications/requests/[id]/route.test.ts' \
+            app/api/v1/notifications/requests/route.test.ts \
+            app/api/v1/notifications/route.query.test.ts \
+            'app/api/v1/statuses/[id]/context/route.test.ts' \
+            'app/api/v1/statuses/[id]/favourite/route.test.ts' \
+            'app/api/v1/statuses/[id]/history/route.test.ts' \
+            'app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.test.ts' \
+            'app/api/v1/statuses/[id]/quotes/route.test.ts' \
+            'app/api/v1/statuses/[id]/route.test.ts' \
+            'app/api/v1/statuses/[id]/source/route.test.ts' \
+            'app/api/v1/timelines/[timeline]/gifTimelineEnrichment.test.ts' \
+            'app/api/v1/timelines/[timeline]/route.test.ts' \
+            'app/api/v1/timelines/collection/[id]/route.test.ts' \
+            'app/api/v1/timelines/list/[list_id]/route.test.ts' \
+            app/api/v1/timelines/public/route.test.ts \
+            app/api/v1/trends/statuses/route.test.ts \
+            app/api/v1/trends/tags/route.test.ts \
+            'app/api/v2/notifications/[group_key]/route.test.ts' \
+            lib/actions/deleteStatus.test.ts \
+            lib/actions/like.test.ts \
+            lib/actions/undoAnnounce.test.ts \
+            lib/activities/getActorPosts.announce.test.ts \
+            lib/jobs/deleteObjectJob.test.ts \
+            lib/jobs/sendAnnounceJob.test.ts \
+            lib/jobs/sendNoteJob.test.ts \
+            lib/jobs/sendQuoteRequestJob.test.ts \
+            lib/jobs/sendQuoteRevokeJob.test.ts \
+            lib/services/favourites/getFavouritedStatusesPage.test.ts \
+            lib/services/federation/forwardingDelivery.test.ts \
+            lib/services/mastodon/getMastodonStatusEdits.test.ts \
+            lib/services/notifications/notifyQuotedStatusUpdate.test.ts \
+            lib/services/reactions/reactStatus.test.ts \
+            lib/services/timelines/main.test.ts \
+            lib/services/trends/trendingStatuses.test.ts \
+            lib/types/domain/status.test.ts \
+            lib/utils/text/processStatusText.test.ts \
             lib/database/sql/conversation.test.ts \
             lib/database/sql/conversationQueries.test.ts \
             lib/database/sql/directConversationsMigration.test.ts \

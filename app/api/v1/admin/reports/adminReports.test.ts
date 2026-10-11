@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
-const { database, instance } = getTestSQLDatabaseWithInstance()
+const { database, knex: instance, prepare } = createTestDatabase()
 
 const ADMIN_ACTOR_ID = `https://${TEST_DOMAIN}/users/admin`
 const TARGET_ACTOR_ID = `https://${TEST_DOMAIN}/users/target`
@@ -59,6 +59,7 @@ const adminRequest = (
 
 describe('admin reports API', () => {
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     adminAccountId = await database.createAccount({
       email: `admin@${TEST_DOMAIN}`,

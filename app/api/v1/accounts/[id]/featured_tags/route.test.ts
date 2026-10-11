@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
@@ -13,7 +14,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => undefined
@@ -48,9 +49,10 @@ const invoke = (targetId: string) =>
   })
 
 describe('GET /api/v1/accounts/:id/featured_tags', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     // Tag one of Actor1's public statuses and feature the hashtag.

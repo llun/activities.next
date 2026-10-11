@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -10,11 +10,12 @@ import { getActualStatus, processStatusText } from './processStatusText'
 
 describe('processStatusText', () => {
   const mockHost = TEST_DOMAIN
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let noteStatus: Status
   let announceStatus: Status
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
 

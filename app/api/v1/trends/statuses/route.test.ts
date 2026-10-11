@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -18,7 +19,7 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: () => mockGetActorFromSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -55,7 +56,7 @@ const QUIET_STATUS_ID = `${FIRST_ACTOR_ID}/statuses/quiet`
 const SECOND_STATUS_BOOST_ID = `${FIRST_ACTOR_ID}/statuses/boost-b`
 
 describe('GET /api/v1/trends/statuses', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let firstActor: Awaited<ReturnType<typeof database.createActor>>
 
   const createActor = (id: string, username: string) =>
@@ -91,6 +92,7 @@ describe('GET /api/v1/trends/statuses', () => {
     })
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     firstActor = await createActor(FIRST_ACTOR_ID, 'first')
     await createActor(SECOND_ACTOR_ID, 'second')
@@ -283,7 +285,7 @@ describe('GET /api/v1/trends/statuses', () => {
 })
 
 describe('GET /api/v1/trends/statuses limit clamping', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const AUTHOR_ID = 'https://llun.test/users/author'
   const LIKER_ID = 'https://llun.test/users/liker'
   const SEEDED_STATUS_COUNT = 22
@@ -302,6 +304,7 @@ describe('GET /api/v1/trends/statuses limit clamping', () => {
     })
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await createActor(AUTHOR_ID, 'author')
     await createActor(LIKER_ID, 'liker')
