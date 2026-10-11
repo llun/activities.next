@@ -41,6 +41,31 @@ describe('forUpdate', () => {
       new RegExp(`from "likes"${item.suffix}$`)
     )
   })
+
+  it.each([
+    { name: 'sqlite', instance: sqlite, suffix: '' },
+    { name: 'postgres', instance: postgres, suffix: ' for update of "medias"' }
+  ])('locks only the named table of a join ($name)', (item) => {
+    const db = kyselyFor(item.instance)
+    const query = forUpdate(
+      db,
+      db
+        .selectFrom('medias')
+        .innerJoin('actors', 'medias.actorId', 'actors.id')
+        .select('medias.id'),
+      'medias'
+    )
+    expect(query.compile().sql).toMatch(
+      new RegExp(`"actors"."id"${item.suffix}$`)
+    )
+  })
+
+  it('refuses a table the query does not read', () => {
+    const db = kyselyFor(postgres)
+    const query = db.selectFrom('medias').select('id')
+    // @ts-expect-error not a table of this query
+    forUpdate(db, query, 'actors')
+  })
 })
 
 describe('forShare', () => {
@@ -107,6 +132,28 @@ describe('jsonText', () => {
     const query = db
       .selectFrom('actors')
       .select(jsonText(db, 'actors.settings', 'followersUrl').as('url'))
+    expect(query.compile().sql).toBe(item.sql)
+    expect(query.compile().parameters).toEqual([])
+  })
+
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select json_extract("medias"."originalMetaData", '$.upload.state') as "state" from "medias"`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select "medias"."originalMetaData"::jsonb -> 'upload' ->> 'state' as "state" from "medias"`
+    }
+  ])('reads a property of a nested object ($name)', (item) => {
+    const db = kyselyFor(item.instance)
+    const query = db
+      .selectFrom('medias')
+      .select(
+        jsonText(db, 'medias.originalMetaData', 'upload', 'state').as('state')
+      )
     expect(query.compile().sql).toBe(item.sql)
     expect(query.compile().parameters).toEqual([])
   })

@@ -1,5 +1,5 @@
 import { getBaseURL } from '@/lib/config'
-import { toMediaRowId } from '@/lib/database/sql/media'
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'

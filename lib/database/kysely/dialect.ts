@@ -12,14 +12,22 @@ export type DialectName = 'sqlite' | 'postgres'
 export const getDialectName = (db: Db): DialectName =>
   db.getExecutor().adapter instanceof SqliteAdapter ? 'sqlite' : 'postgres'
 
-type Lockable<QB> = { forUpdate(): QB }
+type Lockable<QB, Of> = { forUpdate(of?: Of): QB }
 
 // Row lock for a SELECT inside a transaction. SQLite has no row locks (a
 // write transaction locks the whole database) and rejects `for update`, which
 // Kysely's SQLite compiler emits anyway; Knex compiles it to nothing there, so
-// this does the same.
-export const forUpdate = <QB extends Lockable<QB>>(db: Db, query: QB): QB =>
-  getDialectName(db) === 'sqlite' ? query : query.forUpdate()
+// this does the same. `of` names the tables of a join whose rows are locked
+// (`for update of ...`, Knex's `forUpdate(table)`); without it every joined
+// table's rows are.
+export const forUpdate = <
+  QB extends Lockable<QB, Of>,
+  Of extends string | readonly string[] = never
+>(
+  db: Db,
+  query: QB,
+  of?: Of
+): QB => (getDialectName(db) === 'sqlite' ? query : query.forUpdate(of))
 
 type ShareLockable<QB> = { forShare(): QB }
 
@@ -45,14 +53,25 @@ export const timestampValue = (value: number | Date) =>
 
 // The text at property `key` of the JSON object in `column` (a qualified
 // column name), NULL when either is missing: `->>` on PostgreSQL,
-// json_extract() on SQLite. `key` is spliced into the SQL as a literal, so it
-// must be a plain property name, never user input.
-export const jsonText = (db: Db, column: string, key: string) =>
-  getDialectName(db) === 'sqlite'
-    ? sql<
-        string | null
-      >`json_extract(${sql.ref(column)}, ${sql.lit(`$.${key}`)})`
-    : sql<string | null>`${sql.ref(column)}::jsonb ->> ${sql.lit(key)}`
+// json_extract() on SQLite. More keys follow nested objects (`'upload',
+// 'state'` reads `$.upload.state`, `-> 'upload' ->> 'state'`). Each key is
+// spliced into the SQL as a literal, so it must be a plain property name, never
+// user input.
+export const jsonText = (
+  db: Db,
+  column: string,
+  ...path: [string, ...string[]]
+) => {
+  if (getDialectName(db) === 'sqlite') {
+    return sql<
+      string | null
+    >`json_extract(${sql.ref(column)}, ${sql.lit(`$.${path.join('.')}`)})`
+  }
+  const objects = path.slice(0, -1).map((key) => sql` -> ${sql.lit(key)}`)
+  return sql<
+    string | null
+  >`${sql.ref(column)}::jsonb${sql.join(objects, sql``)} ->> ${sql.lit(path[path.length - 1])}`
+}
 
 // The hashtag name in `column` (a qualified tags.nameNormalized reference)
 // with its leading `#`s stripped and lowercased, so a tag stored as `name` and
