@@ -1,5 +1,7 @@
 import knex, { Knex } from 'knex'
 
+import { kyselyFor } from '@/lib/database/kysely'
+import { publiclyReadableStatus } from '@/lib/database/kysely/visibility/publiclyReadable'
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
   primaryActorId,
@@ -486,6 +488,63 @@ describe('StatusDatabase readable status SQL', () => {
         await knexDatabase.destroy()
       }
     })
+  })
+
+  describe('publiclyReadableStatus (Kysely twin) SQL', () => {
+    // Compiles only: neither instance connects.
+    const compile = async (client: 'pg' | 'better-sqlite3') => {
+      const database = knex({ client, useNullAsDefault: true, connection: {} })
+      try {
+        const db = kyselyFor(database)
+        return db
+          .selectFrom('statuses')
+          .select('statuses.id')
+          .where((eb) => publiclyReadableStatus(db, eb))
+          .compile()
+      } finally {
+        await database.destroy()
+      }
+    }
+
+    it.each([['pg' as const], ['better-sqlite3' as const]])(
+      'inlines the Announce literal into the %s chain pointer',
+      async (client) => {
+        // The Knex form inlines it to dodge a binding-order bug; the twin does
+        // the same, so both build one CASE and nothing bound sits inside it.
+        const { sql, parameters } = await compile(client)
+
+        expect(sql).toContain(`= 'Announce' then coalesce(`)
+        expect(sql.match(/then coalesce\(/g)).toHaveLength(3)
+        // The three bound Announce values are the hop test, the chain's end
+        // test and the outer row's own type test.
+        expect(
+          parameters.filter((value) => value === StatusType.enum.Announce)
+        ).toHaveLength(3)
+      }
+    )
+
+    it.each([['pg' as const], ['better-sqlite3' as const]])(
+      'correlates the %s chain seed to the outer row through one pointer equality',
+      async (client) => {
+        const { sql } = await compile(client)
+        const unquoted = sql.replace(/"/g, '')
+
+        expect(unquoted.toLowerCase()).toContain(
+          'with recursive announce_chain(id, type, originalpointer)'
+        )
+        expect(unquoted).toContain(
+          "chain_seed.id = case when statuses.type = 'Announce' then " +
+            'coalesce(statuses.originalStatusId, statuses.content) end'
+        )
+        expect(unquoted).toContain(
+          'inner join announce_chain as chain_previous on chain_previous.originalPointer = chain_next.id'
+        )
+        // UNION, not UNION ALL, is what ends a boost cycle.
+        expect(unquoted).toContain(' union ')
+        expect(unquoted).not.toContain('union all')
+        expect(unquoted).not.toContain('originalStatusId is null and')
+      }
+    )
   })
 
   describe('potentially readable status SQL', () => {

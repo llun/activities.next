@@ -7,6 +7,13 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // suite: the feed's result-based tests pass whichever branch runs, and the
 // early return is reached only on a database with no local actor at all —
 // which is why `localPublicQueryShape.test.ts` has to seed one to get past it.
+//
+// The queries are Kysely's (lib/database/domains/timeline/localPublic.ts). Its
+// driver emits each statement as a `query` event on the Knex client, tagged
+// `kysely: true`; the listeners below keep only those, so the Knex status
+// hydration that follows a feed read is never mistaken for them.
+type QueryEvent = { sql: string; bindings: unknown[]; kysely?: true }
+
 describe('local public timeline actor id handling', () => {
   const DOMAIN = 'llun.test'
 
@@ -45,7 +52,9 @@ describe('local public timeline actor id handling', () => {
 
     it('returns an empty feed and a zero count without querying statuses', async () => {
       const statements: string[] = []
-      const listener = ({ sql }: { sql: string }) => statements.push(sql)
+      const listener = ({ sql, kysely }: QueryEvent) => {
+        if (kysely) statements.push(sql)
+      }
       instance.on('query', listener)
       try {
         expect(
@@ -61,6 +70,12 @@ describe('local public timeline actor id handling', () => {
       expect(
         statements.filter((sql) => sql.includes('recipients'))
       ).toHaveLength(0)
+      // Not vacuous: the local-actor lookups ran, once per surface.
+      expect(
+        statements.filter(
+          (sql) => sql.includes('actors') && !sql.includes('statuses')
+        )
+      ).toHaveLength(2)
     })
   })
 
@@ -76,6 +91,9 @@ describe('local public timeline actor id handling', () => {
     // not a thousand actors set up properly.
     const LOCAL_ACTOR_COUNT = 1001
     const AUTHOR_ID = `https://${DOMAIN}/users/bulk0`
+    // A remote actor recorded with an empty-string key, which the fallback's
+    // local-actor test must still call remote.
+    const EMPTY_KEY_ID = 'https://remote.test/users/empty-key'
 
     beforeAll(async () => {
       await prepare()
@@ -88,6 +106,23 @@ describe('local public timeline actor id handling', () => {
         ),
         50
       )
+      await instance('actors').insert({
+        ...seedLocalActor(LOCAL_ACTOR_COUNT),
+        id: EMPTY_KEY_ID,
+        username: 'empty-key',
+        domain: 'remote.test',
+        privateKey: ''
+      })
+      await database.createNote({
+        actorId: EMPTY_KEY_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        id: `${EMPTY_KEY_ID}/statuses/public`,
+        text: 'Public status from an empty-key remote actor',
+        url: `${EMPTY_KEY_ID}/statuses/public`,
+        reply: '',
+        createdAt: Date.now()
+      })
 
       await database.createNote({
         actorId: AUTHOR_ID,
@@ -107,7 +142,9 @@ describe('local public timeline actor id handling', () => {
 
     it('falls back to the semi-join and still returns the same rows', async () => {
       const statements: string[] = []
-      const listener = ({ sql }: { sql: string }) => statements.push(sql)
+      const listener = ({ sql, kysely }: QueryEvent) => {
+        if (kysely) statements.push(sql)
+      }
       instance.on('query', listener)
       let statuses
       try {
@@ -136,8 +173,10 @@ describe('local public timeline actor id handling', () => {
     it('reads at most one id more than it can use', async () => {
       // The pluck is on an anonymous path, so it must not stream every local
       // actor id back only for the fallback to discard the list.
-      const statements: string[] = []
-      const listener = ({ sql }: { sql: string }) => statements.push(sql)
+      const statements: QueryEvent[] = []
+      const listener = (event: QueryEvent) => {
+        if (event.kysely) statements.push(event)
+      }
       instance.on('query', listener)
       try {
         await database.getTimeline({ timeline: Timeline.LOCAL_PUBLIC })
@@ -146,10 +185,15 @@ describe('local public timeline actor id handling', () => {
       }
 
       const idQuery = statements.find(
-        (sql) => sql.includes('actors') && !sql.includes('statuses')
+        ({ sql }) => sql.includes('actors') && !sql.includes('statuses')
       )
       expect(idQuery).toBeDefined()
-      expect(idQuery).toMatch(/limit/i)
+      expect(idQuery?.sql).toMatch(/limit/i)
+      // One past the literal-id ceiling: 987 + 1 on SQLite, 1000 + 1 on
+      // PostgreSQL.
+      expect(idQuery?.bindings.at(-1)).toBe(
+        process.env.TEST_DATABASE_TYPE === 'pg' ? 1001 : 988
+      )
     }, 30000)
   })
 })

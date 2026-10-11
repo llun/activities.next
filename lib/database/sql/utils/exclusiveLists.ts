@@ -8,6 +8,11 @@ import { Knex } from 'knex'
 // effect immediately for posts already sitting in the timelines table — no
 // stale rows a later toggle could not retract. Scoped to the viewer's own
 // lists, so another owner's exclusive list never affects this viewer.
+//
+// The home feed now reads through the Kysely twin, notFromExclusiveListMember
+// (lib/database/kysely/visibility/exclusiveLists.ts); this form stays as the
+// reference visibilityEquivalence.test.ts checks it against: change both
+// together.
 export const applyExclusiveListFilter = ({
   database,
   query,

@@ -11,10 +11,14 @@ import { Timeline } from '@/lib/services/timelines/types'
 // the plan that had this query at ~27s on the landing page. Without a test that
 // looks at the SQL itself, that revert lands silently and green.
 //
-// Capturing knex's `query` event follows the precedent in `statusLookup.test.ts`
-// (the batched-hydration tests). It is preferred over asserting on a builder's
-// `toSQL()` here because it observes what the production path actually sends,
-// rather than a builder the test constructed for itself.
+// The query is built with Kysely (lib/database/domains/timeline/localPublic.ts),
+// whose driver emits each statement as a `query` event on the Knex client it
+// runs on, tagged `kysely: true`. Listening there follows the precedent in
+// `statusLookup.test.ts` (the batched-hydration tests) and is preferred over
+// compiling a builder here because it observes what the production path
+// actually sends, rather than a builder the test constructed for itself. Only
+// tagged statements are kept, so the Knex status hydration that follows can
+// never be mistaken for the query under test.
 //
 // Built on `getTestDatabaseWithInstance` rather than the SQLite-only
 // `getTestSQLDatabaseWithInstance`, because the query this pins is a
@@ -27,7 +31,7 @@ describe('local public timeline query shape', () => {
   // Identifier quoting is per-dialect — backticks on SQLite, double quotes on
   // PostgreSQL — so strip it and let the assertions describe the query shape
   // rather than whichever backend the suite is running against. Bound values
-  // can never appear here: knex emits `?`/`$n` placeholders and passes the
+  // can never appear here: Kysely emits `?`/`$n` placeholders and passes the
   // values separately.
   const normalize = (sql: string) => sql.replaceAll('`', '').replaceAll('"', '')
 
@@ -37,8 +41,8 @@ describe('local public timeline query shape', () => {
     run: () => Promise<unknown>
   ): Promise<string> => {
     const statements: string[] = []
-    const listener = ({ sql }: { sql: string }) => {
-      statements.push(normalize(sql))
+    const listener = ({ sql, kysely }: { sql: string; kysely?: true }) => {
+      if (kysely) statements.push(normalize(sql))
     }
     instance.on('query', listener)
     try {
@@ -125,6 +129,11 @@ describe('local public timeline query shape', () => {
 
       // The bound has to reach the database, not just the result set.
       expect(sql).toContain('limit')
+
+      // Readability is the correlated predicate, not the set form's
+      // `id in (…)`, so the LIMIT still bounds it.
+      expect(sql.toLowerCase()).toContain('with recursive announce_chain')
+      expect(sql).not.toContain('statuses.id in (')
     }
   )
 })

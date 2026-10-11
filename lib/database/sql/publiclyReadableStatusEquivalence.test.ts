@@ -1,19 +1,26 @@
+import { kyselyFor } from '@/lib/database/kysely'
+import { publiclyReadableStatus } from '@/lib/database/kysely/visibility/publiclyReadable'
 import { buildPubliclyReadableStatusIdsQuery } from '@/lib/database/sql/status'
 import { wherePubliclyReadableStatus } from '@/lib/database/sql/utils/publiclyReadableStatus'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 
-// "Publicly readable" is computed two ways, and they must never disagree.
+// "Publicly readable" is computed three ways, and they must never disagree.
 //
 // `buildPubliclyReadableStatusIdsQuery` materialises the readable ids as a set;
 // `wherePubliclyReadableStatus` tests the same thing correlated to one row. The
 // correlated form is what lets a LIMIT bound the scan, so every paged surface
 // uses it — but `getActorStatusesCount` still uses the set form, because a
 // COUNT has to touch every row anyway and the correlated form costs a recursive
-// CTE instantiation per Announce (measured three times slower there).
+// CTE instantiation per Announce (measured three times slower there). The
+// third is the Kysely twin of the correlated form, `publiclyReadableStatus`,
+// which the local public timeline and the public collection feed read through.
 //
-// Keeping two spellings of one subtle predicate is only safe with a test that
-// runs both over the SAME rows and compares. That is what the sweep at the
+// Keeping several spellings of one subtle predicate is only safe with a test
+// that runs them all over the SAME rows and compares. That is what the sweep at the
 // bottom does; the named cases above it exist so a failure says which shape
 // broke rather than only that the two lists differ.
 describe('publicly readable status predicate equivalence', () => {
@@ -46,14 +53,28 @@ describe('publicly readable status predicate equivalence', () => {
       .map(({ id }: { id: string }) => id)
       .sort()
 
-  const note = async (id: string, { isPublic }: { isPublic: boolean }) => {
+  const readableByKyselyForm = async () =>
+    (
+      await kyselyFor(instance)
+        .selectFrom('statuses')
+        .select('statuses.id')
+        .where((eb) => publiclyReadableStatus(kyselyFor(instance), eb))
+        .execute()
+    )
+      .map(({ id }) => id as string)
+      .sort()
+
+  const note = async (
+    id: string,
+    { isPublic, cc = [] }: { isPublic: boolean; cc?: string[] }
+  ) => {
     await database.createNote({
       id: `${actorId}/statuses/${id}`,
       url: `${actorId}/statuses/${id}`,
       actorId,
       text: id,
       to: isPublic ? [ACTIVITY_STREAM_PUBLIC] : [followers],
-      cc: []
+      cc
     })
     return `${actorId}/statuses/${id}`
   }
@@ -92,6 +113,17 @@ describe('publicly readable status predicate equivalence', () => {
 
     ids.publicNote = await note('public-note', { isPublic: true })
     ids.privateNote = await note('private-note', { isPublic: false })
+    // Public only through the compact `as:Public` form, and only in `cc`: the
+    // recipient test takes either spelling, in any field.
+    ids.compactPublicNote = await note('compact-public-note', {
+      isPublic: false,
+      cc: [ACTIVITY_STREAM_PUBLIC_COMPACT]
+    })
+    ids.boostOfCompactPublic = await announce(
+      'boost-compact-public',
+      ids.compactPublicNote,
+      { isPublic: true }
+    )
 
     ids.boostOfPublic = await announce('boost-public', ids.publicNote, {
       isPublic: true
@@ -179,6 +211,16 @@ describe('publicly readable status predicate equivalence', () => {
       readable: false
     },
     {
+      description: 'a note public only through a compact cc',
+      key: 'compactPublicNote',
+      readable: true
+    },
+    {
+      description: 'a boost of a compact-public note',
+      key: 'boostOfCompactPublic',
+      readable: true
+    },
+    {
       description: 'a boost of a public note',
       key: 'boostOfPublic',
       readable: true
@@ -226,20 +268,23 @@ describe('publicly readable status predicate equivalence', () => {
       const id = ids[key]
       expect(id).toBeDefined()
 
-      const [setForm, correlatedForm] = await Promise.all([
+      const [setForm, correlatedForm, kyselyForm] = await Promise.all([
         readableBySetForm(),
-        readableByCorrelatedForm()
+        readableByCorrelatedForm(),
+        readableByKyselyForm()
       ])
 
       expect(setForm.includes(id)).toBe(readable)
       expect(correlatedForm.includes(id)).toBe(readable)
+      expect(kyselyForm.includes(id)).toBe(readable)
     }
   )
 
-  it('selects exactly the same ids by both forms across every fixture', async () => {
-    const [setForm, correlatedForm] = await Promise.all([
+  it('selects exactly the same ids by every form across every fixture', async () => {
+    const [setForm, correlatedForm, kyselyForm] = await Promise.all([
       readableBySetForm(),
-      readableByCorrelatedForm()
+      readableByCorrelatedForm(),
+      readableByKyselyForm()
     ])
 
     // Not `toEqual` alone: an empty result on both sides would satisfy it while
@@ -248,5 +293,6 @@ describe('publicly readable status predicate equivalence', () => {
     expect(setForm.length).toBeGreaterThan(0)
     expect(setForm.length).toBeLessThan(Object.keys(ids).length)
     expect(correlatedForm).toEqual(setForm)
+    expect(kyselyForm).toEqual(setForm)
   })
 })
