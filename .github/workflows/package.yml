@@ -52,6 +52,8 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=activities-next-minimal-${{ matrix.slug }}
+          cache-to: type=gha,scope=activities-next-minimal-${{ matrix.slug }},mode=max,ignore-error=true
           outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
       - name: Build and push to Docker Hub by digest
         id: build-dockerhub
@@ -60,6 +62,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=activities-next-minimal-${{ matrix.slug }}
           outputs: type=image,name=docker.io/llun/activities.next,push-by-digest=true,name-canonical=true,push=true
       - name: Export digests
         run: |

@@ -87,6 +87,13 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install --immutable
+      - name: Cache Next.js build
+        uses: actions/cache@v5
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-v1-${{ hashFiles('yarn.lock') }}-${{ hashFiles('next.config.ts', 'tsconfig*.json', 'postcss.config.mjs', 'package.json', '.yarnrc.yml') }}-${{ hashFiles('app/**', 'lib/**', 'public/**', 'packages/**', 'proxy.ts', 'instrumentation.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-v1-${{ hashFiles('yarn.lock') }}-
       - name: Build
         run: yarn build
 

@@ -413,6 +413,10 @@ Branch protection on `main` requires four status checks:
 
 `CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
 
+The `Build` job persists only `.next/cache`, including Next.js's default Turbopack filesystem build cache. Its versioned cache key includes the runner OS, Yarn lockfile, build configuration, and application source; a lockfile-prefix restore lets changed source reuse a prior build cache. Generated build outputs outside `.next/cache` are rebuilt on every run, and Yarn's archive cache remains managed by `actions/setup-node`.
+
+The separate Docker packaging workflow (`.github/workflows/package.yml`) reuses GitHub Actions BuildKit caches scoped as `activities-next-minimal-amd64` and `activities-next-minimal-arm64`. The GHCR build imports and exports all intermediate layers (`mode=max`); cache export failures do not fail publication. The following Docker Hub build imports the same cache and reuses the job's Buildx builder without exporting again. Registry authentication, digest pushes, and manifest publication follow the existing workflow.
+
 ### PR Checklist
 
 - [ ] Code follows project style guidelines

@@ -225,6 +225,8 @@ Guidelines:
 
 Use Node.js 24 and Yarn for all repository commands. The canonical local gate is `yarn run prettier --write .` → `yarn lint` → `yarn typecheck` → `yarn build` → `yarn test`, in that order; the detailed command behavior, local-database guard, and workspace guidance live in the [setup guide](docs/setup.md#agents-build-test-and-development-commands). Never run development servers, migrations, or tests against a remote or shared database.
 
+The CI build persists `.next/cache`, and the Docker packaging workflow reuses GitHub Actions BuildKit caches per architecture for its minimal images; see [CI Status Checks](CONTRIBUTING.md#ci-status-checks) for cache ownership and publication behavior.
+
 ## Mandatory workflow
 
 For every change, read the [testing rules](CONTRIBUTING.md#agents-testing-guidelines), [commit and PR rules](CONTRIBUTING.md#agents-commit-pull-request-guidelines), [review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents), and [documentation rules](CONTRIBUTING.md#agents-documentation-maintenance). These apply even when the change does not touch those files.
