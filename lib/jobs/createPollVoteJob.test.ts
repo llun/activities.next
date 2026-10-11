@@ -1,6 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createPollVoteJob } from '@/lib/jobs/createPollVoteJob'
 import { CREATE_POLL_VOTE_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
@@ -16,11 +16,12 @@ const VOTER_ACTOR_ID = 'https://somewhere.test/actors/voter'
 const VOTER2_ACTOR_ID = 'https://somewhere.test/actors/voter2'
 
 describe('createPollVoteJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
   let pollStatus: StatusPoll
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({

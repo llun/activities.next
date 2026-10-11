@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createRelayAnnounceJob } from '@/lib/jobs/createRelayAnnounceJob'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -26,9 +26,10 @@ const announceOf = (objectId: string, id = `${RELAY_ACTOR}/announce/1`) => ({
 })
 
 describe('createRelayAnnounceJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

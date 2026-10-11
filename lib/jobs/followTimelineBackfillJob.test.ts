@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getActorCollections } from '@/lib/activities/getActorCollections'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { JOBS } from '@/lib/jobs'
 import { followTimelineBackfillJob } from '@/lib/jobs/followTimelineBackfillJob'
 import { FOLLOW_TIMELINE_BACKFILL_JOB_NAME } from '@/lib/jobs/names'
@@ -24,7 +24,7 @@ vi.mock('@/lib/activities/getActorCollections', () => ({
 }))
 
 describe('followTimelineBackfillJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let newcomerCounter = 0
 
   const createFollowedRemoteActor = async () => {
@@ -123,6 +123,7 @@ describe('followTimelineBackfillJob', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

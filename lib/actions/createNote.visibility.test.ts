@@ -166,16 +166,18 @@ describe('Create note action', () => {
                 notification.type === NotificationType.enum.mention
             )
           ).toHaveLength(1)
+          await vi.waitFor(() =>
+            expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+              expect.objectContaining({
+                actorId: ACTOR3_ID,
+                sourceActorId: actor1.id,
+                statusId: replyStatus.id
+              })
+            )
+          )
           expect(mockSendNotificationAlerts).not.toHaveBeenCalledWith(
             expect.objectContaining({
               actorId: actor2.id,
-              sourceActorId: actor1.id,
-              statusId: replyStatus.id
-            })
-          )
-          expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-            expect.objectContaining({
-              actorId: ACTOR3_ID,
               sourceActorId: actor1.id,
               statusId: replyStatus.id
             })
@@ -214,12 +216,14 @@ describe('Create note action', () => {
               notification.type === NotificationType.enum.reply
           )
         ).toHaveLength(1)
-        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-          expect.objectContaining({
-            actorId: actor2.id,
-            sourceActorId: actor1.id,
-            statusId: replyStatus.id
-          })
+        await vi.waitFor(() =>
+          expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+            expect.objectContaining({
+              actorId: actor2.id,
+              sourceActorId: actor1.id,
+              statusId: replyStatus.id
+            })
+          )
         )
       })
 
@@ -255,12 +259,14 @@ describe('Create note action', () => {
               notification.type === NotificationType.enum.mention
           )
         ).toHaveLength(1)
-        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-          expect.objectContaining({
-            actorId: ACTOR3_ID,
-            sourceActorId: actor1.id,
-            statusId: replyStatus.id
-          })
+        await vi.waitFor(() =>
+          expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+            expect.objectContaining({
+              actorId: ACTOR3_ID,
+              sourceActorId: actor1.id,
+              statusId: replyStatus.id
+            })
+          )
         )
       })
 

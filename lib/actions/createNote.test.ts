@@ -148,13 +148,15 @@ describe('Create note action', () => {
       expect(hydrated.quote?.state).toBe('accepted')
 
       await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: actor1.id,
-          events: expect.arrayContaining([
-            expect.objectContaining({ type: 'quote' })
-          ])
-        })
+      await vi.waitFor(() =>
+        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: actor1.id,
+            events: expect.arrayContaining([
+              expect.objectContaining({ type: 'quote' })
+            ])
+          })
+        )
       )
     })
 
@@ -439,12 +441,14 @@ describe('Create note action', () => {
             (notification) => notification.statusId === status.id
           )
         ).toHaveLength(1)
-        expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
-          expect.objectContaining({
-            actorId: actor2.id,
-            sourceActorId: actor1.id,
-            statusId: status.id
-          })
+        await vi.waitFor(() =>
+          expect(mockSendNotificationAlerts).toHaveBeenCalledWith(
+            expect.objectContaining({
+              actorId: actor2.id,
+              sourceActorId: actor1.id,
+              statusId: status.id
+            })
+          )
         )
       } finally {
         await database.deleteMute({
@@ -484,12 +488,17 @@ describe('Create note action', () => {
         NotificationType.enum.reply
       )
 
-      // A single reply alert is dispatched for the parent author.
-      const replyAlertCalls = mockSendNotificationAlerts.mock.calls.filter(
-        ([call]) =>
-          call.actorId === actor2.id && call.statusId === replyStatus.id
-      )
-      expect(replyAlertCalls).toHaveLength(1)
+      // A single reply alert is dispatched for the parent author. It goes out
+      // after a fire-and-forget actor lookup, which on PostgreSQL can still be
+      // in flight here.
+      const replyAlertCalls = await vi.waitFor(() => {
+        const calls = mockSendNotificationAlerts.mock.calls.filter(
+          ([call]) =>
+            call.actorId === actor2.id && call.statusId === replyStatus.id
+        )
+        expect(calls).toHaveLength(1)
+        return calls
+      })
       expect(replyAlertCalls[0][0].events).toEqual([
         expect.objectContaining({ type: NotificationType.enum.reply })
       ])

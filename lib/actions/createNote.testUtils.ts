@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { afterAll, beforeAll, beforeEach, vi } from 'vitest'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -17,7 +17,7 @@ enableFetchMocks()
  * file must still `vi.mock` the queue, timelines and notification alerts.
  */
 export const useCreateNoteFixtures = () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const mockSendNotificationAlerts =
     sendNotificationAlerts as jest.MockedFunction<typeof sendNotificationAlerts>
   const actors = {} as { actor1: Actor; actor2: Actor }
@@ -28,6 +28,7 @@ export const useCreateNoteFixtures = () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actors.actor1 = (await database.getActorFromUsername({
