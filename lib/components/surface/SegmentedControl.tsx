@@ -55,9 +55,12 @@ const TRACK_CLASS =
 
 // The 4px track padding (`p-1`) creates equal 4px empty space around the
 // segment items on top, bottom, left, and right. Concentric rounded-md corners
-// nest inside the track's rounded-lg border.
+// nest inside the track's rounded-lg border. The `after` pseudo-element expands
+// the interactive hit area across the 4px track padding, guaranteeing the full
+// 44px (`md`) / 36px (`sm`) touch target and eliminating dead clicks in the
+// padding.
 const SEGMENT_CLASS =
-  'flex flex-[1_1_auto] cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50 disabled:cursor-default disabled:opacity-50 sm:flex-none'
+  'relative flex flex-[1_1_auto] cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50 disabled:cursor-default disabled:opacity-50 sm:flex-none after:absolute after:-inset-y-1 after:inset-x-0 first:after:-left-1 last:after:-right-1'
 
 const SIZE_CLASS = {
   md: 'min-h-9 py-1.5',
