@@ -1,8 +1,8 @@
 // Pure helpers for the gallery domain's rows, shared by its Kysely queries
 // (./queries.ts, ./media.ts, ./lookupCache.ts, ./albumSuggestions.ts and
-// ./albums.ts). No database access. The parsers accept both the Kysely and the
-// Knex row shapes: a timestamp as epoch ms, a Date or SQLite text, a JSON
-// column as text or parsed, a boolean as 0/1 or a boolean.
+// ./albums.ts). No database access. The parsers accept the row shapes of both
+// backends: a timestamp as epoch ms, a Date or SQLite text, a JSON column as
+// text or parsed, a boolean as 0/1 or a boolean.
 import type { GalleryIndexRow } from '@/lib/database/domains/gallery/types'
 import {
   parseCountryCode,
