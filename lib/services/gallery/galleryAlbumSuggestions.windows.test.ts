@@ -1,4 +1,4 @@
-import type { GalleryIndexRow } from '@/lib/database/sql/galleryMedia'
+import type { GalleryIndexRow } from '@/lib/database/domains/gallery/types'
 import { buildIndexRow } from '@/lib/services/gallery/__fixtures__/galleryIndexRow'
 import {
   MAX_SUGGESTIONS_PER_KIND,

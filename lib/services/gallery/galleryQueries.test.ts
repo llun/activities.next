@@ -1,7 +1,7 @@
 import type {
   GalleryIndexRow,
   GalleryMapRow
-} from '@/lib/database/sql/galleryMedia'
+} from '@/lib/database/domains/gallery/types'
 import {
   databaseBeforeAll,
   getTestDatabaseTable

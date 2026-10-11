@@ -1,4 +1,4 @@
-import type { GalleryIndexRow } from '@/lib/database/sql/galleryMedia'
+import type { GalleryIndexRow } from '@/lib/database/domains/gallery/types'
 import { localDateKeyAt } from '@/lib/fitness/calendar/localDay'
 import { toSubjectKey } from '@/lib/services/gallery/galleryEntities'
 

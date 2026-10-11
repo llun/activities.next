@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { MediaValidationError } from '@/lib/services/medias/errors'
@@ -16,7 +15,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: ReturnType<typeof createTestDatabase>['database'] | null =
+  null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => () => ({
@@ -96,9 +96,12 @@ const postRequest = (token?: string, form?: FormData) => {
 }
 
 describe('POST /api/v2/media', () => {
-  const { database, db } = createTestDatabase({ backend: 'sqlite' })
+  // Honours TEST_DATABASE_TYPE, so the gallery settings it writes are read
+  // back on PostgreSQL too.
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

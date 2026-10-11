@@ -45,6 +45,13 @@ import { followQueries } from '@/lib/database/domains/follow/queries'
 import type { FollowDatabase } from '@/lib/database/domains/follow/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
 import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
+import { galleryQueries } from '@/lib/database/domains/gallery/queries'
+import type {
+  GalleryAlbumSuggestionDatabase,
+  GalleryDatabase,
+  GalleryLookupCacheDatabase,
+  GalleryMediaDatabase
+} from '@/lib/database/domains/gallery/types'
 import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
 import type { IdempotencyDatabase } from '@/lib/database/domains/idempotency/types'
 import { importLockQueries } from '@/lib/database/domains/importLock/queries'
@@ -120,11 +127,7 @@ import {
 } from '@/lib/database/kysely'
 import { deleteActorData } from '@/lib/database/sql/actor'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { GallerySQLDatabaseMixin } from '@/lib/database/sql/gallery'
-import { GalleryAlbumSuggestionSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbumSuggestions'
 import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
-import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLookupCache'
-import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { Database } from '@/lib/database/types'
 import type { StatusDatabase } from '@/lib/types/database/operations'
@@ -180,13 +183,13 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     fitnessSettingsQueries
   )
-  const galleryDatabase = GallerySQLDatabaseMixin(database)
+  // Gear, settings, the gallery media reads, the lookup cache and the album
+  // suggestions' item read. The album mixin is still Knex.
+  const galleryDatabase: GalleryDatabase &
+    GalleryMediaDatabase &
+    GalleryLookupCacheDatabase &
+    GalleryAlbumSuggestionDatabase = bindDb(kysely, galleryQueries)
   const galleryAlbumDatabase = GalleryAlbumSQLDatabaseMixin(database)
-  const galleryAlbumSuggestionDatabase =
-    GalleryAlbumSuggestionSQLDatabaseMixin(database)
-  const galleryMediaDatabase = GalleryMediaSQLDatabaseMixin(database)
-  const galleryLookupCacheDatabase =
-    GalleryLookupCacheSQLDatabaseMixin(database)
   const importLockDatabase: ImportLockDatabase = bindDb(
     kysely,
     importLockQueries
@@ -374,9 +377,6 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...fitnessSettingsDatabase,
     ...galleryDatabase,
     ...galleryAlbumDatabase,
-    ...galleryAlbumSuggestionDatabase,
-    ...galleryMediaDatabase,
-    ...galleryLookupCacheDatabase,
     ...importLockDatabase,
     ...linkPreviewDatabase,
     ...instanceActivityDatabase,

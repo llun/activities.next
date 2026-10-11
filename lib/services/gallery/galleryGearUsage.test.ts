@@ -1,4 +1,4 @@
-import type { GalleryGearUsageRow } from '@/lib/database/sql/galleryMedia'
+import type { GalleryGearUsageRow } from '@/lib/database/domains/gallery/types'
 import {
   getGalleryGearOverview,
   getGalleryGearUsage,

@@ -1,7 +1,7 @@
 import { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import nominatimNone from '@/lib/services/gallery/lookups/__fixtures__/nominatim-reverse-none.json'
 
@@ -58,9 +58,11 @@ describe('runBackfill with the real place lookup', () => {
 
   beforeEach(async () => {
     mockFetch.mockClear()
-    const created = getTestSQLDatabaseWithInstance()
+    // Honours TEST_DATABASE_TYPE, so it runs on PostgreSQL in CI.
+    const created = createTestDatabase()
     database = created.database
-    knex = created.instance
+    knex = created.knex
+    await created.prepare()
     await database.migrate()
   })
 
