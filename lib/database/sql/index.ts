@@ -33,8 +33,12 @@ import { filterQueries } from '@/lib/database/domains/filter/queries'
 import type { FilterDatabase } from '@/lib/database/domains/filter/types'
 import { fitnessFileQueries } from '@/lib/database/domains/fitnessFile/queries'
 import type { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
+import { fitnessFileRouteQueries } from '@/lib/database/domains/fitnessFileRoute/queries'
+import type { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
 import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
 import type { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
+import { fitnessRouteHeatmapQueries } from '@/lib/database/domains/fitnessRouteHeatmap/queries'
+import type { FitnessRouteHeatmapDatabase } from '@/lib/database/domains/fitnessRouteHeatmap/types'
 import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
 import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { followQueries } from '@/lib/database/domains/follow/queries'
@@ -114,8 +118,6 @@ import {
   kyselyFor
 } from '@/lib/database/kysely'
 import { deleteActorData } from '@/lib/database/sql/actor'
-import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
-import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
 import { GallerySQLDatabaseMixin } from '@/lib/database/sql/gallery'
 import { GalleryAlbumSuggestionSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbumSuggestions'
@@ -158,13 +160,18 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     fitnessFileQueries
   )
-  const fitnessFileRouteDatabase = FitnessFileRouteSQLDatabaseMixin(database)
+  const fitnessFileRouteDatabase: FitnessFileRouteDatabase = bindDb(
+    kysely,
+    fitnessFileRouteQueries
+  )
   const fitnessGearDatabase: FitnessGearDatabase = bindDb(
     kysely,
     fitnessGearQueries
   )
-  const fitnessRouteHeatmapDatabase =
-    FitnessRouteHeatmapSQLDatabaseMixin(database)
+  const fitnessRouteHeatmapDatabase: FitnessRouteHeatmapDatabase = bindDb(
+    kysely,
+    fitnessRouteHeatmapQueries
+  )
   const fitnessRouteHeatmapTileDatabase =
     FitnessRouteHeatmapTileSQLDatabaseMixin(database)
   const fitnessSettingsDatabase: FitnessSettingsDatabase = bindDb(

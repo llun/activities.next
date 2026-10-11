@@ -230,12 +230,18 @@ jobs:
   # calendar, window and earliest activity, whether an actor has fitness data
   # for a viewer) with the fitness routes, the import, processing, map
   # regeneration and heatmap jobs, the actor archive export and the services
-  # over it, the Kysely status visibility, countable-activity, actor-visible
-  # status, list eligibility, replies policy, block/mute, follow-target,
-  # exclusive-list and publicly-readable predicates checked against their
-  # Knex originals, and the Knex-backed Kysely driver (result normalisation,
-  # the mixed-transaction guard, counters, bucket counters, chunked IN lists,
-  # savepoints).
+  # over it, the cached activity routes and route heatmap domain (route
+  # upserts with their bounding box, chunked route reads, the region count
+  # and bounds over countable activities, heatmaps by id, key and share token,
+  # the pyramid subscribers and their progress mirror, the per-actor listings
+  # and their filters, status updates with the clear-deleted cutoff, share
+  # tokens, cancels, soft deletes, region names), the Kysely countable-activity
+  # predicate checked against its rule written out in JavaScript, the Kysely
+  # status visibility, actor-visible status, list eligibility, replies policy,
+  # block/mute, follow-target, exclusive-list and publicly-readable predicates
+  # checked against their Knex originals, and the Knex-backed Kysely driver
+  # (result normalisation, the mixed-transaction guard, counters, bucket
+  # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -328,6 +334,8 @@ jobs:
             lib/database/sql/fitnessFileQueries.test.ts \
             lib/database/sql/fitnessFileRoute.test.ts \
             lib/database/sql/fitnessRouteHeatmap.test.ts \
+            lib/database/sql/fitnessFileRouteQueries.test.ts \
+            lib/database/sql/fitnessRouteHeatmapQueries.test.ts \
             "app/api/v1/fitness-files/[id]/route.test.ts" \
             "app/api/v1/fitness-files/[id]/route-data/route.test.ts" \
             app/api/v1/fitness-files/by-status/route.test.ts \

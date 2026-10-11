@@ -1,6 +1,3 @@
-import knex from 'knex'
-
-import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -751,7 +748,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
           status: 'completed',
           shareToken: token
         })
-        // `parseSQLFitnessRouteHeatmapSummary` builds from an explicit field
+        // `toFitnessRouteHeatmapSummary` builds from an explicit field
         // list, so asserting the parsed object has no `segments` would hold for
         // ANY query shape — including `select('*')`. The half of this that the
         // tile routes actually depend on is the SQL, and it is pinned in its
@@ -1354,50 +1351,6 @@ describe('FitnessRouteHeatmapDatabase', () => {
       await expect(readStoredToken(instance, created.id)).resolves.toBeNull()
 
       await database.destroy()
-    })
-  })
-
-  describe('restore SQL assignment order', () => {
-    // MySQL evaluates single-table UPDATE assignments left to right, so a
-    // later SET clause reads an earlier clause's NEW value. The CASE that
-    // drops a restored row's stale token must therefore come before
-    // `deletedAt = NULL`, or on MySQL it sees NULL and keeps the token.
-    // PostgreSQL and SQLite cannot show this, so assert the statement a
-    // MySQL-dialect knex builds; no connection is opened.
-    it('assigns shareToken before clearing deletedAt', async () => {
-      const instance = knex({ client: 'mysql2' })
-      const statements: string[] = []
-      instance.client.acquireConnection = async () => ({})
-      instance.client.releaseConnection = async () => undefined
-      instance.client._query = async (
-        _connection: unknown,
-        query: { sql: string; response?: unknown }
-      ) => {
-        statements.push(query.sql)
-        query.response = [{ affectedRows: 1 }, undefined]
-        return query
-      }
-
-      try {
-        await FitnessRouteHeatmapSQLDatabaseMixin(
-          instance
-        ).updateFitnessRouteHeatmapStatus({
-          id: 'restore-order',
-          status: 'completed',
-          clearDeleted: true,
-          clearDeletedBefore: 0
-        })
-      } finally {
-        await instance.destroy()
-      }
-
-      expect(statements).toHaveLength(1)
-      const [sql] = statements
-      const shareTokenAt = sql.indexOf('`shareToken` = CASE')
-      const deletedAtAt = sql.indexOf('`deletedAt` = ?')
-      expect(shareTokenAt).toBeGreaterThan(-1)
-      expect(deletedAtAt).toBeGreaterThan(-1)
-      expect(shareTokenAt).toBeLessThan(deletedAtAt)
     })
   })
 })
