@@ -307,14 +307,14 @@ const expectRolledBack = async (
   expect(await dumpTables()).toEqual(before)
 }
 
-type CapturedStatement = { sql: string; txId?: string }
+type CapturedStatement = { sql: string; connection?: string }
 
 // The statements `action` sends, as Knex's `query` event reports them (Kysely
 // statements emit it too), with the Knex transaction each ran in.
 const captureStatements = async <T>(action: () => Promise<T>) => {
   const statements: CapturedStatement[] = []
-  const listener = (query: { sql: string; __knexTxId?: string }) => {
-    statements.push({ sql: query.sql, txId: query.__knexTxId })
+  const listener = (query: { sql: string; __knexUid?: string }) => {
+    statements.push({ sql: query.sql, connection: query.__knexUid })
   }
   knex.on('query', listener)
   try {
@@ -1999,8 +1999,8 @@ describe('the gallery album lock', () => {
     ])
   })
 
-  // The Knex album writes call the Kysely lock through kyselyFor(trx): it has
-  // to run on their transaction's connection, before anything else they do.
+  // The album writes take the lock inside their own Kysely transaction: it has
+  // to run on that transaction's connection, before anything else they do.
   it.each([
     'createGalleryAlbumWithinLimit',
     'updateGalleryAlbum',
@@ -2046,21 +2046,21 @@ describe('the gallery album lock', () => {
 
       const { statements } = await captureStatements(calls[method])
 
-      // Nothing runs outside the transaction (a second connection would read
-      // or write without the lock).
+      // One transaction, and nothing runs outside it (a second connection
+      // would read or write without the lock).
+      const texts = statements.map((statement) => statement.sql)
+      expect(texts[0]).toBe('begin')
+      expect(texts.at(-1)).toBe('commit')
       expect(
-        statements.filter((statement) => !statement.txId).map((s) => s.sql)
-      ).toEqual([])
-      // Knex logs its own BEGIN/COMMIT with the transaction id too.
-      const inTransaction = statements.filter(
-        (statement) =>
-          statement.txId && !/^(BEGIN|COMMIT|ROLLBACK)\b/i.test(statement.sql)
-      )
-      expect(inTransaction.length).toBeGreaterThan(1)
+        texts.filter((text) => /^(begin|commit|rollback)\b/i.test(text))
+      ).toHaveLength(2)
+      expect(statements.every((statement) => statement.connection)).toBeTrue()
       expect(
-        new Set(inTransaction.map((statement) => statement.txId)).size
+        new Set(statements.map((statement) => statement.connection)).size
       ).toBe(1)
-      expect(inTransaction[0].sql).toBe(
+      const inTransaction = texts.slice(1, -1)
+      expect(inTransaction.length).toBeGreaterThan(1)
+      expect(inTransaction[0]).toBe(
         isPostgres()
           ? 'select "id" from "actors" where "id" = $1 for update'
           : 'select "id" from "actors" where "id" = ?'

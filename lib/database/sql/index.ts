@@ -45,8 +45,10 @@ import { followQueries } from '@/lib/database/domains/follow/queries'
 import type { FollowDatabase } from '@/lib/database/domains/follow/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
 import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
+import { galleryAlbumQueries } from '@/lib/database/domains/gallery/albums'
 import { galleryQueries } from '@/lib/database/domains/gallery/queries'
 import type {
+  GalleryAlbumDatabase,
   GalleryAlbumSuggestionDatabase,
   GalleryDatabase,
   GalleryLookupCacheDatabase,
@@ -127,7 +129,6 @@ import {
 } from '@/lib/database/kysely'
 import { deleteActorData } from '@/lib/database/sql/actor'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { Database } from '@/lib/database/types'
 import type { StatusDatabase } from '@/lib/types/database/operations'
@@ -184,12 +185,15 @@ export const getSQLDatabase = (database: Knex): Database => {
     fitnessSettingsQueries
   )
   // Gear, settings, the gallery media reads, the lookup cache and the album
-  // suggestions' item read. The album mixin is still Knex.
+  // suggestions' item read; the albums are bound below.
   const galleryDatabase: GalleryDatabase &
     GalleryMediaDatabase &
     GalleryLookupCacheDatabase &
     GalleryAlbumSuggestionDatabase = bindDb(kysely, galleryQueries)
-  const galleryAlbumDatabase = GalleryAlbumSQLDatabaseMixin(database)
+  const galleryAlbumDatabase: GalleryAlbumDatabase = bindDb(
+    kysely,
+    galleryAlbumQueries
+  )
   const importLockDatabase: ImportLockDatabase = bindDb(
     kysely,
     importLockQueries
