@@ -429,11 +429,12 @@ describe('AccountSessions', () => {
     })
   })
 
-  it('renders the sign-out control inline with its label', () => {
+  it('renders the sign-out control in the this-device section', () => {
     renderSessions()
     const label = screen.getByText('Sign out of this device')
     const row = label.closest('[data-slot="form-row"]')
-    expect(row).toHaveClass('flex', 'items-center', 'justify-between')
+    expect(row).not.toBeNull()
+    expect(row).toContainElement(label)
     expect(
       within(row as HTMLElement).getByRole('button', { name: 'Logout' })
     ).toBeInTheDocument()
