@@ -1,15 +1,22 @@
 // Parameter and result types of the status methods that run on Kysely: the
 // lookups by url, url hash, publicId and path segment, the poll reads, the
-// hashtag reads, the pins and the favourited-by and reblogged-by pages.
-// lib/types/database/operations.ts re-exports them, so existing imports keep
-// working. The rest of the status domain (the writes, hydration, the actor
-// and reply feeds, the counts and deletion) is still the Knex mixin in
-// lib/database/sql/status.ts, with its types in operations.ts.
+// hashtag reads, the pins, the favourited-by and reblogged-by pages, and the
+// writes (note, poll and boost creation, the note and poll edits, the
+// visibility and quote-policy updates, the tag writes, the hashtag counters
+// and the poll votes). lib/types/database/operations.ts re-exports them, so
+// existing imports keep working. The rest of the status domain (hydration,
+// the actor and reply feeds, the counts, the edit history reads and deletion)
+// is still the Knex mixin in lib/database/sql/status.ts, with its types in
+// operations.ts.
 import type { Selectable } from 'kysely'
 
 import type { Statuses } from '@/lib/database/kysely/db'
-import type { Status } from '@/lib/types/domain/status'
-import type { Tag } from '@/lib/types/domain/tag'
+import type {
+  AttachmentMediaMetadata,
+  PostBoxAttachment
+} from '@/lib/types/domain/attachment'
+import type { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
+import type { Tag, TagType } from '@/lib/types/domain/tag'
 
 export type GetStatusFromUrlParams = {
   url: string
@@ -146,6 +153,152 @@ export type GetActorPollVotesForStatusesParams = {
   actorId: string
 }
 
+interface BaseCreateStatusParams {
+  id: string
+  actorId: string
+  to: string[]
+  cc: string[]
+
+  url: string
+  text: string
+  summary?: string | null
+  reply?: string
+
+  // Mastodon-compatible content flags persisted in the status content blob.
+  sensitive?: boolean
+  language?: string | null
+
+  // Who may quote this status (FEP-044f / Mastodon 4.5). Persisted in the status
+  // content blob, not a column. Omit to leave it unset (defaults to `public` at
+  // consumption).
+  quoteApprovalPolicy?: QuoteApprovalPolicy
+
+  // The registered OAuth client (Mastodon "application") that authored the
+  // status. Null when created through the web session.
+  applicationName?: string | null
+  applicationWebsite?: string | null
+
+  createdAt?: number
+  // The client-facing UUIDv7 id. Omit to mint one from createdAt (or now).
+  // Callers that already generated the id for the status URI tail (Task 1.5)
+  // pass it here so the URI tail, web-url tail, and stored publicId agree.
+  publicId?: string
+}
+
+export type CreateNoteParams = BaseCreateStatusParams
+
+/**
+ * An attachment resolved for an edit: the client's media reference plus the
+ * `medias` snapshot the attachment row carries (see `AttachmentMediaMetadata`).
+ *
+ * The three snapshot fields are REQUIRED, not optional, so a caller cannot
+ * quietly hand `updateNote` a bare `PostBoxAttachment` and blank the
+ * placeholder and focal point of every attachment it rewrites — the edit path
+ * has to resolve them from the owner's own media rows first.
+ */
+export type UpdateNoteAttachment = PostBoxAttachment & AttachmentMediaMetadata
+
+export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> & {
+  statusId: string
+  attachments?: UpdateNoteAttachment[]
+  // Omit to preserve the existing value; provide to overwrite.
+  sensitive?: boolean
+  language?: string | null
+}
+
+export type UpdateStatusQuoteApprovalPolicyParams = {
+  statusId: string
+  quoteApprovalPolicy: QuoteApprovalPolicy
+}
+
+export type UpdateNoteVisibilityParams = {
+  statusId: string
+  to: string[]
+  cc: string[]
+}
+
+export type CreateAnnounceParams = Pick<
+  BaseCreateStatusParams,
+  'id' | 'actorId' | 'to' | 'cc' | 'createdAt' | 'publicId'
+> & {
+  originalStatusId: string
+}
+
+export type CreatePollParams = BaseCreateStatusParams & {
+  choices: (string | { title: string; totalVotes?: number })[]
+  endAt: number
+  pollType?: 'oneOf' | 'anyOf'
+  // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
+  hideTotals?: boolean
+}
+
+/**
+ * Discriminated result of a status create that recovers from a concurrent
+ * duplicate insert. `isNew` is false when a racing delivery of the same object
+ * won the unique key and this call returned the winner's existing row — the
+ * signal `createNoteJob` / `createPollJob` read to skip re-running their
+ * (non-idempotent) tag / attachment / hashtag side effects. The plain
+ * `createNote` / `createPoll` methods keep returning just the `Status`; only
+ * the `*WithResult` variants surface `isNew`.
+ */
+export type CreateStatusResult = {
+  status: Status
+  isNew: boolean
+}
+export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> & {
+  statusId: string
+  choices: { title: string; totalVotes: number }[]
+  // Omit to preserve the existing values; provide to overwrite (user edits).
+  sensitive?: boolean
+  language?: string | null
+  endAt?: number
+  pollType?: 'oneOf' | 'anyOf'
+  hideTotals?: boolean
+  // When true `choices` replaces the option set and all recorded votes are
+  // cleared (Mastodon edit semantics); when false/omitted `choices` only
+  // refreshes tallies for the existing titles (federated poll refresh).
+  resetVotes?: boolean
+}
+
+export type CreateTagParams = {
+  statusId: string
+  name: string
+  type: TagType
+  value?: string
+  /**
+   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
+   * must call indexHashtagSearchDocuments once after all skipped tags are
+   * inserted.
+   */
+  skipSearchIndex?: boolean
+}
+export type DeleteStatusTagsByTypeParams = {
+  statusId: string
+  type: TagType
+}
+export type IncreaseHashtagCounterParams = {
+  hashtag: string
+}
+export type DecreaseHashtagCounterParams = {
+  hashtag: string
+}
+
+export type CreatePollAnswerParams = {
+  statusId: string
+  actorId: string
+  choice: number
+}
+export type IncrementPollChoiceVotesParams = {
+  statusId: string
+  choiceIndex: number
+}
+export type RecordPollVotesParams = {
+  statusId: string
+  actorId: string
+  choices: number[]
+  allowAdditionalChoices?: boolean
+}
+
 /** A `statuses` row as Kysely reads it. */
 export type StatusRow = Selectable<Statuses>
 
@@ -153,8 +306,9 @@ export type StatusRow = Selectable<Statuses>
  * Where these queries get hydrated statuses from: the Knex status mixin
  * (getStatus, getStatusesByIds and its row hydration), injected by
  * lib/database/sql/index.ts until hydration is ported. Each runs on the root
- * Knex instance, so it is only called after this domain's own query, never
- * inside a transaction.
+ * Knex instance, so it is only called outside this domain's transactions:
+ * after its own query, before a write's transaction (the edits read the
+ * status they rewrite through getStatus) or after it, never inside one.
  */
 export type StatusHydration = {
   getStatus(params: {
@@ -223,4 +377,35 @@ export interface StatusLookupDatabase {
   getActorPollVotesForStatuses(
     params: GetActorPollVotesForStatusesParams
   ): Promise<Record<string, number[]>>
+}
+
+/** The status writes that run on Kysely; StatusDatabase extends it. */
+export interface StatusWriteDatabase {
+  createNote(params: CreateNoteParams): Promise<Status>
+  // Same insert as createNote, but reports whether the row was newly created
+  // (isNew) or recovered from a concurrent duplicate. See CreateStatusResult.
+  createNoteWithResult(params: CreateNoteParams): Promise<CreateStatusResult>
+  createAnnounce(params: CreateAnnounceParams): Promise<Status | null>
+  createPoll(params: CreatePollParams): Promise<Status>
+  // Same insert as createPoll, but reports whether the row was newly created.
+  createPollWithResult(params: CreatePollParams): Promise<CreateStatusResult>
+  updateNote(params: UpdateNoteParams): Promise<Status | null>
+  // Rewrites the status's quote-approval policy in the content blob without
+  // recording an edit (no status_history append, no edited_at bump).
+  updateStatusQuoteApprovalPolicy(
+    params: UpdateStatusQuoteApprovalPolicyParams
+  ): Promise<Status | null>
+  updateNoteVisibility(
+    params: UpdateNoteVisibilityParams
+  ): Promise<Status | null>
+  updatePoll(params: UpdatePollParams): Promise<Status | null>
+  createTag(params: CreateTagParams): Promise<Tag>
+  deleteStatusTagsByType(params: DeleteStatusTagsByTypeParams): Promise<void>
+  increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>
+  decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
+  createPollAnswer(params: CreatePollAnswerParams): Promise<void>
+  incrementPollChoiceVotes(
+    params: IncrementPollChoiceVotesParams
+  ): Promise<void>
+  recordPollVotes(params: RecordPollVotesParams): Promise<boolean>
 }

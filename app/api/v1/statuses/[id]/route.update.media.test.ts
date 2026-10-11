@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import {
   MAX_FEDERATION_MEDIA_ATTACHMENTS,
   MAX_STORED_MEDIA_ATTACHMENTS
@@ -22,7 +23,7 @@ vi.mock('@/lib/services/auth/getSession', async () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
@@ -65,9 +66,10 @@ vi.mock('@/lib/config', async () => ({
 }))
 
 describe('PUT /api/v1/statuses/[id] media edits', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

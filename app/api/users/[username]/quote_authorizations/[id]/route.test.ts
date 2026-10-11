@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { buildQuoteAuthorizationUri } from '@/lib/services/quotes/quoteAuthorization'
 import { seedDatabase } from '@/lib/stub/database'
@@ -11,7 +11,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET } from './route'
 
-const database = getTestSQLDatabase()
+const { database, prepare } = createTestDatabase()
 
 // The guard resolves the local actor from the host and username; its own
 // behaviour is covered elsewhere, so stand in for it with the seeded actor.
@@ -38,6 +38,7 @@ describe('GET /api/users/[username]/quote_authorizations/[id]', () => {
   let counter = 0
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

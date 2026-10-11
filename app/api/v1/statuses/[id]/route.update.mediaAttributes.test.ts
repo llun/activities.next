@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { getQueue } from '@/lib/services/queue'
@@ -23,7 +24,7 @@ vi.mock('@/lib/services/auth/getSession', async () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
@@ -72,9 +73,10 @@ vi.mock('@/lib/config', async () => ({
 const ATTACHMENTS_CREATED_AT = Date.parse('2024-01-01T00:00:00.000Z')
 
 describe('PUT /api/v1/statuses/[id] media attachments', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

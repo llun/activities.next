@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { GET as TRENDS_ALIAS_GET } from '@/app/api/v1/trends/route'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { resetTrendingTagsCacheForTests } from '@/lib/services/trends/trendingTagsCache'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -12,7 +13,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -44,7 +45,7 @@ const SECOND_ACTOR_ID = 'https://llun.test/users/second'
 const DAY_MS = 86_400_000
 
 describe('GET /api/v1/trends/tags', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   const createActor = (id: string, username: string) =>
     database.createActor({
@@ -88,6 +89,7 @@ describe('GET /api/v1/trends/tags', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await createActor(FIRST_ACTOR_ID, 'first')
     await createActor(SECOND_ACTOR_ID, 'second')

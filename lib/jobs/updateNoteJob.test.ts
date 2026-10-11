@@ -2,7 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import type { MockInstance } from 'vitest'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import {
   CREATE_NOTE_JOB_NAME,
@@ -44,9 +44,10 @@ vi.mock('@/lib/services/federation/forwardingDelivery', async () => {
 })
 
 describe('updateNoteJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

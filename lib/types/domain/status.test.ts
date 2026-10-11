@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { BaseNote } from '@/lib/activities/note'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -23,8 +23,9 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 enableFetchMocks()
 
 describe('Status', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

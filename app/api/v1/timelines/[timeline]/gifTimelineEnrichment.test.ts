@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { clearAnimationMetadataCacheForTests } from '@/lib/services/medias/animationMetadata'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -26,7 +27,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -52,9 +53,10 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/timelines/[timeline] GIFV enrichment regression', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

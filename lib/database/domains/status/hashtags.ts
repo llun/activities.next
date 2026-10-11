@@ -1,20 +1,30 @@
 import { sql } from 'kysely'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { indexHashtagSearchDocument } from '@/lib/database/domains/search/hashtags'
 import {
   getHashtagStorageNames,
   normalizeHashtagSearchName
 } from '@/lib/database/domains/search/rows'
 import type {
+  CreateTagParams,
+  DecreaseHashtagCounterParams,
+  DeleteStatusTagsByTypeParams,
   GetHashtagCounterParams,
   GetHashtagStatusesPageParams,
   GetHashtagStatusesPageResult,
   GetStatusesByHashtagParams,
   GetTagsParams,
+  IncreaseHashtagCounterParams,
   StatusHydration
 } from '@/lib/database/domains/status/types'
 import type { Db } from '@/lib/database/kysely'
-import { getCounterValue } from '@/lib/database/kysely/counter'
+import {
+  decreaseCounterValue,
+  getCounterValue,
+  increaseCounterValue
+} from '@/lib/database/kysely/counter'
+import { selectInChunks } from '@/lib/database/kysely/inList'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
@@ -22,9 +32,8 @@ import { CounterKey } from '@/lib/database/sql/utils/counter'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 
-// The hashtag reads: a status's tags, the hashtag timeline, the admin hashtag
-// page and the hashtag counter. Tag writes and the counter adjustments are
-// still the Knex mixin in lib/database/sql/status.ts.
+// A status's tags, the hashtag timeline, the admin hashtag page and the
+// hashtag counters: the reads, the tag writes and the counter adjustments.
 
 export const getTags = async (
   db: Db,
@@ -240,6 +249,92 @@ export const getHashtagCounter = (
   { hashtag }: GetHashtagCounterParams
 ): Promise<number> =>
   getCounterValue(
+    db,
+    CounterKey.totalHashtag(normalizeHashtagSearchName(hashtag))
+  )
+
+// The hashtag tags of `statusIds`, in no particular order. One value of each
+// statement is the tag type. The Kysely twin of the Knex
+// selectHashtagTagsByStatusIds (lib/database/sql/utils/status.ts), which the
+// Knex status and actor deletions still use.
+export const selectHashtagTagsByStatusIds = (db: Db, statusIds: string[]) =>
+  selectInChunks(
+    db,
+    statusIds,
+    (chunk) =>
+      db
+        .selectFrom('tags')
+        .select(['statusId', 'name'])
+        .where('type', '=', 'hashtag')
+        .where('statusId', 'in', chunk)
+        .$narrowType<{ statusId: string; name: string }>()
+        .execute(),
+    1
+  )
+
+export const createTag = async (
+  db: Db,
+  { statusId, name, value, type, skipSearchIndex = false }: CreateTagParams
+): Promise<Tag> => {
+  const currentTime = new Date()
+
+  const data = Tag.parse({
+    id: crypto.randomUUID(),
+    statusId,
+    type,
+    name,
+    value: value || '',
+    createdAt: currentTime.getTime(),
+    updatedAt: currentTime.getTime()
+  })
+  await db
+    .insertInto('tags')
+    .values({
+      id: data.id,
+      statusId: data.statusId,
+      type: data.type,
+      name: data.name,
+      value: data.value,
+      ...(type === 'hashtag'
+        ? { nameNormalized: `#${normalizeHashtagSearchName(name)}` }
+        : undefined),
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    .execute()
+  if (type === 'hashtag' && !skipSearchIndex) {
+    // Hashtag search stores an aggregate across all public statuses for the
+    // tag, so the inserted row alone is not enough to update the document.
+    await indexHashtagSearchDocument(db, { hashtag: name })
+  }
+  return data
+}
+
+export const deleteStatusTagsByType = async (
+  db: Db,
+  { statusId, type }: DeleteStatusTagsByTypeParams
+): Promise<void> => {
+  await db
+    .deleteFrom('tags')
+    .where('statusId', '=', statusId)
+    .where('type', '=', type)
+    .execute()
+}
+
+export const increaseHashtagCounter = (
+  db: Db,
+  { hashtag }: IncreaseHashtagCounterParams
+): Promise<void> =>
+  increaseCounterValue(
+    db,
+    CounterKey.totalHashtag(normalizeHashtagSearchName(hashtag))
+  )
+
+export const decreaseHashtagCounter = (
+  db: Db,
+  { hashtag }: DecreaseHashtagCounterParams
+): Promise<void> =>
+  decreaseCounterValue(
     db,
     CounterKey.totalHashtag(normalizeHashtagSearchName(hashtag))
   )
