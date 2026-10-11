@@ -357,6 +357,17 @@ describe('galleryMediaScope on the album reads’ join', () => {
       audience: viewerAudience({ publicOnly: true }),
       expected: ['posted-and-added', 'public', 'public-compact', 'unlisted']
     },
+    // Anything but `kind: 'owner'` is filtered: a missing or unknown
+    // audience reads as logged out, never as the owner.
+    ...[
+      { name: 'null audience', audience: null },
+      { name: 'undefined audience', audience: undefined },
+      { name: 'unknown audience kind', audience: { kind: 'unknown' } }
+    ].map(({ name, audience }) => ({
+      name,
+      audience: audience as unknown as GalleryAudience,
+      expected: ['posted-and-added', 'public', 'public-compact', 'unlisted']
+    })),
     {
       name: 'viewer with no flags (coerced to logged out)',
       audience: viewerAudience({}),
