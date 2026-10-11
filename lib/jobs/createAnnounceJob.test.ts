@@ -1,7 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
@@ -22,9 +22,10 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 enableFetchMocks()
 
 describe('Announce action', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor | null = null
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromEmail({ email: seedActor1.email })

@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { processForwardedActivityJob } from '@/lib/jobs/processForwardedActivityJob'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
@@ -39,9 +39,10 @@ const jobMessage = (data: unknown, id = 'forwarded-job-1') => ({
 })
 
 describe('processForwardedActivityJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

@@ -3,7 +3,7 @@ import fetchMock, {
   enableFetchMocks
 } from 'jest-fetch-mock'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   INLINE_DEADLINE_MS,
   INLINE_MAX_REPLY_ITEMS,
@@ -73,9 +73,10 @@ const MOCK_ACTOR = {
 }
 
 describe('fetchRemoteStatusJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     await database.createAccount({
@@ -727,6 +728,13 @@ describe('fetchRemoteStatusJob', () => {
         settled = true
       })
 
+      // Move the clock only once the walk waits on the first stalled item: on
+      // PostgreSQL the job's queries are real I/O, which the timer advance
+      // below does not wait for, so advancing at once could pass before the
+      // walk has even started its deadline.
+      while (fetchedItems.length === 0) {
+        await new Promise((resolve) => setImmediate(resolve))
+      }
       await vi.advanceTimersByTimeAsync(INLINE_DEADLINE_MS + 1000)
       await job
 

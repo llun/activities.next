@@ -1,7 +1,8 @@
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
@@ -18,7 +19,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 let mockKnex: Knex | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
@@ -51,14 +52,10 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('POST /api/v1/statuses', () => {
-  const knexInstance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const database = getSQLDatabase(knexInstance)
+  const { database, knex: knexInstance, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

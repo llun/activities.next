@@ -301,6 +301,7 @@ yarn test --maxWorkers=2 \
   lib/database/sql/galleryMedia.test.ts \
   lib/database/sql/galleryAlbums.test.ts \
   lib/database/sql/galleryAlbumsVisibility.test.ts \
+  lib/database/sql/galleryAlbumQueries.test.ts \
   lib/database/sql/galleryAlbumSuggestions.test.ts \
   lib/services/gallery/galleryQueries.test.ts \
   lib/services/gallery/galleryAlbumQueries.test.ts \

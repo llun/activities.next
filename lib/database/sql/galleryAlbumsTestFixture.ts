@@ -1,6 +1,6 @@
 import { afterAll, beforeAll } from 'vitest'
 
-import type { GalleryAlbumCursor } from '@/lib/database/sql/galleryAlbums'
+import type { GalleryAlbumCursor } from '@/lib/database/domains/gallery/types'
 import { Database } from '@/lib/database/types'
 import {
   GalleryAudience,

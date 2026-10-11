@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId, statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -12,7 +13,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET } from './route'
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -42,7 +43,7 @@ interface ResponseRequest {
 }
 
 describe('GET /api/v1/notifications/requests', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const SENDERS = [ACTOR2_ID, ACTOR3_ID, ACTOR4_ID]
 
   let clock = new Date('2026-03-01T00:00:00.000Z').getTime()
@@ -65,6 +66,7 @@ describe('GET /api/v1/notifications/requests', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

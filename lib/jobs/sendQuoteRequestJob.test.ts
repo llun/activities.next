@@ -2,7 +2,7 @@ import { ZodError } from 'zod'
 
 import { getNote, sendQuoteRequest } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { SEND_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
 import { sendQuoteRequestJob } from '@/lib/jobs/sendQuoteRequestJob'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -36,10 +36,11 @@ const REMOTE_AUTHOR_ID = 'https://remote.test/users/author'
 const QUOTED_STATUS_ID = `${REMOTE_AUTHOR_ID}/statuses/quoted`
 
 describe('sendQuoteRequestJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let counter = 0
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

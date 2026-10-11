@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -12,7 +13,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET, POST } from './route'
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -50,7 +51,7 @@ interface ResponseNotification {
 }
 
 describe('GET /api/v1/notifications (real database)', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const statusId = `${ACTOR1_ID}/statuses/notification-route-status`
 
   // Creates notifications on a stepped clock so createdAt ordering (newest
@@ -65,6 +66,7 @@ describe('GET /api/v1/notifications (real database)', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
@@ -435,9 +437,10 @@ describe('GET /api/v1/notifications (real database)', () => {
 })
 
 describe('POST /api/v1/notifications (real database)', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

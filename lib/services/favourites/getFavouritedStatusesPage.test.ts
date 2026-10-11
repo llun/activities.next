@@ -1,7 +1,7 @@
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
 import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import {
   MAX_FAVOURITE_BACKFILL_ITERATIONS,
@@ -13,13 +13,11 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
+// Each caller destroys its instance before the next is made, so the next
+// prepare() can drop and recreate the worker's PostgreSQL database.
 const newTestDatabase = async () => {
-  const raw = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const database = getSQLDatabase(raw)
+  const { database, knex: raw, prepare } = createTestDatabase()
+  await prepare()
   await database.migrate()
   await seedDatabase(database)
   return { raw, database }

@@ -1,5 +1,5 @@
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendUndoAnnounceJob'
 import { getQueue } from '@/lib/services/queue'
@@ -19,11 +19,12 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 describe('Undo Announce action', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor
   let actor2: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
 

@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { JOBS } from '@/lib/jobs'
 import {
@@ -93,7 +93,9 @@ describe('fediverse interop: shared inbox', () => {
   let database: Database
 
   beforeEach(async () => {
-    database = getTestSQLDatabase()
+    const created = createTestDatabase()
+    database = created.database
+    await created.prepare()
     await database.migrate()
     await seedDatabase(database)
     testDatabase.current = database

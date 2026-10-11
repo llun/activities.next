@@ -1,5 +1,4 @@
 import { galleryMediaScope } from '@/lib/database/kysely/visibility/galleryMedia'
-import { buildGalleryMediaScope } from '@/lib/database/sql/galleryAlbums'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import {
@@ -7,17 +6,18 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 
-// The Kysely galleryMediaScope must select exactly the media its Knex twin
-// buildGalleryMediaScope (lib/database/sql/galleryAlbums.ts, where the album
-// reads still use it) selects. The Knex twin has the default options only (no
-// `show`, `inGallery` required), so the Kysely one runs with those. Both run
-// over the same rows, for the owner, a missing or unknown audience and every
-// combination of the viewer flags, on a plain read of `medias` and on the
-// album reads' join of `gallery_album_items` to `medias`; the id sets are
-// compared, and the named cases say which arm broke.
-describe('galleryMediaScope matches buildGalleryMediaScope', () => {
+// galleryMediaScope with its default options (no `show`, `inGallery`
+// required), as the album reads (lib/database/domains/gallery/albums.ts) use
+// it on their join of `gallery_album_items` to `medias`. Every media here is
+// an item of one album, so the join must select exactly what a plain read of
+// `medias` selects, for the owner, a missing or unknown audience and every
+// combination of the viewer flags; and the named audiences pin both reads
+// against the media each may see, so a failure says which arm broke. Its Knex
+// twin, which this suite compared it with, went when the album reads moved to
+// Kysely.
+describe('galleryMediaScope on the album reads’ join', () => {
   const testDb = createTestDatabase()
-  const { database, knex } = testDb
+  const { database } = testDb
 
   const DOMAIN = 'gallery-scope.test'
   const actor = (name: string, domain = DOMAIN) =>
@@ -112,23 +112,8 @@ describe('galleryMediaScope matches buildGalleryMediaScope', () => {
       .execute()
   }
 
-  // Each scope as the reads use it: the media ids it selects.
-  const selectedByKnex = async (
-    actorId: string,
-    audience: GalleryAudience,
-    viaAlbum: boolean
-  ) => {
-    const query = viaAlbum
-      ? knex('gallery_album_items as album_items')
-          .innerJoin('medias', 'medias.id', 'album_items.mediaId')
-          .where('album_items.albumId', ALBUM)
-      : knex('medias')
-    buildGalleryMediaScope(knex, actorId, audience)(query)
-    const rows: { id: number | string }[] = await query.select('medias.id')
-    return rows.map(({ id }) => Number(id)).sort((a, b) => a - b)
-  }
-
-  const selectedByKysely = async (
+  // The scope as the reads use it: the media ids it selects.
+  const selected = async (
     actorId: string,
     audience: GalleryAudience,
     viaAlbum: boolean
@@ -318,28 +303,27 @@ describe('galleryMediaScope matches buildGalleryMediaScope', () => {
   }
 
   it.each([
-    { name: 'owner', actorId: owner, viaAlbum: false },
-    { name: 'owner', actorId: owner, viaAlbum: true },
-    { name: 'other', actorId: other, viaAlbum: false },
-    { name: 'ghost', actorId: ghost, viaAlbum: false }
+    { name: 'owner', actorId: owner },
+    { name: 'other', actorId: other },
+    { name: 'ghost', actorId: ghost }
   ])(
-    'selects the same media as the Knex scope for every audience of $name (album join: $viaAlbum)',
-    async ({ actorId, viaAlbum }) => {
+    'selects the same media through the album join as from medias for every audience of $name',
+    async ({ actorId }) => {
       let selectedAny = 0
       for (const audience of audiences) {
-        const [knexIds, kyselyIds] = await Promise.all([
-          selectedByKnex(actorId, audience, viaAlbum),
-          selectedByKysely(actorId, audience, viaAlbum)
+        const [plainIds, albumIds] = await Promise.all([
+          selected(actorId, audience, false),
+          selected(actorId, audience, true)
         ])
-        expect({ audience, ids: kyselyIds }).toEqual({
+        expect({ audience, ids: albumIds }).toEqual({
           audience,
-          ids: knexIds
+          ids: plainIds
         })
-        if (knexIds.length > 0) selectedAny += 1
+        if (plainIds.length > 0) selectedAny += 1
       }
       // The comparison is not vacuous: for the owner every audience sees at
-      // least the public post's media.
-      if (actorId === owner) expect(selectedAny).toBe(audiences.length)
+      // least the public post's media, and the other actor sees their own.
+      if (actorId !== ghost) expect(selectedAny).toBe(audiences.length)
     }
   )
 
@@ -373,6 +357,17 @@ describe('galleryMediaScope matches buildGalleryMediaScope', () => {
       audience: viewerAudience({ publicOnly: true }),
       expected: ['posted-and-added', 'public', 'public-compact', 'unlisted']
     },
+    // Anything but `kind: 'owner'` is filtered: a missing or unknown
+    // audience reads as logged out, never as the owner.
+    ...[
+      { name: 'null audience', audience: null },
+      { name: 'undefined audience', audience: undefined },
+      { name: 'unknown audience kind', audience: { kind: 'unknown' } }
+    ].map(({ name, audience }) => ({
+      name,
+      audience: audience as unknown as GalleryAudience,
+      expected: ['posted-and-added', 'public', 'public-compact', 'unlisted']
+    })),
     {
       name: 'viewer with no flags (coerced to logged out)',
       audience: viewerAudience({}),
@@ -409,14 +404,14 @@ describe('galleryMediaScope matches buildGalleryMediaScope', () => {
       ]
     }
   ])(
-    'selects the expected media for the $name',
+    'selects the expected media for the $name, from medias and through the album join',
     async ({ audience, expected }) => {
-      const [knexIds, kyselyIds] = await Promise.all([
-        selectedByKnex(owner, audience, false),
-        selectedByKysely(owner, audience, false)
+      const [plainIds, albumIds] = await Promise.all([
+        selected(owner, audience, false),
+        selected(owner, audience, true)
       ])
-      expect(keysOf(kyselyIds)).toEqual(expected)
-      expect(keysOf(knexIds)).toEqual(expected)
+      expect(keysOf(plainIds)).toEqual(expected)
+      expect(keysOf(albumIds)).toEqual(expected)
     }
   )
 })

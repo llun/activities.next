@@ -10,6 +10,10 @@ export type StatusHashtagTagRow = {
   name: string
 }
 
+// The hashtag tags of `statusIds`, one binding of each chunk reserved for the
+// tag type. The Knex status and actor deletions use it; its Kysely twin, for
+// updateNoteVisibility, is selectHashtagTagsByStatusIds in
+// lib/database/domains/status/hashtags.ts. Change both together.
 export const selectHashtagTagsByStatusIds = async (
   database: KnexConnection,
   statusIds: string[]

@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import type { MockInstance } from 'vitest'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteObjectJob } from '@/lib/jobs/deleteObjectJob'
 import {
   DELETE_OBJECT_JOB_NAME,
@@ -67,10 +67,11 @@ vi.mock('@/lib/utils/trace', async () => {
 })
 
 describe('deleteObjectJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({
