@@ -1597,6 +1597,31 @@ describe('pins', () => {
     ])
   })
 
+  // Both planners walk status_pins_actor_created_status backwards here while
+  // the table is small and unanalysed, which yields the ties by statusId
+  // anyway. Once PostgreSQL has statistics it may sort instead, and the order
+  // must not depend on the plan.
+  it.runIf(testDb.backend === 'pg')(
+    'getPinnedStatusIds keeps its order when PostgreSQL sorts instead of walking the index',
+    async () => {
+      const { alice, statuses } = await setupPins()
+      const [s1, s2, s3, s4] = statuses
+      // Two ties, one written in id order and one against it.
+      await seedPin(alice, s1, BASE + 1000)
+      await seedPin(alice, s2, BASE + 1000)
+      await seedPin(alice, s4, BASE + 2000)
+      await seedPin(alice, s3, BASE + 2000)
+
+      const ids = await inTransaction(db, async (trx) => {
+        await sql`set local enable_indexscan = off`.execute(trx)
+        await sql`set local enable_indexonlyscan = off`.execute(trx)
+        await sql`set local enable_bitmapscan = off`.execute(trx)
+        return getPinnedStatusIds(trx, { actorId: alice })
+      })
+      expect(ids).toEqual([s4, s3, s2, s1])
+    }
+  )
+
   it('getPinnedStatusIds with status ids keeps only those, in the same order', async () => {
     const { alice, bob, statuses } = await setupPins()
     const [s1, s2, s3, s4] = statuses
