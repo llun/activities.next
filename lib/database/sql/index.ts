@@ -305,11 +305,13 @@ export const getSQLDatabase = (database: Knex): Database => {
     suggestionQueries
   )
   const trendsDatabase: TrendsDatabase = bindDb(kysely, trendsQueries)
-  // The status lookups, poll reads, hashtag reads, pins and favourited-by and
-  // reblogged-by pages are Kysely queries; the rest of the status domain is
-  // still the Knex mixin. The queries hydrate statuses through the mixin's
-  // getStatus, getStatusesByIds and row hydration, outside any transaction,
-  // until hydration is ported. hydrateStatusRow stays off the facade.
+  // The status lookups, poll reads and votes, hashtag reads, tag writes and
+  // hashtag counters, pins, favourited-by and reblogged-by pages, creates and
+  // edits are Kysely queries; hydration, the feeds, the counts, the edit
+  // history reads and deletion are still the Knex mixin. The queries hydrate
+  // statuses through the mixin's getStatus, getStatusesByIds and row
+  // hydration, outside any transaction, until hydration is ported.
+  // hydrateStatusRow stays off the facade.
   const { hydrateStatusRow, ...statusKnexDatabase } = StatusSQLDatabaseMixin(
     database,
     actorDatabase,

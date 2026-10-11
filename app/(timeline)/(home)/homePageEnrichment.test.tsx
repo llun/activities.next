@@ -2,7 +2,8 @@ import { type ReactNode, isValidElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MainPageTimeline } from '@/app/(timeline)/MainPageTimeline'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { clearAnimationMetadataCacheForTests } from '@/lib/services/medias/animationMetadata'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -27,7 +28,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -60,9 +61,10 @@ const findElementByType = (
 }
 
 describe('(timeline)/(home) page GIFV enrichment regression', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

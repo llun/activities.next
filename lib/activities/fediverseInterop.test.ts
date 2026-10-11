@@ -4,7 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -22,7 +22,9 @@ describe('fediverse interop: remote fetch', () => {
   let database: Database
 
   beforeEach(async () => {
-    database = getTestSQLDatabase()
+    const created = createTestDatabase()
+    database = created.database
+    await created.prepare()
     await database.migrate()
     await seedDatabase(database)
     fetchMock.resetMocks()

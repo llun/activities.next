@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -18,7 +18,7 @@ vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
 }))
 
 describe('notifyQuotedStatusUpdate', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const mockSendNotificationAlerts =
     sendNotificationAlerts as jest.MockedFunction<typeof sendNotificationAlerts>
   // actor1 authors (and edits) the quoted status; actor2 is a local quoter.
@@ -27,6 +27,7 @@ describe('notifyQuotedStatusUpdate', () => {
   let counter = 0
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = (await database.getActorFromUsername({

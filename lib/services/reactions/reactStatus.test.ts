@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   reactStatus,
   unreactStatus
@@ -21,11 +21,12 @@ vi.mock('@/lib/activities', () => ({
 }))
 
 describe('reactStatus', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let reactor: Actor
   let author: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     reactor = (await database.getActorFromUsername({
@@ -260,10 +261,11 @@ describe('reactStatus', () => {
 })
 
 describe('unreactStatus', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let reactor: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     reactor = (await database.getActorFromUsername({

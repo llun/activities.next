@@ -1,5 +1,5 @@
 import { sendQuoteRevoke } from '@/lib/activities'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { SEND_QUOTE_REVOKE_JOB_NAME } from '@/lib/jobs/names'
 import { sendQuoteRevokeJob } from '@/lib/jobs/sendQuoteRevokeJob'
 import { seedDatabase } from '@/lib/stub/database'
@@ -28,13 +28,14 @@ const MENTIONED_SHARED_INBOX = 'https://mention.example/inbox'
 const STAMP_ID = `${ACTOR1_ID}/quote_authorizations/fanout`
 
 describe('sendQuoteRevokeJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const mockSendQuoteRevoke = sendQuoteRevoke as jest.MockedFunction<
     typeof sendQuoteRevoke
   >
   let counter = 0
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     await database.createActor({

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { randomUUID } from 'node:crypto'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { Timeline } from '@/lib/services/timelines/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -20,7 +21,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 // Mock database getter
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -57,7 +58,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/timelines/[timeline]', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let subActorId: string
   let actor1TimelinePost1Id: string
   let actor1TimelinePost2Id: string
@@ -66,6 +67,7 @@ describe('GET /api/v1/timelines/[timeline]', () => {
   let accountId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
 

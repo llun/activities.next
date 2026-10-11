@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import {
   MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
@@ -67,11 +67,12 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 describe('sendNoteJob', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, knex: instance, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
     hoisted.database = database
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({

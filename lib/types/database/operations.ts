@@ -1,14 +1,12 @@
 import { z } from 'zod'
 
 import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
-import type { StatusLookupDatabase } from '@/lib/database/domains/status/types'
-import {
-  Attachment,
-  AttachmentMediaMetadata,
-  PostBoxAttachment
-} from '@/lib/types/domain/attachment'
-import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
-import { Tag, TagType } from '@/lib/types/domain/tag'
+import type {
+  StatusLookupDatabase,
+  StatusWriteDatabase
+} from '@/lib/database/domains/status/types'
+import { Attachment } from '@/lib/types/domain/attachment'
+import { Status } from '@/lib/types/domain/status'
 
 // ============================================================================
 // Base Database
@@ -87,6 +85,14 @@ export type {
 // ============================================================================
 
 export type {
+  CreateAnnounceParams,
+  CreateNoteParams,
+  CreatePollAnswerParams,
+  CreatePollParams,
+  CreateStatusResult,
+  CreateTagParams,
+  DecreaseHashtagCounterParams,
+  DeleteStatusTagsByTypeParams,
   FavouritedByAccount,
   GetActorAnnouncedStatusIdParams,
   GetActorPollVotesForStatusesParams,
@@ -108,119 +114,23 @@ export type {
   GetTagsParams,
   HasActorAnnouncedStatusParams,
   HasActorVotedParams,
+  IncreaseHashtagCounterParams,
+  IncrementPollChoiceVotesParams,
   PinStatusParams,
   RebloggedByAccount,
-  StatusLookupDatabase
+  RecordPollVotesParams,
+  StatusLookupDatabase,
+  StatusWriteDatabase,
+  UpdateNoteAttachment,
+  UpdateNoteParams,
+  UpdateNoteVisibilityParams,
+  UpdatePollParams,
+  UpdateStatusQuoteApprovalPolicyParams
 } from '@/lib/database/domains/status/types'
-
-interface BaseCreateStatusParams {
-  id: string
-  actorId: string
-  to: string[]
-  cc: string[]
-
-  url: string
-  text: string
-  summary?: string | null
-  reply?: string
-
-  // Mastodon-compatible content flags persisted in the status content blob.
-  sensitive?: boolean
-  language?: string | null
-
-  // Who may quote this status (FEP-044f / Mastodon 4.5). Persisted in the status
-  // content blob, not a column. Omit to leave it unset (defaults to `public` at
-  // consumption).
-  quoteApprovalPolicy?: QuoteApprovalPolicy
-
-  // The registered OAuth client (Mastodon "application") that authored the
-  // status. Null when created through the web session.
-  applicationName?: string | null
-  applicationWebsite?: string | null
-
-  createdAt?: number
-  // The client-facing UUIDv7 id. Omit to mint one from createdAt (or now).
-  // Callers that already generated the id for the status URI tail (Task 1.5)
-  // pass it here so the URI tail, web-url tail, and stored publicId agree.
-  publicId?: string
-}
-
-export type CreateNoteParams = BaseCreateStatusParams
 
 type BaseStatusParams = {
   statusId: string
 }
-
-/**
- * An attachment resolved for an edit: the client's media reference plus the
- * `medias` snapshot the attachment row carries (see `AttachmentMediaMetadata`).
- *
- * The three snapshot fields are REQUIRED, not optional, so a caller cannot
- * quietly hand `updateNote` a bare `PostBoxAttachment` and blank the
- * placeholder and focal point of every attachment it rewrites — the edit path
- * has to resolve them from the owner's own media rows first.
- */
-export type UpdateNoteAttachment = PostBoxAttachment & AttachmentMediaMetadata
-
-export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
-  BaseStatusParams & {
-    attachments?: UpdateNoteAttachment[]
-    // Omit to preserve the existing value; provide to overwrite.
-    sensitive?: boolean
-    language?: string | null
-  }
-
-export type UpdateStatusQuoteApprovalPolicyParams = BaseStatusParams & {
-  quoteApprovalPolicy: QuoteApprovalPolicy
-}
-
-export type UpdateNoteVisibilityParams = BaseStatusParams & {
-  to: string[]
-  cc: string[]
-}
-
-export type CreateAnnounceParams = Pick<
-  BaseCreateStatusParams,
-  'id' | 'actorId' | 'to' | 'cc' | 'createdAt' | 'publicId'
-> & {
-  originalStatusId: string
-}
-
-export type CreatePollParams = BaseCreateStatusParams & {
-  choices: (string | { title: string; totalVotes?: number })[]
-  endAt: number
-  pollType?: 'oneOf' | 'anyOf'
-  // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
-  hideTotals?: boolean
-}
-
-/**
- * Discriminated result of a status create that recovers from a concurrent
- * duplicate insert. `isNew` is false when a racing delivery of the same object
- * won the unique key and this call returned the winner's existing row — the
- * signal `createNoteJob` / `createPollJob` read to skip re-running their
- * (non-idempotent) tag / attachment / hashtag side effects. The plain
- * `createNote` / `createPoll` methods keep returning just the `Status`; only
- * the `*WithResult` variants surface `isNew`.
- */
-export type CreateStatusResult = {
-  status: Status
-  isNew: boolean
-}
-export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
-  BaseStatusParams & {
-    choices: { title: string; totalVotes: number }[]
-    // Omit to preserve the existing values; provide to overwrite (user edits).
-    sensitive?: boolean
-    language?: string | null
-    endAt?: number
-    pollType?: 'oneOf' | 'anyOf'
-    hideTotals?: boolean
-    // When true `choices` replaces the option set and all recorded votes are
-    // cleared (Mastodon edit semantics); when false/omitted `choices` only
-    // refreshes tallies for the existing titles (federated poll refresh).
-    resetVotes?: boolean
-  }
 
 export type GetStatusParams = BaseStatusParams & {
   currentActorId?: string
@@ -303,28 +213,6 @@ export type GetStatusesByIdsParams = {
   withReplies?: boolean
 }
 
-export type CreateTagParams = {
-  statusId: string
-  name: string
-  type: TagType
-  value?: string
-  /**
-   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
-   * must call indexHashtagSearchDocuments once after all skipped tags are
-   * inserted.
-   */
-  skipSearchIndex?: boolean
-}
-export type DeleteStatusTagsByTypeParams = {
-  statusId: string
-  type: TagType
-}
-export type IncreaseHashtagCounterParams = {
-  hashtag: string
-}
-export type DecreaseHashtagCounterParams = {
-  hashtag: string
-}
 export type GetStatusReblogsCountParams = {
   statusId: string
 }
@@ -337,45 +225,12 @@ export type GetStatusRepliesCountParams = {
   publicOnly?: boolean
 }
 
-export type CreatePollAnswerParams = {
-  statusId: string
-  actorId: string
-  choice: number
-}
-export type IncrementPollChoiceVotesParams = {
-  statusId: string
-  choiceIndex: number
-}
-export type RecordPollVotesParams = {
-  statusId: string
-  actorId: string
-  choices: number[]
-  allowAdditionalChoices?: boolean
-}
-
-// The lookups, the poll reads, the hashtag reads, the pins and the
-// favourited-by and reblogged-by pages run on Kysely (StatusLookupDatabase,
-// lib/database/domains/status/); the methods below are still the Knex mixin
-// in lib/database/sql/status.ts.
-export interface StatusDatabase extends StatusLookupDatabase {
-  createNote(params: CreateNoteParams): Promise<Status>
-  // Same insert as createNote, but reports whether the row was newly created
-  // (isNew) or recovered from a concurrent duplicate. See CreateStatusResult.
-  createNoteWithResult(params: CreateNoteParams): Promise<CreateStatusResult>
-  createAnnounce(params: CreateAnnounceParams): Promise<Status | null>
-  createPoll(params: CreatePollParams): Promise<Status>
-  // Same insert as createPoll, but reports whether the row was newly created.
-  createPollWithResult(params: CreatePollParams): Promise<CreateStatusResult>
-  updateNote(params: UpdateNoteParams): Promise<Status | null>
-  // Rewrites the status's quote-approval policy in the content blob without
-  // recording an edit (no status_history append, no edited_at bump).
-  updateStatusQuoteApprovalPolicy(
-    params: UpdateStatusQuoteApprovalPolicyParams
-  ): Promise<Status | null>
-  updateNoteVisibility(
-    params: UpdateNoteVisibilityParams
-  ): Promise<Status | null>
-  updatePoll(params: UpdatePollParams): Promise<Status | null>
+// The lookups, the poll reads, the hashtag reads, the pins, the favourited-by
+// and reblogged-by pages (StatusLookupDatabase) and the writes
+// (StatusWriteDatabase) run on Kysely, in lib/database/domains/status/; the
+// methods below are still the Knex mixin in lib/database/sql/status.ts.
+export interface StatusDatabase
+  extends StatusLookupDatabase, StatusWriteDatabase {
   getStatus(params: GetStatusParams): Promise<Status | null>
   getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
   getStatusEditHistory(
@@ -391,10 +246,6 @@ export interface StatusDatabase extends StatusLookupDatabase {
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
-  createTag(params: CreateTagParams): Promise<Tag>
-  deleteStatusTagsByType(params: DeleteStatusTagsByTypeParams): Promise<void>
-  increaseHashtagCounter(params: IncreaseHashtagCounterParams): Promise<void>
-  decreaseHashtagCounter(params: DecreaseHashtagCounterParams): Promise<void>
   getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
   getStatusReblogsCounts(
     params: GetStatusCountsParams
@@ -403,11 +254,6 @@ export interface StatusDatabase extends StatusLookupDatabase {
   getStatusRepliesCounts(
     params: GetStatusCountsParams
   ): Promise<Record<string, number>>
-  createPollAnswer(params: CreatePollAnswerParams): Promise<void>
-  incrementPollChoiceVotes(
-    params: IncrementPollChoiceVotesParams
-  ): Promise<void>
-  recordPollVotes(params: RecordPollVotesParams): Promise<boolean>
 }
 
 // ============================================================================

@@ -551,9 +551,10 @@ describe('deleteStatusFromUserInput', () => {
     let actor: Actor
 
     beforeEach(async () => {
-      const testDb = createTestDatabase({ backend: 'sqlite' })
+      const testDb = createTestDatabase()
       database = testDb.database
       db = testDb.db
+      await testDb.prepare()
       await database.migrate()
       const queueConfig: DatabaseQueueConfig = {
         type: 'database',
@@ -582,7 +583,7 @@ describe('deleteStatusFromUserInput', () => {
       await database.destroy()
     })
 
-    it('immediately deletes status and persists pending queue job in SQLite', async () => {
+    it('immediately deletes status and persists pending queue job in the database', async () => {
       const statusId = `${actor.id}/statuses/integration-delete-test`
       await database.createNote({
         id: statusId,

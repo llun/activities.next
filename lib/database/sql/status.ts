@@ -2,26 +2,27 @@ import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { parseElevationSeries } from '@/lib/database/domains/fitnessFile/rows'
-import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import {
   getHashtagStorageNames,
   normalizeHashtagSearchName
 } from '@/lib/database/domains/search/rows'
-import {
-  type StatusSearchRow,
-  deleteStatusSearchDocumentsByStatusIds
-} from '@/lib/database/domains/search/statuses'
+import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
 import { getTags } from '@/lib/database/domains/status/hashtags'
 import { getActorAnnouncedStatusId } from '@/lib/database/domains/status/lookups'
 import {
   getActorPollVotes,
   hasActorVoted
 } from '@/lib/database/domains/status/polls'
+import {
+  getOriginalStatusIdFromAnnounceContent,
+  getStatusActorProfile
+} from '@/lib/database/domains/status/rows'
 import type {
   StatusHydration,
-  StatusLookupDatabase
+  StatusLookupDatabase,
+  StatusWriteDatabase
 } from '@/lib/database/domains/status/types'
 import { kyselyFor } from '@/lib/database/kysely'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
@@ -30,26 +31,20 @@ import {
   decreaseCounterValue,
   deleteCounterValues,
   getCounterValue,
-  getCounterValues,
-  increaseCounterValue
+  getCounterValues
 } from '@/lib/database/sql/utils/counter'
-import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import {
   chunkArray,
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
-import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
   announceOriginalPointer,
   wherePubliclyReadableStatus
 } from '@/lib/database/sql/utils/publiclyReadableStatus'
-import { recoverFromDuplicateInsert } from '@/lib/database/sql/utils/recoverFromDuplicateInsert'
 import {
   StatusHashtagTagRow,
-  isPubliclyAddressed,
   selectHashtagTagsByStatusIds,
   selectPubliclyAddressedStatusIds
 } from '@/lib/database/sql/utils/status'
@@ -69,14 +64,7 @@ import {
 } from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import {
-  CreateAnnounceParams,
-  CreateNoteParams,
-  CreatePollAnswerParams,
-  CreatePollParams,
-  CreateStatusResult,
-  CreateTagParams,
   DeleteStatusParams,
-  DeleteStatusTagsByTypeParams,
   DeleteStatusWithQueueJobParams,
   GetActorStatusesCountParams,
   GetActorStatusesParams,
@@ -87,19 +75,12 @@ import {
   GetStatusRepliesCountParams,
   GetStatusRepliesParams,
   GetStatusesByIdsParams,
-  IncrementPollChoiceVotesParams,
-  RecordPollVotesParams,
   StatusDatabase,
   StatusDetectedLanguageDatabase,
   StatusEditRevision,
-  StatusReactionDatabase,
-  UpdateNoteParams,
-  UpdateNoteVisibilityParams,
-  UpdatePollParams,
-  UpdateStatusQuoteApprovalPolicyParams
+  StatusReactionDatabase
 } from '@/lib/types/database/operations'
-import { Actor, ActorProfile, getActorProfile } from '@/lib/types/domain/actor'
-import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
   QuoteState,
@@ -111,15 +92,11 @@ import {
   StatusQuote,
   StatusType
 } from '@/lib/types/domain/status'
-import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
-import { generatePublicId } from '@/lib/utils/publicId'
-import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
@@ -127,16 +104,6 @@ const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
 // Counts breadth-first reply levels from the deleted root, not total replies.
 // This bounds transaction size while still allowing wide conversation cleanup.
 const MAX_STATUS_REPLY_DELETE_DEPTH = 100
-
-// A status embeds its author for rendering only, and nothing reads the
-// author's `lastStatusAt` there — yet it rides along on every page that ships
-// statuses to the client (public SSR pages serialize them whole), where it
-// would date the author's newest followers-only post to the millisecond. The
-// account entity's date-only `last_status_at` is the one place it belongs.
-const getStatusActorProfile = (actor: Actor): ActorProfile => ({
-  ...getActorProfile(actor),
-  lastStatusAt: null
-})
 
 type StatusDeletionRow = {
   id: string
@@ -149,13 +116,6 @@ type StatusDeletionRow = {
 
 const statusReplyDeletionDepthError = (statusId: string) =>
   new Error(`Status reply deletion depth limit exceeded for status ${statusId}`)
-
-const isReplaceableMediaAttachment = (
-  attachment: Attachment
-): attachment is Attachment & { mediaId: string } =>
-  !isFitnessAttachment(attachment) &&
-  attachment.mediaId !== null &&
-  attachment.mediaId !== undefined
 
 const publicRecipientStatusIds = (database: Knex) =>
   database('recipients')
@@ -334,14 +294,14 @@ export const buildActorVisibleStatusIdsQuery = ({
     .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
 }
 
-// The status methods still on Knex (the writes, hydration, the actor and reply
-// feeds, the counts and deletion), plus the row hydration the Kysely status
-// queries (lib/database/domains/status/queries.ts) read through. getSQLDatabase
-// spreads the methods into the facade beside the Kysely ones and hands
-// hydrateStatusRow to those queries only.
+// The status methods still on Knex (hydration, the actor and reply feeds, the
+// counts, the edit history reads and deletion), plus the row hydration the
+// Kysely status queries (lib/database/domains/status/queries.ts) read through.
+// getSQLDatabase spreads the methods into the facade beside the Kysely ones
+// and hands hydrateStatusRow to those queries only.
 export type StatusKnexDatabase = Omit<
   StatusDatabase,
-  keyof StatusLookupDatabase
+  keyof StatusLookupDatabase | keyof StatusWriteDatabase
 > &
   Pick<StatusHydration, 'hydrateStatusRow'>
 
@@ -428,23 +388,6 @@ export const StatusSQLDatabaseMixin = (
     })
   }
 
-  const getOriginalStatusIdFromAnnounceContent = (
-    content: unknown
-  ): string | null => {
-    const parsed = parseStatusContent(content)
-    if (!parsed) return null
-    if (typeof parsed === 'string') {
-      return parsed
-    }
-    if (typeof parsed.url === 'string' && parsed.url.length > 0) {
-      return parsed.url
-    }
-    if (typeof parsed.id === 'string' && parsed.id.length > 0) {
-      return parsed.id
-    }
-    return null
-  }
-
   const getAnnounceOriginalStatusId = ({
     content,
     originalStatusId
@@ -455,972 +398,6 @@ export const StatusSQLDatabaseMixin = (
     originalStatusId || getOriginalStatusIdFromAnnounceContent(content)
 
   const getStatusUrlHash = (url: string): string => getHashFromString(url)
-  const getStatusReplyHash = (reply: string): string | null =>
-    reply ? getHashFromString(reply) : null
-
-  const resolveParentStatusIdByReply = async (
-    reply: string,
-    trx: Knex.Transaction
-  ): Promise<string | null> => {
-    if (!reply) return null
-
-    const byId = await trx('statuses')
-      .where('id', reply)
-      .first<{ id: string }>('id')
-    if (byId?.id) return byId.id
-
-    const byUrl = await trx('statuses')
-      .where('urlHash', getStatusUrlHash(reply))
-      .andWhere('url', reply)
-      .first<{ id: string }>('id')
-    if (byUrl?.id) return byUrl.id
-
-    return null
-  }
-
-  const updateStatusCounters = async ({
-    actorId,
-    type,
-    reply,
-    content,
-    step,
-    trx,
-    currentTime,
-    statusCreatedAt,
-    audience
-  }: {
-    actorId: string
-    type: StatusType
-    reply: string
-    // The new status's recipients. Only a public or unlisted reply moves the
-    // parent's reply counter, which anonymous surfaces serve as
-    // `replies_count` (Mastodon counts only distributable replies), and a
-    // direct status does not advance `lastStatusAt` (Mastodon parity), so
-    // neither is observable through a count or a timestamp.
-    audience: { to: string[]; cc: string[] }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    content: any
-    step: 'increment' | 'decrement'
-    trx: Knex.Transaction
-    currentTime: Date
-    // The new status's own createdAt (may be backdated for federated/imported
-    // statuses), used to advance the actor's persisted `lastStatusAt`.
-    statusCreatedAt: Date
-  }) => {
-    const adjust =
-      step === 'increment' ? increaseCounterValue : decreaseCounterValue
-
-    await adjust(trx, CounterKey.totalStatus(actorId), 1, currentTime)
-    await adjust(trx, CounterKey.serviceTotalStatuses(), 1, currentTime)
-    if (step === 'increment') {
-      await incrementBucket(trx, 'statuses', 1, currentTime)
-    }
-    if (
-      step === 'increment' &&
-      getVisibility(audience.to, audience.cc) !== 'direct'
-    ) {
-      // Advance the actor's persisted last-status timestamp. Guarded set-if-newer
-      // (keyed on the status createdAt, not currentTime) so a backdated or
-      // out-of-order insert never lowers a more recent value. Direct statuses
-      // are skipped: `lastStatusAt` is served as the account's public
-      // `last_status_at` and directory order, and would otherwise date a
-      // direct message to anyone.
-      await trx('actors')
-        .where('id', actorId)
-        .andWhere((builder) =>
-          builder
-            .whereNull('lastStatusAt')
-            .orWhere('lastStatusAt', '<', statusCreatedAt)
-        )
-        .update({ lastStatusAt: statusCreatedAt })
-    }
-
-    const actor = await trx('actors')
-      .where('id', actorId)
-      .first<{ accountId: string | null }>('accountId')
-    if (actor?.accountId) {
-      await adjust(trx, CounterKey.nodeinfoLocalPosts(), 1, currentTime)
-      if (step === 'increment') {
-        await incrementLocalStatusBucket(kyselyFor(trx), currentTime)
-      }
-    }
-
-    if (type === StatusType.enum.Announce) {
-      const originalStatusId = getOriginalStatusIdFromAnnounceContent(content)
-      if (originalStatusId) {
-        await adjust(
-          trx,
-          CounterKey.totalReblog(originalStatusId),
-          1,
-          currentTime
-        )
-      }
-    }
-
-    if (reply && isPubliclyAddressed(audience)) {
-      const parentStatusId = await resolveParentStatusIdByReply(reply, trx)
-      if (parentStatusId) {
-        await adjust(trx, CounterKey.totalReply(parentStatusId), 1, currentTime)
-      }
-    }
-  }
-
-  // Public
-  async function createNoteWithResult({
-    id,
-    url,
-    actorId,
-    text,
-    summary = '',
-    to,
-    cc,
-    reply = '',
-    sensitive = false,
-    language = null,
-    quoteApprovalPolicy,
-    applicationName = null,
-    applicationWebsite = null,
-    createdAt,
-    publicId
-  }: CreateNoteParams): Promise<CreateStatusResult> {
-    const currentTime = new Date()
-    const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
-    const statusPublicId =
-      publicId ?? generatePublicId(statusCreatedAt.getTime())
-    const statusUpdatedAt = currentTime
-    const content = {
-      url,
-      text,
-      summary,
-      sensitive,
-      language,
-      // Persisted in the blob (no column). JSON.stringify drops it when
-      // undefined, so non-quotable-policy statuses store nothing extra.
-      ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {})
-    }
-    const statusContent = JSON.stringify(content)
-    const searchStatus: StatusSearchRow = {
-      id,
-      actorId,
-      type: StatusType.enum.Note,
-      content: statusContent,
-      createdAt: statusCreatedAt
-    }
-
-    const outcome = await recoverFromDuplicateInsert({
-      insert: () =>
-        database.transaction(async (trx) => {
-          await trx('statuses').insert({
-            id,
-            publicId: statusPublicId,
-            url,
-            urlHash: getStatusUrlHash(url),
-            actorId,
-            type: StatusType.enum.Note,
-            content: statusContent,
-            applicationName,
-            applicationWebsite,
-            reply,
-            replyHash: getStatusReplyHash(reply),
-            createdAt: statusCreatedAt,
-            updatedAt: statusUpdatedAt
-          })
-          await updateStatusCounters({
-            actorId,
-            type: StatusType.enum.Note,
-            reply,
-            content,
-            step: 'increment',
-            trx,
-            currentTime,
-            statusCreatedAt,
-            audience: { to, cc }
-          })
-          await Promise.all(
-            to.map((actorId) =>
-              trx('recipients').insert({
-                id: crypto.randomUUID(),
-                statusId: id,
-                actorId,
-                type: 'to',
-
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            )
-          )
-
-          await Promise.all(
-            cc.map((actorId) =>
-              trx('recipients').insert({
-                id: crypto.randomUUID(),
-                statusId: id,
-                actorId,
-                type: 'cc',
-
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            )
-          )
-        }),
-      getExisting: () => getStatus({ statusId: id, withReplies: false })
-    })
-    if (outcome.recovered) {
-      // A concurrent delivery of the same note won the unique key; return its
-      // row with isNew=false so the caller skips its side effects.
-      return { status: outcome.existing, isNew: false }
-    }
-
-    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
-      status: searchStatus
-    })
-
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    const status = StatusNote.parse({
-      id,
-      publicId: statusPublicId,
-      url,
-      actorId,
-      actor: actor ? getStatusActorProfile(actor) : null,
-      type: StatusType.enum.Note,
-      text,
-      summary,
-      sensitive,
-      language,
-      ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {}),
-      // Content detection runs after this insert (in the actions/jobs layer
-      // that called createNote), so the row this function just wrote has no
-      // detected language yet — matches what a hydrated re-fetch would show
-      // at this same instant.
-      detectedLanguage: null,
-      applicationName,
-      applicationWebsite,
-      reply,
-      to,
-      cc,
-      edits: [],
-      attachments: [],
-      tags: [],
-      replies: [],
-      totalLikes: 0,
-      // A status this instance just created has no reactions yet; declare it so
-      // the freshly-created shape matches the hydrated one.
-      reactions: [],
-      isActorLiked: false,
-      isActorBookmarked: false,
-      actorAnnounceStatusId: null,
-      isLocalActor: Boolean(actor?.account),
-      createdAt: getCompatibleTime(statusCreatedAt),
-      updatedAt: getCompatibleTime(statusUpdatedAt)
-    })
-    return { status, isNew: true }
-  }
-
-  async function createNote(params: CreateNoteParams): Promise<Status> {
-    return (await createNoteWithResult(params)).status
-  }
-
-  async function updateNote({
-    statusId,
-    text,
-    summary,
-    attachments,
-    sensitive,
-    language
-  }: UpdateNoteParams): Promise<Status | null> {
-    const status = await getStatus({ statusId })
-    if (!status) return null
-
-    if (status.type !== StatusType.enum.Note) return null
-
-    const previousData = {
-      text: status.text,
-      summary: status.summary,
-      // Snapshot the state each /statuses/:id/history revision needs; rows
-      // without these keys (written before snapshotting) read back as null and
-      // fall back to the status's current values in the serializer.
-      sensitive: status.sensitive ?? false,
-      attachments: status.attachments,
-      pollOptions: null
-    }
-    const currentTime = new Date()
-    const content = {
-      url: status.url,
-      text,
-      summary,
-      // Preserve the existing flags unless the caller explicitly overrides them.
-      sensitive: sensitive === undefined ? status.sensitive : sensitive,
-      language: language === undefined ? status.language : language
-    }
-    const statusContent = JSON.stringify(content)
-    const searchStatus: StatusSearchRow = {
-      id: status.id,
-      actorId: status.actorId,
-      type: status.type,
-      content: statusContent,
-      createdAt: status.createdAt
-    }
-    await database.transaction(async (trx) => {
-      await trx('status_history').insert({
-        statusId: status.id,
-        data: JSON.stringify(previousData),
-        createdAt: new Date(status.createdAt),
-        updatedAt: currentTime
-      })
-      await trx('statuses')
-        .where('id', status.id)
-        .update({
-          url: status.url || null,
-          urlHash: status.url ? getStatusUrlHash(status.url) : null,
-          content: statusContent,
-          updatedAt: currentTime
-        })
-
-      if (attachments !== undefined) {
-        const incomingMediaIds = new Set(
-          attachments.map((attachment) => attachment.id)
-        )
-        const existingReplaceableAttachments = status.attachments.filter(
-          isReplaceableMediaAttachment
-        )
-        const replaceableAttachmentIds = status.attachments
-          .filter(
-            (attachment) =>
-              isReplaceableMediaAttachment(attachment) &&
-              !incomingMediaIds.has(attachment.mediaId)
-          )
-          .map((attachment) => attachment.id)
-        if (replaceableAttachmentIds.length > 0) {
-          await trx('attachments')
-            .where('statusId', status.id)
-            .where('actorId', status.actorId)
-            .whereIn('id', replaceableAttachmentIds)
-            .delete()
-        }
-
-        const existingMediaIds = new Set(
-          existingReplaceableAttachments.map((attachment) => attachment.mediaId)
-        )
-        const newAttachments = attachments.filter(
-          (attachment) => !existingMediaIds.has(attachment.id)
-        )
-
-        await Promise.all(
-          newAttachments.map((attachment, index) => {
-            const attachmentCreatedAt = new Date(currentTime.getTime() + index)
-            const data = Attachment.parse({
-              id: crypto.randomUUID(),
-              actorId: status.actorId,
-              statusId: status.id,
-              type: 'Document',
-              mediaType: attachment.mediaType,
-              url: attachment.url,
-              width: attachment.width,
-              height: attachment.height,
-              name: attachment.name ?? '',
-              mediaId: attachment.id,
-              blurhash: attachment.blurhash,
-              focus: attachment.focus,
-              thumbnailUrl: attachment.thumbnailUrl,
-              createdAt: attachmentCreatedAt.getTime(),
-              updatedAt: attachmentCreatedAt.getTime()
-            })
-
-            // `focus` is one object on the parsed row and two columns in the
-            // table, so the insert is written out column by column the way
-            // `createAttachment` does it rather than spreading `data`.
-            return trx('attachments').insert({
-              id: data.id,
-              actorId: data.actorId,
-              statusId: data.statusId,
-              type: data.type,
-              mediaType: data.mediaType,
-              url: data.url,
-              width: data.width,
-              height: data.height,
-              name: data.name,
-              mediaId: data.mediaId,
-              blurhash: data.blurhash ?? null,
-              focusX: data.focus?.x ?? null,
-              focusY: data.focus?.y ?? null,
-              thumbnailUrl: data.thumbnailUrl ?? null,
-              createdAt: attachmentCreatedAt,
-              updatedAt: attachmentCreatedAt
-            })
-          })
-        )
-
-        // Attachments kept across the edit refresh every field they copied
-        // from the media row — alt text, BlurHash, focal point, thumbnail and
-        // the file itself (url, size, type): the attachment row snapshots them
-        // at attach time, so a media_attributes edit must re-copy them or the
-        // status keeps serving the stale value. Focus is the one a client can
-        // change on a posted status (Mastodon's focal-point editor); the file
-        // changes when a photo edit is applied to the posts that use it. Only
-        // rows that actually differ are rewritten, so an edit that leaves the
-        // media untouched preserves the existing row (createdAt/updatedAt)
-        // unchanged.
-        const existingSnapshotByMediaId = new Map(
-          existingReplaceableAttachments.map((attachment) => [
-            attachment.mediaId,
-            attachment
-          ])
-        )
-        const isSameFocus = (
-          left: { x: number; y: number } | null | undefined,
-          right: { x: number; y: number } | null | undefined
-        ) =>
-          (left?.x ?? null) === (right?.x ?? null) &&
-          (left?.y ?? null) === (right?.y ?? null)
-        const keptAttachments = attachments.filter((attachment) => {
-          if (!existingMediaIds.has(attachment.id)) return false
-          const existing = existingSnapshotByMediaId.get(attachment.id)
-          if (!existing) return false
-          return (
-            attachment.url !== existing.url ||
-            attachment.mediaType !== existing.mediaType ||
-            attachment.width !== (existing.width ?? null) ||
-            attachment.height !== (existing.height ?? null) ||
-            (attachment.name ?? '') !== (existing.name ?? '') ||
-            (attachment.blurhash ?? null) !== (existing.blurhash ?? null) ||
-            (attachment.thumbnailUrl ?? null) !==
-              (existing.thumbnailUrl ?? null) ||
-            !isSameFocus(attachment.focus, existing.focus)
-          )
-        })
-        // `attachments.mediaId` is an `integer` column on PostgreSQL, so a
-        // malformed id here would error rather than miss. Safe without its own
-        // coercion: every `attachment.id` in `keptAttachments` has already
-        // resolved through `getMediaByIdForAccount`, which rejects anything
-        // that is not a real row id (see `toMediaRowId`).
-        await Promise.all(
-          keptAttachments.map((attachment) =>
-            trx('attachments')
-              .where('statusId', status.id)
-              .where('mediaId', attachment.id)
-              .update({
-                url: attachment.url,
-                mediaType: attachment.mediaType,
-                width: attachment.width,
-                height: attachment.height,
-                name: attachment.name ?? '',
-                blurhash: attachment.blurhash,
-                focusX: attachment.focus?.x ?? null,
-                focusY: attachment.focus?.y ?? null,
-                thumbnailUrl: attachment.thumbnailUrl,
-                updatedAt: currentTime
-              })
-          )
-        )
-      }
-    })
-    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
-      status: searchStatus
-    })
-    return getStatus({ statusId })
-  }
-
-  async function updateNoteVisibility({
-    statusId,
-    to,
-    cc
-  }: UpdateNoteVisibilityParams): Promise<Status | null> {
-    const status = await getStatus({ statusId })
-    if (!status) return null
-    if (status.type !== StatusType.enum.Note) return null
-
-    let affectedHashtags: string[] = []
-    const currentTime = new Date()
-    const searchStatus: StatusSearchRow = {
-      id: status.id,
-      actorId: status.actorId,
-      type: status.type,
-      content: JSON.stringify({
-        url: status.url,
-        text: status.text,
-        summary: status.summary
-      }),
-      createdAt: status.createdAt
-    }
-    // Prior revisions were written for the old audience; see
-    // widensStatusAudience for why a widening change drops them.
-    const widensAudience = widensStatusAudience(status, { to, cc })
-    await database.transaction(async (trx) => {
-      if (widensAudience) {
-        await trx('status_history').where('statusId', status.id).delete()
-      }
-      await trx('recipients').where('statusId', status.id).delete()
-      await trx('timelines').where('statusId', status.id).delete()
-      await Promise.all(
-        to.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: status.id,
-            actorId,
-            type: 'to',
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-        )
-      )
-      await Promise.all(
-        cc.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: status.id,
-            actorId,
-            type: 'cc',
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-        )
-      )
-      const hashtagTags = await selectHashtagTagsByStatusIds(trx, [status.id])
-      affectedHashtags = hashtagTags.map((tag) => tag.name)
-
-      // The reply and hashtag counters count only publicly addressed statuses,
-      // so a visibility change that crosses that line moves them too —
-      // otherwise a later delete would decrement a count this status never
-      // contributed to, or leave behind one it no longer should.
-      const wasPublic = isPubliclyAddressed(status)
-      if (wasPublic !== isPubliclyAddressed({ to, cc })) {
-        const adjust = wasPublic ? decreaseCounterValue : increaseCounterValue
-        const parentStatusId = await resolveParentStatusIdByReply(
-          status.reply,
-          trx
-        )
-        if (parentStatusId) {
-          await adjust(
-            trx,
-            CounterKey.totalReply(parentStatusId),
-            1,
-            currentTime
-          )
-        }
-        // Per tag row, exactly as the create and delete paths count them.
-        for (const tag of hashtagTags) {
-          const tagName = normalizeHashtagSearchName(tag.name)
-          await adjust(trx, CounterKey.totalHashtag(tagName), 1, currentTime)
-        }
-      }
-    })
-    if (affectedHashtags.length > 0) {
-      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
-        hashtags: affectedHashtags
-      })
-    }
-    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
-      status: searchStatus
-    })
-    return getStatus({ statusId })
-  }
-
-  async function createAnnounce({
-    id,
-    actorId,
-    to,
-    cc,
-    originalStatusId,
-    createdAt,
-    publicId
-  }: CreateAnnounceParams) {
-    const existingOriginal = await getStatus({ statusId: originalStatusId })
-    if (!existingOriginal) {
-      return null
-    }
-
-    const currentTime = new Date()
-    const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
-    const statusPublicId =
-      publicId ?? generatePublicId(statusCreatedAt.getTime())
-    const statusUpdatedAt = currentTime
-
-    const outcome = await recoverFromDuplicateInsert({
-      insert: () =>
-        database.transaction(async (trx) => {
-          await trx('statuses').insert({
-            id,
-            publicId: statusPublicId,
-            url: null,
-            urlHash: null,
-            actorId,
-            type: StatusType.enum.Announce,
-            reply: '',
-            replyHash: null,
-            content: originalStatusId,
-            originalStatusId,
-            createdAt: statusCreatedAt,
-            updatedAt: statusUpdatedAt
-          })
-          await updateStatusCounters({
-            actorId,
-            type: StatusType.enum.Announce,
-            reply: '',
-            content: originalStatusId,
-            step: 'increment',
-            trx,
-            currentTime,
-            statusCreatedAt,
-            audience: { to, cc }
-          })
-          await Promise.all(
-            to.map((actorId) =>
-              trx('recipients').insert({
-                id: crypto.randomUUID(),
-                statusId: id,
-                actorId,
-                type: 'to',
-
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            )
-          )
-
-          await Promise.all(
-            cc.map((actorId) =>
-              trx('recipients').insert({
-                id: crypto.randomUUID(),
-                statusId: id,
-                actorId,
-                type: 'cc',
-
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            )
-          )
-        }),
-      getExisting: () => getStatus({ statusId: id, withReplies: false })
-    })
-    if (outcome.recovered) {
-      return outcome.existing
-    }
-
-    const [originalStatus, actor] = await Promise.all([
-      getStatus({ statusId: originalStatusId }),
-      actorDatabase.getActorFromId({ id: actorId })
-    ])
-    if (!originalStatus) {
-      return null
-    }
-    return StatusAnnounce.parse({
-      id,
-      publicId: statusPublicId,
-      actorId,
-      actor: actor ? getStatusActorProfile(actor) : null,
-      to,
-      cc,
-      edits: [],
-      type: StatusType.enum.Announce,
-      originalStatus: originalStatus as StatusNote,
-
-      isLocalActor: Boolean(actor?.account),
-      createdAt: getCompatibleTime(statusUpdatedAt),
-      updatedAt: getCompatibleTime(statusUpdatedAt)
-    })
-  }
-
-  async function createPollWithResult({
-    id,
-    url,
-    actorId,
-    text,
-    summary = '',
-    to,
-    cc,
-    reply = '',
-    endAt,
-    choices,
-    pollType = 'oneOf',
-    hideTotals = false,
-    sensitive = false,
-    language = null,
-    applicationName = null,
-    applicationWebsite = null,
-    createdAt,
-    publicId
-  }: CreatePollParams): Promise<CreateStatusResult> {
-    const currentTime = new Date()
-    const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
-    const statusPublicId =
-      publicId ?? generatePublicId(statusCreatedAt.getTime())
-    const statusUpdatedAt = currentTime
-    const content = {
-      url,
-      text,
-      summary,
-      sensitive,
-      language,
-      endAt,
-      pollType,
-      hideTotals
-    }
-    const statusContent = JSON.stringify(content)
-    const searchStatus: StatusSearchRow = {
-      id,
-      actorId,
-      type: StatusType.enum.Poll,
-      content: statusContent,
-      createdAt: statusCreatedAt
-    }
-
-    const outcome = await recoverFromDuplicateInsert({
-      insert: () =>
-        database.transaction(async (trx) => {
-          await trx('statuses').insert({
-            id,
-            publicId: statusPublicId,
-            url,
-            urlHash: getStatusUrlHash(url),
-            actorId,
-            type: StatusType.enum.Poll,
-            content: statusContent,
-            applicationName,
-            applicationWebsite,
-            reply,
-            replyHash: getStatusReplyHash(reply),
-            createdAt: statusCreatedAt,
-            updatedAt: statusUpdatedAt
-          })
-          await updateStatusCounters({
-            actorId,
-            type: StatusType.enum.Poll,
-            reply,
-            content,
-            step: 'increment',
-            trx,
-            currentTime,
-            statusCreatedAt,
-            audience: { to, cc }
-          })
-          await Promise.all(
-            choices.map((choice) => {
-              const title = typeof choice === 'string' ? choice : choice.title
-              const totalVotes =
-                typeof choice === 'string' ? 0 : (choice.totalVotes ?? 0)
-              return trx('poll_choices').insert({
-                statusId: id,
-                title,
-                totalVotes,
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            })
-          )
-          await Promise.all(
-            to.map((actorId) =>
-              trx('recipients').insert({
-                id: crypto.randomUUID(),
-                statusId: id,
-                actorId,
-                type: 'to',
-
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            )
-          )
-
-          await Promise.all(
-            cc.map((actorId) =>
-              trx('recipients').insert({
-                id: crypto.randomUUID(),
-                statusId: id,
-                actorId,
-                type: 'cc',
-
-                createdAt: statusUpdatedAt,
-                updatedAt: statusUpdatedAt
-              })
-            )
-          )
-        }),
-      getExisting: () => getStatus({ statusId: id, withReplies: false })
-    })
-    if (outcome.recovered) {
-      // A concurrent delivery of the same poll won the unique key; return its
-      // row with isNew=false so the caller skips its side effects.
-      return { status: outcome.existing, isNew: false }
-    }
-
-    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
-      status: searchStatus
-    })
-
-    const actor = await actorDatabase.getActorFromId({ id: actorId })
-    const status = StatusPoll.parse({
-      id,
-      publicId: statusPublicId,
-      url,
-      actorId,
-      actor: actor ? getStatusActorProfile(actor) : null,
-      type: StatusType.enum.Poll,
-      text,
-      summary,
-      sensitive,
-      language,
-      // Content detection runs after this insert (in the actions/jobs layer
-      // that called createPoll), so the row this function just wrote has no
-      // detected language yet — matches what a hydrated re-fetch would show
-      // at this same instant.
-      detectedLanguage: null,
-      applicationName,
-      applicationWebsite,
-      reply,
-      to,
-      cc,
-      edits: [],
-      attachments: [],
-      tags: [],
-      replies: [],
-      choices: [],
-      totalLikes: 0,
-      // A status this instance just created has no reactions yet; declare it so
-      // the freshly-created shape matches the hydrated one.
-      reactions: [],
-      isActorLiked: false,
-      isActorBookmarked: false,
-      actorAnnounceStatusId: null,
-      endAt,
-      pollType,
-      hideTotals,
-      isLocalActor: Boolean(actor?.account),
-      createdAt: getCompatibleTime(statusCreatedAt),
-      updatedAt: getCompatibleTime(statusUpdatedAt)
-    })
-    return { status, isNew: true }
-  }
-
-  async function createPoll(params: CreatePollParams): Promise<Status> {
-    return (await createPollWithResult(params)).status
-  }
-
-  async function updatePoll({
-    statusId,
-    text,
-    summary,
-    choices,
-    sensitive,
-    language,
-    endAt,
-    pollType,
-    hideTotals,
-    resetVotes = false
-  }: UpdatePollParams) {
-    const existingStatus = await database('statuses')
-      .where('id', statusId)
-      .first()
-    if (!existingStatus) return null
-    const currentTime = new Date()
-    const data = getCompatibleJSON(existingStatus.content)
-    const nextText = text ?? data.text
-    // undefined = keep the existing summary; a provided value (including an
-    // empty/whitespace string) normalizes to null when blank, matching
-    // createPoll's `summary?.trim() || null` so a cleared CW never persists as
-    // '' (which would flip contentChanged and record a spurious edit revision).
-    const nextSummary =
-      summary === undefined ? data.summary : summary?.trim() || null
-    const content = {
-      url: data.url,
-      text: nextText,
-      summary: nextSummary,
-      sensitive:
-        sensitive === undefined ? (data.sensitive ?? false) : sensitive,
-      language: language === undefined ? (data.language ?? null) : language,
-      endAt: endAt ?? data.endAt,
-      pollType: pollType ?? data.pollType,
-      hideTotals:
-        hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
-    }
-    const statusContent = JSON.stringify(content)
-    const searchStatus: StatusSearchRow = {
-      id: existingStatus.id,
-      actorId: existingStatus.actorId,
-      type: existingStatus.type,
-      content: statusContent,
-      createdAt: existingStatus.createdAt
-    }
-
-    // Any user-visible change records an edit revision; a tally-only refresh
-    // (federated vote sync) must not.
-    const contentChanged =
-      nextText !== data.text ||
-      // Treat an empty-string summary the same as null: a poll created with the
-      // createPoll default ('') edited with a blank spoiler normalizes to null,
-      // which is not a user-visible change and must not record a revision.
-      (nextSummary || null) !== (data.summary || null) ||
-      content.sensitive !== (data.sensitive ?? false) ||
-      content.language !== (data.language ?? null) ||
-      content.endAt !== data.endAt ||
-      content.pollType !== data.pollType ||
-      content.hideTotals !== (data.hideTotals ?? false) ||
-      resetVotes
-
-    await database.transaction(async (trx) => {
-      if (contentChanged) {
-        const previousChoices = await trx('poll_choices')
-          .where('statusId', statusId)
-          .orderBy('choiceId', 'asc')
-          .select<{ title: string }[]>('title')
-        const previousData = {
-          text: data.text,
-          summary: data.summary,
-          sensitive: data.sensitive ?? false,
-          attachments: [],
-          pollOptions: previousChoices.map((choice) => choice.title)
-        }
-        await trx('status_history').insert({
-          statusId,
-          data: JSON.stringify(previousData),
-          createdAt: new Date(existingStatus.createdAt),
-          updatedAt: currentTime
-        })
-        await trx('statuses')
-          .where('id', statusId)
-          .update({
-            url: data.url || null,
-            urlHash: data.url ? getStatusUrlHash(data.url) : null,
-            content: statusContent,
-            updatedAt: currentTime
-          })
-      }
-      if (resetVotes) {
-        // Mastodon resets a poll whose options changed: all recorded votes are
-        // removed and the replacement options start from zero. Sequential
-        // inserts keep choiceId order deterministic for hydration.
-        await trx('poll_answers').where('statusId', statusId).delete()
-        await trx('poll_voters').where('statusId', statusId).delete()
-        await trx('poll_choices').where('statusId', statusId).delete()
-        for (const choice of choices) {
-          await trx('poll_choices').insert({
-            statusId,
-            title: choice.title,
-            totalVotes: 0,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-        }
-        return
-      }
-      for (const choice of choices) {
-        await trx('poll_choices')
-          .where({
-            statusId,
-            title: choice.title
-          })
-          .update({
-            totalVotes: choice.totalVotes,
-            updatedAt: currentTime
-          })
-      }
-    })
-    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
-      status: searchStatus
-    })
-    return getStatus({ statusId })
-  }
 
   async function getStatus({
     statusId,
@@ -2319,10 +1296,11 @@ export const StatusSQLDatabaseMixin = (
         .whereIn('id', actorIdChunk)
         .update({
           // Direct statuses never advanced `lastStatusAt` on create (see
-          // `updateStatusCounters`), so they must not set it here either —
-          // deleting the newest public post would otherwise reveal the date of
-          // a later direct message. "Not direct" is `getVisibility`'s rule:
-          // addressed to the public collection or to a followers collection.
+          // `updateStatusCounters` in `lib/database/domains/status/writes.ts`),
+          // so they must not set it here either — deleting the newest public
+          // post would otherwise reveal the date of a later direct message.
+          // "Not direct" is `getVisibility`'s rule: addressed to the public
+          // collection or to a followers collection.
           lastStatusAt: trx('statuses')
             .max('createdAt')
             .where('statuses.actorId', trx.ref('actors.id'))
@@ -2782,67 +1760,6 @@ export const StatusSQLDatabaseMixin = (
 
     await refreshAffectedHashtags({ collectedHashtags, statusId })
     return true
-  }
-
-  async function createTag({
-    statusId,
-    name,
-    value,
-    type,
-    skipSearchIndex = false
-  }: CreateTagParams): Promise<Tag> {
-    const currentTime = new Date()
-
-    const data = Tag.parse({
-      id: crypto.randomUUID(),
-      statusId,
-      type,
-      name,
-      value: value || '',
-      createdAt: getCompatibleTime(currentTime),
-      updatedAt: getCompatibleTime(currentTime)
-    })
-    await database('tags').insert({
-      ...data,
-      ...(type === 'hashtag'
-        ? { nameNormalized: `#${normalizeHashtagSearchName(name)}` }
-        : undefined),
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
-    if (type === 'hashtag' && !skipSearchIndex) {
-      // Hashtag search stores an aggregate across all public statuses for the
-      // tag, so the inserted row alone is not enough to update the document.
-      await searchQueries.indexHashtagSearchDocument(kyselyFor(database), {
-        hashtag: name
-      })
-    }
-    return data
-  }
-
-  async function deleteStatusTagsByType({
-    statusId,
-    type
-  }: DeleteStatusTagsByTypeParams) {
-    await database('tags').where({ statusId, type }).delete()
-  }
-
-  async function increaseHashtagCounter({
-    hashtag
-  }: {
-    hashtag: string
-  }): Promise<void> {
-    const tagName = normalizeHashtagSearchName(hashtag)
-    await increaseCounterValue(database, CounterKey.totalHashtag(tagName))
-  }
-
-  async function decreaseHashtagCounter({
-    hashtag
-  }: {
-    hashtag: string
-  }): Promise<void> {
-    const tagName = normalizeHashtagSearchName(hashtag)
-    await decreaseCounterValue(database, CounterKey.totalHashtag(tagName))
   }
 
   // Private
@@ -3352,149 +2269,7 @@ export const StatusSQLDatabaseMixin = (
     return getStatusCounterValues(params, CounterKey.totalReply)
   }
 
-  async function recordPollVotes({
-    statusId,
-    actorId,
-    choices,
-    allowAdditionalChoices = false
-  }: RecordPollVotesParams): Promise<boolean> {
-    const uniqueChoices = [...new Set(choices)]
-    if (uniqueChoices.length === 0) return false
-
-    const currentTime = new Date()
-    try {
-      return await database.transaction(async (trx) => {
-        const pollChoices = await trx('poll_choices')
-          .where({ statusId })
-          .orderBy('choiceId', 'asc')
-          .select<{ choiceId: number }[]>('choiceId')
-        const selectedChoices: { choiceIndex: number; choiceId: number }[] = []
-        for (const choiceIndex of uniqueChoices) {
-          const choice = pollChoices[choiceIndex]
-          if (!choice) return false
-          selectedChoices.push({
-            choiceIndex,
-            choiceId: choice.choiceId
-          })
-        }
-
-        const existingVote = await trx('poll_voters')
-          .where({ statusId, actorId })
-          .first()
-        if (existingVote && !allowAdditionalChoices) return false
-
-        const existingAnswers = allowAdditionalChoices
-          ? await trx('poll_answers')
-              .where({ statusId, actorId })
-              .whereIn('choice', uniqueChoices)
-              .select<{ choice: number }[]>('choice')
-          : []
-        const existingChoices = new Set(
-          existingAnswers.map((answer) => answer.choice)
-        )
-        const newSelectedChoices = selectedChoices.filter(
-          (choice) => !existingChoices.has(choice.choiceIndex)
-        )
-        if (newSelectedChoices.length === 0) return false
-
-        if (!existingVote) {
-          await trx('poll_voters').insert({
-            statusId,
-            actorId,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-        }
-
-        await trx('poll_answers').insert(
-          newSelectedChoices.map((choice) => ({
-            statusId,
-            actorId,
-            choice: choice.choiceIndex,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          }))
-        )
-
-        await trx('poll_choices')
-          .where({ statusId })
-          .whereIn(
-            'choiceId',
-            newSelectedChoices.map((choice) => choice.choiceId)
-          )
-          .increment('totalVotes', 1)
-
-        return true
-      })
-    } catch (error) {
-      if (isUniqueConstraintError(error)) return false
-      throw error
-    }
-  }
-
-  async function createPollAnswer({
-    statusId,
-    actorId,
-    choice
-  }: CreatePollAnswerParams): Promise<void> {
-    const currentTime = new Date()
-    await database('poll_answers').insert({
-      statusId,
-      actorId,
-      choice,
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
-  }
-
-  async function incrementPollChoiceVotes({
-    statusId,
-    choiceIndex
-  }: IncrementPollChoiceVotesParams): Promise<void> {
-    const choice = await database('poll_choices')
-      .where({ statusId })
-      .orderBy('choiceId', 'asc')
-      .offset(choiceIndex)
-      .first<{ choiceId: number }>('choiceId')
-    if (!choice) return
-
-    await database('poll_choices')
-      .where({ statusId, choiceId: choice.choiceId })
-      .increment('totalVotes', 1)
-  }
-
-  async function updateStatusQuoteApprovalPolicy({
-    statusId,
-    quoteApprovalPolicy
-  }: UpdateStatusQuoteApprovalPolicyParams): Promise<Status | null> {
-    const existingStatus = await database('statuses')
-      .where('id', statusId)
-      .first()
-    if (!existingStatus) return null
-
-    // Rewrite only the quote-approval policy inside the content blob, preserving
-    // every other key. Deliberately NOT a status edit: no status_history row and
-    // no updatedAt bump, so `edited_at` never flips (Mastodon treats an
-    // interaction-policy change as a non-edit).
-    const data = getCompatibleJSON(existingStatus.content)
-    const content = { ...data, quoteApprovalPolicy }
-    await database('statuses')
-      .where('id', statusId)
-      .update({ content: JSON.stringify(content) })
-
-    return getStatus({ statusId })
-  }
-
   return {
-    createNote,
-    createNoteWithResult,
-    updateNote,
-    updateStatusQuoteApprovalPolicy,
-    updateNoteVisibility,
-    createAnnounce,
-    createPoll,
-    createPollWithResult,
-    updatePoll,
     getStatus,
     getStatusReplies,
     getStatusEditHistory,
@@ -3504,17 +2279,10 @@ export const StatusSQLDatabaseMixin = (
     getStatusesByIds,
     deleteStatus,
     deleteStatusWithQueueJob,
-    createTag,
-    deleteStatusTagsByType,
-    increaseHashtagCounter,
-    decreaseHashtagCounter,
     getStatusReblogsCount,
     getStatusReblogsCounts,
     getStatusRepliesCount,
     getStatusRepliesCounts,
-    createPollAnswer,
-    incrementPollChoiceVotes,
-    recordPollVotes,
     hydrateStatusRow: (row, currentActorId) =>
       getStatusWithAttachmentsFromData(row, currentActorId)
   }

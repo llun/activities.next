@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FORWARD_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import {
   MAX_FORWARD_INBOXES_PER_JOB,
@@ -18,11 +18,12 @@ import {
 } from '@/lib/utils/activitystream'
 
 describe('forwardingDelivery', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let localActorId: string
   const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     const actor1 = await database.getActorFromUsername({

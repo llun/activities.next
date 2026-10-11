@@ -1,9 +1,8 @@
+import type { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
-import {
-  getTestSQLDatabase,
-  getTestSQLDatabaseWithInstance
-} from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -19,9 +18,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-let mockKnex:
-  ReturnType<typeof getTestSQLDatabaseWithInstance>['instance'] | null = null
+let mockDatabase: Database | null = null
+let mockKnex: Knex | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => mockKnex
@@ -49,10 +47,11 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/timelines/public', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, knex: instance, prepare } = createTestDatabase()
   let publicStatus: Status
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     publicStatus = await database.createNote({
