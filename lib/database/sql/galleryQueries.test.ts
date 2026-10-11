@@ -1516,6 +1516,118 @@ describe('unposted media', () => {
   })
 })
 
+// The scope's posted check is SQL, so a Gallery-added media whose only
+// attachment is on a public post but does not parse (not a `Document`, or no
+// media type) passes it for every audience, and the attachment pick then has
+// nothing to show it through. Only the owner sees such a media, bare; another
+// audience's read drops it rather than showing a photo with no post.
+describe('media whose only attachment does not parse', () => {
+  const ids = mediaIds()
+  const GOOD = ids(1)
+  const NOT_A_DOCUMENT = ids(2)
+  const NO_MEDIA_TYPE = ids(3)
+  const NEWEST_GOOD = ids(4)
+  let owner: string
+
+  beforeAll(async () => {
+    owner = await newActor()
+    const post = await publicNote(owner)
+    const place = {
+      placeLatitude: 13.75,
+      placeLongitude: 100.5,
+      placePrecision: 'exact'
+    }
+    await seedMedia(GOOD, owner, place)
+    await seedAttachment(GOOD, post, owner)
+    await seedMedia(NOT_A_DOCUMENT, owner, {
+      ...place,
+      galleryAddedAt: at('2026-01-02')
+    })
+    await seedAttachment(NOT_A_DOCUMENT, post, owner, { type: 'Image' })
+    await seedMedia(NO_MEDIA_TYPE, owner, {
+      ...place,
+      galleryAddedAt: at('2026-01-02')
+    })
+    await seedAttachment(NO_MEDIA_TYPE, post, owner, { mediaType: null })
+    await seedMedia(NEWEST_GOOD, owner, place)
+    await seedAttachment(NEWEST_GOOD, post, owner)
+  })
+
+  const requested = () =>
+    [GOOD, NOT_A_DOCUMENT, NO_MEDIA_TYPE, NEWEST_GOOD].map(String)
+
+  const shown = (rows: GalleryMediaRow[]) =>
+    rows.map((row) => [Number(row.media.id), row.attachment === null])
+
+  it('are left out of the media reads for another audience', async () => {
+    const audience = PUBLIC_GALLERY_AUDIENCE
+
+    expect(
+      shown(
+        await database.getGalleryMedia({ actorId: owner, audience, limit: 20 })
+      )
+    ).toEqual([
+      [NEWEST_GOOD, false],
+      [GOOD, false]
+    ])
+    expect(
+      shown(
+        await database.getGalleryMediaByIds({
+          actorId: owner,
+          audience,
+          mediaIds: requested()
+        })
+      )
+    ).toEqual([
+      [NEWEST_GOOD, false],
+      [GOOD, false]
+    ])
+  })
+
+  it('are left out of the map for another audience', async () => {
+    const points = await database.getGalleryMapRows({
+      actorId: owner,
+      audience: PUBLIC_GALLERY_AUDIENCE,
+      limit: 20
+    })
+
+    expect(points.map((point) => Number(point.id))).toEqual([NEWEST_GOOD, GOOD])
+  })
+
+  it('are shown bare to the owner', async () => {
+    const audience = OWNER_GALLERY_AUDIENCE
+    const expected = [
+      [NEWEST_GOOD, false],
+      [NO_MEDIA_TYPE, true],
+      [NOT_A_DOCUMENT, true],
+      [GOOD, false]
+    ]
+
+    expect(
+      shown(
+        await database.getGalleryMedia({ actorId: owner, audience, limit: 20 })
+      )
+    ).toEqual(expected)
+    expect(
+      shown(
+        await database.getGalleryMediaByIds({
+          actorId: owner,
+          audience,
+          mediaIds: requested()
+        })
+      )
+    ).toEqual(expected)
+    const points = await database.getGalleryMapRows({
+      actorId: owner,
+      audience,
+      limit: 20
+    })
+    expect(
+      points.map((point) => [Number(point.id), point.statusId === null])
+    ).toEqual(expected)
+  })
+})
+
 describe('gallery lookup cache', () => {
   const NOW = at('2026-03-01').getTime()
   const HOUR = 60 * 60 * 1000
