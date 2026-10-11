@@ -522,6 +522,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
               expect(staged.fired).toBe(true)
               expect(continuation.claimed).toBe(false)
+              expect(continuation.reason).toBe('lost-race')
             } finally {
               await isolated.destroy()
             }
