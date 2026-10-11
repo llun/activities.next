@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:24-alpine AS base
 ARG UID="1001"
 ARG GID="1001"
@@ -28,13 +29,25 @@ WORKDIR /opt/activities.next
 USER app
 
 FROM base AS build
+ARG TARGETPLATFORM
 ARG WORKSPACES="activities.next @activities/nodemailer"
-ADD --chown=app:app . /opt/activities.next/
+# Cache dependency installation separately from application source changes.
+# Keep every workspace manifest at its original path for Yarn's discovery.
+COPY --chown=app:app package.json yarn.lock .yarnrc.yml ./
+COPY --chown=app:app packages/cloudtasks/package.json ./packages/cloudtasks/
+COPY --chown=app:app packages/nodemailer/package.json ./packages/nodemailer/
+COPY --chown=app:app packages/pg/package.json ./packages/pg/
+COPY --chown=app:app packages/qstash/package.json ./packages/qstash/
+COPY --chown=app:app packages/resend/package.json ./packages/resend/
+COPY --chown=app:app packages/ses/package.json ./packages/ses/
 RUN yarn config set -H enableGlobalCache true
 RUN yarn config set -H enableImmutableInstalls true
 RUN yarn workspaces focus ${WORKSPACES}
-RUN ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
-RUN ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
+COPY --chown=app:app . /opt/activities.next/
+RUN mkdir -p .next && ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
+# Keep compiler cache outside image layers, isolated by platform and build user.
+RUN --mount=type=cache,id=activities-next-${TARGETPLATFORM}-${UID}-${GID}-${WORKSPACES},target=/opt/activities.next/.next/cache,uid=${UID},gid=${GID},sharing=locked \
+  ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
 
 FROM base AS output
 ENV NODE_ENV="production"

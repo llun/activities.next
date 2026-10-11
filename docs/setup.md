@@ -266,6 +266,10 @@ Optional dependencies (such as PostgreSQL, Cloud Tasks, QStash, and optional ema
 
 The Dockerfile includes `@activities/nodemailer` by default (`ARG WORKSPACES="activities.next @activities/nodemailer"`). Email delivery is disabled only when no `ACTIVITIES_EMAIL_*` provider is configured. If a provider is configured but its workspace is missing from the build (for example `resend` or `ses` on the default image), every send fails with a logged error instead of silently succeeding, so password reset, registration confirmation and email change report the failure and roll back; add the matching workspace to `WORKSPACES`.
 
+Docker installs the selected workspaces from the root manifest, lockfile, Yarn configuration, and every workspace manifest before copying application source. Source-only edits can therefore reuse the dependency layer; changes to those dependency files or `WORKSPACES` invalidate it. The install stays immutable and includes development dependencies needed by the build. When adding a workspace, add its manifest to the Dockerfile's `COPY` list at the same path under `packages/`.
+
+Docker builds require BuildKit and mount `.next/cache` during compilation to preserve Turbopack's compiler cache on a persistent builder. The cache is isolated by target platform, `UID`, `GID`, and `WORKSPACES`, with concurrent access locked, and is not copied into the runtime image. Ordinary GitHub Actions layer-cache export does not export cache-mount contents, so a fresh builder starts without this compiler cache; the application's CI build job caches `.next/cache` separately. Cache retention depends on the builder and its garbage collection.
+
 To customize optional workspaces when building a Docker container, pass the `WORKSPACES` build argument:
 
 ```bash
