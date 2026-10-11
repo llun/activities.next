@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import {
   applyFiltersToStatus,
   getActiveFilters
@@ -18,7 +19,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => null
@@ -44,11 +45,12 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('/api/v2/filters/[id]/statuses', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let status: Status
   let publicId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

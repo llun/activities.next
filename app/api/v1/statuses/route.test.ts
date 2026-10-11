@@ -1,11 +1,10 @@
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
 import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
-import { kyselyFor } from '@/lib/database/kysely'
-import { getSQLDatabase } from '@/lib/database/sql'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
+import type { Database } from '@/lib/database/types'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import {
   MAX_FEDERATION_MEDIA_ATTACHMENTS,
@@ -42,7 +41,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 let mockKnex: Knex | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
@@ -75,15 +74,11 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('POST /api/v1/statuses', () => {
-  const knexInstance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const database = getSQLDatabase(knexInstance)
-  const db = kyselyFor(knexInstance)
+  const testDb = createTestDatabase()
+  const { database, db, knex: knexInstance, prepare } = testDb
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
@@ -1070,9 +1065,10 @@ describe('POST /api/v1/statuses', () => {
 })
 
 describe('GET /api/v1/statuses', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
