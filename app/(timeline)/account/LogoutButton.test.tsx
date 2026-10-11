@@ -30,6 +30,19 @@ describe('LogoutButton', () => {
     ).toHaveAccessibleDescription('You can sign in again at any time.')
   })
 
+  it('is labelled by the label of the row it sits in', () => {
+    render(
+      <>
+        <span id="label">Sign out of this device</span>
+        <LogoutButton labelledBy="label" />
+      </>
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Sign out of this device' })
+    ).toHaveAttribute('aria-labelledby', 'label')
+  })
+
   it('shows an error when sign out fails', () => {
     vi.mocked(authClient.signOut).mockImplementation(((options: {
       fetchOptions?: { onError?: () => void }
