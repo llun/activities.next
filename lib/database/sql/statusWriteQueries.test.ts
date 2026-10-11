@@ -3335,6 +3335,219 @@ describe('null and undefined keys', () => {
   })
 })
 
+describe('null and undefined keys (review r1)', () => {
+  it('deleteStatusTagsByType with a null or undefined type deletes nothing (Knex deleted the untyped tags, or threw)', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = await seedStatus({ id: `${author}/statuses/1`, actorId: author })
+    const untyped = randomUUID()
+    await db
+      .insertInto('tags')
+      .values({
+        id: untyped,
+        statusId: id,
+        type: null,
+        name: `#x${p}`,
+        value: ''
+      })
+      .execute()
+    for (const type of [null, undefined]) {
+      await deleteStatusTagsByType(db, {
+        statusId: id,
+        type: type as unknown as 'hashtag'
+      })
+    }
+    expect(
+      await db
+        .selectFrom('tags')
+        .select('id')
+        .where('id', '=', untyped)
+        .execute()
+    ).toEqual([{ id: untyped }])
+  })
+
+  it('incrementPollChoiceVotes with a null or undefined status id tallies nothing (Knex tallied a choice with no status, or threw)', async () => {
+    const p = nextPrefix()
+    await db
+      .insertInto('poll_choices')
+      .values({ statusId: null, title: `orphan ${p}`, totalVotes: 0 })
+      .execute()
+    const before = await dumpTables()
+    for (const statusId of [null, undefined]) {
+      await incrementPollChoiceVotes(db, {
+        statusId: statusId as unknown as string,
+        choiceIndex: 0
+      })
+    }
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it('updatePoll with a null choice title sets no tally (Knex set it on the untitled choices)', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = await seedPoll(`${author}/statuses/poll`, author, ['a'], [2])
+    await db
+      .insertInto('poll_choices')
+      .values({ statusId: id, title: null, totalVotes: 1 })
+      .execute()
+    // Hydrating a poll with an untitled choice fails, after the commit.
+    await expect(
+      updatePoll(db, hydration, {
+        statusId: id,
+        text: `poll ${id}`,
+        choices: [{ title: null as unknown as string, totalVotes: 9 }]
+      })
+    ).rejects.toThrow()
+    const choices = await choicesOf(id)
+    expect(choices).toHaveLength(2)
+    expect(choices).toEqual(
+      expect.arrayContaining([
+        { title: 'a', totalVotes: 2 },
+        { title: null, totalVotes: 1 }
+      ])
+    )
+  })
+
+  it('recordPollVotes with an undefined actor id fails on the voter insert, writing nothing (Knex threw at the voter read)', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const id = await seedPoll(`${author}/statuses/poll`, author, ['a', 'b'])
+    const before = await dumpTables()
+    await expect(
+      recordPollVotes(db, {
+        statusId: id,
+        actorId: undefined as unknown as string,
+        choices: [0]
+      })
+    ).rejects.toThrow(
+      testDb.backend === 'pg'
+        ? 'null value in column "actorId" of relation "poll_voters" violates not-null constraint'
+        : 'NOT NULL constraint failed: poll_voters.actorId'
+    )
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it('the creates with an undefined author commit the status and its counters, then fail building it (Knex threw and rolled back)', async () => {
+    const p = nextPrefix()
+    const author = await seedActor(`${p}-author`)
+    const original = await seedStatus({
+      id: `${author}/statuses/0`,
+      actorId: author
+    })
+    const undefinedAuthor = CounterKey.totalStatus(
+      undefined as unknown as string
+    )
+    const totalBefore = (await counterValue(undefinedAuthor)) ?? 0
+    const base = {
+      actorId: undefined as unknown as string,
+      text: 'x',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    }
+    const note = `${actorIn(p)}/statuses/note`
+    const poll = `${actorIn(p)}/statuses/poll`
+    const boost = `${actorIn(p)}/statuses/boost`
+    await expect(
+      createNote(db, hydration, { ...base, id: note, url: note })
+    ).rejects.toThrow('actorId')
+    await expect(
+      createPoll(db, hydration, {
+        ...base,
+        id: poll,
+        url: poll,
+        choices: ['a'],
+        endAt: now
+      })
+    ).rejects.toThrow('actorId')
+    await expect(
+      createAnnounce(db, hydration, {
+        id: boost,
+        actorId: undefined as unknown as string,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: original
+      })
+    ).rejects.toThrow('actorId')
+    for (const id of [note, poll, boost]) {
+      expect(await statusRow(id)).toMatchObject({ id, actorId: null })
+      expect(await recipientsOf(id)).toHaveLength(1)
+    }
+    expect(await counterValue(undefinedAuthor)).toBe(totalBefore + 3)
+  })
+
+  it('updatePoll and updateStatusQuoteApprovalPolicy with an undefined status id return null (Knex threw)', async () => {
+    const before = await dumpTables()
+    await expect(
+      updatePoll(db, hydration, {
+        statusId: undefined as unknown as string,
+        text: 'x',
+        choices: []
+      })
+    ).resolves.toBeNull()
+    await expect(
+      updateStatusQuoteApprovalPolicy(db, hydration, {
+        statusId: undefined as unknown as string,
+        quoteApprovalPolicy: 'public'
+      })
+    ).resolves.toBeNull()
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it.runIf(testDb.backend === 'sqlite')(
+    'updatePoll and updateStatusQuoteApprovalPolicy with a null status id leave a status stored with no id alone (Knex edited it)',
+    async () => {
+      const p = nextPrefix()
+      const author = await seedActor(`${p}-author`)
+      const url = `${author}/statuses/null`
+      await db
+        .insertInto('statuses')
+        .values({
+          id: null as unknown as string,
+          url,
+          actorId: author,
+          type: StatusType.enum.Poll,
+          reply: '',
+          content: pollContent(url),
+          createdAt: new Date(BASE),
+          updatedAt: new Date(BASE)
+        })
+        .execute()
+      const before = await dumpTables()
+      await expect(
+        updatePoll(db, hydration, {
+          statusId: null as unknown as string,
+          text: 'edited',
+          choices: []
+        })
+      ).resolves.toBeNull()
+      await expect(
+        updateStatusQuoteApprovalPolicy(db, hydration, {
+          statusId: null as unknown as string,
+          quoteApprovalPolicy: 'public'
+        })
+      ).resolves.toBeNull()
+      expect(await dumpTables()).toEqual(before)
+      await db.deleteFrom('statuses').where('id', 'is', null).execute()
+    }
+  )
+
+  it.runIf(testDb.backend === 'pg')(
+    'decreaseHashtagCounter leaves a counter stored above 2^53 - 1 at 2^53 - 1 (Knex left one less)',
+    async () => {
+      const p = nextPrefix()
+      const id = CounterKey.totalHashtag(`huge${p}`)
+      await sql`insert into counters (id, value, "createdAt", "updatedAt") values (${id}, 9007199254740995, now(), now())`.execute(
+        db
+      )
+      await decreaseHashtagCounter(db, { hashtag: `#Huge${p}` })
+      const { rows } = await sql<{
+        value: string
+      }>`select value::text as value from counters where id = ${id}`.execute(db)
+      expect(rows).toEqual([{ value: '9007199254740991' }])
+    }
+  )
+})
+
 describe('createStatusQueries', () => {
   it('hands the writes that hydrate the hydration it is given, and the others as they are', async () => {
     const queries = createStatusQueries(hydration)
