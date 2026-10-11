@@ -169,7 +169,9 @@ export const AddToGalleryDialog: FC<Props> = ({ files, onClose, onAdded }) => {
             })
           }
         }
-        const prepared = await resizeImage(entry.file, MAX_WIDTH, MAX_HEIGHT)
+        const prepared = await resizeImage(entry.file, MAX_WIDTH, MAX_HEIGHT, {
+          keepMetadata: true
+        })
         if (prepared.size > maxMediaFileSize) {
           throw new Error(
             `Larger than the ${formatFileSize(maxMediaFileSize)} upload limit`

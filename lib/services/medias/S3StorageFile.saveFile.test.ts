@@ -16,12 +16,14 @@ import {
   ONE_PIXEL_PNG,
   readUploadBody
 } from '@/lib/services/medias/S3StorageFile.helpers'
+import { createBrowserResizedJpeg } from '@/lib/services/medias/browserResizedJpeg.fixture'
 import {
   MAX_FILE_SIZE,
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { readMediaExif } from '@/lib/services/medias/exif/readMediaExif'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
@@ -996,6 +998,26 @@ describe('S3FileStorage image output format', () => {
     const stored = await sharp(uploadedBodies[0]).metadata()
     expect(stored.exif).toBeUndefined()
     expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
+  })
+
+  it('strips the EXIF grafted into a browser-resized JPEG', async () => {
+    const jpeg = await createBrowserResizedJpeg()
+    expect((await sharp(jpeg).metadata()).exif).toBeDefined()
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    await storage.saveFile(actor, {
+      file: new File([new Uint8Array(jpeg)], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+    })
+
+    expect(uploadedBodies).toHaveLength(1)
+    const stored = await sharp(uploadedBodies[0]).metadata()
+    expect(stored.exif).toBeUndefined()
+    expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
+    const exif = await readMediaExif(uploadedBodies[0])
+    expect(exif.latitude).toBeNull()
+    expect(exif.longitude).toBeNull()
   })
 
   it('uploads a photo edit render as webp with no EXIF and no media row', async () => {
