@@ -29,11 +29,10 @@ import type { GalleryShow } from '@/lib/types/database/gallery'
 // audience alone: every other audience keeps the posted condition, whatever
 // `show` says.
 //
-// The Kysely twin of the Knex `buildGalleryMediaScope`, which stays in
-// lib/database/sql/galleryAlbums.ts for the album reads until they are ported
-// (with the default options only: no `show`, `requireInGallery` on).
-// galleryMediaEquivalence.test.ts runs both over the same rows. Change both
-// together.
+// The album reads (lib/database/domains/gallery/albums.ts) use it too, with the
+// default options only, over their join of `gallery_album_items` to `medias`;
+// galleryMediaEquivalence.test.ts checks that join selects what a plain read of
+// `medias` does, for every audience.
 
 /** The alias the scope reads `attachments` under. */
 export const GALLERY_ATTACHMENTS = 'gallery_attachments'

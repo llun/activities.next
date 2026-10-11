@@ -4,6 +4,7 @@ import { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { FitnessRouteHeatmapDatabase } from '@/lib/database/domains/fitnessRouteHeatmap/types'
 import { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import {
+  GalleryAlbumDatabase,
   GalleryAlbumSuggestionDatabase,
   GalleryDatabase,
   GalleryLookupCacheDatabase,
@@ -14,7 +15,6 @@ import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
 import { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
 import { FitnessRouteHeatmapTileDatabase } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { GalleryAlbumDatabase } from '@/lib/database/sql/galleryAlbums'
 import {
   AccountDatabase,
   AccountNoteDatabase,

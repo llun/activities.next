@@ -16,12 +16,23 @@ import {
 } from '@/lib/types/database/galleryAlbums'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-// Every query chunks its `whereIn` lists by `getWhereInBatchSize`. Capping it
+// Every query chunks its `in` lists by `getWhereInBatchSize` (the Kysely one
+// for the album queries, the Knex one for the Knex code they meet). Capping it
 // at 2 makes this small fixture span several chunks, so the batched reads and
 // writes are exercised across chunk boundaries.
 vi.mock('@/lib/database/sql/utils/knex', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/database/sql/utils/knex')>()
+  return {
+    ...original,
+    getWhereInBatchSize: (
+      ...args: Parameters<typeof original.getWhereInBatchSize>
+    ) => Math.min(original.getWhereInBatchSize(...args), 2)
+  }
+})
+vi.mock('@/lib/database/kysely/inList', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/database/kysely/inList')>()
   return {
     ...original,
     getWhereInBatchSize: (

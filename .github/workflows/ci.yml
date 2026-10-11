@@ -224,7 +224,7 @@ jobs:
   # verification with the account usage counters and hour buckets, attachment
   # inserts, playback and remote-attachment swaps, media edits, the media
   # deletes with their edit files and album items and covers behind the
-  # gallery album lock the Knex album writes share, the subject and place
+  # gallery album lock the album writes share, the subject and place
   # lookups and subject suggestions) with the lookup, suggestion, quota and
   # map-attachment code over them, and the other suites that read or write
   # media on a real database (the media describe, album, photo-edit, photo-edit
@@ -268,7 +268,8 @@ jobs:
   # services over it, the gallery domain (gear with its limit and device keys,
   # gallery settings, the gallery media, index, map and gear-usage reads with
   # their cursors, unposted media and adding it to the gallery, the lookup
-  # cache and its prune, the album suggestions' item read, the SQLite query
+  # cache and its prune, the album suggestions' item read, the albums and their
+  # per-actor and per-album caps behind the actor row lock, the SQLite query
   # plans of the gallery statements) with the account gallery, gallery gear,
   # media and settings routes, the gallery album routes and the album page, the
   # v2 media upload, note creation and the gallery lookup backfill (with its
@@ -279,12 +280,12 @@ jobs:
   # per-actor listings and their filters, status updates with the clear-deleted
   # cutoff, share tokens, cancels, soft deletes, region names), the Kysely
   # countable-activity predicate checked against its rule written out in
-  # JavaScript, the Kysely status visibility, actor-visible status, gallery
-  # media scope, list eligibility, replies policy, block/mute, follow-target,
-  # exclusive-list and publicly-readable predicates checked against their Knex
-  # originals, and the Knex-backed Kysely driver (result normalisation, the
-  # mixed-transaction guard, counters, bucket counters, chunked IN lists,
-  # savepoints).
+  # JavaScript, the gallery media scope checked on the album reads' join, the
+  # Kysely status visibility, actor-visible status, list eligibility, replies
+  # policy, block/mute, follow-target, exclusive-list and publicly-readable
+  # predicates checked against their Knex originals, and the Knex-backed Kysely
+  # driver (result normalisation, the mixed-transaction guard, counters, bucket
+  # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -365,6 +366,7 @@ jobs:
             lib/services/gallery/uploadMediaDetails.test.ts \
             lib/database/sql/galleryLookupCache.test.ts \
             lib/database/sql/galleryQueries.test.ts \
+            lib/database/sql/galleryAlbumQueries.test.ts \
             lib/database/sql/galleryMediaQueryPlan.test.ts \
             lib/database/kysely/visibility/galleryMediaEquivalence.test.ts \
             'app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts' \

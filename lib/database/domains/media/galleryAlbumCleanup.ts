@@ -10,8 +10,8 @@ import { forUpdate } from '@/lib/database/kysely/dialect'
  * touching any album or media row, so two transactions never wait on each
  * other's row locks.
  *
- * The Knex album writes in lib/database/sql/galleryAlbums.ts take it inside
- * their own transaction through `kyselyFor(trx)`.
+ * The album writes in lib/database/domains/gallery/albums.ts take it first
+ * inside their own transaction.
  */
 export const lockGalleryAlbumActor = async (
   db: Db,

@@ -1,7 +1,7 @@
 // Parameter and result types of the gallery domain (gear and settings, the
-// gallery media reads, the lookup cache and the album suggestions' item read),
-// and its four Database interfaces. lib/database/types.ts composes them into
-// `Database`.
+// gallery media reads, the lookup cache, the album suggestions' item read and
+// the albums), and its five Database interfaces. lib/database/types.ts
+// composes them into `Database`.
 import type { Media } from '@/lib/database/domains/media/types'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import type {
@@ -18,6 +18,11 @@ import type {
   MediaSubjectCategory,
   SubjectSuggestionMode
 } from '@/lib/types/database/gallery'
+import type {
+  GalleryAlbum,
+  GalleryAlbumSort,
+  GalleryAlbumVisibility
+} from '@/lib/types/database/galleryAlbums'
 import type { Attachment } from '@/lib/types/domain/attachment'
 
 // ---------------------------------------------------------------------------
@@ -426,4 +431,266 @@ export interface GalleryAlbumSuggestionDatabase {
   getGalleryAlbumItemSets(
     params: GetGalleryAlbumItemSetsParams
   ): Promise<GalleryAlbumItemSet[]>
+}
+
+// ---------------------------------------------------------------------------
+// Albums
+// ---------------------------------------------------------------------------
+
+export type GalleryAlbumPatch = {
+  title?: string
+  // `null` clears it.
+  description?: string | null
+  visibility?: GalleryAlbumVisibility
+  sortOrder?: GalleryAlbumSort
+  // A media id of the album's own items; `null` clears the explicit cover.
+  coverMediaId?: string | null
+}
+
+export interface CreateGalleryAlbumWithinLimitParams {
+  actorId: string
+  title: string
+  description?: string | null
+  visibility?: GalleryAlbumVisibility
+  sortOrder?: GalleryAlbumSort
+  // The most albums the actor may hold; at or past it nothing is inserted.
+  limit: number
+  // The first photos, added in the same transaction as the album: either both
+  // are written or neither is, so a failed add never leaves an empty album.
+  mediaIds?: string[]
+  // The most items an album may hold, for `mediaIds`.
+  itemLimit?: number
+}
+
+export type CreateGalleryAlbumWithinLimitResult =
+  | {
+      status: 'created'
+      album: GalleryAlbum
+      // What became of `mediaIds`, as `addGalleryAlbumItems` reports it (all
+      // empty without `mediaIds`).
+      added: string[]
+      existing: string[]
+      skipped: string[]
+    }
+  | { status: 'limit-reached' }
+
+export interface GetGalleryAlbumParams {
+  id: string
+  // The album's owner. An album of anyone else reads as missing.
+  actorId: string
+  audience: GalleryAudience
+}
+
+export interface GetGalleryAlbumSummariesParams {
+  actorId: string
+  audience: GalleryAudience
+  // Only this album.
+  albumId?: string
+}
+
+export interface UpdateGalleryAlbumParams extends GalleryAlbumPatch {
+  id: string
+  actorId: string
+}
+
+export type UpdateGalleryAlbumResult =
+  | { status: 'updated'; album: GalleryAlbum }
+  | { status: 'not-found' }
+  // The cover is not one of the album's items.
+  | { status: 'invalid-cover' }
+
+export interface DeleteGalleryAlbumParams {
+  id: string
+  actorId: string
+}
+
+export interface AddGalleryAlbumItemsParams {
+  albumId: string
+  actorId: string
+  mediaIds: string[]
+  // The most items the album may hold; a request that would pass it adds
+  // nothing at all.
+  limit: number
+}
+
+export type AddGalleryAlbumItemsResult =
+  | {
+      status: 'added'
+      // Newly added.
+      added: string[]
+      // Already in the album: left as they are.
+      existing: string[]
+      // Not the actor's own gallery media (foreign, missing, unposted or not in
+      // the gallery): ignored.
+      skipped: string[]
+    }
+  | { status: 'not-found' }
+  | { status: 'limit-reached' }
+
+export interface RemoveGalleryAlbumItemsParams {
+  albumId: string
+  actorId: string
+  mediaIds: string[]
+}
+
+export type RemoveGalleryAlbumItemsResult =
+  { status: 'removed'; removed: string[] } | { status: 'not-found' }
+
+/** An album with what the audience can see of it. */
+export interface GalleryAlbumSummary {
+  album: GalleryAlbum
+  // Visible items only.
+  itemCount: number
+  // The earliest and latest capture dates (upload date when there is none) of
+  // the visible items, epoch milliseconds; null with no visible item.
+  firstAt: number | null
+  lastAt: number | null
+  // The explicit cover when the audience can see it, else the newest visible
+  // item; null with no visible item. Never a hidden item.
+  coverMediaId: string | null
+  // Up to three visible media ids for a card's collage, `coverMediaId` first.
+  previewMediaIds: string[]
+}
+
+/** One visible item of an album, with what its facts and filters are read from. */
+export interface GalleryAlbumIndexRow extends GalleryIndexRow {
+  // Epoch milliseconds the media joined the album.
+  addedAt: number
+}
+
+/** A position in an album's order: the sort key and the media id. */
+export interface GalleryAlbumCursor {
+  key: number
+  mediaId: number
+}
+
+export interface GetGalleryAlbumMediaParams {
+  albumId: string
+  actorId: string
+  audience: GalleryAudience
+  sort: GalleryAlbumSort
+  // Rows strictly after this position in `sort` order.
+  after?: GalleryAlbumCursor
+  // Callers ask for one more than a page to learn whether there is more.
+  limit: number
+  // A `toSubjectKey` key; only that species.
+  subjectKey?: string
+}
+
+export interface GalleryAlbumMediaRow extends GalleryMediaRow {
+  // The value the row was ordered by (see `GalleryAlbumSort`).
+  sortKey: number
+}
+
+export interface GetGalleryAlbumIndexParams {
+  albumId: string
+  actorId: string
+  audience: GalleryAudience
+  // Read the audience's rows even when the audience may not open the album
+  // itself (a private album read as the public). For the owner's own preview of
+  // what a visitor would see, once the caller has checked ownership; the
+  // photos are still scoped to the audience.
+  ignoreAlbumVisibility?: boolean
+}
+
+export interface GetGalleryAlbumPlaceIndexesParams {
+  actorId: string
+  audience: GalleryAudience
+  // Only this album.
+  albumId?: string
+}
+
+export interface CountGalleryAlbumMediaParams {
+  actorId: string
+  audience: GalleryAudience
+}
+
+export interface HasVisibleGalleryAlbumsParams {
+  actorId: string
+  audience: GalleryAudience
+}
+
+export interface CountGalleryAlbumStoredItemsParams {
+  albumId: string
+  actorId: string
+}
+
+export interface GetAlbumsForMediaParams {
+  mediaId: string
+  actorId: string
+  audience: GalleryAudience
+}
+
+export interface GalleryAlbumDatabase {
+  // The album, the cap, the insert and the first photos are decided in one
+  // transaction serialised on the actor row, so concurrent creates cannot
+  // overshoot the cap and a failed add leaves no album behind.
+  createGalleryAlbumWithinLimit(
+    params: CreateGalleryAlbumWithinLimitParams
+  ): Promise<CreateGalleryAlbumWithinLimitResult>
+  // The owner sees any album of theirs. Anyone else sees only a `public` album
+  // with at least one item visible to them; otherwise it reads as missing,
+  // exactly like an id that does not exist.
+  getGalleryAlbum(params: GetGalleryAlbumParams): Promise<GalleryAlbum | null>
+  // The actor's albums, last updated first, with counts, dates, cover and
+  // collage from visible items. Anyone but the owner gets only public albums
+  // with something visible, and their `createdAt` and `updatedAt` (and so the
+  // order) are computed from the visible items only: when the first and the
+  // latest of them joined the album.
+  getGalleryAlbumSummaries(
+    params: GetGalleryAlbumSummariesParams
+  ): Promise<GalleryAlbumSummary[]>
+  updateGalleryAlbum(
+    params: UpdateGalleryAlbumParams
+  ): Promise<UpdateGalleryAlbumResult>
+  // Removes the album and its items; the media stays. False for a missing or
+  // foreign album.
+  deleteGalleryAlbum(params: DeleteGalleryAlbumParams): Promise<boolean>
+  // Atomic: all of it or nothing. Only the actor's own gallery media is added;
+  // anything else is reported as skipped.
+  addGalleryAlbumItems(
+    params: AddGalleryAlbumItemsParams
+  ): Promise<AddGalleryAlbumItemsResult>
+  removeGalleryAlbumItems(
+    params: RemoveGalleryAlbumItemsParams
+  ): Promise<RemoveGalleryAlbumItemsResult>
+  // A page of the album's visible media in `sort` order, each with the post it
+  // is shown through. Empty for a missing album.
+  getGalleryAlbumMedia(
+    params: GetGalleryAlbumMediaParams
+  ): Promise<GalleryAlbumMediaRow[]>
+  // Every visible item of the album, unordered, for the facts line and the
+  // species filter.
+  getGalleryAlbumIndex(
+    params: GetGalleryAlbumIndexParams
+  ): Promise<GalleryAlbumIndexRow[]>
+  // The visible items that carry a place, grouped by album, for the owner's
+  // "places hidden" count on the album cards: one read for every album (or
+  // just `albumId`), with only the subject and place columns. Albums the
+  // audience may not open are left out; albums with nothing to report may be
+  // too.
+  getGalleryAlbumPlaceIndexes(
+    params: GetGalleryAlbumPlaceIndexesParams
+  ): Promise<{ albumId: string; rows: GalleryAlbumIndexRow[] }[]>
+  // How many distinct media the audience can see across the actor's albums
+  // (public albums only, for anyone but the owner). A photo in several albums
+  // counts once.
+  countGalleryAlbumMedia(params: CountGalleryAlbumMediaParams): Promise<number>
+  // Whether the audience can open at least one of the actor's albums: for the
+  // owner any album, for anyone else a public album with at least one visible
+  // item. One `EXISTS`-shaped read, for the profile's Albums chip.
+  getActorHasVisibleGalleryAlbums(
+    params: HasVisibleGalleryAlbumsParams
+  ): Promise<boolean>
+  // How many items the album holds against its item cap: every stored row
+  // whose media still exists, whether or not the owner can see it any more (a
+  // deleted post's photo still counts). 0 for a missing or foreign album. Owner
+  // data: callers must only send it to the owner.
+  countGalleryAlbumStoredItems(
+    params: CountGalleryAlbumStoredItemsParams
+  ): Promise<number>
+  // The albums the media is in. Owner only: any other audience gets none.
+  getAlbumsForMedia(
+    params: GetAlbumsForMediaParams
+  ): Promise<{ id: string; title: string }[]>
 }

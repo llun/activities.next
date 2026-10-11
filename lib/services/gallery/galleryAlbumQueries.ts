@@ -1,9 +1,9 @@
-import type { GalleryIndexRow } from '@/lib/database/domains/gallery/types'
 import type {
   GalleryAlbumCursor,
   GalleryAlbumIndexRow,
-  GalleryAlbumSummary
-} from '@/lib/database/sql/galleryAlbums'
+  GalleryAlbumSummary,
+  GalleryIndexRow
+} from '@/lib/database/domains/gallery/types'
 import { Database } from '@/lib/database/types'
 import {
   GalleryAlbumCardEntity,
@@ -42,7 +42,7 @@ import {
 // The album read services, shared by the owner pages and the album routes
 // (and, later, the visitor side). Each loads the owner's settings once, reads
 // rows through the scoped `GalleryAlbumDatabase` methods (which go through
-// `buildGalleryMediaScope` with the audience), resolves gear names in one batch
+// `galleryMediaScope` with the audience), resolves gear names in one batch
 // and projects through `galleryProjection.ts`: nothing here decides what a
 // viewer may see of a photo or its place.
 
