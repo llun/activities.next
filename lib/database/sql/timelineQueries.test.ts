@@ -341,33 +341,50 @@ describe('the home and direct feeds', () => {
     expect(statusCalls).toEqual([])
   })
 
-  it('ends the page at a feed row without createdAt', async () => {
-    const prefix = nextPrefix()
-    const viewer = actorIn('home.test', `${prefix}-viewer`)
-    const author = actorIn('remote.test', `${prefix}-author`)
-    for (const [key, createdAt] of [
-      ['undated', null],
-      ['dated', BASE]
-    ] as const) {
-      await seedTimelineRow({
-        actorId: viewer,
-        timeline: Timeline.MAIN,
-        statusId: `${prefix}-${key}`,
-        statusActorId: author,
-        createdAt
-      })
+  // Knex compared a cursor row's NULL createdAt with operators
+  // (`createdAt < NULL`), so the page was empty. pastStoredKeyset's NULL arm
+  // (`createdAt IS NULL AND id < x`) would find the other NULL rows instead,
+  // so these feeds stop before it. Two NULL rows, n1 below n2 by id, so that
+  // without that stop max_id = n2 would read n1, and since_id or min_id = n1
+  // would read n2.
+  it.each([Timeline.MAIN, Timeline.DIRECT])(
+    'ends the %s page at a feed row without createdAt',
+    async (timeline) => {
+      const prefix = nextPrefix()
+      const viewer = actorIn('home.test', `${prefix}-viewer`)
+      const author = actorIn('remote.test', `${prefix}-author`)
+      const id = (key: string) => `${prefix}-status-${key}`
+      const [lowId, highId] = explicitKeys(2)
+      for (const [key, createdAt, rowId] of [
+        ['n1', null, lowId],
+        ['n2', null, highId],
+        ['dated', BASE, undefined]
+      ] as const) {
+        await seedTimelineRow({
+          actorId: viewer,
+          timeline,
+          statusId: id(key),
+          statusActorId: author,
+          createdAt,
+          id: rowId
+        })
+      }
+      for (const cursor of [
+        { maxStatusId: id('n1') },
+        { maxStatusId: id('n2') },
+        { sinceStatusId: id('n1') },
+        { sinceStatusId: id('n2') },
+        { minStatusId: id('n1') },
+        { minStatusId: id('n2') },
+        { minStatusId: id('n1'), maxStatusId: id('n2') }
+      ]) {
+        expect(await read({ timeline, actorId: viewer, ...cursor })).toEqual([])
+      }
+      expect((await read({ timeline, actorId: viewer })).sort()).toEqual(
+        ['dated', 'n1', 'n2'].map(id).sort()
+      )
     }
-    expect(
-      await read({
-        timeline: Timeline.MAIN,
-        actorId: viewer,
-        maxStatusId: `${prefix}-undated`
-      })
-    ).toEqual([])
-    expect(
-      (await read({ timeline: Timeline.MAIN, actorId: viewer })).sort()
-    ).toEqual([`${prefix}-dated`, `${prefix}-undated`])
-  })
+  )
 })
 
 describe('createTimelineStatus', () => {
@@ -419,6 +436,38 @@ describe('createTimelineStatus', () => {
         `${viewer}|main|${prefix}-status-2|${author}|${BASE + 2}`
       ].sort()
     )
+  })
+
+  // An undefined binding threw in the Knex code. Without the check the
+  // existence count compares `actorId = NULL`, which never matches, and every
+  // call inserts another row with a NULL actorId.
+  it('throws without an actor and writes no timelines row', async () => {
+    const prefix = nextPrefix()
+    const author = actorIn('remote.test', `${prefix}-author`)
+    const status = {
+      id: `${prefix}-status`,
+      actorId: author,
+      createdAt: BASE
+    } as unknown as Status
+    const rows = () =>
+      db
+        .selectFrom('timelines')
+        .select(['id', 'actorId'])
+        .where('statusId', '=', status.id)
+        .execute()
+
+    for (const actorId of [undefined, null]) {
+      for (const _ of [1, 2]) {
+        await expect(
+          createTimelineStatus(db, {
+            actorId: actorId as unknown as string,
+            timeline: Timeline.MAIN,
+            status
+          })
+        ).rejects.toThrow('createTimelineStatus requires an actorId')
+      }
+    }
+    expect(await rows()).toEqual([])
   })
 })
 

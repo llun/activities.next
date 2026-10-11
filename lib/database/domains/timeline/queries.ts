@@ -372,12 +372,19 @@ export const getLocalPublicStatusesCount = async (
 
 /**
  * Adds a status to one actor's materialized timeline once: a status already
- * there is left as it is.
+ * there is left as it is. A missing actorId throws before any query runs, as
+ * Knex did for an undefined binding: the existence check below compares
+ * `actorId = NULL`, which never matches, so it would insert a `timelines` row
+ * with a NULL actorId on every call (the unique key treats NULLs as distinct).
  */
 export const createTimelineStatus = async (
   db: Db,
   { actorId, status, timeline }: CreateTimelineStatusParams
 ): Promise<void> => {
+  if (actorId === undefined || actorId === null) {
+    throw new Error('createTimelineStatus requires an actorId')
+  }
+
   await inTransaction(db, async (trx) => {
     const exists = await trx
       .selectFrom('timelines')
