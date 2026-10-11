@@ -235,8 +235,9 @@ jobs:
   # cursors, unposted media and adding it to the gallery, the lookup cache and
   # its prune, the album suggestions' item read, the SQLite query plans of the
   # gallery statements) with the account gallery, gallery gear, media and
-  # settings routes, the v2 media upload, note creation and the gallery lookup
-  # backfill over it, the Kysely status visibility, countable-activity,
+  # settings routes, the gallery album routes and the album page, the v2 media
+  # upload, note creation and the gallery lookup backfill (with its real place
+  # lookup) over it, the Kysely status visibility, countable-activity,
   # actor-visible status, gallery media scope, list eligibility, replies
   # policy, block/mute, follow-target, exclusive-list and publicly-readable
   # predicates checked against their Knex originals, and the Knex-backed
@@ -325,19 +326,28 @@ jobs:
             lib/database/sql/galleryMediaQueryPlan.test.ts \
             lib/database/kysely/visibility/galleryMediaEquivalence.test.ts \
             'app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts' \
+            'app/api/v1/accounts/[id]/gallery/albums/route.test.ts' \
             'app/api/v1/accounts/[id]/gallery/life-list/route.test.ts' \
             'app/api/v1/accounts/[id]/gallery/map/route.test.ts' \
             'app/api/v1/accounts/[id]/gallery/media/route.test.ts' \
+            'app/api/v1/accounts/[id]/gallery/subjects/route.test.ts' \
             app/api/v1/gallery/gears/route.test.ts \
             'app/api/v1/gallery/gears/[id]/route.test.ts' \
             'app/api/v1/gallery/gears/[id]/retire/route.test.ts' \
             app/api/v1/gallery/media/route.test.ts \
             'app/api/v1/gallery/media/[mediaId]/details/route.test.ts' \
             app/api/v1/gallery/settings/route.test.ts \
+            app/api/v1/gallery/albums/route.test.ts \
+            'app/api/v1/gallery/albums/[id]/route.test.ts' \
+            'app/api/v1/gallery/albums/[id]/items/route.test.ts' \
+            app/api/v1/gallery/albums/suggestions/route.test.ts \
+            app/api/v1/gallery/albums/suggestions/media/route.test.ts \
+            'app/(timeline)/[actor]/albums/[id]/page.test.tsx' \
             app/api/v2/media/route.test.ts \
             lib/actions/createNote.test.ts \
             lib/actions/createNote.visibility.test.ts \
             scripts/maintenance/backfillGalleryLookups.test.ts \
+            scripts/maintenance/backfillGalleryLookups.nominatim.test.ts \
             lib/database/sql/fitnessFile.test.ts \
             lib/database/sql/fitnessFileActivityStats.test.ts \
             lib/database/sql/fitnessFileOverviewWindows.test.ts \
