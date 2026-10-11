@@ -213,14 +213,24 @@ jobs:
   # against its Knex original, the account's media listing with its counter
   # total and paging, media by id and the statuses its owner's account
   # attached it to, storage usage) with the media routes and the upload and
-  # attach services over them, the status lookups, poll reads, hashtag reads
-  # and pins (statuses by url, url hash, publicId and path segment, an actor's
-  # own boost, poll votes, the hashtag timeline, admin page and counter, pins
-  # with their per-actor cap and row lock, the favourited-by and reblogged-by
-  # pages behind the Kysely set form of the publicly-readable predicate) with
-  # the status action, boost, pin and account status routes, the announce
-  # action and the Mastodon status, filter, context, mention and client id
-  # services over them, the Kysely status visibility, countable-activity,
+  # attach services over them, the media writes (uploads and their
+  # verification with the account usage counters and hour buckets, attachment
+  # inserts, playback and remote-attachment swaps, media edits, the media
+  # deletes with their edit files and album items and covers behind the
+  # gallery album lock the Knex album writes share, the subject and place
+  # lookups and subject suggestions) with the lookup, suggestion, quota and
+  # map-attachment code over them, and the other suites that read or write
+  # media on a real database (the media describe, album, photo-edit, photo-edit
+  # enhance and photo-edit revert routes, status edits with media, the photo
+  # editor domain, status writes and deletes that hydrate attachments, the
+  # profile page data), the status lookups, poll reads, hashtag reads and pins
+  # (statuses by url, url hash, publicId and path segment, an actor's own
+  # boost, poll votes, the hashtag timeline, admin page and counter, pins with
+  # their per-actor cap and row lock, the favourited-by and reblogged-by pages
+  # behind the Kysely set form of the publicly-readable predicate) with the
+  # status action, boost, pin and account status routes, the announce action
+  # and the Mastodon status, filter, context, mention and client id services
+  # over them, the Kysely status visibility, countable-activity,
   # actor-visible status, list eligibility, replies policy, block/mute,
   # follow-target, exclusive-list and publicly-readable predicates checked
   # against their Knex originals, and the Knex-backed Kysely driver (result
@@ -270,12 +280,28 @@ jobs:
             lib/database/sql/mediaMutations.test.ts \
             lib/database/sql/mediaDetails.test.ts \
             lib/database/sql/mediaQueries.test.ts \
+            lib/database/sql/mediaWrites.test.ts \
             lib/database/sql/attachmentVisibility.test.ts \
             lib/database/kysely/visibility/actorVisibleEquivalence.test.ts \
             app/api/v1/media/route.test.ts \
-            app/api/v1/media/[id]/route.test.ts \
+            'app/api/v1/media/[id]/route.test.ts' \
             lib/services/medias/saveMediaFileDetails.test.ts \
             lib/services/statuses/mediaIds.test.ts \
+            'app/api/v1/media/[id]/lookups/route.test.ts' \
+            'app/api/v1/media/[id]/subject-suggestions/route.test.ts' \
+            'app/api/v1/media/[id]/describe/route.test.ts' \
+            'app/api/v1/media/[id]/edit/revert/route.test.ts' \
+            'app/api/v1/media/[id]/albums/route.test.ts' \
+            'app/api/v1/media/[id]/edit/route.test.ts' \
+            'app/api/v1/media/[id]/edit/enhance/route.test.ts' \
+            'app/api/v1/statuses/[id]/route.update.test.ts' \
+            'app/api/v1/statuses/[id]/route.update.galleryOnlyEdit.test.ts' \
+            'app/(timeline)/[actor]/getProfileData.test.ts' \
+            lib/services/medias/quota.test.ts \
+            lib/services/fitness-files/mapAttachments.test.ts \
+            lib/database/domains/mediaEdit/queries.test.ts \
+            lib/database/sql/statusWrite.test.ts \
+            lib/database/sql/statusDelete.test.ts \
             lib/database/sql/gallery.test.ts \
             lib/database/sql/galleryMedia.test.ts \
             lib/database/sql/galleryAlbums.test.ts \
@@ -399,19 +425,17 @@ jobs:
             lib/database/sql/statusLookupQueries.test.ts \
             lib/database/sql/statusHashtag.test.ts \
             lib/database/sql/statusActorQueries.test.ts \
-            lib/database/sql/statusWrite.test.ts \
-            lib/database/sql/statusDelete.test.ts \
             lib/database/sql/publicCounters.test.ts \
             lib/database/sql/publiclyReadableStatusCallSites.test.ts \
             lib/database/sql/publiclyReadableStatusQueryShape.test.ts \
             lib/database/sql/statusReadableSql.test.ts \
-            "app/api/v1/statuses/[id]/actions.route.test.ts" \
-            "app/api/v1/statuses/[id]/favourited_by/route.test.ts" \
-            "app/api/v1/statuses/[id]/reblogged_by/route.test.ts" \
-            "app/api/v1/statuses/[id]/unreblog/route.test.ts" \
-            "app/api/v1/statuses/[id]/route.update.poll.test.ts" \
-            "app/api/v1/accounts/[id]/statuses/route.test.ts" \
-            "app/api/users/[username]/statuses/[statusId]/route.test.ts" \
+            'app/api/v1/statuses/[id]/actions.route.test.ts' \
+            'app/api/v1/statuses/[id]/favourited_by/route.test.ts' \
+            'app/api/v1/statuses/[id]/reblogged_by/route.test.ts' \
+            'app/api/v1/statuses/[id]/unreblog/route.test.ts' \
+            'app/api/v1/statuses/[id]/route.update.poll.test.ts' \
+            'app/api/v1/accounts/[id]/statuses/route.test.ts' \
+            'app/api/users/[username]/statuses/[statusId]/route.test.ts' \
             lib/actions/announce.test.ts \
             lib/jobs/sendUpdateNoteJob.test.ts \
             lib/services/mastodon/getMastodonStatus.bulk.test.ts \

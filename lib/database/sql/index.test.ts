@@ -6,7 +6,6 @@ import { createStatusQueries } from '@/lib/database/domains/status/queries'
 import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
 
 import { getSQLDatabase } from './index'
-import { MediaSQLDatabaseMixin } from './media'
 import { StatusSQLDatabaseMixin } from './status'
 
 const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
@@ -66,10 +65,6 @@ vi.mock('@/lib/database/domains/status/queries', async (importOriginal) => {
   }
 })
 
-vi.mock('@/lib/database/sql/media', () => ({
-  MediaSQLDatabaseMixin: vi.fn()
-}))
-
 vi.mock('@/lib/database/sql/status', () => ({
   StatusSQLDatabaseMixin: vi.fn()
 }))
@@ -79,7 +74,6 @@ describe('getSQLDatabase', () => {
   const createCollectionQueriesMock = vi.mocked(createCollectionQueries)
   const createTimelineQueriesMock = vi.mocked(createTimelineQueries)
   const createStatusQueriesMock = vi.mocked(createStatusQueries)
-  const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
 
   let _knexMock: Knex
@@ -96,10 +90,6 @@ describe('getSQLDatabase', () => {
       destroy: vi.fn().mockResolvedValue(undefined)
     } as unknown as Knex
 
-    const mediaDatabase = {
-      createMedia: vi.fn(),
-      testPriority: 'media'
-    }
     const statusDatabase = {
       getStatus: vi.fn(),
       getStatusesByIds: vi.fn(),
@@ -109,7 +99,6 @@ describe('getSQLDatabase', () => {
     }
 
     _knexMock = knexDatabase
-    mediaMixinMock.mockReturnValue(mediaDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
 
     const database = getSQLDatabase(knexDatabase)
@@ -117,13 +106,12 @@ describe('getSQLDatabase', () => {
     return {
       database,
       knexDatabase,
-      mediaDatabase,
       statusDatabase
     }
   }
 
   it('wires mixin dependencies correctly', () => {
-    const { knexDatabase, mediaDatabase } = createComposedDatabase()
+    const { knexDatabase } = createComposedDatabase()
     // Actors are Kysely queries bound lazily to this Knex instance, plus the
     // row mapper and the Knex deleteActorData.
     const actorDatabase = expect.objectContaining({
@@ -133,7 +121,6 @@ describe('getSQLDatabase', () => {
       deleteActorData: expect.any(Function)
     })
 
-    expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
@@ -148,10 +135,11 @@ describe('getSQLDatabase', () => {
         createBookmark: expect.any(Function),
         isActorBookmarkedStatus: expect.any(Function)
       }),
-      // The Knex media writes, plus the media reads as Kysely queries bound
-      // lazily to this Knex instance.
+      // Media reads and writes are Kysely queries bound lazily to this Knex
+      // instance.
       expect.objectContaining({
-        createMedia: mediaDatabase.createMedia,
+        createMedia: expect.any(Function),
+        deleteMediaForAccount: expect.any(Function),
         getAttachments: expect.any(Function),
         getMediaByIdForAccount: expect.any(Function)
       }),
@@ -206,7 +194,7 @@ describe('getSQLDatabase', () => {
   })
 
   it('merges properties with later mixins taking precedence', async () => {
-    // The status facade is spread after the media one.
+    // The status facade's own properties are on the facade.
     const { database } = createComposedDatabase()
     const merged = database as unknown as Record<string, string>
     expect(merged.testPriority).toBe('status')

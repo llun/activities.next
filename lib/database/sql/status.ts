@@ -1741,12 +1741,14 @@ export const StatusSQLDatabaseMixin = (
     if (publicOnly) {
       // The one visibility mode that does NOT go through
       // `buildActorVisibleStatusIdsQuery`. That builder answers with a
-      // materialised id set, which is right for `getAttachmentsForActor` — it
-      // has no ordered bound to early-terminate on — and wrong here, because
-      // the planner must finish it before this query's LIMIT sees a single
-      // row. It made the page cost the actor's entire public history: a flat
-      // 33,311 buffers at every page size on a production-shaped PostgreSQL 18
-      // seed, against 476 correlated. The two forms select identical rows
+      // materialised id set, which is right for the attachment and gallery
+      // filters (`getAttachmentsForActor` builds the same set through its
+      // Kysely twin, `actorVisibleStatusIds`) — they have no ordered bound to
+      // early-terminate on — and wrong here, because the planner must finish
+      // it before this query's LIMIT sees a single row. It made the page cost
+      // the actor's entire public history: a flat 33,311 buffers at every page
+      // size on a production-shaped PostgreSQL 18 seed, against 476
+      // correlated. The two forms select identical rows
       // (`publiclyReadableStatusEquivalence.test.ts`), so an attachment is
       // still exactly as readable as the post carrying it — which is the
       // invariant sharing one builder was there to protect.

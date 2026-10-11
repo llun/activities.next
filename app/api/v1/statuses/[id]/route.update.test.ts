@@ -62,9 +62,10 @@ vi.mock('@/lib/config', async () => ({
 }))
 
 describe('PUT /api/v1/statuses/[id]', () => {
-  const { database, db } = createTestDatabase({ backend: 'sqlite' })
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
