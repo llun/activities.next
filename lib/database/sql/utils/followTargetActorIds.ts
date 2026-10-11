@@ -7,6 +7,11 @@ import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 // for, each id once. `forShare` locks the matching follow rows until the
 // caller's transaction ends, on PostgreSQL only: SQLite runs one connection,
 // so a read inside a transaction is already atomic with the writes after it.
+//
+// The follow and list domains now use the Kysely twin
+// (lib/database/kysely/visibility/followTarget.ts). This Knex form is kept
+// only as the reference visibilityEquivalence.test.ts checks the twin
+// against: change both together.
 export const selectFollowTargetActorIds = async (
   database: Knex,
   actorId: string,

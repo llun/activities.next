@@ -1,5 +1,5 @@
-import { backfillListTimelineForMembers } from '@/lib/database/sql/list'
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { backfillListTimelineForMembers } from '@/lib/database/domains/list/timeline'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -16,7 +16,8 @@ vi.mock('@/lib/services/timelines/types', async (importOriginal) => {
 })
 
 describe('backfillListTimelineForMembers member cap', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const testDb = createTestDatabase()
+  const { database, knex: instance } = testDb
 
   const localActor = async (username: string) => {
     await database.createAccount({
@@ -66,6 +67,7 @@ describe('backfillListTimelineForMembers member cap', () => {
   }
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
   })
 
@@ -86,8 +88,7 @@ describe('backfillListTimelineForMembers member cap', () => {
       (index) => startedAt + Math.floor(index / 2) * 1000
     )
 
-    await backfillListTimelineForMembers({
-      database: instance,
+    await backfillListTimelineForMembers(testDb.db, {
       listId: 'cap-list',
       ownerId: owner.id,
       targetActorIds: [member.id]
@@ -110,8 +111,7 @@ describe('backfillListTimelineForMembers member cap', () => {
       (index) => Date.UTC(2026, 0, 1) + index * 1000
     )
 
-    await backfillListTimelineForMembers({
-      database: instance,
+    await backfillListTimelineForMembers(testDb.db, {
       listId: 'small-list',
       ownerId: owner.id,
       targetActorIds: [member.id]

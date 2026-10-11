@@ -248,9 +248,10 @@ export interface ActorDatabase {
   }>
 }
 
-// The facade's actor methods: the ActorDatabase interface plus the row mapper
-// and the Mastodon Account lookups that the follow, list, collection and
-// status mixins are handed.
+// The facade's actor methods: the ActorDatabase interface plus the Mastodon
+// Account lookups (the collection mixin is handed getMastodonActors) and the
+// pure row mapper getActor. Only the facade's own tests read getActor off the
+// facade, so it is kept only for the facade.
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
     sqlActor: SQLActor,
