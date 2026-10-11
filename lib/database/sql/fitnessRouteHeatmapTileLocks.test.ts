@@ -8,7 +8,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 // The row locks the route heatmap pyramid writes rely on, raced on two real
 // PostgreSQL connections. Each test stops one operation inside its
-// transaction, right after the statement that takes the lock, starts the
+// transaction, right after the last statement of that transaction, starts the
 // other, waits until PostgreSQL reports that one waiting on a lock (polling
 // pg_stat_activity; no sleep stands in for it), then lets the first finish and
 // checks the outcome the comments in
