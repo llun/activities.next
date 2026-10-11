@@ -17,6 +17,7 @@ import {
   OWNER_GALLERY_AUDIENCE,
   PUBLIC_GALLERY_AUDIENCE
 } from '@/lib/services/gallery/galleryAudience'
+import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const DOMAIN = 'galleryq.test'
@@ -1873,4 +1874,438 @@ describe('requests that cannot match', () => {
     })
     expect(statements).toEqual([])
   })
+})
+
+// The key and actor id parameters are typed `string`. These pin what a value
+// the types forbid does now that the shared driver binds it: Knex threw on an
+// `undefined` binding and compiled a two-argument `where(column, null)` to
+// `IS NULL`, and Kysely binds both as NULL, which equals nothing. SQLite is
+// the one backend where a NULL key can exist at all: its settings `actorId`
+// and gear `id` are primary keys without NOT NULL, which SQLite does not imply
+// for them.
+describe('undefined and null keys', () => {
+  const UNDEFINED = undefined as unknown as string
+  const NULL = null as unknown as string
+
+  it('an undefined id, actor id or device key matches nothing', async () => {
+    const actorId = await newActor()
+    const gearId = await seedGear(actorId, { deviceKey: 'canon:r5' })
+    const mediaId = await seedMedia(mediaIds()(1), actorId, {
+      galleryAddedAt: at('2026-01-02')
+    })
+    const audience = OWNER_GALLERY_AUDIENCE
+    // The same reads find the media for the actor, so the empty answers below
+    // are the undefined parameter's doing.
+    expect(
+      (await database.getGalleryMedia({ actorId, audience, limit: 20 })).length
+    ).toBe(1)
+    const before = await dumpTables()
+
+    expect(
+      await database.getGalleryGear({ id: gearId, actorId: UNDEFINED })
+    ).toBeNull()
+    expect(await database.getGalleryGear({ id: UNDEFINED, actorId })).toBeNull()
+    expect(
+      await database.findGalleryGearByDeviceKey({
+        actorId,
+        deviceKey: UNDEFINED
+      })
+    ).toBeNull()
+    expect(
+      await database.findGalleryGearByDeviceKey({
+        actorId: UNDEFINED,
+        deviceKey: 'canon:r5'
+      })
+    ).toBeNull()
+    expect(
+      await database.updateGalleryGear({
+        id: UNDEFINED,
+        actorId,
+        name: 'Renamed'
+      })
+    ).toBeNull()
+    expect(
+      await database.updateGalleryGear({
+        id: gearId,
+        actorId: UNDEFINED,
+        name: 'Renamed'
+      })
+    ).toBeNull()
+    expect(
+      await database.setGalleryGearRetired({
+        id: UNDEFINED,
+        actorId,
+        retired: true
+      })
+    ).toBeNull()
+    expect(
+      await database.setGalleryGearRetired({
+        id: gearId,
+        actorId: UNDEFINED,
+        retired: true
+      })
+    ).toBeNull()
+    expect(
+      await database.deleteGalleryGear({ id: UNDEFINED, actorId })
+    ).toBeFalse()
+    expect(
+      await database.deleteGalleryGear({ id: gearId, actorId: UNDEFINED })
+    ).toBeFalse()
+    expect(await database.getGallerySettings({ actorId: UNDEFINED })).toEqual(
+      DEFAULT_GALLERY_SETTINGS
+    )
+    expect(
+      await database.getGalleryGearsByActor({ actorId: UNDEFINED })
+    ).toEqual([])
+    expect(
+      await database.getActorHasGalleryMedia({ actorId: UNDEFINED, audience })
+    ).toBeFalse()
+    expect(
+      await database.getGalleryMedia({
+        actorId: UNDEFINED,
+        audience,
+        limit: 20
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryMediaByIds({
+        actorId: UNDEFINED,
+        audience,
+        mediaIds: [String(mediaId)]
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryMediaIndex({
+        actorId: UNDEFINED,
+        audience,
+        limit: 20
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryMapRows({
+        actorId: UNDEFINED,
+        audience,
+        limit: 20
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryGearUsageRows({
+        actorId: UNDEFINED,
+        gearIds: [gearId]
+      })
+    ).toEqual([])
+    expect(
+      await database.getUnattachedMedia({
+        actorId: UNDEFINED,
+        mediaIds: [String(mediaId)]
+      })
+    ).toEqual([])
+    expect(
+      await database.addMediaToGallery({
+        actorId: UNDEFINED,
+        mediaIds: [String(mediaId)]
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryAlbumItemSets({
+        actorId: UNDEFINED,
+        mediaIds: [String(mediaId)]
+      })
+    ).toEqual([])
+
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it('getGalleryGearNamesByIds leaves an undefined id out', async () => {
+    const actorId = await newActor()
+    const gearId = await seedGear(actorId, { name: 'Named' })
+
+    expect(
+      await database.getGalleryGearNamesByIds({ ids: [gearId, UNDEFINED] })
+    ).toEqual({ [gearId]: 'Named' })
+    expect(
+      await database.getGalleryGearNamesByIds({ ids: [UNDEFINED] })
+    ).toEqual({})
+  })
+
+  it('createGalleryGearWithinLimit with an undefined actor id runs its reads, then fails on the insert’s NOT NULL actorId', async () => {
+    const before = await dumpTables()
+
+    const { statements } = await captureStatements(async () => {
+      await expect(
+        database.createGalleryGearWithinLimit({
+          actorId: UNDEFINED,
+          kind: 'camera',
+          name: 'Nobody’s',
+          limit: 10,
+          dedupeByName: true
+        })
+      ).rejects.toThrow(
+        isPostgres()
+          ? 'null value in column "actorId"'
+          : 'NOT NULL constraint failed: gallery_gears.actorId'
+      )
+    })
+
+    const texts = statements.map((statement) => statement.sql)
+    expect(texts[0]).toBe('begin')
+    expect(
+      texts.some((text) => /^insert into "gallery_gears"/.test(text))
+    ).toBe(true)
+    expect(texts.at(-1)).toBe('rollback')
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it('updateGallerySettings with an undefined actor id throws on PostgreSQL and commits a NULL-actorId row of defaults on SQLite', async () => {
+    const before = await dumpTables()
+    const update = () =>
+      database.updateGallerySettings({
+        actorId: UNDEFINED,
+        showGear: false,
+        mapPublic: false
+      })
+
+    if (isPostgres()) {
+      await expect(update()).rejects.toThrow('null value in column "actorId"')
+      expect(await dumpTables()).toEqual(before)
+      return
+    }
+
+    try {
+      expect(await update()).toEqual(DEFAULT_GALLERY_SETTINGS)
+      const rows = await db()
+        .selectFrom('gallery_settings')
+        .selectAll()
+        .where('actorId', 'is', null)
+        .execute()
+      // The insert-if-missing wrote the row with the column defaults; the
+      // update matched nothing, so the given fields were not written.
+      expect(rows).toHaveLength(1)
+      expect(Boolean(rows[0].showGear)).toBeTrue()
+      expect(Boolean(rows[0].mapPublic)).toBeTrue()
+    } finally {
+      await db()
+        .deleteFrom('gallery_settings')
+        .where('actorId', 'is', null)
+        .execute()
+    }
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it('a null id, actor id, device key or gear id matches nothing', async () => {
+    const actorId = await newActor()
+    const keyless = await seedGear(actorId, { name: 'No device key' })
+    const mediaId = await seedMedia(mediaIds()(1), actorId, {
+      cameraGearId: keyless
+    })
+    const publicPost = await publicNote(actorId)
+    await seedAttachment(mediaId, publicPost, actorId)
+    const before = await dumpTables()
+
+    // Knex compiled these to `device key is null` and `cameraGearId is null`.
+    expect(
+      await database.findGalleryGearByDeviceKey({ actorId, deviceKey: NULL })
+    ).toBeNull()
+    expect(
+      await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 20,
+        gearId: NULL
+      })
+    ).toEqual([])
+    expect(await database.getGalleryGear({ id: NULL, actorId })).toBeNull()
+    expect(await database.getGallerySettings({ actorId: NULL })).toEqual(
+      DEFAULT_GALLERY_SETTINGS
+    )
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  it('a null actor id matches no owner-less media', async () => {
+    const actorId = await newActor()
+    const gearId = await seedGear(actorId)
+    const ids = mediaIds()
+    const kept = {
+      galleryAddedAt: at('2026-01-02'),
+      cameraGearId: gearId,
+      placeLatitude: 13.75,
+      placeLongitude: 100.5,
+      placePrecision: 'exact'
+    }
+    // The same media, kept in the gallery, once owned and once with no owner.
+    const owned = await seedMedia(ids(1), actorId, kept)
+    const ownerless = await seedMedia(ids(2), NULL, kept)
+    const before = await dumpTables()
+    const audience = OWNER_GALLERY_AUDIENCE
+    const mediaIdList = [String(owned), String(ownerless)]
+
+    // The owner finds theirs through each scoped read ...
+    expect(
+      (await database.getGalleryMedia({ actorId, audience, limit: 20 })).map(
+        (row) => Number(row.media.id)
+      )
+    ).toEqual([owned])
+    expect(
+      (
+        await database.getGalleryMediaByIds({
+          actorId,
+          audience,
+          mediaIds: mediaIdList
+        })
+      ).map((row) => Number(row.media.id))
+    ).toEqual([owned])
+    expect(
+      (
+        await database.getGalleryMediaIndex({ actorId, audience, limit: 20 })
+      ).map((row) => Number(row.id))
+    ).toEqual([owned])
+    expect(
+      (await database.getGalleryMapRows({ actorId, audience, limit: 20 })).map(
+        (row) => Number(row.id)
+      )
+    ).toEqual([owned])
+    expect(
+      (
+        await database.getGalleryGearUsageRows({ actorId, gearIds: [gearId] })
+      ).map((row) => Number(row.mediaId))
+    ).toEqual([owned])
+    expect(
+      await database.getActorHasGalleryMedia({ actorId, audience })
+    ).toBeTrue()
+
+    // ... and a null actor id finds the owner-less one through none of them.
+    expect(
+      await database.getGalleryMedia({ actorId: NULL, audience, limit: 20 })
+    ).toEqual([])
+    expect(
+      await database.getGalleryMediaByIds({
+        actorId: NULL,
+        audience,
+        mediaIds: mediaIdList
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryMediaIndex({
+        actorId: NULL,
+        audience,
+        limit: 20
+      })
+    ).toEqual([])
+    expect(
+      await database.getGalleryMapRows({ actorId: NULL, audience, limit: 20 })
+    ).toEqual([])
+    expect(
+      await database.getGalleryGearUsageRows({
+        actorId: NULL,
+        gearIds: [gearId]
+      })
+    ).toEqual([])
+    expect(
+      await database.getActorHasGalleryMedia({ actorId: NULL, audience })
+    ).toBeFalse()
+    expect(
+      await database.getUnattachedMedia({
+        actorId: NULL,
+        mediaIds: mediaIdList
+      })
+    ).toEqual([])
+    expect(
+      await database.addMediaToGallery({
+        actorId: NULL,
+        mediaIds: mediaIdList
+      })
+    ).toEqual([])
+    expect(await dumpTables()).toEqual(before)
+  })
+
+  // SQLite only: the keys below can be NULL there, and Knex matched them.
+  it.skipIf(isPostgres())(
+    'a null id or actor id matches no NULL-key row on SQLite',
+    async () => {
+      const actorId = await newActor()
+      const now = at('2026-01-02')
+      await db()
+        .insertInto('gallery_settings')
+        .values({
+          actorId: NULL,
+          showGear: false,
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      await db()
+        .insertInto('gallery_gears')
+        .values({
+          id: NULL,
+          actorId,
+          kind: 'camera',
+          name: 'No id',
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      const nullKeyRows = async () => ({
+        settings: await db()
+          .selectFrom('gallery_settings')
+          .selectAll()
+          .where('actorId', 'is', null)
+          .execute(),
+        gears: await db()
+          .selectFrom('gallery_gears')
+          .selectAll()
+          .where('id', 'is', null)
+          .execute()
+      })
+
+      try {
+        const before = await nullKeyRows()
+        expect(before.settings).toHaveLength(1)
+        expect(before.gears).toHaveLength(1)
+
+        expect(await database.getGallerySettings({ actorId: NULL })).toEqual(
+          DEFAULT_GALLERY_SETTINGS
+        )
+        expect(await database.getGalleryGear({ id: NULL, actorId })).toBeNull()
+        expect(
+          await database.updateGalleryGear({
+            id: NULL,
+            actorId,
+            name: 'Renamed'
+          })
+        ).toBeNull()
+        expect(
+          await database.setGalleryGearRetired({
+            id: NULL,
+            actorId,
+            retired: true
+          })
+        ).toBeNull()
+        expect(
+          await database.deleteGalleryGear({ id: NULL, actorId })
+        ).toBeFalse()
+        // The save inserts a row of defaults (SQLite treats NULL keys as
+        // distinct, so the insert-if-missing adds one) and updates nothing,
+        // so it answers the defaults and leaves the hand-written row alone.
+        expect(
+          await database.updateGallerySettings({
+            actorId: NULL,
+            mapPublic: false
+          })
+        ).toEqual(DEFAULT_GALLERY_SETTINGS)
+
+        const after = await nullKeyRows()
+        expect(after.gears).toEqual(before.gears)
+        expect(after.settings.filter((row) => !row.showGear)).toEqual(
+          before.settings
+        )
+        expect(after.settings.every((row) => row.mapPublic)).toBeTrue()
+      } finally {
+        await db()
+          .deleteFrom('gallery_settings')
+          .where('actorId', 'is', null)
+          .execute()
+        await db().deleteFrom('gallery_gears').where('id', 'is', null).execute()
+      }
+    }
+  )
 })
