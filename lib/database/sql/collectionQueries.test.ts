@@ -924,6 +924,22 @@ describe('feed trimming', () => {
     )
     expect(await s.keys(s.neighbour)).toHaveLength(5)
   })
+
+  it('picks the trim boundary by sortKey before the row id', async () => {
+    // Ids that sort against time, all below the id the fan-out's row gets on
+    // either backend, so a boundary read by id alone would keep a fourth row.
+    const s = await setup([
+      [4000, -4004],
+      [3000, -4003],
+      [2000, -4002],
+      [1000, -4001]
+    ])
+    const added = await s.post(5000)
+    expect(await s.keys(s.collection)).toEqual(
+      [added, `${s.prefix}-row0`, `${s.prefix}-row1`].sort()
+    )
+    expect(await s.keys(s.neighbour)).toHaveLength(5)
+  })
 })
 
 describe('removeCollectionMembers', () => {
@@ -1538,6 +1554,40 @@ describe('collection listings', () => {
     ])
     expect(await list(2)).toEqual(['public-approved', 'own-public-revoked'])
     expect(await list(2, 1)).toEqual(['own-public-revoked', 'own-private'])
+  })
+
+  it('breaks a createdAt tie on seq in the collections featuring an account', async () => {
+    const prefix = nextPrefix()
+    const viewer = actorIn('home.test', `${prefix}-viewer`)
+    const other = actorIn('home.test', `${prefix}-other`)
+    const target = actorIn('m.test', `${prefix}-target`)
+    const [lowSeq, highSeq] = explicitKeys(2)
+    // Both tie on createdAt and are written, with their memberships, out of
+    // seq order.
+    for (const [key, owner, seq] of [
+      ['high', other, highSeq],
+      ['low', viewer, lowSeq]
+    ] as const) {
+      await seedCollection({
+        id: `${prefix}-${key}`,
+        owner,
+        createdAt: BASE + 1000,
+        seq
+      })
+      await seedMember({
+        collectionSeq: seq,
+        targetActorId: target,
+        featureState: 'approved'
+      })
+    }
+    expect(
+      (
+        await getCollectionsFeaturingAccount(db, {
+          targetActorId: target,
+          viewerActorId: viewer
+        })
+      ).map(({ id }) => id.slice(prefix.length + 1))
+    ).toEqual(['low', 'high'])
   })
 })
 
