@@ -259,7 +259,10 @@ jobs:
   # count and bounds over countable activities, heatmaps by id, key and share
   # token, the pyramid subscribers and their progress mirror, the per-actor
   # listings and their filters, status updates with the clear-deleted cutoff,
-  # share tokens, cancels, soft deletes, region names), the Kysely
+  # share tokens, cancels, soft deletes, region names), the route heatmap tile
+  # pyramid (the build claim with its compare-and-swap, fenced tile flushes and
+  # stale-tile sweeps, chunked key reads, viewport reads and totals, the
+  # per-actor clear, their row locks raced on two connections), the Kysely
   # countable-activity predicate checked against its rule written out in
   # JavaScript, the Kysely status visibility, actor-visible status, gallery
   # media scope, list eligibility, replies policy, block/mute, follow-target,
@@ -418,6 +421,8 @@ jobs:
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
+            lib/database/sql/fitnessRouteHeatmapTileLocks.test.ts \
+            lib/database/sql/fitnessRouteHeatmapTileQueries.test.ts \
             lib/database/sql/queueJob.test.ts \
             lib/database/sql/statusDeletionQueue.test.ts \
             lib/database/sql/stravaArchiveImport.test.ts \
