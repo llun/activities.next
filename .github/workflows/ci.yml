@@ -250,13 +250,12 @@ jobs:
   # over it, the gallery domain (gear with its limit and device keys, gallery
   # settings, the gallery media, index, map and gear-usage reads with their
   # cursors, unposted media and adding it to the gallery, the lookup cache and
-  # its prune, the album suggestions' item read, the albums with their
-  # per-actor and per-album limits behind the actor row lock, the SQLite query
-  # plans of the gallery statements) with the account gallery, gallery gear,
-  # media and settings routes, the gallery album routes and the album page, the
-  # v2 media upload, note creation and the gallery lookup backfill (with its
-  # real place lookup) over it, the cached activity routes and route heatmap
-  # domain
+  # its prune, the album suggestions' item read, the albums and their per-actor
+  # and per-album caps behind the actor row lock, the SQLite query plans of the
+  # gallery statements) with the account gallery, gallery gear, media and
+  # settings routes, the gallery album routes and the album page, the v2 media
+  # upload, note creation and the gallery lookup backfill (with its real place
+  # lookup) over it, the cached activity routes and route heatmap domain
   # (route upserts with their bounding box, chunked route reads, the region
   # count and bounds over countable activities, heatmaps by id, key and share
   # token, the pyramid subscribers and their progress mirror, the per-actor
