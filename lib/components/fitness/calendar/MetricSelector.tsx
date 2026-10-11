@@ -24,12 +24,12 @@ export interface MetricSelectorProps {
  * summary, not the selection).
  *
  * A radio group, so a screen reader announces "Distance, radio button, 2 of 3"
- * and the arrow keys move and choose; one tab stop. Each segment IS 44px tall
- * (the element itself, not a pseudo-element, so a measurement of the control
- * agrees with what a finger can hit); the visible pill is inset 4px inside it
- * by a transparent border, so the track still reads as a 36px pill on a 44px
- * track. Orange marks the active one (orange = interaction; the green in the
- * cells is intensity only).
+ * and the arrow keys move and choose; one tab stop. The track's 4px padding
+ * (`p-1`) creates equal 4px empty space around the 36px (`min-h-9`) segment
+ * items on top, bottom, left, and right, producing a 44px total height.
+ * Concentric rounded-md corners nest inside the track's rounded-lg border.
+ * Orange marks the active one (orange = interaction; the green in the cells
+ * is intensity only).
  *
  * It wraps instead of clipping: at 200% text three segments no longer fit one
  * row of a phone, so they flow onto further rows (one segment each at 390px)
@@ -70,7 +70,7 @@ export const MetricSelector = ({
       aria-disabled={disabled || undefined}
       onKeyDown={onKeyDown}
       className={cn(
-        'bg-muted flex min-h-11 w-full flex-wrap items-stretch gap-0.5 rounded-lg shadow-[inset_0_0_0_1px_var(--border)] @min-[40rem]:inline-flex @min-[40rem]:w-auto',
+        'bg-muted flex min-h-11 w-full flex-wrap p-1 gap-1 items-center rounded-lg shadow-[inset_0_0_0_1px_var(--border)] @min-[40rem]:inline-flex @min-[40rem]:w-auto',
         disabled && 'opacity-50',
         className
       )}
@@ -88,10 +88,9 @@ export const MetricSelector = ({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(metric)}
             className={cn(
-              // 44px tall; the transparent border insets the painted pill (and
-              // the clipped background) to 36px, 1px from the track's sides.
-              'flex min-h-11 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-lg border-x border-y-4 border-transparent bg-clip-padding px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-[3px] focus-visible:ring-offset-1 @min-[40rem]:flex-none',
-              'focus-visible:ring-ring/50 disabled:cursor-default',
+              // 36px tall (`min-h-9 py-1.5`); the track's 4px padding (`p-1`)
+              // creates equal 4px empty space on top, bottom, left, and right.
+              'flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-md py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default @min-[40rem]:flex-none',
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'text-foreground hover:bg-accent'

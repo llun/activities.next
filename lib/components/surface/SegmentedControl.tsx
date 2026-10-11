@@ -51,16 +51,17 @@ type Props = BaseProps &
   )
 
 const TRACK_CLASS =
-  'bg-muted flex max-w-full items-stretch sm:w-fit gap-0.5 overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  'bg-muted flex max-w-full p-1 gap-1 items-center sm:w-fit overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
-// The transparent border insets the painted pill (and the clipped background)
-// from the track, so the pill reads as a smaller shape on a full-height track.
+// The 4px track padding (`p-1`) creates equal 4px empty space around the
+// segment items on top, bottom, left, and right. Concentric rounded-md corners
+// nest inside the track's rounded-lg border.
 const SEGMENT_CLASS =
-  'flex flex-[1_1_auto] cursor-pointer items-center justify-center gap-2 rounded-lg border-x border-transparent bg-clip-padding px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-[3px] focus-visible:ring-offset-1 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50 disabled:cursor-default disabled:opacity-50 sm:flex-none'
+  'flex flex-[1_1_auto] cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50 disabled:cursor-default disabled:opacity-50 sm:flex-none'
 
 const SIZE_CLASS = {
-  md: 'min-h-11 border-y-4',
-  sm: 'min-h-9 border-y-2'
+  md: 'min-h-9 py-1.5',
+  sm: 'min-h-7 py-1 text-xs'
 } as const
 
 const stateClass = (active: boolean) =>
