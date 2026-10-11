@@ -428,6 +428,23 @@ describe('getFitnessRouteHeatmapByKey', () => {
       })
     ).toMatchObject({ id, deletedAt: ms('2026-02-01T00:00:00Z') })
   })
+
+  it('reads a deletion stamped at the epoch as unset', async () => {
+    const actorId = await newActor()
+    const id = await seedHeatmap(actorId, {
+      periodKey: 'all',
+      deletedAt: new Date(0)
+    })
+
+    const fetched = await database.getFitnessRouteHeatmapByKey({
+      actorId,
+      periodType: 'all_time',
+      periodKey: 'all',
+      includeDeleted: true
+    })
+    expect(fetched?.id).toBe(id)
+    expect(fetched?.deletedAt).toBeUndefined()
+  })
 })
 
 describe('share token reads', () => {
@@ -1413,11 +1430,20 @@ describe('region names', () => {
       region: 'alpha',
       name: '  Alps  '
     })
+    expect(await nameRows(actorId)).toEqual([
+      {
+        actorId,
+        region: 'alpha',
+        name: 'Alps',
+        createdAt: ms('2026-03-01T00:00:00Z'),
+        updatedAt: ms('2026-03-01T00:00:00Z')
+      }
+    ])
     vi.setSystemTime(at('2026-03-02T00:00:00Z'))
     await database.setFitnessRouteHeatmapRegionName({
       actorId,
       region: 'alpha',
-      name: 'High Alps'
+      name: '  High Alps  '
     })
 
     expect(await nameRows(actorId)).toEqual([
