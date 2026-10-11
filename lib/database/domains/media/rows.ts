@@ -1,7 +1,7 @@
-// Pure helpers for `medias` rows, shared by the Kysely media reads
-// (./queries.ts), the photo editor (domains/mediaEdit) and the Knex code that
-// has not moved yet (the media writes in lib/database/sql/media.ts, which
-// re-exports these, and the gallery mixins). No database access. The Knex
+// Pure helpers for `medias` rows, shared by the Kysely media reads and writes
+// (./queries.ts, ./writes.ts), the photo editor (domains/mediaEdit) and the
+// Knex code that has not moved yet (the gallery mixins in lib/database/sql/,
+// lib/services/gallery/galleryQueries.ts). No database access. The Knex
 // callers hand over Knex rows, so the parsers accept both row shapes: a
 // timestamp as epoch ms, a Date or SQLite text, a JSON column as text or
 // parsed, a boolean as 0/1 or a boolean, an int8 as a string or a number.
@@ -399,3 +399,15 @@ export const MEDIA_COLUMNS = [
   'editedAt',
   'galleryAddedAt'
 ] as const
+
+// `medias.<column>` for every column parseMediaRow reads, for a Kysely query
+// that joins `medias` to another table. The rows come back keyed by the bare
+// column name, as they did from Knex.
+export const MEDIA_SELECT = MEDIA_COLUMNS.map(
+  (column) => `medias.${column}` as const
+)
+
+// A Kysely `medias` row as the shared parser types it. The driver has already
+// normalised timestamps, JSON, booleans and int8; the parser accepts both
+// those and the raw Knex values.
+export const asMediaRow = (row: object) => row as MediaRow

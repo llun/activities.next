@@ -1,7 +1,9 @@
 import crypto from 'crypto'
 import { Knex } from 'knex'
 
-import { lockGalleryAlbumActor } from '@/lib/database/sql/galleryAlbumCleanup'
+import { lockGalleryAlbumActor } from '@/lib/database/domains/media/galleryAlbumCleanup'
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
+import { kyselyFor } from '@/lib/database/kysely'
 import {
   GALLERY_INDEX_COLUMNS,
   GalleryIndexRow,
@@ -12,7 +14,6 @@ import {
   parseNullableTime,
   toGalleryIndexRow
 } from '@/lib/database/sql/galleryMedia'
-import { toMediaRowId } from '@/lib/database/sql/media'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
@@ -570,7 +571,10 @@ export const GalleryAlbumSQLDatabaseMixin = (
     }
   }
 
-  const lockActor = lockGalleryAlbumActor
+  // The album lock is the media domain's Kysely query, run on this Knex
+  // transaction's own connection.
+  const lockActor = (trx: Knex.Transaction, actorId: string) =>
+    lockGalleryAlbumActor(kyselyFor(trx), actorId)
 
   // The rows that count against the item cap: every item whose media still
   // exists, visible to the owner or not. A row left behind by a media that is

@@ -1,8 +1,8 @@
 import type { Selectable } from 'kysely'
 
 import {
-  MEDIA_COLUMNS,
-  type MediaRow,
+  MEDIA_SELECT,
+  asMediaRow,
   parseMediaRow,
   toMediaRowId
 } from '@/lib/database/domains/media/rows'
@@ -20,6 +20,21 @@ import type {
   MediaWithAttachedStatusIds,
   PaginatedMediaWithStatus
 } from '@/lib/database/domains/media/types'
+import {
+  createAttachment,
+  createMedia,
+  deleteAttachmentsByIds,
+  deleteMedia,
+  deleteMediaForAccount,
+  deleteMediaWithFiles,
+  markMediaUploadVerified,
+  replaceRemoteAttachmentsForStatus,
+  setMediaPlaceLookup,
+  setMediaSubjectLookup,
+  setMediaSubjectSuggestions,
+  updateAttachmentPlayback,
+  updateMedia
+} from '@/lib/database/domains/media/writes'
 import type { Db } from '@/lib/database/kysely'
 import { getCounterValue } from '@/lib/database/kysely/counter'
 import type { Attachments } from '@/lib/database/kysely/db'
@@ -30,19 +45,8 @@ import { CounterKey } from '@/lib/database/sql/utils/counter'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 // The media reads. The writes (create, upload verification, updates, the
-// lookup compare-and-sets, deletes and the attachment writes) are still the
-// Knex mixin in lib/database/sql/media.ts; getSQLDatabase spreads both into the
-// facade.
-
-// `medias.<column>` for every column parseMediaRow reads, for a query that
-// joins `medias` to another table. The rows come back keyed by the bare column
-// name, as they did from Knex.
-const MEDIA_SELECT = MEDIA_COLUMNS.map((column) => `medias.${column}` as const)
-
-// A Kysely `medias` row as the shared parser types it. The driver has already
-// normalised timestamps, JSON, booleans and int8; the parser accepts both
-// those and the raw Knex values.
-const asMediaRow = (row: object) => row as MediaRow
+// lookup compare-and-sets, deletes and the attachment writes) are in
+// ./writes.ts; `mediaQueries` at the end holds both.
 
 // Knex read the arguments of limit() and offset() through parseInt and
 // dropped a NaN one (with a warning), and refused a negative offset; Kysely
@@ -354,14 +358,27 @@ export const getStorageUsageForAccount = (
   { accountId }: GetStorageUsageForAccountParams
 ): Promise<number> => getCounterValue(db, CounterKey.mediaUsage(accountId))
 
-// The facade getSQLDatabase binds with bindDb(), next to the Knex writes.
+// The facade getSQLDatabase binds with bindDb().
 export const mediaQueries = {
+  setMediaSubjectLookup,
+  setMediaPlaceLookup,
+  setMediaSubjectSuggestions,
+  createMedia,
+  getMediaWithAttachedStatusIds,
+  markMediaUploadVerified,
+  createAttachment,
+  updateAttachmentPlayback,
   getAttachments,
+  replaceRemoteAttachmentsForStatus,
   getAttachmentsWithMedia,
   getAttachmentsForActor,
   getMediasWithStatusForAccount,
   getMediaByIdForAccount,
   getMediaByIdsForAccount,
-  getMediaWithAttachedStatusIds,
-  getStorageUsageForAccount
+  updateMedia,
+  getStorageUsageForAccount,
+  deleteAttachmentsByIds,
+  deleteMedia,
+  deleteMediaWithFiles,
+  deleteMediaForAccount
 }

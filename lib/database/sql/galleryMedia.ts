@@ -10,7 +10,7 @@ import {
   parsePlaceNameSource,
   parseTaxonPath,
   toMediaRowId
-} from '@/lib/database/sql/media'
+} from '@/lib/database/domains/media/rows'
 import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'

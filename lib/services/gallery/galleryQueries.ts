@@ -1,8 +1,8 @@
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import type {
   GalleryIndexRow,
   GalleryMediaRow
 } from '@/lib/database/sql/galleryMedia'
-import { toMediaRowId } from '@/lib/database/sql/media'
 import { Database } from '@/lib/database/types'
 import {
   type GalleryAudience,
