@@ -223,17 +223,27 @@ jobs:
   # media on a real database (the media describe, album, photo-edit, photo-edit
   # enhance and photo-edit revert routes, status edits with media, the photo
   # editor domain, status writes and deletes that hydrate attachments, the
-  # profile page data), the fitness file domain (uploads with their storage
-  # and file counters and hourly buckets, deletes, processing and import
-  # status, primary assignment, the actor listing with its cursor and Knex
-  # paging, the account listing with its counter total, the overview summary,
-  # calendar, window and earliest activity, whether an actor has fitness data
-  # for a viewer) with the fitness routes, the import, processing, map
-  # regeneration and heatmap jobs, the actor archive export and the services
-  # over it, the gallery domain (gear with its limit and device keys, gallery
-  # settings, the gallery media, index, map and gear-usage reads with their
-  # cursors, unposted media and adding it to the gallery, the lookup cache and
-  # its prune, the album suggestions' item read, the SQLite query plans of the
+  # profile page data), the status lookups, poll reads, hashtag reads and pins
+  # (statuses by url, url hash, publicId and path segment, an actor's own
+  # boost, poll votes, the hashtag timeline, admin page and counter, pins with
+  # their per-actor cap and row lock, the favourited-by and reblogged-by pages
+  # behind the Kysely set form of the publicly-readable predicate) with the
+  # status action (pin included), status create and batch read, favourited-by,
+  # reblogged-by, unreblog, poll edit, account status, user status, bookmark,
+  # collection feed and status filter routes, the announce, note emoji and
+  # poll actions, the create-note, create-poll and update-note jobs and the
+  # Mastodon status, filter, context, mention, notification and client id
+  # services over them, the fitness file domain (uploads with their storage and
+  # file counters and hourly buckets, deletes, processing and import status,
+  # primary assignment, the actor listing with its cursor and Knex paging, the
+  # account listing with its counter total, the overview summary, calendar,
+  # window and earliest activity, whether an actor has fitness data for a
+  # viewer) with the fitness routes, the import, processing, map regeneration
+  # and heatmap jobs, the actor archive export and the services over it, the
+  # gallery domain (gear with its limit and device keys, gallery settings, the
+  # gallery media, index, map and gear-usage reads with their cursors,
+  # unposted media and adding it to the gallery, the lookup cache and its
+  # prune, the album suggestions' item read, the SQLite query plans of the
   # gallery statements) with the account gallery, gallery gear, media and
   # settings routes, the gallery album routes and the album page, the v2 media
   # upload, note creation and the gallery lookup backfill (with its real place
@@ -484,6 +494,39 @@ jobs:
             lib/database/sql/localPublicQueryShape.test.ts \
             lib/database/sql/publiclyReadableStatusEquivalence.test.ts \
             lib/services/timelines/index.test.ts \
+            lib/database/sql/statusLookup.test.ts \
+            lib/database/sql/statusLookupQueries.test.ts \
+            lib/database/sql/statusHashtag.test.ts \
+            lib/database/sql/statusActorQueries.test.ts \
+            lib/database/sql/publicCounters.test.ts \
+            lib/database/sql/publiclyReadableStatusCallSites.test.ts \
+            lib/database/sql/publiclyReadableStatusQueryShape.test.ts \
+            lib/database/sql/statusReadableSql.test.ts \
+            'app/api/v1/statuses/[id]/actions.route.test.ts' \
+            'app/api/v1/statuses/[id]/favourited_by/route.test.ts' \
+            'app/api/v1/statuses/[id]/reblogged_by/route.test.ts' \
+            'app/api/v1/statuses/[id]/unreblog/route.test.ts' \
+            'app/api/v1/statuses/[id]/route.update.poll.test.ts' \
+            'app/api/v1/accounts/[id]/statuses/route.test.ts' \
+            'app/api/users/[username]/statuses/[statusId]/route.test.ts' \
+            app/api/v1/bookmarks/route.test.ts \
+            app/api/v1/statuses/route.test.ts \
+            'app/api/v1/collections/[id]/feed/route.test.ts' \
+            'app/api/v2/filters/[id]/statuses/route.test.ts' \
+            'app/api/v2/filters/statuses/[id]/route.test.ts' \
+            lib/actions/announce.test.ts \
+            lib/actions/createNoteEmoji.test.ts \
+            lib/actions/createPoll.test.ts \
+            lib/jobs/sendUpdateNoteJob.test.ts \
+            lib/jobs/createNoteJob.test.ts \
+            lib/jobs/createPollJob.test.ts \
+            lib/services/mastodon/getMastodonStatus.bulk.test.ts \
+            lib/services/mastodon/getMastodonStatus.quotes.test.ts \
+            lib/services/mastodon/getMastodonFilter.test.ts \
+            lib/services/mastodon/resolveClientId.test.ts \
+            lib/services/statuses/getStatusContext.test.ts \
+            lib/services/timelines/mentionNotification.test.ts \
+            lib/services/notifications/getMastodonNotification.test.ts \
             lib/database/sql/conversation.test.ts \
             lib/database/sql/conversationQueries.test.ts \
             lib/database/sql/directConversationsMigration.test.ts \

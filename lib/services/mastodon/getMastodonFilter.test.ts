@@ -1,6 +1,4 @@
-import knex, { Knex } from 'knex'
-
-import { getSQLDatabase } from '@/lib/database/sql'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { applyFiltersToStatus } from '@/lib/services/filters/applyFilters'
 import {
@@ -19,16 +17,11 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
-let knexDatabase: Knex
-let database: Database
+const testDatabase = createTestDatabase()
+const database: Database = testDatabase.database
 
 beforeAll(async () => {
-  knexDatabase = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  database = getSQLDatabase(knexDatabase)
+  await testDatabase.prepare()
   await database.migrate()
   await seedDatabase(database)
 })

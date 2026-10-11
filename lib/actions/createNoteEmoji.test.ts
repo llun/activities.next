@@ -4,7 +4,7 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updatePollFromUserInput } from '@/lib/actions/updatePoll'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -29,10 +29,11 @@ vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
 }))
 
 describe('Custom emoji status federation', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = (await database.getActorFromUsername({

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { POST as pinStatus } from '@/app/api/v1/statuses/[id]/pin/route'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
@@ -30,7 +31,7 @@ vi.mock('@/lib/services/mastodon/getRemoteActorStatuses', () => ({
     mockGetRemoteActorStatuses(...params)
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
   getKnex: () => () => ({
@@ -69,7 +70,7 @@ const createRequest = (
   )
 
 describe('GET /api/v1/accounts/[id]/statuses', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   let localActorCounter = 0
   const createLocalActor = async (prefix = 'account') => {
@@ -90,6 +91,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database

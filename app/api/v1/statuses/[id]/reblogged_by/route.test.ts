@@ -1,8 +1,7 @@
-import knex from 'knex'
 import { NextRequest } from 'next/server'
 
-import { getSQLDatabase } from '@/lib/database/sql'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -20,7 +19,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -45,7 +44,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/statuses/[id]/reblogged_by', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   // publicIds are minted at insert and random per run, so read the emitted id
   // back off the stored row rather than hard-coding one.
@@ -55,6 +54,7 @@ describe('GET /api/v1/statuses/[id]/reblogged_by', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
@@ -174,9 +174,10 @@ describe('GET /api/v1/statuses/[id]/reblogged_by', () => {
 })
 
 describe('GET /api/v1/statuses/[id]/reblogged_by pagination, visibility and auth', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
@@ -586,17 +587,17 @@ describe('GET /api/v1/statuses/[id]/reblogged_by pagination, visibility and auth
     it('includes public legacy boosts stored only in content for anonymous clients', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      const knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sqlDatabase = getSQLDatabase(knexDatabase)
+      // Its own database: the legacy row is inserted raw, and `prepare` here
+      // must not drop the one the surrounding suite runs on.
+      const {
+        database: sqlDatabase,
+        knex: knexDatabase,
+        prepare: prepareIsolated
+      } = createTestDatabase({ isolated: true })
       const previousDatabase = mockDatabase
 
       try {
+        await prepareIsolated()
         await sqlDatabase.migrate()
         await seedDatabase(sqlDatabase)
         mockDatabase = sqlDatabase

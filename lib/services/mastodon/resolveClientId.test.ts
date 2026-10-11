@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -53,11 +53,12 @@ const createCaseInsensitiveActorDatabase = (
 })
 
 describe('resolveStatusIdParam', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const statusUrl = `${ACTOR1_ID}/statuses/post-1`
   let statusPublicId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     const status = await database.getStatus({ statusId: statusUrl })
@@ -108,10 +109,11 @@ describe('resolveStatusIdParam', () => {
 })
 
 describe('resolveActorIdParam', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actorPublicId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     const actor = await database.getActorFromId({ id: ACTOR1_ID })
@@ -162,13 +164,14 @@ describe('resolveActorIdParam', () => {
 })
 
 describe('resolveStatusIdParams', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const firstStatusUrl = `${ACTOR1_ID}/statuses/post-1`
   const secondStatusUrl = `${ACTOR1_ID}/statuses/post-2`
   let firstPublicId: string
   let secondPublicId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     const first = await database.getStatus({ statusId: firstStatusUrl })
@@ -279,11 +282,12 @@ describe('resolveStatusIdParams', () => {
 })
 
 describe('resolveActorIdParams', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1PublicId: string
   let actor2PublicId: string
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     const actor1 = await database.getActorFromId({ id: ACTOR1_ID })

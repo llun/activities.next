@@ -1,5 +1,5 @@
 import { userAnnounce } from '@/lib/actions/announce'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendAnnounceJob'
@@ -40,7 +40,9 @@ describe('Announce action', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    database = getTestSQLDatabase()
+    const testDatabase = createTestDatabase()
+    database = testDatabase.database
+    await testDatabase.prepare()
     await database.migrate()
     await seedDatabase(database)
 

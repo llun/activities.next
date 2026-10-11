@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -17,7 +18,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -42,7 +43,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/statuses/[id]/favourited_by', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const statusId = `${ACTOR1_ID}/statuses/favourited-by-test`
 
   // publicIds are minted at insert and random per run, so read the emitted id
@@ -53,6 +54,7 @@ describe('GET /api/v1/statuses/[id]/favourited_by', () => {
   }
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
@@ -123,9 +125,10 @@ describe('GET /api/v1/statuses/[id]/favourited_by', () => {
 })
 
 describe('GET /api/v1/statuses/[id]/favourited_by pagination', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
