@@ -1678,7 +1678,16 @@ export const MediaDetailsDialog: FC<Props> = ({
                           onChange={(checked) => {
                             setShared((s) => ({ ...s, gallery: checked }))
                             if (checked) {
-                              patchDraft({ inGallery: true })
+                              setDrafts((current) => {
+                                const next = { ...current }
+                                for (const entry of items) {
+                                  next[entry.id] = {
+                                    ...next[entry.id],
+                                    inGallery: true
+                                  }
+                                }
+                                return next
+                              })
                             }
                           }}
                         >

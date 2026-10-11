@@ -229,6 +229,36 @@ describe('MediaDetailsDialog', () => {
     expect(gallerySwitch).toBeChecked()
   })
 
+  it('keeps the single-item gallery switch checked on another item after checking the all-items gallery option and saves all items', async () => {
+    // Arrange
+    const { onClose } = renderDialog([makeItem('a'), makeItem('b')])
+    const allGalleryCheckbox = screen.getByLabelText(
+      'Show all 2 items in my gallery'
+    )
+
+    // Act: check "Show all 2 items in my gallery" on item 1
+    fireEvent.click(allGalleryCheckbox)
+
+    // Navigate to item 2
+    fireEvent.click(screen.getByRole('button', { name: 'Item 2' }))
+
+    // Assert: item 2's "Show in my gallery" switch is also checked
+    expect(screen.getByLabelText('Show in my gallery')).toBeChecked()
+
+    // Act: click "Save details" while viewing item 2
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+
+    // Assert: saves in_gallery: true for both items
+    expect(updateMediaDetailsMock).toHaveBeenCalledTimes(2)
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('a', {
+      in_gallery: true
+    })
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('b', {
+      in_gallery: true
+    })
+  })
+
   it('applies a gear choice to all items when asked', async () => {
     const { onClose } = renderDialog([makeItem('a'), makeItem('b')])
     await screen.findByRole('option', { name: 'Nikon Z9' })
