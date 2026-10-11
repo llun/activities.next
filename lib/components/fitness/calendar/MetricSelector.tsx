@@ -27,11 +27,13 @@ export interface MetricSelectorProps {
  * and the arrow keys move and choose; one tab stop. The track's 4px padding
  * (`p-1`) creates equal 4px empty space around the 36px (`min-h-9`) segment
  * items on top, bottom, left, and right, producing a 44px total height.
- * The `after` pseudo-element expands the interactive hit area across the 4px
- * track padding, guaranteeing the full 44px touch target and eliminating dead
- * clicks in the padding. Concentric rounded-md corners nest inside the track's
- * rounded-lg border. Orange marks the active one (orange = interaction; the
- * green in the cells is intensity only).
+ * The `after` pseudo-element (`after:-inset-y-1 after:-inset-x-0.5
+ * first:after:-left-1 last:after:-right-1`) expands the interactive hit area
+ * across the 4px track padding and 4px gaps, guaranteeing the full 44px touch
+ * target and eliminating dead clicks in the padding and between segments.
+ * Concentric rounded-sm corners (4px) nest inside the track's rounded-lg border
+ * (8px). Orange marks the active one (orange = interaction; the green in the
+ * cells is intensity only).
  *
  * It wraps instead of clipping: at 200% text three segments no longer fit one
  * row of a phone, so they flow onto further rows (one segment each at 390px)
@@ -92,10 +94,14 @@ export const MetricSelector = ({
             className={cn(
               // 36px tall (`min-h-9 py-1.5`); the track's 4px padding (`p-1`)
               // creates equal 4px empty space on top, bottom, left, and right.
-              // The `after` pseudo-element expands the interactive hit area
-              // across the 4px track padding, guaranteeing the full 44px touch
-              // target and eliminating dead clicks in the padding.
-              'relative flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-md py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default @min-[40rem]:flex-none after:absolute after:-inset-y-1 after:inset-x-0 first:after:-left-1 last:after:-right-1',
+              // Concentric rounded-sm corners (4px) nest inside the track's
+              // rounded-lg border (8px). The `after` pseudo-element
+              // (`after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1
+              // last:after:-right-1`) expands the interactive hit area across
+              // the 4px track padding and 4px gaps, guaranteeing the full 44px
+              // touch target and eliminating dead clicks in the padding and
+              // between segments.
+              'relative flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-sm py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default @min-[40rem]:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1',
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'text-foreground hover:bg-accent'
