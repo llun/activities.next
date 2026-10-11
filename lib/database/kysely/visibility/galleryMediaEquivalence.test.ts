@@ -251,6 +251,9 @@ describe('galleryMediaScope matches buildGalleryMediaScope', () => {
     // Another actor's public post points at the owner's media.
     await media('foreign-attachment')
     await attach('foreign-attachment', statusIds['other-public'], other)
+    // Another actor's attachment on the owner's public post.
+    await media('foreign-attachment-on-owner-status')
+    await attach('foreign-attachment-on-owner-status', statusIds.public, other)
     // The owner's attachment on another actor's public post.
     await media('owner-attachment-on-other-status')
     await attach('owner-attachment-on-other-status', statusIds['other-public'])
@@ -259,6 +262,12 @@ describe('galleryMediaScope matches buildGalleryMediaScope', () => {
     await attach('no-status', null)
     await media('empty-status')
     await attach('empty-status', '')
+    // A status row of the owner's with that empty id: only the `<> ''`
+    // condition keeps the attachment out.
+    await testDb.db
+      .insertInto('statuses')
+      .values({ id: '', actorId: owner, type: 'Note', content: 'empty' })
+      .execute()
     // The other actor's own posted gallery media.
     await media('other-media', { actorId: other })
     await attach('other-media', statusIds['other-public'], other)
