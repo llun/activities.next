@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -429,6 +430,63 @@ describe('PublicGalleryAlbumView', () => {
       await Promise.resolve()
 
       expect(screen.getByTestId('grid')).not.toHaveTextContent('stale-1')
+    })
+
+    describe('auto-loading', () => {
+      let mockObserverCallback:
+        ((entries: IntersectionObserverEntry[]) => void) | null = null
+
+      beforeEach(() => {
+        mockObserverCallback = null
+        Object.defineProperty(globalThis, 'IntersectionObserver', {
+          writable: true,
+          configurable: true,
+          value: class {
+            constructor(
+              callback: (entries: IntersectionObserverEntry[]) => void
+            ) {
+              mockObserverCallback = callback
+            }
+            observe = vi.fn()
+            unobserve = vi.fn()
+            disconnect = vi.fn()
+          }
+        })
+      })
+
+      afterEach(() => {
+        Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+      })
+
+      it('loads more automatically on observer intersection and uses a centered container', async () => {
+        load.mockResolvedValueOnce(
+          buildAlbumView({
+            items: [buildGalleryItem('p-3')],
+            nextMaxId: null
+          })
+        )
+
+        const { container } = renderView(paged())
+
+        const loadMoreContainer = container.querySelector('.text-center.py-4')
+        expect(loadMoreContainer).toBeInTheDocument()
+
+        expect(mockObserverCallback).not.toBeNull()
+
+        act(() => {
+          mockObserverCallback!([
+            { isIntersecting: true } as IntersectionObserverEntry
+          ])
+        })
+
+        await waitFor(() =>
+          expect(load).toHaveBeenCalledWith(
+            'https://activities.test/users/ann',
+            'a1',
+            expect.objectContaining({ maxId: '5:2' })
+          )
+        )
+      })
     })
   })
 })

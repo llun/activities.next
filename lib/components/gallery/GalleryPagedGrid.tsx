@@ -121,13 +121,12 @@ export const GalleryPagedGrid: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const isMounted = useRef(true)
 
-  const isLoadingRef = useRef(isLoading)
-  useEffect(() => {
-    isLoadingRef.current = isLoading
-  }, [isLoading])
+  const isLoadingRef = useRef(false)
 
   const load = useCallback(
     async (maxId?: string) => {
+      if (isLoadingRef.current) return
+      isLoadingRef.current = true
       setIsLoading(true)
       setError(null)
       try {
@@ -166,7 +165,10 @@ export const GalleryPagedGrid: FC<Props> = ({
             : 'Failed to load photos.'
         )
       } finally {
-        if (isMounted.current) setIsLoading(false)
+        if (isMounted.current) {
+          isLoadingRef.current = false
+          setIsLoading(false)
+        }
       }
     },
     [actorId, subject, category, gearId, show]

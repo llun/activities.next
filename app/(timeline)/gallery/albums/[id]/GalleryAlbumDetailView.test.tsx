@@ -854,4 +854,62 @@ describe('GalleryAlbumDetailView', () => {
       expect(del).not.toHaveBeenCalled()
     })
   })
+
+  describe('auto-loading and presentation', () => {
+    let mockObserverCallback:
+      ((entries: IntersectionObserverEntry[]) => void) | null = null
+
+    beforeEach(() => {
+      mockObserverCallback = null
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        writable: true,
+        configurable: true,
+        value: class {
+          constructor(
+            callback: (entries: IntersectionObserverEntry[]) => void
+          ) {
+            mockObserverCallback = callback
+          }
+          observe = vi.fn()
+          unobserve = vi.fn()
+          disconnect = vi.fn()
+        }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+    })
+
+    it('loads more automatically on observer intersection and uses a centered container', async () => {
+      items.mockResolvedValueOnce({
+        items: [buildGalleryItem('a1-2')],
+        nextMaxId: null
+      })
+
+      const { container } = renderView(
+        buildAlbumDetail({
+          page: { items: [buildGalleryItem('a1-1')], nextMaxId: '90' }
+        })
+      )
+
+      const loadMoreContainer = container.querySelector('.text-center.py-4')
+      expect(loadMoreContainer).toBeInTheDocument()
+
+      expect(mockObserverCallback).not.toBeNull()
+
+      act(() => {
+        mockObserverCallback!([
+          { isIntersecting: true } as IntersectionObserverEntry
+        ])
+      })
+
+      await waitFor(() =>
+        expect(items).toHaveBeenCalledWith(
+          'a1',
+          expect.objectContaining({ maxId: '90' })
+        )
+      )
+    })
+  })
 })
