@@ -2,7 +2,11 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import {
+  AuthCard,
+  AuthCardBody,
+  AuthCardFooter
+} from '@/app/(nosidebar)/AuthCard'
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import {
   isKnownAuthErrorCode,
@@ -90,11 +94,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
       {/* Only an allow-listed code, never merely a token-shaped one: see
           isKnownAuthErrorCode for the phishing case that distinction closes. */}
       {isKnownCode && (
-        <div className="border-t pt-4 text-center">
-          <code className="text-muted-foreground font-mono text-xs">
-            {code}
-          </code>
-        </div>
+        <AuthCardBody>
+          <p className="text-center">
+            <code className="text-muted-foreground font-mono text-xs">
+              {code}
+            </code>
+          </p>
+        </AuthCardBody>
       )}
     </AuthCard>
   )

@@ -1,7 +1,11 @@
 import type { Knex } from 'knex'
 
 import { kyselyFor } from '@/lib/database/kysely'
-import { pastKeyset } from '@/lib/database/kysely/keyset'
+import {
+  type StoredKeysetCursor,
+  pastKeyset,
+  pastStoredKeyset
+} from '@/lib/database/kysely/keyset'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 
@@ -32,6 +36,17 @@ describe('pastKeyset', () => {
         domain: `${id}.example`,
         createdAt: new Date(at),
         updatedAt: new Date(at)
+      }))
+    )
+    // Rows with no createdAt, for pastStoredKeyset. No pastKeyset comparison
+    // can pass them (`createdAt op NULL` is never true).
+    await instance('actor_domain_blocks').insert(
+      ['n1', 'n2'].map((id) => ({
+        id,
+        actorId: 'https://example.com/users/keyset',
+        domain: `${id}.example`,
+        createdAt: null,
+        updatedAt: null
       }))
     )
   })
@@ -82,6 +97,51 @@ describe('pastKeyset', () => {
       .orderBy('id', 'asc')
       .execute()
     expect(found.map((row) => row.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  const storedIds = async (operator: '<' | '>', cursor: StoredKeysetCursor) => {
+    const found = await kyselyFor(instance)
+      .selectFrom('actor_domain_blocks')
+      .select('id')
+      .where((eb) => pastStoredKeyset(eb, cursor, operator, 'id'))
+      .execute()
+    return found.map((row) => row.id).sort()
+  }
+
+  it('pastStoredKeyset with both values is pastKeyset', async () => {
+    expect(
+      await storedIds('>', { createdAt: rows[1].at, tieBreaker: 'b' })
+    ).toEqual(['c', 'd'])
+    expect(
+      await storedIds('<', { createdAt: rows[2].at, tieBreaker: 'c' })
+    ).toEqual(['a', 'b'])
+  })
+
+  it('pastStoredKeyset without a tie-breaker compares createdAt alone', async () => {
+    expect(
+      await storedIds('<', { createdAt: rows[1].at, tieBreaker: null })
+    ).toEqual(['a'])
+    expect(
+      await storedIds('>', { createdAt: rows[1].at, tieBreaker: null })
+    ).toEqual(['d'])
+  })
+
+  it('pastStoredKeyset with a NULL createdAt pages the NULL rows on the tie-breaker', async () => {
+    expect(await storedIds('>', { createdAt: null, tieBreaker: 'n1' })).toEqual(
+      ['n2']
+    )
+    expect(await storedIds('<', { createdAt: null, tieBreaker: 'n2' })).toEqual(
+      ['n1']
+    )
+  })
+
+  it('pastStoredKeyset with neither value matches nothing', async () => {
+    expect(await storedIds('>', { createdAt: null, tieBreaker: null })).toEqual(
+      []
+    )
+    expect(await storedIds('<', { createdAt: null, tieBreaker: null })).toEqual(
+      []
+    )
   })
 
   it('type-checks the tie-breaker column against the queried table', () => {

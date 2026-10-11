@@ -383,7 +383,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
               sits behind the modal overlay while the dialog is open. */}
           {error && <Alert title={error} />}
 
-          <DialogFooter>
+          <DialogFooter separated>
             <Button
               variant="outline"
               onClick={() => handleDialogOpenChange(false)}

@@ -8,10 +8,10 @@ import { ThemeProvider } from '@/lib/components/theme'
 
 import { AppearanceSection } from './AppearanceSection'
 
-const renderSection = (children?: React.ReactNode) =>
+const renderSection = () =>
   render(
     <ThemeProvider>
-      <AppearanceSection>{children}</AppearanceSection>
+      <AppearanceSection />
     </ThemeProvider>
   )
 
@@ -76,13 +76,12 @@ describe('AppearanceSection', () => {
     expect(status).toHaveTextContent('Saved')
   })
 
-  it('describes the theme control with its hint, and renders the page rows beneath it', () => {
-    renderSection(<div>Post line limit row</div>)
+  it('describes the theme control with its hint', () => {
+    renderSection()
 
     expect(
       screen.getByRole('group', { name: 'Theme' })
     ).toHaveAccessibleDescription(/Saved instantly on this device/)
-    expect(screen.getByText('Post line limit row')).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { level: 2, name: 'Appearance' })
     ).toBeInTheDocument()

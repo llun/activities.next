@@ -1,5 +1,6 @@
 // Photo editor configuration: where the browser downloads the subject model
-// (SlimSAM) from, and the origins the CSP must let it reach.
+// (SlimSAM) from, the origins the CSP must let it reach, and the vision model
+// that suggests an AI enhance.
 //
 // This module is imported by the CSP builder, which `proxy.ts` loads in the
 // Edge runtime, so it must stay free of Node APIs and of the logger (pino).
@@ -8,6 +9,7 @@
 
 export const PHOTO_MASK_MODEL_BASE_URL_ENV =
   'ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL'
+export const PHOTO_ENHANCE_MODEL_ENV = 'ACTIVITIES_PHOTO_ENHANCE_MODEL'
 
 // `Xenova/slimsam-77-uniform`, pinned to one revision so the files below can be
 // checked byte for byte.
@@ -51,14 +53,29 @@ export const PHOTO_MASK_MODEL_FILES: PhotoEditorSubjectModel['files'] = {
   }
 }
 
+/** The vision model behind AI enhance: the alt text endpoint and key. */
+export type PhotoEditorEnhanceConfig = {
+  endpoint: string
+  apiKey: string
+  model: string
+}
+
 export type PhotoEditorConfig = {
   /** Null when Select subject is off; the brush works either way. */
   subjectModel: PhotoEditorSubjectModel | null
   /** The origins the browser fetches the model from; empty when off. */
   connectOrigins: string[]
+  /**
+   * Null when AI enhance is off or the alt text endpoint is not configured.
+   * Only set when the caller passes the alt text config (the CSP builder does
+   * not, and does not need it).
+   */
+  enhance: PhotoEditorEnhanceConfig | null
 }
 
-const OFF: PhotoEditorConfig = { subjectModel: null, connectOrigins: [] }
+type ModelConfig = Omit<PhotoEditorConfig, 'enhance'>
+
+const OFF: ModelConfig = { subjectModel: null, connectOrigins: [] }
 
 const withFiles = (baseUrl: string): PhotoEditorSubjectModel => ({
   baseUrl,
@@ -89,20 +106,31 @@ const parseBaseUrl = (raw: string): URL | null => {
 export type GetPhotoEditorConfigOptions = {
   /** Called with a message when the configured value is invalid. */
   onInvalid?: (message: string) => void
+  /**
+   * The alt text vision endpoint (`getAltTextConfig()?.altText`) that AI
+   * enhance reuses. Without it, `enhance` is null.
+   */
+  altText?: PhotoEditorEnhanceConfig | null
 }
 
-/**
- * Reads `ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL` at runtime.
- *
- * - unset or blank: the pinned Hugging Face revision;
- * - `off`: no subject model (Select subject is hidden; the brush still works);
- * - an https URL without credentials that ends with `/`: that server, which
- *   must serve the same files;
- * - anything else: treated as `off`, and `onInvalid` is told why.
- */
-export const getPhotoEditorConfig = ({
-  onInvalid
-}: GetPhotoEditorConfigOptions = {}): PhotoEditorConfig => {
+// The same derivation as `lib/config/gallery.ts` uses for subject suggestions:
+// the alt text endpoint and key, a model override, and `off`.
+const getEnhanceConfig = (
+  altText: PhotoEditorEnhanceConfig | null | undefined
+): PhotoEditorEnhanceConfig | null => {
+  const override = process.env.ACTIVITIES_PHOTO_ENHANCE_MODEL?.trim()
+  if (!altText || override?.toLowerCase() === 'off') return null
+  return {
+    endpoint: altText.endpoint,
+    apiKey: altText.apiKey,
+    model: override || altText.model
+  }
+}
+
+// The subject model: see `getPhotoEditorConfig` for the accepted values.
+const getModelConfig = (
+  onInvalid: GetPhotoEditorConfigOptions['onInvalid']
+): ModelConfig => {
   const raw = process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL?.trim() ?? ''
   if (!raw) {
     return {
@@ -128,3 +156,27 @@ export const getPhotoEditorConfig = ({
   }
   return { subjectModel: withFiles(url.href), connectOrigins: [url.origin] }
 }
+
+/**
+ * Reads `ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL` and `ACTIVITIES_PHOTO_ENHANCE_MODEL`
+ * at runtime.
+ *
+ * AI enhance (`enhance`): the alt text vision endpoint and key, with
+ * `ACTIVITIES_PHOTO_ENHANCE_MODEL` overriding the model and `off` disabling
+ * it; null when there is no alt text configuration.
+ *
+ * Select subject (`subjectModel`):
+ *
+ * - unset or blank: the pinned Hugging Face revision;
+ * - `off`: no subject model (Select subject is hidden; the brush still works);
+ * - an https URL without credentials that ends with `/`: that server, which
+ *   must serve the same files;
+ * - anything else: treated as `off`, and `onInvalid` is told why.
+ */
+export const getPhotoEditorConfig = ({
+  onInvalid,
+  altText
+}: GetPhotoEditorConfigOptions = {}): PhotoEditorConfig => ({
+  ...getModelConfig(onInvalid),
+  enhance: getEnhanceConfig(altText)
+})

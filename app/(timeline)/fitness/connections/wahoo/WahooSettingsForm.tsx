@@ -253,7 +253,7 @@ export const WahooSettingsForm = () => {
           )}
         </div>
 
-        <div className="space-y-3 rounded-md border p-4">
+        <div className="space-y-3">
           <h3 className="font-medium">Wahoo application URLs</h3>
           <div className="space-y-1">
             <Label htmlFor="wahoo-callback-url">Callback URL</Label>
@@ -295,7 +295,7 @@ export const WahooSettingsForm = () => {
           </p>
         ) : null}
         {settings && (
-          <div className="space-y-2 rounded-md border p-4 text-sm">
+          <div className="space-y-2 text-sm">
             <h3 className="font-medium">Connection activity</h3>
             <p>
               Last webhook:{' '}

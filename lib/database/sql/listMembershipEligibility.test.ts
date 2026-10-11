@@ -1,6 +1,6 @@
+import { decreaseCounterValue } from '@/lib/database/kysely/counter'
+import { selectFollowTargetActorIds } from '@/lib/database/kysely/visibility/followTarget'
 import { createLocalAccount } from '@/lib/database/sql/listTestHelpers'
-import { decreaseCounterValue } from '@/lib/database/sql/utils/counter'
-import { selectFollowTargetActorIds } from '@/lib/database/sql/utils/followTargetActorIds'
 import { isSQLiteClient } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
@@ -18,11 +18,11 @@ import { isDirectStatus } from '@/lib/utils/directStatus'
 // Pass-throughs, so a race test can hold one side of a race at a known point
 // (mockImplementationOnce) while every other call runs the real helper.
 vi.mock(
-  '@/lib/database/sql/utils/followTargetActorIds',
+  '@/lib/database/kysely/visibility/followTarget',
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import('@/lib/database/sql/utils/followTargetActorIds')
+        typeof import('@/lib/database/kysely/visibility/followTarget')
       >()
     return {
       ...actual,
@@ -30,9 +30,9 @@ vi.mock(
     }
   }
 )
-vi.mock('@/lib/database/sql/utils/counter', async (importOriginal) => {
+vi.mock('@/lib/database/kysely/counter', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/lib/database/sql/utils/counter')>()
+    await importOriginal<typeof import('@/lib/database/kysely/counter')>()
   return { ...actual, decreaseCounterValue: vi.fn(actual.decreaseCounterValue) }
 })
 
@@ -943,8 +943,8 @@ describe('addListAccounts with requireFollowOrRequest', () => {
 
       // Hold the add right after its relationship check has run.
       const { selectFollowTargetActorIds: realSelect } = await vi.importActual<
-        typeof import('@/lib/database/sql/utils/followTargetActorIds')
-      >('@/lib/database/sql/utils/followTargetActorIds')
+        typeof import('@/lib/database/kysely/visibility/followTarget')
+      >('@/lib/database/kysely/visibility/followTarget')
       const checked = createDeferred<void>()
       const resume = createDeferred<void>()
       vi.mocked(selectFollowTargetActorIds).mockImplementationOnce(
@@ -993,8 +993,8 @@ describe('addListAccounts with requireFollowOrRequest', () => {
 
     // Hold the undo after it has updated the follow row, before it commits.
     const { decreaseCounterValue: realDecrease } = await vi.importActual<
-      typeof import('@/lib/database/sql/utils/counter')
-    >('@/lib/database/sql/utils/counter')
+      typeof import('@/lib/database/kysely/counter')
+    >('@/lib/database/kysely/counter')
     const updated = createDeferred<void>()
     const resume = createDeferred<void>()
     vi.mocked(decreaseCounterValue).mockImplementationOnce(async (...args) => {

@@ -141,6 +141,65 @@ const measure = () => {
   return found
 }
 
+// The rows of a form (`FormRow` and every wrapper of it: `SettingsField`,
+// `ControlRow`, `ToggleRow`, `SelectRow`, `ImageUploadField`, `NumberField`)
+// belong in `Frame form`, which spaces them (and pads them to 16px from the
+// edge) instead of ruling them. `Frame divided` is for lists. This reads each
+// `<Frame ...>` opening tag (balancing `{}` so a `footer={...}` with `>`
+// inside does not end it), finds its matching `</Frame>` and reports a frame
+// whose body holds a form row and that is not `form`: a `divided` one (a rule
+// between every field) or a plain one (rows 10px from the edge). A `<Frame form
+// divided>` is fine: `form` wins over `divided` (see `Frame`), so it is not
+// flagged. Nested frames are counted by depth.
+const FORM_ROW_TAG =
+  /<(?:FormRow|SettingsField|ControlRow|ToggleRow|SelectRow|ImageUploadField|NumberField)\b/
+const frameOpenings = (source: string) => {
+  const found: {
+    form: boolean
+    divided: boolean
+    selfClosing: boolean
+    end: number
+  }[] = []
+  for (const match of source.matchAll(/<Frame(?=[\s>/])/g)) {
+    let depth = 0
+    let i = match.index + match[0].length
+    for (; i < source.length; i++) {
+      const char = source[i]
+      if (char === '{') depth++
+      else if (char === '}') depth--
+      else if (char === '>' && depth === 0) break
+    }
+    const tag = source.slice(match.index, i)
+    const attributes = tag.replace(/\{[\s\S]*?\}/g, '')
+    found.push({
+      form: /\sform\b/.test(attributes),
+      divided: /\sdivided\b/.test(attributes),
+      selfClosing: source[i - 1] === '/',
+      end: i + 1
+    })
+  }
+  return found
+}
+const formRowsOutsideFormFrames = (source: string) => {
+  let hits = 0
+  const openings = frameOpenings(source)
+  const tokens = [...source.matchAll(/<Frame(?=[\s>/])|<\/Frame>/g)]
+  for (const opening of openings) {
+    if (opening.form || opening.selfClosing) continue
+    let depth = 1
+    for (const token of tokens) {
+      if (token.index < opening.end) continue
+      depth += token[0] === '</Frame>' ? -1 : 1
+      if (depth === 0) {
+        const body = source.slice(opening.end, token.index)
+        if (FORM_ROW_TAG.test(body)) hits += 1
+        break
+      }
+    }
+  }
+  return hits
+}
+
 const found = measure()
 
 describe('surface kit usage', () => {
@@ -162,6 +221,54 @@ describe('surface kit usage', () => {
     expect(
       found.loadingText,
       'Do not write "Loading…" on screen. Draw the final layout with `SkeletonBar` / `SkeletonRows` from `@/lib/components/surface` (a `loading.tsx` for a route), and keep a spinner for inside a button only. Screen readers still get an `sr-only` "Loading".'
+    ).toBe(0)
+  })
+
+  it('has no form row inside a Frame that is not a Frame form', () => {
+    const offenders = [...SCANNED_DIRS.flatMap(collectSources)].filter(
+      (file) => formRowsOutsideFormFrames(read(file)) > 0
+    )
+    expect(
+      offenders,
+      'Form rows (`FormRow`, `SettingsField`, `ToggleRow`, ...) in a `Frame divided` get a hairline between every field, and in a plain `Frame` sit 10px from the edge. A form is one box without rules: use `<Frame form>` (with `FormGroup`s for several groups) and keep `divided` for lists. See "Forms." in docs/architecture.md.'
+    ).toEqual([])
+  })
+
+  it('recognises a form row inside a frame that is not a form frame', () => {
+    const bad =
+      '<Frame divided footer={<SaveBar a={() => 1} />}><FormRow label="a" /></Frame>'
+    const list =
+      '<Frame divided><Row /></Frame><Frame form><FormRow label="a" /></Frame>'
+    const nested = '<Frame divided><Frame form><FormRow /></Frame></Frame>'
+    expect(formRowsOutsideFormFrames(bad)).toBe(1)
+    expect(formRowsOutsideFormFrames(list)).toBe(0)
+    expect(
+      formRowsOutsideFormFrames('<Frame divided><SettingsField /></Frame>')
+    ).toBe(1)
+    // A nested form frame inside a list frame still sits in the list's body.
+    expect(formRowsOutsideFormFrames(nested)).toBe(1)
+    // Every FormRow wrapper counts.
+    for (const row of [
+      'ControlRow',
+      'ToggleRow',
+      'SelectRow',
+      'ImageUploadField',
+      'NumberField'
+    ]) {
+      expect(
+        formRowsOutsideFormFrames(`<Frame divided><${row} /></Frame>`),
+        row
+      ).toBe(1)
+    }
+    // A plain frame around rows is flagged too; `form` wins over `divided`.
+    expect(formRowsOutsideFormFrames('<Frame><FormRow /></Frame>')).toBe(1)
+    expect(
+      formRowsOutsideFormFrames('<Frame form divided><FormRow /></Frame>')
+    ).toBe(0)
+    expect(
+      formRowsOutsideFormFrames(
+        '<Frame divided footer={<A form />}><Row /></Frame>'
+      )
     ).toBe(0)
   })
 

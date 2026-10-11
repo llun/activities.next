@@ -524,6 +524,10 @@ const EXPECTED: Array<{
     scopes: ['write', 'write:media']
   },
   {
+    module: '@/app/api/v1/media/[id]/edit/enhance/route',
+    scopes: ['write', 'write:media']
+  },
+  {
     module: '@/app/api/v1/media/[id]/edit/masks/[maskId]/route',
     scopes: ['write', 'write:media']
   },

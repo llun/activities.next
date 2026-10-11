@@ -7,6 +7,17 @@ import { render, screen } from '@testing-library/react'
 import { FormRow, formRowHintId, formRowLabelId } from './FormRow'
 
 describe('FormRow', () => {
+  it('pads its row px-4 py-2.5, so two rows sit apart with no rule', () => {
+    const { container } = render(
+      <FormRow label="Display name" htmlFor="name">
+        <input id="name" />
+      </FormRow>
+    )
+    const row = container.querySelector('[data-slot="form-row"]')
+    expect(row).toHaveClass('px-4', 'py-2.5')
+    expect(row).not.toHaveClass('py-4')
+  })
+
   it('ties the label to the control', () => {
     render(
       <FormRow label="Display name" htmlFor="name">

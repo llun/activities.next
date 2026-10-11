@@ -100,6 +100,7 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
   return (
     <div className="space-y-3">
       <Button
+        type="button"
         variant="outline"
         className="w-full"
         onClick={handlePasskeySignin}

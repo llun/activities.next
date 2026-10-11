@@ -251,7 +251,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
       >
         <form onSubmit={handleCreate} className="space-y-3">
           <Frame
-            divided
+            form
             footer={
               <div className="flex justify-end">
                 <Button

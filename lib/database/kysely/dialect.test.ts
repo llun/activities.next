@@ -2,6 +2,7 @@ import knex from 'knex'
 
 import { kyselyFor } from '@/lib/database/kysely'
 import {
+  forShare,
   forUpdate,
   fullTextMatch,
   getDialectName,
@@ -40,6 +41,25 @@ describe('forUpdate', () => {
       new RegExp(`from "likes"${item.suffix}$`)
     )
   })
+})
+
+describe('forShare', () => {
+  it.each([
+    { name: 'sqlite', instance: sqlite, suffix: '' },
+    { name: 'postgres', instance: postgres, suffix: ' for share' }
+  ])(
+    'takes a share lock only where the backend supports it ($name)',
+    (item) => {
+      const db = kyselyFor(item.instance)
+      const query = forShare(
+        db,
+        db.selectFrom('follows').select('targetActorId')
+      )
+      expect(query.compile().sql).toMatch(
+        new RegExp(`from "follows"${item.suffix}$`)
+      )
+    }
+  )
 })
 
 describe('timestampValue', () => {

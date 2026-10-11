@@ -58,4 +58,31 @@ describe('SectionSkeleton', () => {
       withTitle.querySelectorAll('[data-slot="skeleton-bar"]').length
     )
   })
+
+  it('draws a list divided with py-4 rows, and a form with no rules and py-2.5 rows', () => {
+    const list = render(<SectionSkeleton sections={[2]} />).container
+    expect(list.querySelector('.divide-y')).not.toBeNull()
+    expect(list.querySelector('.py-4')).not.toBeNull()
+
+    const form = render(<SectionSkeleton sections={[2]} form />).container
+    expect(form.querySelector('.divide-y')).toBeNull()
+    expect(form.querySelector('.py-1\\.5')).not.toBeNull()
+    expect(form.querySelector('.py-2\\.5')).not.toBeNull()
+    expect(form.querySelector('.py-4')).toBeNull()
+  })
+
+  it('draws an array entry as one box of groups with a footer bar', () => {
+    const { container } = render(
+      <SectionSkeleton sections={[1, [2, 3], 1]} form />
+    )
+
+    const frames = container.querySelectorAll('[data-slot="frame"]')
+    // Appearance, the grouped form box, the danger zone.
+    expect(frames).toHaveLength(3)
+    const box = frames[1]
+    expect(box.querySelector('.divide-y')).toBeNull()
+    expect(box.querySelector('[data-slot="frame-footer"]')).not.toBeNull()
+    // Five rows' worth of control bars (w-24) plus the footer button.
+    expect(box.querySelectorAll('.h-9')).toHaveLength(6)
+  })
 })

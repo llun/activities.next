@@ -984,6 +984,26 @@ describe('next config security hardening', () => {
   })
 })
 
+describe('photo enhance variables', () => {
+  it.each(['x', 'off'])(
+    'do not change the CSP or the security headers (%s)',
+    (value) => {
+      // The enhance request is made by the server, so the browser's policy has
+      // nothing to learn.
+      const withEnhanceModel = withEnv(
+        { ACTIVITIES_PHOTO_ENHANCE_MODEL: value },
+        () => getSecurityHeaders()
+      )
+      const withoutEnhanceModel = withEnv(
+        { ACTIVITIES_PHOTO_ENHANCE_MODEL: undefined },
+        () => getSecurityHeaders()
+      )
+
+      expect(withEnhanceModel).toEqual(withoutEnhanceModel)
+    }
+  )
+})
+
 describe('gallery lookup variables', () => {
   it('do not change the CSP or the security headers', () => {
     // Every lookup is server-side, so the browser's policy has nothing to learn.

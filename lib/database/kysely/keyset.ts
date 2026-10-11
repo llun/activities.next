@@ -1,4 +1,10 @@
-import { type ExpressionBuilder, type StringReference, sql } from 'kysely'
+import {
+  type Expression,
+  type ExpressionBuilder,
+  type SqlBool,
+  type StringReference,
+  sql
+} from 'kysely'
 
 import type { DB } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
@@ -39,5 +45,51 @@ export const pastKeyset = <TB extends KeysetTable>(
       eb(createdAtRef, '=', createdAt),
       eb(tieColumn, operator, cursor.tieBreaker)
     ])
+  ])
+}
+
+// A keyset cursor read back from a row: its createdAt may be NULL (the
+// columns allow it, though every writer sets one), and a cursor resolved from
+// another table may have no tie-breaker.
+export type StoredKeysetCursor = {
+  createdAt: number | Date | null
+  tieBreaker: string | number | null
+}
+
+/**
+ * pastKeyset for a cursor read back from a row, compared the way the Knex
+ * mixins compared one:
+ * - with both values, pastKeyset;
+ * - with no tie-breaker, createdAt alone;
+ * - with a NULL createdAt, Knex bound `createdAt op NULL` (never true) and
+ *   compiled the tie arm's two-argument `where('createdAt', null)` to
+ *   `createdAt IS NULL`, so only NULL-createdAt rows past the tie-breaker
+ *   follow it, and nothing follows a cursor with neither value.
+ */
+export const pastStoredKeyset = <TB extends KeysetTable>(
+  eb: ExpressionBuilder<DB, TB>,
+  cursor: StoredKeysetCursor,
+  operator: '<' | '>',
+  tieBreakerColumn: NoInfer<StringReference<DB, TB>>,
+  createdAtColumn?: NoInfer<StringReference<DB, TB>>
+): Expression<SqlBool> => {
+  const { createdAt, tieBreaker } = cursor
+  if (createdAt !== null && tieBreaker !== null) {
+    return pastKeyset(
+      eb,
+      { createdAt, tieBreaker },
+      operator,
+      tieBreakerColumn,
+      createdAtColumn
+    )
+  }
+  const createdAtRef = sql.ref(createdAtColumn ?? 'createdAt')
+  if (createdAt !== null) {
+    return eb(createdAtRef, operator, timestampValue(createdAt))
+  }
+  if (tieBreaker === null) return sql<boolean>`1 = 0`
+  return eb.and([
+    eb(createdAtRef, 'is', null),
+    eb(sql.ref(tieBreakerColumn), operator, tieBreaker)
   ])
 }

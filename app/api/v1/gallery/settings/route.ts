@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { getConfig, getPhotoEditorConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
 import { getGalleryLookupAvailability } from '@/lib/services/gallery/galleryLookupAvailability'
@@ -15,11 +15,16 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const toEntity = async (
   database: Database,
   settings: GallerySettings
-): Promise<GallerySettingsEntity> => ({
-  ...settings,
-  altTextAvailable: Boolean(getConfig().altText),
-  ...(await getGalleryLookupAvailability(database))
-})
+): Promise<GallerySettingsEntity> => {
+  const { enhance } = getPhotoEditorConfig()
+  return {
+    ...settings,
+    altTextAvailable: Boolean(getConfig().altText),
+    photoEnhanceAvailable: enhance !== null,
+    photoEnhanceModel: enhance?.model ?? null,
+    ...(await getGalleryLookupAvailability(database))
+  }
+}
 
 export const GET = traceApiRoute(
   'getGallerySettings',

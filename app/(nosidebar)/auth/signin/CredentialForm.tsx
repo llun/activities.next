@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FC, FormEvent, useRef, useState } from 'react'
+import { FC, FormEvent, ReactNode, useRef, useState } from 'react'
 
+import { AuthCardActions, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
-import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { authClient } from '@/lib/services/auth/auth-client'
@@ -16,6 +16,11 @@ import { resolveSignInRedirect } from './resolveSignInRedirect'
 
 interface Props {
   providerName: string
+  /**
+   * Rendered in the card's action band under the submit button: the passkey
+   * button and the "Don't have an account? Sign up" line.
+   */
+  actions?: ReactNode
 }
 
 const requiresTwoFactor = (
@@ -27,7 +32,7 @@ const requiresTwoFactor = (
   return Reflect.get(data, 'twoFactorRedirect') === true
 }
 
-export const CredentialForm: FC<Props> = ({ providerName }) => {
+export const CredentialForm: FC<Props> = ({ providerName, actions }) => {
   const [error, setError] = useState<string>()
   const [fieldError, setFieldError] = useState<{
     field: 'email' | 'password'
@@ -103,9 +108,9 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
     // defaults to GET — serializing the email and password into the URL query
     // string (leaking them into history, logs, and Referer). POST keeps the
     // credentials in the request body in every case.
-    <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <Frame divided>
-        <FormRow stacked label="Email" htmlFor="inputEmail">
+    <form onSubmit={handleSubmit} method="post">
+      <AuthCardBody>
+        <FormRow stacked className="p-0" label="Email" htmlFor="inputEmail">
           <Input
             ref={emailInputRef}
             name="email"
@@ -126,7 +131,12 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
             </p>
           )}
         </FormRow>
-        <FormRow stacked label="Password" htmlFor="inputPassword">
+        <FormRow
+          stacked
+          className="p-0"
+          label="Password"
+          htmlFor="inputPassword"
+        >
           <Input
             ref={passwordInputRef}
             name="password"
@@ -149,21 +159,24 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
             </p>
           )}
         </FormRow>
-      </Frame>
-      <div className="text-right">
-        <Link
-          href="/auth/forgot-password"
-          className="text-sm text-primary-text hover:underline"
-        >
-          Forgot password?
-        </Link>
-      </div>
+        <div className="text-right">
+          <Link
+            href="/auth/forgot-password"
+            className="text-sm text-primary-text hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
-      {error && <Alert title={error} />}
+        {error && <Alert title={error} />}
+      </AuthCardBody>
 
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? 'Signing in…' : `Sign in with ${providerName}`}
-      </Button>
+      <AuthCardActions>
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? 'Signing in…' : `Sign in with ${providerName}`}
+        </Button>
+        {actions}
+      </AuthCardActions>
     </form>
   )
 }

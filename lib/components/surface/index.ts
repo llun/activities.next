@@ -7,6 +7,7 @@ export {
   formRowLabelId
 } from './FormRow'
 export { Frame } from './Frame'
+export { FormGroup } from './FormGroup'
 export {
   FRAMED_LIST_ITEM_CLASS,
   FramedList,

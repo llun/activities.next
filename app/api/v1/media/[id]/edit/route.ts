@@ -151,6 +151,7 @@ export const GET = traceApiRoute(
           database,
           mediaId: id,
           accountId: account.id,
+          actorId: currentActor.id,
           host: headerHost(req.headers)
         })
       )

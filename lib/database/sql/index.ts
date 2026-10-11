@@ -33,6 +33,8 @@ import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
 import type { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
 import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
+import { followQueries } from '@/lib/database/domains/follow/queries'
+import type { FollowDatabase } from '@/lib/database/domains/follow/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
 import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
 import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
@@ -47,6 +49,8 @@ import { likeQueries } from '@/lib/database/domains/like/queries'
 import type { LikeDatabase } from '@/lib/database/domains/like/types'
 import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
 import type { LinkPreviewDatabase } from '@/lib/database/domains/linkPreview/types'
+import { createListQueries } from '@/lib/database/domains/list/queries'
+import type { ListDatabase } from '@/lib/database/domains/list/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
 import { mediaQueries } from '@/lib/database/domains/media/queries'
@@ -109,13 +113,11 @@ import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { GallerySQLDatabaseMixin } from '@/lib/database/sql/gallery'
 import { GalleryAlbumSuggestionSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbumSuggestions'
 import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
 import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
-import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
@@ -134,7 +136,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     accountNoteQueries
   )
   // deleteActorData is the actor domain's last Knex method; getActor is the
-  // pure row mapper the follow mixin uses inside its own transaction.
+  // pure row mapper (lib/database/domains/actor/rows.ts), kept on the facade
+  // only for the facade's own tests.
   const actorDatabase: SQLActorDatabase = {
     ...bindDb(kysely, actorQueries),
     getActor,
@@ -227,7 +230,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     serverSettingQueries
   )
-  const followerDatabase = FollowerSQLDatabaseMixin(database, actorDatabase)
+  const followerDatabase: FollowDatabase = bindDb(kysely, followQueries)
   const followedTagDatabase: FollowedTagDatabase = bindDb(
     kysely,
     followedTagQueries
@@ -295,14 +298,15 @@ export const getSQLDatabase = (database: Knex): Database => {
     statusReactionDatabase,
     linkPreviewDatabase
   )
-  const listDatabase = ListSQLDatabaseMixin(
-    database,
-    (actorIds) => actorDatabase.getMastodonActors(actorIds),
-    // currentActorId hydrates the viewer's action state. getListTimeline
-    // already enforces visibility on its own query (before LIMIT), so no
-    // visibleToActorId is needed here.
-    (statusIds, currentActorId) =>
+  // The list timeline hydrates through the Knex status facade, outside this
+  // domain's transactions, until status is ported. currentActorId hydrates the
+  // viewer's action state. getListTimeline already enforces visibility on its
+  // own query (before LIMIT), so no visibleToActorId is needed here.
+  const listDatabase: ListDatabase = bindDb(
+    kysely,
+    createListQueries((statusIds, currentActorId) =>
       statusDatabase.getStatusesByIds({ statusIds, currentActorId })
+    )
   )
   const collectionDatabase = CollectionSQLDatabaseMixin(
     database,

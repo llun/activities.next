@@ -115,7 +115,8 @@ describe('Config', () => {
 
       expect(getPhotoEditorConfig()).toEqual({
         subjectModel: null,
-        connectOrigins: []
+        connectOrigins: [],
+        enhance: null
       })
       getPhotoEditorConfig()
 
@@ -123,6 +124,49 @@ describe('Config', () => {
       expect(logger.warn).toHaveBeenCalledWith({
         message: expect.stringContaining('ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL')
       })
+    })
+
+    it('derives AI enhance from the alt text environment on every call', async () => {
+      const { getPhotoEditorConfig } = await import('./index')
+      for (const key of [
+        'ACTIVITIES_ALT_TEXT_ENDPOINT',
+        'ACTIVITIES_ALT_TEXT_API_KEY',
+        'ACTIVITIES_ALT_TEXT_MODEL',
+        'ACTIVITIES_PHOTO_ENHANCE_MODEL'
+      ]) {
+        delete process.env[key]
+      }
+      expect(getPhotoEditorConfig().enhance).toBeNull()
+
+      process.env.ACTIVITIES_ALT_TEXT_ENDPOINT = 'https://alt.example.com/v1'
+      process.env.ACTIVITIES_ALT_TEXT_API_KEY = 'sk-test'
+      process.env.ACTIVITIES_ALT_TEXT_MODEL = 'alt-model'
+      expect(getPhotoEditorConfig().enhance).toEqual({
+        endpoint: 'https://alt.example.com/v1',
+        apiKey: 'sk-test',
+        model: 'alt-model'
+      })
+
+      process.env.ACTIVITIES_PHOTO_ENHANCE_MODEL = 'enhance-model'
+      expect(getPhotoEditorConfig().enhance?.model).toBe('enhance-model')
+
+      process.env.ACTIVITIES_PHOTO_ENHANCE_MODEL = 'off'
+      expect(getPhotoEditorConfig().enhance).toBeNull()
+    })
+
+    it('does not repeat the partial alt text warning on every call', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPhotoEditorConfig } = await import('./index')
+      delete process.env.NEXT_PHASE
+      delete process.env.ACTIVITIES_ALT_TEXT_API_KEY
+      delete process.env.ACTIVITIES_ALT_TEXT_MODEL
+      process.env.ACTIVITIES_ALT_TEXT_ENDPOINT = 'https://alt.example.com/v1'
+
+      for (let call = 0; call < 5; call++) {
+        expect(getPhotoEditorConfig().enhance).toBeNull()
+      }
+
+      expect(logger.warn).not.toHaveBeenCalled()
     })
 
     it('stays quiet during the production build', async () => {

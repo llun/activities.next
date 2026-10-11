@@ -36,6 +36,11 @@ const AUTHORS_ALIAS = 'list_eligible_authors'
 // other filters and runs before LIMIT; the recipients lookup is served by
 // recipients_status_type_actor_idx (statusId leading) and the author by the
 // actors_id_unique index.
+//
+// The list domain now uses the Kysely twin, listEligibleStatus
+// (lib/database/kysely/visibility/listEligible.ts). This Knex form is kept
+// only as the reference visibilityEquivalence.test.ts checks the twin
+// against: change both together.
 export const applyListEligibleStatusFilter = ({
   database,
   query

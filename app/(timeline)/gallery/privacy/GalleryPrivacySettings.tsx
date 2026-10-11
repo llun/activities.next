@@ -205,7 +205,7 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
         title="Place"
         description="How precisely a photo’s place is shown to others. Only you ever see the exact coordinates."
       >
-        <Frame divided>
+        <Frame form>
           <SelectRow
             id="gallery-default-place-precision"
             label="Default precision for new media"
@@ -268,7 +268,7 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
       </Section>
 
       <Section icon={Camera} title="Gear and exposure">
-        <Frame divided>
+        <Frame form>
           <ToggleRow
             id="gallery-show-gear"
             label="Show gear and exposure on my media"
@@ -282,7 +282,7 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
       </Section>
 
       <Section icon={Images} title="Gallery">
-        <Frame divided>
+        <Frame form>
           <SelectRow
             id="gallery-default"
             label="Add new photos and videos to my gallery"

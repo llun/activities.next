@@ -78,6 +78,7 @@ export const POST = traceApiRoute(
       const result = await revertMediaEdit({
         database,
         accountId: account.id,
+        actorId: currentActor.id,
         mediaId: id,
         host: headerHost(req.headers),
         baseVersion: parsed.data.base_version,

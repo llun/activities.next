@@ -98,7 +98,8 @@ export const UpdateGallerySettingsRequest = z.object({
     .min(MIN_SUBJECT_CONFIDENCE_THRESHOLD)
     .max(MAX_SUBJECT_CONFIDENCE_THRESHOLD)
     .multipleOf(SUBJECT_CONFIDENCE_THRESHOLD_STEP)
-    .optional()
+    .optional(),
+  photoEnhance: z.boolean().optional()
 })
 export type UpdateGallerySettingsRequest = z.infer<
   typeof UpdateGallerySettingsRequest
