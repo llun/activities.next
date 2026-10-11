@@ -134,7 +134,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     accountNoteQueries
   )
   // deleteActorData is the actor domain's last Knex method; getActor is the
-  // pure row mapper (lib/database/domains/actor/rows.ts).
+  // pure row mapper (lib/database/domains/actor/rows.ts), kept on the facade
+  // only for the facade's own tests.
   const actorDatabase: SQLActorDatabase = {
     ...bindDb(kysely, actorQueries),
     getActor,

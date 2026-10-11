@@ -717,6 +717,60 @@ describe('addListAccounts', () => {
     ).toEqual({ unrelatedActorIds: [] })
     expect(await membersOf(listId)).toHaveLength(3)
   })
+
+  it('backfills a member’s posts that have no createdAt, and writes their feed rows without one', async () => {
+    const prefix = nextPrefix()
+    const owner = actorIn('home.test', `${prefix}-owner`)
+    const member = actorIn('m.test', `${prefix}-member`)
+    const listId = `${prefix}-list`
+    const undated: string[] = []
+    for (const number of [1, 2, 3]) {
+      undated.push(
+        await seedStatus({
+          id: `${member}/statuses/n${number}`,
+          actorId: member,
+          createdAt: null
+        })
+      )
+    }
+    const dated = await seedStatus({
+      id: `${member}/statuses/d1`,
+      actorId: member,
+      createdAt: BASE
+    })
+
+    // The old backfill threw a TypeError on the first such post and rolled the
+    // whole call back, the membership included.
+    expect(
+      await addListAccounts(db, {
+        listId,
+        actorId: owner,
+        targetActorIds: [member]
+      })
+    ).toEqual({ unrelatedActorIds: [] })
+    expect(await membersOf(listId)).toEqual([`${owner}>${member}`])
+
+    // The backfill cursor follows what Knex compiled. SQLite sorts NULL last
+    // under DESC: the first page is the dated post and n3, and the cursor
+    // (NULL, n3) goes on through n2 and n1, so all four are written.
+    // PostgreSQL sorts NULL first: the first page is n3 and n2, and the cursor
+    // (NULL, n2) only continues through NULL rows, so n1 is the last and the
+    // dated post is never reached.
+    const written = testDb.backend === 'pg' ? undated : [...undated, dated]
+    expect(await feedOf(owner)).toEqual(
+      written.map((id) => `${listTimelineKey(listId)}>${id}`).sort()
+    )
+    // A NULL stays NULL in the feed row, not 1970.
+    const rows = await db
+      .selectFrom('timelines')
+      .select(['statusId', 'createdAt'])
+      .where('actorId', '=', owner)
+      .execute()
+    expect(rows).toHaveLength(written.length)
+    for (const row of rows) {
+      expect(row.createdAt).toBe(row.statusId === dated ? BASE : null)
+    }
+  })
 })
 
 describe('backfillListTimelineForMembers', () => {
@@ -809,6 +863,122 @@ describe('backfillListTimelineForMembers', () => {
     })
   })
 
+  it('keeps the owner’s newest posts when their ids sort against time', async () => {
+    const prefix = nextPrefix()
+    const owner = actorIn('home.test', `${prefix}-owner`)
+    const listId = `${prefix}-list`
+    // Four posts, the oldest with the highest id (as with ids from another
+    // server): the cap of 3 keeps the three newest, o3 to o1, only if the
+    // createdAt sort comes before the id sort.
+    const posts: string[] = []
+    for (let index = 0; index < 4; index++) {
+      posts.push(
+        await seedStatus({
+          id: `${owner}/statuses/o${4 - index}`,
+          actorId: owner,
+          createdAt: BASE + (index + 1) * 1000
+        })
+      )
+    }
+    await backfillListTimelineForMembers(db, {
+      listId,
+      ownerId: owner,
+      targetActorIds: [owner]
+    })
+    expect(await feedOf(owner)).toEqual(
+      posts
+        .slice(1)
+        .map((id) => `${listTimelineKey(listId)}>${id}`)
+        .sort()
+    )
+  })
+
+  it('keeps the owner’s highest ids among posts that share a createdAt, written out of id order', async () => {
+    const prefix = nextPrefix()
+    const owner = actorIn('home.test', `${prefix}-owner`)
+    const listId = `${prefix}-list`
+    // Four posts on one timestamp, inserted 2, 4, 1, 3: the cap of 3 keeps
+    // ids 4, 3 and 2 only if the id sort breaks the tie. The database's own
+    // scan order (insertion order, or its reverse) would keep id 1.
+    const posts: Record<number, string> = {}
+    for (const number of [2, 4, 1, 3]) {
+      posts[number] = await seedStatus({
+        id: `${owner}/statuses/q${number}`,
+        actorId: owner,
+        createdAt: BASE + 5000
+      })
+    }
+    await backfillListTimelineForMembers(db, {
+      listId,
+      ownerId: owner,
+      targetActorIds: [owner]
+    })
+    expect(await feedOf(owner)).toEqual(
+      [posts[4], posts[3], posts[2]]
+        .map((id) => `${listTimelineKey(listId)}>${id}`)
+        .sort()
+    )
+  })
+
+  it('keeps a member’s newest posts across pages when their ids sort against time', async () => {
+    const prefix = nextPrefix()
+    const owner = actorIn('home.test', `${prefix}-owner`)
+    const member = actorIn('m.test', `${prefix}-member`)
+    const listId = `${prefix}-list`
+    // Seven posts, the oldest with the highest id: the cap of 5 keeps the five
+    // newest, s5 to s1, only if the createdAt sort comes before the id sort.
+    const posts: string[] = []
+    for (let index = 0; index < 7; index++) {
+      posts.push(
+        await seedStatus({
+          id: `${member}/statuses/s${7 - index}`,
+          actorId: member,
+          createdAt: BASE + (index + 1) * 1000
+        })
+      )
+    }
+    await backfillListTimelineForMembers(db, {
+      listId,
+      ownerId: owner,
+      targetActorIds: [member]
+    })
+    expect(await feedOf(owner)).toEqual(
+      posts
+        .slice(2)
+        .map((id) => `${listTimelineKey(listId)}>${id}`)
+        .sort()
+    )
+  })
+
+  it('pages through a member’s posts that share a createdAt, written out of id order', async () => {
+    const prefix = nextPrefix()
+    const owner = actorIn('home.test', `${prefix}-owner`)
+    const member = actorIn('m.test', `${prefix}-member`)
+    const listId = `${prefix}-list`
+    // Three posts on one timestamp, inserted 3, 1, 2, with pages of 2: the
+    // first page ends on id 2 and the second on id 1 only if the id sort breaks
+    // the tie. In scan order the first page ends on id 1 and the cursor then
+    // skips id 2.
+    const posts: string[] = []
+    for (const number of [3, 1, 2]) {
+      posts.push(
+        await seedStatus({
+          id: `${member}/statuses/t${number}`,
+          actorId: member,
+          createdAt: BASE + 5000
+        })
+      )
+    }
+    await backfillListTimelineForMembers(db, {
+      listId,
+      ownerId: owner,
+      targetActorIds: [member]
+    })
+    expect(await feedOf(owner)).toEqual(
+      posts.map((id) => `${listTimelineKey(listId)}>${id}`).sort()
+    )
+  })
+
   it('backfills nothing for a member the owner only asked to follow', async () => {
     const prefix = nextPrefix()
     const owner = actorIn('home.test', `${prefix}-owner`)
@@ -878,13 +1048,18 @@ describe('removeListAccounts', () => {
       })
     }
 
-    // Not the owner: nothing happens.
+    // Not the owner: nothing happens, to the memberships or to the owner's
+    // feed (the feed delete is scoped to the caller too, not only by the list's
+    // key).
+    const feedBefore = await feedOf(owner)
+    expect(feedBefore).toHaveLength(4)
     await removeListAccounts(db, {
       listId,
       actorId: actorIn('home.test', `${prefix}-other`),
       targetActorIds: [gone]
     })
     expect(await membersOf(listId)).toHaveLength(2)
+    expect(await feedOf(owner)).toEqual(feedBefore)
 
     await removeListAccounts(db, {
       listId,
