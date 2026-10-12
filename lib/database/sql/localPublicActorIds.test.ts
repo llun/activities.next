@@ -10,8 +10,10 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 //
 // The queries are Kysely's (lib/database/domains/timeline/localPublic.ts). Its
 // driver emits each statement as a `query` event on the Knex client, tagged
-// `kysely: true`; the listeners below keep only those, so the Knex status
-// hydration that follows a feed read is never mistaken for them.
+// `kysely: true`; the listeners below keep only those. The assertions that pick
+// one statement take the first match, which the feed read (or the id pluck)
+// sends before the status hydration that follows it (Kysely too), and the
+// empty feed hydrates nothing.
 type QueryEvent = { sql: string; bindings: unknown[]; kysely?: true }
 
 describe('local public timeline actor id handling', () => {

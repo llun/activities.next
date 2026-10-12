@@ -37,9 +37,9 @@ import { generatePublicId } from '@/lib/utils/publicId'
 // its counters and its recipients (and a poll its choices) in one transaction,
 // then indexes it for search and reads its author outside it. A create that
 // loses a race on the status id to a concurrent delivery of the same object
-// returns the winner's status, hydrated through the Knex mixin after the
-// failed transaction (recoverFromDuplicateInsert). The edits are in
-// ./edits.ts.
+// returns the winner's status, hydrated through the injected hydration
+// (./hydration.ts) after the failed transaction (recoverFromDuplicateInsert).
+// The edits are in ./edits.ts.
 
 // The status a reply points at: by id first, then by url.
 export const resolveParentStatusIdByReply = async (

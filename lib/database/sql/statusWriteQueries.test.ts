@@ -46,8 +46,8 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 // first actor and status of the database are written before any test, so a
 // single-row read that lost its where finds them instead of the row under
 // test. Each test runs at its own hour (Date is faked), so the hour buckets it
-// moves are its own. Hydration is the real Knex mixin's, recording what it is
-// asked for. Every transaction is checked for its statements in order and for
+// moves are its own. Hydration is the facade's, recording what it is asked
+// for. Every transaction is checked for its statements in order and for
 // a full rollback when its last write fails (a trigger, on both backends).
 // Runs on PostgreSQL in CI.
 
