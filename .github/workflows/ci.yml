@@ -345,6 +345,7 @@ jobs:
             lib/database/domains/media/mediaDetails.test.ts \
             lib/database/domains/media/mediaQueries.test.ts \
             lib/database/domains/media/mediaWrites.test.ts \
+            lib/database/domains/media/attachmentsMediaIdIntegerMigration.test.ts \
             lib/database/domains/media/attachmentVisibility.test.ts \
             lib/database/kysely/visibility/actorVisible.test.ts \
             app/api/v1/media/route.test.ts \

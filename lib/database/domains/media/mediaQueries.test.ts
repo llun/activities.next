@@ -69,9 +69,7 @@ describe('media reads', () => {
         width: 640,
         height: 480,
         name: '',
-        // As createAttachment writes it: a number bound to SQLite's varchar
-        // column would be stored as '7.0'.
-        mediaId: mediaId === null ? null : String(mediaId),
+        mediaId,
         createdAt: new Date(createdAt),
         updatedAt: new Date(createdAt)
       })

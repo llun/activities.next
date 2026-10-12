@@ -1,3 +1,4 @@
+import { toAttachmentMediaId } from '@/lib/database/domains/media/rows'
 import { indexHashtagSearchDocuments } from '@/lib/database/domains/search/hashtags'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import {
@@ -175,7 +176,7 @@ export const updateNote = async (
           width: data.width,
           height: data.height,
           name: data.name,
-          mediaId: data.mediaId,
+          mediaId: toAttachmentMediaId(data.mediaId),
           blurhash: data.blurhash ?? null,
           focusX: data.focus?.x ?? null,
           focusY: data.focus?.y ?? null,
@@ -223,11 +224,10 @@ export const updateNote = async (
         !isSameFocus(attachment.focus, existing.focus)
       )
     })
-    // `attachments.mediaId` is an `integer` column on PostgreSQL, so a
-    // malformed id here would error rather than miss. Safe without its own
-    // coercion: every `attachment.id` in `keptAttachments` has already
-    // resolved through `getMediaByIdForAccount`, which rejects anything
-    // that is not a real row id (see `toMediaRowId`).
+    // `attachments.mediaId` is an `integer` column, so a malformed id here
+    // would error rather than miss. It cannot be one: every `attachment.id` in
+    // `keptAttachments` has already resolved through `getMediaByIdForAccount`,
+    // which rejects anything that is not a real row id (see `toMediaRowId`).
     for (const attachment of keptAttachments) {
       await trx
         .updateTable('attachments')
@@ -244,7 +244,7 @@ export const updateNote = async (
           updatedAt: currentTime
         })
         .where('statusId', '=', status.id)
-        .where('mediaId', '=', attachment.id)
+        .where('mediaId', '=', toAttachmentMediaId(attachment.id))
         .execute()
     }
   })

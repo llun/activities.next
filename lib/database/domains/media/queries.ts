@@ -76,7 +76,7 @@ const toAttachment = (row: AttachmentRow): Attachment | null => {
     ...row,
     width: row.width ?? undefined,
     height: row.height ?? undefined,
-    // An integer on PostgreSQL, varchar on SQLite.
+    // The domain carries media ids as strings, like `Media.id`.
     mediaId:
       row.mediaId === null || row.mediaId === undefined
         ? null
@@ -220,9 +220,7 @@ export const getMediasWithStatusForAccount = async (
     .filter((id): id is number => id !== null)
 
   // The status a media was posted with: the lowest status id among the
-  // account's own attachments of it. `attachments.mediaId` is varchar on
-  // SQLite and an integer on PostgreSQL, so it is joined to `medias.id` and
-  // each backend compares it its own way. Two bindings besides the ids.
+  // account's own attachments of it. Two bindings besides the ids.
   const statusIdByMediaId = new Map<string, string>()
   const attachmentRows = await selectInChunks(
     db,
@@ -312,9 +310,6 @@ export const getMediaWithAttachedStatusIds = async (
     .executeTakeFirst()
   if (!row) return null
 
-  // `attachments.mediaId` is joined to `medias.id`, so each backend compares
-  // it its own way (varchar on SQLite, an integer on PostgreSQL).
-  //
   // Only an attachment written by the media's OWNER counts as evidence the
   // owner published it. `attachments.mediaId` is a bare pointer any actor can
   // write (the outbox takes attachment objects from the client), so without

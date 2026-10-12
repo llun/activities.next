@@ -23,7 +23,7 @@ import {
   parseMediaDetails,
   parseMediaMetaData,
   parseMediaRow,
-  toCanonicalMediaId,
+  toAttachmentMediaId,
   toMediaRowId,
   toTaxonPath
 } from '@/lib/database/domains/media/rows'
@@ -68,17 +68,16 @@ import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 // compare-and-sets, deletes and the attachment writes. The reads are in
 // ./queries.ts, whose `mediaQueries` holds both.
 
-// NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
-// `toMediaRowId` — coercing would silently drop the link rather than surface
-// the caller's bad id. Almost every caller hands over an id read back out of
-// `medias`, but `POST /api/v1/accounts/outbox` does not: its
-// `PostBoxAttachment.id` is a bare `z.string()`. That endpoint now shape-
-// checks the id against `toMediaRowId` before it writes anything, so a
-// malformed one is a 422 rather than an `invalid input syntax for type
-// integer` raised here AFTER `createNote` had committed the status row.
-// The guard belongs at the route, not here: it is the last point at which
-// the request can be refused before a write, and `createNote.ts` opens no
-// transaction to roll one back.
+// NOTE: `mediaId` is WRITTEN here, not compared, so a bad id is an error
+// (`toAttachmentMediaId`) rather than a miss — coercing it would silently drop
+// the link rather than surface the caller's bad id. Almost every caller hands
+// over an id read back out of `medias`, but `POST /api/v1/accounts/outbox` does
+// not: its `PostBoxAttachment.id` is a bare `z.string()`. That endpoint
+// shape-checks the id against `toMediaRowId` before it writes anything, so a
+// malformed one is a 422 rather than an error raised here AFTER `createNote`
+// had committed the status row. The guard belongs at the route, not here: it is
+// the last point at which the request can be refused before a write, and
+// `createNote.ts` opens no transaction to roll one back.
 const insertAttachment = async (
   db: Db,
   {
@@ -128,7 +127,7 @@ const insertAttachment = async (
       width: data.width,
       height: data.height,
       name: data.name,
-      mediaId: toCanonicalMediaId(mediaId),
+      mediaId: toAttachmentMediaId(mediaId),
       blurhash: blurhash ?? null,
       focusX: focus?.x ?? null,
       focusY: focus?.y ?? null,
@@ -554,10 +553,7 @@ export const createMedia = async (
 
     return {
       // `Media.id` is a string everywhere else (`parseMediaRow` stringifies
-      // it), and callers hand this straight to `createAttachment`. Returning
-      // the driver's raw number wrote it into SQLite's `varchar`
-      // `attachments.mediaId` as '1.0' via REAL->TEXT conversion, where
-      // PostgreSQL's integer column stored a plain 1.
+      // it), and callers hand this straight to `createAttachment`.
       id: String(inserted.id),
       actorId,
       original,
@@ -909,9 +905,7 @@ export const deleteMediaForAccount = async (
 
       // Mastodon's destroy returns 422 (in_usage_error) when the attachment is
       // already tied to a posted status, rather than deleting it. Match via a
-      // medias↔attachments join (column-to-column) so the comparison is
-      // affinity-safe on SQLite (where attachments.mediaId is TEXT but medias.id
-      // is INTEGER) and works on PostgreSQL too — the same join
+      // medias↔attachments join (column-to-column), the same join
       // getMediasWithStatusForAccount uses.
       const attached = await trx
         .selectFrom('attachments')
