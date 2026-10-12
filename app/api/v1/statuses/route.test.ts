@@ -1,4 +1,3 @@
-import type { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
 import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
@@ -42,10 +41,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 let mockDatabase: Database | null = null
-let mockKnex: Knex | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => mockKnex
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -82,12 +79,10 @@ describe('POST /api/v1/statuses', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
-    mockKnex = knexInstance
   })
 
   afterAll(async () => {
     mockDatabase = null
-    mockKnex = null
     await database.destroy()
   })
 

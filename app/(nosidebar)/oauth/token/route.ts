@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
-import { getKnex } from '@/lib/database'
+import { getDatabase } from '@/lib/database'
 import { getAuth } from '@/lib/services/auth/auth'
 import {
   oauthLogger,
@@ -388,10 +388,9 @@ const validatePkceTokenExchange = async (
   }
 
   try {
-    const client = await getKnex()('oauthClient')
-      .where('clientId', clientId)
-      .first()
-    if (!client?.requirePKCE) return null
+    const database = getDatabase()
+    if (!database) throw new Error('Database not initialized')
+    if (!(await database.isOAuthClientPKCERequired({ clientId }))) return null
   } catch (e) {
     oauthLogger.error(
       { endpoint: 'token', reason: 'pkce_preflight', err: e },

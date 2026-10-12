@@ -11,6 +11,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 
 import { AdminApiGuard } from './AdminApiGuard'
+import { StoredTokenSeed, stubAccessTokenLookup } from './OAuthGuard.testUtils'
 import { hasGrantedScope } from './scopeHierarchy'
 
 // Mock auth session
@@ -24,14 +25,9 @@ let mockDatabase:
   ReturnType<typeof getTestSQLDatabaseWithInstance>['database'] | null = null
 // The access-token row the real OAuthGuardAnyScope finds when a test drives it
 // (see 'through the real OAuthGuardAnyScope'); null means "token not found".
-let mockStoredToken: Record<string, unknown> | null = null
+let mockStoredToken: StoredTokenSeed | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, _value: string) => ({
-      first: () => Promise.resolve(mockStoredToken)
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers
@@ -87,6 +83,7 @@ describe('AdminApiGuard', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    stubAccessTokenLookup(database, () => mockStoredToken)
 
     const actor = await database.getActorFromEmail({ email: seedActor1.email })
     if (!actor?.account) throw new Error('Admin actor account not found')
@@ -723,7 +720,7 @@ describe('AdminApiGuard', () => {
           userId: 'user-id',
           referenceId: adminActor.id,
           scopes,
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+          expiresAt: Date.now() + 60 * 60 * 1000
         }
       }
 

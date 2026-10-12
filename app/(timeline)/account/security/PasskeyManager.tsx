@@ -38,7 +38,8 @@ const getErrorMessage = (error: {
   return error.message
 }
 
-const formatAddedDate = (value: string): string => {
+const formatAddedDate = (value: string | null): string => {
+  if (!value) return ''
   // The API returns ISO-8601, but normalize defensively: a zone-less
   // `YYYY-MM-DD HH:MM:SS` string parses as local time (and Safari may reject it),
   // so coerce it to UTC before parsing. Use the browser locale, not a pinned one.

@@ -1,4 +1,3 @@
-import type { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -19,10 +18,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 let mockDatabase: Database | null = null
-let mockKnex: Knex | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => mockKnex
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -47,7 +44,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/timelines/public', () => {
-  const { database, knex: instance, prepare } = createTestDatabase()
+  const { database, prepare } = createTestDatabase()
   let publicStatus: Status
 
   beforeAll(async () => {
@@ -63,7 +60,6 @@ describe('GET /api/v1/timelines/public', () => {
       text: 'public timeline post'
     })
     mockDatabase = database
-    mockKnex = instance
   })
 
   afterAll(async () => {

@@ -49,8 +49,85 @@ export type CreateOAuthAccessTokenParams = {
   expiresAt: number
 }
 
+export type GetOAuthAccessTokenByHashParams = {
+  // SHA-256 base64url hash of the bearer token (`oauthAccessToken.token`).
+  hashedToken: string
+}
+
+// The columns of an `oauthAccessToken` row that OAuthGuard reads to accept or
+// refuse a bearer token.
+export type OAuthAccessTokenRecord = {
+  clientId: string
+  // The owning account; null for an app (client_credentials) token.
+  userId: string | null
+  // The actor the token delegates; null or '' when the grant recorded none.
+  referenceId: string | null
+  // A JSON array or a space-separated scope string, as better-auth stored it.
+  scopes: string
+  // Epoch milliseconds, on both backends.
+  expiresAt: number
+}
+
+export type IsOAuthClientPKCERequiredParams = {
+  clientId: string
+}
+
+export type CountRecentAppRegistrationsParams = {
+  // `app-registration:<source key>`, the `oauthClient.referenceId` every
+  // registration from that source carries.
+  registrationReference: string
+  // Counts registrations created at or after this instant (epoch milliseconds).
+  since: number
+}
+
+export type CreateOAuthClientRegistrationParams = {
+  id: string
+  clientId: string
+  // The hashed secret, never the plain one.
+  clientSecret: string
+  name: string
+  scopes: string[]
+  // The `client_credentials` ceiling better-auth requires before it issues an
+  // application an app-level token.
+  clientCredentialsScopes: string[]
+  redirectUris: string[]
+  // Null leaves the column empty; end-session stays disabled for that client.
+  postLogoutRedirectUris: string[] | null
+  enableEndSession: boolean
+  website: string | null
+  requirePKCE: boolean
+  disabled: boolean
+  grantTypes: string[]
+  responseTypes: string[]
+  tokenEndpointAuthMethod: string
+  referenceId: string
+  // Already a JSON object string; stored as given.
+  metadata: string
+  // Epoch milliseconds; `createdAt` and `updatedAt` are both set to it.
+  createdAt: number
+}
+
 export interface OAuthDatabase {
   getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
+  // The access token stored under this hash, or null when none is (a revoked
+  // or unknown token). Reads the row OAuthGuard authenticates a bearer
+  // request from; the expiry is epoch milliseconds on both backends.
+  getOAuthAccessTokenByHash(
+    params: GetOAuthAccessTokenByHashParams
+  ): Promise<OAuthAccessTokenRecord | null>
+  // Whether the registered client requires PKCE. False for an unknown client.
+  isOAuthClientPKCERequired(
+    params: IsOAuthClientPKCERequiredParams
+  ): Promise<boolean>
+  // How many applications one registration source registered since `since`.
+  countRecentAppRegistrations(
+    params: CountRecentAppRegistrationsParams
+  ): Promise<number>
+  // Insert the client row for an application registered through
+  // POST /api/v1/apps.
+  createOAuthClientRegistration(
+    params: CreateOAuthClientRegistrationParams
+  ): Promise<void>
   createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
   // Move an access token's expiry to `expiresAt`. OAuthGuard calls it to slide a
   // token that is still in use; see OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS.

@@ -32,16 +32,12 @@ const oauthActor = {
 
 vi.mock('@/lib/database', () => ({
   getDatabase: () => ({
+    getOAuthAccessTokenByHash: () => mockStoredToken(),
     searchAccountIds: mockSearchAccountIds,
     getMastodonActorsFromIds: mockGetMastodonActorsFromIds,
     getActorFromId: mockGetActorFromId,
     getActorFromUsername: mockGetActorFromUsername,
     isCurrentActorFollowing: mockIsCurrentActorFollowing
-  }),
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
   })
 }))
 
@@ -74,7 +70,7 @@ describe('GET /api/v1/accounts/search', () => {
     resetRefreshRemoteActorStateForTesting()
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: oauthActor.id,
       scopes: 'read:accounts'
     })

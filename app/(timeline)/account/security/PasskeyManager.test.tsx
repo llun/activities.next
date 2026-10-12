@@ -73,6 +73,32 @@ describe('PasskeyManager', () => {
     expect(screen.getByText('Primary')).toBeInTheDocument()
   })
 
+  it('renders a passkey whose createdAt is null without an added date', async () => {
+    mockGetPasskeys.mockResolvedValue([
+      {
+        id: 'pk-null-date',
+        name: 'Old key',
+        domain: 'llun.social',
+        deviceType: 'singleDevice',
+        backedUp: false,
+        createdAt: null,
+        aaguid: null
+      }
+    ])
+
+    render(
+      <PasskeyManager
+        domains={MULTI_DOMAINS}
+        currentDomain="llun.social"
+        handlePrefix="anna"
+      />
+    )
+
+    expect(await screen.findByText('Old key')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.queryByText(/Added/)).not.toBeInTheDocument()
+  })
+
   it('shows the domain chooser in the add dialog when multi-domain', async () => {
     mockGetPasskeys.mockResolvedValue([])
 

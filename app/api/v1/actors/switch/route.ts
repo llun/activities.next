@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { getDatabase, getKnex } from '@/lib/database'
+import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -76,12 +76,12 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
 
   // Update the better-auth session's actorId so OAuth consentReferenceId
   // picks up the correct actor when minting access tokens.
-  const db = getKnex()
   if (session?.session?.token) {
     try {
-      await db('sessions')
-        .where('token', session.session.token)
-        .update({ actorId })
+      await database.setSessionActorIdByToken({
+        token: session.session.token,
+        actorId
+      })
     } catch (e) {
       logger.error({ message: 'Failed to update session actorId', error: e })
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)

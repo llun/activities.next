@@ -4,7 +4,8 @@ import type {
   CreateAccountSessionParams,
   DeleteAccountSessionByIdParams,
   DeleteOtherAccountSessionsParams,
-  GetAccountAllSessionsParams
+  GetAccountAllSessionsParams,
+  SetSessionActorIdByTokenParams
 } from '@/lib/database/domains/account/types'
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
@@ -134,3 +135,17 @@ export const deleteOtherAccountSessions = (
       eb.not(eb('token', '=', exceptToken))
     ])
   )
+
+export const setSessionActorIdByToken = async (
+  db: Db,
+  { token, actorId }: SetSessionActorIdByTokenParams
+): Promise<number> => {
+  // Only `actorId` changes: the session's expiry and `updatedAt` are
+  // better-auth's to manage.
+  const result = await db
+    .updateTable('sessions')
+    .set({ actorId })
+    .where('token', '=', token)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows)
+}

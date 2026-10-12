@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
+import type { StoredTokenSeed } from '@/lib/services/guards/OAuthGuard.testUtils'
 import { Client } from '@/lib/types/oauth2/client'
 
 import { GET } from './route'
@@ -15,8 +16,8 @@ const hashToken = (token: string) =>
     .replace(/\//g, '_')
     .replace(/=+$/, '')
 
-// Token store consulted by the guard's getKnex() lookup.
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
+// Access-token rows the guard's database lookup finds, keyed by hashed token.
+const mockStoredTokens = new Map<string, StoredTokenSeed>()
 // Clients resolved by getClientFromId, keyed by clientId.
 const mockClients = new Map<string, Client>()
 
@@ -28,17 +29,14 @@ const mockGetClientFromId = vi
   )
 
 const mockDatabase = {
+  getOAuthAccessTokenByHash: ({ hashedToken }: { hashedToken: string }) =>
+    Promise.resolve(mockStoredTokens.get(hashedToken) ?? null),
   getActorFromId: mockGetActorFromId,
   getClientFromId: mockGetClientFromId
 }
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => ({
-      first: () => Promise.resolve(mockStoredTokens.get(value) ?? null)
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -88,10 +86,9 @@ describe('GET /api/v1/apps/verify_credentials', () => {
 
   test('returns 200 with client details for an app token (null referenceId)', async () => {
     mockStoredTokens.set(hashToken('app-token'), {
-      token: hashToken('app-token'),
       referenceId: null,
       clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() + 3600000),
+      expiresAt: Date.now() + 3600000,
       scopes: JSON.stringify(['read'])
     })
     mockClients.set('client-app-1', buildClient())
@@ -119,10 +116,9 @@ describe('GET /api/v1/apps/verify_credentials', () => {
     // Valid token whose client row was deleted: the route must still respond
     // 200 with the generic 'Web' / null fallbacks, not crash or 401.
     mockStoredTokens.set(hashToken('orphan-token'), {
-      token: hashToken('orphan-token'),
       referenceId: null,
       clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() + 3600000),
+      expiresAt: Date.now() + 3600000,
       scopes: JSON.stringify(['read'])
     })
     // mockClients intentionally left empty → getClientFromId returns null.
@@ -145,10 +141,9 @@ describe('GET /api/v1/apps/verify_credentials', () => {
 
   test('joins multiple registered redirect URIs with newlines in redirect_uri', async () => {
     mockStoredTokens.set(hashToken('multi-token'), {
-      token: hashToken('multi-token'),
       referenceId: null,
       clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() + 3600000),
+      expiresAt: Date.now() + 3600000,
       scopes: JSON.stringify(['read'])
     })
     mockClients.set(
@@ -177,10 +172,9 @@ describe('GET /api/v1/apps/verify_credentials', () => {
 
   test('returns 200 for a user token', async () => {
     mockStoredTokens.set(hashToken('user-token'), {
-      token: hashToken('user-token'),
       referenceId: 'https://llun.test/users/llun',
       clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() + 3600000),
+      expiresAt: Date.now() + 3600000,
       scopes: JSON.stringify(['read'])
     })
     mockGetActorFromId.mockResolvedValueOnce({
@@ -211,10 +205,9 @@ describe('GET /api/v1/apps/verify_credentials', () => {
 
   test('returns 401 for an expired token', async () => {
     mockStoredTokens.set(hashToken('expired-token'), {
-      token: hashToken('expired-token'),
       referenceId: null,
       clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() - 1000),
+      expiresAt: Date.now() - 1000,
       scopes: JSON.stringify(['read'])
     })
 

@@ -9,9 +9,9 @@
 // copy would silently drift on any future better-auth change).
 import { SafeUrlSchema } from '@better-auth/core/utils/redirect-uri'
 import crypto from 'crypto'
-import type { Knex } from 'knex'
 
-import { getKnex } from '@/lib/database'
+import { getDatabase } from '@/lib/database'
+import type { Database } from '@/lib/database/types'
 import { OAUTH_GRANT_TYPES } from '@/lib/services/auth/constants'
 import { toClientCredentialsScopes } from '@/lib/services/oauth/clientCredentialsScopes'
 import { Scope } from '@/lib/types/database/operations'
@@ -81,24 +81,22 @@ const getRegistrationReference = (registrationKey?: string): string | null => {
 }
 
 const isAppRegistrationRateLimited = async ({
-  db,
+  database,
   now,
   registrationReference
 }: {
-  db: Knex
+  database: Database
   now: Date
   registrationReference: string | null
 }): Promise<boolean> => {
   if (!registrationReference) return false
 
-  const windowStart = new Date(now.getTime() - APP_REGISTRATION_WINDOW_MS)
-  const countResult = await db('oauthClient')
-    .where('referenceId', registrationReference)
-    .where('createdAt', '>=', windowStart)
-    .count<{ count: number | string | bigint }[]>({ count: '*' })
-    .first()
+  const registrations = await database.countRecentAppRegistrations({
+    registrationReference,
+    since: now.getTime() - APP_REGISTRATION_WINDOW_MS
+  })
 
-  return Number(countResult?.count ?? 0) >= APP_REGISTRATION_LIMIT
+  return registrations >= APP_REGISTRATION_LIMIT
 }
 
 export const createApplication = async (
@@ -111,7 +109,8 @@ export const createApplication = async (
     { clientName: request.client_name, scopes: request.scopes },
     async (span) => {
       const scopes = request.scopes ?? Scope.enum.read
-      const db = getKnex()
+      const database = getDatabase()
+      if (!database) throw new Error('Database not initialized')
 
       try {
         const now = options.now ?? new Date()
@@ -121,7 +120,7 @@ export const createApplication = async (
 
         if (
           await isAppRegistrationRateLimited({
-            db,
+            database,
             now,
             registrationReference
           })
@@ -215,27 +214,21 @@ export const createApplication = async (
         }
         const enableEndSession = postLogoutRedirectUris.length > 0
         const dbId = crypto.randomUUID()
-        await db('oauthClient').insert({
+        await database.createOAuthClientRegistration({
           id: dbId,
           clientId,
           clientSecret: hashedSecret,
           name: request.client_name,
-          scopes: JSON.stringify(parsedScopes),
+          scopes: parsedScopes,
           // The `client_credentials` ceiling better-auth 1.7 requires before it
-          // will issue this application an app-level token. Stored as a
-          // JSON-array string like `scopes`; better-auth's adapter parses
-          // `string[]` fields back into arrays on read.
-          clientCredentialsScopes: JSON.stringify(
-            toClientCredentialsScopes(parsedScopes)
-          ),
-          redirectUris: JSON.stringify(redirectUris),
-          // Stored as a JSON-array string to match `redirectUris`; better-auth's
-          // adapter JSON-parses `string[]` fields back into arrays on read.
+          // will issue this application an app-level token.
+          clientCredentialsScopes: toClientCredentialsScopes(parsedScopes),
+          redirectUris,
           postLogoutRedirectUris: enableEndSession
-            ? JSON.stringify(postLogoutRedirectUris)
+            ? postLogoutRedirectUris
             : null,
           enableEndSession,
-          uri: request.website || null,
+          website: request.website || null,
           // Mastodon /api/v1/apps has no PKCE-capability field; PKCE is opt-in
           // at authorize-time via code_challenge. better-auth still enforces it
           // when present, and for public clients regardless of this flag.
@@ -243,13 +236,12 @@ export const createApplication = async (
           disabled: false,
           // No `refresh_token`: the provider does not serve it (see
           // OAUTH_GRANT_TYPES). Older rows still list it; they are left alone.
-          grantTypes: JSON.stringify(OAUTH_GRANT_TYPES),
-          responseTypes: JSON.stringify(['code']),
+          grantTypes: [...OAUTH_GRANT_TYPES],
+          responseTypes: ['code'],
           tokenEndpointAuthMethod: 'client_secret_post',
           referenceId: registrationReference ?? '',
           metadata: REGISTERED_UNAUTHENTICATED_METADATA,
-          createdAt: now,
-          updatedAt: now
+          createdAt: now.getTime()
         })
 
         const response: SuccessResponse = {
