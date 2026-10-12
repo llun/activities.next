@@ -59,6 +59,7 @@ type AlbumQueryDatabase = Pick<
   | 'countGalleryAlbumMedia'
   | 'countGalleryAlbumStoredItems'
   | 'getAlbumsForMedia'
+  | 'getMediaWithAttachedStatusIds'
 >
 
 interface AlbumQueryBase {
@@ -582,15 +583,22 @@ export const getMediaAlbums = async ({
   mediaId: string
 }): Promise<MediaAlbumsResponse> => {
   const audience = OWNER_GALLERY_AUDIENCE
-  const [summaries, holding, gallery] = await Promise.all([
+  const [summaries, holding, gallery, mediaWithStatus] = await Promise.all([
     database.getGalleryAlbumSummaries({ actorId: owner.id, audience }),
     database.getAlbumsForMedia({ mediaId, actorId: owner.id, audience }),
     database.getGalleryMediaByIds({
       actorId: owner.id,
       audience,
       mediaIds: [mediaId]
-    })
+    }),
+    database.getMediaWithAttachedStatusIds({ mediaId })
   ])
+
+  const isPendingUpload =
+    mediaWithStatus?.media.actorId === owner.id &&
+    mediaWithStatus.statusIds.length === 0 &&
+    !mediaWithStatus.galleryAddedAt
+
   return {
     albums: summaries.map(({ album, itemCount }) => ({
       id: album.id,
@@ -599,6 +607,7 @@ export const getMediaAlbums = async ({
       itemCount
     })),
     albumIds: holding.map((album) => album.id),
-    addable: gallery.length > 0
+    addable: gallery.length > 0 || isPendingUpload,
+    pending: isPendingUpload
   }
 }

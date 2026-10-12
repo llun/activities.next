@@ -196,12 +196,11 @@ describe('GalleryAlbumDatabase', () => {
 
         expect(result).toEqual({
           status: 'added',
-          added: [ids.public],
+          added: [ids.public, ids.unposted],
           existing: [],
           skipped: expect.arrayContaining([
             ids.foreign,
             ids.hidden,
-            ids.unposted,
             '999999',
             'not-an-id'
           ])
@@ -718,8 +717,8 @@ describe('GalleryAlbumDatabase', () => {
 
         expect(result).toMatchObject({
           status: 'added',
-          added: [ids.kept],
-          skipped: [ids['not-kept']]
+          added: [ids.kept, ids['not-kept']],
+          skipped: []
         })
         expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
           'kept'

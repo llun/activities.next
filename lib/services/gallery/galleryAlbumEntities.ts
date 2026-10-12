@@ -148,6 +148,8 @@ export interface MediaAlbumsResponse {
   // The albums that hold this photo (ids from `albums`).
   albumIds: string[]
   // Whether the photo can be added to an album: it is in the owner's gallery
-  // and posted. A photo that is not can still be taken out of an album.
+  // and posted, or it is a pending upload. A photo that is not can still be taken out of an album.
   addable: boolean
+  // Whether the photo is a pending upload (not attached to any status, galleryAddedAt is null).
+  pending?: boolean
 }
