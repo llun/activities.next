@@ -95,8 +95,10 @@ const supportsNativeBooleans = (db: AuthDb): boolean =>
 // by this rather than by an `…At` name: `oauthAccessToken.revoked`,
 // `oauthRefreshToken.revoked`, `oauthRefreshToken.authTime` and
 // `twoFactor.lockedUntil` are dates too. The Kysely driver returns every
-// timestamp as epoch milliseconds on both backends, and the factory turns only
-// strings back into dates, so without this better-auth would see numbers.
+// timestamp as epoch milliseconds on both backends, and the factory passes
+// date values through unchanged (it converts strings to dates only when
+// `supportsDates` is false, which it is not here), so without this
+// better-auth would see numbers.
 type DateColumns = (tableName: string) => ReadonlySet<string>
 
 const createDateColumns = (
