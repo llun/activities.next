@@ -1,18 +1,16 @@
 import { actorVisibleStatusIds } from '@/lib/database/kysely/visibility/actorVisible'
-import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 
-// The Kysely actorVisibleStatusIds must select exactly the status ids its Knex
-// original buildActorVisibleStatusIdsQuery selects: the Knex one has no
-// production caller left and stays as this reference. Both run over the same
-// rows, for every combination of the audience flags, with each subquery used
-// as the media and fitness file reads use it (`status id in (…)`), and the id
-// sets are compared; the named cases say which arm broke.
-describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => {
+// The status ids actorVisibleStatusIds selects, over one set of rows, for
+// every combination of the audience flags, with each subquery used as the
+// media and fitness file reads use it (`status id in (…)`); the named cases say
+// which arm decides a row. The expected sets are the ones its Knex original
+// selected over the same rows when this suite compared the two.
+describe('actorVisibleStatusIds', () => {
   const testDb = createTestDatabase()
   const { database, knex } = testDb
 
@@ -29,6 +27,8 @@ describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => 
   const storedFollowers = `https://${DOMAIN}/collections/author-followers`
 
   const ids: Record<string, string> = {}
+  const keyOf = (id: string | null) =>
+    Object.keys(ids).find((key) => ids[key] === id) ?? String(id)
   const statusId = (actorId: string, key: string) =>
     `${actorId}/statuses/${key}`
 
@@ -70,20 +70,7 @@ describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => 
   }
 
   // Each subquery as the reads use it: the statuses whose id it selects.
-  const selectedByKnex = async (actorId: string, audience: Audience) => {
-    const subquery = buildActorVisibleStatusIdsQuery({
-      database: knex,
-      actorId,
-      ...audience
-    })
-    if (!subquery) return null
-    const rows: { id: string }[] = await knex('statuses')
-      .select('statuses.id')
-      .whereIn('statuses.id', subquery)
-    return rows.map(({ id }) => id).sort()
-  }
-
-  const selectedByKysely = async (actorId: string, audience: Audience) => {
+  const selectedBy = async (actorId: string, audience: Audience) => {
     const db = testDb.db
     const subquery = actorVisibleStatusIds(db, actorId, audience)
     if (!subquery) return null
@@ -92,7 +79,7 @@ describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => 
       .select('statuses.id')
       .where('statuses.id', 'in', subquery)
       .execute()
-    return rows.map(({ id }) => id).sort()
+    return rows.map(({ id }) => keyOf(id)).sort()
   }
 
   beforeAll(async () => {
@@ -245,26 +232,103 @@ describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => 
     }
   }
 
+  // Every status addressed to the public collection, in either spelling.
+  const PUBLICLY_ADDRESSED = [
+    'boost-of-boost',
+    'boost-of-private-boost',
+    'boost-private',
+    'boost-public',
+    'cycle-a',
+    'cycle-b',
+    'dangling-boost',
+    'disagreeing-boost',
+    'legacy-boost',
+    'note-with-pointer',
+    'other-boost',
+    'other-public',
+    'public',
+    'public-compact',
+    'reverse-disagreeing-boost',
+    'self-boost',
+    'unlisted'
+  ]
+  // The statuses addressed to each other recipient the audiences name.
+  const addressedTo: Record<string, string[]> = {
+    [viewer]: ['direct', 'direct-cc', 'other-direct'],
+    [stranger]: ['direct-cc'],
+    [`${author}/followers`]: [
+      'followers-fallback',
+      'other-followers-of-author',
+      'private-boost',
+      'unlisted'
+    ],
+    [storedFollowers]: ['followers-stored'],
+    [`${other}/followers`]: ['other-private', 'other-private-boost']
+  }
+  // Each actor's own statuses that anyone may read, boosts only when their
+  // whole chain is public.
+  const publiclyReadableOf: Record<string, string[]> = {
+    [author]: [
+      'boost-of-boost',
+      'boost-public',
+      'disagreeing-boost',
+      'legacy-boost',
+      'note-with-pointer',
+      'public',
+      'public-compact',
+      'unlisted'
+    ],
+    [other]: ['other-boost', 'other-public'],
+    [ghost]: []
+  }
+  // No flag: no filter. publicOnly: the actor's publicly readable statuses.
+  // Otherwise every status addressed to the public collection, to the viewer,
+  // or with includeFollowersOnly to followersAudience and the actor's
+  // `<id>/followers`.
+  const expectedFor = (
+    actorId: string,
+    {
+      publicOnly,
+      visibleToActorId,
+      includeFollowersOnly,
+      followersAudience
+    }: Audience
+  ) => {
+    if (!publicOnly && !visibleToActorId && !includeFollowersOnly) return null
+    if (publicOnly) return [...publiclyReadableOf[actorId]].sort()
+    const recipients = [
+      visibleToActorId,
+      ...(includeFollowersOnly
+        ? [followersAudience, `${actorId}/followers`]
+        : [])
+    ]
+    return [
+      ...new Set([
+        ...PUBLICLY_ADDRESSED,
+        ...recipients.flatMap((recipient) =>
+          recipient ? (addressedTo[recipient] ?? []) : []
+        )
+      ])
+    ].sort()
+  }
+
   it.each([
     { name: 'author', actorId: author },
     { name: 'other', actorId: other },
     { name: 'ghost', actorId: ghost }
   ])(
-    'selects the same statuses as the Knex builder for every audience of $name',
+    'selects exactly the expected statuses for every audience of $name',
     async ({ actorId }) => {
       let filtered = 0
       for (const audience of audiences) {
-        const [knexIds, kyselyIds] = await Promise.all([
-          selectedByKnex(actorId, audience),
-          selectedByKysely(actorId, audience)
-        ])
-        expect({ audience, ids: kyselyIds }).toEqual({
+        const expected = expectedFor(actorId, audience)
+        expect({ audience, ids: await selectedBy(actorId, audience) }).toEqual({
           audience,
-          ids: knexIds
+          ids: expected
         })
-        if (knexIds) filtered += 1
+        if (expected) filtered += 1
       }
-      // Both the unfiltered and the filtered answers were compared.
+      // Both the unfiltered and the filtered answers were checked.
       expect(filtered).toBeGreaterThan(0)
       expect(filtered).toBeLessThan(audiences.length)
     }
@@ -282,13 +346,6 @@ describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => 
       }
     }
   ])('is unfiltered for $description', ({ audience }) => {
-    expect(
-      buildActorVisibleStatusIdsQuery({
-        database: knex,
-        actorId: author,
-        ...audience
-      })
-    ).toBeNull()
     expect(actorVisibleStatusIds(testDb.db, author, audience)).toBeNull()
   })
 
@@ -362,16 +419,10 @@ describe('actorVisibleStatusIds matches buildActorVisibleStatusIdsQuery', () => 
     { key: 'list', audience: followers, selected: false },
     { key: 'direct', audience: followers, selected: false }
   ])(
-    'agrees that $key is selected=$selected for $audience',
+    'selects $key as $selected for $audience',
     async ({ key, audience, selected }) => {
-      const id = ids[key]
-      expect(id).toBeDefined()
-      const [knexIds, kyselyIds] = await Promise.all([
-        selectedByKnex(author, audience),
-        selectedByKysely(author, audience)
-      ])
-      expect(knexIds?.includes(id)).toBe(selected)
-      expect(kyselyIds?.includes(id)).toBe(selected)
+      expect(ids[key]).toBeDefined()
+      expect((await selectedBy(author, audience))?.includes(key)).toBe(selected)
     }
   )
 })

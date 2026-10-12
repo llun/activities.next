@@ -3,7 +3,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 // Every `publicOnly` call site must actually drop a followers-only row.
 //
-// This is the assertion the suite was missing. `publiclyReadableStatusEquivalence`
+// This is the assertion the suite was missing. `publiclyReadable.test.ts`
 // proves the two readability forms agree with each other, and
 // `publiclyReadableStatusQueryShape` proves which form each call site is wired
 // to — but neither notices if a call site stops filtering altogether. Deleting

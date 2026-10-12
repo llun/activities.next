@@ -7,13 +7,6 @@ import {
 } from '@/lib/database/kysely/visibility/listEligible'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { applyBlockMuteFilter } from '@/lib/database/sql/utils/blockMuteFilter'
-import { applyExclusiveListFilter } from '@/lib/database/sql/utils/exclusiveLists'
-import { selectFollowTargetActorIds as selectFollowTargetActorIdsByKnex } from '@/lib/database/sql/utils/followTargetActorIds'
-import { applyListEligibleStatusFilter } from '@/lib/database/sql/utils/listEligibleStatus'
-import { applyListRepliesPolicyFilter } from '@/lib/database/sql/utils/listRepliesPolicy'
-import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
-import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import type { ListRepliesPolicy } from '@/lib/types/domain/list'
@@ -22,12 +15,12 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 
-// The Kysely visibility predicates must select exactly the rows their Knex
-// originals select while both are in use: the Knex ones still serve status,
-// or are kept as the reference the Kysely twin is checked against here. Each
-// describe runs both over the same rows, for every viewer, and compares the id
-// sets; the named cases say which arm broke.
-describe('Kysely visibility predicates match their Knex originals', () => {
+// What each Kysely visibility predicate selects over one set of rows, for
+// every viewer: the full set first, then named cases that say which arm
+// decides a row. The full sets are the ones the Knex originals selected over
+// the same rows when this suite compared the two forms; the Knex forms went
+// with the last of their callers.
+describe('Kysely visibility predicates', () => {
   const testDb = createTestDatabase()
   const { database, knex } = testDb
 
@@ -97,17 +90,7 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     return id
   }
 
-  const readableByKnex = async (viewerId: string) => {
-    const query = knex('statuses').select('statuses.id')
-    applyPotentiallyReadableStatusFilter({
-      database: knex,
-      query,
-      visibleToActorId: viewerId
-    })
-    return ((await query) as { id: string }[]).map(({ id }) => id).sort()
-  }
-
-  const readableByKysely = async (viewerId: string) => {
+  const readableBy = async (viewerId: string) => {
     const db = testDb.db
     const rows = await db
       .selectFrom('statuses')
@@ -488,17 +471,102 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     await database.destroy()
   })
 
-  it.each(Object.entries(viewers))(
-    'selects the same statuses for %s',
-    async (_name, viewerId) => {
-      const [knexIds, kyselyIds] = await Promise.all([
-        readableByKnex(viewerId),
-        readableByKysely(viewerId)
-      ])
-      expect(kyselyIds).toEqual(knexIds)
-      // Not trivially equal: every viewer reads some rows and not others.
-      expect(knexIds.length).toBeGreaterThan(0)
-      expect(knexIds.length).toBeLessThan(Object.keys(ids).length)
+  const keyOf = (id: string) =>
+    Object.keys(ids).find((key) => ids[key] === id) ?? id
+  const keysOf = (rowIds: string[]) => rowIds.map(keyOf).sort()
+  const allKeysExcept = (excluded: string[]) =>
+    Object.keys(ids)
+      .filter((key) => !excluded.includes(key))
+      .sort()
+  type ViewerName = keyof typeof viewers
+  const viewerEntries = Object.entries(viewers) as [ViewerName, string][]
+
+  // What a viewer with no relation to anyone reads: the public and unlisted
+  // statuses and the public boosts of public statuses.
+  const PUBLICLY_READABLE = [
+    'announce-blocked',
+    'announce-public',
+    'blocked-public',
+    'follower-parent',
+    'public',
+    'public-compact',
+    'recipient-parent',
+    'recipient-reply-to-unstored',
+    'remote-public',
+    'self-reply',
+    'unlisted'
+  ]
+  // What each viewer reads besides PUBLICLY_READABLE.
+  const readableBeyondPublic: Record<ViewerName, string[]> = {
+    // Every status of its own, whoever it is addressed to.
+    author: [
+      'announce-followers',
+      'announce-reply',
+      'conversation-reply-by-id',
+      'conversation-reply-by-url',
+      'direct',
+      'direct-cc',
+      'followers-only',
+      'other-collection',
+      'poll-reply',
+      'reply-by-id',
+      'reply-by-url',
+      'reply-by-url-wrong-hash',
+      'reply-hash-only',
+      'reply-to-recipient',
+      'reply-to-unrelated',
+      'reply-with-recipients',
+      'second-conversation-reply',
+      'upper-followers'
+    ],
+    remoteAuthor: ['remote-fallback-followers', 'remote-stored-followers'],
+    bareAuthor: ['bare-fallback-followers'],
+    // The followers-only statuses of the three authors and the ghost it
+    // follows, and the recipientless replies to its own parent.
+    follower: [
+      'announce-followers',
+      'bare-fallback-followers',
+      'followers-only',
+      'ghost-author-followers',
+      'poll-reply',
+      'remote-fallback-followers',
+      'remote-stored-followers',
+      'reply-by-id',
+      'reply-by-url'
+    ],
+    pendingFollower: [],
+    stranger: [
+      'conversation-parent',
+      'conversation-reply-by-id',
+      'conversation-reply-by-url',
+      'direct-cc',
+      'reply-with-recipients',
+      'second-conversation-parent',
+      'second-conversation-reply'
+    ],
+    recipient: [
+      'direct',
+      'direct-cc',
+      'reply-to-recipient',
+      'second-conversation-parent',
+      'second-conversation-reply'
+    ],
+    participant: [
+      'conversation-parent',
+      'conversation-reply-by-id',
+      'conversation-reply-by-url'
+    ],
+    // Blocks are not this predicate's concern.
+    blocked: ['announce-followers', 'followers-only'],
+    nobody: []
+  }
+
+  it.each(viewerEntries)(
+    'selects exactly the statuses %s may read',
+    async (name, viewerId) => {
+      expect(keysOf(await readableBy(viewerId))).toEqual(
+        [...PUBLICLY_READABLE, ...readableBeyondPublic[name]].sort()
+      )
     }
   )
 
@@ -539,28 +607,16 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     { key: 'ghost-author-followers', viewer: follower, readable: true },
     { key: 'ghost-author-followers', viewer: stranger, readable: false }
   ])(
-    'agrees that $key is readable=$readable for $viewer',
+    'reads $key as readable=$readable for $viewer',
     async ({ key, viewer, readable }) => {
       const id = ids[key]
       expect(id).toBeDefined()
-      const [knexIds, kyselyIds] = await Promise.all([
-        readableByKnex(viewer),
-        readableByKysely(viewer)
-      ])
-      expect(knexIds.includes(id)).toBe(readable)
-      expect(kyselyIds.includes(id)).toBe(readable)
+      expect((await readableBy(viewer)).includes(id)).toBe(readable)
     }
   )
 
-  it('selects the same local actors', async () => {
-    const knexIds = (
-      (await knex('actors')
-        .select('actors.id')
-        .modify(whereLocalActor, 'actors.privateKey')) as { id: string }[]
-    )
-      .map(({ id }) => id)
-      .sort()
-    const kyselyIds = (
+  it('selects the local actors', async () => {
+    const localIds = (
       await testDb.db
         .selectFrom('actors')
         .select('actors.id')
@@ -570,23 +626,24 @@ describe('Kysely visibility predicates match their Knex originals', () => {
       .map(({ id }) => String(id))
       .sort()
 
-    expect(kyselyIds).toEqual(knexIds)
     // A null key (remoteAuthor, bareAuthor) and an empty one (blocked) are
     // both remote.
-    expect(knexIds).toContain(author)
-    expect(knexIds).not.toContain(remoteAuthor)
-    expect(knexIds).not.toContain(blocked)
+    expect(localIds).toEqual(
+      [
+        author,
+        follower,
+        participant,
+        pendingFollower,
+        recipient,
+        stranger
+      ].sort()
+    )
   })
+
   const sortedIds = (rows: { id: string | null }[]) =>
     rows.map(({ id }) => String(id)).sort()
 
-  const listEligibleByKnex = async () => {
-    const query = knex('statuses').select('statuses.id')
-    applyListEligibleStatusFilter({ database: knex, query })
-    return sortedIds(await query)
-  }
-
-  const listEligibleByKysely = async () => {
+  const listEligible = async () => {
     const db = testDb.db
     return sortedIds(
       await db
@@ -597,14 +654,36 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     )
   }
 
-  it('selects the same list-eligible statuses', async () => {
-    const [knexIds, kyselyIds] = await Promise.all([
-      listEligibleByKnex(),
-      listEligibleByKysely()
-    ])
-    expect(kyselyIds).toEqual(knexIds)
-    expect(knexIds.length).toBeGreaterThan(0)
-    expect(knexIds.length).toBeLessThan(Object.keys(ids).length)
+  // Direct statuses, other collections and recipientless replies. The
+  // followers collection spelled in upper case is eligible on SQLite only,
+  // where LIKE folds case.
+  const LIST_INELIGIBLE = [
+    'conversation-parent',
+    'conversation-reply-by-id',
+    'conversation-reply-by-url',
+    'direct',
+    'direct-cc',
+    'other-collection',
+    'poll-reply',
+    'reply-by-id',
+    'reply-by-url',
+    'reply-by-url-wrong-hash',
+    'reply-hash-only',
+    'reply-to-recipient',
+    'reply-to-unrelated',
+    'reply-with-recipients',
+    'second-conversation-parent',
+    'second-conversation-reply'
+  ]
+
+  it('selects exactly the list-eligible statuses', async () => {
+    expect(keysOf(await listEligible())).toEqual(
+      allKeysExcept(
+        testDb.backend === 'pg'
+          ? [...LIST_INELIGIBLE, 'upper-followers']
+          : LIST_INELIGIBLE
+      )
+    )
   })
 
   it.each([
@@ -620,33 +699,13 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     { key: 'direct', eligible: false },
     { key: 'direct-cc', eligible: false },
     { key: 'reply-by-id', eligible: false }
-  ])(
-    'agrees that $key is list-eligible=$eligible',
-    async ({ key, eligible }) => {
-      const id = ids[key]
-      expect(id).toBeDefined()
-      expect((await listEligibleByKnex()).includes(id)).toBe(eligible)
-      expect((await listEligibleByKysely()).includes(id)).toBe(eligible)
-    }
-  )
+  ])('reads $key as list-eligible=$eligible', async ({ key, eligible }) => {
+    const id = ids[key]
+    expect(id).toBeDefined()
+    expect((await listEligible()).includes(id)).toBe(eligible)
+  })
 
-  const repliesAllowedByKnex = async (
-    repliesPolicy: ListRepliesPolicy,
-    ownerId: string,
-    listId = REPLIES_LIST
-  ) => {
-    const query = knex('statuses').select('statuses.id')
-    applyListRepliesPolicyFilter({
-      database: knex,
-      query,
-      repliesPolicy,
-      listId,
-      ownerId
-    })
-    return sortedIds(await query)
-  }
-
-  const repliesAllowedByKysely = async (
+  const repliesAllowed = async (
     repliesPolicy: ListRepliesPolicy,
     ownerId: string,
     listId = REPLIES_LIST
@@ -663,25 +722,107 @@ describe('Kysely visibility predicates match their Knex originals', () => {
 
   const policies: ListRepliesPolicy[] = ['none', 'list', 'followed']
 
+  // The replies a policy holds back for an owner with no part in any of
+  // them; every other status passes.
+  const UNRELATED_REPLIES = [
+    'announce-reply',
+    'conversation-reply-by-id',
+    'conversation-reply-by-url',
+    'poll-reply',
+    'recipient-reply-to-unstored',
+    'reply-by-id',
+    'reply-by-url',
+    'reply-by-url-wrong-hash',
+    'reply-hash-only',
+    'reply-to-recipient',
+    'reply-to-unrelated',
+    'reply-with-recipients',
+    'second-conversation-reply'
+  ]
+  const repliesHeldBack = (
+    policy: ListRepliesPolicy,
+    owner: ViewerName,
+    listId: string
+  ): string[] => {
+    switch (owner) {
+      // follower wrote follower-parent: replies to it pass for every policy.
+      case 'follower':
+        return [
+          'conversation-reply-by-id',
+          'conversation-reply-by-url',
+          'recipient-reply-to-unstored',
+          'reply-by-url-wrong-hash',
+          'reply-hash-only',
+          'reply-to-recipient',
+          'reply-to-unrelated',
+          'second-conversation-reply'
+        ]
+      // stranger wrote both conversation parents.
+      case 'stranger':
+        return [
+          'announce-reply',
+          'poll-reply',
+          'recipient-reply-to-unstored',
+          'reply-by-id',
+          'reply-by-url',
+          'reply-by-url-wrong-hash',
+          'reply-hash-only',
+          'reply-to-recipient',
+          'reply-to-unrelated',
+          'reply-with-recipients'
+        ]
+      // recipient owns REPLIES_LIST (holding follower), follows stranger and
+      // wrote recipient-parent and recipient-reply-to-unstored.
+      case 'recipient':
+        if (policy === 'followed') {
+          return [
+            'announce-reply',
+            'poll-reply',
+            'reply-by-id',
+            'reply-by-url',
+            'reply-by-url-wrong-hash',
+            'reply-hash-only',
+            'reply-to-unrelated',
+            'reply-with-recipients'
+          ]
+        }
+        if (policy === 'list' && listId === REPLIES_LIST) {
+          return [
+            'conversation-reply-by-id',
+            'conversation-reply-by-url',
+            'recipient-reply-to-unstored',
+            'reply-by-url-wrong-hash',
+            'reply-hash-only',
+            'reply-to-unrelated',
+            'second-conversation-reply'
+          ]
+        }
+        return UNRELATED_REPLIES.filter((key) => key !== 'reply-to-recipient')
+      // author wrote most of the replies, which `followed` lets through.
+      case 'author':
+        return policy === 'followed'
+          ? ['recipient-reply-to-unstored']
+          : UNRELATED_REPLIES
+      default:
+        return UNRELATED_REPLIES
+    }
+  }
+
   it.each(
     policies.flatMap((policy) =>
-      Object.entries(viewers).map(([name, ownerId]) => ({
-        policy,
-        name,
-        ownerId
-      }))
+      viewerEntries.map(([name, ownerId]) => ({ policy, name, ownerId }))
     )
   )(
-    'lets the same replies through under $policy for owner $name',
-    async ({ policy, ownerId }) => {
+    'lets exactly the expected replies through under $policy for owner $name',
+    async ({ policy, name, ownerId }) => {
       for (const listId of [REPLIES_LIST, 'another-list']) {
-        const [knexIds, kyselyIds] = await Promise.all([
-          repliesAllowedByKnex(policy, ownerId, listId),
-          repliesAllowedByKysely(policy, ownerId, listId)
-        ])
-        expect(kyselyIds).toEqual(knexIds)
-        expect(knexIds.length).toBeGreaterThan(0)
-        expect(knexIds.length).toBeLessThan(Object.keys(ids).length)
+        expect({
+          listId,
+          ids: keysOf(await repliesAllowed(policy, ownerId, listId))
+        }).toEqual({
+          listId,
+          ids: allKeysExcept(repliesHeldBack(policy, name, listId))
+        })
       }
     }
   )
@@ -703,48 +844,25 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     { key: 'recipient-reply-to-unstored', policy: 'followed', allowed: true },
     { key: 'recipient-reply-to-unstored', policy: 'list', allowed: false }
   ] as const)(
-    'agrees that $key passes $policy for the list owner as $allowed',
+    'lets $key through $policy for the list owner as $allowed',
     async ({ key, policy, allowed }) => {
       const id = ids[key]
       expect(id).toBeDefined()
-      expect((await repliesAllowedByKnex(policy, recipient)).includes(id)).toBe(
+      expect((await repliesAllowed(policy, recipient)).includes(id)).toBe(
         allowed
       )
-      expect(
-        (await repliesAllowedByKysely(policy, recipient)).includes(id)
-      ).toBe(allowed)
     }
   )
 
   it('lets a member reply through only for the list that holds the member', async () => {
     const id = ids['reply-by-id']
     expect(
-      (await repliesAllowedByKnex('list', recipient, 'another-list')).includes(
-        id
-      )
+      (await repliesAllowed('list', recipient, 'another-list')).includes(id)
     ).toBe(false)
-    expect(
-      (
-        await repliesAllowedByKysely('list', recipient, 'another-list')
-      ).includes(id)
-    ).toBe(false)
-    expect((await repliesAllowedByKysely('list', stranger)).includes(id)).toBe(
-      false
-    )
+    expect((await repliesAllowed('list', stranger)).includes(id)).toBe(false)
   })
 
-  const unmoderatedByKnex = async (viewerId: string) => {
-    const query = knex('statuses').select('statuses.id')
-    applyBlockMuteFilter({
-      database: knex,
-      query,
-      viewerActorId: viewerId,
-      now: MUTE_NOW
-    })
-    return sortedIds(await query)
-  }
-
-  const unmoderatedByKysely = async (viewerId: string) =>
+  const unmoderated = async (viewerId: string) =>
     sortedIds(
       await withoutBlockedOrMutedAuthors(
         testDb.db.selectFrom('statuses').select('statuses.id'),
@@ -753,15 +871,61 @@ describe('Kysely visibility predicates match their Knex originals', () => {
       ).execute()
     )
 
-  it.each(Object.entries(viewers))(
-    'hides the same blocked and muted statuses from %s',
-    async (_name, viewerId) => {
-      const [knexIds, kyselyIds] = await Promise.all([
-        unmoderatedByKnex(viewerId),
-        unmoderatedByKysely(viewerId)
-      ])
-      expect(kyselyIds).toEqual(knexIds)
-      expect(knexIds.length).toBeGreaterThan(0)
+  // Every status author wrote, boosts included.
+  const BY_AUTHOR = [
+    'announce-followers',
+    'announce-public',
+    'announce-reply',
+    'conversation-reply-by-id',
+    'conversation-reply-by-url',
+    'direct',
+    'direct-cc',
+    'followers-only',
+    'other-collection',
+    'poll-reply',
+    'public',
+    'public-compact',
+    'reply-by-id',
+    'reply-by-url',
+    'reply-by-url-wrong-hash',
+    'reply-hash-only',
+    'reply-to-recipient',
+    'reply-to-unrelated',
+    'reply-with-recipients',
+    'second-conversation-reply',
+    'self-reply',
+    'unlisted',
+    'upper-followers'
+  ]
+  const hiddenByBlocksAndMutes: Record<ViewerName, string[]> = {
+    // author blocks blocked: its post and stranger's boost of it.
+    author: ['announce-blocked', 'blocked-public'],
+    remoteAuthor: [],
+    bareAuthor: [],
+    // A mute of remoteAuthor that ends after MUTE_NOW.
+    follower: [
+      'remote-fallback-followers',
+      'remote-public',
+      'remote-stored-followers'
+    ],
+    // A mute of author that ends exactly at MUTE_NOW is still on.
+    pendingFollower: BY_AUTHOR,
+    stranger: [],
+    // Its mute of author has ended.
+    recipient: [],
+    // A mute of author with no end.
+    participant: BY_AUTHOR,
+    // Blocked by author.
+    blocked: BY_AUTHOR,
+    nobody: []
+  }
+
+  it.each(viewerEntries)(
+    'hides exactly the blocked and muted statuses from %s',
+    async (name, viewerId) => {
+      expect(keysOf(await unmoderated(viewerId))).toEqual(
+        allKeysExcept(hiddenByBlocksAndMutes[name])
+      )
     }
   )
 
@@ -777,15 +941,11 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     { key: 'remote-public', viewer: follower, shown: false },
     { key: 'public', viewer: follower, shown: true },
     { key: 'public', viewer: nobody, shown: true }
-  ])(
-    'agrees that $key is shown=$shown to $viewer',
-    async ({ key, viewer, shown }) => {
-      const id = ids[key]
-      expect(id).toBeDefined()
-      expect((await unmoderatedByKnex(viewer)).includes(id)).toBe(shown)
-      expect((await unmoderatedByKysely(viewer)).includes(id)).toBe(shown)
-    }
-  )
+  ])('shows $key to $viewer as $shown', async ({ key, viewer, shown }) => {
+    const id = ids[key]
+    expect(id).toBeDefined()
+    expect((await unmoderated(viewer)).includes(id)).toBe(shown)
+  })
 
   const ghostAuthor = actor('ghost-author', 'gone.test')
   const followTargets = [
@@ -797,46 +957,85 @@ describe('Kysely visibility predicates match their Knex originals', () => {
     author,
     nobody
   ]
+  // The follow targets among followTargets of each actor, by follow status;
+  // every combination not listed finds none.
+  const accepted = FollowStatus.enum.Accepted
+  const requested = FollowStatus.enum.Requested
+  const followTargetsFound: Record<string, string[]> = {
+    [`${follower} ${accepted}`]: [
+      author,
+      bareAuthor,
+      ghostAuthor,
+      remoteAuthor
+    ],
+    [`${follower} ${accepted},${requested}`]: [
+      author,
+      bareAuthor,
+      ghostAuthor,
+      remoteAuthor
+    ],
+    [`${pendingFollower} ${requested}`]: [author, bareAuthor, remoteAuthor],
+    [`${pendingFollower} ${accepted},${requested}`]: [
+      author,
+      bareAuthor,
+      remoteAuthor
+    ],
+    [`${stranger} ${FollowStatus.enum.Undo}`]: [author],
+    [`${recipient} ${accepted}`]: [stranger],
+    [`${recipient} ${accepted},${requested}`]: [stranger],
+    [`${blocked} ${accepted}`]: [author],
+    [`${blocked} ${accepted},${requested}`]: [author]
+  }
+
   it.each(
     [follower, pendingFollower, stranger, recipient, blocked, nobody].flatMap(
       (actorId) =>
         [
-          [FollowStatus.enum.Accepted],
-          [FollowStatus.enum.Requested],
-          [FollowStatus.enum.Accepted, FollowStatus.enum.Requested],
+          [accepted],
+          [requested],
+          [accepted, requested],
           [FollowStatus.enum.Undo],
           []
         ].map((statuses) => ({ actorId, statuses }))
     )
   )(
-    'finds the same follow targets of $actorId in $statuses',
+    'finds exactly the follow targets of $actorId in $statuses',
     async ({ actorId, statuses }) => {
-      for (const targets of [followTargets, [], [nobody]]) {
+      const expectedTargets =
+        followTargetsFound[`${actorId} ${statuses.join(',')}`] ?? []
+      for (const [targets, expected] of [
+        [followTargets, expectedTargets],
+        [[], []],
+        [[nobody], []]
+      ]) {
         for (const forShare of [false, true]) {
-          const [knexIds, kyselyIds] = await Promise.all([
-            selectFollowTargetActorIdsByKnex(knex, actorId, targets, statuses, {
-              forShare
-            }),
-            selectFollowTargetActorIds(testDb.db, actorId, targets, statuses, {
-              forShare
-            })
-          ])
-          expect([...kyselyIds].sort()).toEqual([...knexIds].sort())
+          const targetIds = await selectFollowTargetActorIds(
+            testDb.db,
+            actorId,
+            targets,
+            statuses,
+            { forShare }
+          )
+          expect({ targets, forShare, ids: [...targetIds].sort() }).toEqual({
+            targets,
+            forShare,
+            ids: [...expected].sort()
+          })
           // Each id once.
-          expect(new Set(kyselyIds).size).toBe(kyselyIds.length)
+          expect(new Set(targetIds).size).toBe(targetIds.length)
         }
       }
     }
   )
 
   it('finds a follow target only for a matching status', async () => {
-    const accepted = await selectFollowTargetActorIds(
+    const acceptedTargets = await selectFollowTargetActorIds(
       testDb.db,
       follower,
       followTargets,
       [FollowStatus.enum.Accepted]
     )
-    expect([...accepted].sort()).toEqual(
+    expect([...acceptedTargets].sort()).toEqual(
       [author, bareAuthor, ghostAuthor, remoteAuthor].sort()
     )
     expect(
@@ -928,19 +1127,7 @@ describe('Kysely visibility predicates match their Knex originals', () => {
       )
     })
 
-    const shownByKnex = async (viewerId: string) => {
-      const query = knex('timelines').select('timelines.statusId')
-      applyExclusiveListFilter({
-        database: knex,
-        query,
-        viewerActorId: viewerId
-      })
-      return ((await query) as { statusId: string }[])
-        .map(({ statusId }) => statusId)
-        .sort()
-    }
-
-    const shownByKysely = async (viewerId: string) =>
+    const shown = async (viewerId: string) =>
       (
         await testDb.db
           .selectFrom('timelines')
@@ -951,15 +1138,25 @@ describe('Kysely visibility predicates match their Knex originals', () => {
         .map(({ statusId }) => statusId as string)
         .sort()
 
-    it.each(Object.entries(viewers))(
-      'shows the same timeline rows to %s',
-      async (_name, viewerId) => {
-        const [knexIds, kyselyIds] = await Promise.all([
-          shownByKnex(viewerId),
-          shownByKysely(viewerId)
-        ])
-        expect(kyselyIds).toEqual(knexIds)
-        expect(knexIds.length).toBeGreaterThan(0)
+    // The rows each viewer's exclusive lists hold back; every other viewer
+    // sees all of them.
+    const hiddenByExclusiveLists: Partial<Record<ViewerName, string[]>> = {
+      // Its exclusive list holds author and, by another actor's membership
+      // row, bareAuthor; its ordinary list (stranger) hides nothing, and
+      // its own rows show.
+      follower: ['excl-author', 'excl-bare'],
+      recipient: ['excl-remote']
+    }
+
+    it.each(viewerEntries)(
+      'shows exactly the expected timeline rows to %s',
+      async (name, viewerId) => {
+        const hidden = hiddenByExclusiveLists[name] ?? []
+        expect(await shown(viewerId)).toEqual(
+          Object.keys(timelineRows)
+            .filter((key) => !hidden.includes(key))
+            .sort()
+        )
       }
     )
 
@@ -974,10 +1171,9 @@ describe('Kysely visibility predicates match their Knex originals', () => {
       { key: 'excl-author', viewer: recipient, shown: true },
       { key: 'excl-author', viewer: stranger, shown: true }
     ])(
-      'agrees that $key is shown=$shown to $viewer',
-      async ({ key, viewer, shown }) => {
-        expect((await shownByKnex(viewer)).includes(key)).toBe(shown)
-        expect((await shownByKysely(viewer)).includes(key)).toBe(shown)
+      'shows $key to $viewer as $shown',
+      async ({ key, viewer, shown: expected }) => {
+        expect((await shown(viewer)).includes(key)).toBe(expected)
       }
     )
   })

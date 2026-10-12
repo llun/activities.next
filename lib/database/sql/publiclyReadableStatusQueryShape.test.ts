@@ -12,12 +12,12 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // the actor's history. The correlated predicate reads 476 buffers and 0.63ms
 // for the same page.
 //
-// `publiclyReadableStatusEquivalence.test.ts` proves the two forms select the
-// same rows — which is exactly why this file has to exist. Every result-based
-// assertion in the suite passes against the slow one, so a revert to
-// `where('statuses.id', 'in', publiclyReadableStatusIds(…))` (the Kysely twin
-// of `buildPubliclyReadableStatusIdsQuery`) lands silently and green unless
-// something looks at the SQL itself.
+// `lib/database/kysely/visibility/publiclyReadable.test.ts` proves the two
+// forms select the same rows — which is exactly why this file has to exist.
+// Every result-based assertion in the suite passes against the slow one, so a
+// revert to `where('statuses.id', 'in', publiclyReadableStatusIds(…))` (the
+// set form) lands silently and green unless something looks at the SQL
+// itself.
 //
 // Capturing knex's `query` event follows the precedent in
 // `localPublicQueryShape.test.ts`: it observes what the production path

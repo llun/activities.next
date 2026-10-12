@@ -216,9 +216,9 @@ jobs:
   # periods, default-sport auto-assign, distance, device and component rollups,
   # service reminders, the gear a processed file is given and the gear and
   # device names a status returns), the media reads (a status's attachments, an
-  # actor's attachments behind the Kysely actor-visible status filter checked
-  # against its Knex original, the account's media listing with its counter
-  # total and paging, media by id and the statuses its owner's account
+  # actor's attachments behind the Kysely actor-visible status filter and
+  # what it selects for every audience, the account's media listing with its
+  # counter total and paging, media by id and the statuses its owner's account
   # attached it to, storage usage) with the media routes and the upload and
   # attach services over them, the media writes (uploads and their
   # verification with the account usage counters and hour buckets, attachment
@@ -297,7 +297,7 @@ jobs:
   # JavaScript, the gallery media scope checked on the album reads' join, the
   # Kysely status visibility, actor-visible status, list eligibility, replies
   # policy, block/mute, follow-target, exclusive-list and publicly-readable
-  # predicates checked against their Knex originals, and the Knex-backed Kysely
+  # predicates checked against the rows each selects, and the Knex-backed Kysely
   # driver (result normalisation, the mixed-transaction guard, counters, bucket
   # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
@@ -346,7 +346,7 @@ jobs:
             lib/database/sql/mediaQueries.test.ts \
             lib/database/sql/mediaWrites.test.ts \
             lib/database/sql/attachmentVisibility.test.ts \
-            lib/database/kysely/visibility/actorVisibleEquivalence.test.ts \
+            lib/database/kysely/visibility/actorVisible.test.ts \
             app/api/v1/media/route.test.ts \
             'app/api/v1/media/[id]/route.test.ts' \
             lib/services/medias/saveMediaFileDetails.test.ts \
@@ -516,7 +516,7 @@ jobs:
             lib/database/sql/featuredTagQueries.test.ts \
             lib/database/sql/trends.test.ts \
             lib/database/sql/trendsQueries.test.ts \
-            lib/database/kysely/visibility/visibilityEquivalence.test.ts \
+            lib/database/kysely/visibility/visibility.test.ts \
             lib/database/kysely/countableActivity.test.ts \
             lib/database/sql/admin.test.ts \
             lib/database/sql/adminDomainRules.test.ts \
@@ -544,7 +544,7 @@ jobs:
             lib/database/sql/timelineQueries.test.ts \
             lib/database/sql/localPublicActorIds.test.ts \
             lib/database/sql/localPublicQueryShape.test.ts \
-            lib/database/sql/publiclyReadableStatusEquivalence.test.ts \
+            lib/database/kysely/visibility/publiclyReadable.test.ts \
             lib/services/timelines/index.test.ts \
             lib/database/sql/statusLookup.test.ts \
             lib/database/sql/statusLookupQueries.test.ts \
