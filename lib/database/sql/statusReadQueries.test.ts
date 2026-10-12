@@ -1789,6 +1789,24 @@ describe('getStatusReplies', () => {
       replyId('c3'),
       replyId('z1')
     ])
+    // An accepted follower of the replier reads the followers-only reply; a
+    // pending one does not.
+    const follower = await seedActor(actorIn(prefix, 'follower'))
+    const pending = await seedActor(actorIn(prefix, 'pending'))
+    await follow(follower, seed.replier)
+    await follow(pending, seed.replier, 'Requested')
+    await expect(
+      getStatusReplies(db, {
+        statusId: seed.parent,
+        visibleToActorId: follower
+      }).then(ids)
+    ).resolves.toEqual([replyId('a4-followers'), replyId('c3'), replyId('z1')])
+    await expect(
+      getStatusReplies(db, {
+        statusId: seed.parent,
+        visibleToActorId: pending
+      }).then(ids)
+    ).resolves.toEqual([replyId('c3'), replyId('z1')])
 
     const replies = (await getStatusReplies(db, {
       statusId: seed.parent,
@@ -2169,6 +2187,11 @@ describe('getActorStatuses', () => {
       reply: `${author}/@root`,
       replyHash: 'wrong'
     })
+    // The root's url hash, under another url (a hash collision).
+    await write('self-reply-hash-collision', {
+      reply: `${author}/@other`,
+      replyHash: getHashFromString(`${author}/@root`)
+    })
     await write('reply-to-other-by-id', { reply: otherNote })
     await write('reply-to-other-by-url', { reply: `${other}/@note` })
     await write('reply-to-missing', { reply: `${author}/statuses/gone` })
@@ -2224,7 +2247,7 @@ describe('getActorStatuses', () => {
       'other-tag'
     ])
     await expect(read({ excludeReblogs: true })).resolves.not.toContain('boost')
-    await expect(read({ excludeReblogs: true })).resolves.toHaveLength(15)
+    await expect(read({ excludeReblogs: true })).resolves.toHaveLength(16)
     for (const tagged of ['reads', '#reads', 'READS', '#Reads']) {
       await expect(read({ tagged })).resolves.toEqual(['tagged'])
     }
@@ -2232,7 +2255,7 @@ describe('getActorStatuses', () => {
     await expect(read({ tagged: '' })).resolves.toEqual([])
     await expect(read({ tagged: '#' })).resolves.toEqual([])
     // A null one is no filter.
-    await expect(read({ tagged: null })).resolves.toHaveLength(16)
+    await expect(read({ tagged: null })).resolves.toHaveLength(17)
     await expect(read({ pinned: true })).resolves.toEqual(['pinned'])
     await expect(
       read({ onlyMedia: true, excludeReplies: true, pinned: true })
