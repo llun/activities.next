@@ -786,7 +786,8 @@ const expectedAfterPurge = (
 //   - announce: of n1's post, by originalStatusId;
 //   - legacyAnnounce: of n2's post, by the url in its content.
 // - follows: target → n1 (accepted), target → n2 (requested), n1 → target,
-//   n2 → target (accepted); n2 → n1 (accepted) stays.
+//   n2 → target (accepted), n3 → target (requested); n2 → n1 (accepted)
+//   stays.
 // - interactions by `target` on n1's post (like, reaction, bookmark, two
 //   poll votes, an attachment), n2's on it stay.
 // - lists, endorsements, blocks, mutes, notes, filters, markers, featured
@@ -796,6 +797,7 @@ const seedWorld = async () => {
   const target = await seedActor('target', { local: true })
   const n1 = await seedActor('n1')
   const n2 = await seedActor('n2', { local: true })
+  const n3 = await seedActor('n3')
   const T = target.id
 
   const n1Post = await seedStatus({
@@ -871,6 +873,7 @@ const seedWorld = async () => {
   await seedFollow(T, n2.id, 'Requested')
   await seedFollow(n1.id, T, 'Accepted')
   await seedFollow(n2.id, T, 'Accepted')
+  await seedFollow(n3.id, T, 'Requested')
   await seedFollow(n2.id, n1.id, 'Accepted')
 
   await seedInteractions(n1Post, T)
@@ -939,6 +942,7 @@ const seedWorld = async () => {
     [CounterKey.totalFollowing(n1.id)]: 10,
     [CounterKey.totalFollowing(n2.id)]: 10,
     [CounterKey.totalFollowers(n2.id)]: 10,
+    [CounterKey.totalFollowing(n3.id)]: 10,
     [CounterKey.totalBlockedBy(n1.id)]: 10,
     [CounterKey.totalBlocking(n2.id)]: 10,
     [CounterKey.totalBlocking(n1.id)]: 10,
@@ -1028,7 +1032,7 @@ describe('deleteActorData', () => {
           [CounterKey.nodeinfoTotalUsers()]: 19,
           // the accepted follow of n1; the requested one of n2 never counted
           [CounterKey.totalFollowers(w.n1.id)]: 9,
-          // n1 and n2 followed it
+          // n1 and n2 followed it; n3 only asked to, which never counted
           [CounterKey.totalFollowing(w.n1.id)]: 9,
           [CounterKey.totalFollowing(w.n2.id)]: 9,
           // it blocked n1; n2 blocked it
