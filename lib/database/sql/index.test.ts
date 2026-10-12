@@ -2,7 +2,7 @@ import { Knex } from 'knex'
 
 import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
 import { createListQueries } from '@/lib/database/domains/list/queries'
-import { createStatusQueries } from '@/lib/database/domains/status/queries'
+import { statusQueries } from '@/lib/database/domains/status/queries'
 import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
 
 import { getSQLDatabase } from './index'
@@ -19,7 +19,8 @@ vi.mock('@/lib/database/kysely', async (importOriginal) => ({
 }))
 
 vi.mock('@/lib/database/domains/like/queries', () => ({
-  likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() }
+  likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() },
+  isActorLikedStatus: vi.fn()
 }))
 
 // The list, collection and timeline factories run for real; the spies record
@@ -52,17 +53,14 @@ vi.mock('@/lib/database/domains/timeline/queries', async (importOriginal) => {
   }
 })
 
-// The status factory runs for real; the spy records the Knex hydration the
-// facade injects into it.
+// The status queries are a copy of the real ones, so a test can swap one out
+// before building the facade.
 vi.mock('@/lib/database/domains/status/queries', async (importOriginal) => {
   const original =
     await importOriginal<
       typeof import('@/lib/database/domains/status/queries')
     >()
-  return {
-    ...original,
-    createStatusQueries: vi.fn(original.createStatusQueries)
-  }
+  return { ...original, statusQueries: { ...original.statusQueries } }
 })
 
 vi.mock('@/lib/database/sql/status', () => ({
@@ -73,13 +71,21 @@ describe('getSQLDatabase', () => {
   const createListQueriesMock = vi.mocked(createListQueries)
   const createCollectionQueriesMock = vi.mocked(createCollectionQueries)
   const createTimelineQueriesMock = vi.mocked(createTimelineQueries)
-  const createStatusQueriesMock = vi.mocked(createStatusQueries)
+  const mutableStatusQueries = statusQueries as unknown as Record<
+    string,
+    unknown
+  >
+  const realStatusQueries = { ...mutableStatusQueries }
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
 
   let _knexMock: Knex
 
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    Object.assign(mutableStatusQueries, realStatusQueries)
   })
 
   const createComposedDatabase = () => {
@@ -91,9 +97,7 @@ describe('getSQLDatabase', () => {
     } as unknown as Knex
 
     const statusDatabase = {
-      getStatus: vi.fn(),
-      getStatusesByIds: vi.fn(),
-      hydrateStatusRow: vi.fn(),
+      deleteStatus: vi.fn(),
       getTags: vi.fn(),
       testPriority: 'status'
     }
@@ -110,51 +114,10 @@ describe('getSQLDatabase', () => {
     }
   }
 
-  it('wires mixin dependencies correctly', () => {
-    const { knexDatabase } = createComposedDatabase()
-    // Actors are Kysely queries bound lazily to this Knex instance, plus the
-    // row mapper and the Knex deleteActorData.
-    const actorDatabase = expect.objectContaining({
-      getActorFromId: expect.any(Function),
-      getMastodonActors: expect.any(Function),
-      getActor: expect.any(Function),
-      deleteActorData: expect.any(Function)
-    })
-
-    expect(statusMixinMock).toHaveBeenCalledWith(
-      knexDatabase,
-      actorDatabase,
-      // Likes are Kysely queries bound lazily to this Knex instance (see the
-      // dedicated test below).
-      expect.objectContaining({
-        createLike: expect.any(Function),
-        isActorLikedStatus: expect.any(Function)
-      }),
-      // Bookmarks are Kysely queries bound lazily to this Knex instance.
-      expect.objectContaining({
-        createBookmark: expect.any(Function),
-        isActorBookmarkedStatus: expect.any(Function)
-      }),
-      // Media reads and writes are Kysely queries bound lazily to this Knex
-      // instance.
-      expect.objectContaining({
-        createMedia: expect.any(Function),
-        deleteMediaForAccount: expect.any(Function),
-        getAttachments: expect.any(Function),
-        getMediaByIdForAccount: expect.any(Function)
-      }),
-      // Detected languages are Kysely queries bound lazily to this Knex instance.
-      expect.objectContaining({
-        getDetectedLanguage: expect.any(Function),
-        getDetectedLanguages: expect.any(Function)
-      }),
-      expect.objectContaining({
-        getStatusReactionRollups: expect.any(Function)
-      }),
-      expect.objectContaining({
-        getStatusLinkPreviews: expect.any(Function)
-      })
-    )
+  it('builds the status deletion mixin on the Knex instance alone', () => {
+    const { database, knexDatabase, statusDatabase } = createComposedDatabase()
+    expect(statusMixinMock).toHaveBeenCalledWith(knexDatabase)
+    expect(database.deleteStatus).toBe(statusDatabase.deleteStatus)
   })
 
   it.each([
@@ -164,15 +127,19 @@ describe('getSQLDatabase', () => {
   ])(
     'hydrates the $feed feeds through the status facade',
     async ({ factory }) => {
-      const { statusDatabase } = createComposedDatabase()
-      const [getStatusesByIds] = factory().mock.calls[0]
       const statuses = [{ id: 'status' }]
-      statusDatabase.getStatusesByIds.mockResolvedValue(statuses)
+      const getStatusesByIdsQuery = vi.fn().mockResolvedValue(statuses)
+      mutableStatusQueries.getStatusesByIds = getStatusesByIdsQuery
+      const kyselyDb = { name: 'kysely' }
+      kyselyForMock.mockReturnValue(kyselyDb)
+      const { knexDatabase } = createComposedDatabase()
+      const [getStatusesByIds] = factory().mock.calls[0]
 
       await expect(getStatusesByIds(['status'], 'viewer')).resolves.toBe(
         statuses
       )
-      expect(statusDatabase.getStatusesByIds).toHaveBeenCalledWith({
+      expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
+      expect(getStatusesByIdsQuery).toHaveBeenCalledWith(kyselyDb, {
         statusIds: ['status'],
         currentActorId: 'viewer'
       })
@@ -220,45 +187,40 @@ describe('getSQLDatabase', () => {
     expect(testPriority).toHaveBeenCalledWith(kyselyDb, 'arg')
   })
 
-  it('binds the status lookups to kyselyFor(knex), hydrating through the Knex mixin', async () => {
-    const { database, knexDatabase, statusDatabase } = createComposedDatabase()
-    const [hydration] = createStatusQueriesMock.mock.calls[0]
-
-    // getStatus and getStatusesByIds are the facade's; the row hydration is
-    // handed over and kept off the facade.
-    statusDatabase.getStatus.mockResolvedValue({ id: 'one' })
-    await expect(hydration.getStatus({ statusId: 'one' })).resolves.toEqual({
-      id: 'one'
-    })
-    expect(statusDatabase.getStatus).toHaveBeenCalledWith({ statusId: 'one' })
-    statusDatabase.getStatusesByIds.mockResolvedValue([{ id: 'two' }])
-    await expect(
-      hydration.getStatusesByIds({ statusIds: ['two'], currentActorId: 'v' })
-    ).resolves.toEqual([{ id: 'two' }])
-    expect(statusDatabase.getStatusesByIds).toHaveBeenCalledWith({
-      statusIds: ['two'],
-      currentActorId: 'v'
-    })
-    expect(hydration.hydrateStatusRow).toBe(statusDatabase.hydrateStatusRow)
-    expect('hydrateStatusRow' in database).toBe(false)
-
+  it('binds the status queries to kyselyFor(knex), over the Knex mixin', async () => {
     // A Kysely status query wins over a Knex key of the same name, and is
     // bound to the Kysely instance of this Knex one, resolved on each call.
     const kyselyDb = { name: 'kysely' }
     kyselyForMock.mockReturnValue(kyselyDb)
     const getTags = vi.fn().mockResolvedValue(['tag'])
-    createStatusQueriesMock.mockReturnValueOnce({
-      getTags
-    } as unknown as ReturnType<typeof createStatusQueries>)
-    const { database: withStatusQueries, knexDatabase: knexForQueries } =
-      createComposedDatabase()
-    expect(kyselyForMock).not.toHaveBeenCalledWith(knexForQueries)
-    await expect(
-      withStatusQueries.getTags({ statusId: 'status' })
-    ).resolves.toEqual(['tag'])
-    expect(kyselyForMock).toHaveBeenCalledWith(knexForQueries)
+    mutableStatusQueries.getTags = getTags
+    const { database, knexDatabase, statusDatabase } = createComposedDatabase()
+    expect(kyselyForMock).not.toHaveBeenCalledWith(knexDatabase)
+    await expect(database.getTags({ statusId: 'status' })).resolves.toEqual([
+      'tag'
+    ])
+    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
     expect(getTags).toHaveBeenCalledWith(kyselyDb, { statusId: 'status' })
-    expect(knexDatabase).not.toBe(knexForQueries)
+    expect(statusDatabase.getTags).not.toHaveBeenCalled()
+
+    // The reads and hydration are Kysely queries too, and the row hydration
+    // stays off the facade.
+    expect('hydrateStatusRow' in database).toBe(false)
+    for (const name of [
+      'getStatus',
+      'getStatusReplies',
+      'getStatusEditHistory',
+      'getActorStatusesCount',
+      'getActorStatuses',
+      'getStatusesByIds',
+      'getStatusReblogsCount',
+      'getStatusReblogsCounts',
+      'getStatusRepliesCount',
+      'getStatusRepliesCounts'
+    ]) {
+      expect(realStatusQueries[name]).toEqual(expect.any(Function))
+      expect(name in statusDatabase).toBe(false)
+    }
   })
 
   it('proxies migrate and destroy to knex lifecycle methods', async () => {

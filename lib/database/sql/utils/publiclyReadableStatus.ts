@@ -168,9 +168,11 @@ const announceOriginalIsPublicNote = (database: Knex, table: string) =>
 //
 // The Kysely twin is publiclyReadableStatus
 // (lib/database/kysely/visibility/publiclyReadable.ts), which the local public
-// timeline and the public collection feed use; it has no MySQL branch.
-// publiclyReadableStatusEquivalence.test.ts runs it, this form and the set
-// form over the same rows, and statusReadableSql.test.ts pins its compiled
+// timeline, the public collection feed, the reply feed and count and the
+// actor feed use; it has no MySQL branch. This Knex form has no production
+// caller left: it stays as the reference
+// publiclyReadableStatusEquivalence.test.ts runs it against, beside the set
+// form, over the same rows. statusReadableSql.test.ts pins the twin's compiled
 // SQL: change them together.
 export const wherePubliclyReadableStatus = (
   query: Knex.QueryBuilder,

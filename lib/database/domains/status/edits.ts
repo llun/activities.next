@@ -30,7 +30,7 @@ import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 // content, options and tallies, and a status's quote-approval policy. The edits
 // that keep a revision write it to `status_history` in the same transaction as
 // the change. updateNote and updateNoteVisibility read the status they edit
-// through the Knex mixin's hydration before their transaction (updatePoll and
+// through the injected hydration before their transaction (updatePoll and
 // updateStatusQuoteApprovalPolicy read its row here), and each edit returns it
 // re-read through that hydration after. The three that open a transaction
 // reindex search after it.

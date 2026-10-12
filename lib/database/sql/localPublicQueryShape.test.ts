@@ -17,8 +17,9 @@ import { Timeline } from '@/lib/services/timelines/types'
 // `statusLookup.test.ts` (the batched-hydration tests) and is preferred over
 // compiling a builder here because it observes what the production path
 // actually sends, rather than a builder the test constructed for itself. Only
-// tagged statements are kept, so the Knex status hydration that follows can
-// never be mistaken for the query under test.
+// tagged statements are kept, and of those only the one naming both
+// `recipients` and `statuses` (see below), so the status hydration that
+// follows, Kysely too, can never be mistaken for the query under test.
 //
 // Built on `getTestDatabaseWithInstance` rather than the SQLite-only
 // `getTestSQLDatabaseWithInstance`, because the query this pins is a

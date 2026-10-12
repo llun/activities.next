@@ -23,7 +23,8 @@ import { isPublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
 
 // The status lookups by url, url hash, publicId and path segment, and the
 // actor's own Announce of a status. Each reads the row (or its id) here and
-// hydrates it through the injected Knex hydration.
+// hydrates it through the injected hydration (./hydration.ts, bound to the
+// same `db` by statusHydrationFor).
 
 export const getStatusFromUrl = async (
   db: Db,

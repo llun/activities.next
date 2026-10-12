@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getStatusReactionList } from '@/lib/services/reactions/getStatusReactionList'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -6,12 +6,13 @@ import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 
 describe('getStatusReactionList', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   const statusId = `${ACTOR1_ID}/statuses/post-1`
   let author: Actor
   let reactor: Actor
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     author = (await database.getActorFromUsername({

@@ -398,8 +398,8 @@ export const getListsWithAccount = async (
 
 /**
  * The list facade methods as `(db, params)` queries. getListTimeline hydrates
- * its statuses through `getStatusesByIds` (the status facade, injected until
- * status is ported), after this domain's queries and outside any transaction.
+ * its statuses through `getStatusesByIds` (the status facade's, injected),
+ * after this domain's queries and outside any transaction.
  */
 export const createListQueries = (getStatusesByIds: ListStatusSource) => ({
   createList,

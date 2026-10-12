@@ -107,7 +107,7 @@ const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
  *   to the actor.
  *
  * The Kysely twin of buildActorVisibleStatusIdsQuery (lib/database/sql/status.ts),
- * which still serves the gallery and status mixins;
+ * which no production code uses any more;
  * actorVisibleEquivalence.test.ts runs both over the same rows. Change both
  * together.
  */

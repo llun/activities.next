@@ -74,7 +74,7 @@ type HydrationCall =
     ]
   | ['getStatusesByIds' | 'hydrateStatusRow', unknown]
 
-// The Knex mixin's hydration, recording what the writes ask it for. The writes
+// The facade's hydration, recording what the writes ask it for. The writes
 // only read single statuses.
 const hydrationCalls: HydrationCall[] = []
 const hydration: StatusHydration = {
@@ -433,8 +433,8 @@ const expectRolledBack = async (
 
 type Statement = { sql: string; bindings: unknown[]; kysely: boolean }
 
-// The statements `run` sends, as the Kysely driver (and Knex, for the
-// hydration) reports them on the Knex `query` event.
+// The statements `run` sends, as the Kysely driver reports them on the Knex
+// `query` event.
 const capture = async <T>(run: () => Promise<T>) => {
   const statements: Statement[] = []
   const listener = (event: {
@@ -2543,7 +2543,7 @@ describe('updatePoll', () => {
       .set({ createdAt: null })
       .where('id', '=', id)
       .execute()
-    // The edit commits; reading the undated poll back then fails in the Knex
+    // The edit commits; reading the undated poll back then fails in the
     // hydration, as it did before.
     await expect(
       updatePoll(db, hydration, {
@@ -3069,7 +3069,9 @@ describe('single-row reads', () => {
       })
       await incrementPollChoiceVotes(db, { statusId: poll, choiceIndex: 1 })
     })
-    // The Kysely statements: the Knex hydration's reads are not ported here.
+    // The single-row reads among the Kysely statements, hydration's included:
+    // updatePoll and updateStatusQuoteApprovalPolicy each read their row and
+    // then hydrate it by id after their write.
     const reads = statements
       .filter(
         ({ sql: text, kysely }) =>
@@ -3094,6 +3096,8 @@ describe('single-row reads', () => {
       'select "accountId" from "actors" limit ?',
       'select "id" from "statuses" limit ?',
       'select "id" from "statuses" limit ?',
+      'select * from "statuses" limit ?',
+      'select * from "statuses" limit ?',
       'select * from "statuses" limit ?',
       'select * from "statuses" limit ?',
       'select "id" from "poll_voters" limit ?',
@@ -3596,7 +3600,7 @@ describe('counters above 2^53 - 1', () => {
 
 describe('createStatusQueries', () => {
   it('hands the writes that hydrate the hydration it is given, and the others as they are', async () => {
-    const queries = createStatusQueries(hydration)
+    const queries = createStatusQueries(() => hydration)
     expect({
       createTag: queries.createTag,
       deleteStatusTagsByType: queries.deleteStatusTagsByType,

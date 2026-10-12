@@ -21,9 +21,9 @@ import type { Status } from '@/lib/types/domain/status'
 
 /**
  * Where this domain gets hydrated statuses from: the status facade's
- * getStatusesByIds, injected by lib/database/sql/index.ts until status is
- * ported. It runs on the root Knex instance, so it is only called after this
- * domain's queries, never inside a transaction.
+ * getStatusesByIds, injected by lib/database/sql/index.ts. It runs on the root
+ * Kysely instance, so it is only called after this domain's queries, never
+ * inside a transaction.
  */
 export type TimelineStatusSource = (
   statusIds: string[],
@@ -427,8 +427,8 @@ export const addStatusToFederatedTimeline = async (
 
 /**
  * The timeline facade methods as `(db, params)` queries. getTimeline hydrates
- * its statuses through `getStatusesByIds` (the status facade, injected until
- * status is ported), after this domain's queries and outside any transaction.
+ * its statuses through `getStatusesByIds` (the status facade's, injected),
+ * after this domain's queries and outside any transaction.
  */
 export const createTimelineQueries = (
   getStatusesByIds: TimelineStatusSource

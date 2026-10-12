@@ -753,9 +753,8 @@ export const removeCollectionItemById = async (
 
 /**
  * The collection facade methods as `(db, params)` queries. The two feed reads
- * hydrate their statuses through `getStatusesByIds` (the status facade,
- * injected until status is ported), after this domain's queries and outside
- * any transaction.
+ * hydrate their statuses through `getStatusesByIds` (the status facade's,
+ * injected), after this domain's queries and outside any transaction.
  */
 export const createCollectionQueries = (
   getStatusesByIds: CollectionStatusSource

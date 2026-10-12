@@ -258,7 +258,13 @@ jobs:
   # the send-note, send-announce, quote request, quote revoke and delete-object
   # jobs, the favourites page, forwarding, status edits, quote notification,
   # reaction, timeline and trending status services, the status type and the
-  # status text processing), the fitness file domain (uploads with their
+  # status text processing), the status reads and hydration (a status with its
+  # replies, an actor's statuses with their filters, cursors and count, statuses
+  # by id, the edit history, the reblog and reply counts, and the hydrated poll,
+  # fitness file, quote, link preview, reaction and viewer fields) with the
+  # personal inbox, the emoji reaction action and job, the actor posts reader's
+  # context and string-reference suites, the reaction list and the mention
+  # lookup over them, the fitness file domain (uploads with their
   # storage and file counters and hourly buckets, deletes, processing and
   # import status, primary assignment, the actor listing with its cursor and
   # Knex paging, the account listing with its counter total, the overview
@@ -636,6 +642,14 @@ jobs:
             lib/services/trends/trendingStatuses.test.ts \
             lib/types/domain/status.test.ts \
             lib/utils/text/processStatusText.test.ts \
+            lib/database/sql/statusReadQueries.test.ts \
+            'app/api/users/[username]/inbox/fediverseInterop.test.ts' \
+            lib/actions/emojiReaction.test.ts \
+            lib/activities/getActorPosts.context.test.ts \
+            lib/activities/getActorPosts.stringRefs.test.ts \
+            lib/jobs/emojiReactionJob.test.ts \
+            lib/services/reactions/getStatusReactionList.test.ts \
+            lib/utils/text/getMentions.test.ts \
             lib/database/sql/conversation.test.ts \
             lib/database/sql/conversationQueries.test.ts \
             lib/database/sql/directConversationsMigration.test.ts \
