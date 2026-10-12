@@ -95,6 +95,8 @@ describe('createLimiter', () => {
     const second = vi.fn(async () => 'second')
     await expect(limit(second)).rejects.toBeInstanceOf(LookupRateLimitedError)
     expect(second).not.toHaveBeenCalled()
+
+    reads.mockRestore()
   })
 
   // The race the limiter used to lose: slots were booked on arrival, so calls
