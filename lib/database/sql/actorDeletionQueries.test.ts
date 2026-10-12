@@ -1422,7 +1422,7 @@ describe('rollback', () => {
     try {
       await expect(
         deleteActorData(db(), { actorId: w.target.id })
-      ).rejects.toThrow('forced failure')
+      ).rejects.toThrow(/^forced failure$/)
     } finally {
       await drop()
     }

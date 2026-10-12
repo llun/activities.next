@@ -1578,7 +1578,8 @@ describe('rollback', () => {
     const before = await dumpDatabase(testDb)
     try {
       await expect(deleteStatus(db(), { statusId: t.root })).rejects.toThrow(
-        'forced failure'
+        // The driver's own message, without Knex's statement prefix.
+        /^forced failure$/
       )
     } finally {
       await drop()
@@ -1603,7 +1604,7 @@ describe('rollback', () => {
             payload: {} as never
           }
         })
-      ).rejects.toThrow('forced failure')
+      ).rejects.toThrow(/^forced failure$/)
     } finally {
       await drop()
     }
