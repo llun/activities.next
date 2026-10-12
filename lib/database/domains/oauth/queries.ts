@@ -3,14 +3,20 @@ import type { ExpressionBuilder } from 'kysely'
 import { sql } from 'kysely'
 
 import type {
+  CountRecentAppRegistrationsParams,
   CreateOAuthAccessTokenParams,
+  CreateOAuthClientRegistrationParams,
   ExtendOAuthAccessTokenParams,
   GetAccountConnectedAppsParams,
   GetClientFromIdParams,
+  GetOAuthAccessTokenByHashParams,
+  IsOAuthClientPKCERequiredParams,
+  OAuthAccessTokenRecord,
   RevokeAccountConnectedAppParams
 } from '@/lib/database/domains/oauth/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { DB } from '@/lib/database/kysely/db'
+import { timestampValue } from '@/lib/database/kysely/dialect'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { ConnectedApp } from '@/lib/types/domain/connected-app'
 import { Client } from '@/lib/types/oauth2/client'
@@ -62,6 +68,86 @@ export const getClientFromId = async (
     updatedAt: row.updatedAt ?? 0,
     createdAt: row.createdAt ?? 0
   })
+}
+
+export const getOAuthAccessTokenByHash = async (
+  db: Db,
+  { hashedToken }: GetOAuthAccessTokenByHashParams
+): Promise<OAuthAccessTokenRecord | null> => {
+  const row = await db
+    .selectFrom('oauthAccessToken')
+    .select(['clientId', 'userId', 'referenceId', 'scopes', 'expiresAt'])
+    .where('token', '=', hashedToken)
+    .limit(1)
+    .executeTakeFirst()
+  return row ?? null
+}
+
+export const isOAuthClientPKCERequired = async (
+  db: Db,
+  { clientId }: IsOAuthClientPKCERequiredParams
+): Promise<boolean> => {
+  // A narrow read instead of `getClientFromId`: that one parses the whole row
+  // into a `Client`, which refuses a client whose JSON columns are malformed,
+  // and this answer must not depend on them.
+  const row = await db
+    .selectFrom('oauthClient')
+    .select('requirePKCE')
+    .where('clientId', '=', clientId)
+    .limit(1)
+    .executeTakeFirst()
+  return Boolean(row?.requirePKCE)
+}
+
+export const countRecentAppRegistrations = async (
+  db: Db,
+  { registrationReference, since }: CountRecentAppRegistrationsParams
+): Promise<number> => {
+  const row = await db
+    .selectFrom('oauthClient')
+    .select((eb) => eb.fn.countAll().as('count'))
+    .where('referenceId', '=', registrationReference)
+    .where('createdAt', '>=', timestampValue(since))
+    .executeTakeFirst()
+  // count(*) is an expression column: a string on PostgreSQL's int8, a number
+  // on SQLite.
+  return Number(row?.count ?? 0)
+}
+
+export const createOAuthClientRegistration = async (
+  db: Db,
+  params: CreateOAuthClientRegistrationParams
+): Promise<void> => {
+  const createdAt = new Date(params.createdAt)
+  await db
+    .insertInto('oauthClient')
+    .values({
+      id: params.id,
+      clientId: params.clientId,
+      clientSecret: params.clientSecret,
+      name: params.name,
+      // JSON-array strings, as `oauthClient.scopes` / `redirectUris` have
+      // always been stored; better-auth's adapter parses its `string[]`
+      // fields back into arrays on read.
+      scopes: JSON.stringify(params.scopes),
+      clientCredentialsScopes: JSON.stringify(params.clientCredentialsScopes),
+      redirectUris: JSON.stringify(params.redirectUris),
+      postLogoutRedirectUris: params.postLogoutRedirectUris
+        ? JSON.stringify(params.postLogoutRedirectUris)
+        : null,
+      enableEndSession: params.enableEndSession,
+      uri: params.website,
+      requirePKCE: params.requirePKCE,
+      disabled: params.disabled,
+      grantTypes: JSON.stringify(params.grantTypes),
+      responseTypes: JSON.stringify(params.responseTypes),
+      tokenEndpointAuthMethod: params.tokenEndpointAuthMethod,
+      referenceId: params.referenceId,
+      metadata: params.metadata,
+      createdAt,
+      updatedAt: createdAt
+    })
+    .execute()
 }
 
 export const createOAuthAccessToken = async (
@@ -209,6 +295,10 @@ export const revokeAccountConnectedApp = (
 
 export const oauthQueries = {
   getClientFromId,
+  getOAuthAccessTokenByHash,
+  isOAuthClientPKCERequired,
+  countRecentAppRegistrations,
+  createOAuthClientRegistration,
   createOAuthAccessToken,
   extendOAuthAccessToken,
   getAccountConnectedApps,

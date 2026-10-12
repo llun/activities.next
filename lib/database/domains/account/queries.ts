@@ -21,11 +21,13 @@ import {
   validatePasswordResetCode,
   verifyEmailChange
 } from '@/lib/database/domains/account/credentials'
+import { getAccountPasskeys } from '@/lib/database/domains/account/passkeys'
 import {
   createAccountSession,
   deleteAccountSessionById,
   deleteOtherAccountSessions,
-  getAccountAllSessions
+  getAccountAllSessions,
+  setSessionActorIdByToken
 } from '@/lib/database/domains/account/sessions'
 
 // The facade getSQLDatabase binds with bindDb().
@@ -40,6 +42,8 @@ export const accountQueries = {
   getAccountAllSessions,
   deleteAccountSessionById,
   deleteOtherAccountSessions,
+  setSessionActorIdByToken,
+  getAccountPasskeys,
   unlinkAccountFromProvider,
   createActorForAccount,
   getActorsForAccount,

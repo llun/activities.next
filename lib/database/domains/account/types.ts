@@ -49,6 +49,26 @@ export type DeleteOtherAccountSessionsParams = {
   exceptToken: string
 }
 
+export type SetSessionActorIdByTokenParams = {
+  // The better-auth session's `token` column, as the session cookie resolves it.
+  token: string
+  actorId: string
+}
+export type GetAccountPasskeysParams = { accountId: string }
+// A passkey the account registered, without its key material.
+export type AccountPasskey = {
+  id: string
+  name: string | null
+  // The domain it was registered on; null for one created before
+  // multi-domain support.
+  rpID: string | null
+  deviceType: string
+  backedUp: boolean
+  // Epoch milliseconds, on both backends.
+  createdAt: number
+  aaguid: string | null
+}
+
 export type UnlinkAccountFromProviderParams = {
   accountId: string
   provider: string
@@ -155,6 +175,17 @@ export interface AccountDatabase {
   deleteOtherAccountSessions(
     params: DeleteOtherAccountSessionsParams
   ): Promise<number>
+  // Point the session with this token at `actorId`, so the OAuth consent step
+  // picks up the actor the account switched to when it mints access tokens.
+  // Returns how many sessions were updated (0 for an unknown token).
+  setSessionActorIdByToken(
+    params: SetSessionActorIdByTokenParams
+  ): Promise<number>
+
+  // The account's passkeys, oldest first.
+  getAccountPasskeys(
+    params: GetAccountPasskeysParams
+  ): Promise<AccountPasskey[]>
 
   unlinkAccountFromProvider(
     params: UnlinkAccountFromProviderParams

@@ -53,6 +53,7 @@ export type {
 
 export type {
   AccountDatabase,
+  AccountPasskey,
   ChangePasswordParams,
   CreateAccountParams,
   CreateAccountSessionParams,
@@ -62,6 +63,7 @@ export type {
   GetAccountAllSessionsParams,
   GetAccountFromEmailParams,
   GetAccountFromIdParams,
+  GetAccountPasskeysParams,
   GetActorsForAccountParams,
   IsAccountExistsParams,
   IsUsernameExistsParams,
@@ -71,6 +73,7 @@ export type {
   RequestPasswordResetParams,
   ResetPasswordWithCodeParams,
   SetDefaultActorParams,
+  SetSessionActorIdByTokenParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountImageParams,
   UpdateAccountNameParams,
@@ -850,9 +853,14 @@ export const UsableScopes = Scope.options
 
 export { GetClientFromIdParams } from '@/lib/database/domains/oauth/types'
 export type {
+  CountRecentAppRegistrationsParams,
   CreateOAuthAccessTokenParams,
+  CreateOAuthClientRegistrationParams,
   ExtendOAuthAccessTokenParams,
   GetAccountConnectedAppsParams,
+  GetOAuthAccessTokenByHashParams,
+  IsOAuthClientPKCERequiredParams,
+  OAuthAccessTokenRecord,
   OAuthDatabase,
   RevokeAccountConnectedAppParams
 } from '@/lib/database/domains/oauth/types'

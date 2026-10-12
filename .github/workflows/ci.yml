@@ -487,6 +487,7 @@ jobs:
             lib/database/domains/actor/actorDeletion.test.ts \
             lib/database/domains/deadLetterJob/deadLetterJobs.test.ts \
             lib/database/domains/oauth/oauth.test.ts \
+            lib/database/domains/oauth/oauthRouteQueries.test.ts \
             lib/database/domains/pushSubscription/pushSubscription.test.ts \
             lib/database/domains/scheduledStatus/scheduledStatus.test.ts \
             lib/database/domains/filter/filter.test.ts \
@@ -523,6 +524,7 @@ jobs:
             lib/database/domains/admin/adminDomainRules.test.ts \
             lib/database/domains/account/accountQueries.test.ts \
             lib/database/domains/account/sessionTokenDetach.test.ts \
+            lib/database/domains/account/accountRouteQueries.test.ts \
             lib/database/domains/moderation/moderation.test.ts \
             lib/database/domains/moderation/moderationQueries.test.ts \
             lib/database/domains/actor/actor.test.ts \
