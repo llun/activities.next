@@ -376,6 +376,15 @@ describe('getStatus', () => {
       ]
     })
 
+    // Empty quote-edge and link-preview maps mean "none", not "look it up".
+    const rich = await seedRichNote(nextPrefix())
+    const quiet = (await getStatusWithHydration(db, {
+      statusId: rich.noteId,
+      hydrationContext: { quoteEdges: new Map(), linkPreviews: new Map() }
+    })) as StatusNote
+    expect(quiet).not.toHaveProperty('quote')
+    expect(quiet).not.toHaveProperty('linkPreview')
+
     // Without one it looks each up.
     await expect(
       getStatusWithHydration(db, { statusId, currentActorId: viewer })
@@ -473,6 +482,7 @@ const seedRichNote = async (prefix: string) => {
     `https://${DOMAIN}/api/v1/files/medias/${prefix}-${name}.webp`
   await attach(noteId, author, mediaUrl('photo'), BASE)
   await attach(noteId, author, mediaUrl('map'), BASE + MINUTE)
+  await attach(noteId, author, mediaUrl('after'), BASE + 2 * MINUTE)
   await attach(neighbourId, author, mediaUrl('neighbour'), BASE)
 
   await tag(noteId, '#Reads')
@@ -720,9 +730,11 @@ const seedRichNote = async (prefix: string) => {
         activityStartTime: new Date(BASE - 10 * MINUTE),
         deletedAt: new Date(BASE)
       }),
+      // Created first, so only the start time puts the winner ahead of it.
       fitnessFile('later-start', noteId, {
         isPrimary: true,
-        activityStartTime: new Date(BASE - 5 * MINUTE)
+        activityStartTime: new Date(BASE - 5 * MINUTE),
+        createdAt: new Date(BASE - MINUTE)
       }),
       fitnessFile('later-created', noteId, {
         isPrimary: true,
@@ -873,6 +885,10 @@ describe('hydrateStatusRow', () => {
         expect.objectContaining({
           id: `${seed.noteId}#${prefix}-photo.webp`,
           url: seed.mediaUrl('photo')
+        }),
+        expect.objectContaining({
+          id: `${seed.noteId}#${prefix}-after.webp`,
+          url: seed.mediaUrl('after')
         })
       ],
       tags: [
@@ -967,6 +983,8 @@ describe('hydrateStatusRow', () => {
       edits: [expect.objectContaining({ text: '<p>neighbour first</p>' })]
     })
     expect(neighbour.linkPreview).toBeUndefined()
+    // Its fitness file has no map error, so no map failure is reported.
+    expect(neighbour.fitness).not.toHaveProperty('mapFailure')
     expect(neighbour.attachments.map((item) => item.url)).toEqual([
       seed.mediaUrl('neighbour')
     ])
@@ -1081,12 +1099,28 @@ describe('hydrateStatusRow', () => {
         processingStatus: 'processing',
         hasMapData: false,
         mapError: 'no points',
+        // A map image no attachment matches leaves their order alone.
+        mapImagePath: `/medias/${prefix}-none.webp`,
+        // An epoch-0 start reads as unset on both backends, as it always did
+        // on SQLite (on PostgreSQL Knex's Date was truthy and gave 0).
+        activityStartTime: new Date(0),
         createdAt: new Date(BASE),
         // Long enough ago that the worker must have died.
         updatedAt: new Date(BASE)
       })
       .execute()
+    await attach(statusId, author, `https://${DOMAIN}/${prefix}-a.webp`, BASE)
+    await attach(
+      statusId,
+      author,
+      `https://${DOMAIN}/${prefix}-b.webp`,
+      BASE + MINUTE
+    )
     const status = (await getStatus(db, { statusId })) as StatusNote
+    expect(status.attachments.map((item) => item.url)).toEqual([
+      `https://${DOMAIN}/${prefix}-a.webp`,
+      `https://${DOMAIN}/${prefix}-b.webp`
+    ])
     expect(status.fitness).toEqual({
       id: `${prefix}-file`,
       fileName: 'file.fit',
@@ -1461,7 +1495,9 @@ describe('getStatusEditHistory', () => {
       id: `${author}/statuses/2`,
       actorId: author
     })
-    const [low, high, latest, neighbour] = [
+    // The latest one has the lowest id, so an id order alone would put it
+    // first.
+    const [latest, low, high, neighbour] = [
       nextSerial(),
       nextSerial(),
       nextSerial(),
@@ -2036,6 +2072,9 @@ describe('getActorStatuses', () => {
     await expect(
       page({ minStatusId: statusId('a'), maxStatusId: statusId('gone') })
     ).resolves.toEqual([statusId('d'), statusId('c'), statusId('b')])
+    await expect(
+      page({ minStatusId: statusId('gone'), maxStatusId: statusId('d') })
+    ).resolves.toEqual([statusId('c'), statusId('b'), statusId('a')])
     await expect(page({ maxStatusId: statusId('undated') })).resolves.toEqual(
       []
     )
@@ -2523,10 +2562,14 @@ describe('status counts', () => {
   })
 
   it.runIf(testDb.backend === 'pg')(
-    'rejects a counter past 2^53 - 1 on PostgreSQL rather than rounding it',
+    'rejects a counter past 2^53 - 1 on PostgreSQL rather than clamping it, in the counts and in hydration',
     async () => {
       const prefix = nextPrefix()
-      const statusId = `https://${DOMAIN}/users/${prefix}/statuses/1`
+      const author = await seedActor(actorIn(prefix, 'author'))
+      const statusId = await seedStatus({
+        id: `${author}/statuses/1`,
+        actorId: author
+      })
       await db
         .insertInto('counters')
         .values({ id: CounterKey.totalReblog(statusId), value: 2 ** 53 + 2 })
@@ -2534,8 +2577,133 @@ describe('status counts', () => {
       await expect(getStatusReblogsCount(db, { statusId })).rejects.toThrow(
         RangeError
       )
+      await expect(
+        getStatusReblogsCounts(db, { statusIds: [statusId] })
+      ).rejects.toThrow(RangeError)
+      // Knex read it as 9,007,199,254,740,991 and hydrated the status.
+      await expect(getStatus(db, { statusId })).rejects.toThrow(RangeError)
     }
   )
+})
+
+describe('null and undefined keys', () => {
+  it('reads an undefined key as NULL, matching no row, where Knex threw', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    const replier = await seedActor(actorIn(prefix, 'replier'))
+    const url = `${author}/@parent`
+    await seedStatus({ id: `${author}/statuses/parent`, actorId: author, url })
+    const byUrl = await seedStatus({
+      id: `${replier}/statuses/by-url`,
+      actorId: replier,
+      reply: url
+    })
+    const missing = undefined as unknown as string
+
+    await expect(getActorStatuses(db, { actorId: missing })).resolves.toEqual(
+      []
+    )
+    await expect(
+      getActorStatuses(db, { actorId: missing, publicOnly: true })
+    ).resolves.toEqual([])
+    await expect(
+      getActorStatusesCount(db, { actorId: missing, publicOnly: true })
+    ).resolves.toBe(0)
+    // With a url, the replies by url are still read.
+    await expect(
+      getStatusReplies(db, { statusId: missing, url }).then(ids)
+    ).resolves.toEqual([byUrl])
+    await expect(
+      getStatusRepliesCount(db, { statusId: missing, url })
+    ).resolves.toBe(1)
+    await expect(
+      getStatusRepliesCount(db, { statusId: missing, publicOnly: true })
+    ).resolves.toBe(0)
+  })
+
+  it('reads a null key as matching no row, where Knex matched the rows with NULL there', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    // Rows with NULL in the keys these reads filter on, which Knex's
+    // two-argument where read as IS NULL.
+    const noReply = await seedStatus({
+      id: `${author}/statuses/no-reply`,
+      actorId: author,
+      reply: null
+    })
+    const noAuthor = await seedStatus({
+      id: `${author}/statuses/no-author`,
+      actorId: null as unknown as string
+    })
+    const [revision] = await db
+      .insertInto('status_history')
+      .values({
+        statusId: null,
+        data: JSON.stringify({ text: 'orphan' }),
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      .returning('id')
+      .execute()
+    // SQLite's statuses.id allows a NULL; PostgreSQL's does not.
+    if (testDb.backend === 'sqlite') {
+      await db
+        .insertInto('statuses')
+        .values({
+          id: null as unknown as string,
+          actorId: author,
+          type: StatusType.enum.Note,
+          reply: '',
+          content: JSON.stringify({ text: 'no id' }),
+          createdAt: new Date(BASE),
+          updatedAt: new Date(BASE)
+        })
+        .execute()
+    }
+    const missing = null as unknown as string
+    try {
+      await expect(getStatus(db, { statusId: missing })).resolves.toBeNull()
+      await expect(
+        getStatusEditHistory(db, { statusId: missing })
+      ).resolves.toEqual([])
+      await expect(
+        getStatusReplies(db, { statusId: missing })
+      ).resolves.toEqual([])
+      await expect(
+        getStatusReplies(db, { statusId: missing, publicOnly: true })
+      ).resolves.toEqual([])
+      await expect(
+        getStatusRepliesCount(db, { statusId: missing, publicOnly: true })
+      ).resolves.toBe(0)
+      await expect(
+        getStatusRepliesCount(db, { statusId: missing, url: `${author}/@x` })
+      ).resolves.toBe(0)
+      await expect(getActorStatuses(db, { actorId: missing })).resolves.toEqual(
+        []
+      )
+      await expect(
+        getActorStatuses(db, { actorId: missing, publicOnly: true })
+      ).resolves.toEqual([])
+      await expect(
+        getActorStatusesCount(db, { actorId: missing, publicOnly: true })
+      ).resolves.toBe(0)
+    } finally {
+      await db
+        .deleteFrom('statuses')
+        .where((eb) =>
+          eb.or([eb('id', 'in', [noReply, noAuthor]), eb('id', 'is', null)])
+        )
+        .execute()
+      await db
+        .deleteFrom('recipients')
+        .where('statusId', 'in', [noReply, noAuthor])
+        .execute()
+      await db
+        .deleteFrom('status_history')
+        .where('id', '=', revision.id)
+        .execute()
+    }
+  })
 })
 
 describe('hydration context', () => {
@@ -2660,6 +2828,14 @@ describe('hydration context', () => {
     await like(statusId('c'), viewer)
     await bookmark(statusId('b'), viewer)
     await bookmark(statusId('a'), other)
+    // The viewer's bookmark and boost of a status the page does not show.
+    await bookmark(statusId('c'), viewer)
+    await seedStatus({
+      id: `${viewer}/statuses/boost-c`,
+      actorId: viewer,
+      type: StatusType.enum.Announce,
+      originalStatusId: statusId('c')
+    })
     await seedStatus({
       id: `${viewer}/statuses/boost-a`,
       actorId: viewer,

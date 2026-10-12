@@ -748,6 +748,8 @@ export const hydrateStatusRow = async (
             ...(fitnessFile.activityType
               ? { activityType: fitnessFile.activityType }
               : null),
+            // The truthiness check is kept (as toFitnessFile keeps it), so an
+            // epoch-0 start reads as unset, as it always did on SQLite.
             ...(fitnessFile.activityStartTime
               ? {
                   activityStartTime: getCompatibleTime(
