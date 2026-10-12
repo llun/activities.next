@@ -14,7 +14,6 @@ import {
 } from '@aws-sdk/client-s3'
 import { realpathSync } from 'fs'
 import fs from 'fs/promises'
-import knex from 'knex'
 import path from 'path'
 
 import { getConfig } from '@/lib/config'
@@ -26,6 +25,7 @@ import {
   type MediaStorageConfig,
   MediaStorageType
 } from '@/lib/config/mediaStorage'
+import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
@@ -36,7 +36,7 @@ async function getAllMediaPathsFromDatabase(
   basePath?: string
 ): Promise<Set<string>> {
   const config = getConfig()
-  const database = knex(config.database)
+  const { db, destroy } = openScriptDatabase(config.database)
 
   try {
     const paths = new Set<string>()
@@ -56,7 +56,10 @@ async function getAllMediaPathsFromDatabase(
     }
 
     // Get all media paths from the medias table
-    const medias = await database('medias').select('original', 'thumbnail')
+    const medias = await db
+      .selectFrom('medias')
+      .select(['original', 'thumbnail'])
+      .execute()
     for (const media of medias) {
       addPath(media.original)
       addPath(media.thumbnail)
@@ -64,7 +67,7 @@ async function getAllMediaPathsFromDatabase(
 
     // A photo edit keeps the uploaded file and earlier renders beside the
     // live one (see getMediaEditReferencedPaths).
-    for (const editPath of await getMediaEditReferencedPaths(database)) {
+    for (const editPath of await getMediaEditReferencedPaths(db)) {
       addPath(editPath)
     }
 
@@ -75,16 +78,18 @@ async function getAllMediaPathsFromDatabase(
     // Only LIVE rows count as references. A soft-deleted row keeps its column
     // values, and the delete paths already remove the file, so counting them
     // would make anything they missed unreclaimable forever.
-    const fitnessFiles = await database('fitness_files')
-      .whereNull('deletedAt')
+    const fitnessFiles = await db
+      .selectFrom('fitness_files')
+      .where('deletedAt', 'is', null)
       .select('mapImageEmailPath')
+      .execute()
     for (const fitnessFile of fitnessFiles) {
       addPath(fitnessFile.mapImageEmailPath)
     }
 
     return paths
   } finally {
-    await database.destroy()
+    await destroy()
   }
 }
 

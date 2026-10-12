@@ -1,15 +1,18 @@
-import knex, { Knex } from 'knex'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from 'vitest'
 
-import { getKnex } from '@/lib/database'
+import type { Db } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { resolveAnimationMetadata } from '@/lib/services/medias/animationMetadata'
 
 import { parseArgs, runBackfill } from './backfillGifvMetadata'
-
-vi.mock('@/lib/database', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/database')>()),
-  getKnex: vi.fn()
-}))
 
 vi.mock('@/lib/services/medias/animationMetadata', () => ({
   resolveAnimationMetadata: vi.fn()
@@ -33,58 +36,56 @@ describe('backfillGifvMetadata parseArgs', () => {
 })
 
 describe('runBackfill', () => {
-  let testDb: Knex
+  // The real `statuses` and `attachments` tables, from the same schema dump the
+  // app migrates with. Honours TEST_DATABASE_TYPE, so it runs on PostgreSQL in
+  // CI.
+  const created = createTestDatabase()
+  const db: Db = created.db
+
+  beforeAll(async () => {
+    await created.prepare()
+    await created.database.migrate()
+  })
 
   beforeEach(async () => {
-    testDb = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-
-    await testDb.schema.createTable('statuses', (t) => {
-      t.string('id').primary()
-      t.string('url')
-      t.string('actorId')
-    })
-
-    await testDb.schema.createTable('attachments', (t) => {
-      t.string('id').primary()
-      t.string('statusId')
-      t.string('actorId')
-      t.string('mediaType')
-      t.string('url')
-      t.string('playbackType')
-      t.string('thumbnailUrl')
-      t.timestamp('createdAt').defaultTo(testDb.fn.now())
-    })
-
-    vi.mocked(getKnex).mockReturnValue(testDb)
+    await db.deleteFrom('attachments').execute()
+    await db.deleteFrom('statuses').execute()
     vi.clearAllMocks()
   })
 
-  afterEach(async () => {
-    await testDb.destroy()
+  afterAll(async () => {
+    await created.destroy()
   })
 
-  it('updates matching video attachments with resolved gifv metadata', async () => {
-    await testDb('statuses').insert({
-      id: 'stat-1',
-      url: 'https://mastodon.social/@cheeaun/111000',
-      actorId: 'https://mastodon.social/users/cheeaun'
-    })
+  const attachmentById = (id: string) =>
+    db
+      .selectFrom('attachments')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow()
 
-    await testDb('attachments').insert({
-      id: 'att-1',
-      statusId: 'stat-1',
-      actorId: 'https://mastodon.social/users/cheeaun',
-      mediaType: 'video/mp4',
-      url: 'https://files.mastodon.social/video.mp4',
-      playbackType: null,
-      thumbnailUrl: null
-    })
+  it('updates matching video attachments with resolved gifv metadata', async () => {
+    await db
+      .insertInto('statuses')
+      .values({
+        id: 'stat-1',
+        url: 'https://mastodon.social/@cheeaun/111000',
+        actorId: 'https://mastodon.social/users/cheeaun'
+      })
+      .execute()
+
+    await db
+      .insertInto('attachments')
+      .values({
+        id: 'att-1',
+        statusId: 'stat-1',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/video.mp4',
+        playbackType: null,
+        thumbnailUrl: null
+      })
+      .execute()
 
     vi.mocked(resolveAnimationMetadata).mockResolvedValueOnce({
       'https://files.mastodon.social/video.mp4': {
@@ -93,9 +94,9 @@ describe('runBackfill', () => {
       }
     })
 
-    await runBackfill({ dryRun: false, batchSize: 10 })
+    await runBackfill({ dryRun: false, batchSize: 10 }, db)
 
-    const updated = await testDb('attachments').where('id', 'att-1').first()
+    const updated = await attachmentById('att-1')
     expect(updated.playbackType).toBe('gifv')
     expect(updated.thumbnailUrl).toBe(
       'https://files.mastodon.social/preview.jpg'
@@ -103,21 +104,27 @@ describe('runBackfill', () => {
   })
 
   it('does not write changes in dry-run mode', async () => {
-    await testDb('statuses').insert({
-      id: 'stat-2',
-      url: 'https://mastodon.social/@cheeaun/222000',
-      actorId: 'https://mastodon.social/users/cheeaun'
-    })
+    await db
+      .insertInto('statuses')
+      .values({
+        id: 'stat-2',
+        url: 'https://mastodon.social/@cheeaun/222000',
+        actorId: 'https://mastodon.social/users/cheeaun'
+      })
+      .execute()
 
-    await testDb('attachments').insert({
-      id: 'att-2',
-      statusId: 'stat-2',
-      actorId: 'https://mastodon.social/users/cheeaun',
-      mediaType: 'video/mp4',
-      url: 'https://files.mastodon.social/video2.mp4',
-      playbackType: null,
-      thumbnailUrl: null
-    })
+    await db
+      .insertInto('attachments')
+      .values({
+        id: 'att-2',
+        statusId: 'stat-2',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/video2.mp4',
+        playbackType: null,
+        thumbnailUrl: null
+      })
+      .execute()
 
     vi.mocked(resolveAnimationMetadata).mockResolvedValueOnce({
       'https://files.mastodon.social/video2.mp4': {
@@ -126,32 +133,35 @@ describe('runBackfill', () => {
       }
     })
 
-    await runBackfill({ dryRun: true, batchSize: 10 })
+    await runBackfill({ dryRun: true, batchSize: 10 }, db)
 
-    const row = await testDb('attachments').where('id', 'att-2').first()
+    const row = await attachmentById('att-2')
     expect(row.playbackType).toBeNull()
     expect(row.thumbnailUrl).toBeNull()
   })
 
   it('advances past failing attachments without infinite looping', async () => {
-    await testDb('attachments').insert([
-      {
-        id: 'att-fail',
-        statusId: 'stat-fail',
-        actorId: 'act-1',
-        mediaType: 'video/mp4',
-        url: 'https://files.mastodon.social/fail.mp4',
-        playbackType: null
-      },
-      {
-        id: 'att-ok',
-        statusId: 'stat-ok',
-        actorId: 'act-1',
-        mediaType: 'video/mp4',
-        url: 'https://files.mastodon.social/ok.mp4',
-        playbackType: null
-      }
-    ])
+    await db
+      .insertInto('attachments')
+      .values([
+        {
+          id: 'att-fail',
+          statusId: 'stat-fail',
+          actorId: 'act-1',
+          mediaType: 'video/mp4',
+          url: 'https://files.mastodon.social/fail.mp4',
+          playbackType: null
+        },
+        {
+          id: 'att-ok',
+          statusId: 'stat-ok',
+          actorId: 'act-1',
+          mediaType: 'video/mp4',
+          url: 'https://files.mastodon.social/ok.mp4',
+          playbackType: null
+        }
+      ])
+      .execute()
 
     vi.mocked(resolveAnimationMetadata)
       .mockRejectedValueOnce(new Error('Network failure'))
@@ -163,21 +173,24 @@ describe('runBackfill', () => {
       })
 
     // Should complete cleanly without hanging
-    await runBackfill({ dryRun: false, batchSize: 1 })
+    await runBackfill({ dryRun: false, batchSize: 1 }, db)
 
-    const okRow = await testDb('attachments').where('id', 'att-ok').first()
+    const okRow = await attachmentById('att-ok')
     expect(okRow.playbackType).toBe('video')
   })
 
   it('leaves playbackType null for transient non-definitive failures so they can be retried', async () => {
-    await testDb('attachments').insert({
-      id: 'att-transient',
-      statusId: 'stat-transient',
-      actorId: 'act-1',
-      mediaType: 'video/mp4',
-      url: 'https://files.mastodon.social/transient.mp4',
-      playbackType: null
-    })
+    await db
+      .insertInto('attachments')
+      .values({
+        id: 'att-transient',
+        statusId: 'stat-transient',
+        actorId: 'act-1',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/transient.mp4',
+        playbackType: null
+      })
+      .execute()
 
     vi.mocked(resolveAnimationMetadata).mockResolvedValueOnce({
       'https://files.mastodon.social/transient.mp4': {
@@ -187,21 +200,24 @@ describe('runBackfill', () => {
       }
     })
 
-    await runBackfill({ dryRun: false, batchSize: 10 })
+    await runBackfill({ dryRun: false, batchSize: 10 }, db)
 
-    const row = await testDb('attachments').where('id', 'att-transient').first()
+    const row = await attachmentById('att-transient')
     expect(row.playbackType).toBeNull()
   })
 
   it('updates playbackType to unknown when failure is definitive', async () => {
-    await testDb('attachments').insert({
-      id: 'att-definitive',
-      statusId: 'stat-definitive',
-      actorId: 'act-1',
-      mediaType: 'video/mp4',
-      url: 'https://files.mastodon.social/definitive.mp4',
-      playbackType: null
-    })
+    await db
+      .insertInto('attachments')
+      .values({
+        id: 'att-definitive',
+        statusId: 'stat-definitive',
+        actorId: 'act-1',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/definitive.mp4',
+        playbackType: null
+      })
+      .execute()
 
     vi.mocked(resolveAnimationMetadata).mockResolvedValueOnce({
       'https://files.mastodon.social/definitive.mp4': {
@@ -211,11 +227,9 @@ describe('runBackfill', () => {
       }
     })
 
-    await runBackfill({ dryRun: false, batchSize: 10 })
+    await runBackfill({ dryRun: false, batchSize: 10 }, db)
 
-    const row = await testDb('attachments')
-      .where('id', 'att-definitive')
-      .first()
+    const row = await attachmentById('att-definitive')
     expect(row.playbackType).toBe('unknown')
   })
 })

@@ -1,6 +1,6 @@
-import { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
@@ -21,9 +21,6 @@ vi.mock('@/lib/jobs/resolveMediaPlaceJob', () => ({
 vi.mock('@/lib/jobs/resolveMediaSubjectJob', () => ({
   resolveMediaSubjectJob: vi.fn()
 }))
-// The script reads the database at import time only when run as a script.
-vi.mock('@/lib/database', () => ({ getDatabase: vi.fn(), getKnex: vi.fn() }))
-
 const defaults: BackfillOptions = { apply: false, pruneCache: false }
 
 describe('backfillGalleryLookups parseArgs', () => {
@@ -133,7 +130,7 @@ describe('needsPlaceLookup / needsSubjectLookup', () => {
 })
 
 describe('runBackfill', () => {
-  let testDb: Knex
+  let testDb: Db
   let realDatabase: Database
   const prune = vi.fn()
   const database = { pruneGalleryLookups: prune } as unknown as Database
@@ -150,60 +147,63 @@ describe('runBackfill', () => {
     // The real `medias` table, from the same schema dump the app migrates
     // with, so a renamed column breaks this test too. Honours
     // TEST_DATABASE_TYPE, so it runs on PostgreSQL in CI.
-    const { database: sqlDatabase, knex, prepare } = createTestDatabase()
+    const { database: sqlDatabase, db, prepare } = createTestDatabase()
     realDatabase = sqlDatabase
-    testDb = knex
+    testDb = db
     await prepare()
     await realDatabase.migrate()
-    await testDb('medias').insert([
-      // 1: GPS, never looked up
-      { actorId: 'a', placeLatitude: 14.5, placeLongitude: 101.4 },
-      // 2: GPS, already looked up
-      {
-        actorId: 'a',
-        placeLatitude: 1,
-        placeLongitude: 2,
-        placeLookupStatus: 'resolved'
-      },
-      // 3: species, pending
-      {
-        actorId: 'a',
-        subjectScientificName: 'Alcedo atthis',
-        subjectLookupStatus: 'pending'
-      },
-      // 4: species, final
-      {
-        actorId: 'a',
-        subjectScientificName: 'Corvus corax',
-        subjectLookupStatus: 'resolved'
-      },
-      // 5: not species-like
-      { actorId: 'a', subjectName: 'Mountain', subjectCategory: 'landscape' },
-      // 6: both, another actor
-      {
-        actorId: 'b',
-        placeLatitude: 3,
-        placeLongitude: 4,
-        subjectName: 'Otter',
-        subjectCategory: 'mammal'
-      },
-      // 7: nothing at all
-      { actorId: 'a' },
-      // 8: GPS, failed in an earlier run
-      {
-        actorId: 'c',
-        placeLatitude: 5,
-        placeLongitude: 6,
-        placeLookupStatus: 'failed'
-      },
-      // 9: GPS, looked up while place lookups were switched off
-      {
-        actorId: 'c',
-        placeLatitude: 7,
-        placeLongitude: 8,
-        placeLookupStatus: 'disabled'
-      }
-    ])
+    await testDb
+      .insertInto('medias')
+      .values([
+        // 1: GPS, never looked up
+        { actorId: 'a', placeLatitude: 14.5, placeLongitude: 101.4 },
+        // 2: GPS, already looked up
+        {
+          actorId: 'a',
+          placeLatitude: 1,
+          placeLongitude: 2,
+          placeLookupStatus: 'resolved'
+        },
+        // 3: species, pending
+        {
+          actorId: 'a',
+          subjectScientificName: 'Alcedo atthis',
+          subjectLookupStatus: 'pending'
+        },
+        // 4: species, final
+        {
+          actorId: 'a',
+          subjectScientificName: 'Corvus corax',
+          subjectLookupStatus: 'resolved'
+        },
+        // 5: not species-like
+        { actorId: 'a', subjectName: 'Mountain', subjectCategory: 'landscape' },
+        // 6: both, another actor
+        {
+          actorId: 'b',
+          placeLatitude: 3,
+          placeLongitude: 4,
+          subjectName: 'Otter',
+          subjectCategory: 'mammal'
+        },
+        // 7: nothing at all
+        { actorId: 'a' },
+        // 8: GPS, failed in an earlier run
+        {
+          actorId: 'c',
+          placeLatitude: 5,
+          placeLongitude: 6,
+          placeLookupStatus: 'failed'
+        },
+        // 9: GPS, looked up while place lookups were switched off
+        {
+          actorId: 'c',
+          placeLatitude: 7,
+          placeLongitude: 8,
+          placeLookupStatus: 'disabled'
+        }
+      ])
+      .execute()
   })
 
   afterEach(async () => {
@@ -216,7 +216,7 @@ describe('runBackfill', () => {
   ) =>
     runBackfill({
       database,
-      knex: testDb,
+      db: testDb,
       options: { ...defaults, ...options },
       log,
       providers: { places: closedBreaker(), subjects: closedBreaker() },

@@ -7,7 +7,7 @@
  */
 import { loadEnvConfig } from '@next/env'
 
-import { getKnex } from '@/lib/database'
+import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 const projectDir = process.cwd()
@@ -27,9 +27,13 @@ async function manageAdminRole() {
     process.exit(1)
   }
 
-  const knex = getKnex()
+  const db = getScriptKysely()
 
-  const account = await knex('accounts').where('email', email).first()
+  const account = await db
+    .selectFrom('accounts')
+    .select('role')
+    .where('email', '=', email)
+    .executeTakeFirst()
   if (!account) {
     console.error(`Error: No account found with email "${email}"`)
     process.exit(1)
@@ -47,7 +51,11 @@ async function manageAdminRole() {
     process.exit(0)
   }
 
-  await knex('accounts').where('email', email).update({ role: newRole })
+  await db
+    .updateTable('accounts')
+    .set({ role: newRole })
+    .where('email', '=', email)
+    .execute()
 
   if (action === 'add') {
     console.log(`Admin role added to account "${email}"`)

@@ -53,7 +53,7 @@ describe('getMediaEditReferencedPaths', () => {
       })
     }
 
-    const paths = await getMediaEditReferencedPaths(testDb.knex)
+    const paths = await getMediaEditReferencedPaths(testDb.db)
 
     // The live second render is a `medias` row reference, not an edit file.
     expect(paths.sort()).toEqual([

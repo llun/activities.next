@@ -12,10 +12,11 @@
  *   --status-id  Only backfill actors who liked this specific status
  */
 import { loadEnvConfig } from '@next/env'
-import { Knex } from 'knex'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { getDatabase, getKnex } from '@/lib/database'
+import { getDatabase } from '@/lib/database'
+import type { Db } from '@/lib/database/kysely'
+import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import { Database } from '@/lib/database/types'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 
@@ -104,35 +105,37 @@ export const parseArgs = (args: string[]): BackfillOptions => {
 }
 
 export async function findMissingLikeActorIds(
-  knexClient: Knex,
+  db: Db,
   options?: { statusId?: string; limit?: number }
 ): Promise<string[]> {
-  let query = knexClient('likes')
-    .distinct('likes.actorId')
+  let query = db
+    .selectFrom('likes')
     .leftJoin('actors', 'likes.actorId', 'actors.id')
-    .whereNull('actors.id')
+    .where('actors.id', 'is', null)
+    .select('likes.actorId')
+    .distinct()
 
   if (options?.statusId) {
-    query = query.where('likes.statusId', options.statusId)
+    query = query.where('likes.statusId', '=', options.statusId)
   }
 
   if (options?.limit) {
     query = query.limit(options.limit)
   }
 
-  const rows = await query.select('likes.actorId')
+  const rows = await query.execute()
   return rows.map((r) => r.actorId).filter(Boolean)
 }
 
 export async function backfillMissingLikeActors({
   database,
-  knexClient,
+  db,
   dryRun = false,
   batchSize = DEFAULT_BATCH_SIZE,
   statusId
 }: {
   database: Database
-  knexClient: Knex
+  db: Db
   dryRun?: boolean
   batchSize?: number
   statusId?: string
@@ -145,7 +148,7 @@ export async function backfillMissingLikeActors({
     console.log(`Filtering for status: ${resolvedStatusId}`)
   }
 
-  const missingActorIds = await findMissingLikeActorIds(knexClient, {
+  const missingActorIds = await findMissingLikeActorIds(db, {
     statusId: resolvedStatusId
   })
 
@@ -199,12 +202,12 @@ async function main() {
     process.exit(1)
   }
 
-  const knexClient = getKnex()
+  const db = getScriptKysely()
 
   try {
     const result = await backfillMissingLikeActors({
       database,
-      knexClient,
+      db,
       ...options
     })
     process.exit(result.failed > 0 ? 1 : 0)

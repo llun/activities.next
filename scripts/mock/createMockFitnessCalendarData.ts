@@ -24,11 +24,12 @@
  * again. Run createMockUser.ts first.
  */
 import crypto from 'crypto'
-import type { Knex } from 'knex'
 import { v5 as uuidV5 } from 'uuid'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase, getKnex } from '@/lib/database'
+import { getDatabase } from '@/lib/database'
+import type { Db } from '@/lib/database/kysely'
+import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import {
   DateKey,
   addDays,
@@ -803,24 +804,30 @@ const elevationSeries = (key: string) =>
 
 const removeSeededRows = async (
   database: NonNullable<ReturnType<typeof getDatabase>>,
-  knex: Knex,
+  db: Db,
   actorId: string
 ) => {
-  const files = (await knex('fitness_files')
-    .where('actorId', actorId)
+  const files = await db
+    .selectFrom('fitness_files')
+    .where('actorId', '=', actorId)
     .where('path', 'like', `${MOCK_PATH_PREFIX}%`)
-    .select('statusId')) as Array<{ statusId: string | null }>
-  const marked = (await knex('statuses')
-    .where({ actorId, applicationName: MOCK_APPLICATION_NAME })
-    .select('id')) as Array<{ id: string }>
+    .select('statusId')
+    .execute()
+  const marked = await db
+    .selectFrom('statuses')
+    .where('actorId', '=', actorId)
+    .where('applicationName', '=', MOCK_APPLICATION_NAME)
+    .select('id')
+    .execute()
 
   const statusIds = new Set<string>(marked.map((row) => row.id))
   for (const file of files) if (file.statusId) statusIds.add(file.statusId)
 
-  await knex('fitness_files')
-    .where('actorId', actorId)
+  await db
+    .deleteFrom('fitness_files')
+    .where('actorId', '=', actorId)
     .where('path', 'like', `${MOCK_PATH_PREFIX}%`)
-    .delete()
+    .execute()
   for (const statusId of statusIds) await database.deleteStatus({ statusId })
   return { files: files.length, statuses: statusIds.size }
 }
@@ -832,23 +839,32 @@ const canonicalValue = (value: unknown): unknown => {
 }
 
 /** Checksum of every row this script owns, as stored. */
-const checksumSeededRows = async (knex: Knex, actorId: string) => {
-  const files = await knex('fitness_files')
-    .where('actorId', actorId)
+export const checksumSeededRows = async (db: Db, actorId: string) => {
+  const files = await db
+    .selectFrom('fitness_files')
+    .selectAll()
+    .where('actorId', '=', actorId)
     .where('path', 'like', `${MOCK_PATH_PREFIX}%`)
     .orderBy('path')
-  const statuses = await knex('statuses')
-    .where({ actorId, applicationName: MOCK_APPLICATION_NAME })
+    .execute()
+  const statuses = await db
+    .selectFrom('statuses')
+    .selectAll()
+    .where('actorId', '=', actorId)
+    .where('applicationName', '=', MOCK_APPLICATION_NAME)
     .orderBy('id')
-  const statusIds = statuses.map((row) => row.id as string)
+    .execute()
+  const statusIds = statuses.map((row) => row.id)
   // Recipient rows get random ids and write-time timestamps, so only what they
   // say is part of the checksum.
   const recipients: Array<Record<string, unknown>> = []
   for (let offset = 0; offset < statusIds.length; offset += 200) {
     recipients.push(
-      ...(await knex('recipients')
-        .whereIn('statusId', statusIds.slice(offset, offset + 200))
-        .select('statusId', 'actorId', 'type'))
+      ...(await db
+        .selectFrom('recipients')
+        .select(['statusId', 'actorId', 'type'])
+        .where('statusId', 'in', statusIds.slice(offset, offset + 200))
+        .execute())
     )
   }
   recipients.sort((a, b) =>
@@ -894,7 +910,7 @@ async function createMockFitnessCalendarData() {
     console.error('Database not available')
     process.exit(1)
   }
-  const knex = getKnex()
+  const db = getScriptKysely()
 
   const config = getConfig()
   const domain = config.host
@@ -916,7 +932,7 @@ async function createMockFitnessCalendarData() {
     `Anchor ${options.anchor} (${options.timeZone}): ${plan.length} rows planned.`
   )
 
-  const removed = await removeSeededRows(database, knex, actor.id)
+  const removed = await removeSeededRows(database, db, actor.id)
   console.log(
     `Removed ${removed.files} earlier rows and ${removed.statuses} posts under ${MOCK_PATH_PREFIX}.`
   )
@@ -938,9 +954,11 @@ async function createMockFitnessCalendarData() {
       applicationName: MOCK_APPLICATION_NAME
     })
     // createNote stamps updatedAt with the wall clock; pin it so reruns match.
-    await knex('statuses')
-      .where({ id })
-      .update({ updatedAt: new Date(activity.startMs) })
+    await db
+      .updateTable('statuses')
+      .set({ updatedAt: new Date(activity.startMs) })
+      .where('id', '=', id)
+      .execute()
     statusIds.set(activity.key, id)
   }
 
@@ -948,49 +966,52 @@ async function createMockFitnessCalendarData() {
     const startedAt = new Date(activity.startMs)
     const fileName = `${activity.key}.${activity.fileType}`
     const completed = activity.processingStatus === 'completed'
-    await knex('fitness_files').insert({
-      id: fileIdFor(actor.id, activity.key),
-      actorId: actor.id,
-      statusId: activity.postFrom
-        ? (statusIds.get(activity.postFrom) ?? null)
-        : null,
-      path: `${MOCK_PATH_PREFIX}${fileName}`,
-      fileName,
-      fileType: activity.fileType,
-      mimeType: 'application/octet-stream',
-      bytes: 120000 + Math.round(unit(activity.key, 'bytes') * 120000),
-      description: activity.device,
-      hasMapData: completed && activity.fileType === 'gpx',
-      mapImagePath: null,
-      isPrimary: activity.isPrimary,
-      importBatchId: null,
-      importStatus: activity.processingStatus === 'failed' ? 'failed' : null,
-      importError: activity.importError,
-      processingStatus: activity.processingStatus,
-      totalDistanceMeters: activity.distanceMeters,
-      totalDurationSeconds: activity.durationSeconds,
-      movingTimeSeconds:
-        activity.durationSeconds === null
-          ? null
-          : Math.round(activity.durationSeconds * 0.97),
-      elevationGainMeters: activity.elevationGainMeters,
-      avgPower: activity.avgPower,
-      maxPower: activity.maxPower,
-      avgHeartRate: activity.avgHeartRate,
-      maxHeartRate: activity.maxHeartRate,
-      totalWorkKj: activity.totalWorkKj,
-      elevationSeries:
-        completed && activity.distanceMeters !== null
-          ? elevationSeries(activity.key)
+    await db
+      .insertInto('fitness_files')
+      .values({
+        id: fileIdFor(actor.id, activity.key),
+        actorId: actor.id,
+        statusId: activity.postFrom
+          ? (statusIds.get(activity.postFrom) ?? null)
           : null,
-      activityType: activity.activityType,
-      activityStartTime: startedAt,
-      createdAt: startedAt,
-      updatedAt: startedAt,
-      deletedAt: activity.deleted
-        ? new Date(activity.startMs + 24 * MS_PER_HOUR)
-        : null
-    })
+        path: `${MOCK_PATH_PREFIX}${fileName}`,
+        fileName,
+        fileType: activity.fileType,
+        mimeType: 'application/octet-stream',
+        bytes: 120000 + Math.round(unit(activity.key, 'bytes') * 120000),
+        description: activity.device,
+        hasMapData: completed && activity.fileType === 'gpx',
+        mapImagePath: null,
+        isPrimary: activity.isPrimary,
+        importBatchId: null,
+        importStatus: activity.processingStatus === 'failed' ? 'failed' : null,
+        importError: activity.importError,
+        processingStatus: activity.processingStatus,
+        totalDistanceMeters: activity.distanceMeters,
+        totalDurationSeconds: activity.durationSeconds,
+        movingTimeSeconds:
+          activity.durationSeconds === null
+            ? null
+            : Math.round(activity.durationSeconds * 0.97),
+        elevationGainMeters: activity.elevationGainMeters,
+        avgPower: activity.avgPower,
+        maxPower: activity.maxPower,
+        avgHeartRate: activity.avgHeartRate,
+        maxHeartRate: activity.maxHeartRate,
+        totalWorkKj: activity.totalWorkKj,
+        elevationSeries:
+          completed && activity.distanceMeters !== null
+            ? elevationSeries(activity.key)
+            : null,
+        activityType: activity.activityType,
+        activityStartTime: startedAt,
+        createdAt: startedAt,
+        updatedAt: startedAt,
+        deletedAt: activity.deleted
+          ? new Date(activity.startMs + 24 * MS_PER_HOUR)
+          : null
+      })
+      .execute()
   }
 
   const countable = plan.filter(
@@ -1005,7 +1026,7 @@ async function createMockFitnessCalendarData() {
     const year = activity.date.slice(0, 4)
     byYear.set(year, (byYear.get(year) ?? 0) + 1)
   }
-  const checksum = await checksumSeededRows(knex, actor.id)
+  const checksum = await checksumSeededRows(db, actor.id)
 
   console.log(`✅ Seeded ${plan.length} fitness rows for ${options.username}.`)
   console.log(

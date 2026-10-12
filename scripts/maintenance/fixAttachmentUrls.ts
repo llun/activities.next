@@ -12,10 +12,10 @@
  *   --dry-run       Print what would be changed without modifying anything
  */
 import { loadEnvConfig } from '@next/env'
-import knex from 'knex'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -97,7 +97,7 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
     console.log('(dry-run mode — no changes will be made)')
   }
 
-  const db = knex(config.database)
+  const { db, destroy } = openScriptDatabase(config.database)
 
   const BATCH_SIZE = 100
 
@@ -114,17 +114,21 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
     let fixedCount = 0
 
     while (true) {
-      const query = db<AttachmentRow>('attachments').where((matching) =>
-        matching
-          .where('url', 'like', wrongHttpUrl)
-          .orWhere('url', 'like', wrongHttpsUrl)
-      )
-      if (lastId !== null) query.andWhere('id', '>', lastId)
+      let query = db
+        .selectFrom('attachments')
+        .select(['id', 'url'])
+        .where((eb) =>
+          eb.or([
+            eb('url', 'like', wrongHttpUrl),
+            eb('url', 'like', wrongHttpsUrl)
+          ])
+        )
+      if (lastId !== null) query = query.where('id', '>', lastId)
 
-      const batch: AttachmentRow[] = await query
-        .select('id', 'url')
-        .orderBy('id')
-        .limit(BATCH_SIZE)
+      // `url` is nullable in the schema, but a row that matches a LIKE has one.
+      const batch = (await query.orderBy('id').limit(BATCH_SIZE).execute()).map(
+        (row): AttachmentRow => ({ id: row.id, url: row.url as string })
+      )
 
       if (batch.length === 0) break
       totalFound += batch.length
@@ -140,9 +144,11 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
         console.log(`    after:  ${newUrl}`)
 
         if (!input.dryRun) {
-          await db('attachments')
-            .where('id', row.id)
-            .update({ url: newUrl, updatedAt: new Date() })
+          await db
+            .updateTable('attachments')
+            .set({ url: newUrl, updatedAt: new Date() })
+            .where('id', '=', row.id)
+            .execute()
           fixedCount += 1
         }
       }
@@ -163,7 +169,7 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
 
     return 0
   } finally {
-    await db.destroy()
+    await destroy()
   }
 }
 
