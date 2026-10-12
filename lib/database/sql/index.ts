@@ -3,6 +3,7 @@ import type { Knex } from 'knex'
 import { accountQueries } from '@/lib/database/domains/account/queries'
 import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import { actorQueries } from '@/lib/database/domains/actor/queries'
+import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
 import { adminQueries } from '@/lib/database/domains/admin/queries'
 import { announcementQueries } from '@/lib/database/domains/announcement/queries'
@@ -94,7 +95,9 @@ export const getSQLDatabase = (database: Knex): Database => {
 
     ...bindDb(kysely, accountQueries),
     ...bindDb(kysely, accountNoteQueries),
-    ...bindDb(kysely, actorQueries),
+    // Not in `Database`: the Mastodon Account lookups (`getMastodonActor(s)`)
+    // are checked against SQLActorDatabase here.
+    ...(bindDb(kysely, actorQueries) satisfies SQLActorDatabase),
     ...bindDb(kysely, actorDomainBlockQueries),
     ...bindDb(kysely, adminQueries),
     ...bindDb(kysely, announcementQueries),
