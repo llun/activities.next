@@ -13,7 +13,7 @@
 import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase, getKnex } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import { getMention } from '@/lib/types/domain/actor'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -92,7 +92,7 @@ async function createMockFitnessData() {
     console.error('Database not available')
     process.exit(1)
   }
-  const knex = getKnex()
+  const db = getKysely()
 
   const config = getConfig()
   const username = process.argv[2] || 'testuser'
@@ -158,41 +158,44 @@ async function createMockFitnessData() {
     const fileName = `${fileDate}-${template.activityType}.${template.fileType}`
     const bytes = jitter(180000, 0.4)
 
-    await knex('fitness_files').insert({
-      id: crypto.randomUUID(),
-      actorId: actor.id,
-      statusId,
-      path: `mock/${actor.id}/${fileName}`,
-      fileName,
-      fileType: template.fileType,
-      mimeType: 'application/octet-stream',
-      bytes,
-      description: `${template.device}`,
-      hasMapData: template.fileType === 'gpx',
-      mapImagePath: null,
-      isPrimary: true,
-      importBatchId: null,
-      importStatus: null,
-      importError: null,
-      processingStatus: 'completed',
-      totalDistanceMeters: distanceMeters,
-      totalDurationSeconds: durationSeconds,
-      elevationGainMeters,
-      avgPower: template.activityType === 'ride' ? jitter(210, 0.1) : null,
-      maxPower: template.activityType === 'ride' ? jitter(450, 0.15) : null,
-      avgHeartRate: jitter(148, 0.08),
-      maxHeartRate: jitter(176, 0.05),
-      totalWorkKj: template.activityType === 'ride' ? jitter(750, 0.2) : null,
-      elevationSeries: JSON.stringify(
-        Array.from({ length: 60 }, (_, i) =>
-          Math.round(100 + 40 * Math.sin(i / 5))
-        )
-      ),
-      activityType: template.activityType,
-      activityStartTime: startedAt,
-      createdAt: startedAt,
-      updatedAt: startedAt
-    })
+    await db
+      .insertInto('fitness_files')
+      .values({
+        id: crypto.randomUUID(),
+        actorId: actor.id,
+        statusId,
+        path: `mock/${actor.id}/${fileName}`,
+        fileName,
+        fileType: template.fileType,
+        mimeType: 'application/octet-stream',
+        bytes,
+        description: `${template.device}`,
+        hasMapData: template.fileType === 'gpx',
+        mapImagePath: null,
+        isPrimary: true,
+        importBatchId: null,
+        importStatus: null,
+        importError: null,
+        processingStatus: 'completed',
+        totalDistanceMeters: distanceMeters,
+        totalDurationSeconds: durationSeconds,
+        elevationGainMeters,
+        avgPower: template.activityType === 'ride' ? jitter(210, 0.1) : null,
+        maxPower: template.activityType === 'ride' ? jitter(450, 0.15) : null,
+        avgHeartRate: jitter(148, 0.08),
+        maxHeartRate: jitter(176, 0.05),
+        totalWorkKj: template.activityType === 'ride' ? jitter(750, 0.2) : null,
+        elevationSeries: JSON.stringify(
+          Array.from({ length: 60 }, (_, i) =>
+            Math.round(100 + 40 * Math.sin(i / 5))
+          )
+        ),
+        activityType: template.activityType,
+        activityStartTime: startedAt,
+        createdAt: startedAt,
+        updatedAt: startedAt
+      })
+      .execute()
     created += 1
   }
 

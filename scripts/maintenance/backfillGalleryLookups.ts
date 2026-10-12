@@ -53,9 +53,9 @@
  *   --prune-cache  Also delete expired rows from gallery_lookup_cache
  */
 import { loadEnvConfig } from '@next/env'
-import { Knex } from 'knex'
 
-import { getDatabase, getKnex } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
+import type { Db } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
@@ -145,7 +145,7 @@ const CANDIDATE_COLUMNS = [
   'subjectCategory',
   'subjectTaxonKey',
   'subjectLookupStatus'
-]
+] as const
 
 const isNonFinal = (status: string | null, nonFinal = NON_FINAL_STATUSES) =>
   status === null || nonFinal.includes(status)
@@ -168,54 +168,56 @@ export const needsSubjectLookup = (row: CandidateRow): boolean =>
 // test is finished in JS (needsSubjectLookup) because "species-like" is a rule
 // of the app, not of the database.
 export const selectCandidates = async ({
-  knex,
+  db,
   options,
   afterId
 }: {
-  knex: Knex
+  db: Db
   options: BackfillOptions
   afterId: number
 }): Promise<CandidateRow[]> => {
-  const query = knex('medias')
+  let query = db
+    .selectFrom('medias')
     .select(CANDIDATE_COLUMNS)
     .where('id', '>', afterId)
     .orderBy('id', 'asc')
     .limit(BATCH_SIZE)
 
-  if (options.actorId) query.where('actorId', options.actorId)
+  if (options.actorId) query = query.where('actorId', '=', options.actorId)
 
-  query.where((builder) => {
-    if (options.only !== 'subjects') {
-      builder.orWhere((places) =>
-        places
-          .whereNotNull('placeLatitude')
-          .whereNotNull('placeLongitude')
-          .where((status) =>
-            status
-              .whereNull('placeLookupStatus')
-              .orWhereIn('placeLookupStatus', NON_FINAL_STATUSES)
-          )
-      )
-    }
-    if (options.only !== 'places') {
-      builder.orWhere((subjects) =>
-        subjects
-          .where((named) =>
-            named
-              .whereNotNull('subjectName')
-              .orWhereNotNull('subjectScientificName')
-              .orWhereNotNull('subjectTaxonKey')
-          )
-          .where((status) =>
-            status
-              .whereNull('subjectLookupStatus')
-              .orWhereIn('subjectLookupStatus', SUBJECT_NON_FINAL_STATUSES)
-          )
-      )
-    }
-  })
-
-  return query as unknown as Promise<CandidateRow[]>
+  return query
+    .where((eb) => {
+      const wanted = []
+      if (options.only !== 'subjects') {
+        wanted.push(
+          eb.and([
+            eb('placeLatitude', 'is not', null),
+            eb('placeLongitude', 'is not', null),
+            eb.or([
+              eb('placeLookupStatus', 'is', null),
+              eb('placeLookupStatus', 'in', NON_FINAL_STATUSES)
+            ])
+          ])
+        )
+      }
+      if (options.only !== 'places') {
+        wanted.push(
+          eb.and([
+            eb.or([
+              eb('subjectName', 'is not', null),
+              eb('subjectScientificName', 'is not', null),
+              eb('subjectTaxonKey', 'is not', null)
+            ]),
+            eb.or([
+              eb('subjectLookupStatus', 'is', null),
+              eb('subjectLookupStatus', 'in', SUBJECT_NON_FINAL_STATUSES)
+            ])
+          ])
+        )
+      }
+      return eb.or(wanted)
+    })
+    .execute()
 }
 
 export interface BackfillSummary {
@@ -253,7 +255,7 @@ const waitForProvider = async (
 
 export const runBackfill = async ({
   database,
-  knex,
+  db,
   options,
   log = console.log,
   providers = {
@@ -263,7 +265,7 @@ export const runBackfill = async ({
   sleep = defaultSleep
 }: {
   database: Database
-  knex: Knex
+  db: Db
   options: BackfillOptions
   log?: (message: string) => void
   providers?: BackfillProviders
@@ -320,7 +322,7 @@ export const runBackfill = async ({
   let afterId = 0
   let done = false
   while (!done) {
-    const rows = await selectCandidates({ knex, options, afterId })
+    const rows = await selectCandidates({ db, options, afterId })
     if (rows.length === 0) break
 
     for (const row of rows) {
@@ -411,12 +413,12 @@ if (process.argv[1]?.includes('backfillGalleryLookups')) {
   const main = async () => {
     const options = parseArgs(process.argv.slice(2))
     const database = getDatabase()
-    const knex = getKnex()
-    if (!database || !knex) {
+    if (!database) {
       throw new Error('Database is not initialized')
     }
+    const db = getKysely()
     try {
-      await runBackfill({ database, knex, options })
+      await runBackfill({ database, db, options })
     } finally {
       await database.destroy()
     }

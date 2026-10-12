@@ -1,6 +1,6 @@
-import { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import nominatimNone from '@/lib/services/gallery/lookups/__fixtures__/nominatim-reverse-none.json'
@@ -42,9 +42,6 @@ vi.mock('@/lib/services/serverSettings', () => ({
   })
 }))
 
-// The script reads the database at import time only when run as a script.
-vi.mock('@/lib/database', () => ({ getDatabase: vi.fn(), getKnex: vi.fn() }))
-
 const closedBreaker = () => ({
   isOpen: () => false,
   remainingMs: () => 0,
@@ -54,14 +51,14 @@ const closedBreaker = () => ({
 
 describe('runBackfill with the real place lookup', () => {
   let database: Database
-  let knex: Knex
+  let db: Db
 
   beforeEach(async () => {
     mockFetch.mockClear()
     // Honours TEST_DATABASE_TYPE, so it runs on PostgreSQL in CI.
     const created = createTestDatabase()
     database = created.database
-    knex = created.knex
+    db = created.db
     await created.prepare()
     await database.migrate()
   })
@@ -85,14 +82,18 @@ describe('runBackfill with the real place lookup', () => {
   }
 
   const placeStatusOf = async (id: string) => {
-    const row = await knex('medias').where({ id }).first('placeLookupStatus')
+    const row = await db
+      .selectFrom('medias')
+      .select('placeLookupStatus')
+      .where('id', '=', Number(id))
+      .executeTakeFirst()
     return row?.placeLookupStatus ?? null
   }
 
   const run = () =>
     runBackfill({
       database,
-      knex,
+      db,
       options: { apply: true, pruneCache: false },
       log: () => {},
       providers: { places: closedBreaker(), subjects: closedBreaker() },

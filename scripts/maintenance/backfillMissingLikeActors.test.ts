@@ -1,7 +1,15 @@
-import knex, { Knex } from 'knex'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from 'vitest'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 
@@ -89,52 +97,56 @@ describe('backfillMissingLikeActors parseArgs', () => {
   })
 })
 
+// The real `likes` and `actors` tables, from the same schema dump the app
+// migrates with. Honours TEST_DATABASE_TYPE, so it runs on PostgreSQL in CI.
 describe('findMissingLikeActorIds', () => {
-  let db: Knex
+  const testDb = createTestDatabase()
+  const { db } = testDb
 
-  beforeEach(async () => {
-    db = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    await db.schema.createTable('likes', (table) => {
-      table.string('actorId')
-      table.string('statusId')
-    })
-    await db.schema.createTable('actors', (table) => {
-      table.string('id').primary()
-    })
+  beforeAll(async () => {
+    await testDb.prepare()
+    await testDb.database.migrate()
   })
 
-  afterEach(async () => {
-    await db.destroy()
+  beforeEach(async () => {
+    await db.deleteFrom('likes').execute()
+    await db.deleteFrom('actors').execute()
+  })
+
+  afterAll(async () => {
+    await testDb.destroy()
   })
 
   it('returns actorIds that exist in likes but not in actors', async () => {
-    await db('actors').insert([
-      { id: 'https://remote.test/users/known1' },
-      { id: 'https://remote.test/users/known2' }
-    ])
+    await db
+      .insertInto('actors')
+      .values([
+        { id: 'https://remote.test/users/known1' },
+        { id: 'https://remote.test/users/known2' }
+      ])
+      .execute()
 
-    await db('likes').insert([
-      {
-        actorId: 'https://remote.test/users/known1',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/missing1',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/missing2',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/missing1',
-        statusId: 'https://local.test/status/2'
-      }
-    ])
+    await db
+      .insertInto('likes')
+      .values([
+        {
+          actorId: 'https://remote.test/users/known1',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/missing1',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/missing2',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/missing1',
+          statusId: 'https://local.test/status/2'
+        }
+      ])
+      .execute()
 
     const missing = await findMissingLikeActorIds(db)
     expect(missing.sort()).toEqual([
@@ -144,16 +156,19 @@ describe('findMissingLikeActorIds', () => {
   })
 
   it('filters by statusId when specified', async () => {
-    await db('likes').insert([
-      {
-        actorId: 'https://remote.test/users/missing1',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/missing2',
-        statusId: 'https://local.test/status/2'
-      }
-    ])
+    await db
+      .insertInto('likes')
+      .values([
+        {
+          actorId: 'https://remote.test/users/missing1',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/missing2',
+          statusId: 'https://local.test/status/2'
+        }
+      ])
+      .execute()
 
     const missing = await findMissingLikeActorIds(db, {
       statusId: 'https://local.test/status/1'
@@ -162,20 +177,23 @@ describe('findMissingLikeActorIds', () => {
   })
 
   it('respects limit when specified', async () => {
-    await db('likes').insert([
-      {
-        actorId: 'https://remote.test/users/missing1',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/missing2',
-        statusId: 'https://local.test/status/2'
-      },
-      {
-        actorId: 'https://remote.test/users/missing3',
-        statusId: 'https://local.test/status/3'
-      }
-    ])
+    await db
+      .insertInto('likes')
+      .values([
+        {
+          actorId: 'https://remote.test/users/missing1',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/missing2',
+          statusId: 'https://local.test/status/2'
+        },
+        {
+          actorId: 'https://remote.test/users/missing3',
+          statusId: 'https://local.test/status/3'
+        }
+      ])
+      .execute()
 
     const missing = await findMissingLikeActorIds(db, { limit: 2 })
     expect(missing).toHaveLength(2)
@@ -183,8 +201,14 @@ describe('findMissingLikeActorIds', () => {
 })
 
 describe('backfillMissingLikeActors', () => {
-  let db: Knex
+  const testDb = createTestDatabase()
+  const { db } = testDb
   const fakeDatabase = {} as Database
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await testDb.database.migrate()
+  })
 
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
@@ -192,39 +216,32 @@ describe('backfillMissingLikeActors', () => {
     vi.mocked(recordActorIfNeeded).mockReset()
     vi.mocked(resolveStatusIdParam).mockReset()
 
-    db = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    await db.schema.createTable('likes', (table) => {
-      table.string('actorId')
-      table.string('statusId')
-    })
-    await db.schema.createTable('actors', (table) => {
-      table.string('id').primary()
-    })
+    await db.deleteFrom('likes').execute()
+    await db.deleteFrom('actors').execute()
   })
 
-  afterEach(async () => {
-    await db.destroy()
+  afterAll(async () => {
+    await testDb.destroy()
   })
 
   it('does not record actors in dry-run mode', async () => {
-    await db('likes').insert([
-      {
-        actorId: 'https://remote.test/users/missing1',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/missing2',
-        statusId: 'https://local.test/status/1'
-      }
-    ])
+    await db
+      .insertInto('likes')
+      .values([
+        {
+          actorId: 'https://remote.test/users/missing1',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/missing2',
+          statusId: 'https://local.test/status/1'
+        }
+      ])
+      .execute()
 
     const result = await backfillMissingLikeActors({
       database: fakeDatabase,
-      knexClient: db,
+      db,
       dryRun: true
     })
 
@@ -233,20 +250,23 @@ describe('backfillMissingLikeActors', () => {
   })
 
   it('fetches and records missing actors in live mode', async () => {
-    await db('likes').insert([
-      {
-        actorId: 'https://remote.test/users/actor1',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/actor2',
-        statusId: 'https://local.test/status/1'
-      },
-      {
-        actorId: 'https://remote.test/users/actor3',
-        statusId: 'https://local.test/status/1'
-      }
-    ])
+    await db
+      .insertInto('likes')
+      .values([
+        {
+          actorId: 'https://remote.test/users/actor1',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/actor2',
+          statusId: 'https://local.test/status/1'
+        },
+        {
+          actorId: 'https://remote.test/users/actor3',
+          statusId: 'https://local.test/status/1'
+        }
+      ])
+      .execute()
 
     vi.mocked(recordActorIfNeeded).mockImplementation(
       async ({ actorId }: { actorId: string }) => {
@@ -262,7 +282,7 @@ describe('backfillMissingLikeActors', () => {
 
     const result = await backfillMissingLikeActors({
       database: fakeDatabase,
-      knexClient: db,
+      db,
       dryRun: false,
       batchSize: 2
     })
@@ -275,16 +295,19 @@ describe('backfillMissingLikeActors', () => {
     vi.mocked(resolveStatusIdParam).mockResolvedValue(
       'https://local.test/statuses/resolved-1'
     )
-    await db('likes').insert([
-      {
-        actorId: 'https://remote.test/users/actor1',
-        statusId: 'https://local.test/statuses/resolved-1'
-      },
-      {
-        actorId: 'https://remote.test/users/actor2',
-        statusId: 'https://local.test/statuses/resolved-2'
-      }
-    ])
+    await db
+      .insertInto('likes')
+      .values([
+        {
+          actorId: 'https://remote.test/users/actor1',
+          statusId: 'https://local.test/statuses/resolved-1'
+        },
+        {
+          actorId: 'https://remote.test/users/actor2',
+          statusId: 'https://local.test/statuses/resolved-2'
+        }
+      ])
+      .execute()
 
     vi.mocked(recordActorIfNeeded).mockResolvedValue({
       id: 'https://remote.test/users/actor1',
@@ -293,7 +316,7 @@ describe('backfillMissingLikeActors', () => {
 
     const result = await backfillMissingLikeActors({
       database: fakeDatabase,
-      knexClient: db,
+      db,
       dryRun: false,
       statusId: 'public-id-1'
     })
