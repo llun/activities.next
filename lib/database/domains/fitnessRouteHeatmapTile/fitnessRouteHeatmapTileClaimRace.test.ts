@@ -10,7 +10,7 @@ import {
   expectOneTransaction,
   fence,
   interfereAfterStatement,
-  outsideDatabaseContext,
+  interfereAfterStatementFromOutside,
   recordStatements
 } from '@/lib/database/testing/fitnessRouteHeatmapTileTestHelpers'
 import { Database } from '@/lib/database/types'
@@ -43,7 +43,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         beforeEach(async () => {
           const {
             database: isolatedDatabase,
-            instance,
+            onQuery,
             prepare: prepareIsolated
           } = getTestDatabaseWithInstance(true)
           isolated = isolatedDatabase
@@ -52,7 +52,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           actorId = await createActor(isolated)
           updates.length = 0
-          instance.on('query', ({ sql }: { sql: string }) => {
+          onQuery(({ sql }) => {
             if (
               sql.includes('fitness_route_heatmap_pyramids') &&
               sql.trimStart().toLowerCase().startsWith('update')
@@ -601,7 +601,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // between would be reported as this pass's own.
         const {
           database: isolated,
-          instance,
+          onQuery,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -609,7 +609,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         try {
           const actorId = await createActor(isolated)
-          const statements = recordStatements(instance)
+          const statements = recordStatements(onQuery)
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -661,46 +661,39 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           const actorId = await createActor(isolated)
           const replacementId = crypto.randomUUID()
 
-          // Fires on the claim's own UPDATE — the CAS-to-read window.
-          let interfered = false
-          const swapTheRowOut = async ({ sql }: { sql: string }) => {
-            if (
-              interfered ||
-              !sql.trimStart().toLowerCase().startsWith('update') ||
-              !sql.includes('fitness_route_heatmap_pyramids')
-            ) {
-              return
+          // Fires on the claim's own UPDATE — the CAS-to-read window — outside
+          // the claim's own async context, where the claim's connection is
+          // held: like a rival worker, the interference waits for the claim's
+          // transaction (for SQLite's one connection, or on PostgreSQL for the
+          // row lock the compare-and-swap holds).
+          const swap = interfereAfterStatementFromOutside(
+            (sql) =>
+              sql.trimStart().toLowerCase().startsWith('update') &&
+              sql.includes('fitness_route_heatmap_pyramids'),
+            async () => {
+              await instance('fitness_route_heatmap_pyramids')
+                .where('actorId', actorId)
+                .delete()
+              await instance('fitness_route_heatmap_pyramids').insert({
+                id: replacementId,
+                actorId,
+                status: 'generating',
+                error: null,
+                version: 7,
+                claimSeq: 1,
+                totalCount: 0,
+                scannedCount: 0,
+                activityCount: 0,
+                tileCount: 0,
+                pointCount: 0,
+                cursorCreatedAt: null,
+                cursorId: null,
+                completedAt: null,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              })
             }
-            interfered = true
-            await instance('fitness_route_heatmap_pyramids')
-              .where('actorId', actorId)
-              .delete()
-            await instance('fitness_route_heatmap_pyramids').insert({
-              id: replacementId,
-              actorId,
-              status: 'generating',
-              error: null,
-              version: 7,
-              claimSeq: 1,
-              totalCount: 0,
-              scannedCount: 0,
-              activityCount: 0,
-              tileCount: 0,
-              pointCount: 0,
-              cursorCreatedAt: null,
-              cursorId: null,
-              completedAt: null,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            })
-          }
-          // Outside the claim's own async context, where the claim's
-          // connection is held: like a rival worker, the interference waits
-          // for the claim's transaction (for SQLite's one connection, or on
-          // PostgreSQL for the row lock the compare-and-swap holds).
-          instance.on('query-response', (_response, query) => {
-            void outsideDatabaseContext(() => swapTheRowOut(query))
-          })
+          )
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -711,7 +704,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // Without this the test passes with the interference removed
           // entirely — a proxy assertion where the invariant was wanted, which
           // is the shape that has to be checked rather than assumed.
-          expect(interfered).toBe(true)
+          expect(swap.fired).toBe(true)
 
           // Whatever the interference did, it is not this claim's build: the
           // replacement's identity, version and token never leak into the

@@ -48,7 +48,7 @@ const DOMAIN = 'galleryalbums.test'
 // PostgreSQL in CI.
 
 const testDb = createTestDatabase()
-const { database, knex } = testDb
+const { database } = testDb
 const db = () => testDb.db
 const isPostgres = () => testDb.backend === 'pg'
 
@@ -291,19 +291,18 @@ const expectRolledBack = async (
 
 type CapturedStatement = { sql: string; connection?: string }
 
-// The statements `action` sends, as Knex's `query` event reports them (Kysely
-// statements emit it too), with the connection each ran on.
+// The statements `action` sends, with the connection each ran on. `onQuery`
+// rather than `captureQueries`, which does not report the connection.
 const captureStatements = async <T>(action: () => Promise<T>) => {
   const statements: CapturedStatement[] = []
-  const listener = (query: { sql: string; __knexUid?: string }) => {
-    statements.push({ sql: query.sql, connection: query.__knexUid })
-  }
-  knex.on('query', listener)
+  const unsubscribe = testDb.onQuery(({ sql, connection }) => {
+    statements.push({ sql, connection })
+  })
   try {
     const result = await action()
     return { result, statements }
   } finally {
-    knex.removeListener('query', listener)
+    unsubscribe()
   }
 }
 
@@ -2159,10 +2158,9 @@ describe('the actor row lock', () => {
     // Every statement the test sends, to tell the write's from the holder's
     // and from the poll's.
     const sent: CapturedStatement[] = []
-    const listener = (query: { sql: string; __knexUid?: string }) => {
-      sent.push({ sql: plain(query.sql), connection: query.__knexUid })
-    }
-    knex.on('query', listener)
+    const stopListening = testDb.onQuery(({ sql, connection }) => {
+      sent.push({ sql: plain(sql), connection })
+    })
     let operation: Promise<unknown> | undefined
     try {
       const holder = await holdTransaction(lockActorRow(owner))
@@ -2194,7 +2192,7 @@ describe('the actor row lock', () => {
       // own would send the same first two statements.
       expectOneTransactionOf(writes())
     } finally {
-      knex.removeListener('query', listener)
+      stopListening()
     }
   })
 

@@ -1,5 +1,5 @@
 import { fitnessGearComponentQueries } from '@/lib/database/domains/fitnessGear/components'
-import { bindDb, kyselyFor } from '@/lib/database/kysely'
+import { bindDb } from '@/lib/database/kysely'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 
 /**
@@ -12,7 +12,8 @@ import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
  * the pg environment variables having never opened a PostgreSQL connection.
  */
 describe('fitness gear component periods', () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  const { database, db, instance, captureQueries, prepare } =
+    getTestDatabaseWithInstance(true)
 
   const actorId = 'https://llun.test/users/periods'
 
@@ -22,19 +23,8 @@ describe('fitness gear component periods', () => {
   const normalize = (sql: string) =>
     sql.replaceAll('`', '').replaceAll('"', '').toLowerCase()
 
-  const capture = async (run: () => Promise<unknown>): Promise<string[]> => {
-    const statements: string[] = []
-    const listener = ({ sql }: { sql: string }) => {
-      statements.push(normalize(sql))
-    }
-    instance.on('query', listener)
-    try {
-      await run()
-    } finally {
-      instance.off('query', listener)
-    }
-    return statements
-  }
+  const capture = async (run: () => Promise<unknown>): Promise<string[]> =>
+    (await captureQueries(run)).map(({ sql }) => normalize(sql))
 
   beforeAll(async () => {
     await prepare()
@@ -211,10 +201,7 @@ describe('fitness gear component periods', () => {
   })
 
   it('exposes component operations through fitnessGearComponentQueries', async () => {
-    const componentDatabase = bindDb(
-      () => kyselyFor(instance),
-      fitnessGearComponentQueries
-    )
+    const componentDatabase = bindDb(() => db, fitnessGearComponentQueries)
     const gear = await database.createFitnessGear({
       actorId,
       kind: 'bike',

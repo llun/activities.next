@@ -1,5 +1,10 @@
 import knex from 'knex'
 
+import {
+  type CaptureQueries,
+  type OnQuery,
+  createKnexQueryCapture
+} from '@/lib/database/testing/queryCapture'
 import { toClientCredentialsScopes } from '@/lib/services/oauth/clientCredentialsScopes'
 import * as migration from '@/migrations/20260828000000_backfill_oauth_client_credentials_scopes'
 
@@ -27,6 +32,8 @@ const MASTODON_GRANT_TYPES = JSON.stringify([
 
 describe('backfill oauth client credentials scopes migration', () => {
   let database: knex.Knex
+  let captureQueries: CaptureQueries
+  let onQuery: OnQuery
 
   beforeEach(async () => {
     database = knex({
@@ -34,6 +41,7 @@ describe('backfill oauth client credentials scopes migration', () => {
       useNullAsDefault: true,
       connection: { filename: ':memory:' }
     })
+    ;({ captureQueries, onQuery } = createKnexQueryCapture(database))
     await createOAuthClientTable(database)
   })
 
@@ -187,12 +195,9 @@ describe('backfill oauth client credentials scopes migration', () => {
       await database('oauthClient').insert(rows.slice(index, index + 100))
     }
 
-    const selects: string[] = []
-    database.on('query', ({ sql }: { sql: string }) => {
-      if (sql.trimStart().toLowerCase().startsWith('select')) selects.push(sql)
-    })
-
-    await migration.up(database)
+    const selects = (await captureQueries(() => migration.up(database)))
+      .map(({ sql }) => sql)
+      .filter((sql) => sql.trimStart().toLowerCase().startsWith('select'))
 
     expect(selects).toHaveLength(3)
     await expect(
@@ -211,7 +216,7 @@ describe('backfill oauth client credentials scopes migration', () => {
   // The statement budget is what makes this test useful rather than dangerous.
   // better-sqlite3 is synchronous, so a spinning migration never yields to the
   // event loop and vitest's own 30s timeout can never fire — a regression would
-  // stall the whole CI shard instead of failing. Throwing from the `query`
+  // stall the whole CI shard instead of failing. Throwing from the query
   // listener converts the spin into an immediate, legible failure.
   it('terminates when a row has no id, and still repairs the rest', async () => {
     await database('oauthClient').insert([
@@ -235,7 +240,7 @@ describe('backfill oauth client credentials scopes migration', () => {
     // approaching this many statements is a migration that is not converging.
     const STATEMENT_BUDGET = 20
     let statements = 0
-    database.on('query', () => {
+    onQuery(() => {
       statements += 1
       if (statements > STATEMENT_BUDGET) {
         throw new Error(
@@ -285,7 +290,7 @@ describe('backfill oauth client credentials scopes migration', () => {
     const STATEMENT_BUDGET = 20
     const selects: string[] = []
     const updates: string[] = []
-    database.on('query', ({ sql }: { sql: string }) => {
+    onQuery(({ sql }) => {
       const statement = sql.trimStart().toLowerCase()
       if (statement.startsWith('select')) selects.push(sql)
       if (statement.startsWith('update')) updates.push(sql)

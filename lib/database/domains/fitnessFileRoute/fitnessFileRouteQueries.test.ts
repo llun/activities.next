@@ -117,19 +117,10 @@ const routeRows = (fitnessFileIds: string[]) =>
     .execute()
 
 // The statements issued against `fitness_file_routes` while `action` runs.
-const routeStatements = async (action: () => Promise<unknown>) => {
-  const statements: string[] = []
-  const record = ({ sql }: { sql: string }) => {
-    if (sql.includes('fitness_file_routes')) statements.push(sql)
-  }
-  testDb.knex.on('query', record)
-  try {
-    await action()
-  } finally {
-    testDb.knex.removeListener('query', record)
-  }
-  return statements
-}
+const routeStatements = async (action: () => Promise<unknown>) =>
+  (await testDb.captureQueries(action))
+    .map(({ sql }) => sql)
+    .filter((sql) => sql.includes('fitness_file_routes'))
 
 describe('upsertFitnessFileRoute', () => {
   afterEach(() => {

@@ -550,28 +550,28 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // better-sqlite3 accepts far more bindings than the project's
         // conservative 999 floor, so an unchunked query of this size still
         // succeeds here and would only fail on another backend. Uses its own
-        // database for the raw knex query event.
+        // database so no other test's statements are captured.
         const {
           database: isolated,
-          instance,
+          captureQueries,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
         try {
-          const statements: string[] = []
-          instance.on('query', ({ sql }: { sql: string }) => {
-            if (sql.includes('fitness_route_heatmap_tiles'))
-              statements.push(sql)
-          })
-
-          await isolated.getFitnessRouteHeatmapTilesByKeys({
-            actorId: 'https://llun.test/users/absent',
-            tileKeys: Array.from(
-              { length: 2_500 },
-              (_unused, index) => `16:${index}:0`
+          const statements = (
+            await captureQueries(() =>
+              isolated.getFitnessRouteHeatmapTilesByKeys({
+                actorId: 'https://llun.test/users/absent',
+                tileKeys: Array.from(
+                  { length: 2_500 },
+                  (_unused, index) => `16:${index}:0`
+                )
+              })
             )
-          })
+          )
+            .map(({ sql }) => sql)
+            .filter((sql) => sql.includes('fitness_route_heatmap_tiles'))
 
           // ceil(2500 / 998), the chunk size being 999 less one binding for
           // actorId.
@@ -692,7 +692,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // by connection rather than by order — see `expectOneTransaction`.
         const {
           database: isolated,
-          instance,
+          onQuery,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -701,7 +701,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         try {
           const actorId = await createActor(isolated)
           const build = await claimBuild(isolated, actorId)
-          const statements = recordStatements(instance)
+          const statements = recordStatements(onQuery)
 
           await isolated.upsertFitnessRouteHeatmapTiles({
             actorId,
@@ -909,7 +909,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // the window it exists to close reopens.
         const {
           database: isolated,
-          instance,
+          onQuery,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -924,7 +924,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             version: build.version,
             tiles: [tile('16:1:1')]
           })
-          const statements = recordStatements(instance)
+          const statements = recordStatements(onQuery)
 
           await isolated.deleteStaleFitnessRouteHeatmapTiles({
             actorId,
@@ -1066,7 +1066,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // and only a real transaction holds it.
         const {
           database: isolated,
-          instance,
+          onQuery,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -1081,7 +1081,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             version: build.version,
             tiles: [tile('16:2:2')]
           })
-          const statements = recordStatements(instance)
+          const statements = recordStatements(onQuery)
 
           await isolated.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
             actorId
@@ -1146,7 +1146,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // no longer exist.
         const {
           database: isolated,
-          instance,
+          captureQueries,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -1154,14 +1154,15 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         try {
           const actorId = await createActor(isolated)
-          const statements: string[] = []
-          instance.on('query', ({ sql }: { sql: string }) => {
-            if (sql.includes('fitness_route_heatmap_')) statements.push(sql)
-          })
-
-          await isolated.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
-            actorId
-          })
+          const statements = (
+            await captureQueries(() =>
+              isolated.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+                actorId
+              })
+            )
+          )
+            .map(({ sql }) => sql)
+            .filter((sql) => sql.includes('fitness_route_heatmap_'))
 
           const verbs = statements.map(
             (sql) => sql.trimStart().toLowerCase().split(' ')[0]

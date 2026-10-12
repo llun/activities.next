@@ -432,30 +432,15 @@ describe('SearchDatabase document filtering', () => {
 
   describe('executed search statements', () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database } = testDb
 
     // The text and bindings of the SELECTs over search_documents that `run`
-    // sends, as the driver reports them to Knex's query event.
-    const captureSearches = async (run: () => Promise<unknown>) => {
-      const searches: { sql: string; bindings: unknown[] }[] = []
-      const capture = ({
-        sql,
-        bindings
-      }: {
-        sql: string
-        bindings: unknown[]
-      }) => {
-        if (sql.startsWith('select') && sql.includes('from "search_documents"'))
-          searches.push({ sql, bindings })
-      }
-      knexDatabase.on('query', capture)
-      try {
-        await run()
-      } finally {
-        knexDatabase.off('query', capture)
-      }
-      return searches
-    }
+    // sends, as the driver reports them.
+    const captureSearches = async (run: () => Promise<unknown>) =>
+      (await testDb.captureQueries(run)).filter(
+        ({ sql }) =>
+          sql.startsWith('select') && sql.includes('from "search_documents"')
+      )
     const orderBy = (sql: string) => sql.slice(sql.indexOf(' order by '))
 
     beforeAll(async () => {

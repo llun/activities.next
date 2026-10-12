@@ -4,6 +4,7 @@ import { AsyncResource } from 'node:async_hooks'
 import { type MockInstance, expect, onTestFinished, vi } from 'vitest'
 
 import { KnexPoolDriver } from '@/lib/database/kysely/driver'
+import type { OnQuery } from '@/lib/database/testing/queryCapture'
 import { Database } from '@/lib/database/types'
 
 // The pyramid is keyed one-per-actor and the tile assertions are exact
@@ -67,8 +68,8 @@ export const expectOneTransaction = (
   secondMatches: (sql: string) => boolean
 ) => {
   // Without this the whole helper degrades to an order-only check the
-  // moment knex stops carrying `__knexUid`, which is exactly the weaker
-  // assertion it was written to replace.
+  // moment the driver stops reporting the connection, which is exactly the
+  // weaker assertion it was written to replace.
   for (const statement of statements) {
     expect(typeof statement.connection).toBe('string')
   }
@@ -102,14 +103,11 @@ export const expectOneTransaction = (
   }
 }
 
-export const recordStatements = (instance: Knex) => {
+export const recordStatements = (onQuery: OnQuery) => {
   const statements: Array<{ sql: string; connection: string }> = []
-  instance.on(
-    'query',
-    ({ sql, __knexUid }: { sql: string; __knexUid: string }) => {
-      statements.push({ sql: sql.trimStart(), connection: __knexUid })
-    }
-  )
+  onQuery(({ sql, connection }) => {
+    statements.push({ sql: sql.trimStart(), connection })
+  })
   return statements
 }
 
@@ -210,6 +208,34 @@ export const interfereAfterStatement = (
 }
 
 /**
+ * Stages another worker's write in the window between two statements of a
+ * facade method that holds a transaction: after the first statement `matches`
+ * accepts has run, `interfere` is started and NOT awaited, so the method goes
+ * on while it runs. Fires once.
+ *
+ * Unlike `interfereAfterStatement`, `interfere` leaves the statement's
+ * connection and its async context (`outsideDatabaseContext`), as a rival
+ * worker would: it waits for a connection, or on PostgreSQL for the row lock
+ * the method's transaction holds. A rejection from `interfere` is not
+ * observed here; make it fail the test through what it was meant to change.
+ */
+export const interfereAfterStatementFromOutside = (
+  matches: (sql: string) => boolean,
+  interfere: () => Promise<unknown>
+) => {
+  const state = { fired: false }
+  addStatementHook({
+    matches,
+    when: 'after',
+    run: async () => {
+      state.fired = true
+      void outsideDatabaseContext(interfere)
+    }
+  })
+  return state
+}
+
+/**
  * A barrier after the first statement `matches` accepts: the method that
  * issued it stops there, holding its connection and, inside a transaction,
  * every lock the transaction has taken, until `release()`. `reached` resolves
@@ -260,12 +286,11 @@ export const failStatement = (
  * Runs `work` in an async context that holds no database connection: the one
  * this module was loaded in.
  *
- * A Kysely statement is announced on the Knex `query` and `query-response`
- * events from inside the async context that holds its connection, and the
- * mixed-transaction guard refuses a root Knex query there. A listener staging
- * another worker's write has to leave that context, as the other worker was
- * never in it; it then waits for a connection, or on PostgreSQL for the row
- * lock, exactly as that worker would.
+ * A Kysely statement's listeners and hooks run inside the async context that
+ * holds its connection, and the mixed-transaction guard refuses a root Knex
+ * query there. A listener staging another worker's write has to leave that
+ * context, as the other worker was never in it; it then waits for a
+ * connection, or on PostgreSQL for the row lock, exactly as that worker would.
  */
 export const outsideDatabaseContext = AsyncResource.bind(
   <T>(work: () => Promise<T>): Promise<T> => work()

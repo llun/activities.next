@@ -36,7 +36,7 @@ const DOMAIN = 'galleryq.test'
 // CI.
 
 const testDb = createTestDatabase()
-const { database, knex } = testDb
+const { database } = testDb
 const db = () => testDb.db
 
 beforeAll(async () => {
@@ -247,19 +247,18 @@ const expectRolledBack = async (
 
 type CapturedStatement = { sql: string; connection?: string }
 
-// The statements `action` sends, as Knex's `query` event reports them (Kysely
-// statements emit it too), with the connection each ran on.
+// The statements `action` sends, with the connection each ran on. `onQuery`
+// rather than `captureQueries`, which does not report the connection.
 const captureStatements = async <T>(action: () => Promise<T>) => {
   const statements: CapturedStatement[] = []
-  const listener = (query: { sql: string; __knexUid?: string }) => {
-    statements.push({ sql: query.sql, connection: query.__knexUid })
-  }
-  knex.on('query', listener)
+  const unsubscribe = testDb.onQuery(({ sql, connection }) => {
+    statements.push({ sql, connection })
+  })
   try {
     const result = await action()
     return { result, statements }
   } finally {
-    knex.removeListener('query', listener)
+    unsubscribe()
   }
 }
 

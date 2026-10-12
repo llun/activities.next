@@ -11,6 +11,7 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -505,27 +506,11 @@ describe('StatusDatabase deletion', () => {
       })
 
       it('rejects very deep reply trees before building a long delete transaction', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { knex: knexDatabase, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/deep-replies'
         const rootStatusId = `${actorId}/statuses/deep-0`
         const overLimitStatusId = `${actorId}/statuses/deep-100`
-        const queries: { bindings: unknown[]; sql: string }[] = []
-        const handleQuery = ({
-          bindings,
-          sql
-        }: {
-          bindings?: unknown[]
-          sql: string
-        }) => {
-          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
-        }
 
         try {
           await sqlDatabase.migrate()
@@ -564,13 +549,15 @@ describe('StatusDatabase deletion', () => {
             })
           }
 
-          knexDatabase.on('query', handleQuery)
-          await expect(
-            sqlDatabase.deleteStatus({ statusId: rootStatusId })
-          ).rejects.toThrow(
-            `Status reply deletion depth limit exceeded for status ${rootStatusId}`
-          )
-          knexDatabase.off('query', handleQuery)
+          const queries = (
+            await testDb.captureQueries(async () => {
+              await expect(
+                sqlDatabase.deleteStatus({ statusId: rootStatusId })
+              ).rejects.toThrow(
+                `Status reply deletion depth limit exceeded for status ${rootStatusId}`
+              )
+            })
+          ).map(({ bindings, sql }) => ({ bindings, sql: sql.toLowerCase() }))
 
           expect(
             queries.some(
@@ -583,34 +570,17 @@ describe('StatusDatabase deletion', () => {
             knexDatabase('statuses').where('id', rootStatusId).first('id')
           ).resolves.toEqual({ id: rootStatusId })
         } finally {
-          knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         }
       })
 
       it('deletes reply trees with bounded bulk cleanup queries', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { knex: knexDatabase, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/bulk-delete'
         const parentStatusId = `${actorId}/statuses/bulk-parent`
         const firstReplyStatusId = `${actorId}/statuses/bulk-reply-1`
         const secondReplyStatusId = `${actorId}/statuses/bulk-reply-2`
-        const queries: { bindings: unknown[]; sql: string }[] = []
-        const handleQuery = ({
-          bindings,
-          sql
-        }: {
-          bindings?: unknown[]
-          sql: string
-        }) => {
-          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
-        }
 
         try {
           await sqlDatabase.migrate()
@@ -657,9 +627,11 @@ describe('StatusDatabase deletion', () => {
             reply: parentStatusId
           })
 
-          knexDatabase.on('query', handleQuery)
-          await sqlDatabase.deleteStatus({ statusId: parentStatusId })
-          knexDatabase.off('query', handleQuery)
+          const queries = (
+            await testDb.captureQueries(async () => {
+              await sqlDatabase.deleteStatus({ statusId: parentStatusId })
+            })
+          ).map(({ bindings, sql }) => ({ bindings, sql: sql.toLowerCase() }))
 
           expect(
             queries.some(
@@ -692,33 +664,16 @@ describe('StatusDatabase deletion', () => {
           expect(searchDocumentDeletes).toHaveLength(1)
           expect(searchDocumentDeletes[0].sql).toContain('"entityid" in')
         } finally {
-          knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         }
       })
 
       it('reserves actor filter bindings for owned status delete batches', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { knex: knexDatabase, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/owned-batch-delete'
         const rootStatusId = `${actorId}/statuses/root`
         const replyCount = SQLITE_MAX_BINDINGS
-        const queries: { bindings: unknown[]; sql: string }[] = []
-        const handleQuery = ({
-          bindings,
-          sql
-        }: {
-          bindings?: unknown[]
-          sql: string
-        }) => {
-          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
-        }
 
         try {
           await sqlDatabase.migrate()
@@ -788,9 +743,14 @@ describe('StatusDatabase deletion', () => {
           ]
           await knexDatabase.batchInsert('statuses', statusRows, 80)
 
-          knexDatabase.on('query', handleQuery)
-          await sqlDatabase.deleteStatus({ statusId: rootStatusId, actorId })
-          knexDatabase.off('query', handleQuery)
+          const queries = (
+            await testDb.captureQueries(async () => {
+              await sqlDatabase.deleteStatus({
+                statusId: rootStatusId,
+                actorId
+              })
+            })
+          ).map(({ bindings, sql }) => ({ bindings, sql: sql.toLowerCase() }))
 
           const statusDeleteBindingCounts = queries
             .filter(
@@ -807,28 +767,17 @@ describe('StatusDatabase deletion', () => {
             SQLITE_MAX_BINDINGS
           )
         } finally {
-          knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         }
       })
 
       it('deletes status history and poll votes with status-scoped cleanup', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { knex: knexDatabase, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/delete-owned-status-data'
         const voterId = 'https://remote.test/users/delete-owned-status-voter'
         const noteId = `${actorId}/statuses/history-cleanup`
         const pollId = `${actorId}/statuses/poll-cleanup`
-        const queries: string[] = []
-        const handleQuery = ({ sql }: { sql: string }) => {
-          queries.push(sql.toLowerCase())
-        }
         const countRows = async (tableName: string, statusId: string) => {
           const row = await knexDatabase(tableName)
             .where({ statusId })
@@ -891,10 +840,12 @@ describe('StatusDatabase deletion', () => {
           await expect(countRows('poll_answers', pollId)).resolves.toBe(1)
           await expect(countRows('poll_voters', pollId)).resolves.toBe(1)
 
-          knexDatabase.on('query', handleQuery)
-          await sqlDatabase.deleteStatus({ statusId: noteId, actorId })
-          await sqlDatabase.deleteStatus({ statusId: pollId, actorId })
-          knexDatabase.off('query', handleQuery)
+          const queries = (
+            await testDb.captureQueries(async () => {
+              await sqlDatabase.deleteStatus({ statusId: noteId, actorId })
+              await sqlDatabase.deleteStatus({ statusId: pollId, actorId })
+            })
+          ).map(({ sql }) => sql.toLowerCase())
 
           await expect(countRows('status_history', noteId)).resolves.toBe(0)
           await expect(countRows('poll_answers', pollId)).resolves.toBe(0)
@@ -911,26 +862,16 @@ describe('StatusDatabase deletion', () => {
           expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_voters')).toBe(true)
         } finally {
-          knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         }
       })
 
       describe('deleting a status with auxiliary references', () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { knex: knexDatabase, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/delete-aux-status-data'
         const statusId = `${actorId}/statuses/aux-cleanup`
         const queries: string[] = []
-        const handleQuery = ({ sql }: { sql: string }) => {
-          queries.push(sql.toLowerCase())
-        }
         const currentTime = new Date()
         const countRows = async (tableName: string, statusId: string) => {
           const row = await knexDatabase(tableName)
@@ -1006,13 +947,13 @@ describe('StatusDatabase deletion', () => {
           ).resolves.toBe(1)
           await expect(countRows('fitness_files', statusId)).resolves.toBe(1)
 
-          knexDatabase.on('query', handleQuery)
-          await sqlDatabase.deleteStatus({ statusId, actorId })
-          knexDatabase.off('query', handleQuery)
+          const statements = await testDb.captureQueries(() =>
+            sqlDatabase.deleteStatus({ statusId, actorId })
+          )
+          queries.push(...statements.map(({ sql }) => sql.toLowerCase()))
         })
 
         afterAll(async () => {
-          knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         })
 

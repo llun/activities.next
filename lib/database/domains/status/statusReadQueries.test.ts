@@ -75,20 +75,13 @@ const actorIn = (prefix: string, name: string) =>
 let serialCount = 0
 const nextSerial = () => 900_000_000 + ++serialCount * 10
 
-// The statements `run` sends, as the Kysely driver reports them on the Knex
-// `query` event.
+// The statements `run` sends, with what it returned.
 const capture = async <T>(run: () => Promise<T>) => {
-  const statements: { sql: string; bindings: unknown[] }[] = []
-  const listener = (event: { sql: string; bindings?: unknown[] }) => {
-    statements.push({ sql: event.sql, bindings: event.bindings ?? [] })
-  }
-  testDb.knex.on('query', listener)
-  try {
-    const result = await run()
-    return { result, statements }
-  } finally {
-    testDb.knex.off('query', listener)
-  }
+  let result!: T
+  const statements = await testDb.captureQueries(async () => {
+    result = await run()
+  })
+  return { result, statements }
 }
 
 const seedActor = async (

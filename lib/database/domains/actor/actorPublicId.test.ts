@@ -2,7 +2,6 @@ import {
   createFreshDatabaseRunner,
   seedActorTestDatabase
 } from '@/lib/database/domains/actor/actorTestHelpers'
-import { kyselyFor } from '@/lib/database/kysely'
 import {
   SQLITE_MAX_BINDINGS,
   getWhereInBatchSize
@@ -229,7 +228,8 @@ describe('ActorDatabase publicId', () => {
         // A full timeline page can mention more actors than
         // SQLITE_MAX_BINDINGS allows in one statement, so the lookup has to
         // chunk like its getActorIdsByPublicIds counterpart does.
-        await withFreshDatabase(async (freshDatabase, instance) => {
+        await withFreshDatabase(async (freshDatabase, _, tools) => {
+          const { captureQueries, db } = tools
           const actorId = `https://${TEST_DOMAIN}/users/public-ids-chunked`
           await freshDatabase.createActor({
             actorId,
@@ -249,20 +249,14 @@ describe('ActorDatabase publicId', () => {
             ),
             actorId
           ]
-          const queries: { bindings: unknown[]; sql: string }[] = []
-          const handleQuery = ({
-            bindings,
-            sql
-          }: {
-            bindings?: unknown[]
-            sql: string
-          }) => {
-            queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
-          }
-
-          instance.on('query', handleQuery)
-          const map = await freshDatabase.getActorPublicIds({ actorIds })
-          instance.off('query', handleQuery)
+          let map:
+            | Awaited<ReturnType<typeof freshDatabase.getActorPublicIds>>
+            | undefined
+          const queries = (
+            await captureQueries(async () => {
+              map = await freshDatabase.getActorPublicIds({ actorIds })
+            })
+          ).map(({ bindings, sql }) => ({ bindings, sql: sql.toLowerCase() }))
 
           const bindingCounts = queries
             .filter(
@@ -272,10 +266,10 @@ describe('ActorDatabase publicId', () => {
             .map(({ bindings }) => bindings.length)
           expect(bindingCounts.length).toBeGreaterThan(1)
           expect(Math.max(...bindingCounts)).toBeLessThanOrEqual(
-            getWhereInBatchSize(kyselyFor(instance))
+            getWhereInBatchSize(db)
           )
-          expect(map.size).toBe(1)
-          expect(map.get(actorId)).toBeTruthy()
+          expect(map?.size).toBe(1)
+          expect(map?.get(actorId)).toBeTruthy()
         })
       })
 

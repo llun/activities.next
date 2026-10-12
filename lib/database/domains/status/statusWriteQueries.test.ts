@@ -30,6 +30,7 @@ import {
 } from '@/lib/database/domains/status/writes'
 import { inTransaction } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { CapturedQuery } from '@/lib/database/testing/queryCapture'
 import { CounterKey } from '@/lib/database/utils/counter'
 import {
   formatBucketHour,
@@ -431,30 +432,15 @@ const expectRolledBack = async (
   expect(await dumpTables()).toEqual(before)
 }
 
-type Statement = { sql: string; bindings: unknown[]; kysely: boolean }
+type Statement = CapturedQuery
 
-// The statements `run` sends, as the Kysely driver reports them on the Knex
-// `query` event.
+// The statements `run` sends, with what it returned.
 const capture = async <T>(run: () => Promise<T>) => {
-  const statements: Statement[] = []
-  const listener = (event: {
-    sql: string
-    bindings?: unknown[]
-    kysely?: boolean
-  }) => {
-    statements.push({
-      sql: event.sql,
-      bindings: event.bindings ?? [],
-      kysely: event.kysely === true
-    })
-  }
-  testDb.knex.on('query', listener)
-  try {
-    const result = await run()
-    return { result, statements }
-  } finally {
-    testDb.knex.off('query', listener)
-  }
+  let result!: T
+  const statements = await testDb.captureQueries(async () => {
+    result = await run()
+  })
+  return { result, statements }
 }
 
 // What each statement of a status write does, named with the binding that
@@ -3093,16 +3079,14 @@ describe('single-row reads', () => {
     // updatePoll and updateStatusQuoteApprovalPolicy each read their row and
     // then hydrate it by id after their write.
     const reads = statements
-      .filter(
-        ({ sql: text, kysely }) =>
-          kysely &&
-          [
-            /^select "accountId" from "actors" /,
-            /^select "id" from "statuses" where /,
-            /^select \* from "statuses" where "id" = /,
-            /^select "id" from "poll_voters" /,
-            /^select "choiceId" from "poll_choices" .* offset /
-          ].some((pattern) => pattern.test(text))
+      .filter(({ sql: text }) =>
+        [
+          /^select "accountId" from "actors" /,
+          /^select "id" from "statuses" where /,
+          /^select \* from "statuses" where "id" = /,
+          /^select "id" from "poll_voters" /,
+          /^select "choiceId" from "poll_choices" .* offset /
+        ].some((pattern) => pattern.test(text))
       )
       .map(({ sql: text }) =>
         text

@@ -19,11 +19,11 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // set form) lands silently and green unless something looks at the SQL
 // itself.
 //
-// Capturing knex's `query` event follows the precedent in
+// Capturing the statements the driver sends follows the precedent in
 // `localPublicQueryShape.test.ts`: it observes what the production path
 // actually sends, rather than a builder the test constructed for itself.
 describe('publicly readable status query shape', () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance()
+  const { database, captureQueries, prepare } = getTestDatabaseWithInstance()
 
   const actorId = 'https://llun.test/users/shape'
 
@@ -33,19 +33,8 @@ describe('publicly readable status query shape', () => {
   const normalize = (sql: string) =>
     sql.replaceAll('`', '').replaceAll('"', '').toLowerCase()
 
-  const capture = async (run: () => Promise<unknown>): Promise<string[]> => {
-    const statements: string[] = []
-    const listener = ({ sql }: { sql: string }) => {
-      statements.push(normalize(sql))
-    }
-    instance.on('query', listener)
-    try {
-      await run()
-    } finally {
-      instance.off('query', listener)
-    }
-    return statements
-  }
+  const capture = async (run: () => Promise<unknown>): Promise<string[]> =>
+    (await captureQueries(run)).map(({ sql }) => normalize(sql))
 
   beforeAll(async () => {
     await prepare()

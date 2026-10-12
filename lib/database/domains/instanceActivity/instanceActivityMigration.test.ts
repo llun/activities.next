@@ -1,5 +1,9 @@
 import knex, { Knex } from 'knex'
 
+import {
+  type CaptureQueries,
+  createKnexQueryCapture
+} from '@/lib/database/testing/queryCapture'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 import * as migration from '@/migrations/20260526112702_backfill_instance_activity_counters'
 
@@ -8,6 +12,7 @@ const sumCounterRows = (rows: { value: number | string | null }[]) =>
 
 describe('instance activity counter migration', () => {
   let database: Knex
+  let captureQueries: CaptureQueries
 
   beforeEach(async () => {
     database = knex({
@@ -15,6 +20,7 @@ describe('instance activity counter migration', () => {
       useNullAsDefault: true,
       connection: { filename: ':memory:' }
     })
+    ;({ captureQueries } = createKnexQueryCapture(database))
 
     await database.schema.createTable('accounts', (table) => {
       table.string('id').primary()
@@ -281,15 +287,9 @@ describe('instance activity counter migration', () => {
 
     await database('statuses').insert(statusRows)
 
-    const queries: string[] = []
-    const onQuery = (query: { sql: string }) => queries.push(query.sql)
-    database.on('query', onQuery)
-
-    try {
-      await migration.up(database)
-    } finally {
-      database.off('query', onQuery)
-    }
+    const queries = (await captureQueries(() => migration.up(database))).map(
+      ({ sql }) => sql
+    )
 
     const counterInsertQueries = queries.filter((query) =>
       query.startsWith('insert into `counters`')

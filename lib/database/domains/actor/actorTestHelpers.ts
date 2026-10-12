@@ -1,6 +1,9 @@
 import { Knex } from 'knex'
 
-import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import {
+  type TestDatabaseTools,
+  getTestDatabaseWithInstance
+} from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
   EXTERNAL_ACTORS,
@@ -33,19 +36,23 @@ export const createSigningAccount = async (
   })
 
 // Runs `test` against a freshly migrated database for the given backend and
-// destroys it afterwards.
+// destroys it afterwards. `tools` is that database's Kysely `db` and statement
+// capture.
 export const createFreshDatabaseRunner =
   (backendName: string) =>
-  async (test: (database: Database, instance: Knex) => Promise<void>) => {
-    const {
-      database: freshDatabase,
-      instance,
-      prepare
-    } = getTestDatabaseWithInstance(true, backendName)
-    await prepare()
+  async (
+    test: (
+      database: Database,
+      instance: Knex,
+      tools: TestDatabaseTools
+    ) => Promise<void>
+  ) => {
+    const fresh = getTestDatabaseWithInstance(true, backendName)
+    const { database: freshDatabase } = fresh
+    await fresh.prepare()
     await freshDatabase.migrate()
     try {
-      await test(freshDatabase, instance)
+      await test(freshDatabase, fresh.instance, fresh)
     } finally {
       await freshDatabase.destroy()
     }

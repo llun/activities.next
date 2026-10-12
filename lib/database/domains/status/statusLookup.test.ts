@@ -276,22 +276,12 @@ describe('StatusDatabase lookups', () => {
         const {
           database: freshDatabase,
           db,
-          knex: instance,
+          captureQueries,
           prepare
         } = createTestDatabase({ isolated: true })
         await prepare()
         await freshDatabase.migrate()
         const batchSize = getWhereInBatchSize(db)
-        const queries: { bindings: unknown[]; sql: string }[] = []
-        const handleQuery = ({
-          bindings,
-          sql
-        }: {
-          bindings?: unknown[]
-          sql: string
-        }) => {
-          queries.push({ bindings: bindings ?? [], sql: sql.toLowerCase() })
-        }
         try {
           const actorId = 'https://public-id-chunk.test/users/author'
           await freshDatabase.createActor({
@@ -322,9 +312,14 @@ describe('StatusDatabase lookups', () => {
             statusId
           ]
 
-          instance.on('query', handleQuery)
-          const map = await freshDatabase.getStatusPublicIds({ statusIds })
-          instance.off('query', handleQuery)
+          let map:
+            | Awaited<ReturnType<typeof freshDatabase.getStatusPublicIds>>
+            | undefined
+          const queries = (
+            await captureQueries(async () => {
+              map = await freshDatabase.getStatusPublicIds({ statusIds })
+            })
+          ).map(({ bindings, sql }) => ({ bindings, sql: sql.toLowerCase() }))
 
           const bindingCounts = queries
             .filter(
@@ -334,10 +329,9 @@ describe('StatusDatabase lookups', () => {
             .map(({ bindings }) => bindings.length)
           // The chunks run concurrently, so their statements may interleave.
           expect(bindingCounts.sort((a, b) => b - a)).toEqual([batchSize, 11])
-          expect(map.size).toBe(1)
-          expect(map.get(statusId)).toBe(status.publicId)
+          expect(map?.size).toBe(1)
+          expect(map?.get(statusId)).toBe(status.publicId)
         } finally {
-          instance.off('query', handleQuery)
           await freshDatabase.destroy()
         }
       })

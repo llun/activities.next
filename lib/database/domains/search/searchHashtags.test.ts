@@ -13,13 +13,9 @@ const normalizeSql = (sql: string) => sql.toLowerCase().replace(/[`"]/g, '')
 describe('SearchDatabase hashtags', () => {
   it('indexes public hashtags and returns Mastodon tag-shaped results', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/hashtag-search`
-    const queries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(normalizeSql(sql))
-    }
 
     try {
       await testDb.prepare()
@@ -37,14 +33,16 @@ describe('SearchDatabase hashtags', () => {
         text: 'Trail day',
         createdAt: 1
       })
-      knexDatabase.on('query', handleQuery)
-      await database.createTag({
-        statusId,
-        type: 'hashtag',
-        name: '#Running',
-        value: 'https://remote.test/tags/running'
-      })
-      knexDatabase.off('query', handleQuery)
+      const queries = (
+        await testDb.captureQueries(async () => {
+          await database.createTag({
+            statusId,
+            type: 'hashtag',
+            name: '#Running',
+            value: 'https://remote.test/tags/running'
+          })
+        })
+      ).map(({ sql }) => normalizeSql(sql))
 
       await expect(
         database.searchHashtags({
@@ -68,7 +66,6 @@ describe('SearchDatabase hashtags', () => {
       expect(aggregateSql).not.toContain('statuses.id in (select')
       expect(aggregateSql).toContain('exists')
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -352,20 +349,7 @@ describe('SearchDatabase hashtags', () => {
 
   it('uses bounded lookups when removing stale hashtag search documents', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
-    const queries: { bindings: unknown[]; sql: string }[] = []
-    const handleQuery = ({
-      bindings,
-      sql
-    }: {
-      bindings?: unknown[]
-      sql: string
-    }) => {
-      queries.push({
-        bindings: bindings ?? [],
-        sql: normalizeSql(sql)
-      })
-    }
+    const { database } = testDb
 
     try {
       await testDb.prepare()
@@ -378,11 +362,13 @@ describe('SearchDatabase hashtags', () => {
         lastPostAt: 1
       })
 
-      knexDatabase.on('query', handleQuery)
-      await database.reindexSearchHashtags({
-        limit: 10
-      })
-      knexDatabase.off('query', handleQuery)
+      const queries = (
+        await testDb.captureQueries(async () => {
+          await database.reindexSearchHashtags({
+            limit: 10
+          })
+        })
+      ).map(({ bindings, sql }) => ({ bindings, sql: normalizeSql(sql) }))
 
       expect(queries.some(({ sql }) => sql.includes('not exists'))).toBe(false)
       expect(
@@ -402,7 +388,6 @@ describe('SearchDatabase hashtags', () => {
         100
       )
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -467,15 +452,6 @@ describe('SearchDatabase hashtags', () => {
     const actorId = 'https://remote.test/users/alice'
     const firstStatusId = `${actorId}/statuses/duplicate-hashtag-1`
     const secondStatusId = `${actorId}/statuses/duplicate-hashtag-2`
-    const distinctTagQueries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      if (
-        sql.toLowerCase().startsWith('select distinct') &&
-        (sql.includes('from `tags`') || sql.includes('from "tags"'))
-      ) {
-        distinctTagQueries.push(sql)
-      }
-    }
 
     try {
       await testDb.prepare()
@@ -525,11 +501,19 @@ describe('SearchDatabase hashtags', () => {
         }
       ])
 
-      knexDatabase.on('query', handleQuery)
-      await database.reindexSearchHashtags({
-        limit: 10
-      })
-      knexDatabase.off('query', handleQuery)
+      const distinctTagQueries = (
+        await testDb.captureQueries(() =>
+          database.reindexSearchHashtags({
+            limit: 10
+          })
+        )
+      )
+        .map(({ sql }) => sql)
+        .filter(
+          (sql) =>
+            sql.toLowerCase().startsWith('select distinct') &&
+            (sql.includes('from `tags`') || sql.includes('from "tags"'))
+        )
 
       expect(distinctTagQueries).toHaveLength(1)
       expect(distinctTagQueries[0]).not.toContain('case when')
@@ -547,7 +531,6 @@ describe('SearchDatabase hashtags', () => {
         })
       ])
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -620,13 +603,9 @@ describe('SearchDatabase hashtags', () => {
 
   it('replaces hashtag search documents inside a transaction', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/transactional-hashtag`
-    const queries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(normalizeSql(sql))
-    }
 
     try {
       await testDb.prepare()
@@ -651,11 +630,13 @@ describe('SearchDatabase hashtags', () => {
         value: 'https://remote.test/tags/atomic'
       })
 
-      knexDatabase.on('query', handleQuery)
-      await database.indexHashtagSearchDocuments({
-        hashtags: ['atomic']
-      })
-      knexDatabase.off('query', handleQuery)
+      const queries = (
+        await testDb.captureQueries(async () => {
+          await database.indexHashtagSearchDocuments({
+            hashtags: ['atomic']
+          })
+        })
+      ).map(({ sql }) => normalizeSql(sql))
 
       const beginIndex = queries.findIndex((sql) => sql.startsWith('begin'))
       const searchDocumentWriteIndex = queries.findIndex(
@@ -671,7 +652,6 @@ describe('SearchDatabase hashtags', () => {
       expect(searchDocumentWriteIndex).toBeGreaterThan(beginIndex)
       expect(commitIndex).toBeGreaterThan(searchDocumentWriteIndex)
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -760,13 +740,9 @@ describe('SearchDatabase hashtags', () => {
 
   it('reads visibility-change hashtags inside the update transaction', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/transaction-visibility-hashtag`
-    const queries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      queries.push(normalizeSql(sql))
-    }
 
     try {
       await testDb.prepare()
@@ -791,13 +767,15 @@ describe('SearchDatabase hashtags', () => {
         value: 'https://remote.test/tags/visibilitytransaction'
       })
 
-      knexDatabase.on('query', handleQuery)
-      await database.updateNoteVisibility({
-        statusId,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: []
-      })
-      knexDatabase.off('query', handleQuery)
+      const queries = (
+        await testDb.captureQueries(async () => {
+          await database.updateNoteVisibility({
+            statusId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          })
+        })
+      ).map(({ sql }) => normalizeSql(sql))
 
       const tagReadIndex = queries.findIndex(
         (sql) =>
@@ -815,7 +793,6 @@ describe('SearchDatabase hashtags', () => {
       expect(tagReadIndex).toBeGreaterThan(beginIndex)
       expect(commitIndex).toBeGreaterThan(tagReadIndex)
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -871,19 +848,9 @@ describe('SearchDatabase hashtags', () => {
 
   it('refreshes deleted actor hashtag search aggregates after actor data commits', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/actor-delete-commit-hashtag`
-    const queries: { bindings: unknown[]; sql: string }[] = []
-    const handleQuery = ({
-      bindings,
-      sql
-    }: {
-      bindings?: unknown[]
-      sql: string
-    }) => {
-      queries.push({ bindings: bindings ?? [], sql: normalizeSql(sql) })
-    }
 
     try {
       await testDb.prepare()
@@ -908,9 +875,11 @@ describe('SearchDatabase hashtags', () => {
         value: 'https://remote.test/tags/commitcleanup'
       })
 
-      knexDatabase.on('query', handleQuery)
-      await database.deleteActorData({ actorId })
-      knexDatabase.off('query', handleQuery)
+      const queries = (
+        await testDb.captureQueries(async () => {
+          await database.deleteActorData({ actorId })
+        })
+      ).map(({ bindings, sql }) => ({ bindings, sql: normalizeSql(sql) }))
 
       const actorCommitIndex = queries.findIndex((query) =>
         query.sql.startsWith('commit')
@@ -925,7 +894,6 @@ describe('SearchDatabase hashtags', () => {
       expect(actorCommitIndex).toBeGreaterThanOrEqual(0)
       expect(hashtagSearchWriteIndex).toBeGreaterThan(actorCommitIndex)
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })

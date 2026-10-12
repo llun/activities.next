@@ -771,18 +771,15 @@ describe('announcement queries only touch their own rows', () => {
       })
       // The lock is what holds the reaction ceiling under concurrent requests
       // on PostgreSQL. SQLite has no row locks, so read the statements sent.
-      const statements: string[] = []
-      const record = ({ sql }: { sql: string }) => statements.push(sql)
-      testDb.knex.on('query', record)
-      try {
-        await database.addAnnouncementReaction({
-          announcementId: created.id,
-          actorId: ACTOR1_ID,
-          name: 'tada'
-        })
-      } finally {
-        testDb.knex.removeListener('query', record)
-      }
+      const statements = (
+        await testDb.captureQueries(() =>
+          database.addAnnouncementReaction({
+            announcementId: created.id,
+            actorId: ACTOR1_ID,
+            name: 'tada'
+          })
+        )
+      ).map(({ sql }) => sql)
 
       const locking = statements.filter((sql) => /\bfor update\b/i.test(sql))
       if (testDb.backend === 'pg') {

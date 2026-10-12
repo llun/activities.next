@@ -51,7 +51,7 @@ describe('gallery scope query plan on SQLite', () => {
 // attachment pick's join and the unattached check) probes the index on SQLite.
 describe('gallery statements on SQLite', () => {
   it('probe attachments_mediaId_idx wherever they match attachments to media', async () => {
-    const { database, db, knex, destroy } = createTestDatabase({
+    const { database, db, captureQueries, destroy } = createTestDatabase({
       backend: 'sqlite'
     })
     try {
@@ -74,12 +74,7 @@ describe('gallery statements on SQLite', () => {
         .executeTakeFirstOrThrow()
       const mediaIds = [String(media.id)]
 
-      const statements: { sql: string; bindings: unknown[] }[] = []
-      const listener = (query: { sql: string; bindings: unknown[] }) => {
-        statements.push(query)
-      }
-      knex.on('query', listener)
-      try {
+      const statements = await captureQueries(async () => {
         const rows = await database.getGalleryMediaByIds({
           actorId: 'actor',
           audience: OWNER_GALLERY_AUDIENCE,
@@ -87,9 +82,7 @@ describe('gallery statements on SQLite', () => {
         })
         expect(rows.map((row) => row.media.id)).toEqual(mediaIds)
         await database.getUnattachedMedia({ actorId: 'actor', mediaIds })
-      } finally {
-        knex.removeListener('query', listener)
-      }
+      })
 
       const matching = statements.filter((statement) =>
         statement.sql.includes('"mediaId" = "medias"."id"')

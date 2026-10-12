@@ -78,18 +78,15 @@ describe('StatusReactionDatabase', () => {
         // sent. Record WHICH table each lock targets: a lock moved onto the
         // status_reactions read locks zero rows for a first reaction, so it
         // serialises nothing, yet still says FOR UPDATE.
-        const statements: string[] = []
-        const record = ({ sql }: { sql: string }) => statements.push(sql)
-        testDb.knex.on('query', record)
-        try {
-          await database.createStatusReaction({
-            statusId: statuses.primary.post,
-            actorId: extraActorId,
-            name: '🔒'
-          })
-        } finally {
-          testDb.knex.removeListener('query', record)
-        }
+        const statements = (
+          await testDb.captureQueries(() =>
+            database.createStatusReaction({
+              statusId: statuses.primary.post,
+              actorId: extraActorId,
+              name: '🔒'
+            })
+          )
+        ).map(({ sql }) => sql)
 
         const locking = statements.filter((sql) => /\bfor update\b/i.test(sql))
         if (testDb.backend === 'pg') {

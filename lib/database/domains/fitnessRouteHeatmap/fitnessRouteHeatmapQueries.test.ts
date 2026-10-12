@@ -100,19 +100,8 @@ const othersThan = async (ids: string[]) =>
   (await allHeatmaps()).filter((row) => !ids.includes(row.id))
 
 // The statements issued while `action` runs.
-const statementsOf = async (action: () => Promise<unknown>) => {
-  const statements: string[] = []
-  const record = ({ sql }: { sql: string }) => {
-    statements.push(sql)
-  }
-  testDb.knex.on('query', record)
-  try {
-    await action()
-  } finally {
-    testDb.knex.removeListener('query', record)
-  }
-  return statements
-}
+const statementsOf = async (action: () => Promise<unknown>) =>
+  (await testDb.captureQueries(action)).map(({ sql }) => sql)
 
 // Identifier quoting differs per backend, so compare the bare names.
 const bare = (sql: string) => sql.replaceAll('`', '').replaceAll('"', '')
