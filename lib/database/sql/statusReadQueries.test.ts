@@ -1065,6 +1065,100 @@ describe('hydrateStatusRow', () => {
     })
   })
 
+  it('leaves the attachments in order when there is no map image to put first', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    const urlOf = (name: string) => `https://${DOMAIN}/${prefix}/${name}`
+    // No fitness file: a path ending in "undefined" is not a map image.
+    const bare = await seedStatus({
+      id: `${author}/statuses/bare`,
+      actorId: author
+    })
+    await attach(bare, author, urlOf('first.webp'), BASE)
+    await attach(bare, author, urlOf('undefined'), BASE + MINUTE)
+    // A fitness file with a NULL map image: nor is one ending in "null".
+    const noMap = await seedStatus({
+      id: `${author}/statuses/no-map`,
+      actorId: author
+    })
+    await db
+      .insertInto('fitness_files')
+      .values({
+        id: `${prefix}-file`,
+        actorId: author,
+        statusId: noMap,
+        path: 'fitness/file.fit',
+        fileName: 'file.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1,
+        mapImagePath: null,
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      .execute()
+    await attach(noMap, author, urlOf('first.webp'), BASE)
+    await attach(noMap, author, urlOf('null'), BASE + MINUTE)
+
+    for (const [statusId, last] of [
+      [bare, 'undefined'],
+      [noMap, 'null']
+    ]) {
+      const status = (await getStatus(db, { statusId })) as StatusNote
+      expect(status.attachments.map((item) => item.url)).toEqual([
+        urlOf('first.webp'),
+        urlOf(last)
+      ])
+    }
+  })
+
+  it('picks the earliest created of the fitness files that tie on start, whichever was written first', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    const file = (id: string, statusId: string, createdAt: number) => ({
+      id: `${prefix}-${id}`,
+      actorId: author,
+      statusId,
+      path: `fitness/${prefix}-${id}.fit`,
+      fileName: `${id}.fit`,
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1,
+      isPrimary: true,
+      activityStartTime: new Date(BASE),
+      createdAt: new Date(createdAt),
+      updatedAt: new Date(createdAt)
+    })
+    // The winner is written first for one status and second for the other, so
+    // a read that dropped the createdAt tie-break returns the wrong file for
+    // at least one of them whichever way the sort breaks the tie.
+    const winnerFirst = await seedStatus({
+      id: `${author}/statuses/winner-first`,
+      actorId: author
+    })
+    const winnerSecond = await seedStatus({
+      id: `${author}/statuses/winner-second`,
+      actorId: author
+    })
+    await db
+      .insertInto('fitness_files')
+      .values([
+        file('first-winner', winnerFirst, BASE),
+        file('first-later', winnerFirst, BASE + MINUTE),
+        file('second-later', winnerSecond, BASE + MINUTE),
+        file('second-winner', winnerSecond, BASE)
+      ])
+      .execute()
+
+    for (const [statusId, winner] of [
+      [winnerFirst, 'first-winner'],
+      [winnerSecond, 'second-winner']
+    ]) {
+      const status = (await getStatus(db, { statusId })) as StatusNote
+      expect(status.fitness?.id).toBe(`${prefix}-${winner}`)
+    }
+  })
+
   it('keeps a fitness file whose gear is soft-deleted, and reports a stuck or failed one', async () => {
     const prefix = nextPrefix()
     const author = await seedActor(actorIn(prefix, 'author'))
@@ -1681,6 +1775,52 @@ describe('getStatusEditHistory', () => {
       getStatusEditHistory(db, { statusId: undefined as unknown as string })
     ).resolves.toEqual([])
   })
+
+  it.runIf(testDb.backend === 'sqlite')(
+    'decodes a revision whose data is a JSON-encoded string twice on SQLite, as PostgreSQL always has',
+    async () => {
+      const prefix = nextPrefix()
+      const author = await seedActor(actorIn(prefix, 'author'))
+      const statusId = await seedStatus({
+        id: `${author}/statuses/1`,
+        actorId: author
+      })
+      // The text the column holds is itself a JSON string. The driver parses
+      // the json column to that string and getCompatibleJSON parses it again;
+      // Knex handed over the text, so the one parse left a string and the
+      // revision read as empty, with every field unavailable.
+      await db
+        .insertInto('status_history')
+        .values({
+          statusId,
+          data: JSON.stringify(
+            JSON.stringify({ text: 'inner', summary: null })
+          ),
+          createdAt: new Date(BASE),
+          updatedAt: new Date(BASE)
+        })
+        .execute()
+
+      await expect(getStatusEditHistory(db, { statusId })).resolves.toEqual([
+        {
+          text: 'inner',
+          summary: null,
+          sensitive: null,
+          attachments: null,
+          pollOptions: null,
+          createdAt: BASE,
+          available: {
+            text: true,
+            summary: true,
+            sensitive: false,
+            attachments: false,
+            pollOptions: false
+          },
+          supersededAt: BASE
+        }
+      ])
+    }
+  )
 })
 
 describe('getStatusReplies', () => {
@@ -2570,18 +2710,89 @@ describe('status counts', () => {
         id: `${author}/statuses/1`,
         actorId: author
       })
+      const tooLarge = 2 ** 53 + 2
       await db
         .insertInto('counters')
-        .values({ id: CounterKey.totalReblog(statusId), value: 2 ** 53 + 2 })
+        .values([
+          { id: CounterKey.totalStatus(author), value: tooLarge },
+          { id: CounterKey.totalReblog(statusId), value: tooLarge },
+          { id: CounterKey.totalReply(statusId), value: tooLarge }
+        ])
         .execute()
+      await expect(
+        getActorStatusesCount(db, { actorId: author })
+      ).rejects.toThrow(RangeError)
       await expect(getStatusReblogsCount(db, { statusId })).rejects.toThrow(
         RangeError
       )
       await expect(
         getStatusReblogsCounts(db, { statusIds: [statusId] })
       ).rejects.toThrow(RangeError)
+      await expect(getStatusRepliesCount(db, { statusId })).rejects.toThrow(
+        RangeError
+      )
+      await expect(
+        getStatusRepliesCounts(db, { statusIds: [statusId] })
+      ).rejects.toThrow(RangeError)
       // Knex read it as 9,007,199,254,740,991 and hydrated the status.
       await expect(getStatus(db, { statusId })).rejects.toThrow(RangeError)
+    }
+  )
+
+  it.runIf(testDb.backend === 'pg')(
+    'rejects a fitness file whose bytes pass 2^53 - 1 on PostgreSQL, in hydration',
+    async () => {
+      const prefix = nextPrefix()
+      const author = await seedActor(actorIn(prefix, 'author'))
+      const statusId = await seedStatus({
+        id: `${author}/statuses/1`,
+        actorId: author
+      })
+      const neighbourId = await seedStatus({
+        id: `${author}/statuses/2`,
+        actorId: author
+      })
+      const file = (id: string, owner: string, bytes: number | string) => ({
+        id: `${prefix}-${id}`,
+        actorId: author,
+        statusId: owner,
+        path: `fitness/${prefix}-${id}.fit`,
+        fileName: `${id}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: bytes as number,
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      await db
+        .insertInto('fitness_files')
+        .values([
+          file('neighbour', neighbourId, 2048),
+          // 9,007,199,254,740,993: Knex read it as a string and Number()
+          // rounded it to 9,007,199,254,740,992.
+          file('large', statusId, '9007199254740993')
+        ])
+        .execute()
+      await expect(getStatus(db, { statusId })).rejects.toThrow(RangeError)
+      // The neighbour's own file, within the range, still hydrates.
+      await expect(
+        getStatus(db, { statusId: neighbourId }).then(
+          (status) => (status as StatusNote).fitness?.bytes
+        )
+      ).resolves.toBe(2048)
+    }
+  )
+
+  it.runIf(testDb.backend === 'pg')(
+    'throws the driver’s own message for a database error, without the statement Knex put before it',
+    async () => {
+      const prefix = nextPrefix()
+      const author = await seedActor(actorIn(prefix, 'author'))
+      // Knex's message began with the statement: select * from "statuses"
+      // where "actorId" = $1 order by ... limit $2 - LIMIT must not be negative
+      await expect(
+        getActorStatuses(db, { actorId: author, limit: -1 })
+      ).rejects.toMatchObject({ message: 'LIMIT must not be negative' })
     }
   )
 })
