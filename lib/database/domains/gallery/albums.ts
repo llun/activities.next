@@ -1,5 +1,11 @@
 import crypto from 'crypto'
-import { type Updateable, sql } from 'kysely'
+import {
+  type Expression,
+  type ExpressionBuilder,
+  type SqlBool,
+  type Updateable,
+  sql
+} from 'kysely'
 
 import { getGalleryMediaByIds } from '@/lib/database/domains/gallery/media'
 import {
@@ -35,7 +41,7 @@ import type {
 import { lockGalleryAlbumActor } from '@/lib/database/domains/media/galleryAlbumCleanup'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { type Db, inTransaction } from '@/lib/database/kysely'
-import type { GalleryAlbums } from '@/lib/database/kysely/db'
+import type { DB, GalleryAlbums } from '@/lib/database/kysely/db'
 import {
   chunkArray,
   getWhereInBatchSize,
@@ -372,7 +378,7 @@ const addItems = async (
   // Only the actor's own gallery media (or fresh unposted uploads):
   // the same scope the owner's gallery reads through, plus uploads that are pending.
   const albumAddableMediaScope = (db: Db, actorId: string) => {
-    return (eb: any) =>
+    return (eb: ExpressionBuilder<DB, 'medias'>): Expression<SqlBool> =>
       eb.or([
         galleryMediaScope(db, actorId, { kind: 'owner' }),
         eb.and([
@@ -383,7 +389,7 @@ const addItems = async (
               db
                 .selectFrom('attachments')
                 .innerJoin('statuses', 'statuses.id', 'attachments.statusId')
-                .whereRef('attachments.mediaId', '=', galleryMediaIdRef)
+                .where('attachments.mediaId', '=', galleryMediaIdRef)
                 .select(sql.lit(1).as('one'))
             )
           )
