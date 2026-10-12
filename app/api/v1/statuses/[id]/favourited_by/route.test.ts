@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
+import { encodeFavouritedByCursor } from '@/lib/database/domains/status/favouritedByCursor'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'

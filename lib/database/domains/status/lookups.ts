@@ -15,7 +15,7 @@ import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import {
   resolveIdsByPublicIds,
   resolvePublicIdsByIds
-} from '@/lib/database/sql/utils/publicIdLookup'
+} from '@/lib/database/utils/publicIdLookup'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'

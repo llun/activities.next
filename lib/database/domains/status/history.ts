@@ -3,8 +3,8 @@ import type {
   StatusEditRevision
 } from '@/lib/database/domains/status/types'
 import type { Db } from '@/lib/database/kysely'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 // The superseded revisions of a status, oldest first. Status hydration reads

@@ -10,7 +10,7 @@ import type { StatusDatabase } from '@/lib/types/database/operations'
 
 /**
  * Where this domain gets hydrated statuses from: the status facade, injected
- * by lib/database/sql/index.ts. It runs on the root Kysely instance, so it is
+ * by lib/database/getSQLDatabase.ts. It runs on the root Kysely instance, so it is
  * only ever called outside this domain's transactions.
  */
 export type ConversationStatusSource = Pick<StatusDatabase, 'getStatusesByIds'>

@@ -1,7 +1,7 @@
 import fetchMock from 'jest-fetch-mock'
 import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 

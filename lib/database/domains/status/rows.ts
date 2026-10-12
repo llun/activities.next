@@ -1,4 +1,4 @@
-import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import { parseStatusContent } from '@/lib/database/utils/parseStatusContent'
 import { Actor, ActorProfile, getActorProfile } from '@/lib/types/domain/actor'
 
 // Row helpers the status domain's reads, writes and deletion share.

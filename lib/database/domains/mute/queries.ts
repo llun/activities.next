@@ -13,7 +13,7 @@ import type {
 import type { DB, Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { chunkArray } from '@/lib/database/kysely/inList'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type { Mute } from '@/lib/types/domain/mute'
 
 // Each query uses two WHERE IN clauses (actorId + targetActorId).

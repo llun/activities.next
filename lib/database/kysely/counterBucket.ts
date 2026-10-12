@@ -1,11 +1,11 @@
 import type { Db } from '@/lib/database/kysely'
 import { increaseCounterValue } from '@/lib/database/kysely/counter'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import {
   formatBucketHour,
   truncateToHour
-} from '@/lib/database/sql/utils/counterBucket'
+} from '@/lib/database/utils/counterBucket'
 
 // The hour-bucket counters: `counters` rows keyed `bucket:<type>:<YYYYMMDDHH>`
 // with a bucketHour. getBucketStats reads them back for the admin dashboard.

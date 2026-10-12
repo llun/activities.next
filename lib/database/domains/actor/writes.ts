@@ -23,7 +23,7 @@ import {
 } from '@/lib/database/domains/search/accounts'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { forUpdate } from '@/lib/database/kysely/dialect'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import type {
   NotificationPolicy,
   UpdateNotificationPolicyParams

@@ -11,7 +11,7 @@ import {
 import type { Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 
 // `gallery_lookup_cache`, the read-through cache of GBIF and Nominatim answers
 // the gallery lookups share (see GalleryLookupCacheDatabase in ./types.ts).

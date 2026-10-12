@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'

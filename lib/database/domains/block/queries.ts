@@ -19,8 +19,8 @@ import {
 } from '@/lib/database/kysely/counter'
 import { chunkArray } from '@/lib/database/kysely/inList'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { CounterKey } from '@/lib/database/utils/counter'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type { Block } from '@/lib/types/domain/block'
 
 const BLOCK_RELATION_LOOKUP_CHUNK_SIZE = 1000

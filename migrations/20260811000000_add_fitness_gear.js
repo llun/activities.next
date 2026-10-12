@@ -13,7 +13,7 @@
  * `fitness_files.gearId` is a plain indexed column with no database-level
  * foreign key: adding an FK constraint through `alterTable` requires a table
  * rebuild on SQLite, which no migration in this repo does. Ownership and
- * referential integrity are enforced in `lib/database/sql/fitnessGear.ts`, and
+ * referential integrity are enforced in `lib/database/domains/fitnessGear/`, and
  * deleting gear nulls the column in the same transaction.
  *
  * `defaultSports` is a JSON-encoded string in a `text` column rather than

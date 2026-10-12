@@ -16,7 +16,7 @@ import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { EpochMs, FitnessGearComponents } from '@/lib/database/kysely/db'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { selectInChunks } from '@/lib/database/kysely/inList'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type {
   FitnessGearComponent,
   FitnessGearComponentPeriod,

@@ -12,8 +12,8 @@ import {
   parseTaxonPath,
   toMediaRowId
 } from '@/lib/database/domains/media/rows'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { parseGalleryHiddenLocations } from '@/lib/services/gallery/hiddenLocations'
 import { MEDIA_FILE_URL_PATH } from '@/lib/services/medias/mediaFileUrl'
 import {

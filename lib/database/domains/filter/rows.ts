@@ -9,7 +9,7 @@ import type {
 import type { Db } from '@/lib/database/kysely'
 import { insertInChunks } from '@/lib/database/kysely/inList'
 import { inSavepoint } from '@/lib/database/kysely/savepoint'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { FilterContext, type FilterKeyword } from '@/lib/types/domain/filter'
 
 export type KeywordTable = 'filter_keywords' | 'server_filter_keywords'

@@ -5,7 +5,7 @@ import knex, { Knex } from 'knex'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { Database } from '@/lib/database/types'
 
 // Boot the real better-auth instance (with the two-factor plugin) against an

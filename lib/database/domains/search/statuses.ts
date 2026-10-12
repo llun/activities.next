@@ -26,7 +26,7 @@ import {
   PUBLIC_ACTIVITY_RECIPIENTS,
   potentiallyReadableStatus
 } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
+import { parseStatusContent } from '@/lib/database/utils/parseStatusContent'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'

@@ -15,12 +15,12 @@ import { Session } from '@/lib/types/domain/session'
 // (SQLite's historical 999) so a large bulk session cleanup can't blow the
 // limit. PostgreSQL's ceiling (65535) is far higher, so one conservative size
 // is safe for every backend. The Knex helpers in
-// lib/database/sql/utils/detachOAuthTokensFromSessions.ts use the same size.
+// lib/database/domains/account/detachOAuthTokensFromSessions.ts use the same size.
 export const SESSION_ID_CHUNK_SIZE = 500
 
 /**
  * Kysely counterpart of `detachOAuthTokensFromSessions` in
- * lib/database/sql/utils/detachOAuthTokensFromSessions.ts, which the better-auth
+ * lib/database/domains/account/detachOAuthTokensFromSessions.ts, which the better-auth
  * adapter (still on Knex) keeps using; both write the same rows.
  *
  * `oauthAccessToken.sessionId` and `oauthRefreshToken.sessionId` are foreign

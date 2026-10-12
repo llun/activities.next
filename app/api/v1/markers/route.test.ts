@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getMaxTimeOrderedIdForMs } from '@/lib/database/sql/notificationIdRewrite.js'
+import { getMaxTimeOrderedIdForMs } from '@/lib/database/domains/notification/notificationIdRewrite.js'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'

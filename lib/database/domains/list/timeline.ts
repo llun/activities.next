@@ -35,7 +35,7 @@ import type { Status } from '@/lib/types/domain/status'
 
 /**
  * Where this domain gets hydrated statuses from: the status facade's
- * getStatusesByIds, injected by lib/database/sql/index.ts. It runs on the root
+ * getStatusesByIds, injected by lib/database/getSQLDatabase.ts. It runs on the root
  * Kysely instance, so it is only called after this domain's queries, never
  * inside a transaction.
  */

@@ -55,7 +55,7 @@ import {
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
 import type { Attachments, Medias } from '@/lib/database/kysely/db'
 import { forUpdate, jsonText } from '@/lib/database/kysely/dialect'
-import { CounterKey, parseCounterValue } from '@/lib/database/sql/utils/counter'
+import { CounterKey, parseCounterValue } from '@/lib/database/utils/counter'
 import { isSpeciesLike } from '@/lib/services/gallery/threatenedSpecies'
 import {
   EMPTY_MEDIA_DETAILS,

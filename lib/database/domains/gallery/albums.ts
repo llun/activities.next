@@ -42,7 +42,7 @@ import {
   insertInChunks
 } from '@/lib/database/kysely/inList'
 import { galleryMediaScope } from '@/lib/database/kysely/visibility/galleryMedia'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import {
   type GalleryAudience,
   isOwnerGalleryAudience

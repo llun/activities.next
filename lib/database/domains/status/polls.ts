@@ -8,7 +8,7 @@ import type {
 } from '@/lib/database/domains/status/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { selectInChunks } from '@/lib/database/kysely/inList'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 
 // The poll votes: whether an actor voted and which choices, and the vote
 // writes. A poll's choices and their tallies are written with the poll

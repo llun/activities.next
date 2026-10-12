@@ -6,6 +6,7 @@ import {
   indexStatusSearchDocument
 } from '@/lib/database/domains/search/statuses'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/domains/status/hashtags'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import type {
   StatusHydration,
   UpdateNoteParams,
@@ -19,9 +20,8 @@ import {
   decreaseCounterValue,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { isPubliclyAddressed } from '@/lib/database/sql/utils/status'
+import { CounterKey } from '@/lib/database/utils/counter'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'

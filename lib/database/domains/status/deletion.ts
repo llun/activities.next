@@ -21,7 +21,7 @@ import {
   selectInChunks
 } from '@/lib/database/kysely/inList'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -71,7 +71,7 @@ export const deleteStatusEditHistory = async (
 }
 
 // The subset of `statusIds` that is publicly addressed, read from
-// `recipients`: `isPubliclyAddressed` (lib/database/sql/utils/status.ts) at
+// `recipients`: `isPubliclyAddressed` (lib/database/domains/status/status.ts) at
 // create time, which decided whether a reply moved its parent's reply counter
 // and a tag its hashtag counter. The deletions read it to move back only what
 // was moved, so it MUST run before those statuses' recipient rows are removed.

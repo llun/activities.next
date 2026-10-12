@@ -1,3 +1,4 @@
+import { decodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import type {
   CreateLikeParams,
   DeleteLikeParams,
@@ -13,8 +14,7 @@ import {
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { decodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
+import { CounterKey } from '@/lib/database/utils/counter'
 
 export const createLike = (
   db: Db,

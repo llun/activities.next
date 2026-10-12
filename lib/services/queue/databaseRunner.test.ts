@@ -1,7 +1,7 @@
 import knex, { Knex } from 'knex'
 
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { type Db, kyselyFor } from '@/lib/database/kysely'
-import { getSQLDatabase } from '@/lib/database/sql'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import {

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 import { createApplication } from '@/app/api/v1/apps/createApplication'
 import type { SuccessResponse } from '@/app/api/v1/apps/types'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { Database } from '@/lib/database/types'
 
 // Every Mastodon client signs in through these grants, and until now nothing

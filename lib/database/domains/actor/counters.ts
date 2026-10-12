@@ -16,7 +16,7 @@ import {
   setCounterValue
 } from '@/lib/database/kysely/counter'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 
 const ACTIVE_USERS_TTL_SECONDS = 60 * 60
 const DAY_MS = 24 * 60 * 60 * 1000

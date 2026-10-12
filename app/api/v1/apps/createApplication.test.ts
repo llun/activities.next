@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 
 import { createApplication } from './createApplication'

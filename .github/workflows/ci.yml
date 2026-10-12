@@ -339,14 +339,14 @@ jobs:
       - name: Run PostgreSQL database integration tests
         run: |
           yarn test --maxWorkers=2 \
-            lib/database/sql/media.test.ts \
-            lib/database/sql/mediaAccountListing.test.ts \
-            lib/database/sql/mediaMutations.test.ts \
-            lib/database/sql/mediaDetails.test.ts \
-            lib/database/sql/mediaQueries.test.ts \
-            lib/database/sql/mediaWrites.test.ts \
-            lib/database/sql/attachmentsMediaIdIntegerMigration.test.ts \
-            lib/database/sql/attachmentVisibility.test.ts \
+            lib/database/domains/media/media.test.ts \
+            lib/database/domains/media/mediaAccountListing.test.ts \
+            lib/database/domains/media/mediaMutations.test.ts \
+            lib/database/domains/media/mediaDetails.test.ts \
+            lib/database/domains/media/mediaQueries.test.ts \
+            lib/database/domains/media/mediaWrites.test.ts \
+            lib/database/domains/media/attachmentsMediaIdIntegerMigration.test.ts \
+            lib/database/domains/media/attachmentVisibility.test.ts \
             lib/database/kysely/visibility/actorVisible.test.ts \
             app/api/v1/media/route.test.ts \
             'app/api/v1/media/[id]/route.test.ts' \
@@ -365,13 +365,13 @@ jobs:
             lib/services/medias/quota.test.ts \
             lib/services/fitness-files/mapAttachments.test.ts \
             lib/database/domains/mediaEdit/queries.test.ts \
-            lib/database/sql/statusWrite.test.ts \
-            lib/database/sql/statusDelete.test.ts \
-            lib/database/sql/gallery.test.ts \
-            lib/database/sql/galleryMedia.test.ts \
-            lib/database/sql/galleryAlbums.test.ts \
-            lib/database/sql/galleryAlbumsVisibility.test.ts \
-            lib/database/sql/galleryAlbumSuggestions.test.ts \
+            lib/database/domains/status/statusWrite.test.ts \
+            lib/database/domains/status/statusDelete.test.ts \
+            lib/database/domains/gallery/gallery.test.ts \
+            lib/database/domains/gallery/galleryMedia.test.ts \
+            lib/database/domains/gallery/galleryAlbums.test.ts \
+            lib/database/domains/gallery/galleryAlbumsVisibility.test.ts \
+            lib/database/domains/gallery/galleryAlbumSuggestions.test.ts \
             lib/services/gallery/galleryAlbumQueries.test.ts \
             lib/services/gallery/galleryAlbumVisitor.test.ts \
             lib/services/gallery/galleryAlbumSuggestions.test.ts \
@@ -379,10 +379,10 @@ jobs:
             lib/services/gallery/galleryGear.test.ts \
             lib/services/gallery/subjectHashtags.test.ts \
             lib/services/gallery/uploadMediaDetails.test.ts \
-            lib/database/sql/galleryLookupCache.test.ts \
-            lib/database/sql/galleryQueries.test.ts \
-            lib/database/sql/galleryAlbumQueries.test.ts \
-            lib/database/sql/galleryMediaQueryPlan.test.ts \
+            lib/database/domains/gallery/galleryLookupCache.test.ts \
+            lib/database/domains/gallery/galleryQueries.test.ts \
+            lib/database/domains/gallery/galleryAlbumQueries.test.ts \
+            lib/database/domains/gallery/galleryMediaQueryPlan.test.ts \
             lib/database/kysely/visibility/galleryMediaEquivalence.test.ts \
             'app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts' \
             'app/api/v1/accounts/[id]/gallery/albums/route.test.ts' \
@@ -407,21 +407,21 @@ jobs:
             lib/actions/createNote.visibility.test.ts \
             scripts/maintenance/backfillGalleryLookups.test.ts \
             scripts/maintenance/backfillGalleryLookups.nominatim.test.ts \
-            lib/database/sql/fitnessFile.test.ts \
-            lib/database/sql/fitnessFileActivityStats.test.ts \
-            lib/database/sql/fitnessFileOverviewWindows.test.ts \
-            lib/database/sql/fitnessGear.test.ts \
-            lib/database/sql/fitnessGearComponents.test.ts \
-            lib/database/sql/fitnessGearDevice.test.ts \
-            lib/database/sql/fitnessGearComponentPeriods.test.ts \
-            lib/database/sql/fitnessGearQueries.test.ts \
+            lib/database/domains/fitnessFile/fitnessFile.test.ts \
+            lib/database/domains/fitnessFile/fitnessFileActivityStats.test.ts \
+            lib/database/domains/fitnessFile/fitnessFileOverviewWindows.test.ts \
+            lib/database/domains/fitnessGear/fitnessGear.test.ts \
+            lib/database/domains/fitnessGear/fitnessGearComponents.test.ts \
+            lib/database/domains/fitnessGear/fitnessGearDevice.test.ts \
+            lib/database/domains/fitnessGear/fitnessGearComponentPeriods.test.ts \
+            lib/database/domains/fitnessGear/fitnessGearQueries.test.ts \
             lib/services/fitness-gears/serviceReminders.test.ts \
             lib/jobs/processFitnessFileJob.gearDevice.test.ts \
-            lib/database/sql/fitnessFileQueries.test.ts \
-            lib/database/sql/fitnessFileRoute.test.ts \
-            lib/database/sql/fitnessRouteHeatmap.test.ts \
-            lib/database/sql/fitnessFileRouteQueries.test.ts \
-            lib/database/sql/fitnessRouteHeatmapQueries.test.ts \
+            lib/database/domains/fitnessFile/fitnessFileQueries.test.ts \
+            lib/database/domains/fitnessFileRoute/fitnessFileRoute.test.ts \
+            lib/database/domains/fitnessRouteHeatmap/fitnessRouteHeatmap.test.ts \
+            lib/database/domains/fitnessFileRoute/fitnessFileRouteQueries.test.ts \
+            lib/database/domains/fitnessRouteHeatmap/fitnessRouteHeatmapQueries.test.ts \
             "app/api/v1/fitness-files/[id]/route.test.ts" \
             "app/api/v1/fitness-files/[id]/route-data/route.test.ts" \
             app/api/v1/fitness-files/by-status/route.test.ts \
@@ -449,113 +449,113 @@ jobs:
             scripts/backup/actorArchive.test.ts \
             scripts/backup/actorArchiveExport.test.ts \
             scripts/backup/actorArchive.mediaEdits.test.ts \
-            lib/database/sql/status.test.ts \
-            lib/database/sql/fitnessRouteHeatmapTile.test.ts \
-            lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
-            lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
-            lib/database/sql/fitnessRouteHeatmapTileLocks.test.ts \
-            lib/database/sql/fitnessRouteHeatmapTileQueries.test.ts \
-            lib/database/sql/queueJob.test.ts \
-            lib/database/sql/statusDeletionQueue.test.ts \
-            lib/database/sql/stravaArchiveImport.test.ts \
-            lib/database/sql/stravaArchiveImportQueries.test.ts \
-            lib/database/sql/fitnessSettings.test.ts \
-            lib/database/sql/fitnessSettingsQueries.test.ts \
-            lib/database/sql/wahooFitnessSettings.test.ts \
-            lib/database/sql/wahooImport.test.ts \
-            lib/database/sql/wahooImportQueries.test.ts \
-            lib/database/sql/wahooImportDates.test.ts \
-            lib/database/sql/list.test.ts \
-            lib/database/sql/listMembershipEligibility.test.ts \
-            lib/database/sql/listTimeline.test.ts \
-            lib/database/sql/listMemberBackfill.test.ts \
-            lib/database/sql/listQueries.test.ts \
-            lib/database/sql/followQueries.test.ts \
-            lib/database/sql/like.test.ts \
-            lib/database/sql/account.test.ts \
-            lib/database/sql/accountNote.test.ts \
-            lib/database/sql/actorDomainBlock.test.ts \
-            lib/database/sql/customEmoji.test.ts \
-            lib/database/sql/endorsement.test.ts \
-            lib/database/sql/followedTag.test.ts \
-            lib/database/sql/idempotency.test.ts \
-            lib/database/sql/importLock.test.ts \
-            lib/database/sql/instanceRule.test.ts \
-            lib/database/sql/marker.test.ts \
-            lib/database/sql/relay.test.ts \
-            lib/database/sql/serverSetting.test.ts \
-            lib/database/sql/actorDeletion.test.ts \
-            lib/database/sql/deadLetterJobs.test.ts \
-            lib/database/sql/oauth.test.ts \
-            lib/database/sql/pushSubscription.test.ts \
-            lib/database/sql/scheduledStatus.test.ts \
-            lib/database/sql/filter.test.ts \
-            lib/database/sql/serverFilter.test.ts \
-            lib/database/sql/report.test.ts \
-            lib/database/sql/statusDetectedLanguage.test.ts \
-            lib/database/sql/statusMute.test.ts \
-            lib/database/sql/suggestion.test.ts \
+            lib/database/domains/status/status.test.ts \
+            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTile.test.ts \
+            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaim.test.ts \
+            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaimRace.test.ts \
+            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileLocks.test.ts \
+            lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileQueries.test.ts \
+            lib/database/domains/queueJob/queueJob.test.ts \
+            lib/database/domains/status/statusDeletionQueue.test.ts \
+            lib/database/domains/stravaArchiveImport/stravaArchiveImport.test.ts \
+            lib/database/domains/stravaArchiveImport/stravaArchiveImportQueries.test.ts \
+            lib/database/domains/fitnessSettings/fitnessSettings.test.ts \
+            lib/database/domains/fitnessSettings/fitnessSettingsQueries.test.ts \
+            lib/database/domains/fitnessSettings/wahooFitnessSettings.test.ts \
+            lib/database/domains/wahooImport/wahooImport.test.ts \
+            lib/database/domains/wahooImport/wahooImportQueries.test.ts \
+            lib/database/domains/wahooImport/wahooImportDates.test.ts \
+            lib/database/domains/list/list.test.ts \
+            lib/database/domains/list/listMembershipEligibility.test.ts \
+            lib/database/domains/list/listTimeline.test.ts \
+            lib/database/domains/list/listMemberBackfill.test.ts \
+            lib/database/domains/list/listQueries.test.ts \
+            lib/database/domains/follow/followQueries.test.ts \
+            lib/database/domains/like/like.test.ts \
+            lib/database/domains/account/account.test.ts \
+            lib/database/domains/accountNote/accountNote.test.ts \
+            lib/database/domains/actorDomainBlock/actorDomainBlock.test.ts \
+            lib/database/domains/customEmoji/customEmoji.test.ts \
+            lib/database/domains/endorsement/endorsement.test.ts \
+            lib/database/domains/followedTag/followedTag.test.ts \
+            lib/database/domains/idempotency/idempotency.test.ts \
+            lib/database/domains/importLock/importLock.test.ts \
+            lib/database/domains/instanceRule/instanceRule.test.ts \
+            lib/database/domains/marker/marker.test.ts \
+            lib/database/domains/relay/relay.test.ts \
+            lib/database/domains/serverSetting/serverSetting.test.ts \
+            lib/database/domains/actor/actorDeletion.test.ts \
+            lib/database/domains/deadLetterJob/deadLetterJobs.test.ts \
+            lib/database/domains/oauth/oauth.test.ts \
+            lib/database/domains/pushSubscription/pushSubscription.test.ts \
+            lib/database/domains/scheduledStatus/scheduledStatus.test.ts \
+            lib/database/domains/filter/filter.test.ts \
+            lib/database/domains/serverFilter/serverFilter.test.ts \
+            lib/database/domains/report/report.test.ts \
+            lib/database/domains/statusDetectedLanguage/statusDetectedLanguage.test.ts \
+            lib/database/domains/statusMute/statusMute.test.ts \
+            lib/database/domains/suggestion/suggestion.test.ts \
             lib/services/notifications/createConversationMuteSuppression.test.ts \
-            lib/database/sql/block.test.ts \
-            lib/database/sql/mute.test.ts \
-            lib/database/sql/bookmark.test.ts \
-            lib/database/sql/statusQuote.test.ts \
-            lib/database/sql/statusReaction.test.ts \
-            lib/database/sql/linkPreview.test.ts \
-            lib/database/sql/announcement.test.ts \
-            lib/database/sql/notification.test.ts \
-            lib/database/sql/instanceActivityDatabase.test.ts \
-            lib/database/sql/searchAccounts.test.ts \
-            lib/database/sql/searchAccountQueries.test.ts \
-            lib/database/sql/searchDocuments.test.ts \
-            lib/database/sql/searchDocumentFilter.test.ts \
-            lib/database/sql/searchHashtags.test.ts \
-            lib/database/sql/searchHashtagQueries.test.ts \
-            lib/database/sql/searchStatuses.test.ts \
-            lib/database/sql/searchStatusQueries.test.ts \
-            lib/database/sql/featuredTag.test.ts \
-            lib/database/sql/featuredTagQueries.test.ts \
-            lib/database/sql/trends.test.ts \
-            lib/database/sql/trendsQueries.test.ts \
+            lib/database/domains/block/block.test.ts \
+            lib/database/domains/mute/mute.test.ts \
+            lib/database/domains/bookmark/bookmark.test.ts \
+            lib/database/domains/statusQuote/statusQuote.test.ts \
+            lib/database/domains/statusReaction/statusReaction.test.ts \
+            lib/database/domains/linkPreview/linkPreview.test.ts \
+            lib/database/domains/announcement/announcement.test.ts \
+            lib/database/domains/notification/notification.test.ts \
+            lib/database/domains/instanceActivity/instanceActivityDatabase.test.ts \
+            lib/database/domains/search/searchAccounts.test.ts \
+            lib/database/domains/search/searchAccountQueries.test.ts \
+            lib/database/domains/search/searchDocuments.test.ts \
+            lib/database/domains/search/searchDocumentFilter.test.ts \
+            lib/database/domains/search/searchHashtags.test.ts \
+            lib/database/domains/search/searchHashtagQueries.test.ts \
+            lib/database/domains/search/searchStatuses.test.ts \
+            lib/database/domains/search/searchStatusQueries.test.ts \
+            lib/database/domains/featuredTag/featuredTag.test.ts \
+            lib/database/domains/featuredTag/featuredTagQueries.test.ts \
+            lib/database/domains/trends/trends.test.ts \
+            lib/database/domains/trends/trendsQueries.test.ts \
             lib/database/kysely/visibility/visibility.test.ts \
             lib/database/kysely/countableActivity.test.ts \
-            lib/database/sql/admin.test.ts \
-            lib/database/sql/adminDomainRules.test.ts \
-            lib/database/sql/accountQueries.test.ts \
-            lib/database/sql/sessionTokenDetach.test.ts \
-            lib/database/sql/moderation.test.ts \
-            lib/database/sql/moderationQueries.test.ts \
-            lib/database/sql/actor.test.ts \
-            lib/database/sql/actorQueries.test.ts \
-            lib/database/sql/actorMastodonQueries.test.ts \
-            lib/database/sql/actorFederationSigner.test.ts \
-            lib/database/sql/actorLastStatusAt.test.ts \
-            lib/database/sql/actorMastodon.test.ts \
-            lib/database/sql/actorPublicId.test.ts \
-            lib/database/sql/directory.test.ts \
-            lib/database/sql/utils/usernameMatch.test.ts \
-            lib/database/sql/follow.test.ts \
-            lib/database/sql/localActorPredicate.test.ts \
-            lib/database/sql/collection.test.ts \
-            lib/database/sql/collectionFeedCap.test.ts \
-            lib/database/sql/collectionQueries.test.ts \
+            lib/database/domains/admin/admin.test.ts \
+            lib/database/domains/admin/adminDomainRules.test.ts \
+            lib/database/domains/account/accountQueries.test.ts \
+            lib/database/domains/account/sessionTokenDetach.test.ts \
+            lib/database/domains/moderation/moderation.test.ts \
+            lib/database/domains/moderation/moderationQueries.test.ts \
+            lib/database/domains/actor/actor.test.ts \
+            lib/database/domains/actor/actorQueries.test.ts \
+            lib/database/domains/actor/actorMastodonQueries.test.ts \
+            lib/database/domains/actor/actorFederationSigner.test.ts \
+            lib/database/domains/actor/actorLastStatusAt.test.ts \
+            lib/database/domains/actor/actorMastodon.test.ts \
+            lib/database/domains/actor/actorPublicId.test.ts \
+            lib/database/domains/actor/directory.test.ts \
+            lib/database/domains/actor/usernameMatch.test.ts \
+            lib/database/domains/follow/follow.test.ts \
+            lib/database/localActorPredicate.test.ts \
+            lib/database/domains/collection/collection.test.ts \
+            lib/database/domains/collection/collectionFeedCap.test.ts \
+            lib/database/domains/collection/collectionQueries.test.ts \
             lib/jobs/ingestCollectionMemberJob.test.ts \
-            lib/database/sql/timeline.test.ts \
-            lib/database/sql/timeline.federated.test.ts \
-            lib/database/sql/timelineQueries.test.ts \
-            lib/database/sql/localPublicActorIds.test.ts \
-            lib/database/sql/localPublicQueryShape.test.ts \
+            lib/database/domains/timeline/timeline.test.ts \
+            lib/database/domains/timeline/timeline.federated.test.ts \
+            lib/database/domains/timeline/timelineQueries.test.ts \
+            lib/database/domains/timeline/localPublicActorIds.test.ts \
+            lib/database/domains/timeline/localPublicQueryShape.test.ts \
             lib/database/kysely/visibility/publiclyReadable.test.ts \
             lib/services/timelines/index.test.ts \
-            lib/database/sql/statusLookup.test.ts \
-            lib/database/sql/statusLookupQueries.test.ts \
-            lib/database/sql/statusWriteQueries.test.ts \
-            lib/database/sql/statusHashtag.test.ts \
-            lib/database/sql/statusActorQueries.test.ts \
-            lib/database/sql/publicCounters.test.ts \
-            lib/database/sql/publiclyReadableStatusCallSites.test.ts \
-            lib/database/sql/publiclyReadableStatusQueryShape.test.ts \
-            lib/database/sql/statusReadableSql.test.ts \
+            lib/database/domains/status/statusLookup.test.ts \
+            lib/database/domains/status/statusLookupQueries.test.ts \
+            lib/database/domains/status/statusWriteQueries.test.ts \
+            lib/database/domains/status/statusHashtag.test.ts \
+            lib/database/domains/status/statusActorQueries.test.ts \
+            lib/database/domains/status/publicCounters.test.ts \
+            lib/database/publiclyReadableStatusCallSites.test.ts \
+            lib/database/publiclyReadableStatusQueryShape.test.ts \
+            lib/database/domains/status/statusReadableSql.test.ts \
             'app/api/v1/statuses/[id]/actions.route.test.ts' \
             'app/api/v1/statuses/[id]/favourited_by/route.test.ts' \
             'app/api/v1/statuses/[id]/reblogged_by/route.test.ts' \
@@ -647,7 +647,7 @@ jobs:
             lib/services/trends/trendingStatuses.test.ts \
             lib/types/domain/status.test.ts \
             lib/utils/text/processStatusText.test.ts \
-            lib/database/sql/statusReadQueries.test.ts \
+            lib/database/domains/status/statusReadQueries.test.ts \
             'app/api/users/[username]/inbox/fediverseInterop.test.ts' \
             lib/actions/emojiReaction.test.ts \
             lib/activities/getActorPosts.context.test.ts \
@@ -655,12 +655,12 @@ jobs:
             lib/jobs/emojiReactionJob.test.ts \
             lib/services/reactions/getStatusReactionList.test.ts \
             lib/utils/text/getMentions.test.ts \
-            lib/database/sql/statusDeletionQueries.test.ts \
-            lib/database/sql/actorDeletionQueries.test.ts \
+            lib/database/domains/status/statusDeletionQueries.test.ts \
+            lib/database/domains/actor/actorDeletionQueries.test.ts \
             lib/jobs/deleteActorJob.test.ts \
-            lib/database/sql/conversation.test.ts \
-            lib/database/sql/conversationQueries.test.ts \
-            lib/database/sql/directConversationsMigration.test.ts \
+            lib/database/domains/conversation/conversation.test.ts \
+            lib/database/domains/conversation/conversationQueries.test.ts \
+            lib/database/domains/conversation/directConversationsMigration.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \

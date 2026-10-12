@@ -16,7 +16,7 @@ import type {
 } from '@/lib/database/domains/account/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type { Account } from '@/lib/types/domain/account'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 

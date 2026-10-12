@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import {
   OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS

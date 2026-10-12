@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'

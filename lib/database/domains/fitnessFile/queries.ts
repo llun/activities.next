@@ -19,7 +19,7 @@ import type { Db } from '@/lib/database/kysely'
 import { getCounterValue } from '@/lib/database/kysely/counter'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import type { FitnessFile } from '@/lib/types/database/fitnessFile'
 
 // The fitness file reads. The writes are in ./writes.ts and the fitness

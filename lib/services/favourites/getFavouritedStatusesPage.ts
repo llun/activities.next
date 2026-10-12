@@ -1,4 +1,4 @@
-import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
+import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import type { Database } from '@/lib/database/types'
 import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
 import type { Like } from '@/lib/types/database/operations'

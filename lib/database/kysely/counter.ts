@@ -2,14 +2,14 @@ import { sql } from 'kysely'
 
 import type { Db } from '@/lib/database/kysely'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
-import { parseCounterValue } from '@/lib/database/sql/utils/counter'
+import { parseCounterValue } from '@/lib/database/utils/counter'
 
 // The `counters` helpers. An adjustment is one upsert, which the database
 // applies atomically (PostgreSQL and SQLite both take the row lock for ON
 // CONFLICT DO UPDATE):
 // - a missing row is created as if it held 0 and then adjusted;
 // - the new value is clamped to 0..Number.MAX_SAFE_INTEGER, the range
-//   parseCounterValue (lib/database/sql/utils/counter.ts) reads back;
+//   parseCounterValue (lib/database/utils/counter.ts) reads back;
 // - updatedAt is set to `currentTime` on every adjustment, createdAt only when
 //   the row is created;
 // - bucketHour is left alone (bucket rows are written by counterBucket.ts).

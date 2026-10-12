@@ -7,8 +7,8 @@ import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCou
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Database } from '@/lib/database/types'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import {

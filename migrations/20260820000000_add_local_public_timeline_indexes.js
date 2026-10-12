@@ -6,7 +6,7 @@
 // had the landing page's threshold count at a 27s average, and its sampled plan
 // showed why: a sequential scan of `actors` to find the local ones, then for
 // each of those a scan for their statuses, then ~9,000 probes into `recipients`
-// that each needed a heap fetch. `lib/database/sql/timeline.ts` fixes the query
+// that each needed a heap fetch. `lib/database/domains/timeline/localPublic.ts` fixes the query
 // shape (a semi-join so a LIMIT can bound the scan); these three indexes give
 // that shape something to run on.
 //

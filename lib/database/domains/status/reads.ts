@@ -30,7 +30,7 @@ import {
   publiclyReadableStatus,
   publiclyReadableStatusIds
 } from '@/lib/database/kysely/visibility/publiclyReadable'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 
 // The status reads: the reply and actor feeds, statuses by id, and the status,

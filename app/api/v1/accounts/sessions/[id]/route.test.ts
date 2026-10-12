@@ -146,7 +146,7 @@ describe('DELETE /api/v1/accounts/sessions/[id]', () => {
 
   // Unknown and foreign ids are indistinguishable: the delete is scoped to the
   // caller's account, so either matches no row (pinned against a real
-  // database in lib/database/sql/account.test.ts).
+  // database in lib/database/domains/account/account.test.ts).
   it('returns 404 when no session of this account has the id', async () => {
     mockDb.deleteAccountSessionById.mockResolvedValue(0)
 

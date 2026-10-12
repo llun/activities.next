@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 import knex from 'knex'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'

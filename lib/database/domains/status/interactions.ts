@@ -1,5 +1,6 @@
 import { type Selectable, sql } from 'kysely'
 
+import { decodeFavouritedByCursor } from '@/lib/database/domains/status/favouritedByCursor'
 import type {
   FavouritedByAccount,
   GetFavouritedByParams,
@@ -12,7 +13,6 @@ import { timestampValue } from '@/lib/database/kysely/dialect'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { publiclyReadableStatusIds } from '@/lib/database/kysely/visibility/publiclyReadable'
-import { decodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { StatusType } from '@/lib/types/domain/status'
 
 // The accounts that favourited or boosted a status, a keyset page at a time.

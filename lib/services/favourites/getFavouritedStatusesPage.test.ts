@@ -1,6 +1,6 @@
 import type { Knex } from 'knex'
 
-import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
+import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import {
