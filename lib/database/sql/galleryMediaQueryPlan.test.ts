@@ -1,6 +1,5 @@
 import { CompiledQuery } from 'kysely'
 
-import { castToTextOnSqlite } from '@/lib/database/kysely/dialect'
 import { galleryMediaScope } from '@/lib/database/kysely/visibility/galleryMedia'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
@@ -8,11 +7,9 @@ import {
   PUBLIC_GALLERY_AUDIENCE
 } from '@/lib/services/gallery/galleryAudience'
 
-// `attachments.mediaId` is varchar on SQLite and `medias.id` an integer. Compared
-// directly, SQLite converts the varchar side to a number and cannot use
-// `attachments_mediaId_idx`, so every media row rescans the owner's attachments.
-// The plan is read off SQLite, where the cast applies; PostgreSQL compares the
-// two integer columns directly (dialect.test.ts pins both spellings).
+// `attachments.mediaId` and `medias.id` are both integers, so SQLite probes
+// `attachments_mediaId_idx` for each media row instead of rescanning the owner's
+// attachments. The plan is read off SQLite.
 describe('gallery scope query plan on SQLite', () => {
   const planOf = async (
     audience: typeof OWNER_GALLERY_AUDIENCE | typeof PUBLIC_GALLERY_AUDIENCE
@@ -95,7 +92,7 @@ describe('gallery statements on SQLite', () => {
       }
 
       const matching = statements.filter((statement) =>
-        statement.sql.includes('"mediaId" = cast("medias"."id" as text)')
+        statement.sql.includes('"mediaId" = "medias"."id"')
       )
       // The scope's posted check and the pick's join, then the unattached
       // check.
@@ -117,9 +114,9 @@ describe('gallery statements on SQLite', () => {
   })
 })
 
-// The scope's comparison relies on `attachments.mediaId` holding the canonical
-// `String(id)`, on both backends.
-describe('canonical attachment media ids', () => {
+// `attachments.mediaId` holds the media row's integer id, however the caller
+// spells it, on both backends.
+describe('attachment media ids', () => {
   const testDb = createTestDatabase()
   const { database, db } = testDb
 
@@ -132,7 +129,7 @@ describe('canonical attachment media ids', () => {
     await testDb.destroy()
   })
 
-  it('stores a canonical media id however the caller spells it', async () => {
+  it('stores the media row id however the caller spells it', async () => {
     for (const mediaId of ['12', '12.0', '012']) {
       await database.createAttachment({
         actorId: 'actor',
@@ -144,11 +141,22 @@ describe('canonical attachment media ids', () => {
     }
 
     const rows = await db.selectFrom('attachments').select('mediaId').execute()
-    // varchar on SQLite, an integer on PostgreSQL.
-    expect(rows.map((row) => String(row.mediaId))).toEqual(['12', '12', '12'])
+    expect(rows.map((row) => row.mediaId)).toEqual([12, 12, 12])
   })
 
-  it('joins each attachment to its media through castToTextOnSqlite', async () => {
+  it('refuses a media id that is not a row id rather than dropping the link', async () => {
+    await expect(
+      database.createAttachment({
+        actorId: 'actor',
+        statusId: 'status',
+        mediaType: 'image/jpeg',
+        url: 'https://media.test/bad.jpg',
+        mediaId: 'not-a-row-id'
+      })
+    ).rejects.toThrow('Invalid media id')
+  })
+
+  it('joins each attachment to the media row it names', async () => {
     const insertMedia = (original: string) =>
       db
         .insertInto('medias')
@@ -177,7 +185,7 @@ describe('canonical attachment media ids', () => {
     const rows = await db
       .selectFrom('attachments')
       .innerJoin('medias', (join) =>
-        join.on('attachments.mediaId', '=', castToTextOnSqlite(db, 'medias.id'))
+        join.onRef('attachments.mediaId', '=', 'medias.id')
       )
       .select('medias.id')
       .where('attachments.statusId', '=', 'status-join')

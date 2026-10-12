@@ -160,7 +160,7 @@ const addAttachment = async ({
       width: 640,
       height: 480,
       name: '',
-      mediaId: mediaId === null ? null : String(mediaId),
+      mediaId,
       createdAt: new Date(1000),
       updatedAt: new Date(1000)
     })
@@ -713,7 +713,7 @@ describe('createAttachment', () => {
       width: 10,
       height: 20,
       name: '',
-      mediaId: isPostgres() ? 12 : '12',
+      mediaId: 12,
       blurhash: null,
       focusX: 0.25,
       focusY: 0.5,

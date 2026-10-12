@@ -1524,7 +1524,7 @@ describe('updateNote', () => {
         width: 100,
         height: 50,
         name,
-        mediaId,
+        mediaId: mediaId === null ? null : Number(mediaId),
         blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
         focusX: 0.1,
         focusY: -0.2,
@@ -1627,6 +1627,26 @@ describe('updateNote', () => {
     return { author, id, neighbour, neighbourAttachment, attachments }
   }
 
+  it('refuses an attachment whose id is not a media row id, writing nothing', async () => {
+    const { id } = await setup()
+    const attachmentsBefore = await attachmentsOf(id)
+    const rowBefore = await statusRow(id)
+    const historyBefore = await historyOf(id)
+
+    await expect(
+      updateNote(db, hydration, {
+        statusId: id,
+        text: 'after',
+        summary: 'new cw',
+        attachments: [incoming('9102'), incoming('not-a-row-id')]
+      })
+    ).rejects.toThrow('Invalid media id')
+
+    expect(await attachmentsOf(id)).toEqual(attachmentsBefore)
+    expect(await statusRow(id)).toEqual(rowBefore)
+    expect(await historyOf(id)).toEqual(historyBefore)
+  })
+
   it('records the revision, rewrites the content and replaces, adds and refreshes the attachments', async () => {
     const { author, id, neighbour, attachments } = await setup()
     const previous = await testDb.database.getStatus({ statusId: id })
@@ -1689,7 +1709,7 @@ describe('updateNote', () => {
       width: 100,
       height: 50,
       name: 'new one',
-      mediaId: testDb.backend === 'pg' ? 9104 : '9104',
+      mediaId: 9104,
       blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
       focusX: null,
       focusY: null,

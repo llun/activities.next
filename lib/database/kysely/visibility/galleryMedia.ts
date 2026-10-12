@@ -1,7 +1,6 @@
 import { type Expression, type SqlBool, expressionBuilder, sql } from 'kysely'
 
 import type { DB, Db } from '@/lib/database/kysely'
-import { castToTextOnSqlite } from '@/lib/database/kysely/dialect'
 import {
   type StatusIdsSubquery,
   actorVisibleStatusIds
@@ -114,11 +113,11 @@ export const postedGalleryAttachment = (
 }
 
 /**
- * The `medias.id` side of a `medias` to `attachments.mediaId` comparison: the
- * text form on SQLite, so `attachments_mediaId_idx` stays usable (see
- * `castToTextOnSqlite`). `createAttachment` writes the canonical `String(id)`.
+ * The `medias.id` an enclosing query over `medias` compares
+ * `attachments.mediaId` with. Both are integers, so `attachments_mediaId_idx`
+ * serves the comparison on SQLite and PostgreSQL alike.
  */
-export const galleryMediaIdRef = (db: Db) => castToTextOnSqlite(db, 'medias.id')
+export const galleryMediaIdRef = sql.ref<number>('medias.id')
 
 export type GalleryMediaScopeOptions = {
   // `false` only for the owner's gear usage, which counts every photo
@@ -152,7 +151,7 @@ export const galleryMediaScope = (
       'gallery_attachments.statusId'
     )
     .select(sql.lit(1).as('one'))
-    .where('gallery_attachments.mediaId', '=', galleryMediaIdRef(db))
+    .where('gallery_attachments.mediaId', '=', galleryMediaIdRef)
     .where(postedGalleryAttachment(db, actorId, audience))
 
   const conditions: Expression<SqlBool>[] = [

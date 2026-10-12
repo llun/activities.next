@@ -706,7 +706,7 @@ describe('MediaDatabase', () => {
         expect(item?.statusId).toBe(statuses[0].id)
       })
 
-      it('resolves statusId when attachment has decimal numeric mediaId form', async () => {
+      it('resolves statusId when the attachment names its media with a decimal form', async () => {
         const actor = await database.getActorFromId({
           id: actors.primary.id
         })
@@ -726,12 +726,9 @@ describe('MediaDatabase', () => {
           actorId: actors.primary.id,
           limit: 1
         })
-        // attachments.mediaId is varchar(255) on SQLite, where decimal string forms
-        // like '27.0' can be stored from legacy number-bound IDs and exercise SQLite's
-        // dynamic type affinity in the join. On PostgreSQL, attachments.mediaId is an
-        // integer column, so fixtures must use the valid integer representation.
-        const attachmentMediaId =
-          databaseType === 'sqlite' ? `${media!.id}.0` : media!.id
+        // A decimal spelling of the id, like '27.0', is stored as the integer
+        // row id on both backends.
+        const attachmentMediaId = `${media!.id}.0`
 
         await database.createAttachment({
           actorId: actors.primary.id,

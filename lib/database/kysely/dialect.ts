@@ -73,20 +73,6 @@ export const jsonText = (
   >`${sql.ref(column)}::jsonb${sql.join(objects, sql``)} ->> ${sql.lit(path[path.length - 1])}`
 }
 
-// `column` (a qualified column name) cast to text on SQLite, and the column
-// itself on PostgreSQL: the side of a comparison with a column that is text on
-// SQLite only. `attachments.mediaId` is varchar on SQLite and an integer on
-// PostgreSQL. Compared with the integer `medias.id` as is, SQLite applies
-// numeric affinity to the varchar side and cannot use `attachments_mediaId_idx`;
-// comparing with `cast("medias"."id" as text)` keeps it textual, so the index
-// probe works. That relies on the text column holding the canonical
-// `String(id)` ('12', never '12.0' or '012'). PostgreSQL compares the two
-// integer columns directly, as it did under Knex.
-export const castToTextOnSqlite = (db: Db, column: string) =>
-  getDialectName(db) === 'sqlite'
-    ? sql<string | number>`cast(${sql.ref(column)} as text)`
-    : sql<string | number>`${sql.ref(column)}`
-
 // The hashtag name in `column` (a qualified tags.nameNormalized reference)
 // with its leading `#`s stripped and lowercased, so a tag stored as `name` and
 // one stored as `#name` group and match as one: ltrim() on SQLite, trim(leading)

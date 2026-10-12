@@ -345,6 +345,7 @@ jobs:
             lib/database/sql/mediaDetails.test.ts \
             lib/database/sql/mediaQueries.test.ts \
             lib/database/sql/mediaWrites.test.ts \
+            lib/database/sql/attachmentsMediaIdIntegerMigration.test.ts \
             lib/database/sql/attachmentVisibility.test.ts \
             lib/database/kysely/visibility/actorVisible.test.ts \
             app/api/v1/media/route.test.ts \

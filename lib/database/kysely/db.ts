@@ -150,10 +150,7 @@ export interface Attachments {
   focusY: Nullable<number>
   height: Nullable<number>
   id: string
-  /** Mismatch: PostgreSQL int4, SQLite varchar(255). */
-  mediaId: Nullable<
-    ColumnType<number | string, number | string, number | string>
-  >
+  mediaId: Nullable<number>
   mediaType: Nullable<string>
   name: Nullable<string>
   playbackType: Nullable<string>

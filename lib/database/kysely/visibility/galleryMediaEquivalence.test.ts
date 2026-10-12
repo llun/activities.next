@@ -105,7 +105,7 @@ describe('galleryMediaScope on the album reads’ join', () => {
         mediaType: 'image/jpeg',
         url: `https://${DOMAIN}/files/${mediaKey}.jpg`,
         name: '',
-        mediaId: String(mediaIds[mediaKey]),
+        mediaId: mediaIds[mediaKey],
         createdAt: new Date(1000),
         updatedAt: new Date(1000)
       })

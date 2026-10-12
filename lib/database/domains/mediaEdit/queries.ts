@@ -583,9 +583,7 @@ const selectReferencedPaths = async (trx: Db, mediaRowId: number) => {
   const rows = await trx
     .selectFrom('attachments')
     .select(['url', 'thumbnailUrl'])
-    // Bound as text: `attachments.mediaId` is varchar on SQLite, where a bound
-    // number is compared as a real ('12.0') and matches nothing.
-    .where('mediaId', '=', String(mediaRowId))
+    .where('mediaId', '=', mediaRowId)
     .execute()
   const urls = rows.flatMap((row) => [row.url, row.thumbnailUrl])
   return (path: string) =>

@@ -63,32 +63,34 @@ export const MAX_MEDIA_ROW_ID = 2147483647
 // `toString()`), so a bare `Number()` guard reproduces the very error this
 // exists to prevent.
 //
-// '12.0' is the one spelling kept for compatibility rather than tightened away,
-// and it is a SQLite concern: `attachments.mediaId` is `varchar` there, so an id
-// bound as a JS number lands as '1.0' through REAL->TEXT conversion and is then
-// re-resolved on every status edit. No production writer does that today — they
-// all stringify, and the #307 backfill copies an INTEGER, which TEXT affinity
-// renders as '1' (both verified) — and `createMedia` no longer returns a raw
-// number. So it is defence in depth for a form nothing is known to have
-// written, not a shim for observed data. On PostgreSQL it was a 500 before.
+// '12.0' is the one spelling kept for compatibility rather than tightened away.
+// It resolved on SQLite before this guard existed, and it used to be reachable
+// from stored data there: `attachments.mediaId` was a `varchar`, where an id
+// bound as a JS number landed as '1.0' and was then re-resolved on every status
+// edit. The column is an integer now, so nothing stores that spelling any more;
+// it stays accepted because a client may still send it.
 export const toMediaRowId = (mediaId: string): number | null => {
   if (!/^\d+(\.0+)?$/.test(mediaId)) return null
   const id = Number(mediaId)
   return id > 0 && id <= MAX_MEDIA_ROW_ID ? id : null
 }
 
-// Gallery reads compare `attachments.mediaId` with the TEXT form of
-// `medias.id` on SQLite so `attachments_mediaId_idx` stays usable, so what is
-// written must be the plain `String(id)`. `toMediaRowId` also admits '12.0' and
-// '012' (the outbox route only shape-checks), which would otherwise be stored
-// verbatim and vanish from the gallery. Anything it rejects is left untouched so
-// a bad id still surfaces instead of silently dropping the link.
-export const toCanonicalMediaId = <T extends string | null | undefined>(
-  mediaId: T
-): T | string => {
-  if (typeof mediaId !== 'string') return mediaId
+// The `attachments.mediaId` value for a media id the domain carries as a
+// string (an integer column on both backends, like `medias.id`; the domain
+// keeps media ids as strings, as the API does). Nothing is stored for a missing
+// id. A write, unlike a comparison, cannot treat a bad id as a miss: coercing
+// it to null would silently drop the link rather than surface the caller's
+// mistake, so an id that is not a row id is an error. `toMediaRowId` also admits
+// '12.0' and '012', which are written as 12.
+export const toAttachmentMediaId = (
+  mediaId: string | null | undefined
+): number | null => {
+  if (mediaId === null || mediaId === undefined) return null
   const id = toMediaRowId(mediaId)
-  return id === null ? mediaId : String(id)
+  if (id === null) {
+    throw new Error(`Invalid media id: ${JSON.stringify(mediaId.slice(0, 40))}`)
+  }
+  return id
 }
 
 export type MediaRow = {

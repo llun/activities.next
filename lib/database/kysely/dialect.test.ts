@@ -2,7 +2,6 @@ import knex from 'knex'
 
 import { kyselyFor } from '@/lib/database/kysely'
 import {
-  castToTextOnSqlite,
   forShare,
   forUpdate,
   fullTextMatch,
@@ -210,31 +209,5 @@ describe('normalizedHashtagName', () => {
       .compile()
     expect(compiled.sql).toBe(item.sql)
     expect(compiled.parameters).toEqual(item.parameters)
-  })
-})
-
-describe('castToTextOnSqlite', () => {
-  it.each([
-    {
-      name: 'sqlite',
-      instance: sqlite,
-      sql: 'select "attachments"."id" from "attachments" inner join "medias" on "attachments"."mediaId" = cast("medias"."id" as text)'
-    },
-    {
-      name: 'postgres',
-      instance: postgres,
-      sql: 'select "attachments"."id" from "attachments" inner join "medias" on "attachments"."mediaId" = "medias"."id"'
-    }
-  ])('casts the column to text only on SQLite ($name)', (item) => {
-    const db = kyselyFor(item.instance)
-    const compiled = db
-      .selectFrom('attachments')
-      .innerJoin('medias', (join) =>
-        join.on('attachments.mediaId', '=', castToTextOnSqlite(db, 'medias.id'))
-      )
-      .select('attachments.id')
-      .compile()
-    expect(compiled.sql).toBe(item.sql)
-    expect(compiled.parameters).toEqual([])
   })
 })
