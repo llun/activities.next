@@ -22,7 +22,7 @@ describe('inSavepoint', () => {
     instance = test.instance
     await test.prepare()
     await database.migrate()
-    db = kyselyFor(instance)
+    db = test.db
   })
 
   afterAll(async () => {

@@ -1,4 +1,3 @@
-import { kyselyFor } from '@/lib/database/kysely'
 import {
   publiclyReadableStatus,
   publiclyReadableStatusIds
@@ -24,7 +23,7 @@ import {
 // The set is the one the Knex forms (a set form and a correlated form, removed
 // with their last caller) selected over the same rows.
 describe('publicly readable status predicates', () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance()
+  const { database, db, prepare } = getTestDatabaseWithInstance()
 
   const actorId = 'https://llun.test/users/readable'
   const followers = `${actorId}/followers`
@@ -34,10 +33,10 @@ describe('publicly readable status predicates', () => {
   // hide a row the fixtures reach only as a boost target.
   const readableByKyselyForm = async () =>
     (
-      await kyselyFor(instance)
+      await db
         .selectFrom('statuses')
         .select('statuses.id')
-        .where((eb) => publiclyReadableStatus(kyselyFor(instance), eb))
+        .where((eb) => publiclyReadableStatus(db, eb))
         .execute()
     )
       .map(({ id }) => id as string)
@@ -45,7 +44,6 @@ describe('publicly readable status predicates', () => {
 
   // The set form, over the same unscoped target set.
   const readableByKyselySetForm = async () => {
-    const db = kyselyFor(instance)
     return (
       await publiclyReadableStatusIds(
         db,
@@ -61,7 +59,6 @@ describe('publicly readable status predicates', () => {
   // to read the boosted statuses from the whole table and still answer with
   // the Announce it started from.
   const readableAnnouncesBySetForm = async () => {
-    const db = kyselyFor(instance)
     return (
       await publiclyReadableStatusIds(
         db,
@@ -176,9 +173,11 @@ describe('publicly readable status predicates', () => {
     ids.legacyBoost = await announce('legacy-boost', ids.publicNote, {
       isPublic: true
     })
-    await instance('statuses')
-      .where('id', ids.legacyBoost)
-      .update({ originalStatusId: null })
+    await db
+      .updateTable('statuses')
+      .set({ originalStatusId: null })
+      .where('id', '=', ids.legacyBoost)
+      .execute()
 
     // The two pointer columns DISAGREE. `20260517000000` backfilled
     // `originalStatusId` by JSON-parsing `content` and left the raw body
@@ -187,36 +186,44 @@ describe('publicly readable status predicates', () => {
     ids.disagreeingBoost = await announce('disagreeing-boost', ids.publicNote, {
       isPublic: true
     })
-    await instance('statuses')
-      .where('id', ids.disagreeingBoost)
-      .update({ content: ids.privateNote })
+    await db
+      .updateTable('statuses')
+      .set({ content: ids.privateNote })
+      .where('id', '=', ids.disagreeingBoost)
+      .execute()
 
     // A cycle. `UNION` (not `UNION ALL`) is what stops the recursion; if this
     // ever regresses the test does not fail, it hangs.
     ids.cycleA = await announce('cycle-a', ids.publicNote, { isPublic: true })
     ids.cycleB = await announce('cycle-b', ids.cycleA, { isPublic: true })
-    await instance('statuses')
-      .where('id', ids.cycleA)
-      .update({ originalStatusId: ids.cycleB, content: ids.cycleB })
+    await db
+      .updateTable('statuses')
+      .set({ originalStatusId: ids.cycleB, content: ids.cycleB })
+      .where('id', '=', ids.cycleA)
+      .execute()
 
     // A boost of itself — the degenerate cycle.
     ids.selfBoost = await announce('self-boost', ids.publicNote, {
       isPublic: true
     })
-    await instance('statuses')
-      .where('id', ids.selfBoost)
-      .update({ originalStatusId: ids.selfBoost, content: ids.selfBoost })
+    await db
+      .updateTable('statuses')
+      .set({ originalStatusId: ids.selfBoost, content: ids.selfBoost })
+      .where('id', '=', ids.selfBoost)
+      .execute()
 
     // A boost pointing at a row that does not exist.
     ids.danglingBoost = await announce('dangling-boost', ids.publicNote, {
       isPublic: true
     })
-    await instance('statuses')
-      .where('id', ids.danglingBoost)
-      .update({
+    await db
+      .updateTable('statuses')
+      .set({
         originalStatusId: `${actorId}/statuses/gone`,
         content: `${actorId}/statuses/gone`
       })
+      .where('id', '=', ids.danglingBoost)
+      .execute()
   })
 
   afterAll(async () => {

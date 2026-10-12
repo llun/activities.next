@@ -1,4 +1,4 @@
-import knexFactory, { type Knex } from 'knex'
+import knexFactory from 'knex'
 
 import { type Db, kyselyFor } from '@/lib/database/kysely'
 import { getDialectName } from '@/lib/database/kysely/dialect'
@@ -106,19 +106,17 @@ describe('chunked statements', () => {
   const total = 2500
 
   let database: Database
-  let instance: Knex
   let db: Db
   let statements: { sql: string; bindings: unknown[] }[] = []
 
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    db = test.db
     await test.prepare()
     await database.migrate()
-    db = kyselyFor(instance)
-    instance.on('query', (query: { sql: string; bindings: unknown[] }) => {
-      statements.push({ sql: query.sql, bindings: query.bindings })
+    test.onQuery(({ sql, bindings }) => {
+      statements.push({ sql, bindings })
     })
   })
 

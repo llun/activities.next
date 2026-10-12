@@ -22,7 +22,7 @@ import {
 // with the last of their callers.
 describe('Kysely visibility predicates', () => {
   const testDb = createTestDatabase()
-  const { database, knex } = testDb
+  const { database, db } = testDb
 
   const DOMAIN = 'llun.test'
   const actor = (name: string, domain = DOMAIN) =>
@@ -91,7 +91,6 @@ describe('Kysely visibility predicates', () => {
   }
 
   const readableBy = async (viewerId: string) => {
-    const db = testDb.db
     const rows = await db
       .selectFrom('statuses')
       .select('statuses.id')
@@ -221,20 +220,26 @@ describe('Kysely visibility predicates', () => {
       to: [],
       reply: `https://${DOMAIN}/@follower/parent`
     })
-    await knex('statuses')
-      .where('id', ids['reply-by-url-wrong-hash'])
-      .update({ replyHash: 'not-the-parent-hash' })
+    await db
+      .updateTable('statuses')
+      .set({ replyHash: 'not-the-parent-hash' })
+      .where('id', '=', ids['reply-by-url-wrong-hash'])
+      .execute()
     // The parent's url hash with another reply url: a hash collision.
     await note('reply-hash-only', {
       to: [],
       reply: `https://${DOMAIN}/@follower/elsewhere`
     })
-    const { urlHash: parentUrlHash } = await knex('statuses')
-      .where('id', followerParent)
-      .first('urlHash')
-    await knex('statuses')
-      .where('id', ids['reply-hash-only'])
-      .update({ replyHash: parentUrlHash })
+    const { urlHash: parentUrlHash } = await db
+      .selectFrom('statuses')
+      .select('urlHash')
+      .where('id', '=', followerParent)
+      .executeTakeFirstOrThrow()
+    await db
+      .updateTable('statuses')
+      .set({ replyHash: parentUrlHash })
+      .where('id', '=', ids['reply-hash-only'])
+      .execute()
     await note('reply-with-recipients', {
       to: [stranger],
       reply: followerParent
@@ -264,9 +269,11 @@ describe('Kysely visibility predicates', () => {
       cc: []
     })
     ids['announce-reply'] = statusId(author, 'announce-reply')
-    await knex('statuses')
-      .where('id', ids['announce-reply'])
-      .update({ reply: followerParent })
+    await db
+      .updateTable('statuses')
+      .set({ reply: followerParent })
+      .where('id', '=', ids['announce-reply'])
+      .execute()
 
     const conversationParent = await note('conversation-parent', {
       actorId: stranger,
@@ -274,27 +281,36 @@ describe('Kysely visibility predicates', () => {
       url: `https://${DOMAIN}/@stranger/conversation`
     })
     const now = new Date()
-    await knex('direct_conversations').insert({
-      id: 'conversation-1',
-      rootStatusId: conversationParent,
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('direct_conversation_statuses').insert({
-      conversationId: 'conversation-1',
-      statusId: conversationParent,
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('direct_conversation_participants').insert(
-      [stranger, participant].map((actorId) => ({
-        id: `conversation-1:${actorId}`,
-        conversationId: 'conversation-1',
-        actorId,
+    await db
+      .insertInto('direct_conversations')
+      .values({
+        id: 'conversation-1',
+        rootStatusId: conversationParent,
         createdAt: now,
         updatedAt: now
-      }))
-    )
+      })
+      .execute()
+    await db
+      .insertInto('direct_conversation_statuses')
+      .values({
+        conversationId: 'conversation-1',
+        statusId: conversationParent,
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
+    await db
+      .insertInto('direct_conversation_participants')
+      .values(
+        [stranger, participant].map((actorId) => ({
+          id: `conversation-1:${actorId}`,
+          conversationId: 'conversation-1',
+          actorId,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      .execute()
     await note('conversation-reply-by-id', {
       actorId: author,
       to: [],
@@ -310,27 +326,36 @@ describe('Kysely visibility predicates', () => {
       actorId: stranger,
       to: [recipient]
     })
-    await knex('direct_conversations').insert({
-      id: 'conversation-2',
-      rootStatusId: secondParent,
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('direct_conversation_statuses').insert({
-      conversationId: 'conversation-2',
-      statusId: secondParent,
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('direct_conversation_participants').insert(
-      [stranger, recipient].map((actorId) => ({
-        id: `conversation-2:${actorId}`,
-        conversationId: 'conversation-2',
-        actorId,
+    await db
+      .insertInto('direct_conversations')
+      .values({
+        id: 'conversation-2',
+        rootStatusId: secondParent,
         createdAt: now,
         updatedAt: now
-      }))
-    )
+      })
+      .execute()
+    await db
+      .insertInto('direct_conversation_statuses')
+      .values({
+        conversationId: 'conversation-2',
+        statusId: secondParent,
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
+    await db
+      .insertInto('direct_conversation_participants')
+      .values(
+        [stranger, recipient].map((actorId) => ({
+          id: `conversation-2:${actorId}`,
+          conversationId: 'conversation-2',
+          actorId,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      .execute()
     await note('second-conversation-reply', {
       actorId: author,
       to: [],
@@ -341,56 +366,71 @@ describe('Kysely visibility predicates', () => {
     // `<id>/followers` fallback can match.
     const ghostAuthor = actor('ghost-author', 'gone.test')
     ids['ghost-author-followers'] = statusId(ghostAuthor, 'followers')
-    await knex('statuses').insert({
-      id: ids['ghost-author-followers'],
-      url: ids['ghost-author-followers'],
-      actorId: ghostAuthor,
-      type: 'Note',
-      content: 'ghost',
-      reply: '',
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('recipients').insert({
-      id: `${ids['ghost-author-followers']}:to`,
-      statusId: ids['ghost-author-followers'],
-      actorId: `${ghostAuthor}/followers`,
-      type: 'to',
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('follows').insert({
-      id: 'follower-follows-ghost',
-      actorId: follower,
-      actorHost: DOMAIN,
-      targetActorId: ghostAuthor,
-      targetActorHost: 'gone.test',
-      status: FollowStatus.enum.Accepted,
-      createdAt: now,
-      updatedAt: now
-    })
+    await db
+      .insertInto('statuses')
+      .values({
+        id: ids['ghost-author-followers'],
+        url: ids['ghost-author-followers'],
+        actorId: ghostAuthor,
+        type: 'Note',
+        content: 'ghost',
+        reply: '',
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
+    await db
+      .insertInto('recipients')
+      .values({
+        id: `${ids['ghost-author-followers']}:to`,
+        statusId: ids['ghost-author-followers'],
+        actorId: `${ghostAuthor}/followers`,
+        type: 'to',
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
+    await db
+      .insertInto('follows')
+      .values({
+        id: 'follower-follows-ghost',
+        actorId: follower,
+        actorHost: DOMAIN,
+        targetActorId: ghostAuthor,
+        targetActorHost: 'gone.test',
+        status: FollowStatus.enum.Accepted,
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
 
     // Rows for the list predicates and the block/mute filter.
     // A followers collection spelled in upper case: LIKE folds it on SQLite
     // only, so it is list-eligible there and not on PostgreSQL.
     await note('upper-followers', { to: [`${author}/FOLLOWERS`] })
     // recipient owns a list holding follower, and follows stranger.
-    await knex('lists').insert({
-      id: REPLIES_LIST,
-      actorId: recipient,
-      title: 'Replies',
-      repliesPolicy: 'list',
-      exclusive: false,
-      createdAt: now,
-      updatedAt: now
-    })
-    await knex('list_accounts').insert({
-      id: 'replies-list-follower',
-      listId: REPLIES_LIST,
-      actorId: recipient,
-      targetActorId: follower,
-      createdAt: now
-    })
+    await db
+      .insertInto('lists')
+      .values({
+        id: REPLIES_LIST,
+        actorId: recipient,
+        title: 'Replies',
+        repliesPolicy: 'list',
+        exclusive: false,
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
+    await db
+      .insertInto('list_accounts')
+      .values({
+        id: 'replies-list-follower',
+        listId: REPLIES_LIST,
+        actorId: recipient,
+        targetActorId: follower,
+        createdAt: now
+      })
+      .execute()
     await database.createFollow({
       actorId: recipient,
       targetActorId: stranger,
@@ -398,16 +438,19 @@ describe('Kysely visibility predicates', () => {
       inbox: `${recipient}/inbox`,
       sharedInbox: `https://${DOMAIN}/inbox`
     })
-    await knex('follows').insert({
-      id: 'stranger-undid-author',
-      actorId: stranger,
-      actorHost: DOMAIN,
-      targetActorId: author,
-      targetActorHost: DOMAIN,
-      status: FollowStatus.enum.Undo,
-      createdAt: now,
-      updatedAt: now
-    })
+    await db
+      .insertInto('follows')
+      .values({
+        id: 'stranger-undid-author',
+        actorId: stranger,
+        actorHost: DOMAIN,
+        targetActorId: author,
+        targetActorHost: DOMAIN,
+        status: FollowStatus.enum.Undo,
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
     const recipientParent = await note('recipient-parent', {
       actorId: recipient,
       to: [ACTIVITY_STREAM_PUBLIC]
@@ -443,28 +486,37 @@ describe('Kysely visibility predicates', () => {
       [pendingFollower, author, MUTE_NOW],
       [follower, remoteAuthor, MUTE_NOW + 60_000]
     ] as const) {
-      await knex('mutes').insert({
-        id: `mute-${mutedBy.split('/').pop()}-${target.split('/').pop()}`,
-        actorId: mutedBy,
-        actorHost: DOMAIN,
-        targetActorId: target,
-        targetActorHost: new URL(target).host,
-        notifications: true,
-        endsAt,
-        createdAt: now,
-        updatedAt: now
-      })
+      await db
+        .insertInto('mutes')
+        .values({
+          id: `mute-${mutedBy.split('/').pop()}-${target.split('/').pop()}`,
+          actorId: mutedBy,
+          actorHost: DOMAIN,
+          targetActorId: target,
+          targetActorHost: new URL(target).host,
+          notifications: true,
+          endsAt,
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
     }
 
     // Last: the facade cannot read an actor without a followers URL back.
-    const bareRow = await knex('actors').where('id', bareAuthor).first()
+    const bareRow = await db
+      .selectFrom('actors')
+      .select('settings')
+      .where('id', '=', bareAuthor)
+      .executeTakeFirstOrThrow()
     const { followersUrl: _followersUrl, ...bareSettings } =
       typeof bareRow.settings === 'string'
         ? JSON.parse(bareRow.settings)
         : bareRow.settings
-    await knex('actors')
-      .where('id', bareAuthor)
-      .update({ settings: JSON.stringify(bareSettings) })
+    await db
+      .updateTable('actors')
+      .set({ settings: JSON.stringify(bareSettings) })
+      .where('id', '=', bareAuthor)
+      .execute()
   })
 
   afterAll(async () => {
@@ -617,7 +669,7 @@ describe('Kysely visibility predicates', () => {
 
   it('selects the local actors', async () => {
     const localIds = (
-      await testDb.db
+      await db
         .selectFrom('actors')
         .select('actors.id')
         .where(isLocalActor)
@@ -644,7 +696,6 @@ describe('Kysely visibility predicates', () => {
     rows.map(({ id }) => String(id)).sort()
 
   const listEligible = async () => {
-    const db = testDb.db
     return sortedIds(
       await db
         .selectFrom('statuses')
@@ -711,7 +762,7 @@ describe('Kysely visibility predicates', () => {
     listId = REPLIES_LIST
   ) =>
     sortedIds(
-      await testDb.db
+      await db
         .selectFrom('statuses')
         .select('statuses.id')
         .where((eb) =>
@@ -865,7 +916,7 @@ describe('Kysely visibility predicates', () => {
   const unmoderated = async (viewerId: string) =>
     sortedIds(
       await withoutBlockedOrMutedAuthors(
-        testDb.db.selectFrom('statuses').select('statuses.id'),
+        db.selectFrom('statuses').select('statuses.id'),
         viewerId,
         MUTE_NOW
       ).execute()
@@ -1010,7 +1061,7 @@ describe('Kysely visibility predicates', () => {
       ]) {
         for (const forShare of [false, true]) {
           const targetIds = await selectFollowTargetActorIds(
-            testDb.db,
+            db,
             actorId,
             targets,
             statuses,
@@ -1030,7 +1081,7 @@ describe('Kysely visibility predicates', () => {
 
   it('finds a follow target only for a matching status', async () => {
     const acceptedTargets = await selectFollowTargetActorIds(
-      testDb.db,
+      db,
       follower,
       followTargets,
       [FollowStatus.enum.Accepted]
@@ -1039,13 +1090,13 @@ describe('Kysely visibility predicates', () => {
       [author, bareAuthor, ghostAuthor, remoteAuthor].sort()
     )
     expect(
-      await selectFollowTargetActorIds(testDb.db, stranger, followTargets, [
+      await selectFollowTargetActorIds(db, stranger, followTargets, [
         FollowStatus.enum.Undo
       ])
     ).toEqual([author])
     expect(
       await selectFollowTargetActorIds(
-        testDb.db,
+        db,
         follower,
         [stranger],
         [FollowStatus.enum.Accepted]
@@ -1067,69 +1118,78 @@ describe('Kysely visibility predicates', () => {
 
     beforeAll(async () => {
       const now = new Date()
-      await knex('lists').insert([
-        // follower's exclusive list holds author and follower itself.
-        {
-          id: 'follower-exclusive',
-          actorId: follower,
-          title: 'Exclusive',
-          repliesPolicy: 'list',
-          exclusive: true,
-          createdAt: now,
-          updatedAt: now
-        },
-        // follower's ordinary list holds stranger.
-        {
-          id: 'follower-ordinary',
-          actorId: follower,
-          title: 'Ordinary',
-          repliesPolicy: 'list',
-          exclusive: false,
-          createdAt: now,
-          updatedAt: now
-        },
-        // Another owner's exclusive list, holding remoteAuthor.
-        {
-          id: 'recipient-exclusive',
-          actorId: recipient,
-          title: 'Exclusive',
-          repliesPolicy: 'list',
-          exclusive: true,
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
-      await knex('list_accounts').insert(
-        [
-          ['follower-exclusive', follower, author],
-          ['follower-exclusive', follower, follower],
-          ['follower-ordinary', follower, stranger],
-          ['recipient-exclusive', recipient, remoteAuthor],
-          // The list's owner decides, not the membership row's own actorId.
-          ['follower-exclusive', stranger, bareAuthor]
-        ].map(([listId, actorId, targetActorId]) => ({
-          id: `${listId}:${targetActorId}`,
-          listId,
-          actorId,
-          targetActorId,
-          createdAt: now
-        }))
-      )
-      await knex('timelines').insert(
-        Object.entries(timelineRows).map(([key, statusActorId]) => ({
-          actorId: follower,
-          timeline: 'main',
-          statusId: key,
-          statusActorId,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
+      await db
+        .insertInto('lists')
+        .values([
+          // follower's exclusive list holds author and follower itself.
+          {
+            id: 'follower-exclusive',
+            actorId: follower,
+            title: 'Exclusive',
+            repliesPolicy: 'list',
+            exclusive: true,
+            createdAt: now,
+            updatedAt: now
+          },
+          // follower's ordinary list holds stranger.
+          {
+            id: 'follower-ordinary',
+            actorId: follower,
+            title: 'Ordinary',
+            repliesPolicy: 'list',
+            exclusive: false,
+            createdAt: now,
+            updatedAt: now
+          },
+          // Another owner's exclusive list, holding remoteAuthor.
+          {
+            id: 'recipient-exclusive',
+            actorId: recipient,
+            title: 'Exclusive',
+            repliesPolicy: 'list',
+            exclusive: true,
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('list_accounts')
+        .values(
+          [
+            ['follower-exclusive', follower, author],
+            ['follower-exclusive', follower, follower],
+            ['follower-ordinary', follower, stranger],
+            ['recipient-exclusive', recipient, remoteAuthor],
+            // The list's owner decides, not the membership row's own actorId.
+            ['follower-exclusive', stranger, bareAuthor]
+          ].map(([listId, actorId, targetActorId]) => ({
+            id: `${listId}:${targetActorId}`,
+            listId,
+            actorId,
+            targetActorId,
+            createdAt: now
+          }))
+        )
+        .execute()
+      await db
+        .insertInto('timelines')
+        .values(
+          Object.entries(timelineRows).map(([key, statusActorId]) => ({
+            actorId: follower,
+            timeline: 'main',
+            statusId: key,
+            statusActorId,
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .execute()
     })
 
     const shown = async (viewerId: string) =>
       (
-        await testDb.db
+        await db
           .selectFrom('timelines')
           .select('timelines.statusId')
           .where((eb) => notFromExclusiveListMember(eb, viewerId))
