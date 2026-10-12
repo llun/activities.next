@@ -5,9 +5,9 @@ import type { FollowStatus } from '@/lib/types/domain/follow'
 // The subset of targetActorIds that actorId has a follow in one of `statuses`
 // for, each id once, in the order the rows come back. `forShare` locks the
 // matching follow rows until the caller's transaction ends, on PostgreSQL only
-// (see forShare in dialect.ts). The Kysely twin of selectFollowTargetActorIds
-// (lib/database/sql/utils/followTargetActorIds.ts); visibilityEquivalence.test.ts
-// runs both over the same rows.
+// (see forShare in dialect.ts): SQLite runs one connection, so a read inside a
+// transaction is already atomic with the writes after it. visibility.test.ts
+// pins what it finds.
 export const selectFollowTargetActorIds = async (
   db: Db,
   actorId: string,

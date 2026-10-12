@@ -10,10 +10,12 @@ import type { DB } from '@/lib/database/kysely'
 // Drops the `timelines` rows whose author is a member of one of the viewer's
 // exclusive lists, for the home feed (https://docs.joinmastodon.org/entities/List/#exclusive),
 // as a NOT EXISTS read at query time, so toggling `exclusive` or changing a
-// membership applies to rows already materialized. Only the viewer's own lists
-// count, and the viewer's own posts always stay. The Kysely twin of
-// applyExclusiveListFilter (lib/database/sql/utils/exclusiveLists.ts);
-// visibilityEquivalence.test.ts runs both over the same rows.
+// membership applies to rows already materialized, with no stale rows a later
+// toggle could not retract. Only the viewer's own lists count, so another
+// owner's exclusive list never affects this viewer, and the viewer's own posts
+// always stay (Mastodon's FeedManager#filter_from_home returns before its
+// exclusive-list check when the receiver wrote the status).
+// visibility.test.ts pins what it shows each viewer.
 export const notFromExclusiveListMember = (
   eb: ExpressionBuilder<DB, 'timelines'>,
   viewerActorId: string

@@ -12,14 +12,31 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 import type { ListRepliesPolicy } from '@/lib/types/domain/list'
 import { StatusType } from '@/lib/types/domain/status'
 
-// The statuses a list feed may show at all, for a query over `statuses`: a
-// boost, or a status with a recipient that is the public collection, a
-// collection ending in `/followers`, or the author's stored followers URL.
-// Everything else is addressed to specific people only (a direct message),
-// which Mastodon never delivers to a list. The Kysely twin of
-// applyListEligibleStatusFilter (lib/database/sql/utils/listEligibleStatus.ts,
-// which explains each rule); visibilityEquivalence.test.ts runs both over the
-// same rows.
+// The statuses a list feed may show at all, for a query over `statuses`.
+// Mastodon's fan-out only delivers public, unlisted and followers-only
+// statuses to lists (FanOutOnWriteService#deliver_to_lists!), and the merge
+// that backfills a new member reads `list_eligible_visibility`; without this
+// filter the owner's own direct messages (once they add themselves) and a
+// member's direct message to the owner both surfaced in the list, although
+// neither ever appears in Home, which routes them to the Direct feed.
+//
+// A boost is never direct. Any other status is eligible when one of its
+// recipients is the public collection or a followers collection; otherwise it
+// is addressed to specific people only, and a status with no recipient rows is
+// not eligible either. That is isDirectStatus (lib/utils/directStatus.ts),
+// which decides whether a status lands in Home or Direct, with one widening.
+// As in getVisibility, a recipient ending in `/followers` counts whoever's
+// collection it is, so a list keeps what Home keeps (potentiallyReadableStatus
+// accepts only the author's own `/followers` URL; narrowing this term to match
+// would drop such posts). The widening is the author's STORED followers URL,
+// because not every server names the collection that way (Friendica's is
+// `/followers/<nick>`). LIKE folds ASCII case on SQLite, not on PostgreSQL, so
+// on SQLite an upper-case `/FOLLOWERS` suffix counts too.
+//
+// Pure EXISTS on `statuses`, so it composes with the list timeline's other
+// filters and runs before LIMIT; the recipients lookup is served by
+// recipients_status_type_actor_idx (statusId leading) and the author by
+// actors_id_unique. visibility.test.ts pins what it selects.
 export const listEligibleStatus = (
   db: Db,
   eb: ExpressionBuilder<DB, 'statuses'>
@@ -54,14 +71,27 @@ export const listEligibleStatus = (
     )
   ])
 
-// A list's Mastodon replies_policy, for a query over `statuses`: a non-reply
-// always passes, and so does a reply whose stored parent (matched by id, or by
-// url with its hash) is by the same author or by the list owner. 'list' also
-// lets through a reply to a member of the list, 'followed' a reply to an
-// account the owner follows and anything the owner wrote. The Kysely twin of
-// applyListRepliesPolicyFilter (lib/database/sql/utils/listRepliesPolicy.ts,
-// which explains each rule); visibilityEquivalence.test.ts runs both over the
-// same rows.
+// A list's Mastodon replies_policy
+// (https://docs.joinmastodon.org/entities/List/#replies_policy), for a query
+// over `statuses`, as a pure WHERE that runs before LIMIT. As in
+// FeedManager#filter_from_list?, a status always passes when it is not a
+// reply, when it is a self-reply (a thread continuation) or when it replies to
+// the list owner; the parent is matched by id, or by url with its hash, as the
+// visibility filter and resolveParentStatusIdByReply match it. Only the
+// remaining replies follow the policy:
+// - 'none': no further replies.
+// - 'list': replies whose parent author is a member of the list.
+// - 'followed': replies whose parent author the owner follows.
+// A reply whose parent is not stored here has no parent author, so it is
+// neither a member's nor followed and is held back under every policy.
+//
+// The owner's own posts (an owner may be a member of their own list) follow
+// the same rules under 'none' and 'list', but under 'followed' every one of
+// them passes, a reply to a stranger or to an unstored parent included:
+// Mastodon's list filter is filter_from_list? OR filter_from_home, and under
+// show_followed? the first never filters while the second returns early for
+// the receiver's own statuses. visibility.test.ts pins what each policy lets
+// through.
 export const listRepliesPolicyAllows = (
   eb: ExpressionBuilder<DB, 'statuses'>,
   {

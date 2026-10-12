@@ -23,9 +23,8 @@ export const PUBLIC_ACTIVITY_RECIPIENTS = [
 // public and unlisted ones, the viewer's own, the ones addressed to them, the
 // followers-only ones of an actor they follow, and a Note or Poll with no
 // recipients that replies to a status the viewer wrote or takes part in through
-// a direct conversation. The Kysely twin of applyPotentiallyReadableStatusFilter
-// (lib/database/sql/utils/statusVisibility.ts); visibilityEquivalence.test.ts
-// runs both over the same rows.
+// a direct conversation. visibility.test.ts pins what it selects for each
+// viewer.
 export const potentiallyReadableStatus = (
   db: Db,
   eb: ExpressionBuilder<DB, 'statuses'>,

@@ -14,7 +14,8 @@ export const getFriendsOfFriendsSuggestions = async (
   // edges count on both hops. A candidate is excluded when the actor already
   // follows it, has a pending follow request to it, has dismissed it, is in a
   // block with it (either direction), or has an active mute on it. Filtering
-  // here — BEFORE LIMIT — mirrors applyBlockMuteFilter so the page is never
+  // here — BEFORE LIMIT — mirrors withoutBlockedOrMutedAuthors
+  // (lib/database/kysely/visibility/blockMute.ts) so the page is never
   // returned short (Undo/Rejected follows remain suggestable).
   const now = Date.now()
   const rows = await db
@@ -60,7 +61,7 @@ export const getFriendsOfFriendsSuggestions = async (
     )
     // Mutes are one-directional (only what the actor mutes) and expire: a
     // mute is active while endsAt IS NULL or endsAt >= now (matching
-    // applyBlockMuteFilter and getMute's "expired when endsAt < now").
+    // withoutBlockedOrMutedAuthors and getMute's "expired when endsAt < now").
     .where('f2.targetActorId', 'not in', (eb) =>
       eb
         .selectFrom('mutes')

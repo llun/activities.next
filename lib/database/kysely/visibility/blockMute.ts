@@ -13,15 +13,29 @@ type ModeratedStatusesBuilder = ExpressionBuilder<
 
 // Drops the statuses of accounts the viewer blocks, is blocked by, or mutes
 // (while the mute is active) from a query over `statuses`, as pure NOT EXISTS
-// clauses that run before LIMIT. A boost is judged by its booster and by its
-// original author. The Kysely twin of applyBlockMuteFilter
-// (lib/database/sql/utils/blockMuteFilter.ts, which explains each rule);
-// visibilityEquivalence.test.ts runs both over the same rows.
+// clauses, so they compose with the other timeline filters and run before
+// LIMIT (no short pages, no backfill loop). The list and collection timelines
+// read through it; it mirrors the filtering the home feed applies after the
+// fetch (filterBlockedStatuses and filterMutedStatuses):
+// - Blocks go both ways: an author the viewer blocks or who blocks the viewer
+//   is hidden (as getBlockRelations reads them). The two directions are
+//   separate NOT EXISTS clauses, not one OR'd subquery, so each can use its
+//   own (actorId or targetActorId) index on `blocks`.
+// - Mutes go one way (only what the viewer mutes) and expire: a mute is active
+//   while endsAt IS NULL or endsAt >= now (as getMuteRelations reads them).
+//   The mute's `notifications` flag governs notifications only, so every
+//   active mute hides the author's statuses here.
+// - As in the home feed's getRelevantStatusActorIds, a boost is judged by its
+//   booster and by its original author, so a boost of a blocked or muted
+//   account is hidden too. The original author comes from a left join on
+//   statuses.originalStatusId (NULL for anything but a boost, so it never
+//   matches).
+// visibility.test.ts pins what it hides from each viewer.
 //
-// `query` must select from `statuses` (it may join other tables). Like the
-// Knex version it adds a left join, aliased block_mute_reblog_original, which
-// the rest of the query should not reference; the returned type leaves the
-// alias out for that reason.
+// `query` must select from `statuses` (it may join other tables). It adds a
+// left join, aliased block_mute_reblog_original, which the rest of the query
+// should not reference; the returned type leaves the alias out for that
+// reason.
 export const withoutBlockedOrMutedAuthors = <TB extends keyof DB, O>(
   query: SelectQueryBuilder<DB, TB, O>,
   viewerActorId: string,
