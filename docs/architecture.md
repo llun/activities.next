@@ -120,7 +120,7 @@ Knex migration files that define the database schema. Migrations are designed to
 
 ### Database Abstraction
 
-All database operations go through the `lib/database/` layer. Its queries are written with [Kysely](https://kysely.dev/), one plain-function module per domain under `lib/database/domains/`, bound into the `Database` facade by `getSQLDatabase`; [Knex.js](https://knexjs.org/) runs the migrations and owns the connection pool Kysely borrows (see [Kysely](maintenance.md#kysely) in the maintenance guide). This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
+All database operations go through the `lib/database/` layer. Its queries are written with [Kysely](https://kysely.dev/), as plain query functions grouped by domain under `lib/database/domains/<name>/`, bound into the `Database` facade by `getSQLDatabase`; [Knex.js](https://knexjs.org/) runs the migrations and owns the connection pool Kysely borrows (see [Kysely](maintenance.md#kysely) in the maintenance guide). This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
 
 ### Mastodon API Compatibility
 
