@@ -142,7 +142,7 @@ export const tileLocalToLngLat = (
  * Latitude is clamped to the Mercator limits, so a box reaching past them is
  * answered with the edge tiles rather than nothing. A box that wraps the
  * antimeridian is the CALLER's to split: this returns `minX > maxX` for one,
- * and the range read it feeds uses `whereBetween`, which matches no rows in
+ * and the range read it feeds uses `between`, which matches no rows in
  * that state rather than wrapping around. An inverted box — `minLat` above
  * `maxLat` — comes back the same way on the other axis, and reads as empty for
  * the same reason.

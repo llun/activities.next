@@ -137,7 +137,7 @@ export const buildHeatmapSegmentsFromTiles = async (
   if (range.maxY < range.minY) return null
 
   // Two reads when the bounds wrap the antimeridian: `tilesForBounds` answers
-  // `minX > maxX` for a wrap and the range read is a `whereBetween`, which
+  // `minX > maxX` for a wrap and the range read is a `between`, which
   // matches nothing in that state rather than wrapping around.
   const lastColumn = 2 ** z - 1
   const spans =

@@ -13,25 +13,6 @@ export interface FitnessRouteHeatmapPyramidCursor {
   id: string
 }
 
-export interface SQLFitnessRouteHeatmapPyramid {
-  id: string
-  actorId: string
-  status: string
-  error: string | null
-  version: number
-  claimSeq: number
-  totalCount: number
-  scannedCount: number
-  activityCount: number
-  tileCount: number
-  pointCount: number
-  cursorCreatedAt: Date | string | number | null
-  cursorId: string | null
-  completedAt: Date | string | number | null
-  createdAt: Date | string | number
-  updatedAt: Date | string | number
-}
-
 export interface FitnessRouteHeatmapPyramid {
   id: string
   actorId: string
@@ -60,19 +41,6 @@ export interface FitnessRouteHeatmapPyramid {
   completedAt?: number
   createdAt: number
   updatedAt: number
-}
-
-export interface SQLFitnessRouteHeatmapTile {
-  actorId: string
-  tileKey: string
-  z: number
-  x: number
-  y: number
-  version: number
-  segments: string | null
-  pointCount: number
-  createdAt: Date | string | number
-  updatedAt: Date | string | number
 }
 
 export interface FitnessRouteHeatmapTileRow {

@@ -1,7 +1,8 @@
 import {
   claimBuild,
   createActor,
-  fence
+  fence,
+  interfereAfterStatement
 } from '@/lib/database/sql/fitnessRouteHeatmapTileTestHelpers'
 import {
   databaseBeforeAll,
@@ -98,23 +99,15 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             .where('actorId', actorId)
             .update({ updatedAt: new Date(Date.now() - 600_000) })
 
-          let heartbeated = false
-          const heartbeatOnRead = async ({ sql }: { sql: string }) => {
-            if (
-              heartbeated ||
-              !sql.trimStart().toLowerCase().startsWith('select') ||
-              !sql.includes('fitness_route_heatmap_pyramids')
-            ) {
-              return
-            }
-            heartbeated = true
-            await instance('fitness_route_heatmap_pyramids')
-              .where('actorId', actorId)
-              .update({ updatedAt: new Date() })
-          }
-          instance.on('query-response', (_response, query) => {
-            void heartbeatOnRead(query)
-          })
+          const heartbeat = interfereAfterStatement(
+            (sql) =>
+              sql.trimStart().toLowerCase().startsWith('select') &&
+              sql.includes('fitness_route_heatmap_pyramids'),
+            () =>
+              instance('fitness_route_heatmap_pyramids')
+                .where('actorId', actorId)
+                .update({ updatedAt: new Date() })
+          )
 
           const thief = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -124,7 +117,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           // The read said claimable; the write disagreed, which is the guard
           // doing its job.
-          expect(heartbeated).toBe(true)
+          expect(heartbeat.fired).toBe(true)
           expect(thief.claimed).toBe(false)
 
           // The owner still owns it, so its writes are still accepted.
@@ -450,61 +443,41 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         await prepareIsolated()
         await isolated.migrate()
 
-        let originalQuery: typeof instance.client.query | undefined
         let clearListener: ((query: { sql: string }) => void) | undefined
 
         try {
           const actorId = await createActor(isolated)
-          // The query event fires before the driver runs the INSERT. Mark that
-          // statement here, then the client-query wrapper below runs the clear
-          // after the INSERT resolves and before the claim's await continues.
-          // Keeping both statements on the same connection makes the intended
-          // interleaving independent of pool scheduling on PostgreSQL.
-          let cleared = false
-          let clearPending = false
+          // Counts the claim's INSERTs from the query event, which fires as
+          // each is sent. The DELETE is staged on the INSERT's own
+          // connection, after it has run and before the claim's read, so the
+          // intended interleaving is independent of pool scheduling on
+          // PostgreSQL.
           let insertAttempts = 0
-          const clearAfterFirstInsert = ({ sql }: { sql: string }) => {
+          const countInserts = ({ sql }: { sql: string }) => {
             const normalizedSql = sql.trimStart().toLowerCase()
             if (
-              !normalizedSql.startsWith('insert') ||
-              !normalizedSql.includes('fitness_route_heatmap_pyramids')
+              normalizedSql.startsWith('insert') &&
+              normalizedSql.includes('fitness_route_heatmap_pyramids')
             ) {
-              return
+              insertAttempts += 1
             }
-            insertAttempts += 1
-            if (cleared || clearPending) return
-            clearPending = true
           }
+          clearListener = countInserts
+          instance.on('query', countInserts)
 
-          const queryMethod = instance.client.query
-          originalQuery = queryMethod
-          const runOriginalQuery = queryMethod.bind(instance.client)
-          instance.client.query = async (
-            connection: Parameters<typeof queryMethod>[0],
-            query: Parameters<typeof queryMethod>[1]
-          ) => {
-            const response = await runOriginalQuery(connection, query)
-
-            if (clearPending && !cleared) {
-              clearPending = false
-              cleared = true
-              await runOriginalQuery(
-                connection,
-                instance('fitness_route_heatmap_pyramids')
-                  .where('actorId', actorId)
-                  .delete()
-                  .toSQL()
+          const clear = interfereAfterStatement(
+            (sql) => {
+              const normalizedSql = sql.trimStart().toLowerCase()
+              return (
+                normalizedSql.startsWith('insert') &&
+                normalizedSql.includes('fitness_route_heatmap_pyramids')
               )
-            }
-
-            return response
-          }
-
-          // Hook 'query' (when INSERT is sent) rather than 'query-response'
-          // (when INSERT resolves) so the barrier above can serialize the
-          // DELETE after the INSERT and before attempt 1's readPyramidRow.
-          clearListener = clearAfterFirstInsert
-          instance.on('query', clearAfterFirstInsert)
+            },
+            () =>
+              instance('fitness_route_heatmap_pyramids')
+                .where('actorId', actorId)
+                .delete()
+          )
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -514,13 +487,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           // Answered rather than thrown: the row was cleared, and a claim
           // arriving after a clear should build.
-          expect(cleared).toBe(true)
+          expect(clear.fired).toBe(true)
           expect(insertAttempts).toBe(2)
           expect(claim.claimed).toBe(true)
           expect(claim.reason).toBe('claimed')
         } finally {
           if (clearListener) instance.off('query', clearListener)
-          if (originalQuery) instance.client.query = originalQuery
           await isolated.destroy()
         }
       })
@@ -907,23 +879,15 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // Fires once, on the claim's read — the exact window the guard
             // exists for — and bumps the token the way a competing worker
             // winning the race would.
-            let stolen = false
-            const stealOnFirstRead = async ({ sql }: { sql: string }) => {
-              if (
-                stolen ||
-                !sql.trimStart().toLowerCase().startsWith('select') ||
-                !sql.includes('fitness_route_heatmap_pyramids')
-              ) {
-                return
-              }
-              stolen = true
-              await instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .increment('claimSeq', 1)
-            }
-            instance.on('query-response', (_response, query) => {
-              void stealOnFirstRead(query)
-            })
+            const steal = interfereAfterStatement(
+              (sql) =>
+                sql.trimStart().toLowerCase().startsWith('select') &&
+                sql.includes('fitness_route_heatmap_pyramids'),
+              () =>
+                instance('fitness_route_heatmap_pyramids')
+                  .where('actorId', actorId)
+                  .increment('claimSeq', 1)
+            )
 
             const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
               actorId,
@@ -933,7 +897,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               staleBefore: Date.now() + 60_000
             })
 
-            expect(stolen).toBe(true)
+            expect(steal.fired).toBe(true)
             expect(claim.claimed).toBe(false)
             expect(claim.reason).toBe('lost-race')
           } finally {

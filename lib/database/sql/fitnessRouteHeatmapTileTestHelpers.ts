@@ -1,6 +1,9 @@
 import type { Knex } from 'knex'
-import { expect } from 'vitest'
+import { CompiledQuery } from 'kysely'
+import { AsyncResource } from 'node:async_hooks'
+import { type MockInstance, expect, onTestFinished, vi } from 'vitest'
 
+import { KnexPoolDriver } from '@/lib/database/kysely/driver'
 import { Database } from '@/lib/database/types'
 
 // The pyramid is keyed one-per-actor and the tile assertions are exact
@@ -121,3 +124,149 @@ export const tile = (tileKey: string, pointCount = 4) => {
     pointCount
   }
 }
+
+type StatementHook = {
+  matches: (sql: string) => boolean
+  when: 'before' | 'after'
+  run: (execute: (query: CompiledQuery) => Promise<unknown>) => Promise<void>
+  fired: boolean
+}
+
+const statementHooks: StatementHook[] = []
+const pendingPauses: Array<() => void> = []
+let executeSpy: MockInstance<KnexPoolDriver['execute']> | undefined
+
+/**
+ * Runs `hook` once, on the first statement the Kysely driver
+ * (`lib/database/kysely/driver.ts`) executes that it matches and no earlier
+ * hook has claimed, on that statement's own connection. Every hook is removed,
+ * and every pause released, when the test finishes.
+ */
+const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
+  statementHooks.push({ ...hook, fired: false })
+  if (executeSpy) return
+
+  const execute = KnexPoolDriver.prototype.execute
+  const claimHook = (when: StatementHook['when'], sql: string) => {
+    const found = statementHooks.find(
+      (candidate) =>
+        !candidate.fired && candidate.when === when && candidate.matches(sql)
+    )
+    if (found) found.fired = true
+    return found
+  }
+  executeSpy = vi
+    .spyOn(KnexPoolDriver.prototype, 'execute')
+    .mockImplementation(async function (
+      this: KnexPoolDriver,
+      ...[raw, compiledQuery]: Parameters<KnexPoolDriver['execute']>
+    ) {
+      const run = (query: CompiledQuery) => execute.call(this, raw, query)
+      await claimHook('before', compiledQuery.sql)?.run(run)
+      const result = await run(compiledQuery)
+      await claimHook('after', compiledQuery.sql)?.run(run)
+      return result
+    } as KnexPoolDriver['execute'])
+  onTestFinished(() => {
+    statementHooks.length = 0
+    for (const release of pendingPauses.splice(0)) release()
+    executeSpy?.mockRestore()
+    executeSpy = undefined
+  })
+}
+
+/**
+ * Stages another worker's write in the window between two of a facade
+ * method's own statements: after the first statement `matches` accepts has
+ * run, and before the method sees its result, `interfere` runs on the SAME
+ * connection. Fires once.
+ *
+ * On the connection that just ran the statement, because the Kysely driver
+ * still holds it while the statement is announced, and a root Knex query
+ * issued from there is refused by the mixed-transaction guard. Running it on
+ * that connection also makes the interleaving independent of pool scheduling
+ * on PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
+ * where the interfering write autocommits as another worker's would; for a
+ * window inside one, use `outsideDatabaseContext`.
+ *
+ * `interfere` returns a Knex query builder, which is compiled, not run: it
+ * reads like the other writes these tests stage straight to the columns.
+ */
+export const interfereAfterStatement = (
+  matches: (sql: string) => boolean,
+  interfere: () => Knex.QueryBuilder
+) => {
+  const state = { fired: false }
+  addStatementHook({
+    matches,
+    when: 'after',
+    run: async (execute) => {
+      state.fired = true
+      const { sql, bindings } = interfere().toSQL().toNative()
+      await execute(CompiledQuery.raw(sql, [...bindings]))
+    }
+  })
+  return state
+}
+
+/**
+ * A barrier after the first statement `matches` accepts: the method that
+ * issued it stops there, holding its connection and, inside a transaction,
+ * every lock the transaction has taken, until `release()`. `reached` resolves
+ * once it has stopped.
+ */
+export const pauseAfterStatement = (matches: (sql: string) => boolean) => {
+  let markReached = () => {}
+  let release = () => {}
+  const reached = new Promise<void>((resolve) => {
+    markReached = resolve
+  })
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  pendingPauses.push(release)
+  addStatementHook({
+    matches,
+    when: 'after',
+    run: async () => {
+      markReached()
+      await released
+    }
+  })
+  return { reached, release }
+}
+
+/**
+ * Fails the first statement `matches` accepts before it reaches the
+ * database, as a statement timeout or a dropped connection would.
+ */
+export const failStatement = (
+  matches: (sql: string) => boolean,
+  message = 'forced statement failure'
+) => {
+  const state = { fired: false }
+  addStatementHook({
+    matches,
+    when: 'before',
+    run: async () => {
+      state.fired = true
+      throw new Error(message)
+    }
+  })
+  return state
+}
+
+/**
+ * Runs `work` in an async context that holds no database connection: the one
+ * this module was loaded in.
+ *
+ * A Kysely statement is announced on the Knex `query` and `query-response`
+ * events from inside the async context that holds its connection, and the
+ * mixed-transaction guard refuses a root Knex query there. A listener staging
+ * another worker's write has to leave that context, as the other worker was
+ * never in it; it then waits for a connection, or on PostgreSQL for the row
+ * lock, exactly as that worker would.
+ */
+export const outsideDatabaseContext = AsyncResource.bind(
+  <T>(work: () => Promise<T>): Promise<T> => work()
+)
