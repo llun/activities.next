@@ -195,7 +195,12 @@ jobs:
   # moderation domains (account and actor creation with their counters and
   # search documents, sessions and the OAuth token detach, e-mail change and
   # password reset, actor and account moderation state, the admin account
-  # listing), the direct conversation domain (conversation listings and their
+  # listing), the better-auth Kysely adapter and the auth flows over it (its
+  # CRUD, joins, consumeOne and incrementOne, the stored date and boolean
+  # representations, credential sign-in, session joins and refresh, two-factor
+  # sign-in, the OAuth provider grants and signing out a session that minted
+  # tokens, the JWKS, the error URL and the schema completeness check), the
+  # direct conversation domain (conversation listings and their
   # cursors, read and hidden state, syncing statuses into conversations with
   # their participants and blocks, the read-marker row lock, the legacy
   # conversation backfill), the actor domain (actor rows with their search
@@ -671,6 +676,18 @@ jobs:
             lib/database/kysely/inList.test.ts \
             lib/database/kysely/savepoint.test.ts \
             lib/services/translation/translationCache.integration.test.ts \
+            lib/services/auth/kyselyAdapter.crud.test.ts \
+            lib/services/auth/kyselyAdapter.atomic.test.ts \
+            lib/services/auth/kyselyAdapter.joins.test.ts \
+            lib/services/auth/kyselyAdapter.storage.test.ts \
+            lib/services/auth/credentialIdentity.test.ts \
+            lib/services/auth/sessionJoins.test.ts \
+            lib/services/auth/sessionRefresh.test.ts \
+            lib/services/auth/twoFactorSignIn.test.ts \
+            lib/services/auth/oauthProviderFlow.test.ts \
+            lib/services/auth/jwks.test.ts \
+            lib/services/auth/errorURL.test.ts \
+            lib/services/auth/schemaCompleteness.test.ts \
             lib/database/testing/createTestDatabase.test.ts \
             lib/database/testing/fixtures.test.ts
         env:

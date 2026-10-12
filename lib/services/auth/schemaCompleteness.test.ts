@@ -1,11 +1,13 @@
 import type { BetterAuthOptions } from '@better-auth/core'
 import { getAuthTables } from '@better-auth/core/db'
-import knex, { Knex } from 'knex'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
-// `knexAdapter` creates nothing on demand and filters no columns: `create` does
-// a bare `insert(record)` with whatever a better-auth plugin put in the record.
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
+
+// `kyselyAdapter` creates nothing on demand and filters no columns: `create`
+// inserts whatever a better-auth plugin put in the record.
 // So a field a plugin writes and our schema lacks is not a degraded feature, it
 // is a failed INSERT — and better-auth swallows the driver error into a 500,
 // which is how a better-auth 1.7 upgrade broke every OAuth sign-in with
@@ -18,14 +20,15 @@ import { fileURLToPath } from 'node:url'
 // endpoints for most plugins.
 //
 // This asks better-auth itself what schema it expects, for the exact plugin set
-// `auth.ts` registers, and diffs that against the committed SQLite dump — which
-// is what `lib/database/testUtils.ts` builds every test database from, and is
-// kept in lockstep with migrations/schema.sql. Adding a plugin, or upgrading
-// better-auth into new fields, fails here instead of in production.
+// `auth.ts` registers, and diffs that against the committed schema dump of the
+// suite's backend (migrations/schema.sqlite.sql, or migrations/schema.sql on
+// PostgreSQL) — which is what `lib/database/testing/createTestDatabase.ts`
+// builds every test database from. Adding a plugin, or upgrading better-auth
+// into new fields, fails here instead of in production.
 const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 
-const holder = vi.hoisted(() => ({ knex: null as Knex | null }))
+const holder = vi.hoisted(() => ({ testDb: null as TestDatabase | null }))
 
 vi.mock('@/lib/config', () => ({
   getConfig: () => ({
@@ -39,34 +42,20 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
+  getKysely: () => holder.testDb?.db,
   getDatabase: () => null
 }))
 
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
-
 describe('better-auth schema completeness', () => {
-  let database: Knex
-
   beforeAll(async () => {
-    database = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    const connection = await database.client.acquireConnection()
-    try {
-      connection.exec(readFileSync(SQLITE_SCHEMA_PATH, 'utf8'))
-    } finally {
-      await database.client.releaseConnection(connection)
-    }
-    holder.knex = database
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
   })
 
   afterAll(async () => {
-    await database.destroy()
+    await holder.testDb?.destroy()
   })
 
   it('provides every table and column the registered plugins declare', async () => {
@@ -80,11 +69,19 @@ describe('better-auth schema completeness', () => {
     // the type system, not a claim about the value.
     const tables = getAuthTables(getAuth(BASE_URL).options as BetterAuthOptions)
 
+    const db = holder.testDb?.db
+    if (!db) throw new Error('The test database is not ready')
+    const columnsByTable = new Map(
+      (await db.introspection.getTables()).map((table) => [
+        table.name,
+        new Set(table.columns.map((column) => column.name))
+      ])
+    )
+
     const missing: string[] = []
     for (const [model, definition] of Object.entries(tables)) {
       const tableName = definition.modelName ?? model
-      const info = await database.raw(`pragma table_info(\`${tableName}\`)`)
-      const columns = new Set((info as { name: string }[]).map((c) => c.name))
+      const columns = columnsByTable.get(tableName) ?? new Set<string>()
 
       if (columns.size === 0) {
         missing.push(`table ${tableName} (model ${model})`)

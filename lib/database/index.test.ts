@@ -1,6 +1,12 @@
 import knex from 'knex'
+import { sql } from 'kysely'
 
-import { assertSupportedDatabaseClient } from '@/lib/database'
+import {
+  assertSupportedDatabaseClient,
+  getKnex,
+  getKysely
+} from '@/lib/database'
+import { kyselyFor } from '@/lib/database/kysely'
 
 describe('assertSupportedDatabaseClient', () => {
   it('accepts better-sqlite3', async () => {
@@ -40,5 +46,21 @@ describe('assertSupportedDatabaseClient', () => {
       /Unsupported database client.*Only better-sqlite3/s
     )
     expect(destroy).toHaveBeenCalled()
+  })
+})
+
+// The test setup configures an in-memory better-sqlite3 database.
+describe('getKysely', () => {
+  afterAll(async () => {
+    await getKnex().destroy()
+  })
+
+  it('is the Kysely instance on the application Knex pool', async () => {
+    const db = getKysely()
+    expect(db).toBe(kyselyFor(getKnex()))
+    expect(getKysely()).toBe(db)
+
+    const result = await sql<{ value: number }>`select 1 as value`.execute(db)
+    expect(result.rows).toEqual([{ value: 1 }])
   })
 })

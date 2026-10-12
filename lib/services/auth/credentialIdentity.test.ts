@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt'
-import { Knex } from 'knex'
 
-import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 
 // Better Auth 1.7.3 identifies an account by the provider pair
@@ -16,8 +18,7 @@ const NEW_PASSWORD = 'newtestpassword456'
 const TEST_BCRYPT_COST = 4
 
 const holder = vi.hoisted(() => ({
-  knex: null as Knex | null,
-  database: null as Database | null
+  testDb: null as TestDatabase | null
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -32,8 +33,8 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
-  getDatabase: () => holder.database
+  getKysely: () => holder.testDb?.db,
+  getDatabase: () => holder.testDb?.database ?? null
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
@@ -43,8 +44,12 @@ vi.mock('@/lib/services/serverSettings', () => ({
 }))
 
 describe('credential identity', () => {
-  const database = () => holder.database as Database
-  const db = () => holder.knex as Knex
+  const testDb = () => {
+    if (!holder.testDb) throw new Error('The test database is not ready')
+    return holder.testDb
+  }
+  const database = (): Database => testDb().database
+  const db = () => testDb().db
 
   const getAuthInstance = async () => {
     const { getAuth } = await import('@/lib/services/auth/auth')
@@ -64,9 +69,20 @@ describe('credential identity', () => {
   }
 
   const credentialRow = async (accountId: string) =>
-    db()('account_providers')
-      .where({ accountId, provider: 'credential' })
-      .first()
+    db()
+      .selectFrom('account_providers')
+      .selectAll()
+      .where('accountId', '=', accountId)
+      .where('provider', '=', 'credential')
+      .executeTakeFirst()
+
+  const deleteCredentialRow = async (accountId: string) => {
+    await db()
+      .deleteFrom('account_providers')
+      .where('accountId', '=', accountId)
+      .where('provider', '=', 'credential')
+      .execute()
+  }
 
   const register = async (username: string, password = PASSWORD) => {
     const { registerAccount } =
@@ -95,14 +111,17 @@ describe('credential identity', () => {
     provider: string
     providerAccountId: string
   }) => {
-    await db()('account_providers').insert({
-      id,
-      // `accountId` is this application's owning user. The provider-side
-      // account key is stored in `provider` + `providerId`.
-      accountId: ownerAccountId,
-      provider,
-      providerId: providerAccountId
-    })
+    await db()
+      .insertInto('account_providers')
+      .values({
+        id,
+        // `accountId` is this application's owning user. The provider-side
+        // account key is stored in `provider` + `providerId`.
+        accountId: ownerAccountId,
+        provider,
+        providerId: providerAccountId
+      })
+      .execute()
   }
 
   const getInternalAdapter = async () => {
@@ -112,15 +131,14 @@ describe('credential identity', () => {
   }
 
   beforeAll(async () => {
-    const testDatabase = getTestDatabaseWithInstance(true)
-    await testDatabase.prepare()
-    await testDatabase.database.migrate()
-    holder.knex = testDatabase.instance
-    holder.database = testDatabase.database
+    const created = createTestDatabase({ isolated: true })
+    await created.prepare()
+    await created.database.migrate()
+    holder.testDb = created
   })
 
   afterAll(async () => {
-    await holder.knex?.destroy()
+    await holder.testDb?.destroy()
   })
 
   it('lets a registered account sign in when issuer is NULL', async () => {
@@ -136,12 +154,29 @@ describe('credential identity', () => {
     expect(await signIn(email, PASSWORD)).toBe(200)
   })
 
+  // The account is stored with its email lowercased, and the lookup better-auth
+  // makes through the adapter matches whatever case the user types.
+  it('signs in with the email typed in any case', async () => {
+    const { accountId, email } = await register('mixed-case-email')
+    const account = await db()
+      .selectFrom('accounts')
+      .select('email')
+      .where('id', '=', accountId)
+      .executeTakeFirst()
+    expect(account?.email).toBe('mixed-case-email@example.com')
+
+    expect(await signIn(email.toUpperCase(), PASSWORD)).toBe(200)
+    expect(await signIn('Mixed-Case-Email@Example.COM', PASSWORD)).toBe(200)
+  })
+
   it('ignores an arbitrary legacy issuer when signing in', async () => {
     const { accountId, email } = await register('legacy-issuer')
-    await db()('account_providers')
-      .where('accountId', accountId)
-      .where('provider', 'credential')
-      .update({ issuer: 'legacy:provider:identity-that-is-no-longer-used' })
+    await db()
+      .updateTable('account_providers')
+      .set({ issuer: 'legacy:provider:identity-that-is-no-longer-used' })
+      .where('accountId', '=', accountId)
+      .where('provider', '=', 'credential')
+      .execute()
 
     expect(await signIn(email, PASSWORD)).toBe(200)
   })
@@ -169,9 +204,7 @@ describe('credential identity', () => {
   it('lets resetPasswordWithCode recreate a missing identity', async () => {
     const { accountId, email } = await register('reset-missing-provider')
     const passwordResetCode = 'credential-identity-reset-missing-code'
-    await db()('account_providers')
-      .where({ accountId, provider: 'credential' })
-      .delete()
+    await deleteCredentialRow(accountId)
     await database().requestPasswordReset({ email, passwordResetCode })
 
     await database().resetPasswordWithCode({
@@ -209,9 +242,7 @@ describe('credential identity', () => {
 
   it('lets changePassword recreate a missing identity', async () => {
     const { accountId, email } = await register('change-missing-provider')
-    await db()('account_providers')
-      .where({ accountId, provider: 'credential' })
-      .delete()
+    await deleteCredentialRow(accountId)
 
     await database().changePassword({
       accountId,

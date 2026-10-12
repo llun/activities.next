@@ -325,7 +325,7 @@ const resolveTokenContext = async ({
     if (!jwtPayload) {
       // Epoch milliseconds on both backends: the query normalises a SQLite
       // `YYYY-MM-DD HH:MM:SS` value as UTC rather than local time, the way
-      // `knexAdapter` hydrates it.
+      // `kyselyAdapter` reads it for better-auth.
       const storedExpiresAt = new Date(storedToken.expiresAt)
       if (storedExpiresAt < new Date()) {
         return { valid: false, response: rejectBearer('token_expired', 401) }

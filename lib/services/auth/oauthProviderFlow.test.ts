@@ -1,13 +1,12 @@
 import bcrypt from 'bcrypt'
-import knex, { Knex } from 'knex'
 import crypto from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 import { createApplication } from '@/app/api/v1/apps/createApplication'
 import type { SuccessResponse } from '@/app/api/v1/apps/types'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { Database } from '@/lib/database/types'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 
 // Every Mastodon client signs in through these grants, and until now nothing
 // exercised them: `app/(nosidebar)/oauth/token/route.test.ts` mocks `getAuth`, so
@@ -17,7 +16,8 @@ import { Database } from '@/lib/database/types'
 // and the column did not exist.
 //
 // So this drives the real better-auth handler end to end against a database
-// built from the committed schema dump: sign in, authorize, approve consent,
+// built from the committed schema dump (on the suite's backend, so PostgreSQL's
+// foreign keys are enforced too): sign in, authorize, approve consent,
 // exchange the code. Each step's DB writes are what the assertions are really
 // about, which is why the flow is followed all the way to an access token
 // rather than stopping at the first 200.
@@ -43,8 +43,7 @@ const LEGACY_GRANT_TYPES = [
 ]
 
 const holder = vi.hoisted(() => ({
-  knex: null as Knex | null,
-  database: null as Database | null
+  testDb: null as TestDatabase | null
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -59,13 +58,9 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
-  getDatabase: () => holder.database
+  getKysely: () => holder.testDb?.db,
+  getDatabase: () => holder.testDb?.database ?? null
 }))
-
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
 
 // Mirrors `hashClientSecret` in app/api/v1/apps/createApplication.ts, which is
 // what actually populates this column — storing the plaintext would make the
@@ -81,7 +76,10 @@ const hashClientSecret = (secret: string) =>
     .replace(/=+$/, '')
 
 describe('OAuth provider token grants', () => {
-  let database: Knex
+  const db = () => {
+    if (!holder.testDb) throw new Error('The test database is not ready')
+    return holder.testDb.db
+  }
   let accountId: string
   let actorId: string
   const jar: Record<string, string> = {}
@@ -119,21 +117,12 @@ describe('OAuth provider token grants', () => {
   }
 
   beforeAll(async () => {
-    database = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    const connection = await database.client.acquireConnection()
-    try {
-      connection.exec(readFileSync(SQLITE_SCHEMA_PATH, 'utf8'))
-    } finally {
-      await database.client.releaseConnection(connection)
-    }
-    holder.knex = database
-    holder.database = getSQLDatabase(database)
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
 
-    accountId = await holder.database.createAccount({
+    accountId = await testDb.database.createAccount({
       domain: HOST,
       email: EMAIL,
       username: 'oauthflow',
@@ -141,31 +130,36 @@ describe('OAuth provider token grants', () => {
       publicKey: 'test-public-key',
       privateKey: 'test-private-key'
     })
-    const actor = await database('actors')
-      .where('accountId', accountId)
-      .select<{ id: string }>('id')
-      .first()
-    if (!actor) throw new Error('OAuth flow fixture actor was not created')
+    const actor = await db()
+      .selectFrom('actors')
+      .select('id')
+      .where('accountId', '=', accountId)
+      .executeTakeFirst()
+    if (!actor?.id) throw new Error('OAuth flow fixture actor was not created')
     actorId = actor.id
 
-    await database('oauthClient').insert({
-      id: crypto.randomUUID(),
-      clientId: CLIENT_ID,
-      clientSecret: hashClientSecret(CLIENT_SECRET),
-      name: 'Flow Test',
-      redirectUris: JSON.stringify([REDIRECT_URI]),
-      scopes: JSON.stringify(['read', 'write']),
-      // The grant list every registration recorded before `refresh_token` was
-      // dropped from OAUTH_GRANT_TYPES. Registrations are never rewritten, so
-      // the authorization code flow below must keep working for this shape.
-      grantTypes: JSON.stringify(LEGACY_GRANT_TYPES),
-      type: 'web',
-      disabled: false
-    })
+    await db()
+      .insertInto('oauthClient')
+      .values({
+        id: crypto.randomUUID(),
+        clientId: CLIENT_ID,
+        clientSecret: hashClientSecret(CLIENT_SECRET),
+        name: 'Flow Test',
+        redirectUris: JSON.stringify([REDIRECT_URI]),
+        scopes: JSON.stringify(['read', 'write']),
+        // The grant list every registration recorded before `refresh_token`
+        // was dropped from OAUTH_GRANT_TYPES. Registrations are never
+        // rewritten, so the authorization code flow below must keep working
+        // for this shape.
+        grantTypes: JSON.stringify(LEGACY_GRANT_TYPES),
+        type: 'web',
+        disabled: false
+      })
+      .execute()
   })
 
   afterAll(async () => {
-    await database.destroy()
+    await holder.testDb?.destroy()
   })
 
   // The first sign-in, authorize, consent and token exchange for CLIENT_ID. It
@@ -280,9 +274,11 @@ describe('OAuth provider token grants', () => {
       // Scoped to this client: the app-token test shares the table, and an
       // unscoped first() returns its client_credentials row (userId null) when
       // that test happens to run first.
-      const stored = await database('oauthAccessToken')
-        .where('clientId', CLIENT_ID)
-        .first()
+      const stored = await db()
+        .selectFrom('oauthAccessToken')
+        .selectAll()
+        .where('clientId', '=', CLIENT_ID)
+        .executeTakeFirst()
       expect(stored).toBeDefined()
       expect(stored?.userId).toBe(accountId)
       expect(stored?.referenceId).toBe(actorId)
@@ -292,10 +288,11 @@ describe('OAuth provider token grants', () => {
       // No refresh token: better-auth mints one only for `offline_access`, which
       // this server does not offer, so the `refresh_token` grant is neither
       // advertised nor served (see OAUTH_GRANT_TYPES).
-      const refreshTokens = await database('oauthRefreshToken').where(
-        'clientId',
-        CLIENT_ID
-      )
+      const refreshTokens = await db()
+        .selectFrom('oauthRefreshToken')
+        .selectAll()
+        .where('clientId', '=', CLIENT_ID)
+        .execute()
       expect(refreshTokens).toEqual([])
     })
 
@@ -353,17 +350,67 @@ describe('OAuth provider token grants', () => {
       })
       expect(secondToken.status).toBe(200)
 
-      const tokens = await database('oauthAccessToken')
-        .where('clientId', CLIENT_ID)
-        .select<{ userId: string; referenceId: string }[]>([
-          'userId',
-          'referenceId'
-        ])
+      const tokens = await db()
+        .selectFrom('oauthAccessToken')
+        .select(['userId', 'referenceId'])
+        .where('clientId', '=', CLIENT_ID)
+        .execute()
       expect(tokens).toHaveLength(2)
       expect(tokens).toEqual([
         { userId: accountId, referenceId: actorId },
         { userId: accountId, referenceId: actorId }
       ])
+    })
+
+    // Signing out deletes the session row, and the access token minted from
+    // that session points at it through `oauthAccessToken.sessionId`, a
+    // foreign key with no ON DELETE action. PostgreSQL refuses that delete
+    // (23503) unless the adapter detaches the token first; the app keeps its
+    // token either way. Runs last: it ends the session the tests above use.
+    it('signs out a session that minted an access token', async () => {
+      const tokensFor = () =>
+        db()
+          .selectFrom('oauthAccessToken')
+          .select(['id', 'sessionId'])
+          .where('clientId', '=', CLIENT_ID)
+          .orderBy('id')
+          .execute()
+      const before = await tokensFor()
+      const sessionsBefore = await db()
+        .selectFrom('sessions')
+        .select('id')
+        .execute()
+      // Not vacuous: the signed-in session minted one of these tokens.
+      const sessionIds = new Set(sessionsBefore.map((row) => row.id))
+      expect(
+        before.filter(
+          (row) => row.sessionId !== null && sessionIds.has(row.sessionId)
+        ).length
+      ).toBeGreaterThan(0)
+
+      const signOut = await call('/sign-out', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}'
+      })
+      expect(signOut.status).toBe(200)
+
+      const remaining = new Set(
+        (await db().selectFrom('sessions').select('id').execute()).map(
+          (row) => row.id
+        )
+      )
+      expect(remaining.size).toBe(sessionsBefore.length - 1)
+      const [signedOut] = [...sessionIds].filter((id) => !remaining.has(id))
+      const after = await tokensFor()
+      // Every token survives; only the signed-out session's is detached.
+      expect(after).toEqual(
+        before.map((row) => ({
+          ...row,
+          sessionId: row.sessionId === signedOut ? null : row.sessionId
+        }))
+      )
+      expect(before.some((row) => row.sessionId === signedOut)).toBe(true)
     })
   })
 
@@ -415,9 +462,11 @@ describe('OAuth provider token grants', () => {
 
     // An app token carries no user, which is what `OAuthAppGuard` reads to tell
     // one apart from a user-delegated token.
-    const stored = await database('oauthAccessToken')
-      .where('clientId', application.client_id)
-      .first()
+    const stored = await db()
+      .selectFrom('oauthAccessToken')
+      .selectAll()
+      .where('clientId', '=', application.client_id)
+      .executeTakeFirst()
     expect(stored).toBeDefined()
     expect(stored?.userId ?? null).toBeNull()
   })
@@ -431,19 +480,22 @@ describe('OAuth provider token grants', () => {
   it('serves a legacy registration but refuses the refresh_token grant', async () => {
     const clientId = 'legacy-grant-client'
     const clientSecret = 'legacy-grant-secret'
-    await database('oauthClient').insert({
-      id: crypto.randomUUID(),
-      clientId,
-      clientSecret: hashClientSecret(clientSecret),
-      name: 'Legacy Grants',
-      redirectUris: JSON.stringify([REDIRECT_URI]),
-      scopes: JSON.stringify(['read']),
-      clientCredentialsScopes: JSON.stringify(['read']),
-      grantTypes: JSON.stringify(LEGACY_GRANT_TYPES),
-      responseTypes: JSON.stringify(['code']),
-      tokenEndpointAuthMethod: 'client_secret_post',
-      disabled: false
-    })
+    await db()
+      .insertInto('oauthClient')
+      .values({
+        id: crypto.randomUUID(),
+        clientId,
+        clientSecret: hashClientSecret(clientSecret),
+        name: 'Legacy Grants',
+        redirectUris: JSON.stringify([REDIRECT_URI]),
+        scopes: JSON.stringify(['read']),
+        clientCredentialsScopes: JSON.stringify(['read']),
+        grantTypes: JSON.stringify(LEGACY_GRANT_TYPES),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        disabled: false
+      })
+      .execute()
 
     const tokenRequest = (body: Record<string, string>) =>
       call('/oauth2/token', {
@@ -492,17 +544,20 @@ describe('OAuth provider token grants', () => {
       approvedScope: string
     }) => {
       const clientSecret = `${clientId}-secret`
-      await database('oauthClient').insert({
-        id: crypto.randomUUID(),
-        clientId,
-        clientSecret: hashClientSecret(clientSecret),
-        name: 'OIDC Flow',
-        redirectUris: JSON.stringify([REDIRECT_URI]),
-        scopes: JSON.stringify(['openid', 'profile', 'email']),
-        grantTypes: JSON.stringify(['authorization_code']),
-        type: 'web',
-        disabled: false
-      })
+      await db()
+        .insertInto('oauthClient')
+        .values({
+          id: crypto.randomUUID(),
+          clientId,
+          clientSecret: hashClientSecret(clientSecret),
+          name: 'OIDC Flow',
+          redirectUris: JSON.stringify([REDIRECT_URI]),
+          scopes: JSON.stringify(['openid', 'profile', 'email']),
+          grantTypes: JSON.stringify(['authorization_code']),
+          type: 'web',
+          disabled: false
+        })
+        .execute()
 
       for (const name of Object.keys(jar)) delete jar[name]
       const signIn = await call('/sign-in/email', {

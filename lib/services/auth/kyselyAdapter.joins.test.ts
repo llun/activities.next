@@ -1,80 +1,29 @@
 import type { JoinConfig } from 'better-auth/adapters'
-import { Knex } from 'knex'
 
+import type { TestDatabase } from '@/lib/database/testing/createTestDatabase'
+
+import type { AuthKysely } from './kyselyAdapter'
 import {
   type SessionWithAccount,
   type TestAdapter,
   type UserWithSessions,
   createTestDatabase,
   resetTables
-} from './knexAdapter.testUtils'
+} from './kyselyAdapter.testUtils'
 
-vi.mock('better-auth/adapters', () => {
-  // Mirrors the schema better-auth hands the adapter: keyed by model name, with
-  // the table under `modelName` and each field's column under `fieldName` (here
-  // the field name is the column, matching the identity helpers below). The
-  // adapter reads it to learn which columns a joined table contributes.
-  //
-  // `accounts` is deliberately absent so the join tests can also exercise the
-  // path for a table the schema does not describe.
-  const schema = {
-    users: {
-      modelName: 'users',
-      fields: {
-        display_name: {},
-        email: {},
-        email_verified: {},
-        createdAt: {},
-        created_at: {},
-        updated_at: {}
-      }
-    },
-    sessions: {
-      modelName: 'sessions',
-      fields: {
-        user_id: {},
-        accountId: {},
-        token: {},
-        expires_at: {},
-        createdAt: {},
-        expireAt: {}
-      }
-    }
-  }
+vi.mock('better-auth/adapters', () => import('./kyselyAdapter.testFactory'))
 
-  return {
-    createAdapterFactory: ({
-      adapter
-    }: {
-      config: Record<string, unknown>
-      adapter: (helpers: {
-        getModelName: (model: string) => string
-        getFieldName: (opts: { model: string; field: string }) => string
-        schema: unknown
-      }) => Record<string, (...args: any[]) => any>
-    }) => {
-      // Return a factory that, when called, invokes the adapter with
-      // identity getModelName/getFieldName (no field remapping).
-      return () =>
-        adapter({
-          getModelName: (m) => m,
-          getFieldName: (o) => o.field,
-          schema
-        })
-    }
-  }
-})
-
-describe('knexAdapter', () => {
-  let db: Knex
+describe('kyselyAdapter', () => {
+  let testDb: TestDatabase
+  let db: AuthKysely
   let adapter: TestAdapter
 
   beforeAll(async () => {
-    ;({ db, adapter } = await createTestDatabase())
+    ;({ testDb, db, adapter } = await createTestDatabase())
   })
 
   afterAll(async () => {
-    await db.destroy()
+    await testDb.destroy()
   })
 
   beforeEach(async () => {
@@ -118,27 +67,33 @@ describe('knexAdapter', () => {
     }
 
     beforeEach(async () => {
-      await db('users').insert([
-        {
-          id: 'u1',
-          display_name: 'Alice',
-          email: 'alice@test.com',
-          createdAt: USER_CREATED_AT
-        },
-        { id: 'u2', display_name: 'Bob', email: 'bob@test.com' }
-      ])
-      await db('sessions').insert([
-        {
-          id: 's1',
-          user_id: 'u1',
-          accountId: 'a1',
-          token: 't1',
-          createdAt: SESSION_CREATED_AT
-        },
-        { id: 's2', user_id: 'u1', token: 't2' },
-        { id: 's3', user_id: 'u2', token: 't3' },
-        { id: 's-orphan', user_id: null, token: 't-orphan' }
-      ])
+      await db
+        .insertInto('users')
+        .values([
+          {
+            id: 'u1',
+            display_name: 'Alice',
+            email: 'alice@test.com',
+            createdAt: new Date(USER_CREATED_AT)
+          },
+          { id: 'u2', display_name: 'Bob', email: 'bob@test.com' }
+        ])
+        .execute()
+      await db
+        .insertInto('sessions')
+        .values([
+          {
+            id: 's1',
+            user_id: 'u1',
+            accountId: 'a1',
+            token: 't1',
+            createdAt: new Date(SESSION_CREATED_AT)
+          },
+          { id: 's2', user_id: 'u1', token: 't2' },
+          { id: 's3', user_id: 'u2', token: 't3' },
+          { id: 's0-orphan', user_id: null, token: 't0-orphan' }
+        ])
+        .execute()
     })
 
     it('nests a one-to-one related row under the joined table name', async () => {
@@ -172,11 +127,11 @@ describe('knexAdapter', () => {
     it('returns null for a one-to-one join with no matching row', async () => {
       const result: any = await adapter.findOne({
         model: 'sessions',
-        where: [{ field: 'id', value: 's-orphan', operator: 'eq' as const }],
+        where: [{ field: 'id', value: 's0-orphan', operator: 'eq' as const }],
         join: userJoin
       })
 
-      expect(result.id).toBe('s-orphan')
+      expect(result.id).toBe('s0-orphan')
       expect(result.users).toBeNull()
     })
 
@@ -226,9 +181,9 @@ describe('knexAdapter', () => {
         join: userJoin
       })
 
-      // Ascending by id the rows are s-orphan, s1, s2, s3 ('-' sorts before a
-      // digit), so offset 1 starts at s1. A one-to-one join must not change
-      // that: the window still counts base rows, not joined rows.
+      // Ascending by id the rows are s0-orphan, s1, s2, s3 (in that order
+      // under any collation), so offset 1 starts at s1. A one-to-one join must
+      // not change that: the window still counts base rows, not joined rows.
       expect(results.map((row) => row.id)).toEqual(['s1', 's2'])
     })
 
@@ -260,7 +215,7 @@ describe('knexAdapter', () => {
     })
 
     it('returns an empty array for a one-to-many join with no related rows', async () => {
-      await db('sessions').delete()
+      await db.deleteFrom('sessions').execute()
 
       const result = await adapter.findOne<UserWithSessions>({
         model: 'users',
@@ -274,11 +229,10 @@ describe('knexAdapter', () => {
     })
 
     it('falls back to a separate query for a table the schema does not describe', async () => {
-      await db('accounts').insert({
-        id: 'a1',
-        user_id: 'u1',
-        provider: 'credential'
-      })
+      await db
+        .insertInto('accounts')
+        .values({ id: 'a1', user_id: 'u1', provider: 'credential' })
+        .execute()
 
       const result = await adapter.findOne<SessionWithAccount>({
         model: 'sessions',

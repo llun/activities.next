@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt'
-import knex, { Knex } from 'knex'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 
 // End-to-end guard for `advanced.database.joins` (see `auth.ts`), which is
 // where better-auth 1.7 moved the flag from `experimental.joins`. Unknown
@@ -18,7 +20,9 @@ import { fileURLToPath } from 'node:url'
 // which turns that outage into the slower path this test rejects. Either way
 // the check has to drive the real better-auth instance against a real database;
 // the adapter's own unit tests never see the factory's transform.
-const holder = vi.hoisted(() => ({ knex: null as Knex | null }))
+const holder = vi.hoisted(() => ({
+  testDb: null as TestDatabase | null
+}))
 
 vi.mock('@/lib/config', () => ({
   getConfig: () => ({
@@ -31,15 +35,11 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
+  getKysely: () => holder.testDb?.db,
   // Null skips the session-create hook's account gate, which is not what this
   // test is about; the join contract is exercised either way.
   getDatabase: () => null
 }))
-
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
 
 const ACCOUNT_ID = 'account-1'
 const EMAIL = 'session-joins@test.example.com'
@@ -47,22 +47,6 @@ const PASSWORD = 'test-password-123'
 // The lowest cost bcrypt accepts: fixtures only need a valid hash, and
 // bcrypt.compare reads the cost from it (production hashes at 10).
 const TEST_BCRYPT_COST = 4
-
-const buildInMemoryKnex = async (): Promise<Knex> => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const sql = readFileSync(SQLITE_SCHEMA_PATH, 'utf8')
-  const connection = await instance.client.acquireConnection()
-  try {
-    connection.exec(sql)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
-  return instance
-}
 
 const signIn = async () => {
   const { getAuth } = await import('@/lib/services/auth/auth')
@@ -79,27 +63,37 @@ const signIn = async () => {
 
 describe('session resolution with database joins', () => {
   beforeAll(async () => {
-    holder.knex = await buildInMemoryKnex()
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
 
-    await holder.knex('accounts').insert({
-      id: ACCOUNT_ID,
-      email: EMAIL,
-      name: 'Session Joins',
-      emailVerified: true
-    })
-    await holder.knex('account_providers').insert({
-      id: 'account-provider-1',
-      accountId: ACCOUNT_ID,
-      provider: 'credential',
-      // Better Auth 1.7.3 keys credentials by provider + provider-side account
-      // id. The historical issuer column is intentionally absent here.
-      providerId: ACCOUNT_ID,
-      password: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
-    })
+    await testDb.db
+      .insertInto('accounts')
+      .values({
+        id: ACCOUNT_ID,
+        email: EMAIL,
+        name: 'Session Joins',
+        emailVerified: true
+      })
+      .execute()
+    await testDb.db
+      .insertInto('account_providers')
+      .values({
+        id: 'account-provider-1',
+        accountId: ACCOUNT_ID,
+        provider: 'credential',
+        // Better Auth 1.7.3 keys credentials by provider + provider-side
+        // account id. The historical issuer column is intentionally absent
+        // here.
+        providerId: ACCOUNT_ID,
+        password: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
+      })
+      .execute()
   })
 
   afterAll(async () => {
-    await holder.knex?.destroy()
+    await holder.testDb?.destroy()
   })
 
   it('returns the session together with its account', async () => {
@@ -120,26 +114,29 @@ describe('session resolution with database joins', () => {
   it('reads the account in the same statement as the session', async () => {
     const { auth, cookie } = await signIn()
 
+    // The adapter's Kysely instance borrows the test database's Knex pool,
+    // which announces every statement it runs.
+    const knex = holder.testDb?.knex
     const statements: string[] = []
     const record = ({ sql }: { sql: string }) => statements.push(sql)
-    holder.knex?.on('query', record)
+    knex?.on('query', record)
     try {
       await auth.api.getSession({ headers: new Headers({ cookie }) })
     } finally {
-      holder.knex?.off('query', record)
+      knex?.off('query', record)
     }
 
     const sessionReads = statements.filter(
-      (sql) => sql.includes('from `sessions`') && sql.startsWith('select')
+      (sql) => sql.includes('from "sessions"') && sql.startsWith('select')
     )
-    expect(sessionReads.length).toBeGreaterThan(0)
-    expect(
-      sessionReads.some((sql) => sql.includes('left join `accounts`'))
-    ).toBe(true)
+    expect(sessionReads).toHaveLength(1)
+    expect(sessionReads[0]).toContain(
+      'left join "accounts" on "sessions"."accountId" = "accounts"."id"'
+    )
     // The point of the join: no second statement to fetch the account.
     expect(
       statements.filter(
-        (sql) => sql.startsWith('select') && sql.includes('from `accounts`')
+        (sql) => sql.startsWith('select') && sql.includes('from "accounts"')
       )
     ).toHaveLength(0)
   })

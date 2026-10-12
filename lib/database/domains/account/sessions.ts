@@ -15,15 +15,10 @@ import { Session } from '@/lib/types/domain/session'
 // Cap each `in (…)` list well under the smallest backend bind-parameter ceiling
 // (SQLite's historical 999) so a large bulk session cleanup can't blow the
 // limit. PostgreSQL's ceiling (65535) is far higher, so one conservative size
-// is safe for every backend. The Knex helpers in
-// lib/database/domains/account/detachOAuthTokensFromSessions.ts use the same size.
+// is safe for every backend.
 export const SESSION_ID_CHUNK_SIZE = 500
 
 /**
- * Kysely counterpart of `detachOAuthTokensFromSessions` in
- * lib/database/domains/account/detachOAuthTokensFromSessions.ts, which the better-auth
- * adapter (still on Knex) keeps using; both write the same rows.
- *
  * `oauthAccessToken.sessionId` and `oauthRefreshToken.sessionId` are foreign
  * keys into `sessions.id` with no `ON DELETE` action, so PostgreSQL rejects
  * deleting a session that minted OAuth tokens (23503). Clearing the link first
@@ -51,13 +46,15 @@ const detachOAuthTokensFromSessions = async (
 }
 
 /**
- * FK-safe session delete, the Kysely counterpart of the Knex
- * `deleteSessionsWithTokenDetach`. Resolves the ids of the sessions `scope`
- * matches, detaches their OAuth tokens, then deletes exactly those rows by
- * primary key, all in one transaction (the caller's when `db` is one). Deleting
- * by the resolved ids means a session a concurrent insert added between the
- * lookup and the delete can't be deleted undetached. Returns the number of
- * sessions deleted.
+ * FK-safe session delete. Every code path that removes `sessions` rows goes
+ * through here — the account queries below and the better-auth adapter's
+ * delete, deleteMany and consumeOne (lib/services/auth/kyselyAdapter.ts) — so
+ * none can reintroduce the `sessionId` foreign-key violation. Resolves the ids
+ * of the sessions `scope` matches, detaches their OAuth tokens, then deletes
+ * exactly those rows by primary key, all in one transaction (the caller's when
+ * `db` is one). Deleting by the resolved ids means a session a concurrent
+ * insert added between the lookup and the delete can't be deleted undetached.
+ * Returns the number of sessions deleted.
  */
 export const deleteSessionsWithTokenDetach = (
   db: Db,
