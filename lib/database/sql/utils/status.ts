@@ -1,4 +1,4 @@
-import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/sql/utils/statusVisibility'
+import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 
 // "Addressed to the public collection" (public or unlisted) — Mastodon's
 // `distributable?`. Counters a logged-out visitor can read (a status's

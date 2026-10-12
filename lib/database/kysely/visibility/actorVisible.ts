@@ -20,10 +20,9 @@ export type StatusIdsSubquery = OperandExpression<string | null>
 
 // The status an Announce boosts: `originalStatusId`, or `content` on rows
 // written before that column existed. Anything that is not an Announce points
-// nowhere. The Kysely twin of announceOriginalPointer
-// (lib/database/sql/utils/publiclyReadableStatus.ts), which explains why the
-// two pointers collapse into one COALESCE; the Announce literal is inlined
-// the same way, so the statement matches the Knex one.
+// nowhere. The same CASE as announceOriginalPointer in publiclyReadable.ts,
+// which explains why the two pointers collapse into one COALESCE and why the
+// Announce literal is inlined.
 const announceOriginalPointer = (
   table: 'target_statuses' | 'original_statuses'
 ) =>
@@ -40,10 +39,10 @@ const publicRecipientStatusIds = (db: Db) =>
 // The ids among `actorId`'s statuses that anyone may read: addressed to the
 // public collection, and for an Announce, every status down its boost chain
 // addressed there too, ending at a non-Announce. `UNION` (not `UNION ALL`) is
-// what ends a chain that loops back on itself. The Kysely twin of
-// buildPubliclyReadableStatusIdsQuery (lib/database/sql/status.ts) with the
-// actor's statuses as its target set: the same materialised set, which suits a
-// caller with no ordered bound to stop early on.
+// what ends a chain that loops back on itself. publiclyReadableStatusIds
+// (publiclyReadable.ts) with the actor's statuses as its target set: a
+// materialised set, which suits a caller with no ordered bound to stop early
+// on.
 const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
   db
     .withRecursive(
@@ -106,10 +105,7 @@ const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
  *   set is not limited to the actor's statuses; the caller scopes its own rows
  *   to the actor.
  *
- * The Kysely twin of buildActorVisibleStatusIdsQuery (lib/database/sql/status.ts),
- * which no production code uses any more;
- * actorVisibleEquivalence.test.ts runs both over the same rows. Change both
- * together.
+ * actorVisible.test.ts pins what each audience selects.
  */
 export const actorVisibleStatusIds = (
   db: Db,

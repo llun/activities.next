@@ -10,9 +10,8 @@ import {
 } from '@/lib/database/domains/gallery/types'
 import type { Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 
 // `gallery_lookup_cache`, the read-through cache of GBIF and Nominatim answers
 // the gallery lookups share (see GalleryLookupCacheDatabase in ./types.ts).

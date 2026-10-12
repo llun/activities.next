@@ -13,22 +13,11 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-// Every query here chunks its `in` lists by `getWhereInBatchSize` (the Kysely
-// one in lib/database/kysely/inList.ts for the gallery reads, the Knex one for
-// the album reads). Capping both at 2 makes even this small fixture span
-// several chunks, so the batched attachment pick and the id reads are
+// Every query here chunks its `in` lists by `getWhereInBatchSize`
+// (lib/database/kysely/inList.ts). Capping it at 2 makes even this small
+// fixture span several chunks, so the batched attachment pick and the id reads are
 // exercised across chunk boundaries. Any batch size of at least 1 is correct,
 // so the rest of the database (seeding included) is unaffected.
-vi.mock('@/lib/database/sql/utils/knex', async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import('@/lib/database/sql/utils/knex')>()
-  return {
-    ...original,
-    getWhereInBatchSize: (
-      ...args: Parameters<typeof original.getWhereInBatchSize>
-    ) => Math.min(original.getWhereInBatchSize(...args), 2)
-  }
-})
 vi.mock('@/lib/database/kysely/inList', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/database/kysely/inList')>()

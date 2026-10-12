@@ -22,10 +22,15 @@ type ChainTable =
   | 'target_statuses'
   | 'original_statuses'
 
-// The status an Announce boosts, as one column: `originalStatusId`, or for a
-// legacy row the id it wrote into `content`; NULL for anything that is not an
-// Announce. The Announce literal is spliced in, as in the Knex
-// announceOriginalPointer, so both build the same CASE.
+// The status an Announce boosts, as one column. Modern rows carry it in
+// `originalStatusId`; legacy rows only ever wrote the original's id into
+// `content`, so both forms collapse into one `COALESCE`. Anything that is not
+// an Announce points nowhere, and a NULL pointer joins to no row, which is
+// what makes this equivalent to spelling the two forms out as an `OR` in the
+// join condition, while costing one primary-key probe instead of a `BitmapOr`
+// of two, and keeping the wide `content` text out of the recursion's working
+// table. The Announce literal is inlined rather than bound, so nothing bound
+// sits inside the CASE (statusReadableSql.test.ts pins that).
 const announceOriginalPointer = (table: ChainTable) =>
   sql<
     string | null
@@ -41,8 +46,13 @@ const publicRecipients = (db: Db, statusIdColumn: `${ChainTable}.id`) =>
     .where('recipients.actorId', 'in', PUBLIC_ACTIVITY_RECIPIENTS)
 
 // Whether the Announce chain that starts at the outer status's pointer reaches
-// a publicly readable status that is not an Announce, every hop being
-// addressed to the public collection. UNION (not UNION ALL) ends a cycle.
+// a publicly readable status that is not an Announce. Every hop must itself be
+// addressed to the public collection: an Announce is publicly readable only
+// while the status it boosts still is, and that status belongs to a different
+// actor whose visibility edits never touch this row. UNION (not UNION ALL)
+// ends a cycle: a boost chain that loops back on itself re-derives a row
+// already in the working table and the recursion stops. Remote input can
+// produce one; nothing local does.
 const announceChainReachesPublicNote = (db: Db) =>
   db
     .withRecursive('announce_chain(id, type, originalPointer)', (qc) =>
@@ -78,11 +88,31 @@ const announceChainReachesPublicNote = (db: Db) =>
 
 // "This status is publicly readable", correlated to the `statuses` row of the
 // outer query: addressed to the public collection and, for an Announce, its
-// chain reaches a public status that is not an Announce. The Kysely twin of
-// wherePubliclyReadableStatus (lib/database/sql/utils/publiclyReadableStatus.ts,
-// which explains when to use the correlated form and why it is one recursive
-// branch); publiclyReadableStatusEquivalence.test.ts runs both, and the set
-// form buildPubliclyReadableStatusIdsQuery, over the same rows.
+// chain reaches a public status that is not an Announce.
+//
+// Reach for this form when the number of rows the predicate is evaluated over
+// is bounded, by a LIMIT or by the query's own scope being small. The set form
+// publiclyReadableStatusIds below computes the same answer as a materialised id
+// set, which the planner must finish before a LIMIT sees a single row: on a
+// PostgreSQL 18 seed shaped like production that put the anonymous profile
+// page's 30-row query at 33,308-33,311 buffers for every page size, against
+// 325/476/573 here at limits of 20/30/40. Keep the set form when the predicate
+// has to be evaluated over a large unbounded set anyway (a COUNT cannot
+// amortise the per-Announce recursive CTE the way a LIMIT does; see
+// getActorStatusesCount), or when the query embeds it more than once (see
+// getRebloggedBy). Being unlimited is not by itself disqualifying:
+// getStatusRepliesCount is an unbounded COUNT over one status's replies and
+// measures the same either way.
+//
+// The two disjuncts are not interchangeable with a "check depth 1 first, then
+// recurse" fast path: spelling the common case as its own correlated EXISTS
+// lets PostgreSQL decorrelate it into a hashed SubPlan that scans every
+// non-Announce status in the instance (476 buffers became 11,294, 0.63ms
+// became 82ms on the same seed). The recursive CTE resists that rewrite, which
+// is why this reads as one branch.
+//
+// publiclyReadable.test.ts runs it beside the set form over the same rows, and
+// statusReadableSql.test.ts pins its compiled SQL.
 export const publiclyReadableStatus = (
   db: Db,
   eb: ExpressionBuilder<DB, 'statuses'>
@@ -106,13 +136,10 @@ const publicRecipientStatusIds = (db: Db) =>
 /**
  * The ids among `targetStatusIds` (a query selecting one `id` column) that
  * are publicly readable, as a set: one recursive CTE seeded with the whole
- * target set walks every Announce chain at once. The Kysely twin of the set
- * form buildPubliclyReadableStatusIdsQuery (lib/database/sql/status.ts), with
- * the same CTE (`publicly_readable_statuses`), the same `'Announce'` literal
- * inlined in the chain pointer, one pointer equality per hop and `UNION`; it
- * has no MySQL branch. publiclyReadableStatusEquivalence.test.ts runs it
- * beside the correlated forms over the same rows, and statusReadableSql.test.ts
- * pins its compiled SQL.
+ * target set walks every Announce chain at once, with the `'Announce'`
+ * literal inlined in the chain pointer, one pointer equality per hop and
+ * `UNION`. publiclyReadable.test.ts runs it beside the correlated form over
+ * the same rows, and statusReadableSql.test.ts pins its compiled SQL.
  *
  * Use it where the correlated publiclyReadableStatus would be evaluated over a
  * large set or more than once per row (getRebloggedBy embeds it twice, and

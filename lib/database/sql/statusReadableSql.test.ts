@@ -1,4 +1,4 @@
-import knex, { Knex } from 'knex'
+import knex from 'knex'
 
 import { kyselyFor } from '@/lib/database/kysely'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
@@ -11,131 +11,14 @@ import {
   primaryActorId,
   replyAuthorId
 } from '@/lib/database/sql/statusTestHelpers'
-import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-import { buildPubliclyReadableStatusIdsQuery } from './status'
-
 describe('StatusDatabase readable status SQL', () => {
   describe('public readable status SQL', () => {
-    const createTargetStatusIds = (database: Knex) =>
-      database('statuses')
-        .select('statuses.id')
-        .where('statuses.actorId', primaryActorId)
-
-    it('seeds recursive public readability from the caller target set', async () => {
-      const sqliteDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sql = buildPubliclyReadableStatusIdsQuery({
-        database: sqliteDatabase,
-        targetStatusIds: createTargetStatusIds(sqliteDatabase)
-      })
-        .toSQL()
-        .sql.toLowerCase()
-
-      expect(sql).toContain('with recursive')
-      expect(sql).toContain('actorid')
-      expect(sql.indexOf('actorid')).toBeLessThan(sql.indexOf('union'))
-
-      await sqliteDatabase.destroy()
-    })
-
-    it.each([['pg'], ['better-sqlite3']])(
-      'inlines the Announce literal into the %s chain pointer',
-      async (client) => {
-        // knex emits a UNION'd CTE term's FROM bindings before its select-list
-        // bindings, so a bound `?` in the chain-pointer CASE would swap with
-        // the caller's target-set value: the CASE would compare the status type
-        // against the target actor id and the target set would filter on
-        // 'Announce'. Both queries still run, both return nothing useful.
-        const targetActorId = 'https://llun.test/users/binding-order'
-        const database = knex({ client, useNullAsDefault: true })
-        const sql = buildPubliclyReadableStatusIdsQuery({
-          database,
-          targetStatusIds: database('statuses')
-            .select('statuses.id')
-            .where('statuses.actorId', targetActorId)
-        }).toString()
-
-        expect(sql).toContain("= 'Announce' then coalesce(")
-        expect(sql).toContain(`= '${targetActorId}'`)
-        expect(sql).not.toContain(`= '${targetActorId}' then coalesce(`)
-
-        await database.destroy()
-      }
-    )
-
-    it.each([['pg'], ['better-sqlite3']])(
-      'follows the %s announce chain through one pointer equality',
-      async (client) => {
-        // The chain used to be joined with `originalStatusId = id OR
-        // (originalStatusId IS NULL AND content = id)`, which costs a BitmapOr
-        // of two primary-key probes per row and drags the wide `content` text
-        // through the recursion's working table.
-        const database = knex({ client, useNullAsDefault: true })
-        const sql = buildPubliclyReadableStatusIdsQuery({
-          database,
-          targetStatusIds: database('statuses')
-            .select('statuses.id')
-            .where('statuses.actorId', 'https://llun.test/users/chain')
-        })
-          .toString()
-          .replace(/[`"]/g, '')
-
-        expect(sql).toContain(
-          'on readable_statuses.originalPointer = original_statuses.id'
-        )
-        expect(sql).not.toContain('originalStatusId is null and')
-
-        await database.destroy()
-      }
-    )
-
-    it('does not use recursive CTEs for MySQL-compatible public readability SQL', async () => {
-      const mysqlDatabase = knex({ client: 'mysql2' })
-      const sql = buildPubliclyReadableStatusIdsQuery({
-        database: mysqlDatabase,
-        targetStatusIds: createTargetStatusIds(mysqlDatabase)
-      })
-        .toSQL()
-        .sql.toLowerCase()
-
-      expect(sql).not.toContain('with recursive')
-      expect(sql).toContain('actorid')
-
-      await mysqlDatabase.destroy()
-    })
-
-    it('resolves the MySQL announce chain through the same pointer expression', async () => {
-      // MySQL has no CI coverage, so the only thing keeping this branch from
-      // drifting away from the recursive one is that both build the chain
-      // pointer from `announceOriginalPointer`.
-      const mysqlDatabase = knex({ client: 'mysql2' })
-      const sql = buildPubliclyReadableStatusIdsQuery({
-        database: mysqlDatabase,
-        targetStatusIds: createTargetStatusIds(mysqlDatabase)
-      })
-        .toString()
-        .replace(/[`"]/g, '')
-
-      expect(sql).toContain(
-        "original_statuses.id = case when target_statuses.type = 'Announce' " +
-          'then coalesce(target_statuses.originalStatusId, target_statuses.content) end'
-      )
-      expect(sql).not.toContain('originalStatusId is null and')
-
-      await mysqlDatabase.destroy()
-    })
-
     it('stores reply hashes for created replies', async () => {
       const knexDatabase = knex({
         client: 'better-sqlite3',
@@ -422,7 +305,7 @@ describe('StatusDatabase readable status SQL', () => {
       // the filter was the readable-ids subquery (whose `type` was the resolved
       // original's, a different row again) and still holds now that
       // `getStatusRepliesCount` uses the correlated
-      // `wherePubliclyReadableStatus`. `createAnnounce` always writes
+      // `publiclyReadableStatus`. `createAnnounce` always writes
       // `reply: ''`, so no number anyone can observe moves if that filter
       // goes — only a hand-written row pins the invariant.
       const knexDatabase = knex({
@@ -495,7 +378,7 @@ describe('StatusDatabase readable status SQL', () => {
     })
   })
 
-  describe('publiclyReadableStatus (Kysely twin) SQL', () => {
+  describe('publiclyReadableStatus SQL', () => {
     // Compiles only: neither instance connects.
     const compile = async (client: 'pg' | 'better-sqlite3') => {
       const database = knex({ client, useNullAsDefault: true, connection: {} })
@@ -514,8 +397,8 @@ describe('StatusDatabase readable status SQL', () => {
     it.each([['pg' as const], ['better-sqlite3' as const]])(
       'inlines the Announce literal into the %s chain pointer',
       async (client) => {
-        // The Knex form inlines it to dodge a binding-order bug; the twin does
-        // the same, so both build one CASE and nothing bound sits inside it.
+        // Inlined, so nothing bound sits inside the CASE: a bound value there
+        // could swap places with another binding of the recursive term.
         const { sql, parameters } = await compile(client)
 
         expect(sql).toContain(`= 'Announce' then coalesce(`)
@@ -552,7 +435,7 @@ describe('StatusDatabase readable status SQL', () => {
     )
   })
 
-  describe('publiclyReadableStatusIds (Kysely twin of the set form) SQL', () => {
+  describe('publiclyReadableStatusIds (the set form) SQL', () => {
     const targetActorId = 'https://llun.test/users/set-twin'
 
     // Compiles only: neither instance connects.
@@ -604,6 +487,11 @@ describe('StatusDatabase readable status SQL', () => {
         expect(unquoted).toContain(
           'from (select statuses.id from statuses where statuses.actorId = '
         )
+        // The caller's target set seeds the recursion: it is read in the
+        // first term, before the union that follows the chain.
+        expect(unquoted.indexOf('statuses.actorId')).toBeLessThan(
+          unquoted.indexOf(' union ')
+        )
         expect(unquoted).toContain(
           'inner join statuses as target_statuses on target_statuses.id = target_status_ids.id'
         )
@@ -625,41 +513,28 @@ describe('StatusDatabase readable status SQL', () => {
   describe('potentially readable status SQL', () => {
     it('quotes camelCase identifiers in PostgreSQL follower audience checks', async () => {
       // Compiles only: the instance never connects. getStatusesByIds and the
-      // feeds filter through the Kysely twin; the Knex form is the reference
-      // visibilityEquivalence.test.ts holds the twin to.
+      // feeds filter through this predicate.
       const postgresDatabase = knex({ client: 'pg', connection: {} })
       try {
         const db = kyselyFor(postgresDatabase)
-        const { sql: twinSql } = db
+        const { sql } = db
           .selectFrom('statuses')
           .selectAll()
           .where('id', 'in', [`${primaryActorId}/statuses/postgres-readable`])
           .where((eb) => potentiallyReadableStatus(db, eb, replyAuthorId))
           .compile()
-        const { sql: knexSql } = applyPotentiallyReadableStatusFilter({
-          database: postgresDatabase,
-          query: postgresDatabase('statuses').whereIn('id', [
-            `${primaryActorId}/statuses/postgres-readable`
-          ]),
-          visibleToActorId: replyAuthorId
-        }).toSQL()
 
-        for (const sql of [twinSql, knexSql]) {
-          expect(sql).toContain(
-            '"followers_recipients"."statusId" = "statuses"."id"'
-          )
-          expect(sql).toContain(
-            '"follows"."targetActorId" = "statuses"."actorId"'
-          )
-          expect(sql).toContain(
-            '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
-          )
-        }
-        expect(twinSql).toContain(
-          '"followers_recipients"."actorId" = "status_actors"."settings"::jsonb ->> \'followersUrl\''
+        expect(sql).toContain(
+          '"followers_recipients"."statusId" = "statuses"."id"'
         )
-        expect(knexSql).toContain(
-          '"followers_recipients"."actorId" = status_actors.settings::jsonb ->> \'followersUrl\''
+        expect(sql).toContain(
+          '"follows"."targetActorId" = "statuses"."actorId"'
+        )
+        expect(sql).toContain(
+          '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
+        )
+        expect(sql).toContain(
+          '"followers_recipients"."actorId" = "status_actors"."settings"::jsonb ->> \'followersUrl\''
         )
       } finally {
         await postgresDatabase.destroy()

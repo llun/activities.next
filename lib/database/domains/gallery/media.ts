@@ -41,13 +41,12 @@ import {
 } from '@/lib/database/domains/media/rows'
 import type { Media } from '@/lib/database/domains/media/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import {
   galleryMediaIdRef,
   galleryMediaScope,
   postedGalleryAttachment
 } from '@/lib/database/kysely/visibility/galleryMedia'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import type { MediaPlacePrecision } from '@/lib/types/database/gallery'
 import type { Attachment } from '@/lib/types/domain/attachment'

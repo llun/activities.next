@@ -16,10 +16,9 @@ import type {
 import type { DB, Db } from '@/lib/database/kysely'
 import type { Notifications } from '@/lib/database/kysely/db'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
 import { toEpochMilliseconds } from '@/lib/database/kysely/normalize'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 const NOTIFICATION_GROUP_MAX_ROWS = 1000

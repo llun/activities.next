@@ -1054,9 +1054,9 @@ null }` remains the precise "this retirement never happened" — it reopens the
   grouped query; the component one puts the install window in the JOIN condition
   (not the WHERE clause) so a component with no matching activity still returns
   a row and counts 0. The window compares `activityStartTime` column-to-column
-  against the bounds, which is safe because knex writes all three in the same
-  representation per backend — never add raw date arithmetic there without an
-  `isSQLiteClient` branch. The component query additionally joins
+  against the bounds, which is safe because all three are written in the same
+  representation per backend — never add raw date arithmetic there without a
+  dialect helper in `lib/database/kysely/dialect.ts`. The component query additionally joins
   `fitness_gear_component_periods` and carries `p.id IS NOT NULL` in the file
   join: a component with no period row is a shape nothing creates, but without
   that clause BOTH window tests read as TRUE against the missing row's NULLs and

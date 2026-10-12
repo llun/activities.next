@@ -2072,3 +2072,494 @@ describe('getRebloggedBy', () => {
     expect(hydrationCalls).toEqual([])
   })
 })
+
+// The driver edge cases #2381 listed as behaviour changes of the Kysely port,
+// pinned as they are now. No caller produces them: the keys are typed as
+// strings, and every caller passes an integer limit and offset.
+describe('driver edge cases', () => {
+  const missing = undefined as unknown as string
+
+  // A public Note with a tag, a poll vote, a pin, a like, a boost and a legacy
+  // boost, all by one actor: each read below finds a row when both of its keys
+  // are given.
+  const setupKeyedRows = async () => {
+    const prefix = nextPrefix()
+    const actor = await seedActor(actorIn('a.test', `${prefix}-actor`), 'key')
+    const status = await seedStatus({
+      id: `${actor}/statuses/1`,
+      actorId: actor,
+      urlHash: `${prefix}-hash`
+    })
+    const boost = await seedStatus({
+      id: `${actor}/statuses/boost`,
+      actorId: actor,
+      type: StatusType.enum.Announce,
+      originalStatusId: status,
+      content: status,
+      createdAt: BASE + 1000
+    })
+    await seedStatus({
+      id: `${actor}/statuses/legacy`,
+      actorId: actor,
+      type: StatusType.enum.Announce,
+      content: status,
+      createdAt: BASE + 2000
+    })
+    await db
+      .insertInto('tags')
+      .values({
+        id: randomUUID(),
+        statusId: status,
+        type: 'hashtag',
+        name: `#${prefix}`,
+        nameNormalized: `#${prefix}`,
+        value: '',
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      .execute()
+    await db
+      .insertInto('poll_answers')
+      .values({ statusId: status, actorId: actor, choice: 1 })
+      .execute()
+    await db
+      .insertInto('status_pins')
+      .values({
+        actorId: actor,
+        statusId: status,
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      .execute()
+    await db
+      .insertInto('likes')
+      .values({
+        statusId: status,
+        actorId: actor,
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      .execute()
+    return { prefix, actor, status, boost }
+  }
+
+  type KeyedRows = Awaited<ReturnType<typeof setupKeyedRows>>
+
+  // An `undefined` key reaches the database, which matches no row with it,
+  // where Knex threw "Undefined binding(s) detected".
+  it.each<[string, (rows: KeyedRows) => Promise<unknown>, unknown]>([
+    [
+      'unpinStatus without an actorId',
+      ({ status }) => unpinStatus(db, { actorId: missing, statusId: status }),
+      undefined
+    ],
+    [
+      'unpinStatus without a statusId',
+      ({ actor }) => unpinStatus(db, { actorId: actor, statusId: missing }),
+      undefined
+    ],
+    [
+      'hasActorVoted without a statusId',
+      ({ actor }) => hasActorVoted(db, { statusId: missing, actorId: actor }),
+      false
+    ],
+    [
+      'hasActorVoted without an actorId',
+      ({ status }) => hasActorVoted(db, { statusId: status, actorId: missing }),
+      false
+    ],
+    [
+      'getActorPollVotes without a statusId',
+      ({ actor }) =>
+        getActorPollVotes(db, { statusId: missing, actorId: actor }),
+      []
+    ],
+    [
+      'getActorPollVotes without an actorId',
+      ({ status }) =>
+        getActorPollVotes(db, { statusId: status, actorId: missing }),
+      []
+    ],
+    [
+      'getPinnedStatusIds without an actorId',
+      () => getPinnedStatusIds(db, { actorId: missing }),
+      []
+    ],
+    [
+      'getPinnedStatusIds with status ids and without an actorId',
+      ({ status }) =>
+        getPinnedStatusIds(db, { actorId: missing, statusIds: [status] }),
+      []
+    ],
+    [
+      'getFavouritedBy without a statusId',
+      () => getFavouritedBy(db, { statusId: missing, limit: 40 }),
+      []
+    ],
+    [
+      'getRebloggedBy without a statusId',
+      () => getRebloggedBy(db, { statusId: missing, limit: 40 }),
+      []
+    ],
+    [
+      'getTags without a statusId',
+      () => getTags(db, { statusId: missing }),
+      []
+    ],
+    [
+      'getActorPollVotesForStatuses without an actorId',
+      ({ status }) =>
+        getActorPollVotesForStatuses(db, {
+          statusIds: [status],
+          actorId: missing
+        }),
+      'every requested id with no votes'
+    ],
+    [
+      'getStatusFromUrlHash without a urlHash',
+      ({ actor }) =>
+        getStatusFromUrlHash(db, hydration, {
+          urlHash: missing,
+          actorId: actor
+        }),
+      null
+    ],
+    [
+      'getActorAnnouncedStatusId without an actorId',
+      ({ status }) =>
+        getActorAnnouncedStatusId(db, {
+          actorId: missing,
+          originalStatusId: status
+        }),
+      null
+    ],
+    [
+      'getActorAnnouncedStatusId without an originalStatusId',
+      ({ actor }) =>
+        getActorAnnouncedStatusId(db, {
+          actorId: actor,
+          originalStatusId: missing
+        }),
+      null
+    ],
+    [
+      'getActorAnnounceStatus without a statusId',
+      ({ actor }) =>
+        getActorAnnounceStatus(db, hydration, {
+          actorId: actor,
+          statusId: missing
+        }),
+      null
+    ]
+  ])('%s matches nothing', async (_name, run, expected) => {
+    const rows = await setupKeyedRows()
+
+    const { result, statements } = await capture(() => run(rows))
+    expect(result).toEqual(
+      expected === 'every requested id with no votes'
+        ? { [rows.status]: [] }
+        : expected
+    )
+    expect(statements).toHaveLength(1)
+    expect(hydrationCalls).toEqual([])
+    // unpinStatus deleted nothing.
+    await expect(
+      getPinnedStatusIds(db, { actorId: rows.actor })
+    ).resolves.toEqual([rows.status])
+  })
+
+  it('reads the other ids beside an undefined or null one in statusIds', async () => {
+    const { actor, status } = await setupKeyedRows()
+
+    for (const [key, absent] of [
+      ['undefined', missing],
+      ['null', null as unknown as string]
+    ] as const) {
+      await expect(
+        getActorPollVotesForStatuses(db, {
+          statusIds: [status, absent],
+          actorId: actor
+        })
+      ).resolves.toEqual({ [status]: [1], [key]: [] })
+      await expect(
+        getPinnedStatusIds(db, { actorId: actor, statusIds: [status, absent] })
+      ).resolves.toEqual([status])
+    }
+  })
+
+  // Two of each row the paged reads list, so a limit of 1 and no limit differ.
+  const setupPagedRows = async () => {
+    const prefix = nextPrefix()
+    const author = actorIn('a.test', `${prefix}-author`)
+    const status = await seedStatus({
+      id: `${author}/statuses/1`,
+      actorId: author
+    })
+    const tagged = [
+      await seedStatus({ id: `${author}/statuses/old`, actorId: author }),
+      await seedStatus({
+        id: `${author}/statuses/new`,
+        actorId: author,
+        createdAt: BASE + 1000
+      })
+    ]
+    for (const statusId of tagged) {
+      await db
+        .insertInto('tags')
+        .values({
+          id: randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: `#${prefix}`,
+          nameNormalized: `#${prefix}`,
+          value: '',
+          createdAt: new Date(BASE),
+          updatedAt: new Date(BASE)
+        })
+        .execute()
+    }
+    for (const index of [1, 2]) {
+      const fan = actorIn('b.test', `${prefix}-fan${index}`)
+      await db
+        .insertInto('likes')
+        .values({
+          statusId: status,
+          actorId: fan,
+          createdAt: new Date(BASE + index),
+          updatedAt: new Date(BASE + index)
+        })
+        .execute()
+      await seedStatus({
+        id: `${fan}/statuses/boost`,
+        actorId: fan,
+        type: StatusType.enum.Announce,
+        originalStatusId: status,
+        content: status,
+        createdAt: BASE + index
+      })
+    }
+    return { tag: prefix, status }
+  }
+
+  type PagedRows = Awaited<ReturnType<typeof setupPagedRows>>
+  type PagedRead = (rows: PagedRows, value: number) => Promise<string[]>
+
+  const pagedReads: Record<string, PagedRead> = {
+    "getFavouritedBy's limit": async ({ status }, limit) =>
+      (await getFavouritedBy(db, { statusId: status, limit })).map(
+        (row) => row.actorId
+      ),
+    "getRebloggedBy's limit": async ({ status }, limit) =>
+      (await getRebloggedBy(db, { statusId: status, limit })).map(
+        (row) => row.statusId
+      ),
+    "getStatusesByHashtag's limit": async ({ tag }, limit) =>
+      (await getStatusesByHashtag(db, hydration, { hashtag: tag, limit })).map(
+        (status) => status.id
+      ),
+    "getHashtagStatusesPage's limit": async ({ tag }, limit) =>
+      (
+        await getHashtagStatusesPage(db, hydration, {
+          hashtag: tag,
+          limit,
+          offset: 0
+        })
+      ).statuses.map((status) => status.id),
+    "getHashtagStatusesPage's offset": async ({ tag }, offset) =>
+      (
+        await getHashtagStatusesPage(db, hydration, {
+          hashtag: tag,
+          limit: 40,
+          offset
+        })
+      ).statuses.map((status) => status.id)
+  }
+
+  // What each read answers for a limit or offset no caller passes: every row
+  // (no limit or offset), or the database's refusal.
+  const EVERY_ROW = 'every row'
+  const NOT_AN_INTEGER = {
+    sqlite: /datatype mismatch/,
+    pg: /invalid input syntax for type bigint/
+  }
+  const NEGATIVE = (clause: 'LIMIT' | 'OFFSET') => ({
+    sqlite: EVERY_ROW,
+    pg: new RegExp(`${clause} must not be negative`)
+  })
+  const ABSENT = { sqlite: /datatype mismatch/, pg: EVERY_ROW }
+  const IGNORED = { sqlite: EVERY_ROW, pg: EVERY_ROW }
+  type Outcome = { sqlite: string | RegExp; pg: string | RegExp }
+
+  it.each<[string, string, number, Outcome]>([
+    ...Object.keys(pagedReads).flatMap((read) =>
+      (
+        [
+          ['2.5', 2.5],
+          ['NaN', NaN],
+          ['Infinity', Infinity]
+        ] as const
+      ).map(([label, value]): [string, string, number, Outcome] => [
+        read,
+        label,
+        value,
+        NOT_AN_INTEGER
+      ])
+    ),
+    ["getFavouritedBy's limit", '-1', -1, NEGATIVE('LIMIT')],
+    ["getRebloggedBy's limit", '-1', -1, NEGATIVE('LIMIT')],
+    ["getStatusesByHashtag's limit", '-1', -1, NEGATIVE('LIMIT')],
+    ["getHashtagStatusesPage's limit", '-1', -1, NEGATIVE('LIMIT')],
+    ["getHashtagStatusesPage's offset", '-1', -1, NEGATIVE('OFFSET')],
+    ["getFavouritedBy's limit", 'undefined', missing as never, ABSENT],
+    ["getFavouritedBy's limit", 'null', null as never, ABSENT],
+    ["getRebloggedBy's limit", 'undefined', missing as never, IGNORED],
+    ["getRebloggedBy's limit", 'null', null as never, IGNORED],
+    // An undefined limit takes the default page size.
+    ["getStatusesByHashtag's limit", 'undefined', missing as never, IGNORED],
+    ["getStatusesByHashtag's limit", 'null', null as never, ABSENT],
+    ["getHashtagStatusesPage's limit", 'undefined', missing as never, ABSENT],
+    ["getHashtagStatusesPage's limit", 'null', null as never, ABSENT],
+    ["getHashtagStatusesPage's offset", 'undefined', missing as never, ABSENT],
+    ["getHashtagStatusesPage's offset", 'null', null as never, ABSENT]
+  ])('%s of %s', async (read, _label, value, outcome) => {
+    const rows = await setupPagedRows()
+    const run = pagedReads[read]
+    const everyRow = await run(rows, read.endsWith('offset') ? 0 : 40)
+    expect(everyRow).toHaveLength(2)
+    // A limit of 1 or an offset of 1 reads one row, so EVERY_ROW below is not
+    // what any integer would also give.
+    await expect(run(rows, 1)).resolves.toHaveLength(1)
+
+    const expected = outcome[testDb.backend]
+    if (expected === EVERY_ROW) {
+      await expect(run(rows, value)).resolves.toEqual(everyRow)
+    } else {
+      await expect(run(rows, value)).rejects.toThrow(expected)
+    }
+  })
+
+  it('answers a tag that normalizes to nothing with the empty page for any limit or offset', async () => {
+    for (const value of [2.5, NaN, Infinity, -1, missing, null, 1]) {
+      const number = value as number
+      await expect(
+        getStatusesByHashtag(db, hydration, { hashtag: '#', limit: number })
+      ).resolves.toEqual([])
+      await expect(
+        getHashtagStatusesPage(db, hydration, {
+          hashtag: '#',
+          limit: number,
+          offset: 0
+        })
+      ).resolves.toEqual({ statuses: [], total: 0 })
+      await expect(
+        getHashtagStatusesPage(db, hydration, {
+          hashtag: '#',
+          limit: 5,
+          offset: number
+        })
+      ).resolves.toEqual({ statuses: [], total: 0 })
+    }
+    expect(hydrationCalls).toEqual([])
+  })
+
+  it.runIf(testDb.backend === 'sqlite')(
+    'reads an empty page past a cursor whose createdAt is an empty string',
+    async () => {
+      const prefix = nextPrefix()
+      const author = actorIn('a.test', `${prefix}-author`)
+      const target = await seedStatus({
+        id: `${author}/statuses/target`,
+        actorId: author
+      })
+      const tagged: string[] = []
+      const boosts: string[] = []
+      for (const [index, name] of ['old', 'cursor', 'new'].entries()) {
+        tagged.push(
+          await seedStatus({
+            id: `${author}/statuses/${name}`,
+            actorId: author,
+            createdAt: BASE + index * 1000
+          })
+        )
+        await db
+          .insertInto('tags')
+          .values({
+            id: randomUUID(),
+            statusId: tagged[index],
+            type: 'hashtag',
+            name: `#${prefix}`,
+            nameNormalized: `#${prefix}`,
+            value: '',
+            createdAt: new Date(BASE),
+            updatedAt: new Date(BASE)
+          })
+          .execute()
+        const booster = actorIn('b.test', `${prefix}-${name}`)
+        boosts.push(
+          await seedStatus({
+            id: `${booster}/statuses/boost`,
+            actorId: booster,
+            type: StatusType.enum.Announce,
+            originalStatusId: target,
+            content: target,
+            createdAt: BASE + index * 1000
+          })
+        )
+      }
+      const [oldNote, cursorNote, newNote] = tagged
+      const [oldBoost, cursorBoost, newBoost] = boosts
+      const byTag = async (cursor: 'maxStatusId' | 'minStatusId') =>
+        (
+          await getStatusesByHashtag(db, hydration, {
+            hashtag: prefix,
+            [cursor]: cursorNote
+          })
+        ).map((status) => status.id)
+      const reblogs = async (
+        cursor: 'maxStatusId' | 'minStatusId' | 'sinceStatusId'
+      ) =>
+        (
+          await getRebloggedBy(db, {
+            statusId: target,
+            limit: 40,
+            [cursor]: cursorBoost
+          })
+        ).map((row) => row.statusId)
+
+      // Dated, the cursors page to their neighbours.
+      await expect(byTag('maxStatusId')).resolves.toEqual([oldNote])
+      await expect(byTag('minStatusId')).resolves.toEqual([newNote])
+      await expect(reblogs('maxStatusId')).resolves.toEqual([oldBoost])
+      await expect(reblogs('minStatusId')).resolves.toEqual([newBoost])
+      await expect(reblogs('sinceStatusId')).resolves.toEqual([newBoost])
+
+      // An empty-string createdAt reads as an invalid date, which binds as
+      // NULL: every page past it is empty.
+      await sql`update statuses set "createdAt" = '' where id in (${cursorNote}, ${cursorBoost})`.execute(
+        db
+      )
+      await expect(byTag('maxStatusId')).resolves.toEqual([])
+      await expect(byTag('minStatusId')).resolves.toEqual([])
+      await expect(reblogs('maxStatusId')).resolves.toEqual([])
+      await expect(reblogs('minStatusId')).resolves.toEqual([])
+      await expect(reblogs('sinceStatusId')).resolves.toEqual([])
+    }
+  )
+
+  it.runIf(testDb.backend === 'pg')(
+    'getHashtagCounter refuses a counter above 2^53 - 1',
+    async () => {
+      const prefix = nextPrefix()
+      await sql`insert into counters (id, value) values (${CounterKey.totalHashtag(`${prefix}max`)}, 9007199254740991), (${CounterKey.totalHashtag(`${prefix}over`)}, 9007199254740993)`.execute(
+        db
+      )
+
+      await expect(
+        getHashtagCounter(db, { hashtag: `${prefix}max` })
+      ).resolves.toBe(Number.MAX_SAFE_INTEGER)
+      await expect(
+        getHashtagCounter(db, { hashtag: `${prefix}over` })
+      ).rejects.toThrow(RangeError)
+    }
+  )
+})

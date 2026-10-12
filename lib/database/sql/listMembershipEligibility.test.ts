@@ -1,7 +1,8 @@
+import { kyselyFor } from '@/lib/database/kysely'
 import { decreaseCounterValue } from '@/lib/database/kysely/counter'
+import { getDialectName } from '@/lib/database/kysely/dialect'
 import { selectFollowTargetActorIds } from '@/lib/database/kysely/visibility/followTarget'
 import { createLocalAccount } from '@/lib/database/sql/listTestHelpers'
-import { isSQLiteClient } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -809,7 +810,7 @@ describe('addListAccounts with requireFollowOrRequest', () => {
   // True once another connection is stuck: on PostgreSQL a backend waiting on
   // a row lock, on SQLite a caller queued for its single connection.
   const isAnotherConnectionWaiting = async () => {
-    if (isSQLiteClient(instance)) {
+    if (getDialectName(kyselyFor(instance)) === 'sqlite') {
       return instance.client.pool.numPendingAcquires() > 0
     }
     const { rows } = await instance.raw<{ rows: { waiting: number }[] }>(

@@ -47,7 +47,6 @@ const { batchCap } = vi.hoisted(() => ({ batchCap: { value: 0 } }))
 vi.mock('@/lib/database/kysely/inList', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/database/kysely/inList')>()
-  const { chunkArray } = await import('@/lib/database/sql/utils/knex')
   const getWhereInBatchSize: typeof original.getWhereInBatchSize = (
     db,
     reservedBindings = 0,
@@ -68,7 +67,7 @@ vi.mock('@/lib/database/kysely/inList', async (importOriginal) => {
       reservedBindings = 0
     ) => {
       const rows: Row[] = []
-      for (const chunk of chunkArray(
+      for (const chunk of original.chunkArray(
         values,
         getWhereInBatchSize(db, reservedBindings)
       )) {

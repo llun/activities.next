@@ -38,8 +38,7 @@ import type {
 } from '@/lib/database/domains/gallery/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { forUpdate } from '@/lib/database/kysely/dialect'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import {
   DEFAULT_GALLERY_SETTINGS,
   GalleryGear,

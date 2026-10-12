@@ -6,6 +6,7 @@ import type {
 } from '@/lib/database/domains/collection/types'
 import type { Db } from '@/lib/database/kysely'
 import {
+  chunkArray,
   getWhereInBatchSize,
   insertInChunks
 } from '@/lib/database/kysely/inList'
@@ -13,7 +14,6 @@ import { withoutBlockedOrMutedAuthors } from '@/lib/database/kysely/visibility/b
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { publiclyReadableStatus } from '@/lib/database/kysely/visibility/publiclyReadable'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import {
   COLLECTION_FEED_MAX_ROWS,
   COLLECTION_FEED_TRIM_SLACK

@@ -1,6 +1,5 @@
+import { chunkArray } from '@/lib/database/kysely/inList'
 import { toPublicIdLookupKey } from '@/lib/utils/publicId'
-
-import { chunkArray } from './knex'
 
 interface PublicIdRow {
   id: string
