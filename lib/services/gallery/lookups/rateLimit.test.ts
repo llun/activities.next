@@ -76,6 +76,29 @@ describe('createLimiter', () => {
     await expect(Promise.all(accepted)).resolves.toEqual([1, 2])
   })
 
+  it('does not reject an idle call because the clock ticked while it arrived', async () => {
+    const limit = createLimiter({
+      maxConcurrent: 1,
+      minIntervalMs: 60_000,
+      maxWaitMs: 0,
+      maxQueue: 0
+    })
+    // The deadline is read at T, the start check a millisecond later.
+    const t0 = Date.now()
+    const reads = vi.spyOn(Date, 'now')
+    reads.mockReturnValueOnce(t0).mockReturnValue(t0 + 1)
+
+    const first = vi.fn(async () => 'first')
+    await expect(limit(first)).resolves.toBe('first')
+
+    // The first call booked its interval, so the second is the one rejected.
+    const second = vi.fn(async () => 'second')
+    await expect(limit(second)).rejects.toBeInstanceOf(LookupRateLimitedError)
+    expect(second).not.toHaveBeenCalled()
+
+    reads.mockRestore()
+  })
+
   // The race the limiter used to lose: slots were booked on arrival, so calls
   // that slept past their slot behind a slow call all started back to back
   // once it finished. As configured for Nominatim.
