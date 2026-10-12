@@ -5,7 +5,7 @@
  * `createdAt` across ALL of the actor's `statuses` rows (including `Announce`
  * reblogs) so the serialized `last_status_at` stays identical to the previous
  * aggregation. It is maintained inside the status create/delete transactions
- * (see `lib/database/sql/status.ts`) and read by `lib/database/sql/actor.ts`.
+ * (see `lib/database/domains/status/writes.ts`) and read by `lib/database/domains/actor/mastodon.ts`.
  *
  * The `(domain, lastStatusAt)` index serves the directory `active` query, which
  * filters by `domain` and orders by `lastStatusAt`.

@@ -9,7 +9,7 @@
 import crypto from 'node:crypto'
 import { z } from 'zod'
 
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
 import {
   OAuthGuardAnyScope,

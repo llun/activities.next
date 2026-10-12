@@ -27,11 +27,11 @@ import { type Db, inTransaction } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { findActorRowByUsername } from '@/lib/database/kysely/usernameMatch'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import {
   resolveIdsByPublicIds,
   resolvePublicIdsByIds
-} from '@/lib/database/sql/utils/publicIdLookup'
+} from '@/lib/database/utils/publicIdLookup'
 import {
   DEFAULT_NOTIFICATION_POLICY,
   type NotificationPolicy

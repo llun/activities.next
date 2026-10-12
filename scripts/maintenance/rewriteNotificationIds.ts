@@ -39,7 +39,7 @@ import { loadEnvConfig } from '@next/env'
 import knex from 'knex'
 
 import { getDatabaseConfig } from '@/lib/config/database'
-import { rewriteNotificationIds } from '@/lib/database/sql/notificationIdRewrite.js'
+import { rewriteNotificationIds } from '@/lib/database/domains/notification/notificationIdRewrite.js'
 
 import { printDatabaseBanner } from '../fitness/describeConnection'
 import { parseArgs } from './backfillPublicIds'

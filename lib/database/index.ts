@@ -2,8 +2,8 @@ import knex, { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { getKyselyDialectName } from '@/lib/database/kysely/driver'
-import { getSQLDatabase } from '@/lib/database/sql'
 import {
   getTraceparentCommentSuffix,
   markSqlcommenterAttached

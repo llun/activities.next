@@ -1,10 +1,10 @@
-import { rewriteNotificationIds } from '../lib/database/sql/notificationIdRewrite.js'
+import { rewriteNotificationIds } from '../lib/database/domains/notification/notificationIdRewrite.js'
 
 /**
  * Rewrites every notification id that is not already a UUIDv7 into a UUIDv7
  * minted from that row's `createdAt`, and repoints the notifications read
  * marker (`markers.lastReadId`) at the rewritten id. The walk itself lives in
- * lib/database/sql/notificationIdRewrite.js, shared with the post-rollout
+ * lib/database/domains/notification/notificationIdRewrite.js, shared with the post-rollout
  * script scripts/maintenance/rewriteNotificationIds.ts.
  *
  * WHY. Mastodon notification ids are time-ordered snowflakes, and clients sort

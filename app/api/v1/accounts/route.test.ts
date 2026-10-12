@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 
 import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentials/route'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { Database } from '@/lib/database/types'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'

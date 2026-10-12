@@ -16,7 +16,7 @@
  * that is decided at read time by the gallery scope.
  *
  * Both foreign keys cascade, but SQLite runs without foreign keys, so
- * `lib/database/sql/galleryAlbums.ts` and the media delete paths remove items
+ * `lib/database/domains/gallery/albums.ts` and the media delete paths remove items
  * and null covers themselves.
  *
  * @param { import("knex").Knex } knex

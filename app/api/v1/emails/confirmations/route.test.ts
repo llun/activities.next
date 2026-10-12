@@ -2,7 +2,7 @@ import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
-import { getSQLDatabase } from '@/lib/database/sql'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { Database } from '@/lib/database/types'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'

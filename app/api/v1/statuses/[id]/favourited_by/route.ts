@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
+import { encodeFavouritedByCursor } from '@/lib/database/domains/status/favouritedByCursor'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { buildAccountCursorLinkHeader } from '@/lib/services/mastodon/accountCursorLinkHeader'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'

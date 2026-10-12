@@ -31,8 +31,8 @@ import { getBucketStats } from '@/lib/database/kysely/counterBucket'
 import type { Actors, DomainFederationRules } from '@/lib/database/kysely/db'
 import { insertInChunks, selectInChunks } from '@/lib/database/kysely/inList'
 import { toEpochMilliseconds } from '@/lib/database/kysely/normalize'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
+import { CounterKey } from '@/lib/database/utils/counter'
+import { toDomainAccount } from '@/lib/database/utils/toDomainAccount'
 import {
   DEFAULT_DOMAIN_BLOCK_SEVERITY,
   normalizeDomain

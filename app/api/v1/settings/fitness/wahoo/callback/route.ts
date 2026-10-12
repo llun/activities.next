@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   WAHOO_OAUTH_SCOPES,

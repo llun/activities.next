@@ -18,7 +18,7 @@ import {
 } from '@/lib/database/kysely/counter'
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
 import type { EpochMs, FitnessFiles } from '@/lib/database/kysely/db'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import type {
   FitnessFile,
   FitnessImportStatus,

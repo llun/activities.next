@@ -4,10 +4,12 @@ import {
   type StatusSearchRow,
   indexStatusSearchDocument
 } from '@/lib/database/domains/search/statuses'
+import { recoverFromDuplicateInsert } from '@/lib/database/domains/status/recoverFromDuplicateInsert'
 import {
   getOriginalStatusIdFromAnnounceContent,
   getStatusActorProfile
 } from '@/lib/database/domains/status/rows'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import type {
   CreateAnnounceParams,
   CreateNoteParams,
@@ -19,9 +21,7 @@ import { type Db, inTransaction } from '@/lib/database/kysely'
 import { increaseCounterValue } from '@/lib/database/kysely/counter'
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { recoverFromDuplicateInsert } from '@/lib/database/sql/utils/recoverFromDuplicateInsert'
-import { isPubliclyAddressed } from '@/lib/database/sql/utils/status'
+import { CounterKey } from '@/lib/database/utils/counter'
 import {
   type Status,
   StatusAnnounce,

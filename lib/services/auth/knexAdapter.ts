@@ -6,10 +6,10 @@ import {
 } from 'better-auth/adapters'
 import { Knex } from 'knex'
 
+import { deleteSessionsWithTokenDetach } from '@/lib/database/domains/account/detachOAuthTokensFromSessions'
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
 import { kyselyFor } from '@/lib/database/kysely'
-import { deleteSessionsWithTokenDetach } from '@/lib/database/sql/utils/detachOAuthTokensFromSessions'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 const escapeLikeValue = (value: unknown): string => {

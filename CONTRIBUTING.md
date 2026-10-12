@@ -293,16 +293,16 @@ TEST_DATABASE_PORT=5432 \
 TEST_DATABASE_USERNAME=activities \
 TEST_DATABASE_PASSWORD=activities \
 yarn test --maxWorkers=2 \
-  lib/database/sql/media.test.ts \
-  lib/database/sql/mediaAccountListing.test.ts \
-  lib/database/sql/mediaMutations.test.ts \
-  lib/database/sql/mediaDetails.test.ts \
-  lib/database/sql/gallery.test.ts \
-  lib/database/sql/galleryMedia.test.ts \
-  lib/database/sql/galleryAlbums.test.ts \
-  lib/database/sql/galleryAlbumsVisibility.test.ts \
-  lib/database/sql/galleryAlbumQueries.test.ts \
-  lib/database/sql/galleryAlbumSuggestions.test.ts \
+  lib/database/domains/media/media.test.ts \
+  lib/database/domains/media/mediaAccountListing.test.ts \
+  lib/database/domains/media/mediaMutations.test.ts \
+  lib/database/domains/media/mediaDetails.test.ts \
+  lib/database/domains/gallery/gallery.test.ts \
+  lib/database/domains/gallery/galleryMedia.test.ts \
+  lib/database/domains/gallery/galleryAlbums.test.ts \
+  lib/database/domains/gallery/galleryAlbumsVisibility.test.ts \
+  lib/database/domains/gallery/galleryAlbumQueries.test.ts \
+  lib/database/domains/gallery/galleryAlbumSuggestions.test.ts \
   lib/services/gallery/galleryQueries.test.ts \
   lib/services/gallery/galleryAlbumQueries.test.ts \
   lib/services/gallery/galleryAlbumVisitor.test.ts \
@@ -310,22 +310,22 @@ yarn test --maxWorkers=2 \
   lib/services/gallery/galleryGear.test.ts \
   lib/services/gallery/subjectHashtags.test.ts \
   lib/services/gallery/uploadMediaDetails.test.ts \
-  lib/database/sql/galleryLookupCache.test.ts \
-  lib/database/sql/fitnessFile.test.ts \
-  lib/database/sql/fitnessFileActivityStats.test.ts \
-  lib/database/sql/fitnessFileOverviewWindows.test.ts \
-  lib/database/sql/fitnessGear.test.ts \
-  lib/database/sql/fitnessGearComponents.test.ts \
-  lib/database/sql/fitnessGearDevice.test.ts \
-  lib/database/sql/fitnessGearComponentPeriods.test.ts \
-  lib/database/sql/fitnessRouteHeatmapTile.test.ts \
-  lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
-  lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
-  lib/database/sql/queueJob.test.ts \
-  lib/database/sql/statusDeletionQueue.test.ts \
-  lib/database/sql/stravaArchiveImport.test.ts \
-  lib/database/sql/list.test.ts \
-  lib/database/sql/listMembershipEligibility.test.ts
+  lib/database/domains/gallery/galleryLookupCache.test.ts \
+  lib/database/domains/fitnessFile/fitnessFile.test.ts \
+  lib/database/domains/fitnessFile/fitnessFileActivityStats.test.ts \
+  lib/database/domains/fitnessFile/fitnessFileOverviewWindows.test.ts \
+  lib/database/domains/fitnessGear/fitnessGear.test.ts \
+  lib/database/domains/fitnessGear/fitnessGearComponents.test.ts \
+  lib/database/domains/fitnessGear/fitnessGearDevice.test.ts \
+  lib/database/domains/fitnessGear/fitnessGearComponentPeriods.test.ts \
+  lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTile.test.ts \
+  lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaim.test.ts \
+  lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaimRace.test.ts \
+  lib/database/domains/queueJob/queueJob.test.ts \
+  lib/database/domains/status/statusDeletionQueue.test.ts \
+  lib/database/domains/stravaArchiveImport/stravaArchiveImport.test.ts \
+  lib/database/domains/list/list.test.ts \
+  lib/database/domains/list/listMembershipEligibility.test.ts
 ```
 
 3. When finished, stop the container:

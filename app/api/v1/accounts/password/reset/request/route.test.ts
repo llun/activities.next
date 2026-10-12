@@ -117,7 +117,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
   // The endpoint is public: without a cooldown anyone can mail-bomb an
   // address and keep rotating the code, invalidating every link the owner
   // was sent. The database applies the cooldown atomically (pinned in
-  // lib/database/sql/account.test.ts); the route must ask for it and, when no
+  // lib/database/domains/account/account.test.ts); the route must ask for it and, when no
   // code is issued, send nothing while answering exactly as it always does.
   it('sends no email and answers the generic success inside the cooldown', async () => {
     mockDb.requestPasswordReset.mockResolvedValue(false)

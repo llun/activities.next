@@ -21,7 +21,7 @@
  * `fitness_files.deviceGearId` is a plain indexed column with no database-level
  * foreign key, for the same reason `gearId` beside it has none: adding an FK
  * through `alterTable` requires a table rebuild on SQLite, which no migration in
- * this repo does. Ownership is enforced in `lib/database/sql/fitnessGear.ts`,
+ * this repo does. Ownership is enforced in `lib/database/domains/fitnessGear/`,
  * and deleting gear detaches the column in the same transaction.
  *
  * @param { import("knex").Knex } knex

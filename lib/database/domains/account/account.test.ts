@@ -1,0 +1,1014 @@
+import crypto from 'crypto'
+import knex from 'knex'
+
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import {
+  TestDatabaseTable,
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  getAccountProviders,
+  linkAccountWithProvider
+} from '@/lib/database/testing/fixtures'
+import { Database } from '@/lib/database/types'
+import {
+  TEST_DOMAIN,
+  TEST_EMAIL2,
+  TEST_PASSWORD_HASH,
+  TEST_USERNAME2
+} from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { logger } from '@/lib/utils/logger'
+import { isPublicId } from '@/lib/utils/publicId'
+
+describe('AccountDatabase', () => {
+  const { actors } = DatabaseSeed
+  const table: TestDatabaseTable = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  afterAll(async () => {
+    await Promise.all(table.map((item) => item[1].destroy()))
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    const createTestAccount = async ({
+      verificationCode
+    }: { verificationCode?: string } = {}) => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const username = `user-${suffix}`
+      const email = `${username}@${TEST_DOMAIN}`
+      const accountId = await database.createAccount({
+        email,
+        username,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: TEST_DOMAIN,
+        privateKey: `privateKey-${suffix}`,
+        publicKey: `publicKey-${suffix}`,
+        verificationCode
+      })
+
+      return { accountId, username, email }
+    }
+
+    beforeAll(async () => {
+      await seedDatabase(database as Database)
+    })
+
+    it('returns false when account is not created yet', async () => {
+      const uncreatedEmail = `not-created-${crypto.randomUUID()}@${TEST_DOMAIN}`
+      const uncreatedUsername = `not-created-${crypto.randomUUID().slice(0, 8)}`
+      expect(
+        await database.isAccountExists({ email: uncreatedEmail })
+      ).toBeFalse()
+      expect(
+        await database.isUsernameExists({
+          username: uncreatedUsername,
+          domain: TEST_DOMAIN
+        })
+      ).toBeFalse()
+    })
+
+    it('creates account and actor', async () => {
+      await database.createAccount({
+        email: TEST_EMAIL2,
+        username: TEST_USERNAME2,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: TEST_DOMAIN,
+        privateKey: 'privateKey2',
+        publicKey: 'publicKey2'
+      })
+      const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`
+      const actor = await database.getMastodonActorFromId({ id: actorId })
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actorId]
+      })
+
+      expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeTrue()
+      expect(
+        await database.isUsernameExists({
+          username: TEST_USERNAME2,
+          domain: TEST_DOMAIN
+        })
+      ).toBeTrue()
+      expect(actor).toMatchObject({
+        id: publicIds.get(actorId),
+        username: TEST_USERNAME2,
+        acct: TEST_USERNAME2,
+        url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`,
+        display_name: '',
+        note: '',
+        avatar: '',
+        avatar_static: '',
+        header: '',
+        header_static: '',
+        locked: true,
+        fields: [],
+        emojis: [],
+        bot: false,
+        group: false,
+        discoverable: true,
+        noindex: false,
+        created_at: expect.toBeString(),
+        last_status_at: null,
+        statuses_count: 0,
+        followers_count: 0,
+        following_count: 0
+      })
+    })
+
+    it('returns actor from getActor methods', async () => {
+      const actor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      expect(actor).toMatchObject({
+        id: expect.toBeString(),
+        username: seedActor1.username,
+        domain: seedActor1.domain,
+        account: {
+          id: expect.toBeString(),
+          email: seedActor1.email
+        },
+        followersUrl: expect.toBeString(),
+        publicKey: expect.toBeString(),
+        privateKey: expect.toBeString()
+      })
+    })
+
+    it('returns actor from getMastodonActor methods', async () => {
+      const actor = await database.getMastodonActorFromId({
+        id: actors.primary.id
+      })
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [actors.primary.id]
+      })
+      expect(actor).toMatchObject({
+        id: publicIds.get(actors.primary.id),
+        username: actors.primary.username,
+        acct: `${actors.primary.username}@${actors.primary.domain}`,
+        url: `https://${actors.primary.domain}/users/${actors.primary.username}`,
+        display_name: '',
+        note: '',
+        avatar: '',
+        avatar_static: '',
+        header: '',
+        header_static: '',
+        locked: true,
+        fields: [],
+        emojis: [],
+        bot: false
+      })
+    })
+
+    describe('accounts', () => {
+      it('returns account from getAccountFromId', async () => {
+        const { accountId, email } = await createTestAccount()
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          email,
+          verifiedAt: expect.toBeNumber()
+        })
+      })
+
+      it('rotates the verification code in the same write as the email', async () => {
+        // The security-critical half of the re-point fix, and the only place
+        // it is exercised against a real database: the confirmations route
+        // test mocks `repointUnconfirmedAccountEmail` entirely, so it can only prove the
+        // route ASKS for rotation, never that the write performs it. Dropping
+        // the parameter in the mixin left that whole suite green.
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
+        const newEmail = `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`
+        const rotated = `rotated-${crypto.randomUUID()}`
+
+        await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: newEmail,
+          verificationCode: rotated
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          email: newEmail,
+          verificationCode: rotated
+        })
+
+        // The superseded code must no longer resolve: `verifyAccount` matches
+        // on the code alone, so a code that outlived the address it was mailed
+        // to would confirm the new address on the strength of the old one.
+        expect(await database.verifyAccount({ verificationCode })).toBeNull()
+        expect(
+          await database.verifyAccount({ verificationCode: rotated })
+        ).toMatchObject({ id: accountId })
+      })
+
+      it('leaves an already-confirmed account untouched', async () => {
+        // An account that is already confirmed (or has no outstanding code) is
+        // not pending, so the UPDATE predicate in repointUnconfirmedAccountEmail
+        // matches 0 rows and leaves the row untouched.
+        const { accountId, email: originalEmail } = await createTestAccount()
+        const before = await database.getAccountFromId({ id: accountId })
+        expect(before?.emailVerified).toBeTrue()
+
+        const newEmail = `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`
+        const result = await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: newEmail,
+          verificationCode: `code-${crypto.randomUUID()}`
+        })
+
+        // Re-read returns the unchanged confirmed account so the caller
+        // distinguishes it from a missing account.
+        expect(result).toMatchObject({
+          id: accountId,
+          email: originalEmail,
+          emailVerified: true
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(originalEmail)
+        expect(account?.emailVerified).toBeTrue()
+      })
+
+      it('returns null when repointing a non-existent account', async () => {
+        const result = await database.repointUnconfirmedAccountEmail({
+          accountId: 'non-existent-account-id',
+          email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          verificationCode: `code-${crypto.randomUUID()}`
+        })
+        expect(result).toBeNull()
+      })
+
+      it('restores all verification proofs when a repointed address is confirmed', async () => {
+        const initialCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({
+          verificationCode: initialCode
+        })
+        const rotatedCode = `code-${crypto.randomUUID()}`
+        const repointed = await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          verificationCode: rotatedCode
+        })
+
+        expect(repointed?.emailVerified).toBeFalse()
+        expect(repointed?.verifiedAt).toBeNil()
+        expect(repointed?.emailVerifiedAt).toBeNil()
+
+        const confirmed = await database.verifyAccount({
+          verificationCode: rotatedCode
+        })
+        expect(confirmed).toMatchObject({
+          id: accountId,
+          verificationCode: '',
+          verifiedAt: expect.toBeNumber(),
+          emailVerified: true,
+          emailVerifiedAt: expect.toBeNumber()
+        })
+      })
+
+      it('leaves verifiedAt null while a confirmation is outstanding', async () => {
+        // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP
+        // (20230824181927_add_accounts_verification), so omitting the column —
+        // which is what createAccount used to do for a pending registration —
+        // silently produced a verified-looking account and made
+        // canCreateSessionForAccount's verifiedAt test a permanent no-op. The
+        // insert writes an explicit null for that reason.
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({ id: accountId, verificationCode })
+        expect(account?.verifiedAt).toBeNil()
+      })
+
+      it('verifies account with verification code', async () => {
+        const verificationCode = `verify-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
+
+        const verified = await database.verifyAccount({ verificationCode })
+        expect(verified).toMatchObject({
+          id: accountId,
+          verificationCode: '',
+          verifiedAt: expect.toBeNumber(),
+          emailVerified: true,
+          emailVerifiedAt: expect.toBeNumber()
+        })
+
+        const invalid = await database.verifyAccount({
+          verificationCode: 'missing-code'
+        })
+        expect(invalid).toBeNull()
+
+        const empty = await database.verifyAccount({
+          verificationCode: ''
+        })
+        expect(empty).toBeNull()
+      })
+
+      it('updates the account email', async () => {
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
+        const newEmail = `updated-${crypto.randomUUID()}@${TEST_DOMAIN}`
+        const rotatedCode = `rotated-${crypto.randomUUID()}`
+
+        const repointed = await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: newEmail,
+          verificationCode: rotatedCode
+        })
+
+        expect(repointed).toMatchObject({
+          id: accountId,
+          email: newEmail,
+          verificationCode: rotatedCode
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({ id: accountId, email: newEmail })
+      })
+
+      it('creates and consumes password reset codes', async () => {
+        const { accountId, email } = await createTestAccount()
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+        const token = `session-${crypto.randomUUID()}`
+
+        await database.createAccountSession({
+          accountId,
+          token,
+          expireAt: Date.now() + 60_000
+        })
+
+        const requested = await database.requestPasswordReset({
+          email,
+          passwordResetCode
+        })
+
+        expect(requested).toBeTrue()
+
+        const accountWithResetCode = await database.getAccountFromId({
+          id: accountId
+        })
+        expect(accountWithResetCode).toMatchObject({
+          id: accountId,
+          passwordResetCode,
+          passwordResetCodeExpiresAt: expect.toBeNumber()
+        })
+        expect(
+          await database.validatePasswordResetCode({ passwordResetCode })
+        ).toBe(accountId)
+
+        const resetResult = await database.resetPasswordWithCode({
+          passwordResetCode,
+          newPasswordHash: 'new_password_hash'
+        })
+        expect(resetResult).toMatchObject({
+          id: accountId,
+          passwordHash: 'new_password_hash',
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
+
+        const reused = await database.resetPasswordWithCode({
+          passwordResetCode,
+          newPasswordHash: 'another_password_hash'
+        })
+        expect(reused).toBeNull()
+      })
+
+      it('does not reissue a password reset code inside the cooldown', async () => {
+        const { accountId, email } = await createTestAccount()
+        const cooldownMs = 5 * 60 * 1000
+
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'first-code',
+            cooldownMs
+          })
+        ).toBeTrue()
+
+        // A second request moments later neither rotates the code nor reports
+        // that it did, so the route sends no second email.
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'second-code',
+            cooldownMs
+          })
+        ).toBeFalse()
+        expect(
+          await database.getAccountFromId({ id: accountId })
+        ).toMatchObject({ passwordResetCode: 'first-code' })
+
+        // Once the outstanding code was issued longer ago than the cooldown
+        // (its expiry sits more than TTL - cooldown away), a new one is issued.
+        const dayMs = 24 * 60 * 60 * 1000
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: 'first-code',
+          expiresAt: Date.now() + dayMs - cooldownMs - 60_000
+        })
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'third-code',
+            cooldownMs
+          })
+        ).toBeTrue()
+        expect(
+          await database.getAccountFromId({ id: accountId })
+        ).toMatchObject({ passwordResetCode: 'third-code' })
+      })
+
+      it('returns false when requesting password reset for unknown email', async () => {
+        const requested = await database.requestPasswordReset({
+          email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          passwordResetCode: `reset-${crypto.randomUUID()}`
+        })
+        expect(requested).toBeFalse()
+      })
+
+      it('clears password reset code when null code is provided', async () => {
+        const { accountId, email } = await createTestAccount()
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: `reset-${crypto.randomUUID()}`
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: null,
+          expiresAt: null
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+      })
+
+      it('invalidates previous password reset code when a new one is issued', async () => {
+        const { accountId, email } = await createTestAccount()
+        const firstCode = `reset-${crypto.randomUUID()}`
+        const secondCode = `reset-${crypto.randomUUID()}`
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: firstCode
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: secondCode
+        })
+
+        const firstAttempt = await database.resetPasswordWithCode({
+          passwordResetCode: firstCode,
+          newPasswordHash: 'hash_should_not_apply'
+        })
+        expect(firstAttempt).toBeNull()
+
+        const secondAttempt = await database.resetPasswordWithCode({
+          passwordResetCode: secondCode,
+          newPasswordHash: 'hash_should_apply'
+        })
+        expect(secondAttempt).toMatchObject({
+          id: accountId,
+          passwordHash: 'hash_should_apply'
+        })
+      })
+
+      it('rejects expired password reset codes', async () => {
+        const { email } = await createTestAccount()
+        const expiredCode = `reset-${crypto.randomUUID()}`
+
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: expiredCode,
+          expiresAt: Date.now() - 1_000
+        })
+
+        const accountId = await database.validatePasswordResetCode({
+          passwordResetCode: expiredCode
+        })
+        expect(accountId).toBeNull()
+
+        const resetResult = await database.resetPasswordWithCode({
+          passwordResetCode: expiredCode,
+          newPasswordHash: 'should_not_apply'
+        })
+        expect(resetResult).toBeNull()
+      })
+
+      it('changePassword clears reset code and invalidates sessions', async () => {
+        const { accountId, email } = await createTestAccount()
+        const token = `session-${crypto.randomUUID()}`
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        await database.createAccountSession({
+          accountId,
+          token,
+          expireAt: Date.now() + 60_000
+        })
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode
+        })
+
+        await database.changePassword({
+          accountId,
+          newPasswordHash: 'updated_hash'
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({
+          id: accountId,
+          passwordHash: 'updated_hash',
+          passwordResetCode: null,
+          passwordResetCodeExpiresAt: null
+        })
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
+      })
+
+      it('stores account email lowercased even when created with mixed case', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `mixed-${suffix}`
+        const mixedEmail = `Mixed.${suffix}@${TEST_DOMAIN}`
+        const accountId = await database.createAccount({
+          email: mixedEmail,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(mixedEmail.toLowerCase())
+      })
+
+      it.each<{ description: string; casing: (email: string) => string }>([
+        { description: 'the exact lowercase form', casing: (email) => email },
+        {
+          description: 'an uppercase form',
+          casing: (email) => email.toUpperCase()
+        },
+        {
+          description: 'a mixed-case form',
+          casing: (email) =>
+            email
+              .split('')
+              .map((c, i) => (i % 2 === 0 ? c.toUpperCase() : c))
+              .join('')
+        },
+        {
+          description: 'a form with surrounding whitespace',
+          casing: (email) => `  ${email.toUpperCase()}  `
+        }
+      ])(
+        'looks up an account case-insensitively by $description',
+        async ({ casing }) => {
+          const { accountId, email } = await createTestAccount()
+
+          expect(
+            await database.isAccountExists({ email: casing(email) })
+          ).toBeTrue()
+          const found = await database.getAccountFromEmail({
+            email: casing(email)
+          })
+          expect(found?.id).toEqual(accountId)
+        }
+      )
+
+      it('normalizes the pending email on request and promotes it lowercased on verify', async () => {
+        const { accountId } = await createTestAccount()
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const newEmail = `New.${suffix}@${TEST_DOMAIN}`
+        const emailChangeCode = `change-${crypto.randomUUID()}`
+
+        await database.requestEmailChange({
+          accountId,
+          newEmail,
+          emailChangeCode
+        })
+
+        const pending = await database.getAccountFromId({ id: accountId })
+        expect(pending?.emailChangePending).toEqual(newEmail.toLowerCase())
+
+        const updated = await database.verifyEmailChange({
+          accountId,
+          emailChangeCode
+        })
+        expect(updated?.email).toEqual(newEmail.toLowerCase())
+        // The promoted address is now resolvable regardless of casing.
+        const found = await database.getAccountFromEmail({
+          email: newEmail.toUpperCase()
+        })
+        expect(found?.id).toEqual(accountId)
+      })
+
+      it('stores a lowercased email when repointUnconfirmedAccountEmail is given mixed case', async () => {
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const newEmail = `Updated.${suffix}@${TEST_DOMAIN}`
+        const rotatedCode = `rotated-${crypto.randomUUID()}`
+
+        const repointed = await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: newEmail,
+          verificationCode: rotatedCode
+        })
+
+        expect(repointed?.email).toEqual(newEmail.toLowerCase())
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(newEmail.toLowerCase())
+      })
+
+      it('finds the account for a password reset regardless of the requested casing', async () => {
+        const { accountId, email } = await createTestAccount()
+        const passwordResetCode = `reset-${crypto.randomUUID()}`
+
+        const requested = await database.requestPasswordReset({
+          email: email.toUpperCase(),
+          passwordResetCode
+        })
+
+        expect(requested).toBeTrue()
+        expect(
+          await database.validatePasswordResetCode({ passwordResetCode })
+        ).toBe(accountId)
+      })
+
+      it('rejects an email-change verification when the pending address was claimed by another account', async () => {
+        const { accountId } = await createTestAccount()
+        const { email: takenEmail } = await createTestAccount()
+        const emailChangeCode = `change-${crypto.randomUUID()}`
+
+        // Account requests a change to an address that another account then
+        // ends up owning (here it already exists, simulating the race).
+        await database.requestEmailChange({
+          accountId,
+          newEmail: takenEmail.toUpperCase(),
+          emailChangeCode
+        })
+
+        const result = await database.verifyEmailChange({
+          accountId,
+          emailChangeCode
+        })
+
+        // Gracefully rejected rather than throwing the unique-constraint 500.
+        expect(result).toBeNull()
+        // The original account keeps its own email (no partial promotion).
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).not.toEqual(takenEmail)
+      })
+    })
+
+    describe('getActorsForAccount', () => {
+      it('surfaces moderation state on the returned actors', async () => {
+        const { accountId, username } = await createTestAccount()
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await database.setActorSuspended({ actorId, suspended: true })
+        await database.setActorSilenced({ actorId, silenced: true })
+        await database.setActorSensitized({ actorId, sensitized: true })
+
+        const [actor] = await database.getActorsForAccount({ accountId })
+
+        // The cookie/session actor path must carry moderation state so the
+        // OAuthGuard suspend check and the sensitized-forces-sensitive rule fire
+        // for browser sessions, not only bearer tokens.
+        expect(actor.suspendedAt).toBeTruthy()
+        expect(actor.silencedAt).toBeTruthy()
+        expect(actor.sensitizedAt).toBeTruthy()
+      })
+
+      it('returns actors with a v7 publicId threaded from the row', async () => {
+        const { accountId } = await createTestAccount()
+
+        const [actor] = await database.getActorsForAccount({ accountId })
+
+        expect(actor.publicId).toBeTruthy()
+        expect(isPublicId(actor.publicId as string)).toBe(true)
+      })
+    })
+
+    describe('account sessions', () => {
+      it('creates and lists account sessions', async () => {
+        const { accountId } = await createTestAccount()
+        const token = `token-${crypto.randomUUID()}`
+        const expireAt = Date.now() + 60_000
+
+        await database.createAccountSession({ accountId, token, expireAt })
+
+        const sessions = await database.getAccountAllSessions({ accountId })
+        expect(sessions).toHaveLength(1)
+        expect(sessions[0]).toMatchObject({ token, expireAt })
+      })
+
+      // The sessions page revokes by row id so the token (the cookie
+      // credential) never reaches the browser. The id is not a secret, so the
+      // delete itself must refuse a session another account owns.
+      it('deletes a session by id only when the account owns it', async () => {
+        const { accountId } = await createTestAccount()
+        const other = await createTestAccount()
+        const expireAt = Date.now() + 60_000
+        const ownToken = `own-${crypto.randomUUID()}`
+        const otherToken = `other-${crypto.randomUUID()}`
+        await database.createAccountSession({
+          accountId,
+          token: ownToken,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId: other.accountId,
+          token: otherToken,
+          expireAt
+        })
+        const [ownSession] = await database.getAccountAllSessions({
+          accountId
+        })
+        const [otherSession] = await database.getAccountAllSessions({
+          accountId: other.accountId
+        })
+        expect(ownSession.id).toBeString()
+        expect(ownSession.id).not.toBe(ownToken)
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: otherSession.id
+          })
+        ).toBe(0)
+        expect(
+          (
+            await database.getAccountAllSessions({
+              accountId: other.accountId
+            })
+          ).map((session) => session.id)
+        ).toEqual([otherSession.id])
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: ownSession.id
+          })
+        ).toBe(1)
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
+      })
+
+      it('revokes every session except the kept one and leaves other accounts untouched', async () => {
+        const { accountId } = await createTestAccount()
+        const other = await createTestAccount()
+        const expireAt = Date.now() + 60_000
+        const keepToken = `keep-${crypto.randomUUID()}`
+        const otherToken = `other-acct-${crypto.randomUUID()}`
+        await database.createAccountSession({
+          accountId,
+          token: keepToken,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId,
+          token: `revoke-a-${crypto.randomUUID()}`,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId,
+          token: `revoke-b-${crypto.randomUUID()}`,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId: other.accountId,
+          token: otherToken,
+          expireAt
+        })
+
+        const revoked = await database.deleteOtherAccountSessions({
+          accountId,
+          exceptToken: keepToken
+        })
+        expect(revoked).toBe(2)
+
+        const remaining = await database.getAccountAllSessions({ accountId })
+        expect(remaining).toHaveLength(1)
+        expect(remaining[0].token).toBe(keepToken)
+
+        // The other account's session must survive.
+        const otherSessions = await database.getAccountAllSessions({
+          accountId: other.accountId
+        })
+        expect(otherSessions.map((session) => session.token)).toContain(
+          otherToken
+        )
+      })
+
+      it('records login counters once per account per UTC week', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+
+        const getLoginTotal = async () => {
+          const row = await knexDatabase('counters')
+            .where('id', 'like', 'bucket:logins:%')
+            .sum<{ total: number | string | null }>('value as total')
+            .first()
+          return Number(row?.total ?? 0)
+        }
+
+        try {
+          await sqlDatabase.migrate()
+
+          vi.useFakeTimers()
+          vi.setSystemTime(new Date('2026-01-08T10:00:00.000Z'))
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `login-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `login-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-login-key',
+            publicKey: 'public-login-key'
+          })
+
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: 'login-week-one-a',
+            expireAt: Date.now() + 60_000
+          })
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: 'login-week-one-b',
+            expireAt: Date.now() + 120_000
+          })
+
+          vi.setSystemTime(new Date('2026-01-13T10:00:00.000Z'))
+          await sqlDatabase.createAccountSession({
+            accountId,
+            token: 'login-week-two',
+            expireAt: Date.now() + 60_000
+          })
+
+          const markerRows = await knexDatabase('counters')
+            .where('id', `unique-login:${accountId}`)
+            .orderBy('id', 'asc')
+            .select('id', 'value')
+
+          expect(await getLoginTotal()).toBe(2)
+          expect(markerRows).toEqual([
+            {
+              id: `unique-login:${accountId}`,
+              value: Math.floor(Date.UTC(2026, 0, 12) / 1000)
+            }
+          ])
+        } finally {
+          vi.useRealTimers()
+          await knexDatabase.destroy()
+        }
+      })
+
+      it('creates account sessions when login counter recording fails', async () => {
+        const knexDatabase = knex({
+          client: 'better-sqlite3',
+          useNullAsDefault: true,
+          connection: {
+            filename: ':memory:'
+          }
+        })
+        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const errorSpy = vi
+          .spyOn(logger, 'error')
+          .mockImplementation(() => undefined)
+
+        try {
+          await sqlDatabase.migrate()
+
+          const accountId = await sqlDatabase.createAccount({
+            email: `login-failure-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+            username: `login-failure-${crypto.randomUUID().slice(0, 8)}`,
+            passwordHash: TEST_PASSWORD_HASH,
+            domain: TEST_DOMAIN,
+            privateKey: 'private-login-failure-key',
+            publicKey: 'public-login-failure-key'
+          })
+
+          await knexDatabase.schema.dropTable('counters')
+
+          await expect(
+            sqlDatabase.createAccountSession({
+              accountId,
+              token: 'login-counter-failure',
+              expireAt: Date.now() + 60_000
+            })
+          ).resolves.toBeUndefined()
+
+          const session = await knexDatabase('sessions')
+            .where('token', 'login-counter-failure')
+            .first()
+
+          expect(session).toMatchObject({ accountId })
+        } finally {
+          await new Promise((resolve) => setImmediate(resolve))
+          errorSpy.mockRestore()
+          await knexDatabase.destroy()
+        }
+      })
+    })
+  })
+})
+
+describe('unlinkAccountFromProvider', () => {
+  // The suite above has no Kysely handle, so this one owns an isolated
+  // database; it runs on PostgreSQL under TEST_DATABASE_TYPE=pg.
+  const testDb = createTestDatabase({ isolated: true })
+  const { database, db } = testDb
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await testDb.destroy()
+  })
+
+  it('removes a linked provider and ignores a missing link', async () => {
+    const suffix = crypto.randomUUID().slice(0, 8)
+    const accountId = await database.createAccount({
+      email: `unlink-${suffix}@${TEST_DOMAIN}`,
+      username: `unlink-${suffix}`,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+    const otherAccountId = await database.createAccount({
+      email: `unlink-other-${suffix}@${TEST_DOMAIN}`,
+      username: `unlink-other-${suffix}`,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-other-${suffix}`,
+      publicKey: `publicKey-other-${suffix}`
+    })
+    const provider = 'github'
+    const providerAccountId = `gh-${suffix}`
+
+    expect(
+      await linkAccountWithProvider(db, {
+        accountId,
+        provider,
+        providerAccountId
+      })
+    ).toBe(true)
+    // Another account on the same provider must keep its link.
+    expect(
+      await linkAccountWithProvider(db, {
+        accountId: otherAccountId,
+        provider,
+        providerAccountId: `gh-other-${suffix}`
+      })
+    ).toBe(true)
+    // createAccount also writes a `credential` link, so look for ours.
+    expect(await getAccountProviders(db, { accountId })).toContainEqual({
+      provider,
+      providerId: providerAccountId
+    })
+
+    await database.unlinkAccountFromProvider({ accountId, provider })
+    const remaining = await getAccountProviders(db, { accountId })
+    expect(remaining.map((row) => row.provider)).not.toContain(provider)
+    expect(remaining.map((row) => row.provider)).toContain('credential')
+    expect(
+      await getAccountProviders(db, { accountId: otherAccountId })
+    ).toContainEqual({ provider, providerId: `gh-other-${suffix}` })
+
+    // Unlinking a link that does not exist resolves without error (void).
+    await expect(
+      database.unlinkAccountFromProvider({ accountId, provider })
+    ).resolves.toBeUndefined()
+  })
+})

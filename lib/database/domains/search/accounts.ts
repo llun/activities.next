@@ -22,8 +22,8 @@ import type {
   SearchAccountsParams
 } from '@/lib/database/domains/search/types'
 import type { DB, Db } from '@/lib/database/kysely'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,

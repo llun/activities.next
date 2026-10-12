@@ -16,7 +16,7 @@
  * foreign key, for the same reason `fitness_files.gearId` has none: adding an
  * FK through `alterTable` requires a table rebuild on SQLite, which no
  * migration in this repo does. Ownership is enforced in
- * `lib/database/sql/gallery.ts` and the media routes.
+ * `lib/database/domains/gallery/` and the media routes.
  *
  * `gallery_gears` mirrors `fitness_gears`: soft-deleted rows, and
  * `deviceKey` (`camera:<make>|<model>` / `lens:<lensModel>`) as the immutable

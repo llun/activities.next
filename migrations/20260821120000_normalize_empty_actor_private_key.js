@@ -25,7 +25,7 @@
 // remote. This migration makes the stored data say the same thing.
 //
 // The read paths are being fixed in the same change (they now test
-// `IS NOT NULL AND <> ''` through `lib/database/sql/utils/localActor.ts`), so
+// `IS NOT NULL AND <> ''` through `lib/database/kysely/visibility/localActor.ts`), so
 // this migration is not load-bearing for correctness — it is what lets the
 // partial `actors_local_idx` shrink to the actors that are genuinely local, and
 // what keeps a future `IS NOT NULL` written by hand from reintroducing the bug

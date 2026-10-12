@@ -28,7 +28,7 @@ import { selectInChunks } from '@/lib/database/kysely/inList'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 
@@ -255,7 +255,7 @@ export const getHashtagCounter = (
 
 // The hashtag tags of `statusIds`, in no particular order. One value of each
 // statement is the tag type. updateNoteVisibility and the status and actor
-// deletions use it. Its Knex twin in lib/database/sql/utils/status.ts went
+// deletions use it. Its Knex twin in lib/database/domains/status/status.ts went
 // with the Knex status and actor deletions.
 export const selectHashtagTagsByStatusIds = (db: Db, statusIds: string[]) =>
   selectInChunks(

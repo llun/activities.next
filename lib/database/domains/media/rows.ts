@@ -1,13 +1,13 @@
 // Pure helpers for `medias` rows, shared by the Kysely media reads and writes
 // (./queries.ts, ./writes.ts), the photo editor (domains/mediaEdit) and the
-// Knex code that has not moved yet (the gallery mixins in lib/database/sql/,
-// lib/services/gallery/galleryQueries.ts). No database access. The Knex
+// Knex code that has not moved yet
+// (lib/services/gallery/galleryQueries.ts). No database access. The Knex
 // callers hand over Knex rows, so the parsers accept both row shapes: a
 // timestamp as epoch ms, a Date or SQLite text, a JSON column as text or
 // parsed, a boolean as 0/1 or a boolean, an int8 as a string or a number.
 import type { Media } from '@/lib/database/domains/media/types'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import {
   EMPTY_MEDIA_DETAILS,
   IUCN_CATEGORIES,

@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { Database } from '@/lib/database/types'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { DEFAULT_ROLE } from '@/lib/services/accounts/credentialAccount'
 import { isAccountConfirmationPending } from '@/lib/services/guards/accountState'
 import { Mastodon } from '@/lib/types/activitypub'

@@ -13,7 +13,7 @@
  * `actorId` together pin `statusId` in the same predicate.
  *
  * Some paths run migrations with no transaction — `disableTransactions: true`
- * in `lib/database/sql/index.ts`, and `--disable-transactions` on the
+ * in `lib/database/getSQLDatabase.ts`, and `--disable-transactions` on the
  * Dockerfile's build-time `knex migrate:latest` — so this stays a single
  * statement, leaving nothing half-applied to roll back.
  *

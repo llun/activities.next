@@ -5,8 +5,8 @@
 // shapes (a timestamp as epoch ms, a Date or SQLite text; `settings` as JSON
 // text or parsed).
 import { getConfig } from '@/lib/config'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   isFederationSigningActorUsername

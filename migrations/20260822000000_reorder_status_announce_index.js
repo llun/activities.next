@@ -35,7 +35,7 @@
 //
 // Ordered create-then-drop rather than drop-then-create. Some paths run
 // migrations with no transaction — `disableTransactions: true` in
-// `lib/database/sql/index.ts`, and `--disable-transactions` on the Dockerfile's
+// `lib/database/getSQLDatabase.ts`, and `--disable-transactions` on the Dockerfile's
 // build-time `knex migrate:latest` — so a failure between the two statements
 // must not leave the table with no announce index at all. This way it leaves a
 // redundant one instead, which costs space until the migration is re-run and

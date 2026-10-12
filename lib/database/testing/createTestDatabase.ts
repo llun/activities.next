@@ -1,8 +1,8 @@
 import knexFactory, { type Knex } from 'knex'
 import { noop } from 'lodash'
 
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { type Db, kyselyFor } from '@/lib/database/kysely'
-import { getSQLDatabase } from '@/lib/database/sql'
 import {
   TEST_PG_DATABASE,
   getTestPgConnection,

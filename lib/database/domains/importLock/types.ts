@@ -1,5 +1,5 @@
 // Parameter and result types of the import lock domain (fitness import
-// locks). Moved out of lib/database/sql/importLock.ts.
+// locks).
 
 export interface AcquireImportLockParams {
   lockKey: string

@@ -29,7 +29,7 @@ import type {
 } from '@/lib/database/domains/filter/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { selectInChunks } from '@/lib/database/kysely/inList'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import {
   type Filter,
   FilterAction,

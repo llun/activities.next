@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { getMaxTimeOrderedIdForMs } from '@/lib/database/sql/notificationIdRewrite.js'
+import { getMaxTimeOrderedIdForMs } from '@/lib/database/domains/notification/notificationIdRewrite.js'
 import { Database } from '@/lib/database/types'
 import {
   OAuthGuardAnyScope,

@@ -41,7 +41,7 @@ import type { Attachments } from '@/lib/database/kysely/db'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import { selectInChunks } from '@/lib/database/kysely/inList'
 import { actorVisibleStatusIds } from '@/lib/database/kysely/visibility/actorVisible'
-import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 // The media reads. The writes (create, upload verification, updates, the

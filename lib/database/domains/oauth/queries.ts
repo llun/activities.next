@@ -11,7 +11,7 @@ import type {
 } from '@/lib/database/domains/oauth/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { DB } from '@/lib/database/kysely/db'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { ConnectedApp } from '@/lib/types/domain/connected-app'
 import { Client } from '@/lib/types/oauth2/client'
 

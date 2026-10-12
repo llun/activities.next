@@ -5,8 +5,8 @@ import type {
 } from '@/lib/database/domains/instanceActivity/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
-import { parseCounterValue } from '@/lib/database/sql/utils/counter'
-import { formatBucketHour } from '@/lib/database/sql/utils/counterBucket'
+import { parseCounterValue } from '@/lib/database/utils/counter'
+import { formatBucketHour } from '@/lib/database/utils/counterBucket'
 import { logger } from '@/lib/utils/logger'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000

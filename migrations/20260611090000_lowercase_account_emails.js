@@ -29,7 +29,7 @@ const normalizeEmail = (email) => String(email).trim().toLowerCase()
 const CHUNK_SIZE = 500
 
 // Self-contained unique-constraint detection (the migration intentionally does
-// not import app code). Mirrors lib/database/sql/utils/isUniqueConstraintError.
+// not import app code). Mirrors lib/database/utils/isUniqueConstraintError.
 const isUniqueConstraintError = (error) => {
   if (typeof error !== 'object' || error === null) return false
   const { code, errno, message } = error

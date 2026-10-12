@@ -2,9 +2,9 @@ import type { Knex } from 'knex'
 
 import { type Db, inTransaction, kyselyFor } from '@/lib/database/kysely'
 import { inSavepoint } from '@/lib/database/kysely/savepoint'
-import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 
 // A failed statement caught inside a transaction, on SQLite and, under
 // TEST_DATABASE_TYPE=pg, PostgreSQL (which aborts the whole transaction on any
