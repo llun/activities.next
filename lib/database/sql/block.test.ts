@@ -1,7 +1,8 @@
 import crypto from 'crypto'
 import type { Knex } from 'knex'
 
-import { CounterKey, getCounterValue } from '@/lib/database/sql/utils/counter'
+import { getCounterValue } from '@/lib/database/kysely/counter'
+import { CounterKey } from '@/lib/database/sql/utils/counter'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
@@ -48,10 +49,10 @@ describe('BlockDatabase', () => {
       await database.isEitherBlocking({ actorIdA: target, actorIdB: ACTOR1_ID })
     ).toBe(true)
     expect(
-      await getCounterValue(knexDatabase, CounterKey.totalBlocking(ACTOR1_ID))
+      await getCounterValue(testDb.db, CounterKey.totalBlocking(ACTOR1_ID))
     ).toBe(1)
     expect(
-      await getCounterValue(knexDatabase, CounterKey.totalBlockedBy(target))
+      await getCounterValue(testDb.db, CounterKey.totalBlockedBy(target))
     ).toBe(1)
   })
 
@@ -298,16 +299,13 @@ describe('BlockDatabase', () => {
       database.getBlock({ actorId: other, targetActorId: otherTarget })
     ).resolves.toBeNull()
     expect(
-      await getCounterValue(knexDatabase, CounterKey.totalBlocking(other))
+      await getCounterValue(testDb.db, CounterKey.totalBlocking(other))
     ).toBe(0)
     expect(
-      await getCounterValue(
-        knexDatabase,
-        CounterKey.totalBlockedBy(otherTarget)
-      )
+      await getCounterValue(testDb.db, CounterKey.totalBlockedBy(otherTarget))
     ).toBe(0)
     expect(
-      await getCounterValue(knexDatabase, CounterKey.totalBlocking(owner))
+      await getCounterValue(testDb.db, CounterKey.totalBlocking(owner))
     ).toBe(1)
   })
 
@@ -425,7 +423,7 @@ describe('BlockDatabase', () => {
     const sameTarget = await create(otherActorId, target)
     const sameActor = await create(actorId, otherTarget)
     const block = await create(actorId, target)
-    const counter = (key: string) => getCounterValue(knexDatabase, key)
+    const counter = (key: string) => getCounterValue(testDb.db, key)
     expect(await counter(CounterKey.totalBlocking(actorId))).toBe(2)
     expect(await counter(CounterKey.totalBlockedBy(target))).toBe(2)
 
@@ -489,16 +487,13 @@ describe('BlockDatabase', () => {
       kept
     )
     expect(
-      await getCounterValue(knexDatabase, CounterKey.totalBlocking(actorId))
+      await getCounterValue(testDb.db, CounterKey.totalBlocking(actorId))
     ).toBe(1)
     expect(
-      await getCounterValue(knexDatabase, CounterKey.totalBlockedBy(target))
+      await getCounterValue(testDb.db, CounterKey.totalBlockedBy(target))
     ).toBe(0)
     expect(
-      await getCounterValue(
-        knexDatabase,
-        CounterKey.totalBlockedBy(otherTarget)
-      )
+      await getCounterValue(testDb.db, CounterKey.totalBlockedBy(otherTarget))
     ).toBe(1)
   })
 

@@ -6,12 +6,11 @@ import {
   getBucketStats,
   incrementBucket
 } from '@/lib/database/kysely/counterBucket'
-import { incrementBucket as incrementKnexBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 
-// Same contract as the Knex helper in lib/database/sql/utils/counterBucket.ts,
-// checked on SQLite and, under TEST_DATABASE_TYPE=pg, PostgreSQL.
+// The hour-bucket counters, on SQLite and, under TEST_DATABASE_TYPE=pg,
+// PostgreSQL.
 describe('Kysely incrementBucket', () => {
   let database: Database
   let instance: Knex
@@ -105,14 +104,14 @@ describe('Kysely incrementBucket', () => {
     )
   })
 
-  it('shares its bucket rows with the Knex helper', async () => {
+  it('keeps a bucket per counter type', async () => {
     const db = kyselyFor(instance)
     const at = new Date('2026-03-24T14:30:00.000Z')
-    await incrementKnexBucket(instance, 'bucket-interop', 2, at)
-    await incrementBucket(db, 'bucket-interop', 3, at)
-    await incrementKnexBucket(instance, 'bucket-interop', 4, at)
+    await incrementBucket(db, 'bucket-type-a', 1, at)
+    await incrementBucket(db, 'bucket-type-b', 2, at)
 
-    expect((await readRow('bucket:bucket-interop:2026032414'))?.value).toBe(9)
+    expect((await readRow('bucket:bucket-type-a:2026032414'))?.value).toBe(1)
+    expect((await readRow('bucket:bucket-type-b:2026032414'))?.value).toBe(2)
   })
 
   describe('getBucketStats', () => {
@@ -244,20 +243,6 @@ describe('Kysely incrementBucket', () => {
       expect(
         await getBucketStats(db, 'stats-empty', hour(15, 23), hour(15, 0))
       ).toEqual([])
-    })
-
-    it('reads the buckets the Knex helper wrote', async () => {
-      const at = hour(17, 8)
-      await incrementKnexBucket(instance, 'stats-interop', 2, at)
-
-      expect(
-        await getBucketStats(
-          kyselyFor(instance),
-          'stats-interop',
-          hour(17, 0),
-          hour(17, 23)
-        )
-      ).toEqual([{ bucketHour: at.getTime(), value: 2 }])
     })
   })
 })

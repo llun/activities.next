@@ -4,22 +4,19 @@ import { kyselyFor } from '@/lib/database/kysely'
 import {
   adjustCounterValue,
   decreaseCounterValue,
+  deleteCounterValue,
+  deleteCounterValues,
   getCounterValue,
   getCounterValues,
   increaseCounterValue,
   setCounterValue
 } from '@/lib/database/kysely/counter'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import {
-  getCounterValues as getKnexCounterValues,
-  increaseCounterValue as increaseKnexCounterValue,
-  setCounterValue as setKnexCounterValue
-} from '@/lib/database/sql/utils/counter'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 
-// Same contract as the Knex helpers in lib/database/sql/utils/counter.ts,
-// checked on SQLite and, under TEST_DATABASE_TYPE=pg, PostgreSQL.
+// The `counters` helpers, on SQLite and, under TEST_DATABASE_TYPE=pg,
+// PostgreSQL.
 describe('Kysely counter helpers', () => {
   let database: Database
   let instance: Knex
@@ -119,17 +116,19 @@ describe('Kysely counter helpers', () => {
     expect(await getCounterValue(db, 'counter-concurrent')).toBe(20)
   })
 
-  it('shares a counter row with the Knex helpers', async () => {
+  it('adds the size of an amount, whatever its sign', async () => {
     const db = kyselyFor(instance)
-    await increaseKnexCounterValue(instance, 'counter-interop', 2)
-    await increaseCounterValue(db, 'counter-interop', 3)
-    await increaseKnexCounterValue(instance, 'counter-interop', 4)
-    await decreaseCounterValue(db, 'counter-interop', 1)
-    expect(await getCounterValue(db, 'counter-interop')).toBe(8)
-    const row = await instance('counters')
-      .where('id', 'counter-interop')
-      .first('value')
-    expect(Number(row?.value)).toBe(8)
+    await increaseCounterValue(db, 'counter-sign', -2)
+    await decreaseCounterValue(db, 'counter-sign', -1)
+    expect(await getCounterValue(db, 'counter-sign')).toBe(1)
+  })
+
+  it('writes no row for an increase or decrease of zero', async () => {
+    const db = kyselyFor(instance)
+    await increaseCounterValue(db, 'counter-zero-increase', 0)
+    await decreaseCounterValue(db, 'counter-zero-decrease', 0)
+    expect(await readRow('counter-zero-increase')).toBeUndefined()
+    expect(await readRow('counter-zero-decrease')).toBeUndefined()
   })
 
   it('reads the values of the requested counters only', async () => {
@@ -165,17 +164,6 @@ describe('Kysely counter helpers', () => {
     expect(await getCounterValues(db, [])).toEqual({})
   })
 
-  it('reads the same values as the Knex helper', async () => {
-    const db = kyselyFor(instance)
-    const ids = ['counters-same-a', 'counters-same-b', 'counters-same-none']
-    await increaseKnexCounterValue(instance, ids[0], 3)
-    await increaseCounterValue(db, ids[1], 8)
-
-    const values = await getCounterValues(db, ids)
-    expect(values).toEqual({ [ids[0]]: 3, [ids[1]]: 8 })
-    expect(await getKnexCounterValues(instance, ids)).toEqual(values)
-  })
-
   it('sets a missing counter, then overwrites it and moves only updatedAt', async () => {
     const created = new Date('2026-04-01T00:00:00.000Z')
     const updated = new Date('2026-04-02T00:00:00.000Z')
@@ -196,29 +184,41 @@ describe('Kysely counter helpers', () => {
     expect(await getCounterValue(db, 'counter-set-neighbour')).toBe(7)
   })
 
-  it('sets the value the Knex helper sets, clamped and truncated', async () => {
-    const db = kyselyFor(instance)
-    const values = [
-      -5,
-      0,
-      0.5,
-      7.9,
-      Number.MAX_SAFE_INTEGER,
-      Number.MAX_SAFE_INTEGER * 4,
-      Number.NaN,
-      Number.POSITIVE_INFINITY
-    ]
-    for (const [index, value] of values.entries()) {
-      await setCounterValue(db, `counter-set-kysely-${index}`, value)
-      await setKnexCounterValue(instance, `counter-set-knex-${index}`, value)
-      expect(await getCounterValue(db, `counter-set-kysely-${index}`)).toBe(
-        await getCounterValue(db, `counter-set-knex-${index}`)
-      )
+  it.each([
+    { value: -5, stored: 0 },
+    { value: 0, stored: 0 },
+    { value: 0.5, stored: 0 },
+    { value: 7.9, stored: 7 },
+    { value: Number.MAX_SAFE_INTEGER, stored: Number.MAX_SAFE_INTEGER },
+    { value: Number.MAX_SAFE_INTEGER * 4, stored: Number.MAX_SAFE_INTEGER },
+    { value: Number.NaN, stored: 0 },
+    { value: Number.POSITIVE_INFINITY, stored: 0 }
+  ])(
+    'sets $value as $stored, clamped and truncated',
+    async ({ value, stored }) => {
+      const db = kyselyFor(instance)
+      await setCounterValue(db, `counter-set-${value}`, value)
+      expect(await getCounterValue(db, `counter-set-${value}`)).toBe(stored)
     }
-    expect(await getCounterValue(db, 'counter-set-kysely-3')).toBe(7)
-    expect(await getCounterValue(db, 'counter-set-kysely-5')).toBe(
-      Number.MAX_SAFE_INTEGER
-    )
+  )
+
+  it('deletes one counter, and the listed counters in chunks', async () => {
+    const db = kyselyFor(instance)
+    const listed = Array.from({ length: 1001 }, (_, i) => `counter-del-${i}`)
+    for (const id of ['counter-del-one', 'counter-del-kept', ...listed]) {
+      await setCounterValue(db, id, 1)
+    }
+
+    await deleteCounterValue(db, 'counter-del-one')
+    await deleteCounterValue(db, 'counter-del-missing')
+    // More ids than one statement takes on either backend.
+    await deleteCounterValues(db, listed)
+    await deleteCounterValues(db, [])
+
+    expect(await readRow('counter-del-one')).toBeUndefined()
+    expect(await getCounterValues(db, listed.slice(0, 900))).toEqual({})
+    expect(await getCounterValues(db, listed.slice(900))).toEqual({})
+    expect(await getCounterValue(db, 'counter-del-kept')).toBe(1)
   })
 
   it('reads 0 for a missing counter', async () => {
