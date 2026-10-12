@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import knex from 'knex'
 
-import { SESSION_ID_CHUNK_SIZE } from '@/lib/database/domains/account/detachOAuthTokensFromSessions'
+import { SESSION_ID_CHUNK_SIZE } from '@/lib/database/domains/account/sessions'
 import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 

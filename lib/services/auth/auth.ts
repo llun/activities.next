@@ -5,7 +5,7 @@ import { betterAuth } from 'better-auth'
 import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
-import { getDatabase, getKnex } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
@@ -17,7 +17,7 @@ import {
   OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   OAUTH_GRANT_TYPES
 } from './constants'
-import { knexAdapter } from './knexAdapter'
+import { kyselyAdapter } from './kyselyAdapter'
 import { buildTrustedOrigins } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
@@ -26,7 +26,7 @@ export const AUTH_SESSION_COOKIE_NAME = 'session_token'
 const buildAuth = (baseURL: string) => {
   const config = getConfig()
   const database = getDatabase()
-  const db = getKnex()
+  const db = getKysely()
 
   const rpID = new URL(baseURL).hostname
 
@@ -47,7 +47,7 @@ const buildAuth = (baseURL: string) => {
     // 1.7 also made the flag a request rather than an assertion: the factory now
     // falls back to separate queries for an adapter that leaves `join`
     // unanswered, where 1.6.x read the related rows straight off whatever came
-    // back and logged every user out if they were missing. `knexAdapter`
+    // back and logged every user out if they were missing. `kyselyAdapter`
     // implements the join contract either way (see the join helpers there).
     advanced: {
       database: {
@@ -103,7 +103,7 @@ const buildAuth = (baseURL: string) => {
     onAPIError: {
       errorURL: AUTH_ERROR_PATH
     },
-    database: knexAdapter(db, { passkeyRpID: rpID }),
+    database: kyselyAdapter(db, { passkeyRpID: rpID }),
     disabledPaths: ['/token'], // Disable jwt plugin's /api/auth/token;
     // OAuth tokens are issued via oauthProvider. JWKS stays enabled for OAuthGuard.
     plugins: [

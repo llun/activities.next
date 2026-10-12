@@ -1,5 +1,4 @@
 import type { BetterAuthOptions } from '@better-auth/core'
-import type { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
 
@@ -16,13 +15,18 @@ vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://test.example.com'
 }))
 
-vi.mock('@/lib/database', () => ({
-  getKnex: () =>
-    ({
-      client: { config: { client: 'better-sqlite3' } }
-    }) as unknown as Knex,
-  getDatabase: () => null
-}))
+vi.mock('@/lib/database', async () => {
+  const { Kysely, SqliteDialect } = await import('kysely')
+  // Never queried: building the auth instance only reads the dialect.
+  const db = new Kysely<unknown>({
+    dialect: new SqliteDialect({
+      database: async () => {
+        throw new Error('This test does not connect to a database')
+      }
+    })
+  })
+  return { getKysely: () => db, getDatabase: () => null }
+})
 
 describe('better-auth instrumentation configuration', () => {
   beforeEach(() => {

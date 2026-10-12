@@ -254,7 +254,7 @@ if (!parsed.success) {
 ### Better-auth Plugins
 
 - Do **not** register a better-auth plugin unless its required database tables exist in migrations
-- The custom `knexAdapter` does not auto-create tables; missing tables cause runtime errors
+- The custom `kyselyAdapter` does not auto-create tables; missing tables cause runtime errors
 - Admin/dashboard plugins (e.g. `dash()`) must have explicit access control configuration
 
 ## Testing

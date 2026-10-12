@@ -1,87 +1,54 @@
-import knex, { Knex } from 'knex'
+import type { TestDatabase } from '@/lib/database/testing/createTestDatabase'
 
-import { knexAdapter } from './knexAdapter'
+import { type AuthKysely, kyselyAdapter } from './kyselyAdapter'
 import {
   type TestAdapter,
   createTestDatabase,
   resetTables
-} from './knexAdapter.testUtils'
+} from './kyselyAdapter.testUtils'
 
-vi.mock('better-auth/adapters', () => {
-  // Mirrors the schema better-auth hands the adapter: keyed by model name, with
-  // the table under `modelName` and each field's column under `fieldName` (here
-  // the field name is the column, matching the identity helpers below). The
-  // adapter reads it to learn which columns a joined table contributes.
-  //
-  // `accounts` is deliberately absent so the join tests can also exercise the
-  // path for a table the schema does not describe.
-  const schema = {
-    users: {
-      modelName: 'users',
-      fields: {
-        display_name: {},
-        email: {},
-        email_verified: {},
-        createdAt: {},
-        created_at: {},
-        updated_at: {}
-      }
-    },
-    sessions: {
-      modelName: 'sessions',
-      fields: {
-        user_id: {},
-        accountId: {},
-        token: {},
-        expires_at: {},
-        createdAt: {},
-        expireAt: {}
-      }
-    }
-  }
+vi.mock('better-auth/adapters', () => import('./kyselyAdapter.testFactory'))
 
-  return {
-    createAdapterFactory: ({
-      adapter
-    }: {
-      config: Record<string, unknown>
-      adapter: (helpers: {
-        getModelName: (model: string) => string
-        getFieldName: (opts: { model: string; field: string }) => string
-        schema: unknown
-      }) => Record<string, (...args: any[]) => any>
-    }) => {
-      // Return a factory that, when called, invokes the adapter with
-      // identity getModelName/getFieldName (no field remapping).
-      return () =>
-        adapter({
-          getModelName: (m) => m,
-          getFieldName: (o) => o.field,
-          schema
-        })
-    }
-  }
-})
-
-describe('knexAdapter', () => {
-  let db: Knex
+describe('kyselyAdapter', () => {
+  let testDb: TestDatabase
+  let db: AuthKysely
   let adapter: TestAdapter
 
   beforeAll(async () => {
-    ;({ db, adapter } = await createTestDatabase())
+    ;({ testDb, db, adapter } = await createTestDatabase())
   })
 
   afterAll(async () => {
-    await db.destroy()
+    await testDb.destroy()
   })
 
   beforeEach(async () => {
     await resetTables(db)
   })
 
+  const findRow = (table: string, id: string) =>
+    db.selectFrom(table).selectAll().where('id', '=', id).executeTakeFirst()
+
+  const countRows = async (table: string) =>
+    (await db.selectFrom(table).selectAll().execute()).length
+
+  // The SQL of every statement `run` issues. The Kysely instance borrows the
+  // test database's Knex pool, which announces each statement.
+  const captureStatements = async (run: () => Promise<unknown>) => {
+    const statements: string[] = []
+    const record = ({ sql }: { sql: string }) => statements.push(sql)
+    testDb.knex.on('query', record)
+    try {
+      await run()
+    } finally {
+      testDb.knex.off('query', record)
+    }
+    return statements
+  }
+
   describe('passkey rpID stamping', () => {
     it('stamps the instance rpID onto a new passkey row', async () => {
-      const adapterWithRpID = knexAdapter(db, {
+      const adapterWithRpID = kyselyAdapter(db, {
         passkeyRpID: 'social.example'
       })({} as any)
 
@@ -90,12 +57,12 @@ describe('knexAdapter', () => {
         data: { id: 'pk1', userId: 'u1' }
       })
 
-      const row = await db('passkey').where('id', 'pk1').first()
-      expect(row.rpID).toBe('social.example')
+      const row = await findRow('passkey', 'pk1')
+      expect(row?.rpID).toBe('social.example')
     })
 
     it('does not overwrite an rpID already present in the data', async () => {
-      const adapterWithRpID = knexAdapter(db, {
+      const adapterWithRpID = kyselyAdapter(db, {
         passkeyRpID: 'social.example'
       })({} as any)
 
@@ -104,8 +71,8 @@ describe('knexAdapter', () => {
         data: { id: 'pk2', userId: 'u1', rpID: 'photos.example' }
       })
 
-      const row = await db('passkey').where('id', 'pk2').first()
-      expect(row.rpID).toBe('photos.example')
+      const row = await findRow('passkey', 'pk2')
+      expect(row?.rpID).toBe('photos.example')
     })
 
     it('leaves rpID null when the adapter has no configured rpID', async () => {
@@ -114,8 +81,8 @@ describe('knexAdapter', () => {
         data: { id: 'pk3', userId: 'u1' }
       })
 
-      const row = await db('passkey').where('id', 'pk3').first()
-      expect(row.rpID).toBeNull()
+      const row = await findRow('passkey', 'pk3')
+      expect(row?.rpID).toBeNull()
     })
   })
 
@@ -126,10 +93,13 @@ describe('knexAdapter', () => {
   // exact affected-row count.
   describe('consumeOne', () => {
     beforeEach(async () => {
-      await db('users').insert([
-        { id: 'u1', display_name: 'Alice', email: 'alice@test.com' },
-        { id: 'u2', display_name: 'Bob', email: 'bob@test.com' }
-      ])
+      await db
+        .insertInto('users')
+        .values([
+          { id: 'u1', display_name: 'Alice', email: 'alice@test.com' },
+          { id: 'u2', display_name: 'Bob', email: 'bob@test.com' }
+        ])
+        .execute()
     })
 
     it('deletes the matching row and returns it', async () => {
@@ -140,8 +110,8 @@ describe('knexAdapter', () => {
 
       expect(row?.id).toBe('u1')
       expect(row?.email).toBe('alice@test.com')
-      expect(await db('users').where('id', 'u1').first()).toBeUndefined()
-      expect(await db('users').where('id', 'u2').first()).toBeDefined()
+      expect(await findRow('users', 'u1')).toBeUndefined()
+      expect(await findRow('users', 'u2')).toBeDefined()
     })
 
     it('returns null when nothing matches', async () => {
@@ -151,7 +121,7 @@ describe('knexAdapter', () => {
       })
 
       expect(row).toBeNull()
-      expect(await db('users').select()).toHaveLength(2)
+      expect(await countRows('users')).toBe(2)
     })
 
     it('deletes at most one row for a predicate matching several', async () => {
@@ -161,7 +131,7 @@ describe('knexAdapter', () => {
       })
 
       expect(['u1', 'u2']).toContain(row?.id)
-      expect(await db('users').select()).toHaveLength(1)
+      expect(await countRows('users')).toBe(1)
     })
 
     // The single-use guarantee: better-auth consumes verification tokens and
@@ -178,7 +148,7 @@ describe('knexAdapter', () => {
       )
 
       expect(results.filter((result) => result !== null)).toHaveLength(1)
-      expect(await db('users').where('id', 'u1').first()).toBeUndefined()
+      expect(await findRow('users', 'u1')).toBeUndefined()
     })
 
     // The behavioural tests above pass whether or not the DELETE re-applies the
@@ -187,20 +157,15 @@ describe('knexAdapter', () => {
     // that re-application — a racing caller re-evaluates it after the winner
     // commits — so the statement's shape is what has to be pinned.
     it('re-applies the caller predicate in the DELETE, not just the row id', async () => {
-      const statements: string[] = []
-      const record = ({ sql }: { sql: string }) => statements.push(sql)
-      db.on('query', record)
-      try {
-        await adapter.consumeOne({
+      const statements = await captureStatements(() =>
+        adapter.consumeOne({
           model: 'users',
           where: [
             { field: 'id', value: 'u1', operator: 'eq' as const },
             { field: 'email', value: 'alice@test.com', operator: 'eq' as const }
           ]
         })
-      } finally {
-        db.off('query', record)
-      }
+      )
 
       const deletes = statements.filter((sql) => sql.startsWith('delete'))
       expect(deletes).toHaveLength(1)
@@ -211,12 +176,12 @@ describe('knexAdapter', () => {
       const row = await adapter.consumeOne({ model: 'users', where: [] })
 
       expect(row).toBeNull()
-      expect(await db('users').select()).toHaveLength(2)
+      expect(await countRows('users')).toBe(2)
     })
 
     it('hydrates date columns on the returned row', async () => {
       const createdAt = new Date('2026-02-03T04:05:06.000Z')
-      await db('users').insert({ id: 'u3', createdAt })
+      await db.insertInto('users').values({ id: 'u3', createdAt }).execute()
 
       const row = await adapter.consumeOne<{ createdAt: Date }>({
         model: 'users',
@@ -230,11 +195,17 @@ describe('knexAdapter', () => {
 
   describe('incrementOne', () => {
     beforeEach(async () => {
-      await db('counters').insert([
-        { id: 'c1', value: 5 },
-        { id: 'c2', value: 0 }
-      ])
+      await db
+        .insertInto('counters')
+        .values([
+          { id: 'c1', value: 5 },
+          { id: 'c2', value: 0 }
+        ])
+        .execute()
     })
+
+    const counterValue = async (id: string) =>
+      (await findRow('counters', id))?.value
 
     it('applies the delta and returns the updated row', async () => {
       const row = await adapter.incrementOne<{ id: string; value: number }>({
@@ -244,7 +215,7 @@ describe('knexAdapter', () => {
       })
 
       expect(row?.value).toBe(8)
-      expect((await db('counters').where('id', 'c1').first())?.value).toBe(8)
+      expect(await counterValue('c1')).toBe(8)
     })
 
     it('decrements on a negative delta', async () => {
@@ -287,7 +258,7 @@ describe('knexAdapter', () => {
       })
 
       expect(row).toBeNull()
-      expect((await db('counters').where('id', 'c2').first())?.value).toBe(0)
+      expect(await counterValue('c2')).toBe(0)
     })
 
     it('returns null when nothing matches', async () => {
@@ -305,7 +276,10 @@ describe('knexAdapter', () => {
     // Rendered literally that is `revoked = NULL`, which matches nothing on
     // either backend, so every rotation would report an invalid refresh token.
     it('treats an eq null guard as IS NULL rather than = NULL', async () => {
-      await db('counters').insert({ id: 'c3', value: 1, bucketHour: null })
+      await db
+        .insertInto('counters')
+        .values({ id: 'c3', value: 1, bucketHour: null })
+        .execute()
 
       const row = await adapter.incrementOne<{ id: string; value: number }>({
         model: 'counters',
@@ -320,7 +294,10 @@ describe('knexAdapter', () => {
     })
 
     it('treats a ne null guard as IS NOT NULL', async () => {
-      await db('counters').insert({ id: 'c4', value: 1, bucketHour: null })
+      await db
+        .insertInto('counters')
+        .values({ id: 'c4', value: 1, bucketHour: null })
+        .execute()
 
       const unset = await adapter.incrementOne({
         model: 'counters',
@@ -332,9 +309,11 @@ describe('knexAdapter', () => {
       })
       expect(unset).toBeNull()
 
-      await db('counters')
-        .where('id', 'c4')
-        .update({ bucketHour: new Date('2026-02-03T04:00:00.000Z') })
+      await db
+        .updateTable('counters')
+        .set({ bucketHour: new Date('2026-02-03T04:00:00.000Z') })
+        .where('id', '=', 'c4')
+        .execute()
       const set = await adapter.incrementOne<{ value: number }>({
         model: 'counters',
         where: [
@@ -353,9 +332,9 @@ describe('knexAdapter', () => {
         increment: { value: 10 }
       })
 
-      const values = (await db('counters').orderBy('id').select('value')).map(
-        (row: { value: number }) => row.value
-      )
+      const values = (
+        await db.selectFrom('counters').select('value').orderBy('id').execute()
+      ).map((row: { value: number }) => row.value)
       expect(values.filter((value) => value >= 10)).toHaveLength(1)
     })
 
@@ -363,11 +342,8 @@ describe('knexAdapter', () => {
     // concurrent write, so pin that it reaches the UPDATE rather than being
     // spent on the id lookup alone.
     it('re-applies the caller predicate in the UPDATE, not just the row id', async () => {
-      const statements: string[] = []
-      const record = ({ sql }: { sql: string }) => statements.push(sql)
-      db.on('query', record)
-      try {
-        await adapter.incrementOne({
+      const statements = await captureStatements(() =>
+        adapter.incrementOne({
           model: 'counters',
           where: [
             { field: 'id', value: 'c1', operator: 'eq' as const },
@@ -375,13 +351,11 @@ describe('knexAdapter', () => {
           ],
           increment: { value: 1 }
         })
-      } finally {
-        db.off('query', record)
-      }
+      )
 
       const updates = statements.filter((sql) => sql.startsWith('update'))
       expect(updates).toHaveLength(1)
-      expect(updates[0]).toContain('value` >')
+      expect(updates[0]).toContain('"value" >')
     })
 
     it('returns null rather than mutating an arbitrary row for an empty predicate', async () => {
@@ -392,12 +366,13 @@ describe('knexAdapter', () => {
       })
 
       expect(row).toBeNull()
-      expect((await db('counters').where('id', 'c1').first())?.value).toBe(5)
+      expect(await counterValue('c1')).toBe(5)
     })
 
-    // An `OR`-connected predicate is emitted as `orWhere`, which would
+    // An `OR`-connected predicate is emitted as an OR group, which would
     // re-associate against the primary-key clause that bounds the statement to
-    // one row and let it mutate a row the caller never selected.
+    // one row if it were not parenthesised, and let it mutate a row the caller
+    // never selected.
     it('keeps an OR predicate grouped away from the row it is bounded to', async () => {
       const row = await adapter.incrementOne<{ id: string; value: number }>({
         model: 'counters',
@@ -414,7 +389,11 @@ describe('knexAdapter', () => {
       })
 
       expect(row).not.toBeNull()
-      const rows = await db('counters').orderBy('id').select('id', 'value')
+      const rows = await db
+        .selectFrom('counters')
+        .select(['id', 'value'])
+        .orderBy('id')
+        .execute()
       const changed = rows.filter(
         (entry: { id: string; value: number }) =>
           entry.value !== (entry.id === 'c1' ? 5 : 0)
@@ -424,73 +403,49 @@ describe('knexAdapter', () => {
   })
 
   // Deleting a session that minted OAuth tokens trips the
-  // oauthAccessToken/oauthRefreshToken sessionId FKs on PostgreSQL. The adapter
-  // is what better-auth calls for sign-out and session cleanup, so it must
-  // detach those tokens first. SQLite leaves FKs off by default, so this block
-  // uses a dedicated database with enforcement ON to reproduce the constraint.
+  // oauthAccessToken/oauthRefreshToken sessionId foreign keys (no ON DELETE
+  // action) — on PostgreSQL always, on SQLite with enforcement on, which is
+  // better-sqlite3's default. The adapter is what better-auth calls for
+  // sign-out and session cleanup, so it must detach those tokens first.
   describe('session deletion detaches OAuth tokens', () => {
-    let fkDb: Knex
-    let fkAdapter: ReturnType<ReturnType<typeof knexAdapter>>
-
-    beforeAll(async () => {
-      fkDb = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: { filename: ':memory:' },
-        pool: {
-          afterCreate: (
-            conn: { pragma: (statement: string) => void },
-            done: (error: Error | null, conn: unknown) => void
-          ) => {
-            conn.pragma('foreign_keys = ON')
-            done(null, conn)
-          }
-        }
-      })
-      await fkDb.schema.createTable('sessions', (table) => {
-        table.text('id').primary()
-        table.text('token').unique()
-      })
-      await fkDb.schema.createTable('oauthAccessToken', (table) => {
-        table.text('id').primary()
-        table.text('sessionId').references('id').inTable('sessions')
-      })
-      await fkDb.schema.createTable('oauthRefreshToken', (table) => {
-        table.text('id').primary()
-        table.text('sessionId').references('id').inTable('sessions')
-      })
-      fkAdapter = knexAdapter(fkDb)({} as never)
-    })
-
-    afterAll(async () => {
-      await fkDb.destroy()
-    })
-
-    beforeEach(async () => {
-      await fkDb('oauthAccessToken').delete()
-      await fkDb('oauthRefreshToken').delete()
-      await fkDb('sessions').delete()
-    })
-
     const seedSessionWithTokens = async (token: string) => {
       const sessionId = `sid-${token}`
-      await fkDb('sessions').insert({ id: sessionId, token })
-      await fkDb('oauthAccessToken').insert({ id: `at-${token}`, sessionId })
-      await fkDb('oauthRefreshToken').insert({ id: `rt-${token}`, sessionId })
+      await db.insertInto('sessions').values({ id: sessionId, token }).execute()
+      await db
+        .insertInto('oauthAccessToken')
+        .values({ id: `at-${token}`, sessionId })
+        .execute()
+      await db
+        .insertInto('oauthRefreshToken')
+        .values({ id: `rt-${token}`, sessionId })
+        .execute()
     }
 
-    it('delete() detaches OAuth tokens before removing the session', async () => {
-      const [{ foreign_keys: fkEnabled }] = await fkDb.raw(
-        'PRAGMA foreign_keys'
-      )
-      // Guard against a vacuous test: without enforcement the naive delete
-      // would pass too.
-      expect(fkEnabled).toBe(1)
+    const sessionByToken = (token: string) =>
+      db
+        .selectFrom('sessions')
+        .selectAll()
+        .where('token', '=', token)
+        .executeTakeFirst()
 
+    it('delete() detaches OAuth tokens before removing the session', async () => {
       await seedSessionWithTokens('signout-token')
 
+      // Guard against a vacuous test: the plain delete must fail on the
+      // foreign key, or the adapter's would pass without detaching anything.
       await expect(
-        fkAdapter.delete({
+        db
+          .transaction()
+          .execute((trx) =>
+            trx
+              .deleteFrom('sessions')
+              .where('token', '=', 'signout-token')
+              .execute()
+          )
+      ).rejects.toThrow(/foreign key/i)
+
+      await expect(
+        adapter.delete({
           model: 'sessions',
           where: [
             { field: 'token', value: 'signout-token', operator: 'eq' as const }
@@ -498,19 +453,12 @@ describe('knexAdapter', () => {
         })
       ).resolves.toBeUndefined()
 
+      expect(await sessionByToken('signout-token')).toBeUndefined()
       expect(
-        await fkDb('sessions').where('token', 'signout-token').first()
-      ).toBeUndefined()
-      expect(
-        (await fkDb('oauthAccessToken').where('id', 'at-signout-token').first())
-          ?.sessionId
+        (await findRow('oauthAccessToken', 'at-signout-token'))?.sessionId
       ).toBeNull()
       expect(
-        (
-          await fkDb('oauthRefreshToken')
-            .where('id', 'rt-signout-token')
-            .first()
-        )?.sessionId
+        (await findRow('oauthRefreshToken', 'rt-signout-token'))?.sessionId
       ).toBeNull()
     })
 
@@ -518,9 +466,12 @@ describe('knexAdapter', () => {
       // bulk-a minted OAuth tokens; bulk-b did not. The realistic "revoke all
       // other sessions" case is a mix, and both must be deleted.
       await seedSessionWithTokens('bulk-a')
-      await fkDb('sessions').insert({ id: 'sid-bulk-b', token: 'bulk-b' })
+      await db
+        .insertInto('sessions')
+        .values({ id: 'sid-bulk-b', token: 'bulk-b' })
+        .execute()
 
-      const count = await fkAdapter.deleteMany({
+      const count = await adapter.deleteMany({
         model: 'sessions',
         where: [
           {
@@ -532,16 +483,12 @@ describe('knexAdapter', () => {
       })
 
       expect(count).toBe(2)
-      expect(await fkDb('sessions').select()).toHaveLength(0)
+      expect(await countRows('sessions')).toBe(0)
       // bulk-a's tokens must SURVIVE (not be deleted), detached from the
       // now-deleted session — asserting existence + null sessionId, not just
       // the absence of non-null links.
-      const access = await fkDb('oauthAccessToken')
-        .where('id', 'at-bulk-a')
-        .first()
-      const refresh = await fkDb('oauthRefreshToken')
-        .where('id', 'rt-bulk-a')
-        .first()
+      const access = await findRow('oauthAccessToken', 'at-bulk-a')
+      const refresh = await findRow('oauthRefreshToken', 'rt-bulk-a')
       expect(access).toBeDefined()
       expect(access?.sessionId).toBeNull()
       expect(refresh).toBeDefined()
@@ -551,20 +498,32 @@ describe('knexAdapter', () => {
     it('deleteMany() is a no-op returning 0 when no session matches', async () => {
       await seedSessionWithTokens('survivor')
 
-      const count = await fkAdapter.deleteMany({
+      const count = await adapter.deleteMany({
         model: 'sessions',
         where: [{ field: 'token', value: 'missing', operator: 'eq' as const }]
       })
 
       expect(count).toBe(0)
       // The unrelated session and its (still-attached) tokens are untouched.
+      expect(await sessionByToken('survivor')).toBeDefined()
       expect(
-        await fkDb('sessions').where('token', 'survivor').first()
-      ).toBeDefined()
-      expect(
-        (await fkDb('oauthAccessToken').where('id', 'at-survivor').first())
-          ?.sessionId
+        (await findRow('oauthAccessToken', 'at-survivor'))?.sessionId
       ).toBe('sid-survivor')
+    })
+
+    it('consumeOne() detaches the tokens of the session it consumes', async () => {
+      await seedSessionWithTokens('consumed')
+
+      const row = await adapter.consumeOne<{ id: string }>({
+        model: 'sessions',
+        where: [{ field: 'token', value: 'consumed', operator: 'eq' as const }]
+      })
+
+      expect(row?.id).toBe('sid-consumed')
+      expect(await sessionByToken('consumed')).toBeUndefined()
+      expect(
+        (await findRow('oauthAccessToken', 'at-consumed'))?.sessionId
+      ).toBeNull()
     })
   })
 
@@ -572,49 +531,26 @@ describe('knexAdapter', () => {
   // the `accounts` (user) table, so the adapter must normalize `accounts.email`
   // on both writes and lookups to keep auth case-insensitive.
   describe('accounts email normalization', () => {
-    let accountsDb: Knex
-    let accountsAdapter: ReturnType<ReturnType<typeof knexAdapter>>
-
-    beforeAll(async () => {
-      accountsDb = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: { filename: ':memory:' }
-      })
-      await accountsDb.schema.createTable('accounts', (table) => {
-        table.text('id').primary()
-        table.text('email').unique()
-        table.text('name')
-      })
-      accountsAdapter = knexAdapter(accountsDb)({} as never)
-    })
-
-    afterAll(async () => {
-      await accountsDb.destroy()
-    })
-
-    beforeEach(async () => {
-      await accountsDb('accounts').delete()
-    })
+    const accountEmail = async (id: string) =>
+      (await findRow('accounts', id))?.email
 
     it('lowercases the email when creating an account', async () => {
-      await accountsAdapter.create({
+      await adapter.create({
         model: 'accounts',
         data: { id: 'a1', email: 'User.Name@Example.COM' }
       })
-      const row = await accountsDb('accounts').where('id', 'a1').first()
-      expect(row.email).toBe('user.name@example.com')
+      expect(await accountEmail('a1')).toBe('user.name@example.com')
     })
 
     it.each([
       { description: 'an uppercase eq lookup', value: 'USER@EXAMPLE.COM' },
       { description: 'a mixed-case eq lookup', value: 'User@Example.com' }
     ])('finds an account by $description', async ({ value }) => {
-      await accountsDb('accounts').insert({
-        id: 'a1',
-        email: 'user@example.com'
-      })
-      const result = await accountsAdapter.findOne({
+      await db
+        .insertInto('accounts')
+        .values({ id: 'a1', email: 'user@example.com' })
+        .execute()
+      const result = await adapter.findOne({
         model: 'accounts',
         where: [{ field: 'email', value, operator: 'eq' as const }]
       })
@@ -622,11 +558,11 @@ describe('knexAdapter', () => {
     })
 
     it('normalizes each entry of an IN lookup on email', async () => {
-      await accountsDb('accounts').insert({
-        id: 'a1',
-        email: 'user@example.com'
-      })
-      const results = await accountsAdapter.findMany({
+      await db
+        .insertInto('accounts')
+        .values({ id: 'a1', email: 'user@example.com' })
+        .execute()
+      const results = await adapter.findMany({
         model: 'accounts',
         where: [
           {
@@ -640,31 +576,29 @@ describe('knexAdapter', () => {
     })
 
     it('lowercases the email when updating an account', async () => {
-      await accountsDb('accounts').insert({
-        id: 'a1',
-        email: 'user@example.com'
-      })
-      await accountsAdapter.update({
+      await db
+        .insertInto('accounts')
+        .values({ id: 'a1', email: 'user@example.com' })
+        .execute()
+      await adapter.update({
         model: 'accounts',
         where: [{ field: 'id', value: 'a1', operator: 'eq' as const }],
         update: { email: 'New.Address@Example.COM' }
       })
-      const row = await accountsDb('accounts').where('id', 'a1').first()
-      expect(row.email).toBe('new.address@example.com')
+      expect(await accountEmail('a1')).toBe('new.address@example.com')
     })
 
     it('lowercases the email when updating many accounts', async () => {
-      await accountsDb('accounts').insert({
-        id: 'a1',
-        email: 'user@example.com'
-      })
-      await accountsAdapter.updateMany({
+      await db
+        .insertInto('accounts')
+        .values({ id: 'a1', email: 'user@example.com' })
+        .execute()
+      await adapter.updateMany({
         model: 'accounts',
         where: [{ field: 'id', value: 'a1', operator: 'eq' as const }],
         update: { email: 'Bulk.Update@Example.COM' }
       })
-      const row = await accountsDb('accounts').where('id', 'a1').first()
-      expect(row.email).toBe('bulk.update@example.com')
+      expect(await accountEmail('a1')).toBe('bulk.update@example.com')
     })
   })
 })
