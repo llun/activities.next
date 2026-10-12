@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { emojiReactionJob } from '@/lib/jobs/emojiReactionJob'
 import { EMOJI_REACTION_JOB_NAME } from '@/lib/jobs/names'
 import { seedDatabase } from '@/lib/stub/database'
@@ -8,9 +8,10 @@ const REMOTE_ACTOR = 'https://remote.test/users/reactor'
 
 describe('emojiReactionJob', () => {
   const { statuses } = DatabaseSeed
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })

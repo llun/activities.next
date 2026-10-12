@@ -1,8 +1,8 @@
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { Actor, ActorProfile, getActorProfile } from '@/lib/types/domain/actor'
 
-// Row helpers the Kysely status writes share with the Knex status mixin
-// (lib/database/sql/status.ts), which still hydrates statuses.
+// Row helpers the Kysely status domain shares with the Knex status deletion
+// (lib/database/sql/status.ts).
 
 // A status embeds its author for rendering only, and nothing reads the
 // author's `lastStatusAt` there — yet it rides along on every page that ships
@@ -32,3 +32,14 @@ export const getOriginalStatusIdFromAnnounceContent = (
   }
   return null
 }
+
+// The boosted status of an Announce row: `originalStatusId`, or for a row
+// written before that column existed, the id in its `content`.
+export const getAnnounceOriginalStatusId = ({
+  content,
+  originalStatusId
+}: {
+  content?: unknown
+  originalStatusId?: string | null
+}): string | null =>
+  originalStatusId || getOriginalStatusIdFromAnnounceContent(content)

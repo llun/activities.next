@@ -20,8 +20,7 @@ export type { ConversationStatusSource } from '@/lib/database/domains/conversati
 /**
  * The direct conversation facade methods as `(db, params)` queries. The reads
  * hydrate statuses through `statuses` (the status facade's getStatusesByIds,
- * injected until status is ported), always outside a transaction; the writes
- * do not need it.
+ * injected), always outside a transaction; the writes do not need it.
  */
 export const createConversationQueries = (
   statuses: ConversationStatusSource

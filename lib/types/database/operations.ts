@@ -2,11 +2,11 @@ import { z } from 'zod'
 
 import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import type {
+  GetStatusEditHistoryParams,
   StatusLookupDatabase,
+  StatusReadDatabase,
   StatusWriteDatabase
 } from '@/lib/database/domains/status/types'
-import { Attachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
 
 // ============================================================================
 // Base Database
@@ -98,19 +98,28 @@ export type {
   GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
   GetActorStatusFromPathSegmentParams,
+  GetActorStatusesCountParams,
+  GetActorStatusesParams,
   GetFavouritedByParams,
   GetHashtagCounterParams,
   GetHashtagStatusesPageParams,
   GetHashtagStatusesPageResult,
   GetPinnedStatusIdsParams,
   GetRebloggedByParams,
+  GetStatusCountsParams,
+  GetStatusEditHistoryParams,
   GetStatusFromPublicIdParams,
   GetStatusFromUrlHashParams,
   GetStatusFromUrlParams,
   GetStatusIdByPublicIdParams,
   GetStatusIdsByPublicIdsParams,
+  GetStatusParams,
   GetStatusPublicIdsParams,
+  GetStatusReblogsCountParams,
+  GetStatusRepliesCountParams,
+  GetStatusRepliesParams,
   GetStatusesByHashtagParams,
+  GetStatusesByIdsParams,
   GetTagsParams,
   HasActorAnnouncedStatusParams,
   HasActorVotedParams,
@@ -119,7 +128,9 @@ export type {
   PinStatusParams,
   RebloggedByAccount,
   RecordPollVotesParams,
+  StatusEditRevision,
   StatusLookupDatabase,
+  StatusReadDatabase,
   StatusWriteDatabase,
   UpdateNoteAttachment,
   UpdateNoteParams,
@@ -132,46 +143,6 @@ type BaseStatusParams = {
   statusId: string
 }
 
-export type GetStatusParams = BaseStatusParams & {
-  currentActorId?: string
-  withReplies?: boolean
-}
-export type GetStatusRepliesParams = BaseStatusParams & {
-  url?: string
-  limit?: number
-  publicOnly?: boolean
-  visibleToActorId?: string | null
-  // Hydration-only viewer; see GetActorStatusesParams.
-  currentActorId?: string
-  order?: 'asc' | 'desc'
-}
-export type GetStatusEditHistoryParams = BaseStatusParams
-// A single superseded revision of a status (a row in `status_history`). `text`
-// and `summary` are the content of that prior version; `supersededAt` is when it
-// was replaced by the next version, which is the creation time of that next
-// version.
-export type StatusEditRevision = {
-  // The row's creation timestamp has historically been the status creation
-  // time; `supersededAt` is the transition timestamp recorded by `updatedAt`.
-  createdAt: number
-  text: string
-  summary: string | null
-  // Per-revision snapshots. Null on rows written before snapshotting existed;
-  // readers fall back to the status's current values for those.
-  sensitive: boolean | null
-  attachments: Attachment[] | null
-  pollOptions: string[] | null
-  // Distinguishes an explicitly empty value from a legacy or malformed row
-  // that did not snapshot that field.
-  available: {
-    text: boolean
-    summary: boolean
-    sensitive: boolean
-    attachments: boolean
-    pollOptions: boolean
-  }
-  supersededAt: number
-}
 export type DeleteStatusParams = BaseStatusParams & {
   actorId?: string
 }
@@ -182,60 +153,13 @@ export type DeleteStatusWithQueueJobParams = {
   queueJob: CreateQueueJobParams
 }
 
-export type GetActorStatusesCountParams = {
-  actorId: string
-  publicOnly?: boolean
-}
-export type GetActorStatusesParams = {
-  actorId: string
-  // The signed-in viewer, for hydration only: it decides the like, bookmark and
-  // reaction state carried on the returned statuses. `visibleToActorId` below is
-  // the separate *visibility filter* and must not be conflated with it — a
-  // viewer id passed there changes which statuses come back.
-  currentActorId?: string
-  minStatusId?: string | null
-  maxStatusId?: string | null
-  limit?: number
-  publicOnly?: boolean
-  visibleToActorId?: string | null
-  includeFollowersOnly?: boolean
-  followersAudience?: string | null
-  onlyMedia?: boolean
-  excludeReplies?: boolean
-  excludeReblogs?: boolean
-  tagged?: string | null
-  pinned?: boolean
-}
-export type GetStatusesByIdsParams = {
-  statusIds: string[]
-  currentActorId?: string
-  visibleToActorId?: string | null
-  withReplies?: boolean
-}
-
-export type GetStatusReblogsCountParams = {
-  statusId: string
-}
-export type GetStatusCountsParams = {
-  statusIds: string[]
-}
-export type GetStatusRepliesCountParams = {
-  statusId: string
-  url?: string
-  publicOnly?: boolean
-}
-
 // The lookups, the poll reads, the hashtag reads, the pins, the favourited-by
-// and reblogged-by pages (StatusLookupDatabase) and the writes
-// (StatusWriteDatabase) run on Kysely, in lib/database/domains/status/; the
-// methods below are still the Knex mixin in lib/database/sql/status.ts.
+// and reblogged-by pages (StatusLookupDatabase), the writes
+// (StatusWriteDatabase) and the reads and hydration (StatusReadDatabase) run on
+// Kysely, in lib/database/domains/status/; the methods below are still the
+// Knex mixin in lib/database/sql/status.ts.
 export interface StatusDatabase
-  extends StatusLookupDatabase, StatusWriteDatabase {
-  getStatus(params: GetStatusParams): Promise<Status | null>
-  getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
-  getStatusEditHistory(
-    params: GetStatusEditHistoryParams
-  ): Promise<StatusEditRevision[]>
+  extends StatusLookupDatabase, StatusWriteDatabase, StatusReadDatabase {
   // Drops every prior revision of a status. Used when its audience widens:
   // `status_history` does not record who a revision was written for.
   deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
@@ -243,17 +167,6 @@ export interface StatusDatabase
   deleteStatusWithQueueJob(
     params: DeleteStatusWithQueueJobParams
   ): Promise<boolean>
-  getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
-  getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
-  getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
-  getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
-  getStatusReblogsCounts(
-    params: GetStatusCountsParams
-  ): Promise<Record<string, number>>
-  getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
-  getStatusRepliesCounts(
-    params: GetStatusCountsParams
-  ): Promise<Record<string, number>>
 }
 
 // ============================================================================

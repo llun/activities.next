@@ -23,7 +23,10 @@ export const statusActorFollowersUrlExpression = (
 }
 
 // The Kysely twin is potentiallyReadableStatus
-// (lib/database/kysely/visibility/potentiallyReadable.ts): change both together.
+// (lib/database/kysely/visibility/potentiallyReadable.ts), which the status
+// reads use. This Knex form has no production caller left: it stays as the
+// reference visibilityEquivalence.test.ts checks the twin against, so change
+// both together.
 export const applyPotentiallyReadableStatusFilter = ({
   database,
   query,

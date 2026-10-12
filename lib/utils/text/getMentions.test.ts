@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -7,11 +7,12 @@ import { Actor, getMention } from '@/lib/types/domain/actor'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('getMentions', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
   let actor2: Actor | null | undefined
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({

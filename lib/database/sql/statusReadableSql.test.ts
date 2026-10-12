@@ -1,6 +1,7 @@
 import knex, { Knex } from 'knex'
 
 import { kyselyFor } from '@/lib/database/kysely'
+import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import {
   publiclyReadableStatus,
   publiclyReadableStatusIds
@@ -10,6 +11,7 @@ import {
   primaryActorId,
   replyAuthorId
 } from '@/lib/database/sql/statusTestHelpers'
+import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -622,39 +624,44 @@ describe('StatusDatabase readable status SQL', () => {
 
   describe('potentially readable status SQL', () => {
     it('quotes camelCase identifiers in PostgreSQL follower audience checks', async () => {
-      const postgresDatabase = knex({ client: 'pg' })
-      const sqlDatabase = getSQLDatabase(postgresDatabase)
-      const queries: string[] = []
-      const onQuery = (query: { sql: string }) => queries.push(query.sql)
-
-      postgresDatabase.on('query', onQuery)
-      postgresDatabase.client.acquireConnection = vi.fn().mockResolvedValue({
-        query: vi.fn((_queryConfig, callback) => {
-          callback(null, { command: 'SELECT', rows: [] })
-        })
-      })
-      postgresDatabase.client.releaseConnection = vi.fn()
-
+      // Compiles only: the instance never connects. getStatusesByIds and the
+      // feeds filter through the Kysely twin; the Knex form is the reference
+      // visibilityEquivalence.test.ts holds the twin to.
+      const postgresDatabase = knex({ client: 'pg', connection: {} })
       try {
-        await sqlDatabase.getStatusesByIds({
-          statusIds: [`${primaryActorId}/statuses/postgres-readable`],
+        const db = kyselyFor(postgresDatabase)
+        const { sql: twinSql } = db
+          .selectFrom('statuses')
+          .selectAll()
+          .where('id', 'in', [`${primaryActorId}/statuses/postgres-readable`])
+          .where((eb) => potentiallyReadableStatus(db, eb, replyAuthorId))
+          .compile()
+        const { sql: knexSql } = applyPotentiallyReadableStatusFilter({
+          database: postgresDatabase,
+          query: postgresDatabase('statuses').whereIn('id', [
+            `${primaryActorId}/statuses/postgres-readable`
+          ]),
           visibleToActorId: replyAuthorId
-        })
+        }).toSQL()
 
-        expect(queries[0]).toContain(
-          '"followers_recipients"."statusId" = "statuses"."id"'
+        for (const sql of [twinSql, knexSql]) {
+          expect(sql).toContain(
+            '"followers_recipients"."statusId" = "statuses"."id"'
+          )
+          expect(sql).toContain(
+            '"follows"."targetActorId" = "statuses"."actorId"'
+          )
+          expect(sql).toContain(
+            '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
+          )
+        }
+        expect(twinSql).toContain(
+          '"followers_recipients"."actorId" = "status_actors"."settings"::jsonb ->> \'followersUrl\''
         )
-        expect(queries[0]).toContain(
+        expect(knexSql).toContain(
           '"followers_recipients"."actorId" = status_actors.settings::jsonb ->> \'followersUrl\''
         )
-        expect(queries[0]).toContain(
-          '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
-        )
-        expect(queries[0]).toContain(
-          '"follows"."targetActorId" = "statuses"."actorId"'
-        )
       } finally {
-        postgresDatabase.off('query', onQuery)
         await postgresDatabase.destroy()
       }
     })

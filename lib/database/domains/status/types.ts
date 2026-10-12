@@ -1,17 +1,18 @@
 // Parameter and result types of the status methods that run on Kysely: the
 // lookups by url, url hash, publicId and path segment, the poll reads, the
-// hashtag reads, the pins, the favourited-by and reblogged-by pages, and the
+// hashtag reads, the pins, the favourited-by and reblogged-by pages, the
 // writes (note, poll and boost creation, the note and poll edits, the
 // visibility and quote-policy updates, the tag writes, the hashtag counters
-// and the poll votes). lib/types/database/operations.ts re-exports them, so
-// existing imports keep working. The rest of the status domain (hydration,
-// the actor and reply feeds, the counts, the edit history reads and deletion)
-// is still the Knex mixin in lib/database/sql/status.ts, with its types in
-// operations.ts.
+// and the poll votes), and the reads and hydration (getStatus, the actor and
+// reply feeds, getStatusesByIds, the counts and the edit history).
+// lib/types/database/operations.ts re-exports them, so existing imports keep
+// working. Deletion is still the Knex mixin in lib/database/sql/status.ts,
+// with its types in operations.ts.
 import type { Selectable } from 'kysely'
 
 import type { Statuses } from '@/lib/database/kysely/db'
 import type {
+  Attachment,
   AttachmentMediaMetadata,
   PostBoxAttachment
 } from '@/lib/types/domain/attachment'
@@ -299,16 +300,105 @@ export type RecordPollVotesParams = {
   allowAdditionalChoices?: boolean
 }
 
+export type GetStatusParams = {
+  statusId: string
+  currentActorId?: string
+  withReplies?: boolean
+}
+export type GetStatusRepliesParams = {
+  statusId: string
+  url?: string
+  limit?: number
+  publicOnly?: boolean
+  visibleToActorId?: string | null
+  // Hydration-only viewer; see GetActorStatusesParams.
+  currentActorId?: string
+  order?: 'asc' | 'desc'
+}
+export type GetStatusEditHistoryParams = {
+  statusId: string
+}
+// A single superseded revision of a status (a row in `status_history`). `text`
+// and `summary` are the content of that prior version; `supersededAt` is when it
+// was replaced by the next version, which is the creation time of that next
+// version.
+export type StatusEditRevision = {
+  // The row's creation timestamp has historically been the status creation
+  // time; `supersededAt` is the transition timestamp recorded by `updatedAt`.
+  createdAt: number
+  text: string
+  summary: string | null
+  // Per-revision snapshots. Null on rows written before snapshotting existed;
+  // readers fall back to the status's current values for those.
+  sensitive: boolean | null
+  attachments: Attachment[] | null
+  pollOptions: string[] | null
+  // Distinguishes an explicitly empty value from a legacy or malformed row
+  // that did not snapshot that field.
+  available: {
+    text: boolean
+    summary: boolean
+    sensitive: boolean
+    attachments: boolean
+    pollOptions: boolean
+  }
+  supersededAt: number
+}
+
+export type GetActorStatusesCountParams = {
+  actorId: string
+  publicOnly?: boolean
+}
+export type GetActorStatusesParams = {
+  actorId: string
+  // The signed-in viewer, for hydration only: it decides the like, bookmark and
+  // reaction state carried on the returned statuses. `visibleToActorId` below is
+  // the separate *visibility filter* and must not be conflated with it — a
+  // viewer id passed there changes which statuses come back.
+  currentActorId?: string
+  minStatusId?: string | null
+  maxStatusId?: string | null
+  limit?: number
+  publicOnly?: boolean
+  visibleToActorId?: string | null
+  includeFollowersOnly?: boolean
+  followersAudience?: string | null
+  onlyMedia?: boolean
+  excludeReplies?: boolean
+  excludeReblogs?: boolean
+  tagged?: string | null
+  pinned?: boolean
+}
+export type GetStatusesByIdsParams = {
+  statusIds: string[]
+  currentActorId?: string
+  visibleToActorId?: string | null
+  withReplies?: boolean
+}
+
+export type GetStatusReblogsCountParams = {
+  statusId: string
+}
+export type GetStatusCountsParams = {
+  statusIds: string[]
+}
+export type GetStatusRepliesCountParams = {
+  statusId: string
+  url?: string
+  publicOnly?: boolean
+}
+
 /** A `statuses` row as Kysely reads it. */
 export type StatusRow = Selectable<Statuses>
 
 /**
- * Where these queries get hydrated statuses from: the Knex status mixin
- * (getStatus, getStatusesByIds and its row hydration), injected by
- * lib/database/sql/index.ts until hydration is ported. Each runs on the root
- * Knex instance, so it is only called outside this domain's transactions:
- * after its own query, before a write's transaction (the edits read the
- * status they rewrite through getStatus) or after it, never inside one.
+ * Where the lookups, the hashtag reads and the writes get hydrated statuses
+ * from: getStatus, getStatusesByIds and hydrateStatusRow of this domain
+ * (./hydration.ts, ./reads.ts), bound to the same `db` by statusHydrationFor
+ * in ./queries.ts. Taking them as an argument lets those queries' tests record
+ * what they hydrate. They are only called outside the domain's own
+ * transactions: after a query, before a write's transaction (the edits read
+ * the status they rewrite through getStatus) or after it, never inside one.
  */
 export type StatusHydration = {
   getStatus(params: {
@@ -377,6 +467,26 @@ export interface StatusLookupDatabase {
   getActorPollVotesForStatuses(
     params: GetActorPollVotesForStatusesParams
   ): Promise<Record<string, number[]>>
+}
+
+/** The status reads and hydration that run on Kysely; StatusDatabase extends it. */
+export interface StatusReadDatabase {
+  getStatus(params: GetStatusParams): Promise<Status | null>
+  getStatusReplies(params: GetStatusRepliesParams): Promise<Status[]>
+  getStatusEditHistory(
+    params: GetStatusEditHistoryParams
+  ): Promise<StatusEditRevision[]>
+  getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
+  getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
+  getStatusesByIds(params: GetStatusesByIdsParams): Promise<Status[]>
+  getStatusReblogsCount(params: GetStatusReblogsCountParams): Promise<number>
+  getStatusReblogsCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>>
+  getStatusRepliesCount(params: GetStatusRepliesCountParams): Promise<number>
+  getStatusRepliesCounts(
+    params: GetStatusCountsParams
+  ): Promise<Record<string, number>>
 }
 
 /** The status writes that run on Kysely; StatusDatabase extends it. */

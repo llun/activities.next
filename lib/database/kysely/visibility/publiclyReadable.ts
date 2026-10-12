@@ -115,8 +115,9 @@ const publicRecipientStatusIds = (db: Db) =>
  * pins its compiled SQL.
  *
  * Use it where the correlated publiclyReadableStatus would be evaluated over a
- * large set or more than once per row (getRebloggedBy embeds it twice, see the
- * note there); the correlated form is the one a LIMIT can bound.
+ * large set or more than once per row (getRebloggedBy embeds it twice, and
+ * getActorStatusesCount counts an actor's whole history; see the notes
+ * there); the correlated form is the one a LIMIT can bound.
  */
 export const publiclyReadableStatusIds = (
   db: Db,

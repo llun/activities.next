@@ -7,8 +7,8 @@ import {
 } from '@/lib/utils/activitystream'
 
 // The Kysely actorVisibleStatusIds must select exactly the status ids its Knex
-// original buildActorVisibleStatusIdsQuery selects while both are in use: the
-// Knex one still serves the gallery and status mixins. Both run over the same
+// original buildActorVisibleStatusIdsQuery selects: the Knex one has no
+// production caller left and stays as this reference. Both run over the same
 // rows, for every combination of the audience flags, with each subquery used
 // as the media and fitness file reads use it (`status id in (…)`), and the id
 // sets are compared; the named cases say which arm broke.
