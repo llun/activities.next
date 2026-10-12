@@ -1,0 +1,28 @@
+app/layout.test.tsx
+  h_580a04e334fef4 3-4,6,32-51
+app/layout.tsx
+  h_580a04e334fef4 7,21-25,27-31
+app/manifest.test.ts
+  h_580a04e334fef4 1-24
+app/manifest.ts
+  h_580a04e334fef4 3-4,15,20
+docs/architecture.md
+  h_580a04e334fef4 720
+lib/utils/version.test.ts
+  h_580a04e334fef4 1-35
+lib/utils/version.ts
+  h_580a04e334fef4 15-19
+test/proxy.test.ts
+  h_580a04e334fef4 304-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6e21f6c77d54f0bad55d6b84ed62d3683ba1455",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
