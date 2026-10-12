@@ -153,6 +153,48 @@ describe('statement capture on the test database', () => {
     expect(typeof events[0].connection).toBe('string')
   })
 
+  // SQLite has one connection, so only PostgreSQL can tell two apart.
+  it.runIf(testDb.backend === 'pg')(
+    'reports a different connection for a statement outside an open transaction',
+    async () => {
+      const connections = new Map<string, string>()
+      const stop = onQuery(({ bindings, connection }) => {
+        connections.set(String(bindings[0]), connection)
+      })
+      let entered = () => {}
+      let release = () => {}
+      const inside = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      try {
+        const held = db.transaction().execute(async (trx) => {
+          await trx
+            .selectFrom('server_settings')
+            .select('key')
+            .where('key', '=', 'capture.held')
+            .execute()
+          entered()
+          await gate
+        })
+        await inside
+        await readSetting('capture.elsewhere').execute()
+        release()
+        await held
+      } finally {
+        stop()
+      }
+
+      expect(connections.get('capture.held')).toBeTruthy()
+      expect(connections.get('capture.elsewhere')).toBeTruthy()
+      expect(connections.get('capture.elsewhere')).not.toBe(
+        connections.get('capture.held')
+      )
+    }
+  )
+
   it('captures the rollback of a failed transaction', async () => {
     const texts: string[] = []
     const stop = onQuery(({ sql }) => {
