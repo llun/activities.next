@@ -7,7 +7,7 @@
  */
 import { loadEnvConfig } from '@next/env'
 
-import { getScriptKysely } from '@/lib/database/scriptDatabase'
+import { getKysely } from '@/lib/database'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 const projectDir = process.cwd()
@@ -27,7 +27,7 @@ async function manageAdminRole() {
     process.exit(1)
   }
 
-  const db = getScriptKysely()
+  const db = getKysely()
 
   const account = await db
     .selectFrom('accounts')

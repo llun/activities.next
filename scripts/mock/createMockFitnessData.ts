@@ -13,8 +13,7 @@
 import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
-import { getScriptKysely } from '@/lib/database/scriptDatabase'
+import { getDatabase, getKysely } from '@/lib/database'
 import { getMention } from '@/lib/types/domain/actor'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -93,7 +92,7 @@ async function createMockFitnessData() {
     console.error('Database not available')
     process.exit(1)
   }
-  const db = getScriptKysely()
+  const db = getKysely()
 
   const config = getConfig()
   const username = process.argv[2] || 'testuser'

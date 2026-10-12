@@ -104,7 +104,8 @@ export const getKnex = (): Knex => {
 
 /**
  * The application's Kysely instance, for code outside the `Database` facade
- * (the better-auth adapter). It runs on the same connection pool as the facade.
+ * (the better-auth adapter and the operator scripts). It runs on the same
+ * connection pool as the facade, so a script closes it with `database.destroy()`.
  */
 export const getKysely = (): Kysely<DB> => kyselyFor(getKnex())
 

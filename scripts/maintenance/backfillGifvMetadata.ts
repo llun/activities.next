@@ -14,8 +14,8 @@
  */
 import { loadEnvConfig } from '@next/env'
 
+import { getKysely } from '@/lib/database'
 import type { Db } from '@/lib/database/kysely'
-import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import { resolveAnimationMetadata } from '@/lib/services/medias/animationMetadata'
 
 const projectDir = process.cwd()
@@ -47,7 +47,7 @@ export const parseArgs = (args: string[]): CliOptions => {
 
 export const runBackfill = async (
   options: CliOptions,
-  db: Db = getScriptKysely()
+  db: Db = getKysely()
 ) => {
   const { dryRun, batchSize } = options
   console.log(

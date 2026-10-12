@@ -27,9 +27,8 @@ import crypto from 'crypto'
 import { v5 as uuidV5 } from 'uuid'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import type { Db } from '@/lib/database/kysely'
-import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import {
   DateKey,
   addDays,
@@ -910,7 +909,7 @@ async function createMockFitnessCalendarData() {
     console.error('Database not available')
     process.exit(1)
   }
-  const db = getScriptKysely()
+  const db = getKysely()
 
   const config = getConfig()
   const domain = config.host

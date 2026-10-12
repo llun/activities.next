@@ -1,7 +1,6 @@
 import knex, { type Knex } from 'knex'
 import type { Kysely } from 'kysely'
 
-import { getKnex } from '@/lib/database'
 import { type DB, kyselyFor } from '@/lib/database/kysely'
 
 export interface ScriptDatabase {
@@ -32,10 +31,3 @@ export const openScriptDatabase = (config: Knex.Config): ScriptDatabase => {
     throw error
   }
 }
-
-/**
- * The app's shared connection (the one `getDatabase()` uses) as Kysely, for a
- * script that already needs the `Database` facade. The script closes it with
- * `database.destroy()`, not with a destroy of its own.
- */
-export const getScriptKysely = (): Kysely<DB> => kyselyFor(getKnex())

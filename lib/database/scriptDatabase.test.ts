@@ -1,18 +1,13 @@
 import knex from 'knex'
 import { sql } from 'kysely'
 
-import { getKnex } from '@/lib/database'
-import {
-  getScriptKysely,
-  openScriptDatabase
-} from '@/lib/database/scriptDatabase'
+import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 import {
   TEST_PG_DATABASE,
   getTestPgConnection,
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 
-vi.mock('@/lib/database', () => ({ getKnex: vi.fn() }))
 vi.mock('knex', async (importOriginal) => {
   const actual = await importOriginal<typeof import('knex')>()
   return { ...actual, default: vi.fn(actual.default) }
@@ -91,22 +86,4 @@ describe('openScriptDatabase', () => {
       }
     }
   )
-})
-
-describe('getScriptKysely', () => {
-  it("is Kysely on the app's connection, which the script does not close", async () => {
-    const appKnex = knex(sqliteConfig)
-    vi.mocked(getKnex).mockReturnValue(appKnex)
-    try {
-      const db = getScriptKysely()
-      await sql`create table shared_with_app (id integer)`.execute(db)
-
-      expect(await appKnex.schema.hasTable('shared_with_app')).toBe(true)
-      // Kysely's destroy does not close Knex's pool.
-      await db.destroy()
-      expect(await appKnex.schema.hasTable('shared_with_app')).toBe(true)
-    } finally {
-      await appKnex.destroy()
-    }
-  })
 })

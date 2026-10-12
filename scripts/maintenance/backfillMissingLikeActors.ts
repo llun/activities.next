@@ -14,9 +14,8 @@
 import { loadEnvConfig } from '@next/env'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import type { Db } from '@/lib/database/kysely'
-import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import { Database } from '@/lib/database/types'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 
@@ -202,7 +201,7 @@ async function main() {
     process.exit(1)
   }
 
-  const db = getScriptKysely()
+  const db = getKysely()
 
   try {
     const result = await backfillMissingLikeActors({

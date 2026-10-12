@@ -54,9 +54,8 @@
  */
 import { loadEnvConfig } from '@next/env'
 
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import type { Db } from '@/lib/database/kysely'
-import { getScriptKysely } from '@/lib/database/scriptDatabase'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
@@ -417,7 +416,7 @@ if (process.argv[1]?.includes('backfillGalleryLookups')) {
     if (!database) {
       throw new Error('Database is not initialized')
     }
-    const db = getScriptKysely()
+    const db = getKysely()
     try {
       await runBackfill({ database, db, options })
     } finally {
