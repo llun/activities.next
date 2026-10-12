@@ -19,27 +19,14 @@ describe('Database config', () => {
 
     it('parses ACTIVITIES_DATABASE json env var', () => {
       process.env.ACTIVITIES_DATABASE = JSON.stringify({
-        client: 'sqlite3',
+        client: 'better-sqlite3',
         connection: { filename: ':memory:' }
       })
 
       const config = getDatabaseConfig()
 
       expect(config).not.toBeNull()
-      expect(config?.database.client).toBe('sqlite3')
-    })
-
-    it('builds sqlite3 config from env vars', () => {
-      process.env.ACTIVITIES_DATABASE_CLIENT = 'sqlite3'
-      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = '/path/to/db.sqlite'
-
-      const config = getDatabaseConfig()
-
-      expect(config).not.toBeNull()
-      expect(config?.database.client).toBe('sqlite3')
-      expect(
-        (config?.database.connection as { filename: string }).filename
-      ).toBe('/path/to/db.sqlite')
+      expect(config?.database.client).toBe('better-sqlite3')
     })
 
     it('builds better-sqlite3 config with default filename', () => {
@@ -98,14 +85,14 @@ describe('Database config', () => {
       expect(config?.database.pool).toEqual({ min: 2, max: 20 })
     })
 
-    it('builds pg-native config with ssl require', () => {
-      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg-native'
+    it('builds pg config with ssl require', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
       process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'require'
 
       const config = getDatabaseConfig()
 
       expect(config).not.toBeNull()
-      expect(config?.database.client).toBe('pg-native')
+      expect(config?.database.client).toBe('pg')
       const conn = config?.database.connection as {
         ssl: { rejectUnauthorized: boolean }
       }
@@ -167,50 +154,22 @@ describe('Database config', () => {
       expect(conn.ssl.checkServerIdentity).toBeUndefined()
     })
 
-    it('builds mysql config with password from env vars', () => {
-      process.env.ACTIVITIES_DATABASE_CLIENT = 'mysql'
-      process.env.ACTIVITIES_DATABASE_MYSQL_HOST = 'localhost'
-      process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD = 'secret'
+    it.each(['unknown', 'sqlite3', 'pg-native', 'mysql', 'mysql2'])(
+      'throws for the unsupported %s client, naming the supported ones',
+      (client) => {
+        process.env.ACTIVITIES_DATABASE_CLIENT = client
 
-      const config = getDatabaseConfig()
+        expect(() => getDatabaseConfig()).toThrow(
+          `Unsupported database client "${client}": only better-sqlite3 ` +
+            '(SQLite) and pg (PostgreSQL) are supported'
+        )
+      }
+    )
 
-      expect(config).not.toBeNull()
-      const conn = config?.database.connection as { password: string }
-      expect(conn.password).toBe('secret')
-    })
+    it('returns null when the database client is empty', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = ''
 
-    it('builds mysql config from env vars', () => {
-      process.env.ACTIVITIES_DATABASE_CLIENT = 'mysql'
-      process.env.ACTIVITIES_DATABASE_MYSQL_HOST = 'localhost'
-      process.env.ACTIVITIES_DATABASE_MYSQL_PORT = '3306'
-      process.env.ACTIVITIES_DATABASE_MYSQL_USER = 'user'
-      process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE = 'testdb'
-      process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MIN = '2'
-      process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MAX = '10'
-
-      const config = getDatabaseConfig()
-
-      expect(config).not.toBeNull()
-      expect(config?.database.client).toBe('mysql')
-      expect(config?.database.pool).toEqual({ min: 2, max: 10 })
-    })
-
-    it('builds mysql2 config from env vars', () => {
-      process.env.ACTIVITIES_DATABASE_CLIENT = 'mysql2'
-      process.env.ACTIVITIES_DATABASE_MYSQL_HOST = 'localhost'
-
-      const config = getDatabaseConfig()
-
-      expect(config).not.toBeNull()
-      expect(config?.database.client).toBe('mysql2')
-    })
-
-    it('returns null for unknown database client', () => {
-      process.env.ACTIVITIES_DATABASE_CLIENT = 'unknown'
-
-      const config = getDatabaseConfig()
-
-      expect(config).toBeNull()
+      expect(getDatabaseConfig()).toBeNull()
     })
   })
 })

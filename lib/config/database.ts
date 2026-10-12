@@ -13,8 +13,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
   if (!hasEnvironmentDatabase) return null
 
   switch (process.env.ACTIVITIES_DATABASE_CLIENT) {
-    case 'better-sqlite3':
-    case 'sqlite3': {
+    case 'better-sqlite3': {
       return {
         database: {
           client: process.env.ACTIVITIES_DATABASE_CLIENT,
@@ -26,7 +25,6 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
         }
       }
     }
-    case 'pg-native':
     case 'pg': {
       return {
         database: {
@@ -76,42 +74,17 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
         }
       }
     }
-    case 'mysql':
-    case 'mysql2': {
-      return {
-        database: {
-          client: process.env.ACTIVITIES_DATABASE_CLIENT,
-          connection: {
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_HOST
-              ? { host: process.env.ACTIVITIES_DATABASE_MYSQL_HOST }
-              : {}),
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_PORT
-              ? {
-                  port: parseInt(process.env.ACTIVITIES_DATABASE_MYSQL_PORT, 10)
-                }
-              : {}),
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_USER
-              ? { user: process.env.ACTIVITIES_DATABASE_MYSQL_USER }
-              : {}),
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD
-              ? { password: process.env.ACTIVITIES_DATABASE_MYSQL_PASSWORD }
-              : {}),
-            ...(process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE
-              ? { database: process.env.ACTIVITIES_DATABASE_MYSQL_DATABASE }
-              : {})
-          },
-          pool: {
-            min: process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MIN
-              ? parseInt(process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MIN, 10)
-              : 1,
-            max: process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MAX
-              ? parseInt(process.env.ACTIVITIES_DATABASE_MYSQL_POOL_MAX, 10)
-              : 1
-          }
-        }
-      }
-    }
     default: {
+      // An unset client is "not configured"; a client that is set but is not
+      // one of the two supported ones must fail here with a message that
+      // names them, instead of a bare missing-database error.
+      if (process.env.ACTIVITIES_DATABASE_CLIENT) {
+        throw new Error(
+          `Unsupported database client "${process.env.ACTIVITIES_DATABASE_CLIENT}": ` +
+            'only better-sqlite3 (SQLite) and pg (PostgreSQL) are supported; ' +
+            'set ACTIVITIES_DATABASE_CLIENT accordingly (see docs/setup.md).'
+        )
+      }
       return null
     }
   }

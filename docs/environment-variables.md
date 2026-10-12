@@ -177,9 +177,9 @@ Activity.next supports SQLite (`better-sqlite3`) and PostgreSQL (`pg`) only. Any
 | `ACTIVITIES_DATABASE_PG_POOL_MIN` | Minimum connection pool size (default: `1`).                                                                                                                                                                                                                                                                                                                                                       |
 | `ACTIVITIES_DATABASE_PG_POOL_MAX` | Maximum connection pool size per server process (default: `5`). Keep instances × max under the PostgreSQL `max_connections`. These pool variables and defaults apply only with the individual `ACTIVITIES_DATABASE_PG_*` variables; with the `ACTIVITIES_DATABASE` JSON config the pool comes from its `pool` key, and Knex's own default (min 2, max 10) applies when it has none.                |
 
-### Removed: MySQL
+### Unsupported clients
 
-MySQL (`mysql`, `mysql2`) is not supported. The config loader still reads `ACTIVITIES_DATABASE_MYSQL_HOST`, `ACTIVITIES_DATABASE_MYSQL_PORT`, `ACTIVITIES_DATABASE_MYSQL_USER`, `ACTIVITIES_DATABASE_MYSQL_PASSWORD`, `ACTIVITIES_DATABASE_MYSQL_DATABASE`, `ACTIVITIES_DATABASE_MYSQL_POOL_MIN` and `ACTIVITIES_DATABASE_MYSQL_POOL_MAX`, but the app refuses to start with a MySQL client. They will be removed.
+MySQL (`mysql`, `mysql2`), node-sqlite3 (`sqlite3`) and `pg-native` are not supported, and none of their drivers is a dependency. Setting `ACTIVITIES_DATABASE_CLIENT` to one of them (or to any other value besides `better-sqlite3` and `pg`) makes the app fail at startup with an error that names the two supported clients. The `ACTIVITIES_DATABASE_MYSQL_*` variables (`HOST`, `PORT`, `USER`, `PASSWORD`, `DATABASE`, `POOL_MIN`, `POOL_MAX`) are no longer read, by the app or by `yarn migrate`.
 
 ## Authentication
 

@@ -321,39 +321,15 @@ const isLocalSqliteConnection = (connection: unknown) => {
   return typeof filename === 'string' && filename.trim().length > 0
 }
 
-const isLocalMysqlConnection = (connection: unknown) => {
-  if (typeof connection === 'string') {
-    try {
-      const url = new URL(connection)
-      const socketPath = url.searchParams.get('socketPath')
-      if (isLocalSocketPath(socketPath)) return true
-      if (isLocalSocketPath(url.hostname)) return true
-      return isLocalHost(url.hostname)
-    } catch {
-      return false
-    }
-  }
-
-  if (!connection || typeof connection !== 'object') return false
-
-  const socketPath = (connection as { socketPath?: unknown }).socketPath
-  if (isLocalSocketPath(socketPath)) return true
-  return isLocalDatabaseConnection(connection)
-}
-
 export const isLocalDatabaseConfig = (databaseConfig: Knex.Config) => {
   const client = String(databaseConfig.client)
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     return isLocalSqliteConnection(databaseConfig.connection)
   }
 
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     return isLocalDatabaseConnection(databaseConfig.connection)
-  }
-
-  if (client === 'mysql' || client === 'mysql2') {
-    return isLocalMysqlConnection(databaseConfig.connection)
   }
 
   return false
@@ -709,7 +685,7 @@ const getQueryRows = <T>(result: unknown): T[] => {
 export const getDatabaseTableNames = async (database: Knex) => {
   const client = getKnexClientName(database)
 
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     const result = await database.raw(
       `
       select table_name as name
@@ -724,7 +700,7 @@ export const getDatabaseTableNames = async (database: Knex) => {
     return getQueryRows<{ name: string }>(result).map((row) => row.name)
   }
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     const rows = await database('sqlite_master')
       .select('name')
       .where('type', 'table')
@@ -740,7 +716,7 @@ export const getDatabaseTableNames = async (database: Knex) => {
 const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
   const client = getKnexClientName(database)
 
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     const result = await database.raw(
       `
       select kcu.column_name as name
@@ -758,7 +734,7 @@ const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
     return getQueryRows<{ name: string }>(result).map((row) => row.name)
   }
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     const rows = await database.raw(
       `PRAGMA table_info(${quoteIdentifier(tableName)})`
     )
@@ -774,7 +750,7 @@ const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
 const getTableColumnNames = async (database: Knex, tableName: string) => {
   const client = getKnexClientName(database)
 
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     const result = await database.raw(
       `
       select column_name as name
@@ -788,7 +764,7 @@ const getTableColumnNames = async (database: Knex, tableName: string) => {
     return getQueryRows<{ name: string }>(result).map((row) => row.name)
   }
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     const rows = await database.raw(
       `PRAGMA table_info(${quoteIdentifier(tableName)})`
     )
@@ -840,7 +816,7 @@ const getTableExportOrder = async (
 
   const client = getKnexClientName(database)
   const columnNames = await getTableColumnNames(database, tableName)
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     return {
       columns: ['ctid'],
       keyset: false,
@@ -848,7 +824,7 @@ const getTableExportOrder = async (
     }
   }
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     const rowIdColumn = getSqliteRowIdColumn(columnNames)
     if (!rowIdColumn) {
       return {
@@ -889,7 +865,7 @@ const getMigrationNames = async (database: Knex) => {
 
 const configureExportTransaction = async (database: Knex) => {
   const client = getKnexClientName(database)
-  if (client !== 'pg' && client !== 'pg-native') return
+  if (client !== 'pg') return
 
   await database.raw(
     'set transaction isolation level repeatable read read only'
@@ -1873,7 +1849,7 @@ const getForeignKeyReferences = async (
 ): Promise<ForeignKeyReference[]> => {
   const client = getKnexClientName(database)
 
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     const result = await database.raw(`
       select
         tc.table_name as "fromTable",
@@ -1891,7 +1867,7 @@ const getForeignKeyReferences = async (
     return getQueryRows<ForeignKeyReference>(result)
   }
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     const references: ForeignKeyReference[] = []
     for (const table of tables) {
       const rows = await database.raw(
@@ -1918,7 +1894,7 @@ export const truncateTables = async (
   const client = getKnexClientName(database)
   if (tableNames.length === 0) return
 
-  if (client === 'pg' || client === 'pg-native') {
+  if (client === 'pg') {
     const tables = tableNames.map(quoteIdentifier).join(', ')
     try {
       await database.raw(`truncate table ${tables} restart identity`)
@@ -1934,7 +1910,7 @@ export const truncateTables = async (
     return
   }
 
-  if (client === 'better-sqlite3' || client === 'sqlite3') {
+  if (client === 'better-sqlite3') {
     const connection = await database.client.acquireConnection()
 
     try {
@@ -2034,7 +2010,7 @@ export const getRestoreInsertBatchSize = (
   row: Record<string, unknown>
 ) => {
   const client = getKnexClientName(database)
-  if (client !== 'better-sqlite3' && client !== 'sqlite3') {
+  if (client !== 'better-sqlite3') {
     return INSERT_BATCH_SIZE
   }
 
@@ -2122,7 +2098,7 @@ export const stringifyJsonColumnValues = (
 
 const getJsonColumnNames = async (database: Knex, tableName: string) => {
   const client = getKnexClientName(database)
-  if (client !== 'pg' && client !== 'pg-native') return new Set<string>()
+  if (client !== 'pg') return new Set<string>()
 
   const result = await database.raw(
     `
@@ -2177,7 +2153,7 @@ const restoreTableFromJsonLines = async (
 
 const resetPostgresSequences = async (database: Knex, tableNames: string[]) => {
   const client = getKnexClientName(database)
-  if (client !== 'pg' && client !== 'pg-native') return
+  if (client !== 'pg') return
 
   for (const tableName of tableNames) {
     const result = await database.raw(

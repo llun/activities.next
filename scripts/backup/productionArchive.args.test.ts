@@ -196,12 +196,17 @@ describe('production archive scripts', () => {
           connection: 'postgresql://%2Fvar%2Frun%2Fpostgresql/activity'
         })
       ).toBe(true)
-      expect(
-        isLocalDatabaseConfig({
-          client: 'mysql2',
-          connection: { socketPath: '/tmp/mysql.sock' }
-        })
-      ).toBe(true)
+    })
+
+    it('rejects clients the app no longer supports', () => {
+      for (const client of ['sqlite3', 'pg-native', 'mysql', 'mysql2']) {
+        expect(
+          isLocalDatabaseConfig({
+            client,
+            connection: { host: 'localhost', filename: './dev.sqlite3' }
+          })
+        ).toBe(false)
+      }
     })
 
     it('rejects database configs without explicit local targets', () => {
