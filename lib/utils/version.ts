@@ -12,3 +12,8 @@ export const VERSION = packageJson.version
 export const NODE_INFO_SOFTWARE_NAME = SERVICE_NAME.toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '')
+
+export const withVersion = (path: string): string => {
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}v=${encodeURIComponent(VERSION)}`
+}

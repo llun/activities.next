@@ -301,6 +301,8 @@ describe('proxy', () => {
       expect(matches('/_next/static/chunk.js')).toBe(false)
       expect(matches('/_next/image/x')).toBe(false)
       expect(matches('/activities/_next/static/chunk.js')).toBe(false)
+      // Next.js config.matcher evaluates against the URL pathname, excluding query
+      // strings. So favicon\.ico$ correctly excludes /favicon.ico?v=1.192.17
       expect(matches('/favicon.ico')).toBe(false)
     })
   })

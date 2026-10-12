@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import { VERSION } from '@/lib/utils/version'
+
 import RootLayout from './layout'
+import { metadata } from './layout'
 
 vi.mock('@/lib/components/navigation-history/InAppHistoryTracker', () => ({
   InAppHistoryTracker: () => <span data-testid="in-app-history-tracker" />
@@ -24,5 +27,25 @@ describe('RootLayout', () => {
     const body = markup.slice(markup.indexOf('<body'))
     expect(body).toContain('data-testid="in-app-history-tracker"')
     expect(body).toContain('data-testid="page"')
+  })
+})
+
+describe('metadata', () => {
+  it('exports versioned favicon and app icons to invalidate caches', () => {
+    const v = encodeURIComponent(VERSION)
+    expect(metadata.icons).toEqual({
+      icon: [
+        { url: `/favicon.ico?v=${v}`, sizes: 'any' },
+        { url: `/icon-192.png?v=${v}`, sizes: '192x192', type: 'image/png' }
+      ],
+      shortcut: [`/favicon.ico?v=${v}`],
+      apple: [
+        {
+          url: `/apple-touch-icon.png?v=${v}`,
+          sizes: '180x180',
+          type: 'image/png'
+        }
+      ]
+    })
   })
 })
