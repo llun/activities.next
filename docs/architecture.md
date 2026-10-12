@@ -105,7 +105,7 @@ The frontend and API layer, organized using Next.js route groups:
 | `lib/activities/`      | ActivityPub protocol — building and processing Activity objects             |
 | `lib/services/`        | Business logic services (auth, media, notifications, email, etc.)           |
 | `lib/services/guards/` | Request authentication guards (session, OAuth token, ActivityPub signature) |
-| `lib/database/`        | Database abstraction layer using Knex query builder                         |
+| `lib/database/`        | Database abstraction layer: Kysely domains, Knex for migrations             |
 | `lib/jobs/`            | Background job handlers (sending activities, processing uploads)            |
 | `lib/components/`      | Shared React components (posts, post-box, settings, UI primitives)          |
 | `lib/config/`          | Configuration loading and validation (Zod schemas)                          |
@@ -120,7 +120,7 @@ Knex migration files that define the database schema. Migrations are designed to
 
 ### Database Abstraction
 
-All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
+All database operations go through the `lib/database/` layer. Its queries are written with [Kysely](https://kysely.dev/), one plain-function module per domain under `lib/database/domains/`, bound into the `Database` facade by `getSQLDatabase`; [Knex.js](https://knexjs.org/) runs the migrations and owns the connection pool Kysely borrows (see [Kysely](maintenance.md#kysely) in the maintenance guide). This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
 
 ### Mastodon API Compatibility
 
