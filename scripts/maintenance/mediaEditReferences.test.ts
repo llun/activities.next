@@ -1,3 +1,5 @@
+import { sql } from 'kysely'
+
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -61,5 +63,11 @@ describe('getMediaEditReferencedPaths', () => {
       'medias/cleanup-uploaded.webp',
       'uploads/cleanup.jpg'
     ])
+  })
+
+  it('has nothing to reference when the table does not exist', async () => {
+    await sql`drop table media_edit_files`.execute(testDb.db)
+
+    expect(await getMediaEditReferencedPaths(testDb.db)).toEqual([])
   })
 })

@@ -232,4 +232,23 @@ describe('runBackfill', () => {
     const row = await attachmentById('att-definitive')
     expect(row.playbackType).toBe('unknown')
   })
+
+  it('leaves an attachment that already has a playbackType alone', async () => {
+    await db
+      .insertInto('attachments')
+      .values({
+        id: 'att-done',
+        statusId: 'stat-done',
+        actorId: 'act-1',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/done.mp4',
+        playbackType: 'gifv'
+      })
+      .execute()
+
+    await runBackfill({ dryRun: false, batchSize: 10 }, db)
+
+    expect(resolveAnimationMetadata).not.toHaveBeenCalled()
+    expect((await attachmentById('att-done')).playbackType).toBe('gifv')
+  })
 })

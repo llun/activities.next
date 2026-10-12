@@ -12,7 +12,8 @@ import {
   needsPlaceLookup,
   needsSubjectLookup,
   parseArgs,
-  runBackfill
+  runBackfill,
+  selectCandidates
 } from './backfillGalleryLookups'
 
 vi.mock('@/lib/jobs/resolveMediaPlaceJob', () => ({
@@ -281,6 +282,27 @@ describe('runBackfill', () => {
       placeLookups: 0,
       subjectLookups: 2
     })
+  })
+
+  it('selects media with only a taxon key, or a subject that earlier found no match', async () => {
+    const inserted = await testDb
+      .insertInto('medias')
+      .values([
+        { actorId: 'd', subjectTaxonKey: '2481' },
+        { actorId: 'd', subjectName: 'Otter', subjectLookupStatus: 'no-match' }
+      ])
+      .returning('id')
+      .execute()
+
+    const rows = await selectCandidates({
+      db: testDb,
+      options: { ...defaults, only: 'subjects' },
+      afterId: 0
+    })
+
+    for (const { id } of inserted) {
+      expect(rows.map((row) => Number(row.id))).toContain(Number(id))
+    }
   })
 
   it('narrows to one actor with --actor', async () => {
