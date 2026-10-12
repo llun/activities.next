@@ -846,14 +846,20 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   are one-line aliases over it.
 - **To assert on the SQL a call sends, capture it with
   `testDb.captureQueries(work)`; never register a listener on the Knex
-  instance** (`knex.on('query', …)`) in a test. It resolves to the
+  instance** (`knex.on('query', …)`) in a test (`driver.test.ts` and
+  `sqlcommenter.test.ts`, which test the driver itself, are the exceptions
+  until the connection swap). It resolves to the
   `{ sql, bindings }[]` the driver sent while `work` ran, in order, with the
   `begin` / `commit` / `rollback` of any transaction; statements sent before or
-  after `work` are not in it. Captures nest (the outer one also sees the inner
+  after `work` are not in it, and statements another caller sends while it runs
+  are (the capture is a window in time on the whole pool, not on `work`'s
+  async context). Captures nest (the outer one also sees the inner
   one's statements), and if `work` throws, the error is rethrown and the
-  statements are lost. Normalise the identifier quoting before matching text
-  (backticks on SQLite, double quotes on PostgreSQL, `?` against `$1`): the
-  same statement differs per backend. `testDb.onQuery(listener)` is the lower
+  statements are lost. Match the placeholder, not the identifier quoting: the
+  statements are Kysely's, which double-quotes identifiers on both backends, so
+  the same statement differs only in `?` (SQLite) against `$1` (PostgreSQL). SQL
+  a test sends through its own Knex instance, as the legacy migration tests do,
+  is quoted by Knex: backticks on SQLite. `testDb.onQuery(listener)` is the lower
   level hook: it calls `listener({ sql, bindings, connection })` for every
   statement and returns the function that unsubscribes. Use it when a test
   needs the `connection` (two statements ran on the same connection when the

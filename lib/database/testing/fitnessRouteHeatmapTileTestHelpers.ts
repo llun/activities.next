@@ -185,7 +185,7 @@ const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
  * that connection also makes the interleaving independent of pool scheduling
  * on PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
  * where the interfering write autocommits as another worker's would; for a
- * window inside one, use `outsideDatabaseContext`.
+ * window inside one, use `interfereAfterStatementFromOutside`.
  *
  * `interfere` returns a Knex query builder, which is compiled, not run: it
  * reads like the other writes these tests stage straight to the columns.

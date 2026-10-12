@@ -31,7 +31,9 @@ export type OnQuery = (listener: QueryListener) => () => void
  * order they were sent: reads, writes and the `begin` / `commit` / `rollback` /
  * `savepoint` statements of a transaction, from every connection. Nothing sent
  * before `work` starts or after it settles is included, and a capture inside a
- * capture sees its own statements as well as the outer one's.
+ * capture sees its own statements as well as the outer one's. It is a window in
+ * time on the whole pool, not on `work`'s async context: a statement another
+ * caller sends while `work` runs is captured too.
  *
  * Resolves with the statements once `work` resolves. If `work` throws, the
  * error is rethrown and the statements are lost; capture inside `work` with
