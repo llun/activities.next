@@ -5,11 +5,6 @@ describe('isUniqueConstraintError', () => {
     expect(isUniqueConstraintError({ code: '23505' })).toBe(true)
   })
 
-  it('matches MySQL unique constraint errors', () => {
-    expect(isUniqueConstraintError({ code: 'ER_DUP_ENTRY' })).toBe(true)
-    expect(isUniqueConstraintError({ errno: 1062 })).toBe(true)
-  })
-
   it('matches SQLite unique constraint errors', () => {
     expect(isUniqueConstraintError({ code: 'SQLITE_CONSTRAINT_UNIQUE' })).toBe(
       true

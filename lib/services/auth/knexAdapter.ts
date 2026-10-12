@@ -68,7 +68,7 @@ const normalizeEmailInData = (
 
 const supportsNativeBooleans = (db: Knex): boolean => {
   const clientName = String(db.client.config.client)
-  return clientName !== 'better-sqlite3' && clientName !== 'sqlite3'
+  return clientName !== 'better-sqlite3'
 }
 
 const hydrateDateFields = <T>(row: T): T => {

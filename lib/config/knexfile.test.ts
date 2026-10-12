@@ -81,4 +81,14 @@ describe('getKnexfileDatabaseConfig', () => {
       connection: { host: 'localhost', database: 'activities' }
     })
   })
+  it('ignores the removed MySQL variables', () => {
+    vi.stubEnv('ACTIVITIES_DATABASE_CLIENT', 'pg')
+    vi.stubEnv('ACTIVITIES_DATABASE_MYSQL_HOST', 'mysql.internal')
+    vi.stubEnv('ACTIVITIES_DATABASE_MYSQL_DATABASE', 'activities')
+
+    expect(getKnexfileDatabaseConfig()).toMatchObject({
+      client: 'pg',
+      connection: { host: undefined, database: undefined }
+    })
+  })
 })
