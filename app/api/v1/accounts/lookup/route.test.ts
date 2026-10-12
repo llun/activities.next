@@ -33,14 +33,10 @@ const oauthActor = {
 
 vi.mock('@/lib/database', () => ({
   getDatabase: () => ({
+    getOAuthAccessTokenByHash: () => mockStoredToken(),
     getActorFromUsername: mockGetActorFromUsername,
     getActorFromId: mockGetActorFromId,
     getMastodonActorFromId: mockGetMastodonActorFromId
-  }),
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
   })
 }))
 
@@ -187,7 +183,7 @@ describe('GET /api/v1/accounts/lookup', () => {
   it('does not remotely resolve handles for trusted instance domains', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
       scopes: 'read'
     })
@@ -243,7 +239,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     // by an anonymous party.
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
       scopes: 'read'
     })
@@ -283,7 +279,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     }
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
       scopes: 'read'
     })
@@ -316,7 +312,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     }
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
       scopes: 'read:accounts'
     })
@@ -436,7 +432,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     }
     mockGetActorFromUsername.mockResolvedValue(storedActor)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
       scopes: 'read'
     })
@@ -565,7 +561,7 @@ describe('GET /api/v1/accounts/lookup', () => {
   it('refuses remote resolution with 404 for bearer tokens with insufficient scope', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
       scopes: 'write'
     })
@@ -589,7 +585,7 @@ describe('GET /api/v1/accounts/lookup', () => {
       privateKey: ''
     })
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/suspended-user',
       scopes: 'read'
     })

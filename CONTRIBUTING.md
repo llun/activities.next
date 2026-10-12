@@ -987,6 +987,14 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   applies only to that guard family: routes behind `AuthenticatedGuard` or
   their own session check have no wiring table, so their own 401/403 tests are
   the only proof and must stay.
+  A test that drives a real guard supplies the bearer token's row through the
+  `Database` the guard is given, never by mocking `getKnex`: the guard suites
+  and the route canaries call `stubAccessTokenLookup`
+  (`lib/services/guards/OAuthGuard.testUtils.ts`), which stubs
+  `getOAuthAccessTokenByHash` on their test database (a token it has no row for
+  is looked up in the real table), and a route test whose `getDatabase()` is a
+  hand-built object gives it a `getOAuthAccessTokenByHash` of its own. The row
+  has the shape of `OAuthAccessTokenRecord`, `expiresAt` in epoch milliseconds.
 - **Assert what the user or caller sees.** Query by role, label or text rather
   than `toHaveClass`/`querySelector`, unless the class is the contract (a
   design-system token such as `.skeleton`). Use `toHaveBeenCalledTimes` only

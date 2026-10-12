@@ -18,12 +18,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 let mockDatabase: ReturnType<typeof createTestDatabase>['database'] | null =
   null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -105,6 +100,9 @@ describe('POST /api/v2/media', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    vi.spyOn(database, 'getOAuthAccessTokenByHash').mockImplementation(() =>
+      mockStoredToken()
+    )
   })
 
   afterAll(async () => {
@@ -136,7 +134,7 @@ describe('POST /api/v2/media', () => {
 
   it('accepts a write:media token and returns 200 with the attachment', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -160,7 +158,7 @@ describe('POST /api/v2/media', () => {
 
   it('accepts the coarser write scope', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write'
     })
@@ -174,7 +172,7 @@ describe('POST /api/v2/media', () => {
 
   it('returns 422 when the uploaded file is invalid', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -215,7 +213,7 @@ describe('POST /api/v2/media', () => {
     '$description',
     async ({ maxFileSize, expectedStatus, expectedSaveCalls }) => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -235,7 +233,7 @@ describe('POST /api/v2/media', () => {
 
   it('returns 422 when the thumbnail exceeds the admin-configured media.maxFileSize', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -260,7 +258,7 @@ describe('POST /api/v2/media', () => {
 
   it('returns 422 for a malformed multipart body', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -283,7 +281,7 @@ describe('POST /api/v2/media', () => {
 
   it('returns 422 for client-actionable upload failures (quota / invalid media)', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -300,7 +298,7 @@ describe('POST /api/v2/media', () => {
 
   it('returns 500 when saving throws an unexpected internal error', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -316,7 +314,7 @@ describe('POST /api/v2/media', () => {
   describe('automatic alt text generation', () => {
     it('generates alt text via LLM when image has no description and altText is configured', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -366,7 +364,7 @@ describe('POST /api/v2/media', () => {
 
     it('does not generate alt text when the owner turned auto-describe off', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -409,7 +407,7 @@ describe('POST /api/v2/media', () => {
 
     it('does not generate alt text when user already provided a description', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -441,7 +439,7 @@ describe('POST /api/v2/media', () => {
 
     it('does not generate alt text when altText is not configured', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -475,7 +473,7 @@ describe('POST /api/v2/media', () => {
 
     it('leaves description null when LLM generation fails or returns null', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -514,7 +512,7 @@ describe('POST /api/v2/media', () => {
 
     it('generates video alt text from the extracted preview frame', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -577,7 +575,7 @@ describe('POST /api/v2/media', () => {
     // independently fatal for an undecodable clip.
     it('leaves description null when preview-frame extraction for alt text fails', async () => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })

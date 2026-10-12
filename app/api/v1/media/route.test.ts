@@ -19,12 +19,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -102,6 +97,9 @@ describe('POST /api/v1/media', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    vi.spyOn(database, 'getOAuthAccessTokenByHash').mockImplementation(() =>
+      mockStoredToken()
+    )
   })
 
   afterAll(async () => {
@@ -122,7 +120,7 @@ describe('POST /api/v1/media', () => {
 
   it('returns 200 with a fully-processed attachment for write:media tokens', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -153,7 +151,7 @@ describe('POST /api/v1/media', () => {
 
     beforeEach(() => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -280,7 +278,7 @@ describe('POST /api/v1/media', () => {
 
   it('accepts a 1500-character description and forwards it to saveMedia', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -324,7 +322,7 @@ describe('POST /api/v1/media', () => {
     '$description',
     async ({ maxFileSize, expectedStatus, expectedSaveCalls }) => {
       mockStoredToken.mockResolvedValue({
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt: Date.now() + 60_000,
         referenceId: ACTOR1_ID,
         scopes: 'write:media'
       })
@@ -345,7 +343,7 @@ describe('POST /api/v1/media', () => {
 
   it('returns 422 when the description exceeds 1500 characters', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })

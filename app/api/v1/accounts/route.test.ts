@@ -50,14 +50,12 @@ vi.mock('next/headers', () => ({
 // Opaque tokens never reach better-auth's verifier, but the guard imports it.
 vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
 
-// getDatabase/getKnex are read through mutable bindings so the hand-rolled mock
+// getDatabase is read through a mutable binding so the hand-rolled mock
 // (GET + web-form tests) and the real SQLite database (Bearer API tests) can
 // each install themselves per describe block.
 let mockDatabase: unknown = null
-let mockKnex: unknown = undefined
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => mockKnex
+  getDatabase: () => mockDatabase
 }))
 
 const mastodonAccount = {
@@ -76,7 +74,6 @@ describe('GET /api/v1/accounts', () => {
   const getActorIdsByPublicIds = vi.fn()
 
   beforeEach(() => {
-    mockKnex = undefined
     getActorIdsByPublicIds.mockResolvedValue(new Map<string, string>())
     mockDatabase = {
       getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount]),
@@ -173,7 +170,6 @@ describe('GET /api/v1/accounts', () => {
 
 describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   beforeEach(() => {
-    mockKnex = undefined
     mockDatabase = {
       getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount])
     }
@@ -501,7 +497,6 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
 
   beforeEach(() => {
     mockDatabase = apiDatabase
-    mockKnex = apiKnex
   })
 
   const postRegister = (token: string, body: string) =>

@@ -7,7 +7,13 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 
 import { OAuthAppGuard, OAuthGuard } from './OAuthGuard'
-import { createRequest, hashToken, mockHandler } from './OAuthGuard.testUtils'
+import {
+  StoredTokenSeed,
+  createRequest,
+  hashToken,
+  mockHandler,
+  stubAccessTokenLookup
+} from './OAuthGuard.testUtils'
 
 // Mock auth session
 const mockGetServerSession = vi.fn()
@@ -17,16 +23,10 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-// mockStoredTokens maps hashed tokens to their stored records
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
-const mockKnexQueryBuilder = (hashedToken: string) => ({
-  first: () => Promise.resolve(mockStoredTokens.get(hashedToken) ?? null)
-})
+// mockStoredTokens maps hashed tokens to the access-token rows the database finds
+const mockStoredTokens = new Map<string, StoredTokenSeed>()
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => mockKnexQueryBuilder(value)
-  })
+  getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers — controls which actor the cookie selects
@@ -72,6 +72,9 @@ describe('OAuthGuard', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    stubAccessTokenLookup(database, (hashedToken) =>
+      mockStoredTokens.get(hashedToken)
+    )
   })
 
   afterAll(async () => {
@@ -94,9 +97,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('suspended-actor-token'), {
-        token: hashToken('suspended-actor-token'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
       await database.setActorSuspended({
@@ -181,9 +183,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('silenced-actor-token'), {
-        token: hashToken('silenced-actor-token'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
       await database.setActorSilenced({
@@ -232,10 +233,9 @@ describe('OAuthGuard', () => {
 
     const storePendingToken = (token: string) => {
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: PENDING_ACTOR_ID,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read', 'write'])
       })
     }
@@ -373,10 +373,9 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('confirmed-token'), {
-        token: hashToken('confirmed-token'),
         referenceId: confirmedActor?.id,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -424,10 +423,9 @@ describe('OAuthGuard', () => {
     test('serves a bearer token for a cohort account', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('cohort-token'), {
-        token: hashToken('cohort-token'),
         referenceId: COHORT_ACTOR_ID,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 

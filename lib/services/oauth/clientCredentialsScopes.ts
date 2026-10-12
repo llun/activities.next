@@ -22,7 +22,7 @@
 // delete it as redundant with better-auth's own checks, because neither of them
 // runs here. The plugin's assign-time validator (`validateClientCredentialsScopes`)
 // lives inside its own registration and update endpoints, which `createApplication`
-// bypasses with a direct knex insert; and its token-endpoint filter runs only
+// bypasses with a direct database insert; and its token-endpoint filter runs only
 // when the client sends an explicit `scope` parameter — with `scope` omitted the
 // stored ceiling is granted verbatim (`requestedScopes = [...clientCredentialsScopes]`).
 // So a stored `openid` would be handed straight back on a token. 1.6 is no

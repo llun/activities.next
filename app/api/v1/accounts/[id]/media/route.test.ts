@@ -19,12 +19,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -69,6 +64,9 @@ describe('GET /api/v1/accounts/:id/media', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    vi.spyOn(database, 'getOAuthAccessTokenByHash').mockImplementation(() =>
+      mockStoredToken()
+    )
 
     const publicStatusId = `${ACTOR1_ID}/statuses/media-public`
     const followersStatusId = `${ACTOR1_ID}/statuses/media-followers`
@@ -176,7 +174,7 @@ describe('GET /api/v1/accounts/:id/media', () => {
   // sibling statuses route already gets right.
   it('accepts an OAuth token scoped only to read:statuses', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'read:statuses'
     })
@@ -198,7 +196,7 @@ describe('GET /api/v1/accounts/:id/media', () => {
   // failure rather than the JSON error. `errorResponse` is what restores them.
   it('keeps CORS headers on a guard-rejected response (e.g. suspended actor)', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'read'
     })
@@ -228,7 +226,7 @@ describe('GET /api/v1/accounts/:id/media', () => {
 
   it('serves public media when an expired bearer token is provided (matching Mastodon)', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() - 60_000),
+      expiresAt: Date.now() - 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'read'
     })

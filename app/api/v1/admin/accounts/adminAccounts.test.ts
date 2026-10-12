@@ -15,8 +15,7 @@ const mockPublish = vi.fn()
 const mockGetAdminFromSession = vi.fn()
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => database,
-  getKnex: () => instance
+  getDatabase: () => database
 }))
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: vi

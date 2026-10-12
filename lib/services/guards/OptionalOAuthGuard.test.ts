@@ -6,7 +6,13 @@ import { seedDatabase } from '@/lib/stub/database'
 import { Scope } from '@/lib/types/database/operations'
 
 import { OptionalOAuthGuard } from './OAuthGuard'
-import { createRequest, hashToken, mockHandler } from './OAuthGuard.testUtils'
+import {
+  StoredTokenSeed,
+  createRequest,
+  hashToken,
+  mockHandler,
+  stubAccessTokenLookup
+} from './OAuthGuard.testUtils'
 
 // Mock auth session
 const mockGetServerSession = vi.fn()
@@ -16,16 +22,10 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-// mockStoredTokens maps hashed tokens to their stored records
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
-const mockKnexQueryBuilder = (hashedToken: string) => ({
-  first: () => Promise.resolve(mockStoredTokens.get(hashedToken) ?? null)
-})
+// mockStoredTokens maps hashed tokens to the access-token rows the database finds
+const mockStoredTokens = new Map<string, StoredTokenSeed>()
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => mockKnexQueryBuilder(value)
-  })
+  getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers — controls which actor the cookie selects
@@ -69,6 +69,9 @@ describe('OAuthGuard', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    stubAccessTokenLookup(database, (hashedToken) =>
+      mockStoredTokens.get(hashedToken)
+    )
   })
 
   afterAll(async () => {
@@ -114,10 +117,9 @@ describe('OAuthGuard', () => {
       // that received the pending actor would still answer 200 here.
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('optional-unconfirmed-token'), {
-        token: hashToken('optional-unconfirmed-token'),
         referenceId: PENDING_ACTOR_ID,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -159,10 +161,9 @@ describe('OAuthGuard', () => {
       // and `isActorModerationBlocked` keeps running here.
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('optional-suspended-token'), {
-        token: hashToken('optional-suspended-token'),
         referenceId: PENDING_ACTOR_ID,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
       await database.setActorSuspended({
@@ -205,10 +206,9 @@ describe('OAuthGuard', () => {
     test('downgrades an expired bearer token to anonymous access (matching Mastodon)', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('optional-expired-token'), {
-        token: hashToken('optional-expired-token'),
         referenceId: PENDING_ACTOR_ID,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() - 3600000),
+        expiresAt: Date.now() - 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -260,10 +260,9 @@ describe('OAuthGuard', () => {
     test('downgrades a token with insufficient scope to anonymous access on OptionalOAuthGuard', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('optional-write-only-token'), {
-        token: hashToken('optional-write-only-token'),
         referenceId: PENDING_ACTOR_ID,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['write'])
       })
 

@@ -12,8 +12,7 @@ const databaseMock = vi.fn()
 vi.mock('@/lib/database', () => {
   databaseMock()
   return {
-    getDatabase: vi.fn(),
-    getKnex: vi.fn()
+    getDatabase: vi.fn()
   }
 })
 

@@ -1,9 +1,8 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 
-import {
-  getTestSQLDatabase,
-  getTestSQLDatabaseWithInstance
-} from '@/lib/database/testUtils'
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS
@@ -19,7 +18,13 @@ import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard
 } from './OAuthGuard'
-import { createRequest, hashToken, mockHandler } from './OAuthGuard.testUtils'
+import {
+  StoredTokenSeed,
+  createRequest,
+  hashToken,
+  mockHandler,
+  stubAccessTokenLookup
+} from './OAuthGuard.testUtils'
 
 // Mock auth session
 const mockGetServerSession = vi.fn()
@@ -29,16 +34,10 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-// mockStoredTokens maps hashed tokens to their stored records
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
-const mockKnexQueryBuilder = (hashedToken: string) => ({
-  first: () => Promise.resolve(mockStoredTokens.get(hashedToken) ?? null)
-})
+// mockStoredTokens maps hashed tokens to the access-token rows the database finds
+const mockStoredTokens = new Map<string, StoredTokenSeed>()
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => mockKnexQueryBuilder(value)
-  })
+  getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers — controls which actor the cookie selects
@@ -76,12 +75,16 @@ vi.mock('better-auth/oauth2', () => ({
 }))
 
 describe('OAuthGuard', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const testDb = createTestDatabase({ backend: 'sqlite' })
+  const { database, knex: instance } = testDb
 
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    stubAccessTokenLookup(database, (hashedToken) =>
+      mockStoredTokens.get(hashedToken)
+    )
   })
 
   afterAll(async () => {
@@ -155,9 +158,8 @@ describe('OAuthGuard', () => {
         actorId: primaryActor?.id
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -186,9 +188,8 @@ describe('OAuthGuard', () => {
         // no actorId
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: null,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -203,10 +204,9 @@ describe('OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
 
       mockStoredTokens.set(hashToken('opaque-app-token'), {
-        token: hashToken('opaque-app-token'),
         referenceId: null,
         userId: null,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -228,9 +228,8 @@ describe('OAuthGuard', () => {
         actorId: 'non-existent-actor-id'
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: 'non-existent-actor-id',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -272,9 +271,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -296,9 +294,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -324,9 +321,8 @@ describe('OAuthGuard', () => {
         actorId: primaryActor?.id
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -349,9 +345,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('opaque-token'), {
-        token: hashToken('opaque-token'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -378,10 +373,9 @@ describe('OAuthGuard', () => {
       // to an account, so it acts as that account's actor rather than failing
       // closed on every bearer route including /oauth/userinfo.
       mockStoredTokens.set(hashToken('better-auth-opaque-token'), {
-        token: hashToken('better-auth-opaque-token'),
         referenceId: '',
         userId: primaryActor.account.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -432,10 +426,9 @@ describe('OAuthGuard', () => {
         .update({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
 
       mockStoredTokens.set(hashToken('several-actors-token'), {
-        token: hashToken('several-actors-token'),
         referenceId: '',
         userId: accountId,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -461,9 +454,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('lowercase-opaque-token'), {
-        token: hashToken('lowercase-opaque-token'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -485,9 +477,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('expired-opaque'), {
-        token: hashToken('expired-opaque'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() - 1000),
+        expiresAt: Date.now() - 1000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -505,9 +496,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('read-only-opaque'), {
-        token: hashToken('read-only-opaque'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -527,9 +517,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('empty-required-scopes-opaque'), {
-        token: hashToken('empty-required-scopes-opaque'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -550,9 +539,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('bookmark-scope-opaque'), {
-        token: hashToken('bookmark-scope-opaque'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read:bookmarks'])
       })
 
@@ -594,9 +582,8 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('unrelated-scope-opaque'), {
-        token: hashToken('unrelated-scope-opaque'),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read:statuses'])
       })
 
@@ -626,9 +613,8 @@ describe('OAuthGuard', () => {
         actorId: primaryActor?.id
       })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read:statuses'])
       })
 
@@ -697,9 +683,8 @@ describe('OAuthGuard', () => {
       })
       const token = `scope-wiring-${granted.join('-')}-${required}`
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: primaryActor?.id,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(granted)
       })
 
@@ -719,9 +704,8 @@ describe('OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
 
       mockStoredTokens.set(hashToken('no-ref-opaque'), {
-        token: hashToken('no-ref-opaque'),
         referenceId: null,
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -756,21 +740,54 @@ describe('OAuthGuard', () => {
       vi.useRealTimers()
     })
 
+    // These tokens are real `oauthAccessToken` rows, not the stubbed lookup's,
+    // so the guard reads them back through the real query and `extendSpy`
+    // writes the slid expiry for real. That is what lets one of them carry
+    // `revoked`, a column the lookup does not return and the guard never reads.
+    const SLIDE_CLIENT_ID = 'slide-client'
+
+    beforeAll(async () => {
+      await testDb.db
+        .insertInto('oauthClient')
+        .values({
+          id: 'slide-client-row',
+          clientId: SLIDE_CLIENT_ID,
+          name: 'Slide client',
+          scopes: JSON.stringify(['read']),
+          redirectUris: JSON.stringify(['https://slide.llun.test/callback'])
+        })
+        .execute()
+    })
+
+    afterEach(async () => {
+      await testDb.db.deleteFrom('oauthAccessToken').execute()
+    })
+
     const storeToken = async (
       token: string,
-      fields: Record<string, unknown>
+      fields: {
+        expiresAt: Date
+        referenceId?: string
+        userId?: string | null
+        revoked?: Date
+      }
     ) => {
       const primaryActor = await database.getActorFromEmail({
         email: seedActor1.email
       })
       if (!primaryActor?.account) throw new Error('Primary actor not found')
-      mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
-        referenceId: primaryActor.id,
-        userId: primaryActor.account.id,
-        scopes: JSON.stringify(['read']),
-        ...fields
-      })
+      await testDb.db
+        .insertInto('oauthAccessToken')
+        .values({
+          id: crypto.randomUUID(),
+          token: hashToken(token),
+          clientId: SLIDE_CLIENT_ID,
+          referenceId: primaryActor.id,
+          userId: primaryActor.account.id,
+          scopes: JSON.stringify(['read']),
+          ...fields
+        })
+        .execute()
       return primaryActor
     }
 
