@@ -65,6 +65,8 @@ describe('getMediaEditReferencedPaths', () => {
     ])
   })
 
+  // Keep this last: it drops a table that the database, shared by the whole
+  // file, still needs for the test above.
   it('has nothing to reference when the table does not exist', async () => {
     await sql`drop table media_edit_files`.execute(testDb.db)
 
