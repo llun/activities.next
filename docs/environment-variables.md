@@ -179,7 +179,7 @@ Activity.next supports SQLite (`better-sqlite3`) and PostgreSQL (`pg`) only. Any
 
 ### Unsupported clients
 
-MySQL (`mysql`, `mysql2`), node-sqlite3 (`sqlite3`) and `pg-native` are not supported, and none of their drivers is a dependency. Setting `ACTIVITIES_DATABASE_CLIENT` to one of them (or to any other value besides `better-sqlite3` and `pg`) makes the app fail at startup with an error that names the two supported clients. The `ACTIVITIES_DATABASE_MYSQL_*` variables (`HOST`, `PORT`, `USER`, `PASSWORD`, `DATABASE`, `POOL_MIN`, `POOL_MAX`) are no longer read, by the app or by `yarn migrate`.
+MySQL (`mysql`, `mysql2`), node-sqlite3 (`sqlite3`) and `pg-native` are not supported, and none of their drivers is a dependency. Setting `ACTIVITIES_DATABASE_CLIENT` to one of them (or to any other value besides `better-sqlite3` and `pg`) makes the app fail at startup; the log shows an error that names the two supported clients. The `ACTIVITIES_DATABASE_MYSQL_*` variables (`HOST`, `PORT`, `USER`, `PASSWORD`, `DATABASE`, `POOL_MIN`, `POOL_MAX`) are no longer read, by the app or by `yarn migrate`.
 
 ## Authentication
 
