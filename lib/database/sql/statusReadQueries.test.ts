@@ -2734,8 +2734,27 @@ describe('status counts', () => {
       await expect(
         getStatusRepliesCounts(db, { statusIds: [statusId] })
       ).rejects.toThrow(RangeError)
+      // Hydration reads a status's like and boost totals. Each is large on a
+      // status whose author's own counters are in range (the author above has
+      // an out-of-range total, which fails hydration in the old code too);
       // Knex read it as 9,007,199,254,740,991 and hydrated the status.
-      await expect(getStatus(db, { statusId })).rejects.toThrow(RangeError)
+      for (const [name, counterKey] of [
+        ['like', CounterKey.totalLike],
+        ['boost', CounterKey.totalReblog]
+      ] as const) {
+        const other = await seedActor(actorIn(prefix, `hydrated-${name}`))
+        const hydrated = await seedStatus({
+          id: `${other}/statuses/1`,
+          actorId: other
+        })
+        await db
+          .insertInto('counters')
+          .values({ id: counterKey(hydrated), value: tooLarge })
+          .execute()
+        await expect(getStatus(db, { statusId: hydrated })).rejects.toThrow(
+          RangeError
+        )
+      }
     }
   )
 
