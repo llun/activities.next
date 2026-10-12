@@ -20,13 +20,13 @@ import type {
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { forUpdate, normalizedHashtagName } from '@/lib/database/kysely/dialect'
 import {
+  chunkArray,
   getWhereInBatchSize,
   insertInChunks,
   selectInChunks
 } from '@/lib/database/kysely/inList'
 import { toEpochMilliseconds } from '@/lib/database/kysely/normalize'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { StatusType } from '@/lib/types/domain/status'
 
 type HashtagSearchAggregate = {

@@ -44,12 +44,12 @@ import type {
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { forUpdate } from '@/lib/database/kysely/dialect'
 import {
+  chunkArray,
   getWhereInBatchSize,
   insertInChunks,
   selectInChunks
 } from '@/lib/database/kysely/inList'
 import { pastStoredKeyset } from '@/lib/database/kysely/keyset'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import {
   CollectionLimitError,
   MAX_COLLECTIONS_PER_ACTOR,

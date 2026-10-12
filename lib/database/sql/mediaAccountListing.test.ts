@@ -1,8 +1,6 @@
-import {
-  SQLITE_MAX_BINDINGS,
-  chunkArray,
-  isSQLiteClient
-} from '@/lib/database/sql/utils/knex'
+import { kyselyFor } from '@/lib/database/kysely'
+import { getDialectName } from '@/lib/database/kysely/dialect'
+import { SQLITE_MAX_BINDINGS, chunkArray } from '@/lib/database/kysely/inList'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -997,7 +995,7 @@ describe('MediaDatabase', () => {
         it('splits the lookup into chunks that stay within the SQLite bind ceiling', async () => {
           expect(attachmentQueries.length).toBeGreaterThan(0)
 
-          if (isSQLiteClient(instance)) {
+          if (getDialectName(kyselyFor(instance)) === 'sqlite') {
             // 1000 items with batch size 997 produces exactly 2 chunks (997 and 3 items).
             expect(attachmentQueries).toHaveLength(2)
 

@@ -16,6 +16,7 @@ import type {
 import type { Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
 import {
+  chunkArray,
   getWhereInBatchSize,
   insertInChunks,
   selectInChunks
@@ -25,7 +26,6 @@ import {
   PUBLIC_ACTIVITY_RECIPIENTS,
   potentiallyReadableStatus
 } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'

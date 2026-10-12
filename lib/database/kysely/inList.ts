@@ -1,15 +1,27 @@
 import type { Db } from '@/lib/database/kysely'
 import { getDialectName } from '@/lib/database/kysely/dialect'
-import { SQLITE_MAX_BINDINGS, chunkArray } from '@/lib/database/sql/utils/knex'
 
 // Statements with a variable number of bound values (`where x in (…)`,
 // multi-row inserts) have to be split on SQLite, which caps the bindings of one
-// statement at SQLITE_MAX_BINDINGS. These are the Kysely counterparts of
-// getWhereInBatchSize / getInsertBatchSize / chunkArray in
-// lib/database/sql/utils/knex.ts and return the same sizes for the same
-// backend (inList.test.ts compares them).
+// statement at SQLITE_MAX_BINDINGS.
 
+export const SQLITE_MAX_BINDINGS = 999
 const DEFAULT_BATCH_SIZE = 1000
+
+/**
+ * `items` in chunks of `size` (floored, at least 1), the last one shorter; a
+ * size that is not finite keeps every item in one chunk.
+ */
+export const chunkArray = <T>(items: T[], size: number) => {
+  const chunkSize = Number.isFinite(size)
+    ? Math.max(1, Math.floor(size))
+    : Math.max(items.length, 1)
+  const chunks: T[][] = []
+  for (let start = 0; start < items.length; start += chunkSize) {
+    chunks.push(items.slice(start, start + chunkSize))
+  }
+  return chunks
+}
 
 /** Values one `in (…)` list may hold: all of SQLite's bindings, less `reservedBindings`; 1000 on PostgreSQL. */
 export const getWhereInBatchSize = (

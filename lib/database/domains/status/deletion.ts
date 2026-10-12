@@ -16,12 +16,12 @@ import {
 } from '@/lib/database/kysely/counter'
 import { forUpdate } from '@/lib/database/kysely/dialect'
 import {
+  chunkArray,
   getWhereInBatchSize,
   selectInChunks
 } from '@/lib/database/kysely/inList'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'

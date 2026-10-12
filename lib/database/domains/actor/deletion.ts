@@ -12,9 +12,8 @@ import {
   deleteCounterValue,
   deleteCounterValues
 } from '@/lib/database/kysely/counter'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { CounterKey, parseCounterValue } from '@/lib/database/sql/utils/counter'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'

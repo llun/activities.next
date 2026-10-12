@@ -37,12 +37,12 @@ import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { GalleryAlbums } from '@/lib/database/kysely/db'
 import {
+  chunkArray,
   getWhereInBatchSize,
   insertInChunks
 } from '@/lib/database/kysely/inList'
 import { galleryMediaScope } from '@/lib/database/kysely/visibility/galleryMedia'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import {
   type GalleryAudience,
   isOwnerGalleryAudience

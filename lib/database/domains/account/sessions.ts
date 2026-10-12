@@ -8,7 +8,7 @@ import type {
 } from '@/lib/database/domains/account/types'
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
+import { chunkArray } from '@/lib/database/kysely/inList'
 import { Session } from '@/lib/types/domain/session'
 
 // Cap each `in (…)` list well under the smallest backend bind-parameter ceiling

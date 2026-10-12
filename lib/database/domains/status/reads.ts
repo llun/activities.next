@@ -23,7 +23,7 @@ import {
 } from '@/lib/database/kysely/counter'
 import type { EpochMs } from '@/lib/database/kysely/db'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { actorVisibleStatusIds } from '@/lib/database/kysely/visibility/actorVisible'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import {
@@ -31,7 +31,6 @@ import {
   publiclyReadableStatusIds
 } from '@/lib/database/kysely/visibility/publiclyReadable'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 
 // The status reads: the reply and actor feeds, statuses by id, and the status,
@@ -136,7 +135,8 @@ export const getActorStatusesCount = async (
     // correlated form read 40% fewer buffers and still took three times as
     // long: 15,421 buffers / 54ms against 25,752 / 18ms here (measured with
     // the Knex forms of both). The two are pinned as equivalent by
-    // `publiclyReadableStatusEquivalence.test.ts`; only their plans differ.
+    // `lib/database/kysely/visibility/publiclyReadable.test.ts`; only their
+    // plans differ.
     const result = await db
       .selectFrom(
         publiclyReadableStatusIds(
@@ -222,9 +222,9 @@ export const getActorStatuses = async (
     // cost the actor's entire public history: a flat 33,311 buffers at every
     // page size on a production-shaped PostgreSQL 18 seed, against 476
     // correlated (measured with the Knex forms of both). The two forms select
-    // identical rows (`publiclyReadableStatusEquivalence.test.ts`), so an
-    // attachment is still exactly as readable as the post carrying it — which
-    // is the invariant sharing one builder was there to protect.
+    // identical rows (`lib/database/kysely/visibility/publiclyReadable.test.ts`),
+    // so an attachment is still exactly as readable as the post carrying it —
+    // which is the invariant sharing one builder was there to protect.
     query = query.where((eb) => publiclyReadableStatus(db, eb))
   } else {
     // A null subquery means the caller asked for no visibility filter at all

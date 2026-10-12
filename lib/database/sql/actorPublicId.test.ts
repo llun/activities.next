@@ -1,11 +1,12 @@
+import { kyselyFor } from '@/lib/database/kysely'
+import {
+  SQLITE_MAX_BINDINGS,
+  getWhereInBatchSize
+} from '@/lib/database/kysely/inList'
 import {
   createFreshDatabaseRunner,
   seedActorTestDatabase
 } from '@/lib/database/sql/actorTestHelpers'
-import {
-  SQLITE_MAX_BINDINGS,
-  getWhereInBatchSize
-} from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -271,7 +272,7 @@ describe('ActorDatabase publicId', () => {
             .map(({ bindings }) => bindings.length)
           expect(bindingCounts.length).toBeGreaterThan(1)
           expect(Math.max(...bindingCounts)).toBeLessThanOrEqual(
-            getWhereInBatchSize(instance)
+            getWhereInBatchSize(kyselyFor(instance))
           )
           expect(map.size).toBe(1)
           expect(map.get(actorId)).toBeTruthy()

@@ -8,6 +8,7 @@ import type {
 import type { Db } from '@/lib/database/kysely'
 import type { EpochMs } from '@/lib/database/kysely/db'
 import {
+  chunkArray,
   getWhereInBatchSize,
   insertInChunks
 } from '@/lib/database/kysely/inList'
@@ -22,7 +23,6 @@ import {
   listRepliesPolicyAllows
 } from '@/lib/database/kysely/visibility/listEligible'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 import {
   LIST_MEMBER_BACKFILL_BATCH_SIZE,
   LIST_MEMBER_BACKFILL_MAX_POSTS,

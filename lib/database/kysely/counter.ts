@@ -1,26 +1,18 @@
 import { sql } from 'kysely'
 
 import type { Db } from '@/lib/database/kysely'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { parseCounterValue } from '@/lib/database/sql/utils/counter'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
 
-// Kysely counterparts of the `counters` helpers in
-// lib/database/sql/utils/counter.ts. Every domain uses these now; the Knex
-// helpers are left only for their tests and the Knex incrementBucket.
-//
-// The Knex version adjusts a counter with insert-ignore, a read, and a
-// compare-and-swap update retried on conflict. Here it is one upsert, which
-// the database applies atomically (PostgreSQL and SQLite both take the row
-// lock for ON CONFLICT DO UPDATE), with the same result:
+// The `counters` helpers. An adjustment is one upsert, which the database
+// applies atomically (PostgreSQL and SQLite both take the row lock for ON
+// CONFLICT DO UPDATE):
 // - a missing row is created as if it held 0 and then adjusted;
-// - the new value is clamped to 0..Number.MAX_SAFE_INTEGER, as
-//   clampCounterValue does;
+// - the new value is clamped to 0..Number.MAX_SAFE_INTEGER, the range
+//   parseCounterValue (lib/database/sql/utils/counter.ts) reads back;
 // - updatedAt is set to `currentTime` on every adjustment, createdAt only when
 //   the row is created;
 // - bucketHour is left alone (bucket rows are written by counterBucket.ts).
-// MySQL would need ON DUPLICATE KEY UPDATE instead; it is not supported by
-// the Kysely layer yet.
 
 const MAX_COUNTER_VALUE = Number.MAX_SAFE_INTEGER
 
@@ -58,7 +50,7 @@ export const getCounterValues = async (
 
 /**
  * Sets the counter to `value` (clamped to 0..Number.MAX_SAFE_INTEGER and
- * truncated, as clampCounterValue does; a non-finite value is 0), creating the
+ * truncated; a non-finite value is 0), creating the
  * row when it is missing. updatedAt is `currentTime` either way, createdAt only
  * on create; bucketHour is left alone.
  */

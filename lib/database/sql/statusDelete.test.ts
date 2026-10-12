@@ -1,5 +1,6 @@
 import knex from 'knex'
 
+import { SQLITE_MAX_BINDINGS } from '@/lib/database/kysely/inList'
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
   extraActorId,
@@ -7,7 +8,6 @@ import {
   statuses
 } from '@/lib/database/sql/statusTestHelpers'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable

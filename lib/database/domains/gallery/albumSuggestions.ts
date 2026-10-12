@@ -3,8 +3,7 @@ import type {
   GetGalleryAlbumItemSetsParams
 } from '@/lib/database/domains/gallery/types'
 import type { Db } from '@/lib/database/kysely'
-import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
-import { chunkArray } from '@/lib/database/sql/utils/knex'
+import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 
 // The one read the album suggestions need from the album tables (see
 // GalleryAlbumSuggestionDatabase in ./types.ts).
