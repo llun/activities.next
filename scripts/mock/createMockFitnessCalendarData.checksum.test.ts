@@ -139,6 +139,8 @@ describe('checksumSeededRows', () => {
     const second = await checksumSeededRows(db, ACTOR1_ID)
 
     expect(second.digest).toBe(first.digest)
+    // The digest covers every column of fitness_files and statuses (select *): a
+    // migration that adds one changes it, and this value is then updated with it.
     expect(first.digest).toBe(
       'd098c22f38e44a4af8e170a1b9c3c9500fc538bac287a619f64451a49997c1ab'
     )

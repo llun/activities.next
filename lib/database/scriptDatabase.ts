@@ -19,8 +19,9 @@ export interface ScriptDatabase {
  * Only better-sqlite3 and pg are supported, as for the app: any other client
  * throws here, and the pool is closed first.
  *
- * Like the app's connection this adds no sqlcommenter trace tag, since a script
- * has no request to trace.
+ * Unlike the app's connection it has no sqlcommenter hook attached; a script
+ * has no request to trace, so the app's connection adds no trace tag to a
+ * script's queries either.
  */
 export const openScriptDatabase = (config: Knex.Config): ScriptDatabase => {
   const instance = knex(config)
