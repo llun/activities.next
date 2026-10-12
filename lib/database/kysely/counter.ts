@@ -6,8 +6,8 @@ import { parseCounterValue } from '@/lib/database/sql/utils/counter'
 import { chunkArray } from '@/lib/database/sql/utils/knex'
 
 // Kysely counterparts of the `counters` helpers in
-// lib/database/sql/utils/counter.ts, for domains that have moved to Kysely.
-// The Knex helpers stay for the domains that have not.
+// lib/database/sql/utils/counter.ts. Every domain uses these now; the Knex
+// helpers are left only for their tests and the Knex incrementBucket.
 //
 // The Knex version adjusts a counter with insert-ignore, a read, and a
 // compare-and-swap update retried on conflict. Here it is one upsert, which
