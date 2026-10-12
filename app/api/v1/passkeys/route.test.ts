@@ -117,7 +117,7 @@ describe('GET /api/v1/passkeys', () => {
   })
 
   // The query reads a SQLite zone-less `YYYY-MM-DD HH:MM:SS` value as UTC
-  // (see getAccountPasskeys in lib/database/domains/account/passkeys.test.ts),
+  // (see getAccountPasskeys in lib/database/domains/account/accountRouteQueries.test.ts),
   // so the route only has to format the epoch milliseconds it gets back.
   it('serializes the createdAt of a zone-less SQLite value as ISO UTC', async () => {
     mockRows = [

@@ -254,6 +254,7 @@ describe('getAccountPasskeys', () => {
       await addPasskey('as-text', accountId)
       await addPasskey('as-number', accountId)
       await addPasskey('with-fraction', accountId)
+      await addPasskey('not-a-date', accountId)
       await sql`update "passkey" set "createdAt" = '2026-04-12 08:09:10' where "id" = 'as-text'`.execute(
         db()
       )
@@ -263,18 +264,25 @@ describe('getAccountPasskeys', () => {
       await sql`update "passkey" set "createdAt" = '2026-04-14 08:09:10.250' where "id" = 'with-fraction'`.execute(
         db()
       )
+      await sql`update "passkey" set "createdAt" = 'not a date' where "id" = 'not-a-date'`.execute(
+        db()
+      )
 
       const passkeys = await database.getAccountPasskeys({ accountId })
 
       // Compared by id: SQLite sorts the integer before the text, so the
       // order of a mixed table is not the order of the instants.
-      expect(
-        Object.fromEntries(passkeys.map(({ id, createdAt }) => [id, createdAt]))
-      ).toEqual({
+      const createdAtById = Object.fromEntries(
+        passkeys.map(({ id, createdAt }) => [id, createdAt])
+      )
+      expect(createdAtById).toMatchObject({
         'as-text': Date.UTC(2026, 3, 12, 8, 9, 10),
         'as-number': Date.UTC(2026, 3, 13, 8, 9, 10),
         'with-fraction': Date.UTC(2026, 3, 14, 8, 9, 10, 250)
       })
+      // A stored value that is not a date is NaN here, which the route
+      // reports as a null createdAt (see app/api/v1/passkeys/route.test.ts).
+      expect(Number.isNaN(createdAtById['not-a-date'])).toBe(true)
     }
   )
 })
