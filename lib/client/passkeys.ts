@@ -6,7 +6,8 @@ export interface Passkey {
   domain: string
   deviceType: string
   backedUp: boolean
-  createdAt: string
+  // ISO-8601 UTC; null when the stored value is not a date.
+  createdAt: string | null
   aaguid: string | null
 }
 
