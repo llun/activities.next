@@ -226,11 +226,13 @@ describe('/api/v1/media/[id]/albums', () => {
     expect(body.addable).toBe(true)
   })
 
-  it('marks a photo that is not posted as not addable', async () => {
+  it('marks a fresh unposted upload as addable and pending', async () => {
     const response = await get(unpostedId)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).addable).toBe(false)
+    const body = await response.json()
+    expect(body.addable).toBe(true)
+    expect(body.pending).toBe(true)
   })
 
   it('marks a photo kept out of the gallery as not addable', async () => {
@@ -245,7 +247,7 @@ describe('/api/v1/media/[id]/albums', () => {
     expect((await response.json()).addable).toBe(false)
   })
 
-  it('marks a photo whose post was deleted as not addable, but still lists its albums', async () => {
+  it('marks a photo whose post was deleted as a pending upload (addable), and lists its albums', async () => {
     const { mediaId, statusId } = await makePhoto({ name: 'post-deleted' })
     const holding = await createAlbum('Kept after delete', {
       mediaIds: [mediaId]
@@ -256,8 +258,9 @@ describe('/api/v1/media/[id]/albums', () => {
 
     expect(response.status).toBe(200)
     const body = await response.json()
-    expect(body.addable).toBe(false)
-    // The menu can still take the photo out of the album that holds it.
+    // It is now a pending upload, so it is addable
+    expect(body.addable).toBe(true)
+    expect(body.pending).toBe(true)
     expect(body.albumIds).toEqual([holding])
   })
 

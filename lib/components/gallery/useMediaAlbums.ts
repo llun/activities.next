@@ -50,6 +50,7 @@ export const useMediaAlbums = (
   const [albums, setAlbums] = useState<MediaAlbumOptionEntity[]>([])
   const [memberIds, setMemberIds] = useState<string[]>([])
   const [addable, setAddable] = useState(true)
+  const [pending, setPending] = useState(false)
   const [busyIds, setBusyIds] = useState<string[]>([])
   const [writeError, setWriteError] = useState<string | null>(null)
   const [toast, setToast] = useState<AlbumToast | null>(null)
@@ -63,8 +64,8 @@ export const useMediaAlbums = (
   // The ids being written right now, readable between renders.
   const busyRef = useRef(new Set<string>())
   const mounted = useRef(true)
-  const stateRef = useRef({ albums, memberIds, addable, status })
-  stateRef.current = { albums, memberIds, addable, status }
+  const stateRef = useRef({ albums, memberIds, addable, pending, status })
+  stateRef.current = { albums, memberIds, addable, pending, status }
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
@@ -95,6 +96,7 @@ export const useMediaAlbums = (
         setAlbums(response.albums)
         setMemberIds(response.albumIds)
         setAddable(response.addable)
+        setPending(response.pending ?? false)
         setStatus('ready')
       } catch (error) {
         if (current !== generation.current || !mounted.current) return
@@ -244,6 +246,7 @@ export const useMediaAlbums = (
     albums,
     memberIds,
     addable,
+    pending,
     busyIds,
     writeError,
     toast,

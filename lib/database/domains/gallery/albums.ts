@@ -1,5 +1,11 @@
 import crypto from 'crypto'
-import { type Updateable, sql } from 'kysely'
+import {
+  type Expression,
+  type ExpressionBuilder,
+  type SqlBool,
+  type Updateable,
+  sql
+} from 'kysely'
 
 import { getGalleryMediaByIds } from '@/lib/database/domains/gallery/media'
 import {
@@ -35,13 +41,16 @@ import type {
 import { lockGalleryAlbumActor } from '@/lib/database/domains/media/galleryAlbumCleanup'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { type Db, inTransaction } from '@/lib/database/kysely'
-import type { GalleryAlbums } from '@/lib/database/kysely/db'
+import type { DB, GalleryAlbums } from '@/lib/database/kysely/db'
 import {
   chunkArray,
   getWhereInBatchSize,
   insertInChunks
 } from '@/lib/database/kysely/inList'
-import { galleryMediaScope } from '@/lib/database/kysely/visibility/galleryMedia'
+import {
+  galleryMediaIdRef,
+  galleryMediaScope
+} from '@/lib/database/kysely/visibility/galleryMedia'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import {
   type GalleryAudience,
@@ -366,9 +375,28 @@ const addItems = async (
     (id) => toMediaRowId(id) === null
   )
 
-  // Only the actor's own gallery media: the same scope the owner's gallery
-  // reads through, so a foreign id, a missing one, an unposted upload and a
-  // photo outside the gallery are all skipped.
+  // Only the actor's own gallery media (or fresh unposted uploads):
+  // the same scope the owner's gallery reads through, plus uploads that are pending.
+  const albumAddableMediaScope = (db: Db, actorId: string) => {
+    return (eb: ExpressionBuilder<DB, 'medias'>): Expression<SqlBool> =>
+      eb.or([
+        galleryMediaScope(db, actorId, { kind: 'owner' }),
+        eb.and([
+          eb('medias.actorId', '=', actorId),
+          eb('medias.galleryAddedAt', 'is', null),
+          eb.not(
+            eb.exists(
+              db
+                .selectFrom('attachments')
+                .innerJoin('statuses', 'statuses.id', 'attachments.statusId')
+                .where('attachments.mediaId', '=', galleryMediaIdRef)
+                .select(sql.lit(1).as('one'))
+            )
+          )
+        ])
+      ])
+  }
+
   const usable = new Set<number>()
   for (const chunk of chunkArray(
     requested,
@@ -378,7 +406,7 @@ const addItems = async (
       .selectFrom('medias')
       .select('medias.id')
       .where('medias.id', 'in', chunk)
-      .where(galleryMediaScope(trx, actorId, { kind: 'owner' }))
+      .where(albumAddableMediaScope(trx, actorId))
       .execute()
     for (const row of rows) usable.add(Number(row.id))
   }

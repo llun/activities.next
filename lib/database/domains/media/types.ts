@@ -252,6 +252,7 @@ export type GetMediaWithAttachedStatusIdsParams = {
 export type MediaWithAttachedStatusIds = {
   media: Media
   statusIds: string[]
+  galleryAddedAt: number | null
 }
 
 // Compare-and-set writes of a lookup's result. `expect` holds the values the

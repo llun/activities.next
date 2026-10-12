@@ -631,6 +631,38 @@ describe('MediaAlbumsControl', () => {
     })
   })
 
+  describe('a pending upload', () => {
+    it('is addable when galleryOn is true, and explains albums apply on post', async () => {
+      getMediaAlbumsMock.mockResolvedValue(response({ pending: true }))
+      renderControl('row', { galleryOn: true })
+      const menu = await openMenu()
+
+      const boxes = within(menu).getAllByRole('checkbox')
+      expect(boxes[1]).toBeEnabled()
+
+      expect(menu).toHaveTextContent('Albums apply when the post is published.')
+      expect(
+        within(menu).getByRole('button', { name: 'New album with this photo' })
+      ).toBeEnabled()
+    })
+
+    it('is blocked when galleryOn is false, and explains to turn it on', async () => {
+      getMediaAlbumsMock.mockResolvedValue(response({ pending: true }))
+      renderControl('row', { galleryOn: false })
+      const menu = await openMenu()
+
+      const boxes = within(menu).getAllByRole('checkbox')
+      expect(boxes[1]).toBeDisabled()
+
+      expect(menu).toHaveTextContent(
+        'Turn on Show in my gallery to add this photo to an album.'
+      )
+      expect(
+        within(menu).getByRole('button', { name: 'New album with this photo' })
+      ).toBeDisabled()
+    })
+  })
+
   describe('New album with this photo', () => {
     it('closes the menu and opens the create dialog with the photo chosen', async () => {
       renderControl()

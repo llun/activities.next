@@ -58,6 +58,7 @@ interface Props {
   renderFrame?: (content: ReactNode) => ReactNode
   /** Called with the album's id after a change to what an album holds. */
   onChange?: (albumId: string) => void
+  galleryOn?: boolean
   className?: string
 }
 
@@ -105,6 +106,7 @@ export const MediaAlbumsControl: FC<Props> = ({
   variant,
   renderFrame,
   onChange,
+  galleryOn = true,
   className
 }) => {
   const uid = useId()
@@ -122,10 +124,23 @@ export const MediaAlbumsControl: FC<Props> = ({
     albums: options,
     memberIds,
     addable,
+    pending,
     busyIds,
     toast,
     writeError
   } = albums
+
+  const isAddable = pending ? galleryOn : addable
+
+  const getHint = () => {
+    if (pending) {
+      return galleryOn
+        ? 'Albums apply when the post is published.'
+        : 'Turn on Show in my gallery to add this photo to an album.'
+    }
+    return NOT_ADDABLE_HINT
+  }
+  const hint = getHint()
 
   const live = (
     <span role="status" aria-live="polite" className="sr-only">
@@ -308,7 +323,7 @@ export const MediaAlbumsControl: FC<Props> = ({
           >
             {options.map((album, index) => {
               const isMember = memberIds.includes(album.id)
-              const blocked = !isMember && !addable
+              const blocked = !isMember && !isAddable
               return (
                 <li key={album.id}>
                   <label
@@ -345,16 +360,16 @@ export const MediaAlbumsControl: FC<Props> = ({
             })}
           </ul>
         )}
-        {addable ? null : (
+        {isAddable && !pending ? null : (
           <p className="px-2 pt-1 pb-1.5 text-xs text-muted-foreground">
-            {NOT_ADDABLE_HINT}
+            {hint}
           </p>
         )}
         {menuOpen ? messages : null}
         <div className="mt-1 border-t pt-1">
           <button
             type="button"
-            disabled={!addable}
+            disabled={!isAddable}
             onClick={() => {
               setMenuOpen(false)
               setCreateOpen(true)
@@ -422,8 +437,10 @@ export const MediaAlbumsControl: FC<Props> = ({
         {menu}
       </div>
       <p className="text-muted-foreground text-xs">
-        {addable ? '' : `${NOT_ADDABLE_HINT} `}
-        Albums apply right away. They are not part of Save details.
+        {isAddable && !pending ? '' : `${hint} `}
+        {pending
+          ? ''
+          : 'Albums apply right away. They are not part of Save details.'}
       </p>
       {feedback}
       {createDialog}

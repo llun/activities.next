@@ -876,7 +876,7 @@ describe('gallery album queries', () => {
         expect(result.addable).toBe(true)
       })
 
-      it('is not addable for an upload nobody has posted', async () => {
+      it('is addable and pending for an upload nobody has posted', async () => {
         const { mediaId } = await makePhoto({ name: 'unposted', posted: false })
 
         const result = await getMediaAlbums({
@@ -885,7 +885,8 @@ describe('gallery album queries', () => {
           mediaId
         })
 
-        expect(result.addable).toBe(false)
+        expect(result.addable).toBe(true)
+        expect(result.pending).toBe(true)
       })
 
       it('is not addable for a photo kept out of the gallery', async () => {
@@ -903,7 +904,7 @@ describe('gallery album queries', () => {
         expect(result.addable).toBe(false)
       })
 
-      it('is not addable once its post is gone, though an album still holds it', async () => {
+      it('is addable and pending once its post is gone, and an album still holds it', async () => {
         const { mediaId, statusId } = await makePhoto({ name: 'post-deleted' })
         const holding = await createAlbum('MA kept', [mediaId])
         await database.deleteStatus({ statusId })
@@ -914,10 +915,10 @@ describe('gallery album queries', () => {
           mediaId
         })
 
-        // Membership is read as stored, so the menu can still take it out; it
-        // can no longer be added anywhere.
+        // It is now a pending upload, so it is addable.
         expect(result.albumIds).toEqual([holding])
-        expect(result.addable).toBe(false)
+        expect(result.addable).toBe(true)
+        expect(result.pending).toBe(true)
       })
 
       it('is not addable for another actor’s photo', async () => {

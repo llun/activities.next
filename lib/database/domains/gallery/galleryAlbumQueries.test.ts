@@ -1754,12 +1754,11 @@ describe('addGalleryAlbumItems', () => {
       [fresh, neighbourOnly, added].map(String).sort()
     )
     expect([...result.existing].sort()).toEqual(
-      [publicA, publicB].map(String).sort()
+      [publicA, publicB, unposted].map(String).sort()
     )
     expect([...result.skipped].sort()).toEqual(
       [
         String(hidden),
-        String(unposted),
         String(foreign),
         String(addedHidden),
         String(ids(99)),

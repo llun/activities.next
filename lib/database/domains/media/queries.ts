@@ -344,7 +344,10 @@ export const getMediaWithAttachedStatusIds = async (
 
   return {
     media: parseMediaRow(asMediaRow(row)),
-    statusIds: rows.map((attachment) => attachment.statusId as string)
+    statusIds: rows.map((attachment) => attachment.statusId as string),
+    galleryAddedAt: row.galleryAddedAt
+      ? new Date(row.galleryAddedAt).getTime()
+      : null
   }
 }
 
