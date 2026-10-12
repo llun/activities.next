@@ -7,7 +7,6 @@ const DEFAULT_INSERT_BATCH_SIZE = 1000
 
 const SQLITE_CLIENTS = new Set(['sqlite3', 'better-sqlite3'])
 const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
-const MYSQL_CLIENTS = new Set(['mysql', 'mysql2'])
 
 export const getClientName = (database: KnexConnection) =>
   String(database.client.config.client).toLowerCase()
@@ -17,9 +16,6 @@ export const isSQLiteClient = (database: KnexConnection) =>
 
 export const isPostgresClient = (database: KnexConnection) =>
   POSTGRES_CLIENTS.has(getClientName(database))
-
-export const isMySQLClient = (database: KnexConnection) =>
-  MYSQL_CLIENTS.has(getClientName(database))
 
 export const getWhereInBatchSize = (
   database: KnexConnection,
@@ -58,19 +54,3 @@ export const chunkArray = <T>(items: T[], size: number) => {
   }
   return chunks
 }
-
-export const deleteRowsByColumnChunks = async (
-  database: KnexConnection,
-  tableName: string,
-  columnName: string,
-  values: Array<string | number>
-) => {
-  for (const valueChunk of chunkArray(values, getWhereInBatchSize(database))) {
-    await database(tableName).whereIn(columnName, valueChunk).delete()
-  }
-}
-
-export const isKnexTransaction = (
-  database: KnexConnection
-): database is Knex.Transaction =>
-  Boolean((database as { isTransaction?: boolean }).isTransaction)

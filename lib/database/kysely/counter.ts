@@ -1,7 +1,9 @@
 import { sql } from 'kysely'
 
 import type { Db } from '@/lib/database/kysely'
+import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { parseCounterValue } from '@/lib/database/sql/utils/counter'
+import { chunkArray } from '@/lib/database/sql/utils/knex'
 
 // Kysely counterparts of the `counters` helpers in
 // lib/database/sql/utils/counter.ts, for domains that have moved to Kysely.
@@ -126,3 +128,23 @@ export const decreaseCounterValue = (
   amount = 1,
   currentTime = new Date()
 ) => adjustCounterValue(db, id, -Math.abs(amount), currentTime)
+
+/** Deletes the counter `id`; a missing one is no error. */
+export const deleteCounterValue = async (db: Db, id: string): Promise<void> => {
+  await db.deleteFrom('counters').where('id', '=', id).execute()
+}
+
+/**
+ * Deletes the counters among `ids`, in statements of as many ids as one
+ * `in (…)` list may hold. Runs nothing for an empty list.
+ */
+export const deleteCounterValues = async (
+  db: Db,
+  ids: string[]
+): Promise<void> => {
+  if (ids.length === 0) return
+
+  for (const idChunk of chunkArray(ids, getWhereInBatchSize(db))) {
+    await db.deleteFrom('counters').where('id', 'in', idChunk).execute()
+  }
+}

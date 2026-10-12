@@ -1,54 +1,66 @@
-import { Knex } from 'knex'
+import { sql } from 'kysely'
 
+import type { DeleteActorDataParams } from '@/lib/database/domains/actor/types'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
-import { kyselyFor } from '@/lib/database/kysely'
+import { selectPubliclyAddressedStatusIds } from '@/lib/database/domains/status/deletion'
+import { selectHashtagTagsByStatusIds } from '@/lib/database/domains/status/hashtags'
+import { type Db, inTransaction } from '@/lib/database/kysely'
 import {
-  CounterKey,
   decreaseCounterValue,
   deleteCounterValue,
-  deleteCounterValues,
-  parseCounterValue
-} from '@/lib/database/sql/utils/counter'
-import {
-  chunkArray,
-  deleteRowsByColumnChunks,
-  getWhereInBatchSize
-} from '@/lib/database/sql/utils/knex'
+  deleteCounterValues
+} from '@/lib/database/kysely/counter'
+import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { CounterKey, parseCounterValue } from '@/lib/database/sql/utils/counter'
+import { chunkArray } from '@/lib/database/sql/utils/knex'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
-import {
-  selectHashtagTagsByStatusIds,
-  selectPubliclyAddressedStatusIds
-} from '@/lib/database/sql/utils/status'
-import { DeleteActorDataParams } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
-// The rest of the actor domain is Kysely, in lib/database/domains/actor/.
-// deleteActorData stays on Knex until it is ported with status deletion: one
-// transaction over every table that holds the actor's data. Its calls into the
-// ported search code take kyselyFor(trx).
-export type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
+// Purges everything an actor left behind, in one transaction over every table
+// that holds the actor's data: its statuses and the rows that hang off them,
+// its follows, lists, endorsements, featured tags, blocks, mutes, notes,
+// filters, likes, reactions, bookmarks, markers, poll votes, attachments,
+// albums and media, the counters all of these moved, and last the actor row
+// and its search document. The hashtag search documents its tags fed are
+// refreshed after the transaction commits, best effort.
 
-const getStatusUrlHash = (url: string): string => getHashFromString(url)
+// Runs `run` once per chunk of `values`, one after the other, each chunk as
+// long as one `in (…)` list may be.
+const forEachChunk = async <Value>(
+  db: Db,
+  values: Value[],
+  run: (chunk: Value[]) => Promise<unknown>
+) => {
+  for (const chunk of chunkArray(values, getWhereInBatchSize(db))) {
+    await run(chunk)
+  }
+}
 
 export const deleteActorData = async (
-  database: Knex,
+  db: Db,
   { actorId }: DeleteActorDataParams
 ): Promise<void> => {
   const affectedHashtags: string[] = []
 
-  await database.transaction(async (trx) => {
+  await inTransaction(db, async (trx) => {
     const currentTime = new Date()
 
-    const persistedActor = await trx('actors')
-      .where('id', actorId)
-      .first<{ accountId: string | null }>('accountId')
+    const persistedActor = await trx
+      .selectFrom('actors')
+      .select('accountId')
+      .where('id', '=', actorId)
+      .limit(1)
+      .executeTakeFirst()
 
-    const actorStatuses = await trx('statuses')
-      .where('actorId', actorId)
-      .select('id', 'type', 'reply', 'content', 'originalStatusId')
+    const actorStatuses = await trx
+      .selectFrom('statuses')
+      .select(['id', 'type', 'reply', 'content', 'originalStatusId'])
+      .where('actorId', '=', actorId)
+      .$narrowType<{ id: string }>()
+      .execute()
 
     const statusIds = actorStatuses.map((status) => status.id)
     // Reply and hashtag counters only ever counted publicly addressed
@@ -67,16 +79,23 @@ export const deleteActorData = async (
     )
     if (replyReferences.length > 0) {
       const replyReferenceHashes = Array.from(
-        new Set(replyReferences.map((reply) => getStatusUrlHash(reply)))
+        new Set(replyReferences.map((reply) => getHashFromString(reply)))
       )
-      const parentStatuses = await trx('statuses')
-        .whereIn('id', replyReferences)
-        .orWhere((builder) =>
-          builder
-            .whereIn('urlHash', replyReferenceHashes)
-            .whereIn('url', replyReferences)
+      // One statement, unchunked, as before.
+      const parentStatuses = await trx
+        .selectFrom('statuses')
+        .select(['id', 'url'])
+        .where((eb) =>
+          eb.or([
+            eb('id', 'in', replyReferences),
+            eb.and([
+              eb('urlHash', 'in', replyReferenceHashes),
+              eb('url', 'in', replyReferences)
+            ])
+          ])
         )
-        .select('id', 'url')
+        .$narrowType<{ id: string }>()
+        .execute()
 
       for (const parentStatus of parentStatuses) {
         statusReferenceToId.set(parentStatus.id, parentStatus.id)
@@ -114,6 +133,8 @@ export const deleteActorData = async (
     const replyCounterChanges: Record<string, number> = {}
     for (const status of actorStatuses) {
       if (status.type === 'Announce') {
+        // Not getAnnounceOriginalStatusId: an empty `originalStatusId` stops
+        // here, and only the content's `url` is read, as before.
         const content = parseStatusContent(status.content)
         const originalStatusId =
           typeof status.originalStatusId === 'string'
@@ -158,10 +179,13 @@ export const deleteActorData = async (
       )
     }
 
-    const acceptedFollowing = await trx('follows')
-      .where('actorId', actorId)
-      .andWhere('status', 'Accepted')
+    const acceptedFollowing = await trx
+      .selectFrom('follows')
       .select('targetActorId')
+      .where('actorId', '=', actorId)
+      .where('status', '=', 'Accepted')
+      .$narrowType<{ targetActorId: string }>()
+      .execute()
 
     if (acceptedFollowing.length > 0) {
       await decreaseCounterValue(
@@ -188,10 +212,13 @@ export const deleteActorData = async (
       }
     }
 
-    const acceptedFollowers = await trx('follows')
-      .where('targetActorId', actorId)
-      .andWhere('status', 'Accepted')
+    const acceptedFollowers = await trx
+      .selectFrom('follows')
       .select('actorId')
+      .where('targetActorId', '=', actorId)
+      .where('status', '=', 'Accepted')
+      .$narrowType<{ actorId: string }>()
+      .execute()
     if (acceptedFollowers.length > 0) {
       await decreaseCounterValue(
         trx,
@@ -218,9 +245,11 @@ export const deleteActorData = async (
       }
     }
 
-    const likesMadeByActor = await trx('likes')
-      .where('actorId', actorId)
+    const likesMadeByActor = await trx
+      .selectFrom('likes')
       .select('statusId')
+      .where('actorId', '=', actorId)
+      .execute()
     const likeAdjustments: Record<string, number> = {}
     for (const like of likesMadeByActor) {
       likeAdjustments[like.statusId] = (likeAdjustments[like.statusId] || 0) + 1
@@ -234,14 +263,22 @@ export const deleteActorData = async (
       )
     }
 
-    const medias = await trx('medias')
-      .where('actorId', actorId)
-      .select('originalBytes', 'thumbnailBytes')
+    const medias = await trx
+      .selectFrom('medias')
+      .select(['originalBytes', 'thumbnailBytes'])
+      .where('actorId', '=', actorId)
+      .execute()
     // A photo edit keeps the uploaded file and earlier renders beside the
     // live one; they count toward the usage too.
-    const editFiles = await trx('media_edit_files')
-      .whereIn('mediaId', trx('medias').where('actorId', actorId).select('id'))
+    const editFiles = await trx
+      .selectFrom('media_edit_files')
       .select('bytes')
+      .where(
+        'mediaId',
+        'in',
+        trx.selectFrom('medias').select('id').where('actorId', '=', actorId)
+      )
+      .execute()
     const totalMediaBytes =
       medias.reduce(
         (sum, media) =>
@@ -282,97 +319,140 @@ export const deleteActorData = async (
         )
       }
 
+      const deleteByStatusIds = (
+        remove: (chunk: string[]) => Promise<unknown>
+      ) => forEachChunk(trx, statusIds, remove)
+
       // Delete status-related data
-      await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(
-        trx,
-        'status_reactions',
-        'statusId',
-        statusIds
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('tags').where('statusId', 'in', chunk).execute()
       )
-      await deleteRowsByColumnChunks(trx, 'bookmarks', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(trx, 'attachments', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(
-        trx,
-        'status_history',
-        'statusId',
-        statusIds
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('recipients').where('statusId', 'in', chunk).execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('likes').where('statusId', 'in', chunk).execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx
+          .deleteFrom('status_reactions')
+          .where('statusId', 'in', chunk)
+          .execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('bookmarks').where('statusId', 'in', chunk).execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('attachments').where('statusId', 'in', chunk).execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx
+          .deleteFrom('status_history')
+          .where('statusId', 'in', chunk)
+          .execute()
       )
       // Same rule as the status-deletion path: only the status→card link
       // goes, never the shared per-url cache. Without it a purged actor
       // leaves one orphan row per status forever, and because `statusId` is
       // the deterministic ActivityPub id, a re-ingested remote status would
       // come back wearing its old card with no fetch at all.
-      await deleteRowsByColumnChunks(
-        trx,
-        'status_link_previews',
-        'statusId',
-        statusIds
+      await deleteByStatusIds((chunk) =>
+        trx
+          .deleteFrom('status_link_previews')
+          .where('statusId', 'in', chunk)
+          .execute()
       )
-      await deleteRowsByColumnChunks(trx, 'poll_answers', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(trx, 'poll_voters', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(trx, 'poll_choices', 'statusId', statusIds)
-      await deleteRowsByColumnChunks(
-        trx,
-        'notifications',
-        'statusId',
-        statusIds
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('poll_answers').where('statusId', 'in', chunk).execute()
       )
-      await deleteRowsByColumnChunks(
-        trx,
-        'direct_conversation_statuses',
-        'statusId',
-        statusIds
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('poll_voters').where('statusId', 'in', chunk).execute()
       )
-      for (const statusIdChunk of chunkArray(
-        statusIds,
-        getWhereInBatchSize(trx)
-      )) {
-        await trx('fitness_files')
-          .whereIn('statusId', statusIdChunk)
-          .update({ statusId: null })
-      }
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('poll_choices').where('statusId', 'in', chunk).execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx.deleteFrom('notifications').where('statusId', 'in', chunk).execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx
+          .deleteFrom('direct_conversation_statuses')
+          .where('statusId', 'in', chunk)
+          .execute()
+      )
+      await deleteByStatusIds((chunk) =>
+        trx
+          .updateTable('fitness_files')
+          .set({ statusId: null })
+          .where('statusId', 'in', chunk)
+          .execute()
+      )
     }
 
     // Delete timeline entries for this actor
-    await trx('timelines').where('actorId', actorId).delete()
-    await trx('timelines').where('statusActorId', actorId).delete()
+    await trx.deleteFrom('timelines').where('actorId', '=', actorId).execute()
+    await trx
+      .deleteFrom('timelines')
+      .where('statusActorId', '=', actorId)
+      .execute()
 
     // Delete statuses
-    await trx('statuses').where('actorId', actorId).delete()
+    await trx.deleteFrom('statuses').where('actorId', '=', actorId).execute()
     if (statusIds.length > 0) {
-      await deleteStatusSearchDocumentsByStatusIds(kyselyFor(trx), statusIds)
+      await deleteStatusSearchDocumentsByStatusIds(trx, statusIds)
     }
 
     // Delete follows (both directions)
-    await trx('follows').where('actorId', actorId).delete()
-    await trx('follows').where('targetActorId', actorId).delete()
+    await trx.deleteFrom('follows').where('actorId', '=', actorId).execute()
+    await trx
+      .deleteFrom('follows')
+      .where('targetActorId', '=', actorId)
+      .execute()
 
     // Delete list memberships holding the actor and the lists it owns, as
     // removeListAccounts / deleteList do (their `list:<id>` feed rows went
     // with the actorId/statusActorId timelines sweep above). Kept after the
     // follows delete, the same follows → list_accounts order
     // updateFollowStatus writes in.
-    await trx('list_accounts').where('targetActorId', actorId).delete()
-    const ownedListIds: string[] = await trx('lists')
-      .where('actorId', actorId)
-      .pluck('id')
-    await deleteRowsByColumnChunks(trx, 'list_accounts', 'listId', ownedListIds)
-    await trx('lists').where('actorId', actorId).delete()
+    await trx
+      .deleteFrom('list_accounts')
+      .where('targetActorId', '=', actorId)
+      .execute()
+    const ownedListIds = (
+      await trx
+        .selectFrom('lists')
+        .select('id')
+        .where('actorId', '=', actorId)
+        .execute()
+    ).map((list) => list.id)
+    await forEachChunk(trx, ownedListIds, (chunk) =>
+      trx.deleteFrom('list_accounts').where('listId', 'in', chunk).execute()
+    )
+    await trx.deleteFrom('lists').where('actorId', '=', actorId).execute()
 
     // Delete endorsements (both as endorser and endorsed)
-    await trx('endorsements').where('actorId', actorId).delete()
-    await trx('endorsements').where('targetActorId', actorId).delete()
+    await trx
+      .deleteFrom('endorsements')
+      .where('actorId', '=', actorId)
+      .execute()
+    await trx
+      .deleteFrom('endorsements')
+      .where('targetActorId', '=', actorId)
+      .execute()
 
     // Delete the actor's featured tags.
-    await trx('featured_tags').where('actorId', actorId).delete()
+    await trx
+      .deleteFrom('featured_tags')
+      .where('actorId', '=', actorId)
+      .execute()
 
-    const blocks = await trx('blocks')
-      .where('actorId', actorId)
-      .orWhere('targetActorId', actorId)
-      .select('actorId', 'targetActorId')
+    const blocks = await trx
+      .selectFrom('blocks')
+      .select(['actorId', 'targetActorId'])
+      .where((eb) =>
+        eb.or([eb('actorId', '=', actorId), eb('targetActorId', '=', actorId)])
+      )
+      .execute()
     const blockingAdjustments: Record<string, number> = {}
     const blockedByAdjustments: Record<string, number> = {}
     for (const block of blocks) {
@@ -403,82 +483,93 @@ export const deleteActorData = async (
         )
       )
     ])
-    await trx('blocks')
-      .where((builder) => {
-        builder.where('actorId', actorId).orWhere('targetActorId', actorId)
-      })
-      .delete()
+    await trx
+      .deleteFrom('blocks')
+      .where((eb) =>
+        eb.or([eb('actorId', '=', actorId), eb('targetActorId', '=', actorId)])
+      )
+      .execute()
 
-    await trx('mutes')
-      .where((builder) => {
-        builder.where('actorId', actorId).orWhere('targetActorId', actorId)
-      })
-      .delete()
+    await trx
+      .deleteFrom('mutes')
+      .where((eb) =>
+        eb.or([eb('actorId', '=', actorId), eb('targetActorId', '=', actorId)])
+      )
+      .execute()
 
     // Private account notes reference the actor on either side (author or
     // target); remove both so a recreated actor URL cannot resurface them.
-    await trx('account_notes')
-      .where((builder) => {
-        builder.where('actorId', actorId).orWhere('targetActorId', actorId)
-      })
-      .delete()
+    await trx
+      .deleteFrom('account_notes')
+      .where((eb) =>
+        eb.or([eb('actorId', '=', actorId), eb('targetActorId', '=', actorId)])
+      )
+      .execute()
 
     // Subquery avoids hitting the SQLite 999-parameter limit when an
     // actor has accumulated many filters; the mute precedent only
     // touches one table per actor so doesn't need this.
-    await trx('filter_statuses')
-      .whereIn('filterId', function () {
-        this.select('id').from('filters').where('actorId', actorId)
-      })
-      .delete()
-    await trx('filter_keywords')
-      .whereIn('filterId', function () {
-        this.select('id').from('filters').where('actorId', actorId)
-      })
-      .delete()
-    await trx('filters').where('actorId', actorId).delete()
+    await trx
+      .deleteFrom('filter_statuses')
+      .where(
+        'filterId',
+        'in',
+        trx.selectFrom('filters').select('id').where('actorId', '=', actorId)
+      )
+      .execute()
+    await trx
+      .deleteFrom('filter_keywords')
+      .where(
+        'filterId',
+        'in',
+        trx.selectFrom('filters').select('id').where('actorId', '=', actorId)
+      )
+      .execute()
+    await trx.deleteFrom('filters').where('actorId', '=', actorId).execute()
 
     // Delete likes made by this actor
-    await trx('likes').where('actorId', actorId).delete()
+    await trx.deleteFrom('likes').where('actorId', '=', actorId).execute()
 
     // Delete emoji reactions made by this actor, so a recreated actor URL
     // cannot resurface them as the new owner's own reactions.
-    await trx('status_reactions').where('actorId', actorId).delete()
+    await trx
+      .deleteFrom('status_reactions')
+      .where('actorId', '=', actorId)
+      .execute()
 
     // Delete bookmarks made by this actor
-    await trx('bookmarks').where('actorId', actorId).delete()
+    await trx.deleteFrom('bookmarks').where('actorId', '=', actorId).execute()
 
     // Delete markers made by this actor
-    await trx('markers').where('actorId', actorId).delete()
+    await trx.deleteFrom('markers').where('actorId', '=', actorId).execute()
 
-    const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
-      await trx('poll_answers')
-        .where('actorId', actorId)
-        .select('statusId', 'choice')
+    const pollAnswersMadeByActor = await trx
+      .selectFrom('poll_answers')
+      .select(['statusId', 'choice'])
+      .where('actorId', '=', actorId)
+      .execute()
     if (pollAnswersMadeByActor.length > 0) {
       const choiceIdsByStatusId = new Map<string, number[]>()
       const votedStatusIds = [
         ...new Set(pollAnswersMadeByActor.map((answer) => answer.statusId))
       ]
 
-      for (const statusIdChunk of chunkArray(
-        votedStatusIds,
-        getWhereInBatchSize(trx)
-      )) {
-        const pollChoices: { statusId: string; choiceId: number }[] = await trx(
-          'poll_choices'
-        )
-          .whereIn('statusId', statusIdChunk)
+      await forEachChunk(trx, votedStatusIds, async (statusIdChunk) => {
+        const pollChoices = await trx
+          .selectFrom('poll_choices')
+          .select(['statusId', 'choiceId'])
+          .where('statusId', 'in', statusIdChunk)
           .orderBy('statusId', 'asc')
           .orderBy('choiceId', 'asc')
-          .select('statusId', 'choiceId')
+          .$narrowType<{ statusId: string }>()
+          .execute()
 
         for (const choice of pollChoices) {
           const choices = choiceIdsByStatusId.get(choice.statusId) ?? []
           choices.push(choice.choiceId)
           choiceIdsByStatusId.set(choice.statusId, choices)
         }
-      }
+      })
 
       const pollChoiceDecrements = new Map<
         string,
@@ -505,39 +596,51 @@ export const deleteActorData = async (
         choiceId,
         count
       } of pollChoiceDecrements.values()) {
-        await trx('poll_choices')
-          .where({ statusId, choiceId })
-          .update({
-            totalVotes: trx.raw('CASE WHEN ?? > ? THEN ?? - ? ELSE 0 END', [
-              'totalVotes',
-              count,
-              'totalVotes',
-              count
-            ])
+        await trx
+          .updateTable('poll_choices')
+          .set({
+            totalVotes: sql<number>`CASE WHEN ${sql.ref('totalVotes')} > ${count} THEN ${sql.ref('totalVotes')} - ${count} ELSE 0 END`
           })
+          .where('statusId', '=', statusId)
+          .where('choiceId', '=', choiceId)
+          .execute()
       }
     }
 
     // Delete poll votes cast by this actor on other actors' polls
-    await trx('poll_answers').where('actorId', actorId).delete()
-    await trx('poll_voters').where('actorId', actorId).delete()
+    await trx
+      .deleteFrom('poll_answers')
+      .where('actorId', '=', actorId)
+      .execute()
+    await trx.deleteFrom('poll_voters').where('actorId', '=', actorId).execute()
 
     // Delete attachments created by this actor
-    await trx('attachments').where('actorId', actorId).delete()
+    await trx.deleteFrom('attachments').where('actorId', '=', actorId).execute()
 
     // Delete the actor's gallery albums before their media (SQLite runs
     // without the foreign keys that cascade these on PostgreSQL).
-    await trx('gallery_album_items').where('actorId', actorId).delete()
-    await trx('gallery_albums').where('actorId', actorId).delete()
+    await trx
+      .deleteFrom('gallery_album_items')
+      .where('actorId', '=', actorId)
+      .execute()
+    await trx
+      .deleteFrom('gallery_albums')
+      .where('actorId', '=', actorId)
+      .execute()
 
     // Delete the photo edit files of the actor's media before the media
     // (SQLite may run without the foreign key that cascades them).
-    await trx('media_edit_files')
-      .whereIn('mediaId', trx('medias').where('actorId', actorId).select('id'))
-      .delete()
+    await trx
+      .deleteFrom('media_edit_files')
+      .where(
+        'mediaId',
+        'in',
+        trx.selectFrom('medias').select('id').where('actorId', '=', actorId)
+      )
+      .execute()
 
     // Delete medias created by this actor
-    await trx('medias').where('actorId', actorId).delete()
+    await trx.deleteFrom('medias').where('actorId', '=', actorId).execute()
 
     await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
     await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
@@ -574,22 +677,27 @@ export const deleteActorData = async (
 
     // Delete notifications table entries if exists
     try {
-      await trx('notifications').where('actorId', actorId).delete()
-      await trx('notifications').where('sourceActorId', actorId).delete()
+      await trx
+        .deleteFrom('notifications')
+        .where('actorId', '=', actorId)
+        .execute()
+      await trx
+        .deleteFrom('notifications')
+        .where('sourceActorId', '=', actorId)
+        .execute()
     } catch {
       // Table might not exist in older migrations
     }
 
     // Finally delete the actor
-    await trx('actors').where('id', actorId).delete()
-    await searchQueries.deleteActorSearchDocument(kyselyFor(trx), {
-      id: actorId
-    })
+    await trx.deleteFrom('actors').where('id', '=', actorId).execute()
+    // Called through searchQueries, so a test can stand in for it.
+    await searchQueries.deleteActorSearchDocument(trx, { id: actorId })
   })
 
   if (affectedHashtags.length > 0) {
     try {
-      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
+      await searchQueries.indexHashtagSearchDocuments(db, {
         hashtags: [...new Set(affectedHashtags)]
       })
     } catch (err) {

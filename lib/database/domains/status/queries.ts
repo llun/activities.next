@@ -1,4 +1,9 @@
 import {
+  deleteStatus,
+  deleteStatusEditHistory,
+  deleteStatusWithQueueJob
+} from '@/lib/database/domains/status/deletion'
+import {
   updateNote,
   updateNoteVisibility,
   updatePoll,
@@ -83,12 +88,13 @@ import {
 } from '@/lib/database/domains/status/writes'
 import type { Db } from '@/lib/database/kysely'
 
-// The status methods that run on Kysely: the lookups, the poll reads and
-// votes, the hashtag reads, the tag writes and hashtag counters, the pins, the
-// favourited-by and reblogged-by pages, the creates and the edits, and the
-// reads and hydration (getStatus, the actor and reply feeds, getStatusesByIds,
-// the counts and the edit history). Deletion is still the Knex mixin in
-// lib/database/sql/status.ts; getSQLDatabase spreads both into the facade.
+// The status methods, all on Kysely: the lookups, the poll reads and votes,
+// the hashtag reads, the tag writes and hashtag counters, the pins, the
+// favourited-by and reblogged-by pages, the creates and the edits, the reads
+// and hydration (getStatus, the actor and reply feeds, getStatusesByIds, the
+// counts and the edit history), and the deletions (deleteStatus,
+// deleteStatusWithQueueJob, deleteStatusEditHistory). getSQLDatabase binds
+// them into the facade.
 //
 // The lookups, hashtag reads and writes that return hydrated statuses take
 // their hydration as an argument (`hydrationFor(db)`, which statusQueries
@@ -176,7 +182,10 @@ export const createStatusQueries = (
   getStatusReblogsCount,
   getStatusReblogsCounts,
   getStatusRepliesCount,
-  getStatusRepliesCounts
+  getStatusRepliesCounts,
+  deleteStatusEditHistory,
+  deleteStatus,
+  deleteStatusWithQueueJob
 })
 
 export const statusQueries = createStatusQueries(statusHydrationFor)

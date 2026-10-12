@@ -5,6 +5,7 @@ import {
   hasActorCounters,
   setActorCounters
 } from '@/lib/database/domains/actor/counters'
+import { deleteActorData } from '@/lib/database/domains/actor/deletion'
 import { getFederationSigningActor } from '@/lib/database/domains/actor/federationSigner'
 import {
   getActorDeletionStatus,
@@ -37,9 +38,8 @@ import {
   updateNotificationPolicy
 } from '@/lib/database/domains/actor/writes'
 
-// The facade getSQLDatabase binds with bindDb(). deleteActorData is still the
-// Knex one in lib/database/sql/actor.ts, and the row mapper getActor (pure and
-// synchronous) is added to the facade from ./rows.ts.
+// The facade getSQLDatabase binds with bindDb(). The row mapper getActor
+// (pure and synchronous) is added to the facade from ./rows.ts.
 export const actorQueries = {
   createActor,
   getActorFromEmail,
@@ -70,5 +70,6 @@ export const actorQueries = {
   startActorDeletion,
   getActorsScheduledForDeletion,
   getActorDeletionStatus,
+  deleteActorData,
   getNodeInfoStats
 }

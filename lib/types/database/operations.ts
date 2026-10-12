@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
-import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import type {
-  GetStatusEditHistoryParams,
+  StatusDeletionDatabase,
   StatusLookupDatabase,
   StatusReadDatabase,
   StatusWriteDatabase
@@ -92,7 +91,9 @@ export type {
   CreateStatusResult,
   CreateTagParams,
   DecreaseHashtagCounterParams,
+  DeleteStatusParams,
   DeleteStatusTagsByTypeParams,
+  DeleteStatusWithQueueJobParams,
   FavouritedByAccount,
   GetActorAnnouncedStatusIdParams,
   GetActorPollVotesForStatusesParams,
@@ -128,6 +129,7 @@ export type {
   PinStatusParams,
   RebloggedByAccount,
   RecordPollVotesParams,
+  StatusDeletionDatabase,
   StatusEditRevision,
   StatusLookupDatabase,
   StatusReadDatabase,
@@ -139,35 +141,17 @@ export type {
   UpdateStatusQuoteApprovalPolicyParams
 } from '@/lib/database/domains/status/types'
 
-type BaseStatusParams = {
-  statusId: string
-}
-
-export type DeleteStatusParams = BaseStatusParams & {
-  actorId?: string
-}
-
-export type DeleteStatusWithQueueJobParams = {
-  actorId: string
-  statusId: string
-  queueJob: CreateQueueJobParams
-}
-
-// The lookups, the poll reads, the hashtag reads, the pins, the favourited-by
-// and reblogged-by pages (StatusLookupDatabase), the writes
-// (StatusWriteDatabase) and the reads and hydration (StatusReadDatabase) run on
-// Kysely, in lib/database/domains/status/; the methods below are still the
-// Knex mixin in lib/database/sql/status.ts.
+// The status domain runs on Kysely, in lib/database/domains/status/: the
+// lookups, the poll reads, the hashtag reads, the pins, the favourited-by and
+// reblogged-by pages (StatusLookupDatabase), the writes (StatusWriteDatabase),
+// the reads and hydration (StatusReadDatabase) and the deletions
+// (StatusDeletionDatabase).
 export interface StatusDatabase
-  extends StatusLookupDatabase, StatusWriteDatabase, StatusReadDatabase {
-  // Drops every prior revision of a status. Used when its audience widens:
-  // `status_history` does not record who a revision was written for.
-  deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
-  deleteStatus(params: DeleteStatusParams): Promise<void>
-  deleteStatusWithQueueJob(
-    params: DeleteStatusWithQueueJobParams
-  ): Promise<boolean>
-}
+  extends
+    StatusLookupDatabase,
+    StatusWriteDatabase,
+    StatusReadDatabase,
+    StatusDeletionDatabase {}
 
 // ============================================================================
 // Status Detected Language Database

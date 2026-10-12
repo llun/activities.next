@@ -9,7 +9,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 
 // The superseded revisions of a status, oldest first. Status hydration reads
 // them for each Note and Poll it builds. Deleting them (deleteStatusEditHistory)
-// is still the Knex mixin in lib/database/sql/status.ts.
+// is in ./deletion.ts.
 export const getStatusEditHistory = async (
   db: Db,
   { statusId }: GetStatusEditHistoryParams

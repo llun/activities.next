@@ -129,8 +129,6 @@ import {
   installKnexKyselyGuard,
   kyselyFor
 } from '@/lib/database/kysely'
-import { deleteActorData } from '@/lib/database/sql/actor'
-import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { Database } from '@/lib/database/types'
 import type { StatusDatabase } from '@/lib/types/database/operations'
 
@@ -146,13 +144,11 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     accountNoteQueries
   )
-  // deleteActorData is the actor domain's last Knex method; getActor is the
-  // pure row mapper (lib/database/domains/actor/rows.ts), kept on the facade
-  // only for the facade's own tests.
+  // getActor is the pure row mapper (lib/database/domains/actor/rows.ts),
+  // kept on the facade only for the facade's own tests.
   const actorDatabase: SQLActorDatabase = {
     ...bindDb(kysely, actorQueries),
-    getActor,
-    deleteActorData: (params) => deleteActorData(database, params)
+    getActor
   }
   const actorDomainBlockDatabase: ActorDomainBlockDatabase = bindDb(
     kysely,
@@ -306,12 +302,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     suggestionQueries
   )
   const trendsDatabase: TrendsDatabase = bindDb(kysely, trendsQueries)
-  // The status domain is Kysely queries apart from deletion, which is still
-  // the Knex mixin.
-  const statusDatabase: StatusDatabase = {
-    ...StatusSQLDatabaseMixin(database),
-    ...bindDb(kysely, statusQueries)
-  }
+  const statusDatabase: StatusDatabase = bindDb(kysely, statusQueries)
   // The list, collection and timeline feeds hydrate through the status
   // facade's getStatusesByIds (on the root Kysely instance), outside their
   // domains' transactions. currentActorId hydrates the viewer's action

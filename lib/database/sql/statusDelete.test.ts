@@ -575,7 +575,7 @@ describe('StatusDatabase deletion', () => {
           expect(
             queries.some(
               ({ bindings, sql }) =>
-                sql.includes('from `statuses`') &&
+                sql.includes('from "statuses"') &&
                 bindings.includes(overLimitStatusId)
             )
           ).toBe(false)
@@ -664,25 +664,25 @@ describe('StatusDatabase deletion', () => {
           expect(
             queries.some(
               ({ sql }) =>
-                sql.includes('from `statuses`') && sql.includes('`id` in')
+                sql.includes('from "statuses"') && sql.includes('"id" in')
             )
           ).toBe(true)
           expect(
             queries.some(
               ({ sql }) =>
-                sql.includes('from `tags`') && sql.includes('`statusid` in')
+                sql.includes('from "tags"') && sql.includes('"statusid" in')
             )
           ).toBe(true)
           expect(
             queries.some(
               ({ sql }) =>
                 sql.startsWith('delete') &&
-                sql.includes('`recipients`') &&
-                sql.includes('`statusid` in')
+                sql.includes('"recipients"') &&
+                sql.includes('"statusid" in')
             )
           ).toBe(true)
-          // The search document delete runs through Kysely, which quotes
-          // identifiers with double quotes.
+          // The deletion runs through Kysely, which quotes identifiers with
+          // double quotes.
           const searchDocumentDeletes = queries.filter(
             ({ bindings, sql }) =>
               sql.startsWith('delete') &&
@@ -796,9 +796,9 @@ describe('StatusDatabase deletion', () => {
             .filter(
               ({ sql }) =>
                 sql.startsWith('delete') &&
-                sql.includes('`statuses`') &&
-                sql.includes('`id` in') &&
-                sql.includes('`actorid` in')
+                sql.includes('"statuses"') &&
+                sql.includes('"id" in') &&
+                sql.includes('"actorid" in')
             )
             .map(({ bindings }) => bindings.length)
 
@@ -903,9 +903,9 @@ describe('StatusDatabase deletion', () => {
             queries.some(
               (sql) =>
                 sql.startsWith('delete') &&
-                sql.includes(`\`${tableName}\``) &&
-                sql.includes('`statusid` in') &&
-                !sql.includes('`actorid` in')
+                sql.includes(`"${tableName}"`) &&
+                sql.includes('"statusid" in') &&
+                !sql.includes('"actorid" in')
             )
           expect(hasDirectStatusIdDelete('status_history')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
@@ -1045,8 +1045,8 @@ describe('StatusDatabase deletion', () => {
             queries.some(
               (sql) =>
                 sql.startsWith('delete') &&
-                sql.includes(`\`${tableName}\``) &&
-                sql.includes('`statusid` in')
+                sql.includes(`"${tableName}"`) &&
+                sql.includes('"statusid" in')
             )
           expect(hasDirectStatusIdDelete('notifications')).toBe(true)
           expect(hasDirectStatusIdDelete('direct_conversation_statuses')).toBe(
@@ -1056,16 +1056,16 @@ describe('StatusDatabase deletion', () => {
             queries.some(
               (sql) =>
                 sql.startsWith('update') &&
-                sql.includes('`fitness_files`') &&
-                sql.includes('`statusid` in')
+                sql.includes('"fitness_files"') &&
+                sql.includes('"statusid" in')
             )
           ).toBe(true)
           expect(
             queries.some(
               (sql) =>
                 sql.startsWith('delete') &&
-                sql.includes('`counters`') &&
-                sql.includes('`id` in')
+                sql.includes('"counters"') &&
+                sql.includes('"id" in')
             )
           ).toBe(true)
         })

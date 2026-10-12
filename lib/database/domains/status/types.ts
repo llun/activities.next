@@ -4,12 +4,13 @@
 // writes (note, poll and boost creation, the note and poll edits, the
 // visibility and quote-policy updates, the tag writes, the hashtag counters
 // and the poll votes), and the reads and hydration (getStatus, the actor and
-// reply feeds, getStatusesByIds, the counts and the edit history).
+// reply feeds, getStatusesByIds, the counts and the edit history), and the
+// deletions (deleteStatus, deleteStatusWithQueueJob, deleteStatusEditHistory).
 // lib/types/database/operations.ts re-exports them, so existing imports keep
-// working. Deletion is still the Knex mixin in lib/database/sql/status.ts,
-// with its types in operations.ts.
+// working.
 import type { Selectable } from 'kysely'
 
+import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import type { Statuses } from '@/lib/database/kysely/db'
 import type {
   Attachment,
@@ -318,6 +319,16 @@ export type GetStatusRepliesParams = {
 export type GetStatusEditHistoryParams = {
   statusId: string
 }
+
+export type DeleteStatusParams = {
+  statusId: string
+  actorId?: string
+}
+export type DeleteStatusWithQueueJobParams = {
+  actorId: string
+  statusId: string
+  queueJob: CreateQueueJobParams
+}
 // A single superseded revision of a status (a row in `status_history`). `text`
 // and `summary` are the content of that prior version; `supersededAt` is when it
 // was replaced by the next version, which is the creation time of that next
@@ -518,4 +529,15 @@ export interface StatusWriteDatabase {
     params: IncrementPollChoiceVotesParams
   ): Promise<void>
   recordPollVotes(params: RecordPollVotesParams): Promise<boolean>
+}
+
+/** The status deletions; StatusDatabase extends it. */
+export interface StatusDeletionDatabase {
+  // Drops every prior revision of a status. Used when its audience widens:
+  // `status_history` does not record who a revision was written for.
+  deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
+  deleteStatus(params: DeleteStatusParams): Promise<void>
+  deleteStatusWithQueueJob(
+    params: DeleteStatusWithQueueJobParams
+  ): Promise<boolean>
 }
