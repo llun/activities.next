@@ -59,10 +59,7 @@ vi.mock('@/lib/config', () => ({
 
 vi.mock('@/lib/database', () => ({
   getKysely: () => holder.testDb?.db,
-  getDatabase: () => holder.testDb?.database ?? null,
-  // `POST /api/v1/apps` (createApplication) still writes the registration
-  // through Knex.
-  getKnex: () => holder.testDb?.knex
+  getDatabase: () => holder.testDb?.database ?? null
 }))
 
 // Mirrors `hashClientSecret` in app/api/v1/apps/createApplication.ts, which is

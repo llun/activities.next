@@ -3,8 +3,7 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
-import { getDatabase, getKnex } from '@/lib/database'
-import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
+import { getDatabase } from '@/lib/database'
 import {
   OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS
@@ -313,11 +312,10 @@ const resolveTokenContext = async ({
     // via defaultHasher (SHA-256 base64url) before storing in the
     // oauthAccessToken.token column.
     // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
-    const db = getKnex()
     const hashedToken = hashToken(token)
-    const storedToken = await db('oauthAccessToken')
-      .where('token', hashedToken)
-      .first()
+    const storedToken = await database.getOAuthAccessTokenByHash({
+      hashedToken
+    })
     if (!storedToken) {
       return { valid: false, response: rejectBearer('token_not_found', 401) }
     }
@@ -325,20 +323,17 @@ const resolveTokenContext = async ({
     // For opaque tokens, check expiration and scopes manually
     // (JWT verification already handles these for JWT tokens)
     if (!jwtPayload) {
-      // Read the way `knexAdapter` hydrates it, so a SQLite
-      // `YYYY-MM-DD HH:MM:SS` value is UTC rather than local time.
-      const storedExpiresAt = new Date(
-        getCompatibleTime(storedToken.expiresAt as string | number | Date)
-      )
+      // Epoch milliseconds on both backends: the query normalises a SQLite
+      // `YYYY-MM-DD HH:MM:SS` value as UTC rather than local time, the way
+      // `kyselyAdapter` reads it for better-auth.
+      const storedExpiresAt = new Date(storedToken.expiresAt)
       if (storedExpiresAt < new Date()) {
         return { valid: false, response: rejectBearer('token_expired', 401) }
       }
       // Fall back to an empty scope string if the column is null/undefined so
       // parseStoredScopes can't throw — a scopeless token then fails the scope
       // check with 401 rather than surfacing a 500.
-      const storedScopes = parseStoredScopes(
-        (storedToken.scopes as string | null) ?? ''
-      )
+      const storedScopes = parseStoredScopes(storedToken.scopes ?? '')
       grantedScopes = storedScopes
 
       if (
@@ -367,11 +362,11 @@ const resolveTokenContext = async ({
     // normalize both to null to honor the string | null context type.
     const actorId = jwtPayload
       ? (jwtPayload.actorId as string | null | undefined) || null
-      : (storedToken.referenceId as string | null) || null
+      : storedToken.referenceId || null
 
     // storedToken is always fetched above (revocation check) for both JWT and
     // opaque tokens, so clientId is available without an extra query.
-    const clientId = (storedToken.clientId as string | null) || null
+    const clientId = storedToken.clientId || null
 
     return {
       valid: true,
@@ -379,7 +374,7 @@ const resolveTokenContext = async ({
         grantedScopes,
         actorId,
         clientId,
-        userId: (storedToken.userId as string | null) || null,
+        userId: storedToken.userId || null,
         slide
       },
       database
