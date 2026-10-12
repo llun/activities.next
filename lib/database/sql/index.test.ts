@@ -204,7 +204,16 @@ describe('getSQLDatabase', () => {
     expect(statusDatabase.getTags).not.toHaveBeenCalled()
 
     // The reads and hydration are Kysely queries too, and the row hydration
-    // stays off the facade.
+    // stays off the facade. The mixin of the module itself (not the mock
+    // above) returns only the deletions, so none of them is its own.
+    const { StatusSQLDatabaseMixin: realMixin } =
+      await vi.importActual<typeof import('./status')>('./status')
+    const mixinKeys = Object.keys(realMixin({} as Knex))
+    expect(mixinKeys.sort()).toEqual([
+      'deleteStatus',
+      'deleteStatusEditHistory',
+      'deleteStatusWithQueueJob'
+    ])
     expect('hydrateStatusRow' in database).toBe(false)
     for (const name of [
       'getStatus',
@@ -219,7 +228,7 @@ describe('getSQLDatabase', () => {
       'getStatusRepliesCounts'
     ]) {
       expect(realStatusQueries[name]).toEqual(expect.any(Function))
-      expect(name in statusDatabase).toBe(false)
+      expect(mixinKeys).not.toContain(name)
     }
   })
 
