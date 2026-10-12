@@ -55,10 +55,8 @@ type MockDatabase = Pick<
 >
 
 let mockDatabase: unknown = null
-let mockKnex: unknown = undefined
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => mockKnex
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
@@ -607,7 +605,6 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
       settingsWithAllowEmails([])
     )
     mockDatabase = apiDatabase
-    mockKnex = apiKnex
     mockGetConfig.mockReturnValue({
       host: DOMAIN,
       allowEmails: [],

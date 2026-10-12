@@ -23,8 +23,7 @@ vi.mock('@/lib/actions/utils', () => ({
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => undefined
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({

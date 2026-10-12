@@ -1,19 +1,11 @@
 import { NextRequest } from 'next/server'
 
+import type { AccountPasskey } from '@/lib/types/database/operations'
+
 import { GET } from './route'
 
-type PasskeyRow = {
-  id: string
-  name: string | null
-  rpID: string | null
-  deviceType: string
-  backedUp: number | boolean
-  createdAt: string | Date
-  aaguid: string | null
-}
-
-let mockRows: PasskeyRow[] = []
-let capturedUserId: unknown
+let mockRows: AccountPasskey[] = []
+let capturedAccountId: unknown
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -34,15 +26,10 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => ({}),
-  getKnex: () => () => ({
-    where: (_field: string, value: unknown) => {
-      capturedUserId = value
-      return {
-        select: () => ({
-          orderBy: () => Promise.resolve(mockRows)
-        })
-      }
+  getDatabase: () => ({
+    getAccountPasskeys: ({ accountId }: { accountId: string }) => {
+      capturedAccountId = accountId
+      return Promise.resolve(mockRows)
     }
   })
 }))
@@ -63,7 +50,7 @@ describe('GET /api/v1/passkeys', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockRows = []
-    capturedUserId = undefined
+    capturedAccountId = undefined
     mockActor = { account: { id: 'account-1' } }
     mockGetServerSession.mockResolvedValue({ user: { email: 'a@example.com' } })
   })
@@ -84,8 +71,8 @@ describe('GET /api/v1/passkeys', () => {
         name: 'Laptop',
         rpID: 'second.example',
         deviceType: 'multiDevice',
-        backedUp: 1,
-        createdAt: '2026-04-12T00:00:00.000Z',
+        backedUp: true,
+        createdAt: Date.parse('2026-04-12T00:00:00.000Z'),
         aaguid: 'aaguid-1'
       }
     ]
@@ -94,7 +81,7 @@ describe('GET /api/v1/passkeys', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(capturedUserId).toBe('account-1')
+    expect(capturedAccountId).toBe('account-1')
     expect(body).toEqual([
       {
         id: 'pk1',
@@ -115,8 +102,8 @@ describe('GET /api/v1/passkeys', () => {
         name: null,
         rpID: null,
         deviceType: 'singleDevice',
-        backedUp: 0,
-        createdAt: '2026-05-03T00:00:00.000Z',
+        backedUp: false,
+        createdAt: Date.parse('2026-05-03T00:00:00.000Z'),
         aaguid: null
       }
     ]
@@ -129,15 +116,18 @@ describe('GET /api/v1/passkeys', () => {
     expect(body[0].name).toBeNull()
   })
 
-  it('normalizes a zone-less SQLite createdAt string to ISO UTC', async () => {
+  // The query reads a SQLite zone-less `YYYY-MM-DD HH:MM:SS` value as UTC
+  // (see getAccountPasskeys in lib/database/domains/account/passkeys.test.ts),
+  // so the route only has to format the epoch milliseconds it gets back.
+  it('serializes the createdAt of a zone-less SQLite value as ISO UTC', async () => {
     mockRows = [
       {
         id: 'pk4',
         name: 'Key',
         rpID: 'primary.example',
         deviceType: 'singleDevice',
-        backedUp: 0,
-        createdAt: '2026-04-12 08:09:10',
+        backedUp: false,
+        createdAt: Date.UTC(2026, 3, 12, 8, 9, 10),
         aaguid: null
       }
     ]
@@ -148,7 +138,28 @@ describe('GET /api/v1/passkeys', () => {
     expect(body[0].createdAt).toBe('2026-04-12T08:09:10.000Z')
   })
 
-  it('serializes a Date createdAt to an ISO string', async () => {
+  it('reports a createdAt that is not a date as null instead of failing the list', async () => {
+    mockRows = [
+      {
+        id: 'pk5',
+        name: 'Key',
+        rpID: 'primary.example',
+        deviceType: 'singleDevice',
+        backedUp: false,
+        createdAt: Number.NaN,
+        aaguid: null
+      }
+    ]
+
+    const response = await GET(createRequest(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject([
+      { id: 'pk5', createdAt: null }
+    ])
+  })
+
+  it('serializes the createdAt of a PostgreSQL timestamp to an ISO string', async () => {
     mockRows = [
       {
         id: 'pk3',
@@ -156,7 +167,7 @@ describe('GET /api/v1/passkeys', () => {
         rpID: 'primary.example',
         deviceType: 'singleDevice',
         backedUp: false,
-        createdAt: new Date('2026-06-01T10:11:12.000Z'),
+        createdAt: Date.parse('2026-06-01T10:11:12.000Z'),
         aaguid: null
       }
     ]

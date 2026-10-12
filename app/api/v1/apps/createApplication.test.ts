@@ -6,21 +6,20 @@ import { seedDatabase } from '@/lib/stub/database'
 import { createApplication } from './createApplication'
 import { PostResponse, SuccessResponse } from './types'
 
-// Create a knex instance we can use for both the database and for getKnex mock
+// The Knex instance behind the database createApplication writes through, so
+// the tests can read the stored rows back without going through the facade.
 const knexDatabase = knex({
   client: 'better-sqlite3',
   useNullAsDefault: true,
   connection: { filename: ':memory:' }
 })
+const database = getSQLDatabase(knexDatabase)
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: vi.fn(),
-  getKnex: () => knexDatabase
+  getDatabase: () => database
 }))
 
 describe('createApplication', () => {
-  const database = getSQLDatabase(knexDatabase)
-
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)

@@ -18,8 +18,7 @@ const mockKnex = knex({
 const mockDatabase = getSQLDatabase(mockKnex)
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => mockKnex
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({

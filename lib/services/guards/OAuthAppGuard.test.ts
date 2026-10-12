@@ -10,7 +10,13 @@ import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { OAuthAppGuard } from './OAuthGuard'
-import { createRequest, hashToken, mockHandler } from './OAuthGuard.testUtils'
+import {
+  StoredTokenSeed,
+  createRequest,
+  hashToken,
+  mockHandler,
+  stubAccessTokenLookup
+} from './OAuthGuard.testUtils'
 
 // Mock auth session
 const mockGetServerSession = vi.fn()
@@ -20,16 +26,10 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 // Mock database getter
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
-// mockStoredTokens maps hashed tokens to their stored records
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
-const mockKnexQueryBuilder = (hashedToken: string) => ({
-  first: () => Promise.resolve(mockStoredTokens.get(hashedToken) ?? null)
-})
+// mockStoredTokens maps hashed tokens to the access-token rows the database finds
+const mockStoredTokens = new Map<string, StoredTokenSeed>()
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => mockKnexQueryBuilder(value)
-  })
+  getDatabase: () => mockDatabase
 }))
 
 // Mock cookies from next/headers — controls which actor the cookie selects
@@ -73,6 +73,9 @@ describe('OAuthGuard', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    stubAccessTokenLookup(database, (hashedToken) =>
+      mockStoredTokens.get(hashedToken)
+    )
   })
 
   afterAll(async () => {
@@ -113,10 +116,9 @@ describe('OAuthGuard', () => {
     test('accepts an app token with no actor (null referenceId)', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('app-token-no-actor'), {
-        token: hashToken('app-token-no-actor'),
         referenceId: null,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -141,10 +143,9 @@ describe('OAuthGuard', () => {
       const token = 'eyJ.app.sig'
       mockVerifyBearerToken.mockResolvedValue({ scope: 'read' })
       mockStoredTokens.set(hashToken(token), {
-        token: hashToken(token),
         referenceId: null,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -167,10 +168,9 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('user-token-app-guard'), {
-        token: hashToken('user-token-app-guard'),
         referenceId: primaryActor?.id,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -193,10 +193,9 @@ describe('OAuthGuard', () => {
         email: seedActor1.email
       })
       mockStoredTokens.set(hashToken('app-suspended-token'), {
-        token: hashToken('app-suspended-token'),
         referenceId: primaryActor?.id,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
       await database.setActorSuspended({
@@ -227,10 +226,9 @@ describe('OAuthGuard', () => {
     test('returns 401 for an expired app token', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('expired-app-token'), {
-        token: hashToken('expired-app-token'),
         referenceId: null,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() - 1000),
+        expiresAt: Date.now() - 1000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -264,10 +262,9 @@ describe('OAuthGuard', () => {
       // downgrade to an actor-less context — it fails closed with 401.
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('deleted-actor-token'), {
-        token: hashToken('deleted-actor-token'),
         referenceId: 'https://llun.test/users/deleted',
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 
@@ -289,11 +286,11 @@ describe('OAuthGuard', () => {
       // rather than throwing in parseStoredScopes and surfacing a 500.
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('null-scopes-token'), {
-        token: hashToken('null-scopes-token'),
         referenceId: null,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
-        scopes: null
+        expiresAt: Date.now() + 3600000,
+        // The column is NOT NULL; this is the corrupt row the guard tolerates.
+        scopes: null as unknown as string
       })
 
       const { handler } = captureHandler()
@@ -310,10 +307,9 @@ describe('OAuthGuard', () => {
     test('returns 401 when the token lacks the required scope', async () => {
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('read-only-app-token'), {
-        token: hashToken('read-only-app-token'),
         referenceId: null,
         clientId: 'client-app-1',
-        expiresAt: new Date(Date.now() + 3600000),
+        expiresAt: Date.now() + 3600000,
         scopes: JSON.stringify(['read'])
       })
 

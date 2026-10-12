@@ -14,8 +14,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => undefined
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({

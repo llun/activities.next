@@ -47,12 +47,7 @@ let mockDatabase:
   ReturnType<typeof getTestDatabaseWithInstance>['database'] | null = null
 const mockStoredToken = vi.fn()
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -109,6 +104,9 @@ describe('/api/v1/media/[id]', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    vi.spyOn(database, 'getOAuthAccessTokenByHash').mockImplementation(() =>
+      mockStoredToken()
+    )
   })
 
   afterAll(async () => {
@@ -260,7 +258,7 @@ describe('/api/v1/media/[id]', () => {
   it('GET accepts a bearer token with write:media scope', async () => {
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'write:media'
     })
@@ -279,7 +277,7 @@ describe('/api/v1/media/[id]', () => {
   it('GET rejects a bearer token that only has the read scope', async () => {
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'read'
     })

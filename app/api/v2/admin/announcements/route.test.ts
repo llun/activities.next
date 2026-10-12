@@ -7,8 +7,7 @@ import { GET, POST } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => null
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({

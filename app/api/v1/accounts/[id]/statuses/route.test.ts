@@ -33,12 +33,7 @@ vi.mock('@/lib/services/mastodon/getRemoteActorStatuses', () => ({
 
 let mockDatabase: Database | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => () => ({
-    where: () => ({
-      first: () => mockStoredToken()
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -95,6 +90,9 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    vi.spyOn(database, 'getOAuthAccessTokenByHash').mockImplementation(() =>
+      mockStoredToken()
+    )
   })
 
   afterAll(async () => {
@@ -418,7 +416,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
 
   it('allows OAuth tokens with read:statuses to read private owner statuses', async () => {
     mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: Date.now() + 60_000,
       referenceId: ACTOR1_ID,
       scopes: 'read:statuses'
     })

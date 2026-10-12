@@ -16,16 +16,12 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => (table: string) => ({
-    where: (_field: string, value: string) => ({
-      first: () => {
-        mockClientLookupCount += 1
-        if (mockClientLookupError) return Promise.reject(mockClientLookupError)
-        return Promise.resolve(
-          table === 'oauthClient' ? mockClients.get(value) : null
-        )
-      }
-    })
+  getDatabase: () => ({
+    isOAuthClientPKCERequired: ({ clientId }: { clientId: string }) => {
+      mockClientLookupCount += 1
+      if (mockClientLookupError) return Promise.reject(mockClientLookupError)
+      return Promise.resolve(Boolean(mockClients.get(clientId)?.requirePKCE))
+    }
   })
 }))
 

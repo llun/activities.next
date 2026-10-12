@@ -1,4 +1,3 @@
-import type { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -18,10 +17,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 let mockDatabase: Database | null = null
-let mockKnex: Knex | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => mockKnex
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -50,19 +47,17 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('POST /api/v1/statuses', () => {
-  const { database, knex: knexInstance, prepare } = createTestDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
     await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
-    mockKnex = knexInstance
   })
 
   afterAll(async () => {
     mockDatabase = null
-    mockKnex = null
     await database.destroy()
   })
 

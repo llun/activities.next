@@ -28,8 +28,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 let mockDatabase:
   ReturnType<typeof getTestDatabaseWithInstance>['database'] | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => () => ({ where: () => ({ first: () => null }) })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({

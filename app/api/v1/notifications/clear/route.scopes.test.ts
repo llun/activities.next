@@ -2,6 +2,10 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import {
+  StoredTokenSeed,
+  stubAccessTokenLookup
+} from '@/lib/services/guards/OAuthGuard.testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
@@ -23,7 +27,7 @@ const hashToken = (token: string) =>
     .replace(/\//g, '_')
     .replace(/=+$/, '')
 
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
+const mockStoredTokens = new Map<string, StoredTokenSeed>()
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -32,12 +36,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => ({
-      first: () => Promise.resolve(mockStoredTokens.get(value) ?? null)
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -66,6 +65,9 @@ describe('POST /api/v1/notifications/clear scope enforcement', () => {
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    stubAccessTokenLookup(database, (hashedToken) =>
+      mockStoredTokens.get(hashedToken)
+    )
   })
 
   afterAll(async () => {
@@ -82,10 +84,9 @@ describe('POST /api/v1/notifications/clear scope enforcement', () => {
 
   const setToken = (token: string, scopes: string[]) => {
     mockStoredTokens.set(hashToken(token), {
-      token: hashToken(token),
       referenceId: ACTOR1_ID,
       clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() + 3600000),
+      expiresAt: Date.now() + 3600000,
       scopes: JSON.stringify(scopes)
     })
   }

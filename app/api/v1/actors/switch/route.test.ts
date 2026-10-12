@@ -15,8 +15,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 const { database, instance } = getTestSQLDatabaseWithInstance()
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => database,
-  getKnex: () => instance
+  getDatabase: () => database
 }))
 
 const mockCookieSet = vi.fn()
