@@ -852,9 +852,9 @@ describe('ActorDatabase deletion', () => {
             queries.some(
               (sql) =>
                 sql.startsWith('delete') &&
-                sql.includes(`\`${tableName}\``) &&
-                sql.includes('`statusid` in') &&
-                !sql.includes('`actorid` in')
+                sql.includes(`"${tableName}"`) &&
+                sql.includes('"statusid" in') &&
+                !sql.includes('"actorid" in')
             )
           expect(hasDirectStatusIdDelete('status_history')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
@@ -867,16 +867,16 @@ describe('ActorDatabase deletion', () => {
             queries.some(
               (sql) =>
                 sql.startsWith('update') &&
-                sql.includes('`fitness_files`') &&
-                sql.includes('`statusid` in')
+                sql.includes('"fitness_files"') &&
+                sql.includes('"statusid" in')
             )
           ).toBe(true)
           expect(
             queries.some(
               (sql) =>
                 sql.startsWith('delete') &&
-                sql.includes('`counters`') &&
-                sql.includes('`id` in')
+                sql.includes('"counters"') &&
+                sql.includes('"id" in')
             )
           ).toBe(true)
         })

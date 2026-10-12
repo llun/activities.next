@@ -1,8 +1,7 @@
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import { Actor, ActorProfile, getActorProfile } from '@/lib/types/domain/actor'
 
-// Row helpers the Kysely status domain shares with the Knex status deletion
-// (lib/database/sql/status.ts).
+// Row helpers the status domain's reads, writes and deletion share.
 
 // A status embeds its author for rendering only, and nothing reads the
 // author's `lastStatusAt` there — yet it rides along on every page that ships

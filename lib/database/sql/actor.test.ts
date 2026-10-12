@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import { type SQLActorDatabase } from '@/lib/database/sql/actor'
+import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
 import {
   createActorPublicIdReader,
   createSigningAccount,

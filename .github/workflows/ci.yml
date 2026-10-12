@@ -264,7 +264,11 @@ jobs:
   # fitness file, quote, link preview, reaction and viewer fields) with the
   # personal inbox, the emoji reaction action and job, the actor posts reader's
   # context and string-reference suites, the reaction list and the mention
-  # lookup over them, the fitness file domain (uploads with their
+  # lookup over them, the status and actor deletions (a status's reply tree
+  # with every row keyed on it, its counters, hashtags, lastStatusAt, quote
+  # tombstones and queue job, an actor's purge with its counters, poll
+  # tallies and search documents, their chunking, rollbacks and row locks)
+  # with the actor deletion job over them, the fitness file domain (uploads with their
   # storage and file counters and hourly buckets, deletes, processing and
   # import status, primary assignment, the actor listing with its cursor and
   # Knex paging, the account listing with its counter total, the overview
@@ -650,6 +654,9 @@ jobs:
             lib/jobs/emojiReactionJob.test.ts \
             lib/services/reactions/getStatusReactionList.test.ts \
             lib/utils/text/getMentions.test.ts \
+            lib/database/sql/statusDeletionQueries.test.ts \
+            lib/database/sql/actorDeletionQueries.test.ts \
+            lib/jobs/deleteActorJob.test.ts \
             lib/database/sql/conversation.test.ts \
             lib/database/sql/conversationQueries.test.ts \
             lib/database/sql/directConversationsMigration.test.ts \

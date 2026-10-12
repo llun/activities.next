@@ -72,7 +72,7 @@ export const resolveParentStatusIdByReply = async (
 // author's and the service's status totals and hour bucket, the author's
 // `lastStatusAt`, the local post total and bucket for a local author, the
 // boosted status's reblog total and the parent's reply total. Deletion moves
-// them back with its own batched adjustments (still the Knex mixin).
+// them back with its own batched adjustments (./deletion.ts).
 const updateStatusCounters = async (
   trx: Db,
   {

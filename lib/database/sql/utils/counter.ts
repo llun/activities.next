@@ -1,7 +1,5 @@
 import { Knex } from 'knex'
 
-import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
-
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER
 const MAX_ADJUST_RETRIES = 100
 
@@ -186,15 +184,4 @@ export const deleteCounterValue = async (
   id: string
 ): Promise<void> => {
   await database('counters').where('id', id).delete()
-}
-
-export const deleteCounterValues = async (
-  database: SQLDatabase,
-  ids: string[]
-): Promise<void> => {
-  if (ids.length === 0) return
-
-  for (const idChunk of chunkArray(ids, getWhereInBatchSize(database))) {
-    await database('counters').whereIn('id', idChunk).delete()
-  }
 }

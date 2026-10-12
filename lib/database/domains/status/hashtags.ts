@@ -254,9 +254,9 @@ export const getHashtagCounter = (
   )
 
 // The hashtag tags of `statusIds`, in no particular order. One value of each
-// statement is the tag type. The Kysely twin of the Knex
-// selectHashtagTagsByStatusIds (lib/database/sql/utils/status.ts), which the
-// Knex status and actor deletions still use.
+// statement is the tag type. updateNoteVisibility and the status and actor
+// deletions use it. Its Knex twin in lib/database/sql/utils/status.ts went
+// with the Knex status and actor deletions.
 export const selectHashtagTagsByStatusIds = (db: Db, statusIds: string[]) =>
   selectInChunks(
     db,

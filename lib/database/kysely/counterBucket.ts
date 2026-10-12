@@ -8,9 +8,9 @@ import {
 } from '@/lib/database/sql/utils/counterBucket'
 
 // Kysely counterpart of incrementBucket in
-// lib/database/sql/utils/counterBucket.ts, for domains that have moved to
-// Kysely; the Knex helper stays for the ones that have not. Both write the same
-// `counters` rows. getBucketStats reads them back for the admin dashboard.
+// lib/database/sql/utils/counterBucket.ts. Every domain uses this one now; the
+// Knex helper is left only for its tests. Both write the same `counters` rows.
+// getBucketStats reads them back for the admin dashboard.
 
 /**
  * Increment the bucket counter for the hour containing `currentTime`. Buckets

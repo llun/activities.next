@@ -1,12 +1,12 @@
 import { Knex } from 'knex'
 
+import { actorQueries } from '@/lib/database/domains/actor/queries'
 import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
 import { createListQueries } from '@/lib/database/domains/list/queries'
 import { statusQueries } from '@/lib/database/domains/status/queries'
 import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
 
 import { getSQLDatabase } from './index'
-import { StatusSQLDatabaseMixin } from './status'
 
 const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
   kyselyForMock: vi.fn(),
@@ -63,9 +63,14 @@ vi.mock('@/lib/database/domains/status/queries', async (importOriginal) => {
   return { ...original, statusQueries: { ...original.statusQueries } }
 })
 
-vi.mock('@/lib/database/sql/status', () => ({
-  StatusSQLDatabaseMixin: vi.fn()
-}))
+// The same for the actor queries.
+vi.mock('@/lib/database/domains/actor/queries', async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import('@/lib/database/domains/actor/queries')
+    >()
+  return { ...original, actorQueries: { ...original.actorQueries } }
+})
 
 describe('getSQLDatabase', () => {
   const createListQueriesMock = vi.mocked(createListQueries)
@@ -76,7 +81,8 @@ describe('getSQLDatabase', () => {
     unknown
   >
   const realStatusQueries = { ...mutableStatusQueries }
-  const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
+  const mutableActorQueries = actorQueries as unknown as Record<string, unknown>
+  const realActorQueries = { ...mutableActorQueries }
 
   let _knexMock: Knex
 
@@ -85,7 +91,15 @@ describe('getSQLDatabase', () => {
   })
 
   afterEach(() => {
-    Object.assign(mutableStatusQueries, realStatusQueries)
+    for (const [queries, real] of [
+      [mutableStatusQueries, realStatusQueries],
+      [mutableActorQueries, realActorQueries]
+    ]) {
+      for (const name of Object.keys(queries)) {
+        if (!(name in real)) delete queries[name]
+      }
+      Object.assign(queries, real)
+    }
   })
 
   const createComposedDatabase = () => {
@@ -96,28 +110,60 @@ describe('getSQLDatabase', () => {
       destroy: vi.fn().mockResolvedValue(undefined)
     } as unknown as Knex
 
-    const statusDatabase = {
-      deleteStatus: vi.fn(),
-      getTags: vi.fn(),
-      testPriority: 'status'
-    }
-
     _knexMock = knexDatabase
-    statusMixinMock.mockReturnValue(statusDatabase)
 
     const database = getSQLDatabase(knexDatabase)
 
     return {
       database,
-      knexDatabase,
-      statusDatabase
+      knexDatabase
     }
   }
 
-  it('builds the status deletion mixin on the Knex instance alone', () => {
-    const { database, knexDatabase, statusDatabase } = createComposedDatabase()
-    expect(statusMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(database.deleteStatus).toBe(statusDatabase.deleteStatus)
+  it('binds the status and actor deletions to kyselyFor(knex), resolved on each call', async () => {
+    const kyselyDb = { name: 'kysely' }
+    kyselyForMock.mockReturnValue(kyselyDb)
+    const deleteStatus = vi.fn().mockResolvedValue(undefined)
+    const deleteStatusWithQueueJob = vi.fn().mockResolvedValue(true)
+    const deleteStatusEditHistory = vi.fn().mockResolvedValue(undefined)
+    const deleteActorData = vi.fn().mockResolvedValue(undefined)
+    Object.assign(mutableStatusQueries, {
+      deleteStatus,
+      deleteStatusWithQueueJob,
+      deleteStatusEditHistory
+    })
+    mutableActorQueries.deleteActorData = deleteActorData
+    const { database, knexDatabase } = createComposedDatabase()
+    expect(kyselyForMock).not.toHaveBeenCalled()
+
+    const queueJob = { name: 'sendDeleteNote', payload: {} }
+    await database.deleteStatus({ statusId: 'status', actorId: 'actor' })
+    await expect(
+      database.deleteStatusWithQueueJob({
+        statusId: 'status',
+        actorId: 'actor',
+        queueJob: queueJob as never
+      })
+    ).resolves.toBe(true)
+    await database.deleteStatusEditHistory({ statusId: 'status' })
+    await database.deleteActorData({ actorId: 'actor' })
+
+    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
+    expect(deleteStatus).toHaveBeenCalledWith(kyselyDb, {
+      statusId: 'status',
+      actorId: 'actor'
+    })
+    expect(deleteStatusWithQueueJob).toHaveBeenCalledWith(kyselyDb, {
+      statusId: 'status',
+      actorId: 'actor',
+      queueJob
+    })
+    expect(deleteStatusEditHistory).toHaveBeenCalledWith(kyselyDb, {
+      statusId: 'status'
+    })
+    expect(deleteActorData).toHaveBeenCalledWith(kyselyDb, {
+      actorId: 'actor'
+    })
   })
 
   it.each([
@@ -162,9 +208,10 @@ describe('getSQLDatabase', () => {
 
   it('merges properties with later mixins taking precedence', async () => {
     // The status facade's own properties are on the facade.
+    mutableStatusQueries.testPriority = vi.fn().mockResolvedValue('status')
     const { database } = createComposedDatabase()
-    const merged = database as unknown as Record<string, string>
-    expect(merged.testPriority).toBe('status')
+    const merged = database as unknown as Record<string, () => Promise<string>>
+    await expect(merged.testPriority()).resolves.toBe('status')
 
     // The timeline queries are the last spread: a property they define wins
     // over the status facade's, and is bound to the Kysely instance of this
@@ -187,33 +234,23 @@ describe('getSQLDatabase', () => {
     expect(testPriority).toHaveBeenCalledWith(kyselyDb, 'arg')
   })
 
-  it('binds the status queries to kyselyFor(knex), over the Knex mixin', async () => {
-    // A Kysely status query wins over a Knex key of the same name, and is
-    // bound to the Kysely instance of this Knex one, resolved on each call.
+  it('binds the status queries to kyselyFor(knex)', async () => {
+    // A status query is bound to the Kysely instance of this Knex one,
+    // resolved on each call.
     const kyselyDb = { name: 'kysely' }
     kyselyForMock.mockReturnValue(kyselyDb)
     const getTags = vi.fn().mockResolvedValue(['tag'])
     mutableStatusQueries.getTags = getTags
-    const { database, knexDatabase, statusDatabase } = createComposedDatabase()
+    const { database, knexDatabase } = createComposedDatabase()
     expect(kyselyForMock).not.toHaveBeenCalledWith(knexDatabase)
     await expect(database.getTags({ statusId: 'status' })).resolves.toEqual([
       'tag'
     ])
     expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
     expect(getTags).toHaveBeenCalledWith(kyselyDb, { statusId: 'status' })
-    expect(statusDatabase.getTags).not.toHaveBeenCalled()
 
-    // The reads and hydration are Kysely queries too, and the row hydration
-    // stays off the facade. The mixin of the module itself (not the mock
-    // above) returns only the deletions, so none of them is its own.
-    const { StatusSQLDatabaseMixin: realMixin } =
-      await vi.importActual<typeof import('./status')>('./status')
-    const mixinKeys = Object.keys(realMixin({} as Knex))
-    expect(mixinKeys.sort()).toEqual([
-      'deleteStatus',
-      'deleteStatusEditHistory',
-      'deleteStatusWithQueueJob'
-    ])
+    // The reads, hydration and deletions are Kysely queries too, and the row
+    // hydration stays off the facade.
     expect('hydrateStatusRow' in database).toBe(false)
     for (const name of [
       'getStatus',
@@ -225,11 +262,14 @@ describe('getSQLDatabase', () => {
       'getStatusReblogsCount',
       'getStatusReblogsCounts',
       'getStatusRepliesCount',
-      'getStatusRepliesCounts'
+      'getStatusRepliesCounts',
+      'deleteStatus',
+      'deleteStatusWithQueueJob',
+      'deleteStatusEditHistory'
     ]) {
       expect(realStatusQueries[name]).toEqual(expect.any(Function))
-      expect(mixinKeys).not.toContain(name)
     }
+    expect(realActorQueries.deleteActorData).toEqual(expect.any(Function))
   })
 
   it('proxies migrate and destroy to knex lifecycle methods', async () => {
