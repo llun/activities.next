@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from 'next'
 import { InAppHistoryTracker } from '@/lib/components/navigation-history/InAppHistoryTracker'
 import { ThemeProvider } from '@/lib/components/theme'
 import { THEME_INIT_SCRIPT } from '@/lib/components/theme/theme-core'
+import { withVersion } from '@/lib/utils/version'
 
 import './globals.css'
 
@@ -17,8 +18,17 @@ export const metadata: Metadata = {
   title: 'Activities.next',
   manifest: '/manifest.webmanifest',
   icons: {
+    icon: [
+      { url: withVersion('/favicon.ico'), sizes: 'any' },
+      { url: withVersion('/icon-192.png'), sizes: '192x192', type: 'image/png' }
+    ],
+    shortcut: [withVersion('/favicon.ico')],
     apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
+      {
+        url: withVersion('/apple-touch-icon.png'),
+        sizes: '180x180',
+        type: 'image/png'
+      }
     ]
   }
 }
