@@ -1,6 +1,9 @@
 import type { Knex } from 'knex'
 
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 
 // Thin aliases over `createTestDatabase` (lib/database/testing/), kept so the
@@ -30,11 +33,22 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
   )
 }
 
+// What `getTestDatabaseWithInstance` and `getTestSQLDatabaseWithInstance` hand
+// out besides the raw Knex `instance`: Kysely on the same pool for seeding and
+// reading, and statement capture. `db` stays a getter, as on `TestDatabase`,
+// so a suite built around a mocked Knex never builds a Kysely instance. Hand
+// them out with a getter, not a spread, which would read `db` eagerly.
+export type TestDatabaseTools = Pick<
+  TestDatabase,
+  'db' | 'captureQueries' | 'onQuery' | 'pendingAcquires'
+>
+
 /**
- * A database honouring `TEST_DATABASE_TYPE`, plus its raw Knex instance and the
- * `prepare` step PostgreSQL needs, for a suite that is not shaped as a
- * `describe.each` over `getTestDatabaseTable()` but still has to run on both
- * backends.
+ * A database honouring `TEST_DATABASE_TYPE`, plus its raw Knex instance, a
+ * Kysely `db` on the same pool, statement capture (`captureQueries`,
+ * `onQuery`) and the `prepare` step PostgreSQL needs, for a suite that is not
+ * shaped as a `describe.each` over `getTestDatabaseTable()` but still has to
+ * run on both backends.
  *
  * `getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` below are
  * SQLite-ONLY and ignore `TEST_DATABASE_TYPE` entirely — which is a trap worth
@@ -49,12 +63,22 @@ export const getTestDatabaseWithInstance = (
   database: Database
   instance: Knex
   prepare: PrepareFunction
-} => {
-  const { database, knex, prepare } = createTestDatabase({
+} & TestDatabaseTools => {
+  const testDatabase = createTestDatabase({
     backend: backend === 'pg' ? 'pg' : 'sqlite',
     isolated
   })
-  return { database, instance: knex, prepare }
+  return {
+    database: testDatabase.database,
+    instance: testDatabase.knex,
+    prepare: testDatabase.prepare,
+    get db() {
+      return testDatabase.db
+    },
+    captureQueries: testDatabase.captureQueries,
+    onQuery: testDatabase.onQuery,
+    pendingAcquires: testDatabase.pendingAcquires
+  }
 }
 
 // Build a fresh in-memory SQLite database and also hand back the raw Knex
@@ -66,9 +90,21 @@ export const getTestDatabaseWithInstance = (
 // under the pg environment variables having never talked to PostgreSQL. Reach
 // for `getTestDatabaseWithInstance` when the SQL under test must agree on both
 // backends.
-export const getTestSQLDatabaseWithInstance = () => {
-  const { database, knex } = createTestDatabase({ backend: 'sqlite' })
-  return { database, instance: knex }
+export const getTestSQLDatabaseWithInstance = (): {
+  database: Database
+  instance: Knex
+} & TestDatabaseTools => {
+  const testDatabase = createTestDatabase({ backend: 'sqlite' })
+  return {
+    database: testDatabase.database,
+    instance: testDatabase.knex,
+    get db() {
+      return testDatabase.db
+    },
+    captureQueries: testDatabase.captureQueries,
+    onQuery: testDatabase.onQuery,
+    pendingAcquires: testDatabase.pendingAcquires
+  }
 }
 
 // SQLite ONLY — see the note on `getTestSQLDatabaseWithInstance`.
