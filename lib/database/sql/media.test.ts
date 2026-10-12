@@ -104,10 +104,7 @@ describe('MediaDatabase', () => {
       })
 
       // The spellings that are NOT rejected, because each still names the same
-      // row unambiguously and each resolved before this guard existed (both
-      // backends convert them). '12.0' in particular is reachable on SQLite,
-      // where `attachments.mediaId` is a `varchar` and an id bound as a JS
-      // number lands as '1.0', then gets re-resolved on every status edit.
+      // row unambiguously (see toMediaRowId).
       it.each([
         {
           description: 'an all-zero fraction',

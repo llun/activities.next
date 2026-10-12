@@ -96,7 +96,7 @@ const pickAttachments = async (
     const rows = (await db
       .selectFrom('attachments as gallery_attachments')
       .innerJoin('medias', (join) =>
-        join.on('gallery_attachments.mediaId', '=', galleryMediaIdRef(db))
+        join.on('gallery_attachments.mediaId', '=', galleryMediaIdRef)
       )
       .innerJoin(
         'statuses as gallery_statuses',
@@ -463,7 +463,7 @@ const unattachedMedia = (db: Db, chunk: number[], actorId: string) =>
           db
             .selectFrom('attachments')
             .select(sql.lit(1).as('one'))
-            .where('attachments.mediaId', '=', galleryMediaIdRef(db))
+            .where('attachments.mediaId', '=', galleryMediaIdRef)
         )
       )
     )

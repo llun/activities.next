@@ -467,8 +467,7 @@ describe('POST /api/v1/accounts/outbox', () => {
   })
 
   // The spellings a real client sends. `0012` is what a zero-padded id looks
-  // like, and `12.0` is kept because SQLite's `varchar` `attachments.mediaId`
-  // can genuinely hold that form for an id bound as a JS number.
+  // like, and `12.0` is kept because `toMediaRowId` accepts it.
   it.each([
     { description: 'a plain row id', id: '12' },
     { description: 'a zero-padded row id', id: '0012' },

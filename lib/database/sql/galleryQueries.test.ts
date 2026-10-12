@@ -124,8 +124,7 @@ const seedAttachment = async (
       width: 640,
       height: 480,
       name: '',
-      // As createAttachment writes it.
-      mediaId: String(mediaId),
+      mediaId,
       createdAt: new Date(1000),
       updatedAt: new Date(1000),
       ...values,
