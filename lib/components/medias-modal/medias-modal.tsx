@@ -507,14 +507,14 @@ export const MediasModal: FC<Props> = ({
               })
             }}
             className={cn(
-              'absolute bottom-3 z-20 mx-auto max-w-2xl space-y-3 divide-y divide-white/10 overflow-y-auto rounded-2xl bg-black/70 p-4 text-left text-white ring-1 ring-white/10 outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
+              'absolute bottom-3 z-20 mx-auto max-w-2xl divide-y divide-white/10 overflow-y-auto rounded-2xl bg-black/70 p-4 text-left text-white ring-1 ring-white/10 outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
               shouldShowNavigation
                 ? 'inset-x-3 max-h-[calc(50%-2.5rem)]'
                 : 'inset-x-3 max-h-[40%] md:max-h-[50%]'
             )}
           >
             {currentAltText ? (
-              <p className="text-sm leading-relaxed text-white/90 select-text">
+              <p className="py-3 text-sm leading-relaxed text-white/90 select-text first:pt-0 last:pb-0">
                 <CustomEmojiText text={currentAltText} tags={tags} />
               </p>
             ) : null}
@@ -523,7 +523,7 @@ export const MediasModal: FC<Props> = ({
                 details={currentDetails}
                 ownerName={ownerName}
                 attachmentUpdatedAt={currentMedia.updatedAt}
-                className="pt-3 first:pt-0"
+                className="py-3 first:pt-0 last:pb-0"
               />
             ) : null}
             {albumsOwnerId && currentMediaId ? (
@@ -534,7 +534,7 @@ export const MediasModal: FC<Props> = ({
                 ownerId={albumsOwnerId}
                 variant="pill"
                 onChange={onAlbumsChange}
-                className="items-start pt-3 first:pt-0"
+                className="items-start py-3 first:pt-0 last:pb-0"
               />
             ) : null}
           </div>

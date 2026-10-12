@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { getMediaPublicDetails } from '@/lib/client'
+import { getMediaAlbums, getMediaPublicDetails } from '@/lib/client'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -12,10 +12,12 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { MediasModal } from './medias-modal'
 
 vi.mock('@/lib/client', () => ({
+  getMediaAlbums: vi.fn(),
   getMediaPublicDetails: vi.fn()
 }))
 
 const mockGetMediaPublicDetails = vi.mocked(getMediaPublicDetails)
+const mockGetMediaAlbums = vi.mocked(getMediaAlbums)
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
 
@@ -68,13 +70,18 @@ const openDetails = () =>
 const openDetailsWhenReady = async () =>
   fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
 
-const renderModal = (medias: Attachment[], initialSelection = 0) =>
+const renderModal = (
+  medias: Attachment[],
+  initialSelection = 0,
+  props: Partial<React.ComponentProps<typeof MediasModal>> = {}
+) =>
   render(
     <PlaybackPreferencesProvider initialAutoplayGifs={false}>
       <MediasModal
         medias={medias}
         initialSelection={initialSelection}
         onClosed={vi.fn()}
+        {...props}
       />
     </PlaybackPreferencesProvider>
   )
@@ -82,6 +89,7 @@ const renderModal = (medias: Attachment[], initialSelection = 0) =>
 describe('MediasModal media details', () => {
   beforeEach(() => {
     mockGetMediaPublicDetails.mockReset()
+    mockGetMediaAlbums.mockReset()
   })
 
   afterEach(() => {
@@ -321,5 +329,33 @@ describe('MediasModal media details', () => {
 
     const overlay = screen.getByRole('region', { name: 'Photo details' })
     expect(overlay.textContent?.includes('Edited')).toBe(shown)
+  })
+
+  it('spaces details rows with symmetric py-3 and divide-y rather than space-y', async () => {
+    mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
+    mockGetMediaAlbums.mockResolvedValue({
+      albums: [],
+      albumIds: [],
+      addable: true
+    })
+
+    renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })], 0, {
+      albumsOwnerId: 'owner-1'
+    })
+
+    await openDetailsWhenReady()
+
+    const region = screen.getByRole('region', { name: 'Photo details' })
+    expect(region).toHaveClass('divide-y', 'divide-white/10')
+    expect(region.className).not.toMatch(/space-y-/)
+
+    expect(region.children.length).toBe(3)
+    const [altTextRow, detailsPanelRow, albumsControlRow] = Array.from(
+      region.children
+    )
+
+    expect(altTextRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
+    expect(detailsPanelRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
+    expect(albumsControlRow).toHaveClass('py-3', 'first:pt-0', 'last:pb-0')
   })
 })
