@@ -21,9 +21,11 @@
  * fires no foreign key action and `PRAGMA foreign_keys` need not be switched
  * off (SQLite ignores that pragma inside a transaction anyway). The migration
  * checks that no table references `attachments` and refuses to run if one ever
- * does, because dropping the table would then act on the child rows. The whole
- * rebuild is one transaction, and it fails, rolling back, if the row count
- * changes or an index cannot be re-created.
+ * does, because dropping the table would then act on the child rows. It
+ * refuses likewise if a trigger or view names `attachments`, which the rename
+ * would repoint at the old table and the drop would delete or break (none
+ * does). The whole rebuild is one transaction, and it fails, rolling back, if
+ * the row count changes or an index cannot be re-created.
  *
  * `mediaId` is copied by the rule the PostgreSQL migration applied (digits
  * only, at most 10 of them, at most 2147483647), widened to accept an all-zero
@@ -154,6 +156,22 @@ const rebuildAttachments = async (knex, { mediaIdType, mediaIdSql, from }) => {
     if (referencing.length > 0) {
       throw new Error(
         `Cannot rebuild ${TABLE}: referenced by ${referencing
+          .map(({ name }) => name)
+          .join(', ')}`
+      )
+    }
+
+    // The rename repoints a trigger or view that names the table at the old
+    // table, and dropping that table then deletes the trigger and breaks the
+    // view, so refuse to rebuild if there is one.
+    const dependents = await trx.raw(
+      `SELECT name FROM sqlite_master
+        WHERE type IN ('trigger', 'view') AND name NOT LIKE 'sqlite_%'
+          AND (tbl_name = '${TABLE}' OR sql LIKE '%${TABLE}%')`
+    )
+    if (dependents.length > 0) {
+      throw new Error(
+        `Cannot rebuild ${TABLE}: used by ${dependents
           .map(({ name }) => name)
           .join(', ')}`
       )

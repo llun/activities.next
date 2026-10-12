@@ -297,6 +297,44 @@ describe('attachments mediaId integer migration', () => {
     ])
   })
 
+  it.each([
+    [
+      'a view',
+      'CREATE VIEW `attachment_names` AS SELECT `id`, `name` FROM `attachments`',
+      'attachment_names'
+    ],
+    [
+      'a trigger',
+      'CREATE TRIGGER `attachments_touch` AFTER UPDATE ON `attachments` BEGIN SELECT 1; END',
+      'attachments_touch'
+    ],
+    [
+      'a trigger on another table',
+      'CREATE TRIGGER `notes_touch` AFTER INSERT ON `notes` BEGIN DELETE FROM `attachments` WHERE `id` = NEW.`id`; END',
+      'notes_touch'
+    ]
+  ])(
+    'refuses to rebuild a table that %s uses, and changes nothing',
+    async (_, sql, name) => {
+      await database.raw('CREATE TABLE `notes` (`id` varchar(255))')
+      await database.raw(sql)
+      await insertRow('one', '7')
+
+      await expect(migration.up(database)).rejects.toThrow(
+        `Cannot rebuild attachments: used by ${name}`
+      )
+
+      expect(await mediaIdType()).toBe('varchar(255)')
+      expect(await mediaIds()).toEqual([
+        { id: 'one', mediaId: '7', kind: 'text' }
+      ])
+      const objects: SqliteMasterRow[] = await database.raw(
+        "SELECT name, sql FROM sqlite_master WHERE type IN ('trigger', 'view')"
+      )
+      expect(objects.map((object) => object.name)).toEqual([name])
+    }
+  )
+
   it('rolls the rebuild back when it fails part-way', async () => {
     // Two spellings of one id are distinct as text but one row id once
     // converted, so re-creating this index fails after the rows were copied and
