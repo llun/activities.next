@@ -438,16 +438,17 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const {
           database: isolated,
           instance,
+          onQuery,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
 
-        let clearListener: ((query: { sql: string }) => void) | undefined
+        let stopCounting: (() => void) | undefined
 
         try {
           const actorId = await createActor(isolated)
-          // Counts the claim's INSERTs from the query event, which fires as
+          // Counts the claim's INSERTs from the query listener, which fires as
           // each is sent. The DELETE is staged on the INSERT's own
           // connection, after it has run and before the claim's read, so the
           // intended interleaving is independent of pool scheduling on
@@ -462,8 +463,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               insertAttempts += 1
             }
           }
-          clearListener = countInserts
-          instance.on('query', countInserts)
+          stopCounting = onQuery(countInserts)
 
           const clear = interfereAfterStatement(
             (sql) => {
@@ -492,7 +492,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(claim.claimed).toBe(true)
           expect(claim.reason).toBe('claimed')
         } finally {
-          if (clearListener) instance.off('query', clearListener)
+          stopCounting?.()
           await isolated.destroy()
         }
       })

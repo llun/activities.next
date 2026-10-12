@@ -5,6 +5,10 @@ import {
   recordWeeklyLoginSafely
 } from '@/lib/database/domains/instanceActivity/queries'
 import { type Db, kyselyFor } from '@/lib/database/kysely'
+import {
+  type CaptureQueries,
+  createKnexQueryCapture
+} from '@/lib/database/testing/queryCapture'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 import { logger } from '@/lib/utils/logger'
 
@@ -13,6 +17,7 @@ const toUnixSeconds = (date: Date) => Math.floor(date.getTime() / 1000)
 describe('instance activity counters', () => {
   let database: Knex
   let db: Db
+  let captureQueries: CaptureQueries
 
   beforeEach(async () => {
     database = knex({
@@ -21,6 +26,7 @@ describe('instance activity counters', () => {
       connection: { filename: ':memory:' }
     })
     db = kyselyFor(database)
+    ;({ captureQueries } = createKnexQueryCapture(database))
 
     await database.schema.createTable('counters', (table) => {
       table.string('id').primary()
@@ -61,18 +67,11 @@ describe('instance activity counters', () => {
   })
 
   it('filters bucket rows by sortable counter id range in the database query', async () => {
-    const queries: { sql: string; bindings?: unknown[] }[] = []
-    const onQuery = (query: { sql: string; bindings?: unknown[] }) =>
-      queries.push(query)
-    database.on('query', onQuery)
-
-    try {
-      await getInstanceActivityFromCounters(db, {
+    const queries = await captureQueries(() =>
+      getInstanceActivityFromCounters(db, {
         now: new Date('2026-05-26T12:00:00.000Z')
       })
-    } finally {
-      database.off('query', onQuery)
-    }
+    )
 
     const countersQuery = queries.find((query) =>
       query.sql.includes('from "counters"')

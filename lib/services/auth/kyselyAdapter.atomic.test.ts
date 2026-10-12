@@ -32,19 +32,9 @@ describe('kyselyAdapter', () => {
   const countRows = async (table: string) =>
     (await db.selectFrom(table).selectAll().execute()).length
 
-  // The SQL of every statement `run` issues. The Kysely instance borrows the
-  // test database's Knex pool, which announces each statement.
-  const captureStatements = async (run: () => Promise<unknown>) => {
-    const statements: string[] = []
-    const record = ({ sql }: { sql: string }) => statements.push(sql)
-    testDb.knex.on('query', record)
-    try {
-      await run()
-    } finally {
-      testDb.knex.off('query', record)
-    }
-    return statements
-  }
+  // The SQL of every statement `run` issues.
+  const captureStatements = async (run: () => Promise<unknown>) =>
+    (await testDb.captureQueries(run)).map(({ sql }) => sql)
 
   describe('passkey rpID stamping', () => {
     it('stamps the instance rpID onto a new passkey row', async () => {

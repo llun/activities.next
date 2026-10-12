@@ -1,16 +1,15 @@
 import crypto from 'crypto'
-import knex from 'knex'
 
 import {
   createFreshDatabaseRunner,
   createSigningAccount,
   seedActorTestDatabase
 } from '@/lib/database/domains/actor/actorTestHelpers'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { listTimelineKey } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -682,22 +681,13 @@ describe('ActorDatabase deletion', () => {
       })
 
       describe('deleting owned status-scoped data', () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { knex: knexDatabase, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/delete-actor-status-data'
         const voterId = 'https://remote.test/users/delete-actor-voter'
         const noteId = `${actorId}/statuses/history-cleanup`
         const pollId = `${actorId}/statuses/poll-cleanup`
         const queries: string[] = []
-        const handleQuery = ({ sql }: { sql: string }) => {
-          queries.push(sql.toLowerCase())
-        }
         const currentTime = new Date()
         const countRows = async (tableName: string, statusId: string) => {
           const row = await knexDatabase(tableName)
@@ -807,14 +797,14 @@ describe('ActorDatabase deletion', () => {
           ).resolves.toBe(1)
           await expect(countRows('fitness_files', noteId)).resolves.toBe(1)
 
-          knexDatabase.on('query', handleQuery)
-          await sqlDatabase.deleteActorData({ actorId })
-          knexDatabase.off('query', handleQuery)
+          const statements = await testDb.captureQueries(() =>
+            sqlDatabase.deleteActorData({ actorId })
+          )
+          queries.push(...statements.map(({ sql }) => sql.toLowerCase()))
         })
 
         afterAll(async () => {
-          knexDatabase.off('query', handleQuery)
-          await knexDatabase.destroy()
+          await testDb.destroy()
         })
 
         it('removes status-scoped rows and nulls the fitness file statusId', async () => {

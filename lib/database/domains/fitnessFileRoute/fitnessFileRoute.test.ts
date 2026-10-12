@@ -190,29 +190,29 @@ describe('FitnessFileRouteDatabase', () => {
         // SQLITE_MAX_VARIABLE_NUMBER far above the project's conservative
         // 999-binding floor, so an unchunked query of this size still succeeds
         // HERE and would only fail on a stricter build or another backend
-        // (PostgreSQL caps parameters at 65535). Needs the raw knex instance
-        // for its query event (which the Kysely statements also emit), so it
-        // builds its own database rather than using the shared one; no rows
-        // are required, only the statements.
+        // (PostgreSQL caps parameters at 65535). Builds its own database
+        // rather than using the shared one, so no other test's statements are
+        // captured; no rows are required, only the statements.
         const {
           database: isolated,
-          instance,
+          captureQueries,
           prepare
         } = getTestDatabaseWithInstance(true)
         await prepare()
         await isolated.migrate()
         try {
-          const statements: string[] = []
-          instance.on('query', ({ sql }: { sql: string }) => {
-            if (sql.includes('fitness_file_routes')) statements.push(sql)
-          })
-
-          await isolated.getFitnessFileRoutes({
-            fitnessFileIds: Array.from(
-              { length: 2_500 },
-              (_unused, index) => `absent-${index}`
+          const statements = (
+            await captureQueries(() =>
+              isolated.getFitnessFileRoutes({
+                fitnessFileIds: Array.from(
+                  { length: 2_500 },
+                  (_unused, index) => `absent-${index}`
+                )
+              })
             )
-          })
+          )
+            .map(({ sql }) => sql)
+            .filter((sql) => sql.includes('fitness_file_routes'))
 
           // ceil(2500 / 999) on SQLite, ceil(2500 / 1000) on PostgreSQL
           expect(statements).toHaveLength(3)

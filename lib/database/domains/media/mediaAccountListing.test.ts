@@ -1,4 +1,3 @@
-import { kyselyFor } from '@/lib/database/kysely'
 import { getDialectName } from '@/lib/database/kysely/dialect'
 import { SQLITE_MAX_BINDINGS, chunkArray } from '@/lib/database/kysely/inList'
 import {
@@ -833,7 +832,7 @@ describe('MediaDatabase', () => {
 
       describe('chunking attachment lookups under SQLite parameter limits', () => {
         let isolatedDb: typeof database
-        let instance: ReturnType<typeof getTestDatabaseWithInstance>['instance']
+        let isolated: ReturnType<typeof getTestDatabaseWithInstance>
         let account1Id: string
         const mediaCount = 1000
         const attachmentQueries: { sql: string; bindings: unknown[] }[] = []
@@ -842,9 +841,8 @@ describe('MediaDatabase', () => {
         >
 
         beforeAll(async () => {
-          const isolated = getTestDatabaseWithInstance(true, databaseType)
+          isolated = getTestDatabaseWithInstance(true, databaseType)
           isolatedDb = isolated.database
-          instance = isolated.instance
           await isolated.prepare()
           await isolatedDb.migrate()
 
@@ -879,7 +877,7 @@ describe('MediaDatabase', () => {
           }))
 
           for (const chunk of chunkArray(mediaRows, 50)) {
-            await instance('medias').insert(chunk)
+            await isolated.instance('medias').insert(chunk)
           }
 
           // Media 1 (chunk 1): own attachment -> should return 'own-status-1'
@@ -888,7 +886,7 @@ describe('MediaDatabase', () => {
           // Media 500 (chunk 1): foreign attachment only -> should return undefined
           // Media 501 (chunk 1): empty statusId attachment -> should return undefined
           // Media 1000 (chunk 2): own attachment -> should return 'own-status-1000'
-          await instance('attachments').insert([
+          await isolated.instance('attachments').insert([
             {
               id: 'att-chunk-1',
               actorId: actors.primary.id,
@@ -957,31 +955,21 @@ describe('MediaDatabase', () => {
             }
           ])
 
-          const onQuery = ({
-            sql,
-            bindings
-          }: {
-            sql: string
-            bindings?: unknown[]
-          }) => {
+          const statements = await isolated.captureQueries(async () => {
+            result = await isolatedDb.getMediasWithStatusForAccount({
+              accountId: account1Id,
+              limit: mediaCount
+            })
+          })
+          for (const { sql, bindings } of statements) {
             const normalizedSql = sql.toLowerCase()
             if (
               normalizedSql.includes('attachments') &&
               normalizedSql.includes('medias') &&
               normalizedSql.includes('group by')
             ) {
-              attachmentQueries.push({ sql, bindings: bindings ?? [] })
+              attachmentQueries.push({ sql, bindings })
             }
-          }
-
-          instance.on('query', onQuery)
-          try {
-            result = await isolatedDb.getMediasWithStatusForAccount({
-              accountId: account1Id,
-              limit: mediaCount
-            })
-          } finally {
-            instance.off('query', onQuery)
           }
         })
 
@@ -992,7 +980,7 @@ describe('MediaDatabase', () => {
         it('splits the lookup into chunks that stay within the SQLite bind ceiling', async () => {
           expect(attachmentQueries.length).toBeGreaterThan(0)
 
-          if (getDialectName(kyselyFor(instance)) === 'sqlite') {
+          if (getDialectName(isolated.db) === 'sqlite') {
             // 1000 items with batch size 997 produces exactly 2 chunks (997 and 3 items).
             expect(attachmentQueries).toHaveLength(2)
 

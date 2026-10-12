@@ -114,17 +114,11 @@ describe('session resolution with database joins', () => {
   it('reads the account in the same statement as the session', async () => {
     const { auth, cookie } = await signIn()
 
-    // The adapter's Kysely instance borrows the test database's Knex pool,
-    // which announces every statement it runs.
-    const knex = holder.testDb?.knex
-    const statements: string[] = []
-    const record = ({ sql }: { sql: string }) => statements.push(sql)
-    knex?.on('query', record)
-    try {
-      await auth.api.getSession({ headers: new Headers({ cookie }) })
-    } finally {
-      knex?.off('query', record)
-    }
+    const statements = (
+      await holder.testDb!.captureQueries(() =>
+        auth.api.getSession({ headers: new Headers({ cookie }) })
+      )
+    ).map(({ sql }) => sql)
 
     const sessionReads = statements.filter(
       (sql) => sql.includes('from "sessions"') && sql.startsWith('select')

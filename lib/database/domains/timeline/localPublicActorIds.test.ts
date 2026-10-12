@@ -8,13 +8,11 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // early return is reached only on a database with no local actor at all —
 // which is why `localPublicQueryShape.test.ts` has to seed one to get past it.
 //
-// The queries are Kysely's (lib/database/domains/timeline/localPublic.ts). Its
-// driver emits each statement as a `query` event on the Knex client, tagged
-// `kysely: true`; the listeners below keep only those. The assertions that pick
-// one statement take the first match, which the feed read (or the id pluck)
-// sends before the status hydration that follows it (Kysely too), and the
-// empty feed hydrates nothing.
-type QueryEvent = { sql: string; bindings: unknown[]; kysely?: true }
+// The queries are Kysely's (lib/database/domains/timeline/localPublic.ts), and
+// so is every statement the calls below send, so the capture needs no filter.
+// The assertions that pick one statement take the first match, which the feed
+// read (or the id pluck) sends before the status hydration that follows it
+// (Kysely too), and the empty feed hydrates nothing.
 
 describe('local public timeline actor id handling', () => {
   const DOMAIN = 'llun.test'
@@ -41,7 +39,8 @@ describe('local public timeline actor id handling', () => {
   }
 
   describe('with no local actors', () => {
-    const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+    const { database, captureQueries, prepare } =
+      getTestDatabaseWithInstance(true)
 
     beforeAll(async () => {
       await prepare()
@@ -53,19 +52,14 @@ describe('local public timeline actor id handling', () => {
     })
 
     it('returns an empty feed and a zero count without querying statuses', async () => {
-      const statements: string[] = []
-      const listener = ({ sql, kysely }: QueryEvent) => {
-        if (kysely) statements.push(sql)
-      }
-      instance.on('query', listener)
-      try {
-        expect(
-          await database.getTimeline({ timeline: Timeline.LOCAL_PUBLIC })
-        ).toEqual([])
-        expect(await database.getLocalPublicStatusesCount()).toBe(0)
-      } finally {
-        instance.off('query', listener)
-      }
+      const statements = (
+        await captureQueries(async () => {
+          expect(
+            await database.getTimeline({ timeline: Timeline.LOCAL_PUBLIC })
+          ).toEqual([])
+          expect(await database.getLocalPublicStatusesCount()).toBe(0)
+        })
+      ).map(({ sql }) => sql)
 
       // The early return is an optimisation, so prove it actually returned
       // early rather than compiling an empty `IN ()` and asking anyway.
@@ -82,7 +76,8 @@ describe('local public timeline actor id handling', () => {
   })
 
   describe('with more local actors than the query can bind', () => {
-    const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+    const { database, instance, captureQueries, prepare } =
+      getTestDatabaseWithInstance(true)
 
     // Past the literal-id ceiling on BOTH backends, so the fallback semi-join
     // is the branch under test wherever this runs. The ceilings differ — 987 on
@@ -143,20 +138,15 @@ describe('local public timeline actor id handling', () => {
     })
 
     it('falls back to the semi-join and still returns the same rows', async () => {
-      const statements: string[] = []
-      const listener = ({ sql, kysely }: QueryEvent) => {
-        if (kysely) statements.push(sql)
-      }
-      instance.on('query', listener)
-      let statuses
-      try {
-        statuses = await database.getTimeline({
-          timeline: Timeline.LOCAL_PUBLIC,
-          limit: 30
+      let statuses: Awaited<ReturnType<typeof database.getTimeline>> = []
+      const statements = (
+        await captureQueries(async () => {
+          statuses = await database.getTimeline({
+            timeline: Timeline.LOCAL_PUBLIC,
+            limit: 30
+          })
         })
-      } finally {
-        instance.off('query', listener)
-      }
+      ).map(({ sql }) => sql)
 
       expect(statuses.map((status) => status.id)).toEqual([
         `${AUTHOR_ID}/statuses/bulk-public`
@@ -175,16 +165,9 @@ describe('local public timeline actor id handling', () => {
     it('reads at most one id more than it can use', async () => {
       // The pluck is on an anonymous path, so it must not stream every local
       // actor id back only for the fallback to discard the list.
-      const statements: QueryEvent[] = []
-      const listener = (event: QueryEvent) => {
-        if (event.kysely) statements.push(event)
-      }
-      instance.on('query', listener)
-      try {
-        await database.getTimeline({ timeline: Timeline.LOCAL_PUBLIC })
-      } finally {
-        instance.off('query', listener)
-      }
+      const statements = await captureQueries(() =>
+        database.getTimeline({ timeline: Timeline.LOCAL_PUBLIC })
+      )
 
       const idQuery = statements.find(
         ({ sql }) => sql.includes('actors') && !sql.includes('statuses')

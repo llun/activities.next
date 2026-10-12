@@ -694,6 +694,7 @@ jobs:
             lib/services/auth/errorURL.test.ts \
             lib/services/auth/schemaCompleteness.test.ts \
             lib/database/testing/createTestDatabase.test.ts \
+            lib/database/testing/queryCapture.test.ts \
             lib/database/testing/fixtures.test.ts
         env:
           TEST_DATABASE_TYPE: pg

@@ -835,14 +835,44 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   would otherwise leave that pooled connection unable to resolve any unqualified
   table name for the rest of its life.
 - **New tests get their database from `createTestDatabase()`**
-  (`lib/database/testing/createTestDatabase.ts`). It returns
-  `{ backend, database, db, knex, prepare, destroy }`: the `Database` facade
-  with the schema-dump `migrate()`, a Kysely `db`, the raw Knex instance, the
-  PostgreSQL `prepare` step (a no-op on SQLite) and `destroy`. Seed or inspect
-  state the public `Database` methods cannot reach with the helpers in
+  (`lib/database/testing/createTestDatabase.ts`). It returns the `Database`
+  facade (`database`, with the schema-dump `migrate()`), a Kysely `db`, the raw
+  Knex instance (`knex`), the PostgreSQL `prepare` step (a no-op on SQLite),
+  `destroy`, `backend`, and the statement capture described below
+  (`captureQueries`, `onQuery`, `pendingAcquires`). Seed or inspect state the
+  public `Database` methods cannot reach with the helpers in
   `lib/database/testing/fixtures.ts` (`(db, params)` functions over Kysely);
   use a public method instead when one already does the job. The helpers below
   are one-line aliases over it.
+- **To assert on the SQL a call sends, capture it with
+  `testDb.captureQueries(work)`; never register a listener on the Knex
+  instance** (`knex.on('query', …)`) in a test (`driver.test.ts` and
+  `sqlcommenter.test.ts`, which test the driver itself, are the exceptions
+  until the connection swap). It resolves to the
+  `{ sql, bindings }[]` the driver sent while `work` ran, in order, with the
+  `begin` / `commit` / `rollback` of any transaction; statements sent before or
+  after `work` are not in it, and statements another caller sends while it runs
+  are (the capture is a window in time on the whole pool, not on `work`'s
+  async context). Captures nest (the outer one also sees the inner
+  one's statements), and if `work` throws, the error is rethrown and the
+  statements are lost. Match the placeholder, not the identifier quoting: the
+  statements are Kysely's, which double-quotes identifiers on both backends, so
+  the same statement differs only in `?` (SQLite) against `$1` (PostgreSQL). SQL
+  a test sends through its own Knex instance, as the legacy migration tests do,
+  is quoted by Knex: backticks on SQLite. `testDb.onQuery(listener)` is the lower
+  level hook: it calls `listener({ sql, bindings, connection })` for every
+  statement and returns the function that unsubscribes. Use it when a test
+  needs the `connection` (two statements ran on the same connection when the
+  strings are equal, which is how a test tells "inside one open transaction"
+  from "autocommitted elsewhere"), or has to stop a runaway loop: a listener
+  that throws fails the statement that triggered it. `getTestDatabaseWithInstance()`
+  returns the same `captureQueries`, `onQuery` and `db` next to its `instance`.
+  `testDb.pendingAcquires()` is how many callers are queued for a pooled
+  connection, for a race test that has to know another caller is stuck (on
+  SQLite, one waiting for the single connection). A test that builds its own
+  Knex instance, as the legacy migration tests do to run a migration module
+  against hand-made tables, gets the same `captureQueries` and `onQuery` from
+  `createKnexQueryCapture(knex)` (`lib/database/testing/queryCapture.ts`).
 - **`getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` are SQLite-ONLY
   and ignore `TEST_DATABASE_TYPE` entirely.** A suite built on either reports a
   clean pass under the pg environment variables having never opened a PostgreSQL
@@ -860,8 +890,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `stale(rows)` instead of what is stored, standing in for another request
   writing between the query function's read and its write, so the
   unique-conflict and guarded-update branches run on both backends. Row locks
-  are checked on PostgreSQL itself: listen to the Knex `query` event, which
-  Kysely statements also emit, and assert the `for update`.
+  are checked on PostgreSQL itself: capture the statements with
+  `testDb.captureQueries` and assert the `for update`.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always
@@ -923,7 +953,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   (two rows at `batchSize: 1` separates per-row, per-batch and after-the-loop).
   The same gap hides a hardcoded page size: at fixture scale one 50-row batch
   and several 1-row batches write the same rows and log the same counters, so
-  paging is only observable by counting the SELECTs off knex's `query` event.
+  paging is only observable by counting the SELECTs
+  `captureQueries` reports.
 - **To control when an awaited call settles, import `createDeferred` from
   `@/lib/testing/deferred` — do not hand-roll another promise-with-exposed-resolve
   helper.** The same eight lines had been reimplemented in four test files under
@@ -1337,8 +1368,8 @@ attachment ref guard` is exactly that: it passed with the bug present until
   filtering `mock.calls` and asserting the list with `toEqual`, over a fixture
   where the wrong placement logs twice. Same blind spot for a hardcoded page
   size: at fixture scale one big batch and several small ones are
-  indistinguishable by result, so paging needs the SELECTs counted off knex's
-  `query` event.
+  indistinguishable by result, so paging needs the SELECTs counted from
+  `captureQueries`.
 - Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
   configure it, prefer **`vi.importMock<T>('@/path')`** over
   `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,

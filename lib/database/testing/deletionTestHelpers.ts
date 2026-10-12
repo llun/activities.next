@@ -1,6 +1,7 @@
 import { sql } from 'kysely'
 
 import type { TestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { CapturedQuery } from '@/lib/database/testing/queryCapture'
 
 // Shared by the status and actor deletion query tests
 // (statusDeletionQueries.test.ts, actorDeletionQueries.test.ts): a dump of
@@ -107,24 +108,18 @@ export const failWrite = async (
 
 export const quote = (value: string) => `'${value.replaceAll("'", "''")}'`
 
-export type Statement = { sql: string; bindings: unknown[] }
+export type Statement = CapturedQuery
 
-/** The statements `run` sends, as the driver reports them on the Knex `query` event. */
+/** The statements `run` sends, with what it returned. */
 export const capture = async <T>(
   testDb: TestDatabase,
   run: () => Promise<T>
 ) => {
-  const statements: Statement[] = []
-  const listener = (event: { sql: string; bindings?: unknown[] }) => {
-    statements.push({ sql: event.sql, bindings: event.bindings ?? [] })
-  }
-  testDb.knex.on('query', listener)
-  try {
-    const result = await run()
-    return { result, statements }
-  } finally {
-    testDb.knex.off('query', listener)
-  }
+  let result!: T
+  const statements = await testDb.captureQueries(async () => {
+    result = await run()
+  })
+  return { result, statements }
 }
 
 export type StatementNames = [RegExp, (bindings: unknown[]) => string][]

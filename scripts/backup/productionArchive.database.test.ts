@@ -3,6 +3,8 @@ import knex from 'knex'
 import os from 'os'
 import path from 'path'
 
+import { createKnexQueryCapture } from '@/lib/database/testing/queryCapture'
+
 import {
   assertArchiveTableFilesReadable,
   assertMatchingMigrations,
@@ -87,8 +89,8 @@ describe('production archive scripts', () => {
         useNullAsDefault: true
       })
       const statements: string[] = []
-      database.on('query', (query) => {
-        statements.push(query.sql)
+      createKnexQueryCapture(database).onQuery(({ sql }) => {
+        statements.push(sql)
       })
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
@@ -162,8 +164,8 @@ describe('production archive scripts', () => {
         useNullAsDefault: true
       })
       const statements: string[] = []
-      database.on('query', (query) => {
-        statements.push(query.sql)
+      createKnexQueryCapture(database).onQuery(({ sql }) => {
+        statements.push(sql)
       })
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
@@ -220,8 +222,8 @@ describe('production archive scripts', () => {
         useNullAsDefault: true
       })
       const statements: string[] = []
-      database.on('query', (query) => {
-        statements.push(query.sql)
+      createKnexQueryCapture(database).onQuery(({ sql }) => {
+        statements.push(sql)
       })
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
@@ -278,8 +280,8 @@ describe('production archive scripts', () => {
         useNullAsDefault: true
       })
       const statements: string[] = []
-      database.on('query', (query) => {
-        statements.push(query.sql)
+      createKnexQueryCapture(database).onQuery(({ sql }) => {
+        statements.push(sql)
       })
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 

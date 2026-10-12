@@ -3,6 +3,15 @@ import { createSearchActor } from '@/lib/database/testing/searchTestHelpers'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 
+// The statements of one kind among the captured ones. The quoting is the
+// backend's, so both forms are matched.
+const isActorSelect = (sql: string) =>
+  sql.toLowerCase().startsWith('select') &&
+  (sql.includes('from `actors`') || sql.includes('from "actors"'))
+const isSearchDocumentInsert = (sql: string) =>
+  sql.includes('insert into `search_documents`') ||
+  sql.includes('insert into "search_documents"')
+
 describe('SearchDatabase accounts', () => {
   it('indexes actors and searches accounts by profile text', async () => {
     const testDb = createTestDatabase()
@@ -255,30 +264,25 @@ describe('SearchDatabase accounts', () => {
 
   it('indexes local account creation without reloading the inserted actor', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
-    const actorSelectQueries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      if (
-        sql.toLowerCase().startsWith('select') &&
-        (sql.includes('from `actors`') || sql.includes('from "actors"'))
-      ) {
-        actorSelectQueries.push(sql)
-      }
-    }
+    const { database } = testDb
 
     try {
       await testDb.prepare()
       await database.migrate()
-      knexDatabase.on('query', handleQuery)
-      await database.createAccount({
-        email: 'local-runner@remote.test',
-        username: 'local-runner',
-        passwordHash: 'password-hash',
-        domain: 'remote.test',
-        privateKey: 'private-key',
-        publicKey: 'public-key'
-      })
-      knexDatabase.off('query', handleQuery)
+      const actorSelectQueries = (
+        await testDb.captureQueries(() =>
+          database.createAccount({
+            email: 'local-runner@remote.test',
+            username: 'local-runner',
+            passwordHash: 'password-hash',
+            domain: 'remote.test',
+            privateKey: 'private-key',
+            publicKey: 'public-key'
+          })
+        )
+      )
+        .map(({ sql }) => sql)
+        .filter(isActorSelect)
 
       expect(actorSelectQueries).toHaveLength(0)
       await expect(
@@ -287,23 +291,13 @@ describe('SearchDatabase accounts', () => {
         getLocalActorId({ domain: 'remote.test', username: 'local-runner' })
       ])
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
 
   it('indexes account actors without reloading the inserted actor', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
-    const actorSelectQueries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      if (
-        sql.toLowerCase().startsWith('select') &&
-        (sql.includes('from `actors`') || sql.includes('from "actors"'))
-      ) {
-        actorSelectQueries.push(sql)
-      }
-    }
+    const { database } = testDb
 
     try {
       await testDb.prepare()
@@ -317,22 +311,26 @@ describe('SearchDatabase accounts', () => {
         publicKey: 'public-key'
       })
 
-      knexDatabase.on('query', handleQuery)
-      const actorId = await database.createActorForAccount({
-        accountId,
-        username: 'secondary-runner',
-        domain: 'remote.test',
-        privateKey: 'secondary-private-key',
-        publicKey: 'secondary-public-key'
-      })
-      knexDatabase.off('query', handleQuery)
+      let actorId: string | undefined
+      const actorSelectQueries = (
+        await testDb.captureQueries(async () => {
+          actorId = await database.createActorForAccount({
+            accountId,
+            username: 'secondary-runner',
+            domain: 'remote.test',
+            privateKey: 'secondary-private-key',
+            publicKey: 'secondary-public-key'
+          })
+        })
+      )
+        .map(({ sql }) => sql)
+        .filter(isActorSelect)
 
       expect(actorSelectQueries).toHaveLength(0)
       await expect(
         database.searchAccountIds({ q: 'secondary-runner', limit: 10 })
       ).resolves.toEqual([actorId])
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -514,23 +512,7 @@ describe('SearchDatabase accounts', () => {
 
   it('reindexes account search documents with a batched upsert', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
-    const insertQueries: string[] = []
-    const actorSelectQueries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      if (
-        sql.includes('insert into `search_documents`') ||
-        sql.includes('insert into "search_documents"')
-      ) {
-        insertQueries.push(sql)
-      }
-      if (
-        sql.toLowerCase().startsWith('select') &&
-        (sql.includes('from `actors`') || sql.includes('from "actors"'))
-      ) {
-        actorSelectQueries.push(sql)
-      }
-    }
+    const { database } = testDb
 
     try {
       await testDb.prepare()
@@ -546,9 +528,13 @@ describe('SearchDatabase accounts', () => {
         summary: 'Runner'
       })
 
-      knexDatabase.on('query', handleQuery)
-      await database.reindexSearchAccounts({ limit: 10 })
-      knexDatabase.off('query', handleQuery)
+      const statements = (
+        await testDb.captureQueries(() =>
+          database.reindexSearchAccounts({ limit: 10 })
+        )
+      ).map(({ sql }) => sql)
+      const insertQueries = statements.filter(isSearchDocumentInsert)
+      const actorSelectQueries = statements.filter(isActorSelect)
 
       expect(insertQueries).toHaveLength(1)
       expect(actorSelectQueries).toHaveLength(1)
@@ -560,7 +546,6 @@ describe('SearchDatabase accounts', () => {
         'https://remote.test/users/bob'
       ])
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })
@@ -568,15 +553,6 @@ describe('SearchDatabase accounts', () => {
   it('sizes SQLite account reindex batches from the search document column count', async () => {
     const testDb = createTestDatabase()
     const { database, knex: knexDatabase } = testDb
-    const insertQueries: string[] = []
-    const handleQuery = ({ sql }: { sql: string }) => {
-      if (
-        sql.includes('insert into `search_documents`') ||
-        sql.includes('insert into "search_documents"')
-      ) {
-        insertQueries.push(sql)
-      }
-    }
 
     try {
       await testDb.prepare()
@@ -605,16 +581,19 @@ describe('SearchDatabase accounts', () => {
         })
       }
 
-      knexDatabase.on('query', handleQuery)
-      await database.reindexSearchAccounts({ limit: 83 })
-      knexDatabase.off('query', handleQuery)
+      const insertQueries = (
+        await testDb.captureQueries(() =>
+          database.reindexSearchAccounts({ limit: 83 })
+        )
+      )
+        .map(({ sql }) => sql)
+        .filter(isSearchDocumentInsert)
 
       expect(insertQueries).toHaveLength(1)
       await expect(
         database.searchAccountIds({ q: 'runner', limit: 100 })
       ).resolves.toHaveLength(83)
     } finally {
-      knexDatabase.off('query', handleQuery)
       await database.destroy()
     }
   })

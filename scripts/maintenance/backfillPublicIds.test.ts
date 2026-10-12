@@ -1,5 +1,6 @@
 import knex from 'knex'
 
+import { createKnexQueryCapture } from '@/lib/database/testing/queryCapture'
 import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
 import * as migration from '@/migrations/20260808000000_add_public_ids'
 
@@ -181,17 +182,15 @@ describe('backfillTable', () => {
     let updateStatements = 0
     let inFlight = 0
     let maxConcurrentQueries = 0
-    const onQuery = ({ sql }: { sql: string }) => {
+    const { onQuery, onQuerySettled } = createKnexQueryCapture(database)
+    const stopQuery = onQuery(({ sql }) => {
       if (/^update /i.test(sql)) updateStatements += 1
       inFlight += 1
       maxConcurrentQueries = Math.max(maxConcurrentQueries, inFlight)
-    }
-    const onSettled = () => {
+    })
+    const stopSettled = onQuerySettled(() => {
       inFlight -= 1
-    }
-    database.on('query', onQuery)
-    database.on('query-response', onSettled)
-    database.on('query-error', onSettled)
+    })
 
     try {
       await backfillTable(database, 'statuses', {
@@ -199,9 +198,8 @@ describe('backfillTable', () => {
         batchSize: 500
       })
     } finally {
-      database.off('query', onQuery)
-      database.off('query-response', onSettled)
-      database.off('query-error', onSettled)
+      stopQuery()
+      stopSettled()
     }
 
     // 450 rows fold into three 200-row chunks, so anything near one statement

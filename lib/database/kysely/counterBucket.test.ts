@@ -1,6 +1,4 @@
-import type { Knex } from 'knex'
-
-import { kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import { increaseCounterValue } from '@/lib/database/kysely/counter'
 import {
   getBucketStats,
@@ -13,12 +11,12 @@ import type { Database } from '@/lib/database/types'
 // PostgreSQL.
 describe('Kysely incrementBucket', () => {
   let database: Database
-  let instance: Knex
+  let db: Db
 
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    db = test.db
     await test.prepare()
     await database.migrate()
   })
@@ -28,7 +26,7 @@ describe('Kysely incrementBucket', () => {
   })
 
   const readRow = (id: string) =>
-    kyselyFor(instance)
+    db
       .selectFrom('counters')
       .select(['value', 'bucketHour', 'createdAt', 'updatedAt'])
       .where('id', '=', id)
@@ -36,7 +34,7 @@ describe('Kysely incrementBucket', () => {
 
   it('creates the bucket of the hour with its bucketHour', async () => {
     const at = new Date('2026-03-24T14:30:15.000Z')
-    await incrementBucket(kyselyFor(instance), 'bucket-new', 2, at)
+    await incrementBucket(db, 'bucket-new', 2, at)
 
     expect(await readRow('bucket:bucket-new:2026032414')).toEqual({
       value: 2,
@@ -47,7 +45,6 @@ describe('Kysely incrementBucket', () => {
   })
 
   it('adds to the bucket of the same hour and moves only updatedAt', async () => {
-    const db = kyselyFor(instance)
     const first = new Date('2026-03-24T14:05:00.000Z')
     const second = new Date('2026-03-24T14:55:00.000Z')
     await incrementBucket(db, 'bucket-add', 3, first)
@@ -64,7 +61,6 @@ describe('Kysely incrementBucket', () => {
   })
 
   it('ignores an amount of zero or less', async () => {
-    const db = kyselyFor(instance)
     const at = new Date('2026-03-24T14:30:00.000Z')
     await incrementBucket(db, 'bucket-none', 0, at)
     await incrementBucket(db, 'bucket-none', -1, at)
@@ -73,7 +69,6 @@ describe('Kysely incrementBucket', () => {
   })
 
   it('sets bucketHour once on a row the generic counter helpers created', async () => {
-    const db = kyselyFor(instance)
     const created = new Date('2026-03-24T14:10:00.000Z')
     const bumped = new Date('2026-03-24T14:40:00.000Z')
     // Neighbours that must not pick up the bucketHour: another bucket without
@@ -105,7 +100,6 @@ describe('Kysely incrementBucket', () => {
   })
 
   it('keeps a bucket per counter type', async () => {
-    const db = kyselyFor(instance)
     const at = new Date('2026-03-24T14:30:00.000Z')
     await incrementBucket(db, 'bucket-type-a', 1, at)
     await incrementBucket(db, 'bucket-type-b', 2, at)
@@ -119,7 +113,6 @@ describe('Kysely incrementBucket', () => {
       new Date(Date.UTC(2026, 4, day, hourOfDay))
 
     it('reads the buckets of the type within the range, oldest hour first', async () => {
-      const db = kyselyFor(instance)
       // Recorded out of order: the result is ordered by hour, not by insertion.
       await incrementBucket(db, 'stats-order', 4, hour(10, 14))
       await incrementBucket(db, 'stats-order', 2, hour(10, 12))
@@ -135,7 +128,6 @@ describe('Kysely incrementBucket', () => {
     })
 
     it('orders by the hour even when the ids sort the other way', async () => {
-      const db = kyselyFor(instance)
       for (const [suffix, at, value] of [
         ['a', hour(18, 14), 4],
         ['b', hour(18, 13), 3],
@@ -163,7 +155,6 @@ describe('Kysely incrementBucket', () => {
     })
 
     it('includes the first and last hour of the range and nothing outside it', async () => {
-      const db = kyselyFor(instance)
       for (const at of [
         hour(11, 9),
         hour(11, 10),
@@ -184,7 +175,6 @@ describe('Kysely incrementBucket', () => {
     })
 
     it('compares the range as instants, not as whole hours', async () => {
-      const db = kyselyFor(instance)
       await incrementBucket(db, 'stats-instant', 1, hour(12, 10))
       await incrementBucket(db, 'stats-instant', 2, hour(12, 11))
 
@@ -199,7 +189,6 @@ describe('Kysely incrementBucket', () => {
     })
 
     it('reads only the buckets of the requested counter type', async () => {
-      const db = kyselyFor(instance)
       const at = hour(13, 8)
       await incrementBucket(db, 'stats-type', 5, at)
       await incrementBucket(db, 'stats-type-other', 6, at)
@@ -222,7 +211,6 @@ describe('Kysely incrementBucket', () => {
     })
 
     it('skips a counter that has the bucket id but no bucketHour', async () => {
-      const db = kyselyFor(instance)
       const at = hour(14, 8)
       await incrementBucket(db, 'stats-null', 3, at)
       await increaseCounterValue(db, 'bucket:stats-null:2026051409', 40, at)
@@ -233,7 +221,6 @@ describe('Kysely incrementBucket', () => {
     })
 
     it('reads nothing when no bucket lies in the range', async () => {
-      const db = kyselyFor(instance)
       await incrementBucket(db, 'stats-empty', 1, hour(15, 8))
 
       expect(

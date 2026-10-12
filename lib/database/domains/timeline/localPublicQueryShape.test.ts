@@ -11,15 +11,14 @@ import { Timeline } from '@/lib/services/timelines/types'
 // the plan that had this query at ~27s on the landing page. Without a test that
 // looks at the SQL itself, that revert lands silently and green.
 //
-// The query is built with Kysely (lib/database/domains/timeline/localPublic.ts),
-// whose driver emits each statement as a `query` event on the Knex client it
-// runs on, tagged `kysely: true`. Listening there follows the precedent in
+// The query is built with Kysely (lib/database/domains/timeline/localPublic.ts).
+// Capturing the statements the driver sends follows the precedent in
 // `statusLookup.test.ts` (the batched-hydration tests) and is preferred over
 // compiling a builder here because it observes what the production path
-// actually sends, rather than a builder the test constructed for itself. Only
-// tagged statements are kept, and of those only the one naming both
-// `recipients` and `statuses` (see below), so the status hydration that
-// follows, Kysely too, can never be mistaken for the query under test.
+// actually sends, rather than a builder the test constructed for itself. Of
+// the captured statements only the one naming both `recipients` and
+// `statuses` is kept (see below), so the status hydration that follows, Kysely
+// too, can never be mistaken for the query under test.
 //
 // Built on `getTestDatabaseWithInstance` rather than the SQLite-only
 // `getTestSQLDatabaseWithInstance`, because the query this pins is a
@@ -27,7 +26,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 // report a clean run under the pg environment variables without ever opening a
 // PostgreSQL connection.
 describe('local public timeline query shape', () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance()
+  const { database, captureQueries, prepare } = getTestDatabaseWithInstance()
 
   // Identifier quoting is per-dialect — backticks on SQLite, double quotes on
   // PostgreSQL — so strip it and let the assertions describe the query shape
@@ -41,16 +40,9 @@ describe('local public timeline query shape', () => {
   const captureLocalPublicQuery = async (
     run: () => Promise<unknown>
   ): Promise<string> => {
-    const statements: string[] = []
-    const listener = ({ sql, kysely }: { sql: string; kysely?: true }) => {
-      if (kysely) statements.push(normalize(sql))
-    }
-    instance.on('query', listener)
-    try {
-      await run()
-    } finally {
-      instance.off('query', listener)
-    }
+    const statements = (await captureQueries(run)).map(({ sql }) =>
+      normalize(sql)
+    )
 
     // Selected rather than assumed to be the only one: hydrating a status
     // issues its own `recipients` reads, so a future seeded row here would

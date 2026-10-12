@@ -1,6 +1,4 @@
-import type { Knex } from 'knex'
-
-import { kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import {
   type StoredKeysetCursor,
   pastKeyset,
@@ -13,7 +11,7 @@ import type { Database } from '@/lib/database/types'
 // TEST_DATABASE_TYPE=pg, PostgreSQL.
 describe('pastKeyset', () => {
   let database: Database
-  let instance: Knex
+  let db: Db
 
   const base = Date.UTC(2026, 0, 1)
   const rows = [
@@ -26,29 +24,35 @@ describe('pastKeyset', () => {
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    db = test.db
     await test.prepare()
     await database.migrate()
-    await instance('actor_domain_blocks').insert(
-      rows.map(({ id, at }) => ({
-        id,
-        actorId: 'https://example.com/users/keyset',
-        domain: `${id}.example`,
-        createdAt: new Date(at),
-        updatedAt: new Date(at)
-      }))
-    )
+    await db
+      .insertInto('actor_domain_blocks')
+      .values(
+        rows.map(({ id, at }) => ({
+          id,
+          actorId: 'https://example.com/users/keyset',
+          domain: `${id}.example`,
+          createdAt: new Date(at),
+          updatedAt: new Date(at)
+        }))
+      )
+      .execute()
     // Rows with no createdAt, for pastStoredKeyset. No pastKeyset comparison
     // can pass them (`createdAt op NULL` is never true).
-    await instance('actor_domain_blocks').insert(
-      ['n1', 'n2'].map((id) => ({
-        id,
-        actorId: 'https://example.com/users/keyset',
-        domain: `${id}.example`,
-        createdAt: null,
-        updatedAt: null
-      }))
-    )
+    await db
+      .insertInto('actor_domain_blocks')
+      .values(
+        ['n1', 'n2'].map((id) => ({
+          id,
+          actorId: 'https://example.com/users/keyset',
+          domain: `${id}.example`,
+          createdAt: null,
+          updatedAt: null
+        }))
+      )
+      .execute()
   })
 
   afterAll(async () => {
@@ -56,7 +60,7 @@ describe('pastKeyset', () => {
   })
 
   const ids = async (operator: '<' | '>', cursor: (typeof rows)[number]) => {
-    const found = await kyselyFor(instance)
+    const found = await db
       .selectFrom('actor_domain_blocks')
       .select('id')
       .where((eb) =>
@@ -82,7 +86,7 @@ describe('pastKeyset', () => {
   })
 
   it('accepts a Date createdAt', async () => {
-    const found = await kyselyFor(instance)
+    const found = await db
       .selectFrom('actor_domain_blocks')
       .select('id')
       .where((eb) =>
@@ -100,7 +104,7 @@ describe('pastKeyset', () => {
   })
 
   const storedIds = async (operator: '<' | '>', cursor: StoredKeysetCursor) => {
-    const found = await kyselyFor(instance)
+    const found = await db
       .selectFrom('actor_domain_blocks')
       .select('id')
       .where((eb) => pastStoredKeyset(eb, cursor, operator, 'id'))
@@ -146,7 +150,6 @@ describe('pastKeyset', () => {
 
   it('type-checks the tie-breaker column against the queried table', () => {
     // Compile-time only: the builders are never executed.
-    const db = kyselyFor(instance)
     const c = { createdAt: 0, tieBreaker: 'x' }
     db.selectFrom('likes').where((eb) =>
       // @ts-expect-error a case typo PostgreSQL would reject

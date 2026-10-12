@@ -230,17 +230,11 @@ describe('searchAccountIds', () => {
     const found = await searchIds({ q: 'zqtie' })
     expect(found).toEqual([...ids].sort())
 
-    const searches: string[] = []
-    const capture = ({ sql }: { sql: string }) => {
-      if (sql.startsWith('select "search_documents"."entityId"'))
-        searches.push(sql)
-    }
-    testDb.knex.on('query', capture)
-    try {
-      await searchIds({ q: 'zqtie' })
-    } finally {
-      testDb.knex.off('query', capture)
-    }
+    const searches = (
+      await testDb.captureQueries(() => searchIds({ q: 'zqtie' }))
+    )
+      .map(({ sql }) => sql)
+      .filter((sql) => sql.startsWith('select "search_documents"."entityId"'))
     expect(searches).toHaveLength(1)
     expect(searches[0]).toMatch(
       /lower\("actors"\."username"\), "search_documents"\."entityId" asc limit [?$]\d* offset [?$]\d*$/

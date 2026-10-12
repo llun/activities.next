@@ -9,6 +9,11 @@ import {
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 import {
+  type CaptureQueries,
+  type OnQuery,
+  createKnexQueryCapture
+} from '@/lib/database/testing/queryCapture'
+import {
   applyPostgresSchema,
   applySqliteSchema,
   withSchemaDumpMigrate
@@ -40,6 +45,19 @@ export type TestDatabase = {
   prepare: () => Promise<void> | void
   /** Closes the Knex pool (and so Kysely's). */
   destroy: () => Promise<void>
+  /**
+   * The statements the driver sends while `work` runs, as `{ sql, bindings }`
+   * in the order sent, transaction statements included. See `CaptureQueries`.
+   */
+  captureQueries: CaptureQueries
+  /** The lower-level hook under `captureQueries`; returns the unsubscribe. */
+  onQuery: OnQuery
+  /**
+   * How many callers are queued for a connection from the pool: on SQLite the
+   * ones waiting for the single connection, on PostgreSQL the ones waiting for
+   * a free client. For a race test that has to know another caller is stuck.
+   */
+  pendingAcquires: () => number
 }
 
 /**
@@ -102,15 +120,22 @@ const build = ({
   knex: Knex
   loader: (instance: Knex) => Promise<void>
   prepare: () => Promise<void> | void
-}): TestDatabase => ({
-  backend,
-  database: withSchemaDumpMigrate(getSQLDatabase(knex), knex, loader),
-  // Lazy: kyselyFor() is only needed by suites that use it. testUtils.test.ts
-  // builds this around a mocked Knex whose client kyselyFor() does not support.
-  get db() {
-    return kyselyFor(knex)
-  },
-  knex,
-  prepare,
-  destroy: () => knex.destroy()
-})
+}): TestDatabase => {
+  const { onQuery, captureQueries } = createKnexQueryCapture(knex)
+  return {
+    backend,
+    database: withSchemaDumpMigrate(getSQLDatabase(knex), knex, loader),
+    // Lazy: kyselyFor() is only needed by suites that use it. testUtils.test.ts
+    // builds this around a mocked Knex whose client kyselyFor() does not
+    // support.
+    get db() {
+      return kyselyFor(knex)
+    },
+    knex,
+    prepare,
+    destroy: () => knex.destroy(),
+    captureQueries,
+    onQuery,
+    pendingAcquires: () => knex.client.pool.numPendingAcquires()
+  }
+}

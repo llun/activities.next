@@ -193,19 +193,11 @@ const byTileKey = <T extends { tileKey: string }>(rows: T[]) =>
   [...rows].sort((a, b) => (a.tileKey < b.tileKey ? -1 : 1))
 
 // The statements, with their bindings, issued while `action` runs.
-const statementsOf = async (action: () => Promise<unknown>) => {
-  const statements: Array<{ sql: string; bindings: unknown[] }> = []
-  const record = ({ sql, bindings }: { sql: string; bindings: unknown[] }) => {
-    statements.push({ sql: sql.trimStart(), bindings: bindings ?? [] })
-  }
-  testDb.knex.on('query', record)
-  try {
-    await action()
-  } finally {
-    testDb.knex.removeListener('query', record)
-  }
-  return statements
-}
+const statementsOf = async (action: () => Promise<unknown>) =>
+  (await testDb.captureQueries(action)).map(({ sql, bindings }) => ({
+    sql: sql.trimStart(),
+    bindings
+  }))
 
 const isStatement =
   (verb: 'select' | 'insert' | 'update' | 'delete', table: string) =>

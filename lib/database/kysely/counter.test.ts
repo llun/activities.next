@@ -1,6 +1,4 @@
-import type { Knex } from 'knex'
-
-import { kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import {
   adjustCounterValue,
   decreaseCounterValue,
@@ -13,18 +11,21 @@ import {
 } from '@/lib/database/kysely/counter'
 import { getDialectName, timestampValue } from '@/lib/database/kysely/dialect'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import type { TestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 
 // The `counters` helpers, on SQLite and, under TEST_DATABASE_TYPE=pg,
 // PostgreSQL.
 describe('Kysely counter helpers', () => {
   let database: Database
-  let instance: Knex
+  let db: Db
+  let captureQueries: TestDatabase['captureQueries']
 
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    db = test.db
+    captureQueries = test.captureQueries
     await test.prepare()
     await database.migrate()
   })
@@ -34,7 +35,7 @@ describe('Kysely counter helpers', () => {
   })
 
   const readRow = (id: string) =>
-    kyselyFor(instance)
+    db
       .selectFrom('counters')
       .select(['value', 'createdAt', 'updatedAt'])
       .where('id', '=', id)
@@ -42,10 +43,10 @@ describe('Kysely counter helpers', () => {
 
   it('compares a timestamp column through timestampValue() on both backends', async () => {
     const at = new Date('2026-03-05T12:00:00.000Z')
-    await increaseCounterValue(kyselyFor(instance), 'counter-compare', 1, at)
+    await increaseCounterValue(db, 'counter-compare', 1, at)
     const matching = async (operand: ReturnType<typeof timestampValue>) =>
       (
-        await kyselyFor(instance)
+        await db
           .selectFrom('counters')
           .select('id')
           .where('id', '=', 'counter-compare')
@@ -62,7 +63,7 @@ describe('Kysely counter helpers', () => {
 
   it('creates a missing counter at the increment', async () => {
     const at = new Date('2026-03-01T00:00:00.000Z')
-    await increaseCounterValue(kyselyFor(instance), 'counter-new', 3, at)
+    await increaseCounterValue(db, 'counter-new', 3, at)
     expect(await readRow('counter-new')).toEqual({
       value: 3,
       createdAt: at.getTime(),
@@ -73,7 +74,6 @@ describe('Kysely counter helpers', () => {
   it('adds to an existing counter and moves only updatedAt', async () => {
     const created = new Date('2026-03-01T00:00:00.000Z')
     const updated = new Date('2026-03-02T00:00:00.000Z')
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counter-add', 1, created)
     await increaseCounterValue(db, 'counter-add', 2, updated)
     expect(await readRow('counter-add')).toEqual({
@@ -84,7 +84,6 @@ describe('Kysely counter helpers', () => {
   })
 
   it('clamps at zero, including for a missing counter', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counter-clamp', 2)
     await decreaseCounterValue(db, 'counter-clamp', 5)
     await decreaseCounterValue(db, 'counter-missing', 1)
@@ -94,7 +93,6 @@ describe('Kysely counter helpers', () => {
   })
 
   it('clamps at Number.MAX_SAFE_INTEGER', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counter-max', Number.MAX_SAFE_INTEGER - 1)
     await increaseCounterValue(db, 'counter-max', 5)
     expect(await getCounterValue(db, 'counter-max')).toBe(
@@ -103,12 +101,11 @@ describe('Kysely counter helpers', () => {
   })
 
   it('treats a zero adjustment as a no-op', async () => {
-    await adjustCounterValue(kyselyFor(instance), 'counter-zero', 0)
+    await adjustCounterValue(db, 'counter-zero', 0)
     expect(await readRow('counter-zero')).toBeUndefined()
   })
 
   it('applies concurrent adjustments without losing any', async () => {
-    const db = kyselyFor(instance)
     await Promise.all(
       Array.from({ length: 20 }, () =>
         increaseCounterValue(db, 'counter-concurrent')
@@ -118,14 +115,12 @@ describe('Kysely counter helpers', () => {
   })
 
   it('adds the size of an amount, whatever its sign', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counter-sign', -2)
     await decreaseCounterValue(db, 'counter-sign', -1)
     expect(await getCounterValue(db, 'counter-sign')).toBe(1)
   })
 
   it('writes no row for an increase or decrease of zero', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counter-zero-increase', 0)
     await decreaseCounterValue(db, 'counter-zero-decrease', 0)
     expect(await readRow('counter-zero-increase')).toBeUndefined()
@@ -133,7 +128,6 @@ describe('Kysely counter helpers', () => {
   })
 
   it('reads the values of the requested counters only', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counters-a', 2)
     await increaseCounterValue(db, 'counters-b', 5)
     // Neighbours that must not come back: another id, and ids that merely
@@ -149,7 +143,6 @@ describe('Kysely counter helpers', () => {
   })
 
   it('leaves a missing counter out of the values', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counters-present', 4)
 
     expect(
@@ -159,7 +152,6 @@ describe('Kysely counter helpers', () => {
   })
 
   it('reads no values for an empty list', async () => {
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counters-unlisted', 1)
 
     expect(await getCounterValues(db, [])).toEqual({})
@@ -168,7 +160,6 @@ describe('Kysely counter helpers', () => {
   it('sets a missing counter, then overwrites it and moves only updatedAt', async () => {
     const created = new Date('2026-04-01T00:00:00.000Z')
     const updated = new Date('2026-04-02T00:00:00.000Z')
-    const db = kyselyFor(instance)
     await increaseCounterValue(db, 'counter-set-neighbour', 7)
     await setCounterValue(db, 'counter-set', 12, created)
     expect(await readRow('counter-set')).toEqual({
@@ -197,14 +188,12 @@ describe('Kysely counter helpers', () => {
   ])(
     'sets $value as $stored, clamped and truncated',
     async ({ value, stored }) => {
-      const db = kyselyFor(instance)
       await setCounterValue(db, `counter-set-${value}`, value)
       expect(await getCounterValue(db, `counter-set-${value}`)).toBe(stored)
     }
   )
 
   it('deletes one counter, and the listed counters in chunks', async () => {
-    const db = kyselyFor(instance)
     const listed = Array.from({ length: 1001 }, (_, i) => `counter-del-${i}`)
     for (const id of ['counter-del-one', 'counter-del-kept', ...listed]) {
       await setCounterValue(db, id, 1)
@@ -213,20 +202,17 @@ describe('Kysely counter helpers', () => {
     await deleteCounterValue(db, 'counter-del-one')
     await deleteCounterValue(db, 'counter-del-missing')
 
-    const deletes: { sql: string; bindings: unknown[] }[] = []
-    const capture = (query: { sql: string; bindings: unknown[] }) => {
-      if (/^delete from "counters"/.test(query.sql)) deletes.push(query)
-    }
-    instance.on('query', capture)
-    try {
-      // More ids than one statement takes on either backend.
-      await deleteCounterValues(db, listed)
-      const afterListed = deletes.length
-      await deleteCounterValues(db, [])
-      expect(deletes).toHaveLength(afterListed)
-    } finally {
-      instance.off('query', capture)
-    }
+    const isCounterDelete = ({ sql }: { sql: string }) =>
+      /^delete from "counters"/.test(sql)
+    // More ids than one statement takes on either backend.
+    const deletes = (
+      await captureQueries(() => deleteCounterValues(db, listed))
+    ).filter(isCounterDelete)
+    expect(
+      (await captureQueries(() => deleteCounterValues(db, []))).filter(
+        isCounterDelete
+      )
+    ).toHaveLength(0)
 
     // SQLite binds at most 999 ids a statement and PostgreSQL 1000.
     expect(deletes.map((statement) => statement.bindings.length)).toEqual(
@@ -239,6 +225,6 @@ describe('Kysely counter helpers', () => {
   })
 
   it('reads 0 for a missing counter', async () => {
-    expect(await getCounterValue(kyselyFor(instance), 'counter-none')).toBe(0)
+    expect(await getCounterValue(db, 'counter-none')).toBe(0)
   })
 })

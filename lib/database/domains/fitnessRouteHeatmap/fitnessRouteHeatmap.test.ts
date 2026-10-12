@@ -1263,22 +1263,18 @@ describe('FitnessRouteHeatmapDatabase', () => {
       // explicit field list, so it would hold for `select('*')` too, and the
       // whole point of this read is that the query leaves the untiled heatmap
       // on disk rather than dragging it through JSON.parse once per tile batch.
-      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      const { database, captureQueries, prepare } =
+        getTestDatabaseWithInstance(true)
       await prepare()
       await database.migrate()
 
-      const statements: string[] = []
-      const record = ({ sql }: { sql: string }) => {
-        statements.push(sql)
-      }
-      instance.on('query', record)
-      try {
-        await database.getFitnessRouteHeatmapSummaryByShareToken({
-          shareToken: 'no-such-token'
-        })
-      } finally {
-        instance.removeListener('query', record)
-      }
+      const statements = (
+        await captureQueries(() =>
+          database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: 'no-such-token'
+          })
+        )
+      ).map(({ sql }) => sql)
 
       expect(statements).toHaveLength(1)
       // Identifier quoting differs per backend (backticks on SQLite, double

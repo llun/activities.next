@@ -719,27 +719,25 @@ describe('ConversationDatabase', () => {
         )
       )
 
-      const fallbackStatusRowQueries: string[] = []
-      const queryListener = ({ sql }: { sql: string }) => {
-        const normalizedSql = sql.toLowerCase()
-        if (
-          normalizedSql.startsWith('select') &&
-          normalizedSql.includes('direct_conversation_statuses')
-        ) {
-          fallbackStatusRowQueries.push(sql)
-        }
-      }
-      const conversations = await (async () => {
-        knexDatabase.on('query', queryListener)
-        try {
-          return await database.getDirectConversations({
+      let conversations: Awaited<
+        ReturnType<typeof database.getDirectConversations>
+      > = []
+      const fallbackStatusRowQueries = (
+        await testDb.captureQueries(async () => {
+          conversations = await database.getDirectConversations({
             actorId: ACTOR1_ID,
             limit: 2
           })
-        } finally {
-          knexDatabase.off('query', queryListener)
-        }
-      })()
+        })
+      )
+        .map(({ sql }) => sql)
+        .filter((sql) => {
+          const normalizedSql = sql.toLowerCase()
+          return (
+            normalizedSql.startsWith('select') &&
+            normalizedSql.includes('direct_conversation_statuses')
+          )
+        })
       const fallbackCalls = getStatusesByIds.mock.calls
         .slice(1)
         .map(([params]) => params.statusIds as string[])
@@ -1211,30 +1209,26 @@ describe('ConversationDatabase', () => {
         type: 'to'
       })
 
-      const statusLookupQueries: string[] = []
-      const trackStatusLookupQuery = (query: { sql: string }) => {
-        if (
-          query.sql.toLowerCase().startsWith('select') &&
-          query.sql.includes('from "statuses"')
-        ) {
-          statusLookupQueries.push(query.sql)
-        }
-      }
-      knexDatabase.on('query', trackStatusLookupQuery)
-      try {
-        await database.syncDirectConversationForStatus({
-          status: {
-            ...statusForId('lightweight-reply'),
-            actorId: ACTOR2_ID,
-            reply: parentUrl,
-            to: [ACTOR1_ID],
-            cc: [],
-            createdAt: 2000
-          } as StatusNote
-        })
-      } finally {
-        knexDatabase.off('query', trackStatusLookupQuery)
-      }
+      const statusLookupQueries = (
+        await testDb.captureQueries(() =>
+          database.syncDirectConversationForStatus({
+            status: {
+              ...statusForId('lightweight-reply'),
+              actorId: ACTOR2_ID,
+              reply: parentUrl,
+              to: [ACTOR1_ID],
+              cc: [],
+              createdAt: 2000
+            } as StatusNote
+          })
+        )
+      )
+        .map(({ sql }) => sql)
+        .filter(
+          (sql) =>
+            sql.toLowerCase().startsWith('select') &&
+            sql.includes('from "statuses"')
+        )
 
       const conversation = await knexDatabase('direct_conversations')
         .where({ rootStatusId: 'lightweight-parent' })

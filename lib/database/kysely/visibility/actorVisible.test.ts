@@ -12,7 +12,7 @@ import {
 // selected over the same rows when this suite compared the two.
 describe('actorVisibleStatusIds', () => {
   const testDb = createTestDatabase()
-  const { database, knex } = testDb
+  const { database, db } = testDb
 
   const DOMAIN = 'visible.test'
   const actor = (name: string, domain = DOMAIN) =>
@@ -60,7 +60,12 @@ describe('actorVisibleStatusIds', () => {
   const setPointers = (
     key: string,
     pointers: { originalStatusId?: string | null; content?: string }
-  ) => knex('statuses').where('id', ids[key]).update(pointers)
+  ) =>
+    db
+      .updateTable('statuses')
+      .set(pointers)
+      .where('id', '=', ids[key])
+      .execute()
 
   type Audience = {
     publicOnly?: boolean
@@ -71,7 +76,6 @@ describe('actorVisibleStatusIds', () => {
 
   // Each subquery as the reads use it: the statuses whose id it selects.
   const selectedBy = async (actorId: string, audience: Audience) => {
-    const db = testDb.db
     const subquery = actorVisibleStatusIds(db, actorId, audience)
     if (!subquery) return null
     const rows = await db
