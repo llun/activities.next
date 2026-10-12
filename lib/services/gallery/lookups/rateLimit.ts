@@ -98,7 +98,14 @@ export const createLimiter = ({
     try {
       const now = Date.now()
       const startAt = Math.max(now, nextStart)
-      if (startAt > deadline) throw new LookupRateLimitedError()
+      // Only a call that has to WAIT past the cap is rejected. One that can
+      // start right now waited for nothing: the clock moving on between
+      // reading the deadline and getting here (a slow event loop, a 1 ms tick
+      // with maxWaitMs 0) must not turn it away, or it would also leave the
+      // interval unbooked and let the next call through.
+      if (startAt > now && startAt > deadline) {
+        throw new LookupRateLimitedError()
+      }
       nextStart = startAt + minIntervalMs
       if (startAt > now) await sleep(startAt - now)
 
