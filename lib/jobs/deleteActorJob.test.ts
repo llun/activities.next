@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { deleteActor } from '@/lib/activities'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   ACTOR_DELETION_FEDERATION_BUDGET_MS,
   deleteActorJob
@@ -59,9 +59,10 @@ const loggedCalls = () =>
   ])
 
 describe('deleteActorJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, prepare } = createTestDatabase()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
   })
