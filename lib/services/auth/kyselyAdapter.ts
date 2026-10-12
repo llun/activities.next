@@ -4,13 +4,35 @@ import {
   JoinConfig,
   createAdapterFactory
 } from 'better-auth/adapters'
-import { Knex } from 'knex'
+import {
+  type Expression,
+  type ExpressionBuilder,
+  type Kysely,
+  type SqlBool,
+  type Transaction,
+  sql
+} from 'kysely'
 
-import { deleteSessionsWithTokenDetach } from '@/lib/database/domains/account/detachOAuthTokensFromSessions'
+import { deleteSessionsWithTokenDetach } from '@/lib/database/domains/account/sessions'
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
-import { kyselyFor } from '@/lib/database/kysely'
+import { type Db, inTransaction } from '@/lib/database/kysely'
+import { getDialectName } from '@/lib/database/kysely/dialect'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
+
+// better-auth's tables are addressed by name at run time (the factory hands
+// the adapter a model name it maps to a table), so they are typed as `any`
+// rather than through the generated `DB` interface.
+type DynamicDB = any
+/** A Kysely instance over better-auth's tables, addressed by name. */
+export type AuthKysely = Kysely<DynamicDB>
+type AuthDb = AuthKysely | Transaction<DynamicDB>
+type AuthExpressionBuilder = ExpressionBuilder<DynamicDB, string>
+type Row = Record<string, unknown>
+
+// The domain helpers this adapter shares with the account queries take the
+// generated-schema `Db`; the instance is the same one either way.
+const asDb = (db: AuthDb): Db => db as unknown as Db
 
 const escapeLikeValue = (value: unknown): string => {
   return String(value).replace(/[%_\\]/g, '\\$&')
@@ -66,19 +88,41 @@ const normalizeEmailInData = (
   return data
 }
 
-const supportsNativeBooleans = (db: Knex): boolean => {
-  const clientName = String(db.client.config.client)
-  return clientName !== 'better-sqlite3'
+const supportsNativeBooleans = (db: AuthDb): boolean =>
+  getDialectName(asDb(db)) !== 'sqlite'
+
+// The columns better-auth declares as `type: 'date'`, per table. Hydration goes
+// by this rather than by an `…At` name: `oauthAccessToken.revoked`,
+// `oauthRefreshToken.revoked`, `oauthRefreshToken.authTime` and
+// `twoFactor.lockedUntil` are dates too. The Kysely driver returns every
+// timestamp as epoch milliseconds on both backends, and the factory turns only
+// strings back into dates, so without this better-auth would see numbers.
+type DateColumns = (tableName: string) => ReadonlySet<string>
+
+const createDateColumns = (
+  schema: BetterAuthDBSchema | undefined
+): DateColumns => {
+  const byTable = new Map<string, Set<string>>()
+  for (const [model, definition] of Object.entries(schema ?? {})) {
+    const tableName = definition.modelName || model
+    const columns = byTable.get(tableName) ?? new Set<string>()
+    for (const [field, attributes] of Object.entries(definition.fields)) {
+      if (attributes.type === 'date') columns.add(attributes.fieldName || field)
+    }
+    byTable.set(tableName, columns)
+  }
+  const none = new Set<string>()
+  return (tableName) => byTable.get(tableName) ?? none
 }
 
-const hydrateDateFields = <T>(row: T): T => {
+const hydrateDateFields = <T>(row: T, dateColumns: ReadonlySet<string>): T => {
   if (!row || typeof row !== 'object' || row instanceof Date) {
     return row
   }
 
-  const hydrated = { ...(row as Record<string, unknown>) }
+  const hydrated = { ...(row as Row) }
   for (const [key, value] of Object.entries(hydrated)) {
-    if (!key.endsWith('At')) continue
+    if (!dateColumns.has(key)) continue
     if (value === null || value === undefined || value instanceof Date) {
       continue
     }
@@ -123,117 +167,109 @@ const getSessionCreatedAt = (record: Record<string, unknown>): Date => {
   return new Date()
 }
 
-const applyWhere = (
-  query: Knex.QueryBuilder,
-  tableName: string,
-  where: CleanedWhere[]
-) => {
-  for (const clause of where) {
-    const { field, operator, connector } = clause
-    // Normalizing only changes string/string[] email values to lowercase, which
-    // preserves the original value type — cast back so knex's overloads resolve.
-    const value = (
-      isAccountsEmail(tableName, field)
-        ? normalizeWhereValue(clause.value)
-        : clause.value
-    ) as typeof clause.value
-    const method = connector === 'OR' ? 'orWhere' : 'where'
+const TRUE = sql<SqlBool>`1 = 1`
+const FALSE = sql<SqlBool>`1 = 0`
 
-    switch (operator) {
-      // SQL's null is not equal to anything, itself included, so `= NULL` and
-      // `<> NULL` match no row on either backend. better-auth relies on an
-      // `eq null` guard for real decisions — refresh-token rotation and
-      // revocation both hinge on `{ field: 'revoked', operator: 'eq', value:
-      // null }` — and rendering that literally turns "not yet revoked" into
-      // "never matches", which reads back as an invalid refresh token.
-      case 'eq':
-        if (value === null) {
-          query = query[method === 'orWhere' ? 'orWhereNull' : 'whereNull'](
-            `${tableName}.${field}`
-          )
-          break
-        }
-        query = query[method](`${tableName}.${field}`, '=', value)
-        break
-      case 'ne':
-        if (value === null) {
-          query = query[
-            method === 'orWhere' ? 'orWhereNotNull' : 'whereNotNull'
-          ](`${tableName}.${field}`)
-          break
-        }
-        query = query[method](`${tableName}.${field}`, '<>', value)
-        break
-      case 'gt':
-        query = query[method](`${tableName}.${field}`, '>', value)
-        break
-      case 'gte':
-        query = query[method](`${tableName}.${field}`, '>=', value)
-        break
-      case 'lt':
-        query = query[method](`${tableName}.${field}`, '<', value)
-        break
-      case 'lte':
-        query = query[method](`${tableName}.${field}`, '<=', value)
-        break
-      case 'in':
-        query = query[method === 'orWhere' ? 'orWhereIn' : 'whereIn'](
-          `${tableName}.${field}`,
-          Array.isArray(value) ? value : [value]
-        )
-        break
-      case 'not_in':
-        query = query[method === 'orWhere' ? 'orWhereNotIn' : 'whereNotIn'](
-          `${tableName}.${field}`,
-          Array.isArray(value) ? value : [value]
-        )
-        break
-      case 'contains': {
-        const escaped = escapeLikeValue(value)
-        const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
-        query = query[rawMethod]("?? like ? escape '\\'", [
-          `${tableName}.${field}`,
-          `%${escaped}%`
-        ])
-        break
-      }
-      case 'starts_with': {
-        const escaped = escapeLikeValue(value)
-        const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
-        query = query[rawMethod]("?? like ? escape '\\'", [
-          `${tableName}.${field}`,
-          `${escaped}%`
-        ])
-        break
-      }
-      case 'ends_with': {
-        const escaped = escapeLikeValue(value)
-        const rawMethod = connector === 'OR' ? 'orWhereRaw' : 'whereRaw'
-        query = query[rawMethod]("?? like ? escape '\\'", [
-          `${tableName}.${field}`,
-          `%${escaped}`
-        ])
-        break
-      }
-      default:
-        throw new Error(`Unsupported where operator: ${operator}`)
-    }
+// Bound values may not be `undefined`: what the database would make of one
+// differs by driver, and a comparison against it never means anything. Knex
+// refused these ("Undefined binding(s) detected"); so does this.
+const assertDefined = (tableName: string, field: string, value: unknown) => {
+  const values = Array.isArray(value) ? value : [value]
+  if (values.some((entry) => entry === undefined)) {
+    throw new Error(
+      `Undefined value in the where clause on ${tableName}.${field}`
+    )
   }
-  return query
 }
 
-// AND the caller's predicate onto a statement that already carries a clause of
-// its own. `applyWhere` emits `orWhere` for `OR`-connected entries, which would
-// otherwise re-associate against the surrounding clause, so the predicate is
-// wrapped in its own parenthesised group.
-const applyGroupedWhere = (
-  query: Knex.QueryBuilder,
+const like = (column: string, pattern: string) =>
+  sql<SqlBool>`${sql.ref(column)} like ${pattern} escape '\\'`
+
+const toCondition = (
+  eb: AuthExpressionBuilder,
+  tableName: string,
+  clause: CleanedWhere
+): Expression<SqlBool> => {
+  const { field, operator } = clause
+  const column = `${tableName}.${field}`
+  const value = isAccountsEmail(tableName, field)
+    ? normalizeWhereValue(clause.value)
+    : clause.value
+
+  switch (operator) {
+    // SQL's null is not equal to anything, itself included, so `= NULL` and
+    // `<> NULL` match no row on either backend. better-auth relies on an
+    // `eq null` guard for real decisions — refresh-token rotation and
+    // revocation both hinge on `{ field: 'revoked', operator: 'eq', value:
+    // null }` — and rendering that literally turns "not yet revoked" into
+    // "never matches", which reads back as an invalid refresh token.
+    case 'eq':
+      if (value === null) return eb(column, 'is', null)
+      assertDefined(tableName, field, value)
+      return eb(column, '=', value)
+    case 'ne':
+      if (value === null) return eb(column, 'is not', null)
+      assertDefined(tableName, field, value)
+      return eb(column, '<>', value)
+    case 'gt':
+      assertDefined(tableName, field, value)
+      return eb(column, '>', value)
+    case 'gte':
+      assertDefined(tableName, field, value)
+      return eb(column, '>=', value)
+    case 'lt':
+      assertDefined(tableName, field, value)
+      return eb(column, '<', value)
+    case 'lte':
+      assertDefined(tableName, field, value)
+      return eb(column, '<=', value)
+    // An empty list matches nothing (`in`) or everything (`not in`), as it did
+    // under Knex; `in ()` itself is a syntax error on PostgreSQL.
+    case 'in': {
+      const values = Array.isArray(value) ? value : [value]
+      assertDefined(tableName, field, values)
+      return values.length ? eb(column, 'in', values) : FALSE
+    }
+    case 'not_in': {
+      const values = Array.isArray(value) ? value : [value]
+      assertDefined(tableName, field, values)
+      return values.length ? eb(column, 'not in', values) : TRUE
+    }
+    case 'contains':
+      return like(column, `%${escapeLikeValue(value)}%`)
+    case 'starts_with':
+      return like(column, `${escapeLikeValue(value)}%`)
+    case 'ends_with':
+      return like(column, `%${escapeLikeValue(value)}`)
+    default:
+      throw new Error(`Unsupported where operator: ${operator}`)
+  }
+}
+
+// The caller's predicate as one expression. better-auth connects each clause to
+// the previous one with its `connector`, read left to right with SQL's usual
+// precedence (AND binds tighter than OR), which is how Knex's where/orWhere
+// chain rendered it: `a AND b OR c AND d` is `(a AND b) OR (c AND d)`. So a
+// clause connected with OR starts a new AND group; the first clause's
+// connector is ignored. The result is parenthesised wherever it is combined
+// with another condition, so an OR in it can never re-associate against a
+// clause of the adapter's own.
+const buildWhere = (
+  eb: AuthExpressionBuilder,
   tableName: string,
   where: CleanedWhere[]
-) =>
-  query.where((builder) => {
-    applyWhere(builder, tableName, where)
+): Expression<SqlBool> => {
+  const groups: Expression<SqlBool>[][] = []
+  where.forEach((clause, index) => {
+    const condition = toCondition(eb, tableName, clause)
+    if (index === 0 || clause.connector === 'OR') groups.push([condition])
+    else groups[groups.length - 1].push(condition)
   })
+  return eb.or(groups.map((group) => eb.and(group)))
+}
+
+const hasWhere = (where: CleanedWhere[] | undefined): where is CleanedWhere[] =>
+  Boolean(where?.length)
 
 // Better-auth asks for related rows through the `join` argument on `findOne`
 // and `findMany` once `advanced.database.joins` is on (`{ user: true }` on a session
@@ -325,21 +361,23 @@ const planJoins = (
   return { inline, deferred }
 }
 
-// Add the LEFT JOINs and their aliased column selections to a base query.
-// `select` is the caller's base-column selection (already mapped to column
-// names); without one the base table contributes `<table>.*` so joined columns
-// stay out of the top level.
-const applyInlineJoins = (
-  query: Knex.QueryBuilder,
+// The base statement of `findOne` / `findMany`: the caller's base-column
+// selection (already mapped to column names) or every base column, plus a LEFT
+// JOIN and the aliased columns of each inline join. With joins and no
+// selection the base table contributes `<table>.*`, so joined columns stay out
+// of the top level.
+const selectBase = (
+  db: AuthDb,
   tableName: string,
   inline: PlannedJoin[],
   select: string[] | undefined
 ) => {
-  if (inline.length === 0) return query
-
-  const columns: string[] = select?.length
-    ? select.map((field) => `${tableName}.${field}`)
-    : [`${tableName}.*`]
+  let query = db.selectFrom(tableName)
+  query = select?.length
+    ? query.select(select.map((column) => `${tableName}.${column}`))
+    : inline.length
+      ? query.selectAll(tableName)
+      : query.selectAll()
 
   for (const {
     tableName: joinTable,
@@ -347,19 +385,20 @@ const applyInlineJoins = (
     columns: joinColumns,
     index
   } of inline) {
-    query = query.leftJoin(
-      joinTable,
-      `${tableName}.${entry.on.from}`,
-      `${joinTable}.${entry.on.to}`
-    )
-    for (const column of joinColumns ?? []) {
-      columns.push(
-        `${joinTable}.${column} as ${joinColumnAlias(index, column)}`
+    query = query
+      .leftJoin(
+        joinTable,
+        `${tableName}.${entry.on.from}`,
+        `${joinTable}.${entry.on.to}`
       )
-    }
+      .select((eb) =>
+        (joinColumns ?? []).map((column) =>
+          eb.ref(`${joinTable}.${column}`).as(joinColumnAlias(index, column))
+        )
+      )
   }
 
-  return query.select(columns)
+  return query
 }
 
 // Lift the `__j<n>_` columns of a flat joined row into a nested object under the
@@ -367,25 +406,30 @@ const applyInlineJoins = (
 // which is indistinguishable from a matched row only by looking at `id` — a real
 // row always has one — so that is what decides null vs object.
 const extractInlineJoins = (
-  row: Record<string, unknown>,
-  inline: PlannedJoin[]
-): Record<string, unknown> => {
-  if (inline.length === 0) return hydrateDateFields(row)
+  row: Row,
+  tableName: string,
+  inline: PlannedJoin[],
+  dateColumns: DateColumns
+): Row => {
+  if (inline.length === 0) return hydrateDateFields(row, dateColumns(tableName))
 
   const base = { ...row }
-  const joined: Record<string, unknown> = {}
+  const joined: Row = {}
 
-  for (const { tableName, columns, index } of inline) {
-    const record: Record<string, unknown> = {}
+  for (const { tableName: joinTable, columns, index } of inline) {
+    const record: Row = {}
     for (const column of columns ?? []) {
       const alias = joinColumnAlias(index, column)
       record[column] = base[alias]
       delete base[alias]
     }
-    joined[tableName] = record.id == null ? null : hydrateDateFields(record)
+    joined[joinTable] =
+      record.id == null
+        ? null
+        : hydrateDateFields(record, dateColumns(joinTable))
   }
 
-  return { ...hydrateDateFields(base), ...joined }
+  return { ...hydrateDateFields(base, dateColumns(tableName)), ...joined }
 }
 
 // Answer the joins that could not be folded into the base statement with one
@@ -394,9 +438,10 @@ const extractInlineJoins = (
 // fallback is what 1.7 falls back TO when the adapter leaves a join
 // unanswered; answering it here keeps the single-statement path.
 const applyDeferredJoins = async (
-  db: Knex,
-  rows: Record<string, unknown>[],
-  deferred: PlannedJoin[]
+  db: AuthDb,
+  rows: Row[],
+  deferred: PlannedJoin[],
+  dateColumns: DateColumns
 ) => {
   if (deferred.length === 0 || rows.length === 0) return rows
 
@@ -411,11 +456,15 @@ const applyDeferredJoins = async (
       )
     ]
 
-    const related = parentValues.length
-      ? await db(tableName).whereIn(`${tableName}.${to}`, parentValues)
+    const related: Row[] = parentValues.length
+      ? await db
+          .selectFrom(tableName)
+          .selectAll()
+          .where(`${tableName}.${to}`, 'in', parentValues)
+          .execute()
       : []
 
-    const byParent = new Map<unknown, Record<string, unknown>[]>()
+    const byParent = new Map<unknown, Row[]>()
     for (const record of related) {
       const key = record[to]
       const bucket = byParent.get(key)
@@ -423,16 +472,18 @@ const applyDeferredJoins = async (
       else byParent.set(key, [record])
     }
 
+    const hydrate = (record: Row) =>
+      hydrateDateFields(record, dateColumns(tableName))
     for (const row of rows) {
       const matches = byParent.get(row[from]) ?? []
       if (oneToOne) {
-        row[tableName] = matches.length ? hydrateDateFields(matches[0]) : null
+        row[tableName] = matches.length ? hydrate(matches[0]) : null
         continue
       }
       // `limit` is per parent row, which is why this cannot be a single joined
       // statement: it bounds each bucket, not the result set.
       const limit = entry.limit ?? matches.length
-      row[tableName] = matches.slice(0, limit).map(hydrateDateFields)
+      row[tableName] = matches.slice(0, limit).map(hydrate)
     }
   }
 
@@ -443,22 +494,23 @@ const SESSIONS_TABLE = 'sessions'
 
 // Deleting a session whose grants minted OAuth tokens fails on PostgreSQL's
 // `oauthAccessToken`/`oauthRefreshToken` `sessionId` foreign keys, so detach
-// those tokens before removing the session (see `detachOAuthTokensFromSessions`).
-// Covers every better-auth session removal — sign-out, "revoke session", and
-// expired-session cleanup — that flows through the adapter's delete methods.
-// Wrapped in a transaction so a failure can't leave tokens detached from a
-// session that still exists. Returns the number of sessions deleted.
+// those tokens before removing the session (see `deleteSessionsWithTokenDetach`
+// in lib/database/domains/account/sessions.ts). Covers every better-auth
+// session removal — sign-out, "revoke session", and expired-session cleanup —
+// that flows through the adapter's delete methods. Run in a transaction so a
+// failure can't leave tokens detached from a session that still exists.
+// Returns the number of sessions deleted.
 const deleteSessionsDetachingOAuthTokens = (
-  db: Knex,
+  db: AuthDb,
   where: CleanedWhere[] | undefined
 ): Promise<number> =>
-  db.transaction((trx) =>
-    deleteSessionsWithTokenDetach(trx, (query) =>
-      where ? applyWhere(query, SESSIONS_TABLE, where) : query
+  inTransaction(asDb(db), (trx) =>
+    deleteSessionsWithTokenDetach(trx, (eb) =>
+      hasWhere(where) ? buildWhere(eb, SESSIONS_TABLE, where) : TRUE
     )
   )
 
-type KnexAdapterOptions = {
+type KyselyAdapterOptions = {
   // The WebAuthn rpID this auth instance serves. better-auth's passkey plugin
   // does not persist the rpID a credential was created with (its schema can't be
   // extended), so we stamp it onto the row at creation time. Each per-host auth
@@ -469,10 +521,13 @@ type KnexAdapterOptions = {
 
 const PASSKEY_TABLE = 'passkey'
 
-export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
+export const kyselyAdapter = (
+  db: AuthKysely,
+  options: KyselyAdapterOptions = {}
+) =>
   createAdapterFactory({
     config: {
-      adapterId: 'knex',
+      adapterId: 'kysely',
       supportsNumericIds: false,
       supportsBooleans: supportsNativeBooleans(db)
     },
@@ -482,6 +537,32 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
       // passing them to the adapter. Field names in `where` and `data` are
       // already DB column names. Only `select` and `sortBy.field` arrive as
       // schema field names and need mapping via getFieldName.
+      const dateColumns = createDateColumns(schema)
+      const hydrate = (tableName: string, row: Row) =>
+        hydrateDateFields(row, dateColumns(tableName))
+
+      const findById = (executor: AuthDb, tableName: string, id: unknown) =>
+        executor
+          .selectFrom(tableName)
+          .selectAll()
+          .where(`${tableName}.id`, '=', id)
+          .limit(1)
+          .executeTakeFirst() as Promise<Row | undefined>
+
+      // The id of the first row the predicate matches, the way Knex's
+      // `.first('id')` read it.
+      const findFirstId = async (
+        executor: AuthDb,
+        tableName: string,
+        where: CleanedWhere[] | undefined
+      ) => {
+        let query = executor.selectFrom(tableName).select(`${tableName}.id`)
+        if (hasWhere(where)) {
+          query = query.where((eb) => buildWhere(eb, tableName, where))
+        }
+        const row = (await query.limit(1).executeTakeFirst()) as Row | undefined
+        return row
+      }
 
       return {
         async create({ data, model }) {
@@ -511,17 +592,17 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
             } else if (tableName !== 'sessions') {
               delete record.accountId
             }
-            await db(tableName).insert(record)
-            const row = await db(tableName).where(`${tableName}.id`, id).first()
+            await db.insertInto(tableName).values(record).execute()
+            const row = await findById(db, tableName, id)
             if (!row) throw new Error('Failed to create record')
-            await recordWeeklyLoginSafely(kyselyFor(db), accountId, createdAt)
-            return hydrateDateFields(row) as any
+            await recordWeeklyLoginSafely(asDb(db), accountId, createdAt)
+            return hydrate(tableName, row) as any
           }
 
-          await db(tableName).insert(record)
-          const row = await db(tableName).where(`${tableName}.id`, id).first()
+          await db.insertInto(tableName).values(record).execute()
+          const row = await findById(db, tableName, id)
           if (!row) throw new Error('Failed to create record')
-          return hydrateDateFields(row) as any
+          return hydrate(tableName, row) as any
         },
 
         async findOne({ model, where, select, join }) {
@@ -529,23 +610,28 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           const columns = select?.map((f) => getFieldName({ model, field: f }))
           const { inline, deferred } = planJoins(join, schema)
 
-          let query = inline.length
-            ? applyInlineJoins(db(tableName), tableName, inline, columns)
-            : columns
-              ? db(tableName).select(
-                  columns.map((column) => `${tableName}.${column}`)
-                )
-              : db(tableName)
-          if (where) {
-            query = applyWhere(query, tableName, where)
+          let query = selectBase(db, tableName, inline, columns)
+          if (hasWhere(where)) {
+            query = query.where((eb) => buildWhere(eb, tableName, where))
           }
-          const row = await query.first()
+          const row = (await query.limit(1).executeTakeFirst()) as
+            Row | undefined
           if (!row) return null
 
-          const withInline = extractInlineJoins(row, inline)
+          const withInline = extractInlineJoins(
+            row,
+            tableName,
+            inline,
+            dateColumns
+          )
           if (!deferred.length) return withInline as any
 
-          const [joined] = await applyDeferredJoins(db, [withInline], deferred)
+          const [joined] = await applyDeferredJoins(
+            db,
+            [withInline],
+            deferred,
+            dateColumns
+          )
           return joined as any
         },
 
@@ -554,15 +640,9 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           const columns = select?.map((f) => getFieldName({ model, field: f }))
           const { inline, deferred } = planJoins(join, schema)
 
-          let query = inline.length
-            ? applyInlineJoins(db(tableName), tableName, inline, columns)
-            : columns
-              ? db(tableName).select(
-                  columns.map((column) => `${tableName}.${column}`)
-                )
-              : db(tableName)
-          if (where) {
-            query = applyWhere(query, tableName, where)
+          let query = selectBase(db, tableName, inline, columns)
+          if (hasWhere(where)) {
+            query = query.where((eb) => buildWhere(eb, tableName, where))
           }
           if (sortBy) {
             const sortField = getFieldName({ model, field: sortBy.field })
@@ -572,55 +652,70 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           // inline: those keep the result at one row per base row, so `limit`
           // and `offset` still count base rows.
           if (limit !== undefined) query = query.limit(limit)
-          if (offset !== undefined) query = query.offset(offset)
-          const rows = await query
+          if (offset !== undefined) {
+            // SQLite only accepts OFFSET after a LIMIT; -1 is "no limit" there,
+            // which is what Knex rendered for an offset on its own.
+            if (limit === undefined && getDialectName(asDb(db)) === 'sqlite') {
+              query = query.limit(-1)
+            }
+            query = query.offset(offset)
+          }
+          const rows = (await query.execute()) as Row[]
 
-          const withInline = rows.map((row: Record<string, unknown>) =>
-            extractInlineJoins(row, inline)
+          const withInline = rows.map((row) =>
+            extractInlineJoins(row, tableName, inline, dateColumns)
           )
-          return (await applyDeferredJoins(db, withInline, deferred)) as any
+          return (await applyDeferredJoins(
+            db,
+            withInline,
+            deferred,
+            dateColumns
+          )) as any
         },
 
         async count({ model, where }) {
           const tableName = getModelName(model)
-          let query = db(tableName).count('* as count')
-          if (where) {
-            query = applyWhere(query, tableName, where)
+          let query = db
+            .selectFrom(tableName)
+            .select((eb) => eb.fn.countAll().as('count'))
+          if (hasWhere(where)) {
+            query = query.where((eb) => buildWhere(eb, tableName, where))
           }
-          const result = await query.first()
+          const result = (await query.limit(1).executeTakeFirst()) as
+            Row | undefined
           return Number(result?.count ?? 0)
         },
 
         async update({ model, where, update: updateData }) {
           const tableName = getModelName(model)
-          let idQuery = db(tableName).first('id')
-          if (where) {
-            idQuery = applyWhere(idQuery, tableName, where)
-          }
-          const existing = await idQuery
+          const existing = await findFirstId(db, tableName, where)
           if (!existing) return null
           const id = existing.id
           const update = normalizeEmailInData(
             tableName,
             updateData as Record<string, unknown>
           )
-          await db(tableName).where(`${tableName}.id`, id).update(update)
-          const row = await db(tableName).where(`${tableName}.id`, id).first()
-          return row ? (hydrateDateFields(row) as any) : null
+          await db
+            .updateTable(tableName)
+            .set(update)
+            .where(`${tableName}.id`, '=', id)
+            .execute()
+          const row = await findById(db, tableName, id)
+          return row ? (hydrate(tableName, row) as any) : null
         },
 
         async updateMany({ model, where, update: updateData }) {
           const tableName = getModelName(model)
-          let query = db(tableName)
-          if (where) {
-            query = applyWhere(query, tableName, where)
-          }
           const update = normalizeEmailInData(
             tableName,
             updateData as Record<string, unknown>
           )
-          const result = await query.update(update)
-          return result
+          let query = db.updateTable(tableName).set(update)
+          if (hasWhere(where)) {
+            query = query.where((eb) => buildWhere(eb, tableName, where))
+          }
+          const result = await query.executeTakeFirst()
+          return Number(result.numUpdatedRows)
         },
 
         async delete({ model, where }) {
@@ -629,11 +724,11 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
             await deleteSessionsDetachingOAuthTokens(db, where)
             return
           }
-          let query = db(tableName)
-          if (where) {
-            query = applyWhere(query, tableName, where)
+          let query = db.deleteFrom(tableName)
+          if (hasWhere(where)) {
+            query = query.where((eb) => buildWhere(eb, tableName, where))
           }
-          await query.delete()
+          await query.execute()
         },
 
         async deleteMany({ model, where }) {
@@ -641,12 +736,12 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           if (tableName === SESSIONS_TABLE) {
             return deleteSessionsDetachingOAuthTokens(db, where)
           }
-          let query = db(tableName)
-          if (where) {
-            query = applyWhere(query, tableName, where)
+          let query = db.deleteFrom(tableName)
+          if (hasWhere(where)) {
+            query = query.where((eb) => buildWhere(eb, tableName, where))
           }
-          const result = await query.delete()
-          return result
+          const result = await query.executeTakeFirst()
+          return Number(result.numDeletedRows)
         },
         // Atomically delete one matching row and hand it back. better-auth
         // consumes single-use credentials (verification tokens, OAuth
@@ -663,22 +758,23 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           const tableName = getModelName(model)
           // An empty predicate would consume an arbitrary credential, so it
           // matches nothing instead. The factory does not guard this itself.
-          if (!where?.length) return null
+          if (!hasWhere(where)) return null
 
-          return db.transaction(async (trx) => {
-            const row = await applyWhere(
-              trx(tableName),
-              tableName,
-              where
-            ).first()
+          return inTransaction(asDb(db), async (dbTrx) => {
+            const trx = dbTrx as unknown as AuthDb
+            const row = (await trx
+              .selectFrom(tableName)
+              .selectAll()
+              .where((eb) => buildWhere(eb, tableName, where))
+              .limit(1)
+              .executeTakeFirst()) as Row | undefined
             if (!row) return null
 
-            const scope = (query: Knex.QueryBuilder) =>
-              applyGroupedWhere(
-                query.where(`${tableName}.id`, row.id),
-                tableName,
-                where
-              )
+            const scope = (eb: AuthExpressionBuilder) =>
+              eb.and([
+                eb(`${tableName}.id`, '=', row.id),
+                buildWhere(eb, tableName, where)
+              ])
 
             // Sessions carry OAuth-token foreign keys that have to be detached
             // first; better-auth never consumes one today, but routing through
@@ -686,10 +782,17 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
             // it ever does.
             const deleted =
               tableName === SESSIONS_TABLE
-                ? await deleteSessionsWithTokenDetach(trx, scope)
-                : await scope(trx(tableName)).delete()
+                ? await deleteSessionsWithTokenDetach(dbTrx, scope)
+                : Number(
+                    (
+                      await trx
+                        .deleteFrom(tableName)
+                        .where(scope)
+                        .executeTakeFirst()
+                    ).numDeletedRows
+                  )
 
-            return deleted > 0 ? (hydrateDateFields(row) as any) : null
+            return deleted > 0 ? (hydrate(tableName, row) as any) : null
           })
         },
 
@@ -706,11 +809,9 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
         // later writer left behind.
         async incrementOne({ model, where, increment, set }) {
           const tableName = getModelName(model)
-          if (!where?.length) return null
+          if (!hasWhere(where)) return null
 
-          let idQuery = db(tableName).first('id')
-          idQuery = applyWhere(idQuery, tableName, where)
-          const existing = await idQuery
+          const existing = await findFirstId(db, tableName, where)
           if (!existing) return null
 
           const update: Record<string, unknown> = {
@@ -720,19 +821,22 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
             )
           }
           for (const [field, delta] of Object.entries(increment)) {
-            update[field] = db.raw('?? + ?', [field, delta])
+            update[field] = sql`${sql.ref(field)} + ${delta}`
           }
 
-          const rows = await applyGroupedWhere(
-            db(tableName).where(`${tableName}.id`, existing.id),
-            tableName,
-            where
-          )
-            .update(update)
-            .returning('*')
+          const row = (await db
+            .updateTable(tableName)
+            .set(update)
+            .where((eb) =>
+              eb.and([
+                eb(`${tableName}.id`, '=', existing.id),
+                buildWhere(eb, tableName, where)
+              ])
+            )
+            .returningAll()
+            .executeTakeFirst()) as Row | undefined
 
-          const row = rows[0]
-          return row ? (hydrateDateFields(row) as any) : null
+          return row ? (hydrate(tableName, row) as any) : null
         }
       }
     }

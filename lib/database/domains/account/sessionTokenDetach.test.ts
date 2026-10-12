@@ -1,20 +1,16 @@
 import crypto from 'crypto'
 import { sql } from 'kysely'
 
-import { deleteSessionsWithTokenDetach as deleteWithKnex } from '@/lib/database/domains/account/detachOAuthTokensFromSessions'
 import {
   SESSION_ID_CHUNK_SIZE,
-  deleteSessionsWithTokenDetach as deleteWithKysely
+  deleteSessionsWithTokenDetach
 } from '@/lib/database/domains/account/sessions'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
-// The FK-safe session delete has two implementations: the Knex one the
-// better-auth adapter still calls with its own transaction, and the Kysely one
-// the account queries use. Both must leave the same rows behind, so each runs
-// against the same seeded rows and the resulting tables are compared. The
-// seed spans more than one chunk of session ids and carries OAuth tokens on
-// the sessions to delete, on the session to keep and on another account's
-// session.
+// The FK-safe session delete that the account queries and the better-auth
+// adapter share. The seed spans more than one chunk of session ids and carries
+// OAuth tokens on the sessions to delete, on the session to keep and on
+// another account's session.
 
 const testDb = createTestDatabase()
 const { database } = testDb
@@ -168,35 +164,33 @@ const failSessionDelete = async (sessionId: string) => {
 }
 
 describe('deleteSessionsWithTokenDetach', () => {
-  it('leaves the same rows behind with Knex and with Kysely', async () => {
+  it('deletes the matched sessions and detaches only their tokens', async () => {
     await seed()
-    const knexCount = await testDb.knex.transaction((trx) =>
-      deleteWithKnex(trx, (query) =>
-        query
-          .where('accountId', targetAccountId)
-          .andWhereNot('token', 'keep-token')
-      )
-    )
-    const afterKnex = await dump()
-
-    await seed()
-    const kyselyCount = await deleteWithKysely(db(), (eb) =>
+    const before = await dump()
+    const count = await deleteSessionsWithTokenDetach(db(), (eb) =>
       eb.and([
         eb('accountId', '=', targetAccountId),
         eb.not(eb('token', '=', 'keep-token'))
       ])
     )
-    const afterKysely = await dump()
+    const after = await dump()
 
-    expect(kyselyCount).toBe(knexCount)
-    expect(afterKysely).toEqual(afterKnex)
-
-    // And what both left is what the delete promises.
-    expect(kyselyCount).toBe(REVOKED_COUNT)
-    expect(afterKysely.sessions.map((row) => row.id)).toEqual([
-      'keep',
-      'neighbour'
-    ])
+    expect(count).toBe(REVOKED_COUNT)
+    expect(after.sessions.map((row) => row.id)).toEqual(['keep', 'neighbour'])
+    // The surviving sessions are untouched, and every token survives with only
+    // its session link changed.
+    expect(after.sessions).toEqual(
+      before.sessions.filter((row) => ['keep', 'neighbour'].includes(row.id))
+    )
+    const withoutSession = <T extends { sessionId: string | null }>(
+      rows: T[]
+    ) => rows.map((row) => ({ ...row, sessionId: null }))
+    expect(withoutSession(after.accessTokens)).toEqual(
+      withoutSession(before.accessTokens)
+    )
+    expect(withoutSession(after.refreshTokens)).toEqual(
+      withoutSession(before.refreshTokens)
+    )
     const sessionIdById = (rows: { id: string; sessionId: string | null }[]) =>
       Object.fromEntries(rows.map((row) => [row.id, row.sessionId]))
     const expected = Object.fromEntries(
@@ -207,7 +201,7 @@ describe('deleteSessionsWithTokenDetach', () => {
     )
     expect(
       sessionIdById(
-        afterKysely.accessTokens.map((row) => ({
+        after.accessTokens.map((row) => ({
           id: row.id.replace(/^access-/, ''),
           sessionId: row.sessionId
         }))
@@ -215,7 +209,7 @@ describe('deleteSessionsWithTokenDetach', () => {
     ).toEqual({ ...expected, keep: 'keep', neighbour: 'neighbour' })
     expect(
       sessionIdById(
-        afterKysely.refreshTokens.map((row) => ({
+        after.refreshTokens.map((row) => ({
           id: row.id.replace(/^refresh-/, ''),
           sessionId: row.sessionId
         }))
@@ -231,7 +225,7 @@ describe('deleteSessionsWithTokenDetach', () => {
         .transaction()
         .execute(async (trx) => {
           expect(
-            await deleteWithKysely(trx, (eb) =>
+            await deleteSessionsWithTokenDetach(trx, (eb) =>
               eb('accountId', '=', targetAccountId)
             )
           ).toBe(REVOKED_COUNT + 1)
@@ -250,7 +244,9 @@ describe('deleteSessionsWithTokenDetach', () => {
     const drop = await failSessionDelete(lastId)
     try {
       await expect(
-        deleteWithKysely(db(), (eb) => eb('accountId', '=', targetAccountId))
+        deleteSessionsWithTokenDetach(db(), (eb) =>
+          eb('accountId', '=', targetAccountId)
+        )
       ).rejects.toThrow()
     } finally {
       await drop()
@@ -262,7 +258,9 @@ describe('deleteSessionsWithTokenDetach', () => {
     await seed()
     const before = await dump()
     expect(
-      await deleteWithKysely(db(), (eb) => eb('accountId', '=', 'missing'))
+      await deleteSessionsWithTokenDetach(db(), (eb) =>
+        eb('accountId', '=', 'missing')
+      )
     ).toBe(0)
     expect(await dump()).toEqual(before)
   })

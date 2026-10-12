@@ -1,8 +1,10 @@
 import knex, { Knex } from 'knex'
+import type { Kysely } from 'kysely'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
 import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import { type DB, kyselyFor } from '@/lib/database/kysely'
 import { getKyselyDialectName } from '@/lib/database/kysely/driver'
 import {
   getTraceparentCommentSuffix,
@@ -99,6 +101,12 @@ export const getKnex = (): Knex => {
   }
   return instance.knex
 }
+
+/**
+ * The application's Kysely instance, for code outside the `Database` facade
+ * (the better-auth adapter). It runs on the same connection pool as the facade.
+ */
+export const getKysely = (): Kysely<DB> => kyselyFor(getKnex())
 
 export const getDatabase = (): Database | null => {
   return getDatabaseInstance()?.database ?? null

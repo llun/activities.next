@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt'
-import knex, { Knex } from 'knex'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 
 // End-to-end guard for where a session is allowed to slide forward. A
 // better-auth refresh does two writes: it extends the database `expireAt` and
@@ -12,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 // the real better-auth instance, because the refresh decision and the
 // `Set-Cookie` both live inside it.
 const holder = vi.hoisted(() => ({
-  knex: null as Knex | null,
+  testDb: null as TestDatabase | null,
   cookie: ''
 }))
 
@@ -27,7 +29,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
+  getKysely: () => holder.testDb?.db,
   // Null skips the session-create hook's account gate, which is not what this
   // test is about.
   getDatabase: () => null
@@ -36,10 +38,6 @@ vi.mock('@/lib/database', () => ({
 vi.mock('next/headers', () => ({
   headers: async () => new Headers({ cookie: holder.cookie })
 }))
-
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
 
 const BASE_URL = 'https://test.example.com'
 const ACCOUNT_ID = 'account-1'
@@ -51,22 +49,6 @@ const TEST_BCRYPT_COST = 4
 const DAY_MS = 24 * 60 * 60 * 1000
 // better-auth's default `session.expiresIn`, which `auth.ts` leaves in place.
 const SESSION_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60
-
-const buildInMemoryKnex = async (): Promise<Knex> => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const sql = readFileSync(SQLITE_SCHEMA_PATH, 'utf8')
-  const connection = await instance.client.acquireConnection()
-  try {
-    connection.exec(sql)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
-  return instance
-}
 
 // Signs in and returns the `name=value` pair the browser would send back.
 const signIn = async () => {
@@ -85,42 +67,62 @@ const signIn = async () => {
 // Moves every session to two days into its seven-day life, which is past
 // better-auth's default one-day `updateAge`, so the next refreshing read
 // slides it forward.
-const ageSessions = async () => {
-  await holder.knex?.('sessions').update({
-    expireAt: new Date(Date.now() + 5 * DAY_MS)
-  })
+const db = () => {
+  if (!holder.testDb) throw new Error('The test database is not ready')
+  return holder.testDb.db
 }
 
+const ageSessions = async () => {
+  await db()
+    .updateTable('sessions')
+    .set({ expireAt: new Date(Date.now() + 5 * DAY_MS) })
+    .execute()
+}
+
+// The one session row's expiry, in epoch milliseconds.
 const readSessionExpiry = async (): Promise<number> => {
-  const row = await holder.knex?.('sessions').first('expireAt')
-  return new Date(row?.expireAt).getTime()
+  const row = await db()
+    .selectFrom('sessions')
+    .select('expireAt')
+    .executeTakeFirstOrThrow()
+  if (row.expireAt === null) throw new Error('The session has no expiry')
+  return row.expireAt
 }
 
 describe('session refresh', () => {
   beforeAll(async () => {
-    holder.knex = await buildInMemoryKnex()
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
 
-    await holder.knex('accounts').insert({
-      id: ACCOUNT_ID,
-      email: EMAIL,
-      name: 'Session Refresh',
-      emailVerified: true
-    })
-    await holder.knex('account_providers').insert({
-      id: 'account-provider-1',
-      accountId: ACCOUNT_ID,
-      provider: 'credential',
-      providerId: ACCOUNT_ID,
-      password: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
-    })
+    await db()
+      .insertInto('accounts')
+      .values({
+        id: ACCOUNT_ID,
+        email: EMAIL,
+        name: 'Session Refresh',
+        emailVerified: true
+      })
+      .execute()
+    await db()
+      .insertInto('account_providers')
+      .values({
+        id: 'account-provider-1',
+        accountId: ACCOUNT_ID,
+        provider: 'credential',
+        providerId: ACCOUNT_ID,
+        password: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
+      })
+      .execute()
   })
 
   beforeEach(async () => {
-    await holder.knex?.('sessions').delete()
+    await db().deleteFrom('sessions').execute()
   })
 
   afterAll(async () => {
-    await holder.knex?.destroy()
+    await holder.testDb?.destroy()
   })
 
   it('leaves a due session untouched when it is read during a server render', async () => {

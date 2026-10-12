@@ -1,12 +1,13 @@
-import knex, { Knex } from 'knex'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import { getOpenIDConfiguration } from '@/lib/services/wellknown/openidConfiguration'
 
-// A fresh in-memory SQLite database stands in for the deployment database so the
-// real better-auth instance (and its jwt plugin) provisions a real signing key.
-const holder = vi.hoisted(() => ({ knex: null as Knex | null }))
+// A fresh test database built from the committed schema dump stands in for the
+// deployment database so the real better-auth instance (and its jwt plugin)
+// provisions a real signing key.
+const holder = vi.hoisted(() => ({ testDb: null as TestDatabase | null }))
 
 vi.mock('@/lib/config', () => ({
   getConfig: () => ({
@@ -20,39 +21,23 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  // The jwt plugin only needs the Knex handle (via knexAdapter); the higher
-  // level Database is unused on the public /jwks path, so null is sufficient.
-  getKnex: () => holder.knex,
+  // The jwt plugin only needs the Kysely handle (via kyselyAdapter); the
+  // higher level Database is unused on the public /jwks path, so null is
+  // sufficient.
+  getKysely: () => holder.testDb?.db,
   getDatabase: () => null
 }))
 
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
-
-const buildInMemoryKnex = async (): Promise<Knex> => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const sql = readFileSync(SQLITE_SCHEMA_PATH, 'utf8')
-  const connection = await instance.client.acquireConnection()
-  try {
-    connection.exec(sql)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
-  return instance
-}
-
 describe('OIDC JWKS (RS256)', () => {
   beforeAll(async () => {
-    holder.knex = await buildInMemoryKnex()
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
   })
 
   afterAll(async () => {
-    await holder.knex?.destroy()
+    await holder.testDb?.destroy()
   })
 
   const fetchJwks = async () => {

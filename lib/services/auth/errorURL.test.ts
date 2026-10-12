@@ -1,11 +1,15 @@
-import { Knex } from 'knex'
-
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import { AUTH_ERROR_PATH } from '@/lib/services/auth/constants'
 
-// A fresh in-memory SQLite database stands in for the deployment database so the
-// real better-auth instance is built exactly as production builds it.
-const holder = vi.hoisted(() => ({ knex: null as Knex | null }))
+// A fresh test database stands in for the deployment database so the real
+// better-auth instance is built exactly as production builds it. `migrate()`
+// loads the committed schema dump, so `oauthClient` really exists and an
+// unknown client_id is a genuine empty-table lookup rather than a
+// missing-relation error.
+const holder = vi.hoisted(() => ({ testDb: null as TestDatabase | null }))
 
 vi.mock('@/lib/config', () => ({
   getConfig: () => ({
@@ -19,20 +23,9 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
+  getKysely: () => holder.testDb?.db,
   getDatabase: () => null
 }))
-
-// Reuse the suite's shared harness rather than re-deriving the schema-dump path:
-// `migrate()` loads migrations/schema.sqlite.sql into the same `:memory:`
-// connection better-auth then queries (knex pins the sqlite pool to one
-// connection), so `oauthClient` really exists and an unknown client_id is a
-// genuine empty-table lookup rather than a missing-relation error.
-const buildInMemoryKnex = async (): Promise<Knex> => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
-  await database.migrate()
-  return instance
-}
 
 // Drive the real handler rather than reading `auth.options` back, so this pins
 // the behaviour (where does a failed request actually send the browser?) rather
@@ -55,11 +48,14 @@ const locationFor = async (path: string) => {
 
 describe('onAPIError.errorURL', () => {
   beforeAll(async () => {
-    holder.knex = await buildInMemoryKnex()
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
   })
 
   afterAll(async () => {
-    await holder.knex?.destroy()
+    await holder.testDb?.destroy()
   })
 
   // Without onAPIError.errorURL this answers `/?error=...` in production —

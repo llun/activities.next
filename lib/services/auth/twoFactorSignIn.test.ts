@@ -1,23 +1,23 @@
 import { base32 } from '@better-auth/utils/base32'
 import { createOTP } from '@better-auth/utils/otp'
 import bcrypt from 'bcrypt'
-import knex, { Knex } from 'knex'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { Database } from '@/lib/database/types'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 
-// Boot the real better-auth instance (with the two-factor plugin) against an
-// in-memory SQLite database built from the committed schema dump — the same way
-// the rest of the SQL suite builds its schema (see lib/database/testUtils.ts),
-// which loads migrations/schema.sqlite.sql rather than running the migration
-// chain — and drive the full 2FA lifecycle end to end: enable -> verify -> fresh
-// sign-in challenge -> verify. This is the regression guard for the "Invalid two
-// factor cookie" bug: better-auth's two-factor plugin writes
+// Boot the real better-auth instance (with the two-factor plugin) against a
+// test database built from the committed schema dump on the suite's backend —
+// the same way the rest of the SQL suite builds its schema (see
+// lib/database/testing/createTestDatabase.ts), which loads
+// migrations/schema.sqlite.sql or migrations/schema.sql rather than running the
+// migration chain — and drive the full 2FA lifecycle end to end: enable ->
+// verify -> fresh sign-in challenge -> verify. This is the regression guard for
+// the "Invalid two factor cookie" bug: better-auth's two-factor plugin writes
 // `failedVerificationCount`/`lockedUntil` on the `twoFactor` table, so if those
-// columns are absent from migrations/schema.sqlite.sql — e.g. a migration landed
-// without the dump being regenerated in lockstep (see AGENTS.md) — `enable` /
+// columns are absent from the schema dumps — e.g. a migration landed without
+// the dumps being regenerated in lockstep (see AGENTS.md) — `enable` /
 // `verify-totp` throw a 500 and the final verification here fails.
 const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
@@ -28,8 +28,7 @@ const PASSWORD = 'testpassword123'
 const TEST_BCRYPT_COST = 4
 
 const holder = vi.hoisted(() => ({
-  knex: null as Knex | null,
-  database: null as Database | null
+  testDb: null as TestDatabase | null
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -44,29 +43,9 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getKnex: () => holder.knex,
-  getDatabase: () => holder.database
+  getKysely: () => holder.testDb?.db,
+  getDatabase: () => holder.testDb?.database ?? null
 }))
-
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
-)
-
-const buildInMemoryKnex = async (): Promise<Knex> => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const sql = readFileSync(SQLITE_SCHEMA_PATH, 'utf8')
-  const connection = await instance.client.acquireConnection()
-  try {
-    connection.exec(sql)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
-  return instance
-}
 
 // Split a comma-merged Set-Cookie header into individual cookies. The runtime's
 // Response here exposes no `getSetCookie()`, and a naive comma split breaks on the
@@ -160,9 +139,11 @@ describe('two-factor sign-in flow', () => {
   }
 
   beforeAll(async () => {
-    holder.knex = await buildInMemoryKnex()
-    holder.database = getSQLDatabase(holder.knex)
-    await holder.database.createAccount({
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    holder.testDb = testDb
+    await testDb.database.createAccount({
       domain: HOST,
       email: EMAIL,
       username: 'twofactor',
@@ -173,7 +154,7 @@ describe('two-factor sign-in flow', () => {
   })
 
   afterAll(async () => {
-    await holder.knex?.destroy()
+    await holder.testDb?.destroy()
   })
 
   it('completes verify-totp on the sign-in challenge without a cookie error', async () => {
