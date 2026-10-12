@@ -6,12 +6,7 @@ import type {
   NotificationPolicy,
   UpdateNotificationPolicyParams
 } from '@/lib/types/database/operations'
-import type {
-  ActorSettings,
-  PostLineLimit,
-  SQLAccount,
-  SQLActor
-} from '@/lib/types/database/rows'
+import type { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import type { Actor, ActorType } from '@/lib/types/domain/actor'
 import type * as Mastodon from '@/lib/types/mastodon'
 
@@ -249,17 +244,10 @@ export interface ActorDatabase {
 }
 
 // The facade's actor methods: the ActorDatabase interface plus the Mastodon
-// Account lookups and the pure row mapper getActor. Only the facade's own
-// tests read getActor off the facade, so it is kept only for the facade.
+// Account lookups, which actorQueries binds too. Production code calls the
+// lookups through lib/database/domains/actor/mastodon.ts; only the actor
+// query tests read them off the facade, through this type.
 export interface SQLActorDatabase extends ActorDatabase {
-  getActor: (
-    sqlActor: SQLActor,
-    followingCount: number,
-    followersCount: number,
-    statusCount: number,
-    lastStatusAt: number,
-    sqlAccount?: SQLAccount
-  ) => Actor
   getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
   getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
 }

@@ -206,7 +206,7 @@ describe('getSQLDatabase', () => {
     expect(createLikeMock).toHaveBeenCalledWith(kyselyDb, params)
   })
 
-  it('merges properties with later mixins taking precedence', async () => {
+  it('merges properties with later domains taking precedence', async () => {
     // The status facade's own properties are on the facade.
     mutableStatusQueries.testPriority = vi.fn().mockResolvedValue('status')
     const { database } = createComposedDatabase()

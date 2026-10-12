@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
+import { getActor } from '@/lib/database/domains/actor/rows'
 import {
   createActorPublicIdReader,
   createSigningAccount,
@@ -39,7 +39,7 @@ describe('ActorDatabase', () => {
 
     describe('getActor', () => {
       it('falls back to Person for unknown persisted actor types', () => {
-        const actor = (database as unknown as SQLActorDatabase).getActor(
+        const actor = getActor(
           {
             id: `https://${TEST_DOMAIN}/users/unknown-type`,
             type: 'UnknownType' as never,
