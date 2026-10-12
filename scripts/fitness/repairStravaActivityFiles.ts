@@ -31,12 +31,12 @@ import {
   type S3Client
 } from '@aws-sdk/client-s3'
 import { loadEnvConfig } from '@next/env'
-import knex from 'knex'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
+import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
@@ -152,16 +152,14 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
   const s3Client = createStorageS3Client(fitnessStorage)
   const { bucket, prefix } = fitnessStorage
 
-  // Use a raw knex instance to query/update with a LIKE filter (not in the database abstraction)
-  const rawDb = knex(config.database)
+  // Use a connection of the script's own to query/update with a LIKE filter (not in the database abstraction)
+  const { db: rawDb, destroy: destroyRawDb } = openScriptDatabase(
+    config.database
+  )
   let files: StravaFitnessFileRow[]
   try {
-    let query = rawDb<StravaFitnessFileRow>('fitness_files')
-      .where('importBatchId', 'like', 'strava-activity:%')
-      .whereNull('deletedAt')
-      .whereIn('fileType', ['gpx', 'tcx'])
-      .orderBy('actorId', 'asc')
-      .orderBy('createdAt', 'asc')
+    let query = rawDb
+      .selectFrom('fitness_files')
       .select([
         'id',
         'actorId',
@@ -171,14 +169,21 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
         'importBatchId',
         'mapImageEmailPath'
       ])
+      .where('importBatchId', 'like', 'strava-activity:%')
+      .where('deletedAt', 'is', null)
+      .where('fileType', 'in', ['gpx', 'tcx'])
+      .orderBy('actorId', 'asc')
+      .orderBy('createdAt', 'asc')
 
     if (input.actorId) {
-      query = query.where('actorId', input.actorId)
+      query = query.where('actorId', '=', input.actorId)
     }
 
-    files = await query
+    // `importBatchId` is nullable in the schema, but a row that matches the
+    // LIKE above has one.
+    files = (await query.execute()) as StravaFitnessFileRow[]
   } catch (error) {
-    await rawDb.destroy()
+    await destroyRawDb()
     throw error
   }
 
@@ -309,11 +314,15 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
       )
 
       if (newFileType !== file.fileType) {
-        await rawDb('fitness_files').where('id', file.id).update({
-          fileType: newFileType,
-          mimeType: contentType,
-          updatedAt: new Date()
-        })
+        await rawDb
+          .updateTable('fitness_files')
+          .set({
+            fileType: newFileType,
+            mimeType: contentType,
+            updatedAt: new Date()
+          })
+          .where('id', '=', file.id)
+          .execute()
         console.log(
           `    ✓ Upgraded ${file.fileType.toUpperCase()} → ${newFileType.toUpperCase()} (${body.length} bytes)`
         )
@@ -382,7 +391,7 @@ async function repairStravaActivityFiles(args = process.argv.slice(2)) {
     }
   }
 
-  await rawDb.destroy()
+  await destroyRawDb()
 
   const dryRunLabel = input.dryRun ? ' (dry-run)' : ''
   console.log(

@@ -412,6 +412,11 @@ jobs:
             lib/actions/createNote.visibility.test.ts \
             scripts/maintenance/backfillGalleryLookups.test.ts \
             scripts/maintenance/backfillGalleryLookups.nominatim.test.ts \
+            scripts/maintenance/backfillGifvMetadata.test.ts \
+            scripts/maintenance/backfillMissingLikeActors.test.ts \
+            scripts/maintenance/mediaEditReferences.test.ts \
+            scripts/mock/createMockFitnessCalendarData.checksum.test.ts \
+            lib/database/scriptDatabase.test.ts \
             lib/database/domains/fitnessFile/fitnessFile.test.ts \
             lib/database/domains/fitnessFile/fitnessFileActivityStats.test.ts \
             lib/database/domains/fitnessFile/fitnessFileOverviewWindows.test.ts \

@@ -1,4 +1,21 @@
-import type { Knex } from 'knex'
+import { sql } from 'kysely'
+
+import type { Db } from '@/lib/database/kysely'
+import { getDialectName } from '@/lib/database/kysely/dialect'
+
+// What Knex's `schema.hasTable()` asked: the table in the connection's current
+// schema on PostgreSQL, any `table` entry of sqlite_master on SQLite.
+const hasTable = async (db: Db, name: string): Promise<boolean> => {
+  const result =
+    getDialectName(db) === 'sqlite'
+      ? await sql`select 1 from sqlite_master where type = 'table' and name = ${name}`.execute(
+          db
+        )
+      : await sql`select 1 from information_schema.tables where table_name = ${name} and table_schema = current_schema()`.execute(
+          db
+        )
+  return result.rows.length > 0
+}
 
 /**
  * The stored files photo edits keep beside the live one: every
@@ -8,16 +25,15 @@ import type { Knex } from 'knex'
  * without them every edited photo's original would look orphaned.
  */
 export const getMediaEditReferencedPaths = async (
-  database: Knex
+  db: Db
 ): Promise<string[]> => {
-  if (!(await database.schema.hasTable('media_edit_files'))) return []
+  if (!(await hasTable(db, 'media_edit_files'))) return []
 
   const paths: string[] = []
-  const rows = await database('media_edit_files').select(
-    'slot',
-    'path',
-    'metaData'
-  )
+  const rows = await db
+    .selectFrom('media_edit_files')
+    .select(['slot', 'path', 'metaData'])
+    .execute()
   for (const row of rows) {
     if (typeof row.path === 'string' && row.path) paths.push(row.path)
     if (row.slot !== 'original') continue

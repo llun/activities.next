@@ -14,7 +14,8 @@
  */
 import { loadEnvConfig } from '@next/env'
 
-import { getKnex } from '@/lib/database'
+import { getKysely } from '@/lib/database'
+import type { Db } from '@/lib/database/kysely'
 import { resolveAnimationMetadata } from '@/lib/services/medias/animationMetadata'
 
 const projectDir = process.cwd()
@@ -44,12 +45,10 @@ export const parseArgs = (args: string[]): CliOptions => {
   return { dryRun, batchSize }
 }
 
-export const runBackfill = async (options: CliOptions) => {
-  const knex = getKnex()
-  if (!knex) {
-    throw new Error('Database is not initialized')
-  }
-
+export const runBackfill = async (
+  options: CliOptions,
+  db: Db = getKysely()
+) => {
   const { dryRun, batchSize } = options
   console.log(
     `Starting GIFV metadata backfill (batchSize: ${batchSize}, dryRun: ${dryRun})...`
@@ -61,9 +60,11 @@ export const runBackfill = async (options: CliOptions) => {
   let lastId: string | null = null
 
   while (true) {
-    let query = knex('attachments')
+    let query = db
+      .selectFrom('attachments')
+      .select(['id', 'statusId', 'actorId', 'mediaType', 'url', 'thumbnailUrl'])
       .where('mediaType', 'like', 'video%')
-      .whereNull('playbackType')
+      .where('playbackType', 'is', null)
       .orderBy('id', 'asc')
       .limit(batchSize)
 
@@ -71,18 +72,27 @@ export const runBackfill = async (options: CliOptions) => {
       query = query.where('id', '>', lastId)
     }
 
-    const attachments = await query
+    const attachments = await query.execute()
     if (attachments.length === 0) {
       break
     }
 
     for (const attachment of attachments) {
+      // Both columns are nullable in the schema. `mediaType` matched the LIKE
+      // above, so it is set; a NULL `url` is looked up as it always was and
+      // counts as a failure below.
+      const url = attachment.url as string
+      const mediaType = attachment.mediaType as string
       lastId = attachment.id
       processed++
       try {
-        const status = await knex('statuses')
-          .where('id', attachment.statusId)
-          .first()
+        const status = attachment.statusId
+          ? await db
+              .selectFrom('statuses')
+              .select(['url', 'actorId'])
+              .where('id', '=', attachment.statusId)
+              .executeTakeFirst()
+          : undefined
 
         const statusUrl = status?.url || attachment.statusId
         const statusId = attachment.statusId
@@ -94,16 +104,16 @@ export const runBackfill = async (options: CliOptions) => {
           authorId,
           attachments: [
             {
-              url: attachment.url,
-              mediaType: attachment.mediaType
+              url,
+              mediaType
             }
           ]
         })
 
-        const item = resolved[attachment.url]
+        const item = resolved[url]
         if (!item || (item.playbackType === 'unknown' && !item.definitive)) {
           console.warn(
-            `[${attachment.id}] URL: ${attachment.url} -> transient failure or non-definitive lookup, leaving null for retry`
+            `[${attachment.id}] URL: ${url} -> transient failure or non-definitive lookup, leaving null for retry`
           )
           failed++
           continue
@@ -116,15 +126,17 @@ export const runBackfill = async (options: CliOptions) => {
             : undefined
 
         console.log(
-          `[${attachment.id}] URL: ${attachment.url} -> playbackType: ${playbackType}${thumbnailUrl ? ` (thumbnail: ${thumbnailUrl})` : ''}`
+          `[${attachment.id}] URL: ${url} -> playbackType: ${playbackType}${thumbnailUrl ? ` (thumbnail: ${thumbnailUrl})` : ''}`
         )
 
         if (!dryRun) {
-          const updates: Record<string, unknown> = { playbackType }
-          if (thumbnailUrl) {
-            updates.thumbnailUrl = thumbnailUrl
-          }
-          await knex('attachments').where('id', attachment.id).update(updates)
+          await db
+            .updateTable('attachments')
+            .set(
+              thumbnailUrl ? { playbackType, thumbnailUrl } : { playbackType }
+            )
+            .where('id', '=', attachment.id)
+            .execute()
         }
 
         updated++
