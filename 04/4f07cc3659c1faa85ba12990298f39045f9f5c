@@ -1,0 +1,16 @@
+lib/components/medias-modal/medias-modal-details.test.tsx
+  h_580a04e334fef4 7,15,20,73-77,84,92,333-360
+lib/components/medias-modal/medias-modal.tsx
+  h_580a04e334fef4 510,517,526,537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "044f07cc3659c1faa85ba12990298f39045f9f5c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
