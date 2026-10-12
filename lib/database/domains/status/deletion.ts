@@ -49,17 +49,13 @@ const statusReplyDeletionDepthError = (statusId: string) =>
   new Error(`Status reply deletion depth limit exceeded for status ${statusId}`)
 
 // Runs `run` once per chunk of `values`, one after the other, each chunk as
-// long as one `in (…)` list may be with `reservedBindings` other values.
+// long as one `in (…)` list may be.
 const forEachChunk = async <Value>(
   db: Db,
   values: Value[],
-  run: (chunk: Value[]) => Promise<unknown>,
-  reservedBindings = 0
+  run: (chunk: Value[]) => Promise<unknown>
 ) => {
-  for (const chunk of chunkArray(
-    values,
-    getWhereInBatchSize(db, reservedBindings)
-  )) {
+  for (const chunk of chunkArray(values, getWhereInBatchSize(db))) {
     await run(chunk)
   }
 }
