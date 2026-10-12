@@ -43,7 +43,7 @@ describe('publicly readable status predicates', () => {
       .map(({ id }) => id as string)
       .sort()
 
-  // The Kysely twin of the set form, over the same unscoped target set.
+  // The set form, over the same unscoped target set.
   const readableByKyselySetForm = async () => {
     const db = kyselyFor(instance)
     return (

@@ -11,7 +11,7 @@ import {
   increaseCounterValue,
   setCounterValue
 } from '@/lib/database/kysely/counter'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import { getDialectName, timestampValue } from '@/lib/database/kysely/dialect'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 
@@ -88,7 +88,8 @@ describe('Kysely counter helpers', () => {
     await increaseCounterValue(db, 'counter-clamp', 2)
     await decreaseCounterValue(db, 'counter-clamp', 5)
     await decreaseCounterValue(db, 'counter-missing', 1)
-    expect(await getCounterValue(db, 'counter-clamp')).toBe(0)
+    // The stored row, not getCounterValue(): that clamps what it reads too.
+    expect((await readRow('counter-clamp'))?.value).toBe(0)
     expect((await readRow('counter-missing'))?.value).toBe(0)
   })
 
@@ -211,10 +212,26 @@ describe('Kysely counter helpers', () => {
 
     await deleteCounterValue(db, 'counter-del-one')
     await deleteCounterValue(db, 'counter-del-missing')
-    // More ids than one statement takes on either backend.
-    await deleteCounterValues(db, listed)
-    await deleteCounterValues(db, [])
 
+    const deletes: { sql: string; bindings: unknown[] }[] = []
+    const capture = (query: { sql: string; bindings: unknown[] }) => {
+      if (/^delete from "counters"/.test(query.sql)) deletes.push(query)
+    }
+    instance.on('query', capture)
+    try {
+      // More ids than one statement takes on either backend.
+      await deleteCounterValues(db, listed)
+      const afterListed = deletes.length
+      await deleteCounterValues(db, [])
+      expect(deletes).toHaveLength(afterListed)
+    } finally {
+      instance.off('query', capture)
+    }
+
+    // SQLite binds at most 999 ids a statement and PostgreSQL 1000.
+    expect(deletes.map((statement) => statement.bindings.length)).toEqual(
+      getDialectName(db) === 'sqlite' ? [999, 2] : [1000, 1]
+    )
     expect(await readRow('counter-del-one')).toBeUndefined()
     expect(await getCounterValues(db, listed.slice(0, 900))).toEqual({})
     expect(await getCounterValues(db, listed.slice(900))).toEqual({})

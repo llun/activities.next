@@ -146,7 +146,7 @@ describe('Kysely visibility predicates', () => {
       })
     }
     // A blocked follower: blocks are search's own filter, not this predicate's,
-    // so both forms must still agree on what it can read.
+    // so it must still read what any follower reads.
     await database.createFollow({
       actorId: blocked,
       targetActorId: author,
@@ -372,7 +372,7 @@ describe('Kysely visibility predicates', () => {
 
     // Rows for the list predicates and the block/mute filter.
     // A followers collection spelled in upper case: LIKE folds it on SQLite
-    // only, the same for both forms on each backend.
+    // only, so it is list-eligible there and not on PostgreSQL.
     await note('upper-followers', { to: [`${author}/FOLLOWERS`] })
     // recipient owns a list holding follower, and follows stranger.
     await knex('lists').insert({
