@@ -47,7 +47,7 @@ export const useHeatmapJobFixtures = ({
   // and all of it has to agree on both backends.
   const {
     database,
-    instance,
+    db,
     prepare: prepareDatabase
   } = getTestDatabaseWithInstance()
 
@@ -100,9 +100,10 @@ export const useHeatmapJobFixtures = ({
       startTime: new Date('2026-04-15T07:00:00.000Z')
     })
     if (actor?.id) {
-      await instance('fitness_route_heatmaps')
-        .where('actorId', actor.id)
-        .delete()
+      await db
+        .deleteFrom('fitness_route_heatmaps')
+        .where('actorId', '=', actor.id)
+        .execute()
     }
   })
 
@@ -150,18 +151,20 @@ export const useHeatmapJobFixtures = ({
     })
 
     fixtureSequence += 1
-    await instance('fitness_files')
-      .where('id', fitnessFile!.id)
-      .update({
+    await db
+      .updateTable('fitness_files')
+      .set({
         createdAt: new Date(FIXTURE_CREATED_AT_BASE + fixtureSequence * 1_000)
       })
+      .where('id', '=', fitnessFile!.id)
+      .execute()
 
     return fitnessFile!.id
   }
 
   return {
     database,
-    instance,
+    db,
     getActor: () => actor,
     createCompletedFitnessFile
   }

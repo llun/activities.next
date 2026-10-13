@@ -1,3 +1,4 @@
+import type { Db } from '@/lib/database/kysely'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
@@ -21,22 +22,19 @@ const byId = (
 
 describe('hydrateAdminAccounts', () => {
   const withDatabase = async (
-    test: (params: {
-      database: Database
-      instance: ReturnType<typeof getTestSQLDatabaseWithInstance>['instance']
-    }) => Promise<void>
+    test: (params: { database: Database; db: Db }) => Promise<void>
   ) => {
-    const { database, instance } = getTestSQLDatabaseWithInstance()
+    const { database, db } = getTestSQLDatabaseWithInstance()
     await database.migrate()
     try {
-      await test({ database, instance })
+      await test({ database, db })
     } finally {
       await database.destroy()
     }
   }
 
   it('serializes a local admin actor with a nulled domain, admin role and moderation flags', async () => {
-    await withDatabase(async ({ database, instance }) => {
+    await withDatabase(async ({ database, db }) => {
       const accountId = await database.createAccount({
         email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
         username: LOCAL_USERNAME,
@@ -45,9 +43,11 @@ describe('hydrateAdminAccounts', () => {
         privateKey: 'private',
         publicKey: 'public'
       })
-      await instance('accounts')
-        .where('id', accountId)
-        .update({ role: 'admin' })
+      await db
+        .updateTable('accounts')
+        .set({ role: 'admin' })
+        .where('id', '=', accountId)
+        .execute()
       await database.setActorSuspended({
         actorId: LOCAL_ACTOR_ID,
         suspended: true
@@ -85,7 +85,7 @@ describe('hydrateAdminAccounts', () => {
     // nothing: a null `verifiedAt` makes the old expression and the new one
     // agree, so the test passed against the very implementation it exists to
     // reject. A legacy row is the only shape that separates them.
-    await withDatabase(async ({ database, instance }) => {
+    await withDatabase(async ({ database, db }) => {
       await database.createAccount({
         email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
         username: LOCAL_USERNAME,
@@ -95,9 +95,11 @@ describe('hydrateAdminAccounts', () => {
         publicKey: 'public',
         verificationCode: 'pending-confirmation-code'
       })
-      await instance('accounts')
-        .where('email', `${LOCAL_USERNAME}@${TEST_DOMAIN}`)
-        .update({ verifiedAt: new Date() })
+      await db
+        .updateTable('accounts')
+        .set({ verifiedAt: new Date() })
+        .where('email', '=', `${LOCAL_USERNAME}@${TEST_DOMAIN}`)
+        .execute()
 
       const publicIds = await database.getActorPublicIds({
         actorIds: [LOCAL_ACTOR_ID]
@@ -113,7 +115,7 @@ describe('hydrateAdminAccounts', () => {
   })
 
   it('falls back to the legacy id for an actor that predates the backfill', async () => {
-    await withDatabase(async ({ database, instance }) => {
+    await withDatabase(async ({ database, db }) => {
       await database.createAccount({
         email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
         username: LOCAL_USERNAME,
@@ -122,9 +124,11 @@ describe('hydrateAdminAccounts', () => {
         privateKey: 'private',
         publicKey: 'public'
       })
-      await instance('actors')
-        .where('id', LOCAL_ACTOR_ID)
-        .update({ publicId: null })
+      await db
+        .updateTable('actors')
+        .set({ publicId: null })
+        .where('id', '=', LOCAL_ACTOR_ID)
+        .execute()
 
       const records = await database.getAdminAccounts({ limit: 100 })
       const entities = await hydrateAdminAccounts(database, records)

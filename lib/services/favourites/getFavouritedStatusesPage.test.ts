@@ -1,6 +1,5 @@
-import type { Knex } from 'knex'
-
 import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
+import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import {
@@ -16,25 +15,28 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // Each caller destroys its instance before the next is made, so the next
 // prepare() can drop and recreate the worker's PostgreSQL database.
 const newTestDatabase = async () => {
-  const { database, knex: raw, prepare } = createTestDatabase()
+  const { database, db, destroy, prepare } = createTestDatabase()
   await prepare()
   await database.migrate()
   await seedDatabase(database)
-  return { raw, database }
+  return { db, database, destroy }
 }
 
 // Like a status by ACTOR1 with an explicit createdAt so ordering is
 // deterministic (createLike stamps `now()`, which would tie).
 const likeAt = async (
-  raw: Knex,
+  db: Db,
   database: Database,
   statusId: string,
   createdAtMs: number
 ) => {
   await database.createLike({ actorId: ACTOR1_ID, statusId })
-  await raw('likes')
-    .where({ actorId: ACTOR1_ID, statusId })
-    .update({ createdAt: new Date(createdAtMs) })
+  await db
+    .updateTable('likes')
+    .set({ createdAt: new Date(createdAtMs) })
+    .where('actorId', '=', ACTOR1_ID)
+    .where('statusId', '=', statusId)
+    .execute()
 }
 
 const createNote = (database: Database, statusId: string) =>
@@ -50,7 +52,8 @@ const createNote = (database: Database, statusId: string) =>
 const idsOf = (statuses: { id: string }[]) => statuses.map((s) => s.id)
 
 describe('getFavouritedStatusesPage', () => {
-  let raw: Knex
+  let db: Db
+  let destroy: () => Promise<void>
   let database: Database
   let viewer: Actor
 
@@ -62,16 +65,16 @@ describe('getFavouritedStatusesPage', () => {
   // A fresh database per test: the backfill test deletes fav-page-2's status
   // row, which a shared database carried into whichever test ran after it.
   beforeEach(async () => {
-    ;({ raw, database } = await newTestDatabase())
+    ;({ db, database, destroy } = await newTestDatabase())
     viewer = (await database.getActorFromId({ id: ACTOR1_ID }))!
     for (let index = 0; index < statusIds.length; index++) {
       await createNote(database, statusIds[index])
-      await likeAt(raw, database, statusIds[index], (index + 1) * 1000)
+      await likeAt(db, database, statusIds[index], (index + 1) * 1000)
     }
   })
 
   afterEach(async () => {
-    await raw.destroy()
+    await destroy()
   })
 
   it('returns all favourites newest-first', async () => {
@@ -94,7 +97,7 @@ describe('getFavouritedStatusesPage', () => {
     // the like) so fav-page-2 stays liked but unreadable. The page immediately
     // after min_id (fav-page-2, fav-page-3) then loses an entry and the service
     // must backfill into the next band to reach fav-page-4.
-    await raw('statuses').where('id', statusIds[1]).delete()
+    await db.deleteFrom('statuses').where('id', '=', statusIds[1]).execute()
 
     const page = await getFavouritedStatusesPage({
       database,
@@ -111,7 +114,8 @@ describe('getFavouritedStatusesPage', () => {
 })
 
 describe('getFavouritedStatusesPage backfill exhaustion', () => {
-  let raw: Knex
+  let db: Db
+  let destroy: () => Promise<void>
   let database: Database
   let viewer: Actor
 
@@ -125,25 +129,25 @@ describe('getFavouritedStatusesPage backfill exhaustion', () => {
   ]
 
   beforeAll(async () => {
-    ;({ raw, database } = await newTestDatabase())
+    ;({ db, database, destroy } = await newTestDatabase())
     viewer = (await database.getActorFromId({ id: ACTOR1_ID }))!
 
     // Oldest: two readable favourites (createdAt 1000, 2000).
     for (let index = 0; index < readableIds.length; index++) {
       await createNote(database, readableIds[index])
-      await likeAt(raw, database, readableIds[index], (index + 1) * 1000)
+      await likeAt(db, database, readableIds[index], (index + 1) * 1000)
     }
     // Newer: a long run of liked-but-unreadable statuses (status rows removed).
     for (let index = 0; index < unreadableCount; index++) {
       const statusId = `${ACTOR2_ID}/statuses/unreadable-${index + 1}`
       await createNote(database, statusId)
-      await likeAt(raw, database, statusId, 10000 + index * 1000)
-      await raw('statuses').where('id', statusId).delete()
+      await likeAt(db, database, statusId, 10000 + index * 1000)
+      await db.deleteFrom('statuses').where('id', '=', statusId).execute()
     }
   })
 
   afterAll(async () => {
-    await raw.destroy()
+    await destroy()
   })
 
   it('does not strand the client when a full backfill window is unreadable', async () => {

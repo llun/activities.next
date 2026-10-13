@@ -1,8 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
-import knex from 'knex'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -60,18 +59,12 @@ const actorDocument = (
 const serve = serveFederationRoutes
 
 describe('getProfileData persists only a document served by its own id', () => {
-  let sql: ReturnType<typeof knex>
   let database: Database
 
   beforeEach(async () => {
     vi.mocked(getFederationSigningActorSafe).mockReset()
     vi.mocked(getFederationSigningActorSafe).mockResolvedValue(undefined)
-    sql = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    database = getSQLDatabase(sql)
+    database = createTestDatabase({ backend: 'sqlite' }).database
     await database.migrate()
   })
 

@@ -1,13 +1,17 @@
 import { replayQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { kyselyFor } from '@/lib/database/kysely'
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  createTestDatabase,
+  getLegacyKnex
+} from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('QueueJobDatabase', () => {
-  // `knex` stays for the one case that checks a Knex transaction through
-  // `kyselyFor`, on purpose.
-  const { database, db, knex, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
+  // The legacy Knex stays for the one case that checks a Knex transaction
+  // through `kyselyFor`, on purpose.
+  const knex = getLegacyKnex(database)
 
   beforeAll(async () => {
     await prepare()

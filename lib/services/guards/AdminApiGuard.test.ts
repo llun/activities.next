@@ -76,7 +76,7 @@ vi.mock('./OAuthGuard', async (importOriginal) => {
 })
 
 describe('AdminApiGuard', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
   let adminActor: Actor
 
   beforeAll(async () => {
@@ -88,9 +88,11 @@ describe('AdminApiGuard', () => {
     const actor = await database.getActorFromEmail({ email: seedActor1.email })
     if (!actor?.account) throw new Error('Admin actor account not found')
     adminActor = actor
-    await instance('accounts')
-      .where('id', actor.account.id)
-      .update({ role: 'admin' })
+    await db
+      .updateTable('accounts')
+      .set({ role: 'admin' })
+      .where('id', '=', actor.account.id)
+      .execute()
   })
 
   afterAll(async () => {
@@ -350,9 +352,11 @@ describe('AdminApiGuard', () => {
         publicKey: 'pending-public-key',
         verificationCode: 'pending-admin-guard-code'
       })
-      await instance('accounts')
-        .where('id', pendingAccountId)
-        .update({ role: 'admin' })
+      await db
+        .updateTable('accounts')
+        .set({ role: 'admin' })
+        .where('id', '=', pendingAccountId)
+        .execute()
       const actor = await database.getActorFromEmail({ email: PENDING_EMAIL })
       if (!actor?.account)
         throw new Error('Pending admin actor account not found')
@@ -436,9 +440,11 @@ describe('AdminApiGuard', () => {
         publicKey: 'cohort-public-key',
         verificationCode: 'stale-verification-code'
       })
-      await instance('accounts')
-        .where('id', accountId)
-        .update({ role: 'admin', emailVerified: true })
+      await db
+        .updateTable('accounts')
+        .set({ role: 'admin', emailVerified: true })
+        .where('id', '=', accountId)
+        .execute()
     })
 
     it('admits a backfilled cohort admin account with outstanding verification code and emailVerified true', async () => {
@@ -461,16 +467,19 @@ describe('AdminApiGuard', () => {
 
     beforeAll(async () => {
       const now = new Date()
-      await instance('accounts').insert({
-        id: actorlessAccountId,
-        email: ACTORLESS_EMAIL,
-        role: 'admin',
-        emailVerified: true,
-        verifiedAt: now,
-        approvedAt: now,
-        createdAt: now,
-        updatedAt: now
-      })
+      await db
+        .insertInto('accounts')
+        .values({
+          id: actorlessAccountId,
+          email: ACTORLESS_EMAIL,
+          role: 'admin',
+          emailVerified: true,
+          verifiedAt: now,
+          approvedAt: now,
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
     })
 
     it('admits an active actorless admin account and resolves actorId null', async () => {
@@ -523,10 +532,14 @@ describe('AdminApiGuard', () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: ACTORLESS_EMAIL }
       })
-      await instance('accounts').where('id', actorlessAccountId).update({
-        verificationCode: 'actorless-unconfirmed-code',
-        emailVerified: false
-      })
+      await db
+        .updateTable('accounts')
+        .set({
+          verificationCode: 'actorless-unconfirmed-code',
+          emailVerified: false
+        })
+        .where('id', '=', actorlessAccountId)
+        .execute()
 
       try {
         const guard = AdminApiGuard([HttpMethod.enum.GET], handle)
@@ -537,10 +550,11 @@ describe('AdminApiGuard', () => {
         await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
         expect(handle).not.toHaveBeenCalled()
       } finally {
-        await instance('accounts').where('id', actorlessAccountId).update({
-          verificationCode: null,
-          emailVerified: true
-        })
+        await db
+          .updateTable('accounts')
+          .set({ verificationCode: null, emailVerified: true })
+          .where('id', '=', actorlessAccountId)
+          .execute()
       }
     })
   })

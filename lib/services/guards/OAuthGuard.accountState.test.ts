@@ -64,9 +64,9 @@ vi.mock('better-auth/oauth2', () => ({
 }))
 
 describe('OAuthGuard', () => {
-  // `instance` is needed to force the backfilled-cohort row shape, which
+  // `db` is needed to force the backfilled-cohort row shape, which
   // `createAccount` cannot produce.
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -415,9 +415,11 @@ describe('OAuthGuard', () => {
       // What `20260320072514_better_auth_columns` did to every row of its era:
       // marked verified while the code stayed put. `createAccount` cannot
       // produce this state, which is exactly why it has to be forced here.
-      await instance('accounts')
-        .where('email', COHORT_EMAIL)
-        .update({ emailVerified: true })
+      await db
+        .updateTable('accounts')
+        .set({ emailVerified: true })
+        .where('email', '=', COHORT_EMAIL)
+        .execute()
     })
 
     test('serves a bearer token for a cohort account', async () => {

@@ -13,7 +13,7 @@ vi.mock('@/lib/config', () => ({
 describe('getMastodonStatusEdits', () => {
   // Numeric media ids: `attachments.mediaId` is an `integer` column on
   // PostgreSQL, which this suite runs on too.
-  const { database, knex: knexInstance, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
     await prepare()
@@ -96,12 +96,15 @@ describe('getMastodonStatusEdits', () => {
       mediaId: '9702'
     })
     // A history row written before snapshots existed: only text/summary.
-    await knexInstance('status_history').insert({
-      statusId,
-      data: JSON.stringify({ text: 'Legacy version', summary: null }),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await db
+      .insertInto('status_history')
+      .values({
+        statusId,
+        data: JSON.stringify({ text: 'Legacy version', summary: null }),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
 
     const revisions = await database.getStatusEditHistory({ statusId })
     expect(revisions[0].available).toEqual({
@@ -144,12 +147,15 @@ describe('getMastodonStatusEdits', () => {
         cc: [],
         text: 'Current version'
       })
-      await knexInstance('status_history').insert({
-        statusId,
-        data: JSON.stringify(snapshot),
-        createdAt: new Date(Date.now() - 60_000),
-        updatedAt: new Date(Date.now() - 60_000)
-      })
+      await db
+        .insertInto('status_history')
+        .values({
+          statusId,
+          data: JSON.stringify(snapshot),
+          createdAt: new Date(Date.now() - 60_000),
+          updatedAt: new Date(Date.now() - 60_000)
+        })
+        .execute()
 
       const revisions = await database.getStatusEditHistory({ statusId })
       expect(revisions[0]).toMatchObject({

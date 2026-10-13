@@ -652,6 +652,7 @@ jobs:
             lib/jobs/sendQuoteRevokeJob.test.ts \
             lib/services/favourites/getFavouritedStatusesPage.test.ts \
             lib/services/federation/forwardingDelivery.test.ts \
+            lib/services/link-previews/fetchLinkPreview.test.ts \
             lib/services/mastodon/getMastodonStatusEdits.test.ts \
             lib/services/notifications/notifyQuotedStatusUpdate.test.ts \
             lib/services/reactions/reactStatus.test.ts \

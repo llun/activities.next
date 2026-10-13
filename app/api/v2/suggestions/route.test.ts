@@ -45,7 +45,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('/api/v2/suggestions', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -82,7 +82,7 @@ describe('/api/v2/suggestions', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    await instance('suggestion_dismissals').delete()
+    await db.deleteFrom('suggestion_dismissals').execute()
   })
 
   const createRequest = (query = '') =>
@@ -220,12 +220,11 @@ describe('/api/v2/suggestions', () => {
         data.map((item: { account: { id: string } }) => item.account.id)
       ).toEqual([await actorPublicId(database, ACTOR5_ID)])
     } finally {
-      await instance('suggestion_dismissals')
-        .where({
-          actorId: ACTOR1_ID,
-          targetActorId: ACTOR4_ID
-        })
-        .delete()
+      await db
+        .deleteFrom('suggestion_dismissals')
+        .where('actorId', '=', ACTOR1_ID)
+        .where('targetActorId', '=', ACTOR4_ID)
+        .execute()
     }
   })
 
@@ -245,9 +244,9 @@ describe('/api/v2/suggestions', () => {
 
       expect(deleteResponse.status).toBe(200)
       await expect(deleteResponse.json()).resolves.toEqual({})
-      expect(await instance('suggestion_dismissals').select('*')).toHaveLength(
-        0
-      )
+      expect(
+        await db.selectFrom('suggestion_dismissals').selectAll().execute()
+      ).toHaveLength(0)
     }
   )
 })

@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import type { Db } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -47,18 +47,15 @@ const actorDocument = (
 const serve = serveFederationRoutes
 
 describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
-  let sql: ReturnType<typeof knex>
+  let db: Db
   let database: Database
 
   beforeEach(async () => {
     vi.mocked(getFederationSigningActor).mockReset()
     vi.mocked(getFederationSigningActor).mockResolvedValue(undefined)
-    sql = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    database = getSQLDatabase(sql)
+    const testDb = createTestDatabase({ backend: 'sqlite' })
+    db = testDb.db
+    database = testDb.database
     await database.migrate()
   })
 
@@ -108,7 +105,11 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
       publicKey: 'evil-key',
       createdAt: oldTime.getTime()
     })
-    await sql('actors').where('id', attackerId).update({ updatedAt: oldTime })
+    await db
+      .updateTable('actors')
+      .set({ updatedAt: oldTime })
+      .where('id', '=', attackerId)
+      .execute()
     serve({
       [attackerId]: actorDocument(victimId, 'victim-key'),
       [victimId]: actorDocument(victimId, 'victim-key')
@@ -264,7 +265,11 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
       { webfinger: victimWebfinger }
     )
     await recordActorIfNeeded({ actorId: victimId, database })
-    await sql('actors').where('id', victimId).update({ updatedAt: oldTime })
+    await db
+      .updateTable('actors')
+      .set({ updatedAt: oldTime })
+      .where('id', '=', victimId)
+      .execute()
     const uploadId = 'https://victim.test/media/upload.json'
     serve({
       [uploadId]: actorDocument(victimId, 'attacker-key'),
@@ -299,7 +304,12 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
     expect(viaAlias?.id).toBe(victimId)
     expect(viaId?.id).toBe(victimId)
     await expect(
-      sql('actors').where({ username: 'alice', domain: 'victim.test' })
+      db
+        .selectFrom('actors')
+        .select('id')
+        .where('username', '=', 'alice')
+        .where('domain', '=', 'victim.test')
+        .execute()
     ).resolves.toHaveLength(1)
   })
 
@@ -376,18 +386,15 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
 // `@admin@victim.test` with the uploader's key and inbox, and that key then
 // verifies inbox traffic. Two gates close it, each bracketed on both sides.
 describe('recordActorIfNeeded refuses a handle its host does not vouch for', () => {
-  let sql: ReturnType<typeof knex>
+  let db: Db
   let database: Database
 
   beforeEach(async () => {
     vi.mocked(getFederationSigningActor).mockReset()
     vi.mocked(getFederationSigningActor).mockResolvedValue(undefined)
-    sql = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    database = getSQLDatabase(sql)
+    const testDb = createTestDatabase({ backend: 'sqlite' })
+    db = testDb.db
+    database = testDb.database
     await database.migrate()
   })
 
@@ -561,9 +568,11 @@ describe('recordActorIfNeeded refuses a handle its host does not vouch for', () 
       { webfinger: { 'admin@victim.test': adminId } }
     )
     await recordActorIfNeeded({ actorId: adminId, database })
-    await sql('actors')
-      .where('id', adminId)
-      .update({ updatedAt: new Date(Date.now() - 4 * 86_400_000) })
+    await db
+      .updateTable('actors')
+      .set({ updatedAt: new Date(Date.now() - 4 * 86_400_000) })
+      .where('id', '=', adminId)
+      .execute()
     serve({ [adminId]: actorDocument(adminId, 'rotated-key') })
 
     await expect(

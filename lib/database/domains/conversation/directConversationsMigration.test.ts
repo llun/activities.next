@@ -2,7 +2,8 @@ import type { Knex } from 'knex'
 
 import {
   type TestDatabase,
-  createTestDatabase
+  createTestDatabase,
+  getLegacyKnex
 } from '@/lib/database/testing/createTestDatabase'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import * as migration from '@/migrations/20260517002000_add_direct_conversations'
@@ -22,7 +23,7 @@ describe('direct conversations migration', () => {
     // migrations start from.
     testDb = createTestDatabase()
     await testDb.prepare()
-    database = testDb.knex
+    database = getLegacyKnex(testDb.database)
 
     await database.schema.createTable('actors', (table) => {
       table.string('id').primary()

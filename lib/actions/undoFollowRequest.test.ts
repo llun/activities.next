@@ -11,7 +11,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 vi.mock('@/lib/activities')
 
 describe('undoFollowRequest', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -29,12 +29,12 @@ describe('undoFollowRequest', () => {
       targetActorId: ACTOR2_ID
     })
     if (!existing) {
-      const follow = await instance('follows')
-        .where({
-          actorId: ACTOR3_ID,
-          targetActorId: ACTOR2_ID
-        })
-        .first()
+      const follow = await db
+        .selectFrom('follows')
+        .select('id')
+        .where('actorId', '=', ACTOR3_ID)
+        .where('targetActorId', '=', ACTOR2_ID)
+        .executeTakeFirst()
       if (follow) {
         await database.updateFollowStatus({
           followId: follow.id,

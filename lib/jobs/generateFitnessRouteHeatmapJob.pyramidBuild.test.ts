@@ -31,7 +31,7 @@ vi.mock('@/lib/services/queue', async () => ({
 }))
 
 describe('generateFitnessRouteHeatmapJob', () => {
-  const { database, instance, getActor, createCompletedFitnessFile } =
+  const { database, db, getActor, createCompletedFitnessFile } =
     useHeatmapJobFixtures({ mockPublish })
   let actor: Actor
 
@@ -722,9 +722,11 @@ describe('generateFitnessRouteHeatmapJob', () => {
         }
         // Every row in the same millisecond, which is what the import produces
         // and what the fixture helper otherwise deliberately avoids.
-        await instance('fitness_files')
-          .whereIn('id', ids)
-          .update({ createdAt: new Date(Date.UTC(2026, 5, 1, 12, 0, 0, 123)) })
+        await db
+          .updateTable('fitness_files')
+          .set({ createdAt: new Date(Date.UTC(2026, 5, 1, 12, 0, 0, 123)) })
+          .where('id', 'in', ids)
+          .execute()
 
         // A checkpoint after every file, so the tie-break is re-decided from a
         // stored cursor on each hop rather than once in memory.

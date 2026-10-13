@@ -1,27 +1,18 @@
-import knex, { Knex } from 'knex'
-
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('DatabaseQueue', () => {
-  let knexDatabase: Knex
   let database: Database
   let db: Db
 
   beforeAll(async () => {
-    knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    database = getSQLDatabase(knexDatabase)
-    db = kyselyFor(knexDatabase)
+    const testDb = createTestDatabase({ backend: 'sqlite' })
+    database = testDb.database
+    db = testDb.db
     await database.migrate()
   })
 

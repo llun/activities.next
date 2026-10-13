@@ -6,7 +6,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
-const { database, knex: instance, prepare } = createTestDatabase()
+const { database, db, prepare } = createTestDatabase()
 
 const ADMIN_ACTOR_ID = `https://${TEST_DOMAIN}/users/admin`
 const TARGET_ACTOR_ID = `https://${TEST_DOMAIN}/users/target`
@@ -68,9 +68,11 @@ describe('admin reports API', () => {
       privateKey: 'private',
       publicKey: 'public'
     })
-    await instance('accounts')
-      .where('id', adminAccountId)
-      .update({ role: 'admin' })
+    await db
+      .updateTable('accounts')
+      .set({ role: 'admin' })
+      .where('id', '=', adminAccountId)
+      .execute()
     await database.createAccount({
       email: `target@${TEST_DOMAIN}`,
       username: 'target',

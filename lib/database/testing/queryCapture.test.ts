@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  createTestDatabase,
+  getLegacyKnex
+} from '@/lib/database/testing/createTestDatabase'
 import {
   type CapturedQuery,
   createKnexQueryCapture
@@ -318,7 +321,9 @@ describe('statement capture on the test database', () => {
     it.runIf(testDb.backend === 'sqlite')(
       'counts a caller queued behind the only connection',
       async () => {
-        const held = await testDb.knex.client.acquireConnection()
+        const held = await getLegacyKnex(
+          testDb.database
+        ).client.acquireConnection()
         let queued: Promise<unknown> | undefined
         try {
           queued = readSetting('capture.queued').execute()
@@ -326,7 +331,7 @@ describe('statement capture on the test database', () => {
             .poll(() => testDb.pendingAcquires(), { timeout: 5000 })
             .toBe(1)
         } finally {
-          await testDb.knex.client.releaseConnection(held)
+          await getLegacyKnex(testDb.database).client.releaseConnection(held)
         }
         await expect(queued).resolves.toEqual([])
         expect(testDb.pendingAcquires()).toBe(0)
@@ -340,7 +345,9 @@ describe('statement capture on the test database', () => {
 // tables. The same contract, on SQLite only: these tests never use another
 // backend.
 describe('statement capture on a standalone Knex instance', () => {
-  const instance = createTestDatabase({ backend: 'sqlite' }).knex
+  const instance = getLegacyKnex(
+    createTestDatabase({ backend: 'sqlite' }).database
+  )
   const { captureQueries, onQuery, onQuerySettled } =
     createKnexQueryCapture(instance)
 

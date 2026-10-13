@@ -1,8 +1,7 @@
-import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -538,12 +537,11 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
   const USER_TOKEN = 'user-token-value'
   const USERNAME = 'pendingbie'
 
-  const apiKnex = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const apiDatabase: Database = getSQLDatabase(apiKnex)
+  const {
+    database: apiDatabase,
+    db: apiDb,
+    destroy: destroyApiDatabase
+  } = createTestDatabase({ backend: 'sqlite' })
 
   const bearerRequest = (token: string, body?: unknown) =>
     new NextRequest('https://llun.test/api/v1/emails/confirmations', {
@@ -557,17 +555,20 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
 
   beforeAll(async () => {
     await apiDatabase.migrate()
-    await apiKnex('oauthClient').insert({
-      id: 'confirmations-client-row',
-      clientId: CLIENT_ID,
-      name: 'Confirmations App',
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      redirectUris: JSON.stringify(['https://app.test/redirect']),
-      requirePKCE: false,
-      disabled: false,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await apiDb
+      .insertInto('oauthClient')
+      .values({
+        id: 'confirmations-client-row',
+        clientId: CLIENT_ID,
+        name: 'Confirmations App',
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        redirectUris: JSON.stringify(['https://app.test/redirect']),
+        requirePKCE: false,
+        disabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
     const accountId = await apiDatabase.createAccount({
       domain: DOMAIN,
       email: 'pendingbie@llun.test',
@@ -583,20 +584,23 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
       username: USERNAME,
       domain: DOMAIN
     })
-    await apiKnex('oauthAccessToken').insert({
-      id: 'confirmations-token-row',
-      token: hashToken(USER_TOKEN),
-      clientId: CLIENT_ID,
-      userId: accountId,
-      referenceId: actor!.id,
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      expiresAt: new Date(Date.now() + 3_600_000),
-      createdAt: new Date()
-    })
+    await apiDb
+      .insertInto('oauthAccessToken')
+      .values({
+        id: 'confirmations-token-row',
+        token: hashToken(USER_TOKEN),
+        clientId: CLIENT_ID,
+        userId: accountId,
+        referenceId: actor!.id,
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        expiresAt: new Date(Date.now() + 3_600_000),
+        createdAt: new Date()
+      })
+      .execute()
   })
 
   afterAll(async () => {
-    await apiKnex.destroy()
+    await destroyApiDatabase()
   })
 
   beforeEach(() => {
@@ -652,16 +656,19 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
       username: RACE_USERNAME,
       domain: DOMAIN
     })
-    await apiKnex('oauthAccessToken').insert({
-      id: 'race-token-row',
-      token: hashToken(RACE_USER_TOKEN),
-      clientId: CLIENT_ID,
-      userId: raceAccountId,
-      referenceId: raceActor!.id,
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      expiresAt: new Date(Date.now() + 3_600_000),
-      createdAt: new Date()
-    })
+    await apiDb
+      .insertInto('oauthAccessToken')
+      .values({
+        id: 'race-token-row',
+        token: hashToken(RACE_USER_TOKEN),
+        clientId: CLIENT_ID,
+        userId: raceAccountId,
+        referenceId: raceActor!.id,
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        expiresAt: new Date(Date.now() + 3_600_000),
+        createdAt: new Date()
+      })
+      .execute()
 
     // Intercept during route execution (after guard reads the pending account)
     // to simulate a concurrent confirmation landing before the UPDATE statement.

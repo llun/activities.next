@@ -1,6 +1,9 @@
 import knex, { Knex } from 'knex'
 
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  createTestDatabase,
+  getLegacyKnex
+} from '@/lib/database/testing/createTestDatabase'
 import * as migration from '@/migrations/20261012100000_attachments_media_id_integer_sqlite'
 
 type TableInfoRow = {
@@ -445,27 +448,29 @@ describe('attachments mediaId on the test database', () => {
     'is a no-op on PostgreSQL in both directions',
     async () => {
       const columnType = async () => {
-        const result = await testDb.knex.raw(
+        const result = await getLegacyKnex(testDb.database).raw(
           "SELECT data_type FROM information_schema.columns WHERE table_name = 'attachments' AND column_name = 'mediaId'"
         )
         return result.rows[0]?.data_type
       }
-      await testDb.knex('attachments').insert([
+      await getLegacyKnex(testDb.database)('attachments').insert([
         { id: 'one', mediaId: 12 },
         { id: 'two', mediaId: null }
       ])
 
-      await migration.up(testDb.knex)
+      await migration.up(getLegacyKnex(testDb.database))
       expect(await columnType()).toBe('integer')
-      await migration.down(testDb.knex)
+      await migration.down(getLegacyKnex(testDb.database))
       expect(await columnType()).toBe('integer')
 
-      const rows = await testDb.knex('attachments').orderBy('id')
+      const rows = await getLegacyKnex(testDb.database)('attachments').orderBy(
+        'id'
+      )
       expect(rows.map(({ id, mediaId }) => ({ id, mediaId }))).toEqual([
         { id: 'one', mediaId: 12 },
         { id: 'two', mediaId: null }
       ])
-      const indexes = await testDb.knex.raw(
+      const indexes = await getLegacyKnex(testDb.database).raw(
         "SELECT indexname FROM pg_indexes WHERE tablename = 'attachments'"
       )
       expect(

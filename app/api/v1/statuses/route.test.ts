@@ -72,7 +72,7 @@ vi.mock('@/lib/config', () => ({
 
 describe('POST /api/v1/statuses', () => {
   const testDb = createTestDatabase()
-  const { database, db, knex: knexInstance, prepare } = testDb
+  const { database, db, prepare } = testDb
 
   beforeAll(async () => {
     await prepare()
@@ -837,22 +837,28 @@ describe('POST /api/v1/statuses', () => {
   })
 
   it('records the OAuth client as the application on a token-created status', async () => {
-    await knexInstance('oauthClient').insert({
-      id: 'oauth-client-row-1',
-      clientId: 'client-test-app',
-      name: 'Test App',
-      uri: null,
-      redirectUris: JSON.stringify(['https://app.example.com/callback']),
-      scopes: JSON.stringify(['write'])
-    })
-    await knexInstance('oauthAccessToken').insert({
-      id: 'oauth-access-token-1',
-      token: hashToken('app-write-token'),
-      clientId: 'client-test-app',
-      referenceId: ACTOR1_ID,
-      expiresAt: new Date(Date.now() + 3600000),
-      scopes: JSON.stringify(['write'])
-    })
+    await db
+      .insertInto('oauthClient')
+      .values({
+        id: 'oauth-client-row-1',
+        clientId: 'client-test-app',
+        name: 'Test App',
+        uri: null,
+        redirectUris: JSON.stringify(['https://app.example.com/callback']),
+        scopes: JSON.stringify(['write'])
+      })
+      .execute()
+    await db
+      .insertInto('oauthAccessToken')
+      .values({
+        id: 'oauth-access-token-1',
+        token: hashToken('app-write-token'),
+        clientId: 'client-test-app',
+        referenceId: ACTOR1_ID,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['write'])
+      })
+      .execute()
 
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/statuses', {
@@ -875,22 +881,28 @@ describe('POST /api/v1/statuses', () => {
   })
 
   it('records the OAuth client application on a token-created poll, including the client website', async () => {
-    await knexInstance('oauthClient').insert({
-      id: 'oauth-client-row-2',
-      clientId: 'client-poll-app',
-      name: 'Poll App',
-      uri: 'https://poll.example.com',
-      redirectUris: JSON.stringify(['https://poll.example.com/callback']),
-      scopes: JSON.stringify(['write'])
-    })
-    await knexInstance('oauthAccessToken').insert({
-      id: 'oauth-access-token-2',
-      token: hashToken('poll-write-token'),
-      clientId: 'client-poll-app',
-      referenceId: ACTOR1_ID,
-      expiresAt: new Date(Date.now() + 3600000),
-      scopes: JSON.stringify(['write'])
-    })
+    await db
+      .insertInto('oauthClient')
+      .values({
+        id: 'oauth-client-row-2',
+        clientId: 'client-poll-app',
+        name: 'Poll App',
+        uri: 'https://poll.example.com',
+        redirectUris: JSON.stringify(['https://poll.example.com/callback']),
+        scopes: JSON.stringify(['write'])
+      })
+      .execute()
+    await db
+      .insertInto('oauthAccessToken')
+      .values({
+        id: 'oauth-access-token-2',
+        token: hashToken('poll-write-token'),
+        clientId: 'client-poll-app',
+        referenceId: ACTOR1_ID,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['write'])
+      })
+      .execute()
 
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/statuses', {

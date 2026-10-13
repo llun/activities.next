@@ -16,7 +16,8 @@ import {
 import { type Db, kyselyFor } from '@/lib/database/kysely'
 import {
   type TestDatabase,
-  createTestDatabase
+  createTestDatabase,
+  getLegacyKnex
 } from '@/lib/database/testing/createTestDatabase'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -1427,7 +1428,9 @@ describe('syncDirectConversationForStatus', () => {
     [
       'a Knex transaction through kyselyFor',
       (callback: (trx: Db) => Promise<void>) =>
-        testDb.knex.transaction((trx) => callback(kyselyFor(trx)))
+        getLegacyKnex(testDb.database).transaction((trx) =>
+          callback(kyselyFor(trx))
+        )
     ]
   ])(
     "runs in the caller's transaction (%s) and rolls back with it",

@@ -1,8 +1,7 @@
 import fetchMock from 'jest-fetch-mock'
-import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { mockRequests } from '@/lib/stub/activities'
 
 import {
@@ -262,14 +261,7 @@ describe('recordActorIfNeeded', () => {
   })
 
   it('refreshes the persisted actor type for stale remote actors', async () => {
-    const sql = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(sql)
+    const { database, db } = createTestDatabase({ backend: 'sqlite' })
     await database.migrate()
 
     try {
@@ -286,7 +278,11 @@ describe('recordActorIfNeeded', () => {
         publicKey: 'old-public-key',
         createdAt: oldTime.getTime()
       })
-      await sql('actors').where('id', actorId).update({ updatedAt: oldTime })
+      await db
+        .updateTable('actors')
+        .set({ updatedAt: oldTime })
+        .where('id', '=', actorId)
+        .execute()
 
       mockGetActorPerson.mockResolvedValue({
         id: actorId,
@@ -320,14 +316,7 @@ describe('recordActorIfNeeded', () => {
   })
 
   it('returns undefined when a stale refresh cannot fetch the person', async () => {
-    const sql = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(sql)
+    const { database, db } = createTestDatabase({ backend: 'sqlite' })
     await database.migrate()
 
     try {
@@ -344,7 +333,11 @@ describe('recordActorIfNeeded', () => {
         publicKey: 'stale-public-key',
         createdAt: oldTime.getTime()
       })
-      await sql('actors').where('id', actorId).update({ updatedAt: oldTime })
+      await db
+        .updateTable('actors')
+        .set({ updatedAt: oldTime })
+        .where('id', '=', actorId)
+        .execute()
 
       mockGetActorPerson.mockResolvedValue(null)
 

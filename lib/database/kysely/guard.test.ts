@@ -7,6 +7,7 @@ import {
   kyselyFor
 } from '@/lib/database/kysely'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { createDeferred } from '@/lib/testing/deferred'
 
@@ -21,7 +22,7 @@ describe('mixing Knex and Kysely transactions', () => {
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    instance = getLegacyKnex(test.database)
     await test.prepare()
     await database.migrate()
   })

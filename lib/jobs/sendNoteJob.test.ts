@@ -67,7 +67,7 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 describe('sendNoteJob', () => {
-  const { database, knex: instance, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
@@ -89,14 +89,16 @@ describe('sendNoteJob', () => {
   beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    await instance('domain_federation_rules')
-      .where({ domain: 'somewhere.test' })
-      .delete()
+    await db
+      .deleteFrom('domain_federation_rules')
+      .where('domain', '=', 'somewhere.test')
+      .execute()
     if (actor1?.id) {
-      await instance('follows')
-        .where('targetActorId', actor1.id)
-        .whereNot('actorId', 'https://somewhere.test/actors/friend')
-        .delete()
+      await db
+        .deleteFrom('follows')
+        .where('targetActorId', '=', actor1.id)
+        .where('actorId', '!=', 'https://somewhere.test/actors/friend')
+        .execute()
     }
     hoisted.publishSpy.mockClear()
     hoisted.failInbox = null
@@ -252,9 +254,10 @@ describe('sendNoteJob', () => {
       if (block?.id) {
         await database.deleteDomainBlock(block.id)
       } else {
-        await instance('domain_federation_rules')
-          .where({ domain: 'somewhere.test' })
-          .delete()
+        await db
+          .deleteFrom('domain_federation_rules')
+          .where('domain', '=', 'somewhere.test')
+          .execute()
       }
     }
   })

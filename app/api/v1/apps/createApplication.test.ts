@@ -1,19 +1,13 @@
-import knex from 'knex'
-
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import { timestampValue } from '@/lib/database/kysely/dialect'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 
 import { createApplication } from './createApplication'
 import { PostResponse, SuccessResponse } from './types'
 
-// The Knex instance behind the database createApplication writes through, so
-// the tests can read the stored rows back without going through the facade.
-const knexDatabase = knex({
-  client: 'better-sqlite3',
-  useNullAsDefault: true,
-  connection: { filename: ':memory:' }
-})
-const database = getSQLDatabase(knexDatabase)
+// `db` is Kysely on the database createApplication writes through, so the tests
+// can read the stored rows back without going through the facade.
+const { database, db, destroy } = createTestDatabase({ backend: 'sqlite' })
 
 vi.mock('@/lib/database', () => ({
   getDatabase: () => database
@@ -35,7 +29,7 @@ describe('createApplication', () => {
   })
 
   afterAll(async () => {
-    await knexDatabase.destroy()
+    await destroy()
   })
 
   test('generates a secret, persists the application, and returns the application response', async () => {
@@ -116,10 +110,16 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual(['read', 'write', 'follow'])
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.scopes as string)).toEqual([
+      'read',
+      'write',
+      'follow'
+    ])
   })
 
   // This server cannot issue a refresh token (better-auth mints one only for
@@ -135,10 +135,12 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.grantTypes)).toEqual([
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.grantTypes as string)).toEqual([
       'authorization_code',
       'client_credentials'
     ])
@@ -159,10 +161,12 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.clientCredentialsScopes)).toEqual([
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.clientCredentialsScopes as string)).toEqual([
       'read',
       'write',
       'follow',
@@ -170,7 +174,7 @@ describe('createApplication', () => {
     ])
     // The registered scopes themselves are unchanged: the OIDC scopes stay
     // available to the authorization code grant, where a user does exist.
-    expect(JSON.parse(dbClient.scopes)).toEqual([
+    expect(JSON.parse(dbClient.scopes as string)).toEqual([
       'read',
       'write',
       'follow',
@@ -223,10 +227,12 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual(mastodonScopes)
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.scopes as string)).toEqual(mastodonScopes)
   })
 
   test('it defaults omitted scopes to read', async () => {
@@ -238,10 +244,12 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual(['read'])
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.scopes as string)).toEqual(['read'])
   })
 
   test('it defaults whitespace-only scopes to read', async () => {
@@ -254,10 +262,12 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual(['read'])
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.scopes as string)).toEqual(['read'])
   })
 
   test('it errors when redirect_uris is empty or whitespace-only', async () => {
@@ -335,10 +345,12 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.redirectUris)).toEqual([
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
+    expect(JSON.parse(dbClient.redirectUris as string)).toEqual([
       'https://array.llun.dev/callback',
       'https://array.llun.dev/alt-callback'
     ])
@@ -369,16 +381,18 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
     expect(dbClient.enableEndSession).toBeTruthy()
     // Same JSON-array-string format as redirectUris so better-auth's adapter
     // JSON-parses it back into an array for its postLogoutRedirectUris check.
     expect(dbClient.postLogoutRedirectUris).toBe(
       '["https://logout.llun.dev/logout-callback"]'
     )
-    expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
+    expect(JSON.parse(dbClient.postLogoutRedirectUris as string)).toEqual([
       'https://logout.llun.dev/logout-callback'
     ])
   })
@@ -395,11 +409,13 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
     expect(dbClient.enableEndSession).toBeTruthy()
-    expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
+    expect(JSON.parse(dbClient.postLogoutRedirectUris as string)).toEqual([
       'https://multi-logout.llun.dev/logout-a',
       'https://multi-logout.llun.dev/logout-b'
     ])
@@ -415,9 +431,11 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
     // Explicitly disabled, not merely absent: the row carries a written
     // (non-null) falsy enableEndSession, which the pre-change code (no insert)
     // could not produce. This keeps the regression guard load-bearing.
@@ -437,9 +455,11 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
     expect(dbClient.enableEndSession).not.toBeNull()
     expect(dbClient.enableEndSession).toBeFalsy()
     expect(dbClient.postLogoutRedirectUris).toBeNull()
@@ -497,11 +517,13 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('id', '=', response.id)
+      .executeTakeFirstOrThrow()
     expect(dbClient.enableEndSession).toBeTruthy()
-    expect(JSON.parse(dbClient.postLogoutRedirectUris)).toEqual([
+    expect(JSON.parse(dbClient.postLogoutRedirectUris as string)).toEqual([
       'http://127.0.0.1:3000/logout-callback'
     ])
   })
@@ -524,9 +546,11 @@ describe('createApplication', () => {
       error: 'Failed to validate request'
     })
 
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ name: 'mixedLogoutClient' })
-      .first()
+    const dbClient = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('name', '=', 'mixedLogoutClient')
+      .executeTakeFirst()
     expect(dbClient).toBeUndefined()
   })
 
@@ -557,9 +581,11 @@ describe('createApplication', () => {
       error: 'Too many application registrations'
     })
 
-    const rows = await knexDatabase('oauthClient')
-      .where('referenceId', `app-registration:${registrationKey}`)
-      .select()
+    const rows = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('referenceId', '=', `app-registration:${registrationKey}`)
+      .execute()
     expect(rows).toHaveLength(5)
   })
 
@@ -573,7 +599,11 @@ describe('createApplication', () => {
 
     expect(response.type).toBe('success')
     await expect(
-      knexDatabase('oauthClient').where({ id: response.id }).first()
+      db
+        .selectFrom('oauthClient')
+        .selectAll()
+        .where('id', '=', response.id)
+        .executeTakeFirst()
     ).resolves.toEqual(
       expect.objectContaining({
         referenceId: ''
@@ -603,10 +633,16 @@ describe('createApplication', () => {
       true
     )
 
-    const rows = await knexDatabase('oauthClient')
-      .where('referenceId', '')
-      .where('createdAt', '>=', new Date('2030-05-12T11:50:00.000Z'))
-      .select()
+    const rows = await db
+      .selectFrom('oauthClient')
+      .selectAll()
+      .where('referenceId', '=', '')
+      .where(
+        'createdAt',
+        '>=',
+        timestampValue(new Date('2030-05-12T11:50:00.000Z'))
+      )
+      .execute()
     expect(rows).toHaveLength(6)
   })
 
@@ -646,23 +682,28 @@ describe('createApplication', () => {
     async ({ clientId, referenceId, metadata, now }) => {
       const staleCreatedAt = new Date('2026-05-10T00:00:00.000Z')
 
-      await knexDatabase('oauthClient').insert({
-        id: `${clientId}-id`,
-        clientId,
-        clientSecret: 'hashed-secret',
-        name: clientId,
-        scopes: JSON.stringify(['read']),
-        redirectUris: JSON.stringify([`https://${clientId}.llun.dev/callback`]),
-        requirePKCE: false,
-        disabled: false,
-        grantTypes: JSON.stringify(['authorization_code']),
-        responseTypes: JSON.stringify(['code']),
-        tokenEndpointAuthMethod: 'client_secret_post',
-        referenceId,
-        metadata,
-        createdAt: staleCreatedAt,
-        updatedAt: staleCreatedAt
-      })
+      await db
+        .insertInto('oauthClient')
+        .values({
+          id: `${clientId}-id`,
+          clientId,
+          clientSecret: 'hashed-secret',
+          name: clientId,
+          scopes: JSON.stringify(['read']),
+          redirectUris: JSON.stringify([
+            `https://${clientId}.llun.dev/callback`
+          ]),
+          requirePKCE: false,
+          disabled: false,
+          grantTypes: JSON.stringify(['authorization_code']),
+          responseTypes: JSON.stringify(['code']),
+          tokenEndpointAuthMethod: 'client_secret_post',
+          referenceId,
+          metadata,
+          createdAt: staleCreatedAt,
+          updatedAt: staleCreatedAt
+        })
+        .execute()
 
       // Registering another app is what used to trigger the collector.
       await createApplication(
@@ -675,9 +716,11 @@ describe('createApplication', () => {
         { registrationKey: 'later-source', now }
       )
 
-      const row = await knexDatabase('oauthClient')
-        .where('clientId', clientId)
-        .first()
+      const row = await db
+        .selectFrom('oauthClient')
+        .selectAll()
+        .where('clientId', '=', clientId)
+        .executeTakeFirst()
       expect(row).toBeDefined()
     }
   )

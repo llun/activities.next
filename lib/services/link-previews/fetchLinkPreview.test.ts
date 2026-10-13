@@ -47,7 +47,7 @@ describe('fetchLinkPreview', () => {
   // one the suite is pointed at.
   const {
     database,
-    instance,
+    db,
     prepare: prepareDatabase
   } = getTestDatabaseWithInstance(true)
 
@@ -65,9 +65,11 @@ describe('fetchLinkPreview', () => {
   })
 
   const ageRow = (url: string, updatedAt: Date) =>
-    instance('link_previews')
-      .where('urlHash', getHashFromString(url))
-      .update({ updatedAt })
+    db
+      .updateTable('link_previews')
+      .set({ updatedAt })
+      .where('urlHash', '=', getHashFromString(url))
+      .execute()
 
   it('fetches a page and stores the card', async () => {
     mockedFetch.mockResolvedValue(htmlResponse(PAGE))
