@@ -1104,6 +1104,122 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     expect(link).toContain('min_id=')
   })
 
+  describe('activities_next format', () => {
+    const getPage = async (actorId: string, query: string) => {
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(actorId)}/statuses?format=activities_next&${query}`
+        ),
+        { params: Promise.resolve({ id: urlToId(actorId) }) }
+      )
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Link')).toBeNull()
+      return (await response.json()) as {
+        statuses: Status[]
+        nextMaxStatusId: string | null
+      }
+    }
+
+    it('serves the app status shape with the next max_id cursor in the body', async () => {
+      const actorId = await createLocalActor('format')
+      const now = Date.now()
+      const statusIds = [0, 1, 2].map(
+        (index) => `${actorId}/statuses/format-page-${index}`
+      )
+      for (const [index, statusId] of statusIds.entries()) {
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          text: `Format page ${index}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: now - index
+        })
+      }
+
+      const firstPage = await getPage(actorId, 'limit=2')
+      expect(firstPage.statuses.map((status) => status.id)).toEqual(
+        statusIds.slice(0, 2)
+      )
+      expect(firstPage.statuses[0]).toMatchObject({
+        actorId,
+        type: StatusType.enum.Note,
+        text: 'Format page 0'
+      })
+      expect(firstPage.nextMaxStatusId).toBe(statusIds[1])
+
+      // The cursor goes back as it came: the raw status id.
+      const secondPage = await getPage(
+        actorId,
+        `limit=2&max_id=${encodeURIComponent(firstPage.nextMaxStatusId as string)}`
+      )
+      expect(secondPage.statuses.map((status) => status.id)).toEqual([
+        statusIds[2]
+      ])
+      expect(secondPage.nextMaxStatusId).toBeNull()
+    })
+
+    it('ends the cursor at the last served status when the scan found more than a page', async () => {
+      const actorId = await createLocalActor('formatscan')
+      const now = Date.now()
+      const newestId = `${actorId}/statuses/format-scan-newest`
+      const privateOriginalId = `${ACTOR2_ID}/statuses/format-scan-private-original`
+      const unreadableAnnounceId = `${actorId}/statuses/format-scan-announce`
+      const middleId = `${actorId}/statuses/format-scan-middle`
+      const oldestId = `${actorId}/statuses/format-scan-oldest`
+
+      await database.createNote({
+        id: privateOriginalId,
+        url: privateOriginalId,
+        actorId: ACTOR2_ID,
+        text: 'Private original',
+        to: [`${ACTOR2_ID}/followers`],
+        cc: [],
+        createdAt: now - 10
+      })
+      for (const [statusId, createdAt] of [
+        [newestId, now],
+        [middleId, now - 2],
+        [oldestId, now - 3]
+      ] as const) {
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          text: 'Format scan',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt
+        })
+      }
+      await database.createAnnounce({
+        id: unreadableAnnounceId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: privateOriginalId,
+        createdAt: now - 1
+      })
+
+      // The first batch keeps one readable status, the second two more; the
+      // page holds two, so the third must start the next page, not be skipped.
+      const firstPage = await getPage(actorId, 'limit=2')
+      expect(firstPage.statuses.map((status) => status.id)).toEqual([
+        newestId,
+        middleId
+      ])
+      expect(firstPage.nextMaxStatusId).toBe(middleId)
+
+      const secondPage = await getPage(
+        actorId,
+        `limit=2&max_id=${encodeURIComponent(middleId)}`
+      )
+      expect(secondPage.statuses.map((status) => status.id)).toEqual([oldestId])
+      expect(secondPage.nextMaxStatusId).toBeNull()
+    })
+  })
+
   it('pages past an encoded max_id cursor instead of repeating the first page', async () => {
     const now = Date.now() + 90_000
     const olderStatusId = `${ACTOR4_ID}/statuses/account-cursor-older`

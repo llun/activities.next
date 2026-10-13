@@ -10,7 +10,7 @@ import {
 import Link from 'next/link'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { getActorStatuses } from '@/lib/client'
+import { getAccountStatusesPage, getActorStatuses } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { Posts } from '@/lib/components/posts/posts'
 import {
@@ -43,9 +43,15 @@ interface Props {
   currentTime: number
   statuses: Status[]
   attachments: Attachment[]
+  /**
+   * A remote actor's feed pages through outbox collection pages
+   * (`nextPageUrl`); a local account's through its stored statuses with a
+   * Mastodon-style `max_id` cursor (`nextMaxStatusId`).
+   */
   statusPagination?: {
     nextPageUrl: string | null
     prevPageUrl: string | null
+    nextMaxStatusId?: string | null
   }
   postLineLimit?: PostLineLimit
   /**
@@ -145,7 +151,8 @@ export const ActorTimelines: FC<Props> = ({
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
-    prevPageUrl: statusPagination?.prevPageUrl ?? null
+    prevPageUrl: statusPagination?.prevPageUrl ?? null,
+    nextMaxStatusId: statusPagination?.nextMaxStatusId ?? null
   })
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
@@ -225,12 +232,15 @@ export const ActorTimelines: FC<Props> = ({
     [currentStatuses]
   )
 
-  // The outbox cursor feeds the post/reply/fitness feeds (all derived from the
-  // loaded status list), so the standalone load more control is offered on
-  // those tabs. For media-only profiles, the media grid is the status feed, so it
-  // also paginates via this outbox cursor.
+  // The status cursor (outbox page or `max_id`) feeds the post/reply/fitness
+  // feeds (all derived from the loaded status list), so the standalone load
+  // more control is offered on those tabs. For media-only profiles, the media
+  // grid is the status feed, so it also paginates via this cursor.
   const canLoadMore =
-    Boolean(currentStatusPagination.nextPageUrl) &&
+    Boolean(
+      currentStatusPagination.nextPageUrl ||
+      currentStatusPagination.nextMaxStatusId
+    ) &&
     (isMediaOnly
       ? activeTab === 'media'
       : effectiveActiveTab === 'posts' ||
@@ -262,11 +272,26 @@ export const ActorTimelines: FC<Props> = ({
     )
   }, [])
 
-  const handlePostDeleted = useCallback((status: Status) => {
-    setCurrentStatuses((previousStatuses) =>
-      removeOriginalStatus(previousStatuses, status.id)
-    )
-  }, [])
+  const handlePostDeleted = useCallback(
+    (status: Status) => {
+      const remainingStatuses = removeOriginalStatus(currentStatuses, status.id)
+      setCurrentStatuses((previousStatuses) =>
+        removeOriginalStatus(previousStatuses, status.id)
+      )
+      // The database ignores a `max_id` that matches no row, so a cursor on
+      // the deleted post would restart paging from the newest page. Step back
+      // to the last post still loaded instead.
+      setCurrentStatusPagination((previous) =>
+        previous.nextMaxStatusId === status.id
+          ? {
+              ...previous,
+              nextMaxStatusId: remainingStatuses.at(-1)?.id ?? null
+            }
+          : previous
+      )
+    },
+    [currentStatuses]
+  )
 
   const handleLikeChanged = useCallback(
     (status: StatusNote | StatusPoll, isLiked: boolean) => {
@@ -312,13 +337,34 @@ export const ActorTimelines: FC<Props> = ({
   )
 
   const loadMoreStatuses = useCallback(async () => {
-    const nextPageUrl = currentStatusPagination.nextPageUrl
-    if (isLoadingRef.current || !nextPageUrl) return
+    const { nextPageUrl, nextMaxStatusId } = currentStatusPagination
+    if (isLoadingRef.current || (!nextPageUrl && !nextMaxStatusId)) return
 
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
     setLoadMoreError(null)
     try {
+      if (nextMaxStatusId) {
+        const result = await getAccountStatusesPage({
+          actorId,
+          maxStatusId: nextMaxStatusId
+        })
+        setCurrentStatusPagination((previous) => ({
+          ...previous,
+          // A cursor that did not move would fetch the same page forever.
+          nextMaxStatusId:
+            result.nextMaxStatusId === nextMaxStatusId
+              ? null
+              : result.nextMaxStatusId
+        }))
+        if (result.statuses.length > 0) {
+          setCurrentStatuses((previousStatuses) =>
+            appendUniqueStatuses(previousStatuses, result.statuses)
+          )
+        }
+        return
+      }
+
       let pageUrl: string | null = nextPageUrl
       let prevPageUrl: string | null = currentStatusPagination.prevPageUrl
       let nextStatuses: Status[] = []
@@ -364,10 +410,11 @@ export const ActorTimelines: FC<Props> = ({
         setRequireManualLoadMore(false)
       }
 
-      setCurrentStatusPagination({
+      setCurrentStatusPagination((previous) => ({
+        ...previous,
         nextPageUrl: isCompletelyEmpty ? null : pageUrl,
         prevPageUrl
-      })
+      }))
       if (nextStatuses.length > 0) {
         setCurrentStatuses((previousStatuses) =>
           appendUniqueStatuses(previousStatuses, nextStatuses)
@@ -381,8 +428,7 @@ export const ActorTimelines: FC<Props> = ({
     }
   }, [
     actorId,
-    currentStatusPagination.nextPageUrl,
-    currentStatusPagination.prevPageUrl,
+    currentStatusPagination,
     currentStatuses.length,
     mediaAttachments.length
   ])

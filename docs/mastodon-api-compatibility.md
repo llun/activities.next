@@ -494,16 +494,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `mask_<id>` PNG per new or changed subject or brush mask) stores the
   browser's render as the live file, `GET …/edit/masks/:maskId` streams one
   stored mask PNG (owner-only, `Cache-Control: private`; never federated nor
-  in any public entity), `POST …/edit/enhance` (multipart: `preview`, a JPEG of
-  at most 3 MB and 1536 px) answers `{ natural, vivid, dramatic, model }`
-  slider suggestions from the server's vision model without storing anything
-  (409 when the owner turned it off, 503 when the server has no model, 429
-  after 30 an hour, 502 when the model's answer is unusable), and
+  in any public entity), and
   `POST …/edit/revert` (JSON) restores
   the original and removes the masks. `GET` lists the stored masks as
   `edit.masks: [{ id, url }]` and offers the browser's subject model as
-  `capabilities.subjectModel` (`null` when the server turned it off) and AI
-  enhance as `capabilities.enhance: { available, model }`. Errors are `{ error }`; a stale `base_version` is
+  `capabilities.subjectModel` (`null` when the server turned it off). Photo editing uses client-side Look Presets rather than a remote enhance endpoint. Errors are `{ error }`; a stale `base_version` is
   `409 { error: 'stale', edit: { version, saveId } }`. The owner's `details`
   gains `edit: { version, editedAt }` and the public media details gain
   `editedAt` (ISO 8601, null when unedited). The Mastodon `MediaAttachment`
@@ -598,10 +593,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   backdated direct message older than a conversation's latest message does not
   mark the conversation unread or move it up the conversations list (its mention
   notification still arrives). Mastodon clients never send it.
-- **`?format=activities_next`** — timeline endpoints and
-  `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
-  status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
-  uses it to render the interactive timeline post component).
+- **`?format=activities_next`** — timeline endpoints,
+  `GET /api/v1/trends/statuses` and `GET /api/v1/accounts/:id/statuses` accept
+  this query flag to return the raw internal status JSON instead of the Mastodon
+  status shape (the web `/explore` Posts tab uses it to render the interactive
+  timeline post component). On the account statuses endpoint the body is
+  `{ statuses, nextMaxStatusId }` with no `Link` header: a local account's
+  profile page loads its older posts with it, passing `nextMaxStatusId` back as
+  `max_id` the way Mastodon's web profile pages this endpoint.
 - **Presigned / direct-to-storage media** — `/api/v1/medias/presigned` (and the
   Strava archive presigned upload) provide an asynchronous upload path that
   offloads bytes directly to object storage.

@@ -600,6 +600,45 @@ export const getActorStatuses = async ({
   return (await response.json()) as GetActorStatusesResult
 }
 
+export interface GetAccountStatusesPageParams {
+  actorId: string
+  maxStatusId: string
+}
+
+export interface GetAccountStatusesPageResult {
+  statuses: Status[]
+  nextMaxStatusId: string | null
+}
+
+// A local account's posts, one page older than `maxStatusId`, the way
+// Mastodon's web profile pages `GET /api/v1/accounts/:id/statuses` with
+// `max_id`. The app's own format hands back the next cursor in the body.
+export const getAccountStatusesPage = async ({
+  actorId,
+  maxStatusId
+}: GetAccountStatusesPageParams): Promise<GetAccountStatusesPageResult> => {
+  const path = `/api/v1/accounts/${toIdPathSegment(actorId)}/statuses`
+  const url = new URL(`${window.origin}${path}`)
+  url.searchParams.append('format', 'activities_next')
+  url.searchParams.append('max_id', maxStatusId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    throw new Error(`Failed to load account statuses: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return {
+    statuses: data.statuses as Status[],
+    nextMaxStatusId: data.nextMaxStatusId ?? null
+  }
+}
+
 export interface DeleteSessionParams {
   // `sessions.id`, never the session token.
   id: string

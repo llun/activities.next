@@ -289,6 +289,54 @@ describe('getProfileData', () => {
     //
     // These assert the ARGUMENTS rather than the rows because the defect was a
     // missing argument: the database layer was behaving exactly as asked.
+    describe('status pagination', () => {
+      const publicNote = (index: number) =>
+        ({
+          id: `https://example.com/users/localuser/statuses/${index}`,
+          actorId: mockLocalActor.id,
+          type: StatusType.enum.Note,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        }) as unknown as Status
+
+      it('hands back the last status of a full first page as the next max_id cursor', async () => {
+        const page = Array.from({ length: 30 }, (_, index) => publicNote(index))
+        ;(mockDatabase.getActorStatuses as jest.Mock).mockResolvedValue(page)
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@localuser@example.com',
+          false,
+          { currentActor: null }
+        )
+
+        expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith(
+          expect.objectContaining({ limit: 30 })
+        )
+        expect(result?.statusPagination).toEqual({
+          nextPageUrl: null,
+          prevPageUrl: null,
+          nextMaxStatusId: page[29].id
+        })
+      })
+
+      it('offers no next page when the first page is not full', async () => {
+        ;(mockDatabase.getActorStatuses as jest.Mock).mockResolvedValue([
+          publicNote(0),
+          publicNote(1)
+        ])
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@localuser@example.com',
+          false,
+          { currentActor: null }
+        )
+
+        expect(result?.statusPagination.nextMaxStatusId).toBeNull()
+      })
+    })
+
     describe('status and attachment visibility', () => {
       const followersUrl = 'https://example.com/users/localuser/followers'
       const localActorWithFollowers = {

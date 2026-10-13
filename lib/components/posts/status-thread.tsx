@@ -383,6 +383,25 @@ export const StatusThread: FC<StatusThreadProps> = ({
       ? getOriginalStatus(status)
       : status
   const canComposeFocused = Boolean(currentActor)
+  const hasReplies = tree.totalDescendants > 0
+  // "No replies yet" only speaks for a post on its own. Under the last post of
+  // a conversation it reads as if the whole thread were empty, so there the
+  // page ends after the post, as on Mastodon. An open composer on the focused
+  // post takes the block's place, and cancelling it brings the block back.
+  const isInConversation =
+    tree.ancestors.length > 0 ||
+    hasMoreAncestors ||
+    Boolean(actualFocusedStatus.reply)
+  const isComposingOnFocused =
+    Boolean(currentActor) && composer.active?.anchorId === status.id
+  const showEmptyReplies =
+    !hasReplies && !isInConversation && !isComposingOnFocused
+  // With neither replies nor the empty block below it, the focused post is the
+  // thread's last row: it drops its bottom border and meets the frame's bottom
+  // corners itself, since it paints a background. Logged out, the sign-in
+  // block follows it inside the desktop frame, so only the mobile inset card
+  // ends here.
+  const focusedIsLast = !hasReplies && !showEmptyReplies
 
   return (
     <div className={cn('space-y-0', className)}>
@@ -506,7 +525,11 @@ export const StatusThread: FC<StatusThreadProps> = ({
         className={cn(
           'border-b bg-background p-4',
           currentActor && 'max-md:rounded-none',
-          !currentActor && tree.ancestors.length === 0 && 'rounded-t-lg'
+          !currentActor && tree.ancestors.length === 0 && 'rounded-t-lg',
+          focusedIsLast &&
+            (currentActor
+              ? 'border-b-0 rounded-b-lg max-md:rounded-none'
+              : 'max-md:border-b-0 max-md:rounded-b-lg')
         )}
       >
         <div data-testid={`status-${status.id}`}>
@@ -579,7 +602,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
       </div>
 
       {/* Descendants tree */}
-      {tree.totalDescendants > 0 ? (
+      {hasReplies ? (
         <div data-testid="thread-descendants">
           <div className="border-b px-5 py-3">
             <h2 className="font-semibold text-sm">
@@ -603,13 +626,13 @@ export const StatusThread: FC<StatusThreadProps> = ({
             </div>
           ) : null}
         </div>
-      ) : (
+      ) : showEmptyReplies ? (
         <div className="p-4">
           <EmptyState icon={MessageCircle} title="No replies yet">
             {currentActor ? 'Be the first to reply.' : 'Replies show up here.'}
           </EmptyState>
         </div>
-      )}
+      ) : null}
 
       <OwnPostMediasModal
         medias={modalMedias?.medias ?? null}

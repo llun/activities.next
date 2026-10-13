@@ -4,9 +4,11 @@ import type { SamRequest, SamResponse } from './samMessages'
 import { postprocessSam } from './samPost'
 import { getSamResize, preprocessSam, toSamPrompt } from './samPre'
 
-// One thread (the page is not cross-origin isolated, so there is no shared
-// memory) and no proxy worker: this file already is the worker.
-ort.env.wasm.numThreads = 1
+ort.env.wasm.simd = true
+ort.env.wasm.numThreads =
+  typeof self !== 'undefined' && self.crossOriginIsolated
+    ? Math.min(4, self.navigator?.hardwareConcurrency || 1)
+    : 1
 ort.env.wasm.proxy = false
 
 // The page's tsconfig has the DOM lib, not the worker one, so the two members
@@ -22,6 +24,7 @@ let embeddings: {
   imageEmbeddings: ort.Tensor
   positionalEmbeddings: ort.Tensor
   resized: { width: number; height: number }
+  guideRgba: Uint8ClampedArray
 } | null = null
 
 const post = (message: SamResponse, transfer: Transferable[] = []) =>
@@ -61,6 +64,7 @@ const embed = async (request: Extract<SamRequest, { type: 'embed' }>) => {
   context.drawImage(bitmap, 0, 0, resized.width, resized.height)
   bitmap.close()
   const pixels = context.getImageData(0, 0, resized.width, resized.height)
+  const guideRgba = new Uint8ClampedArray(pixels.data)
 
   const input = new ort.Tensor(
     'float32',
@@ -73,7 +77,8 @@ const embed = async (request: Extract<SamRequest, { type: 'embed' }>) => {
   embeddings = {
     imageEmbeddings: outputs.image_embeddings,
     positionalEmbeddings: outputs.image_positional_embeddings,
-    resized
+    resized,
+    guideRgba
   }
   post({ type: 'embedded' })
 }
@@ -101,13 +106,17 @@ const segment = async (request: Extract<SamRequest, { type: 'segment' }>) => {
   const data = postprocessSam(
     outputs.iou_scores.data as Float32Array,
     outputs.pred_masks.data as Float32Array,
-    resized
+    resized,
+    resized,
+    embeddings.guideRgba
   )
   outputs.iou_scores.dispose()
   outputs.pred_masks.dispose()
-  post({ type: 'mask', width: resized.width, height: resized.height, data }, [
-    data.buffer
-  ])
+  const uint8 = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+  post(
+    { type: 'mask', width: resized.width, height: resized.height, data: uint8 },
+    [data.buffer]
+  )
 }
 
 scope.onmessage = async (event) => {

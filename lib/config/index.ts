@@ -209,23 +209,17 @@ export const getBaseURL = (): string => buildBaseURL(getConfig().host)
 
 export type {
   PhotoEditorConfig,
-  PhotoEditorEnhanceConfig,
   PhotoEditorModelFile,
   PhotoEditorSubjectModel
 } from './photoEditor'
 
 let didWarnAboutPhotoEditorConfig = false
 
-// The photo editor's subject model and AI enhance settings (see
-// lib/config/photoEditor.ts), read at runtime on every call. AI enhance reuses
-// the alt text endpoint, like the gallery's subject suggestions. An invalid
-// model URL turns Select subject off and logs one warning per process; it never
-// fails a request or the build.
+// The photo editor's subject model (see lib/config/photoEditor.ts), read at
+// runtime on every call. An invalid model URL turns Select subject off and logs
+// one warning per process; it never fails a request or the build.
 export const getPhotoEditorConfig = (): PhotoEditorConfig =>
   readPhotoEditorConfig({
-    // Quiet: this runs on every editor request, and `getConfig()` already
-    // warned once about a partial alt text configuration.
-    altText: getAltTextConfig({ quiet: true })?.altText,
     onInvalid: (message) => {
       if (
         didWarnAboutPhotoEditorConfig ||

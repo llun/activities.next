@@ -39,13 +39,16 @@ const ASPECTS: ReadonlyArray<{ value: Aspect; label: string }> = [
 const hasOrientation = (aspect: Aspect) =>
   aspect === '4:5' || aspect === '3:2' || aspect === '16:9'
 
-const sameCrop = (a: CropRect, b: CropRect) =>
-  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
-
 const withPortrait = (geometry: Geometry, portrait: boolean): Geometry => {
   const { aspectPortrait: _previous, ...rest } = geometry
   return portrait ? { ...rest, aspectPortrait: true } : rest
 }
+
+const sameCrop = (a: CropRect, b: CropRect): boolean =>
+  Math.abs(a.x - b.x) < 1e-6 &&
+  Math.abs(a.y - b.y) < 1e-6 &&
+  Math.abs(a.width - b.width) < 1e-6 &&
+  Math.abs(a.height - b.height) < 1e-6
 
 /**
  * The Crop tab: aspect presets, straighten, rotate, flip, reset, and the
@@ -67,7 +70,12 @@ export const CropPanel = ({
   const ratio = getAspectRatio(geometry.aspect, portrait, oriented)
   const isLandscape = (ratio ?? 1) >= 1
 
+  const straightenMemo = useRef<{ chosen: CropRect; clamped: CropRect } | null>(
+    null
+  )
+
   const applyAspect = (aspect: Aspect, nextPortrait: boolean) => {
+    straightenMemo.current = null
     const base = withPortrait({ ...geometry, aspect }, nextPortrait)
     controls.onGeometryChange({
       ...base,
@@ -91,25 +99,29 @@ export const CropPanel = ({
     applyAspect(next, false)
   }
 
-  // Straightening shrinks the crop to stay inside the rotated image. The crop
-  // the user chose is kept, so turning back toward 0° grows it back instead of
-  // leaving it shrunk. A crop changed any other way (drag, undo) is the new
-  // base.
-  const straightenBase = useRef<{ chosen: CropRect; clamped: CropRect } | null>(
-    null
-  )
+  // Straightening shrinks the crop to stay inside the rotated image. We
+  // remember both the un-clamped crop (`chosen`) and the resulting clamped
+  // crop (`clamped`). As long as `geometry.crop` still matches `clamped`,
+  // subsequent straighten gestures, keyboard steps, or a reset to 0° continue
+  // clamping from `chosen` so returning to 0° restores the original crop.
+  // Any external crop change (overlay drag, aspect preset, rotate, flip, reset,
+  // undo/redo) breaks the match or clears the memo so the new crop is adopted.
   const straighten = (value: number) => {
-    const memo = straightenBase.current
-    const base =
+    const memo = straightenMemo.current
+    const chosen =
       memo && sameCrop(memo.clamped, geometry.crop)
         ? memo.chosen
         : geometry.crop
-    const clamped = clampCropToImage(base, value, oriented)
-    straightenBase.current = { chosen: base, clamped }
+    const clamped = clampCropToImage(chosen, value, oriented)
+    straightenMemo.current = { chosen, clamped }
     controls.onGeometryChange(
       { ...geometry, straighten: value, crop: clamped },
       'straighten'
     )
+  }
+
+  const handleStraightenCommit = () => {
+    controls.onGestureEnd()
   }
 
   const straightenRow = (
@@ -139,7 +151,7 @@ export const CropPanel = ({
         disabled={disabled}
         formatValue={formatStraightenSpoken}
         onValueChange={straighten}
-        onValueCommit={controls.onGestureEnd}
+        onValueCommit={handleStraightenCommit}
       />
     </div>
   )
@@ -176,7 +188,10 @@ export const CropPanel = ({
         size="sm"
         className="max-md:min-h-10"
         disabled={disabled}
-        onClick={() => controls.onGeometryChange(rotateGeometry90(geometry))}
+        onClick={() => {
+          straightenMemo.current = null
+          controls.onGeometryChange(rotateGeometry90(geometry))
+        }}
       >
         <RotateCcw aria-hidden="true" />
         Rotate 90°
@@ -187,9 +202,10 @@ export const CropPanel = ({
         size="sm"
         className="max-md:min-h-10"
         disabled={disabled}
-        onClick={() =>
+        onClick={() => {
+          straightenMemo.current = null
           controls.onGeometryChange(flipGeometryHorizontal(geometry))
-        }
+        }}
       >
         <FlipHorizontal2 aria-hidden="true" />
         Flip
@@ -201,7 +217,10 @@ export const CropPanel = ({
           size="sm"
           className="max-md:min-h-10"
           disabled={disabled}
-          onClick={() => controls.onGeometryChange(NEUTRAL_RECIPE.geometry)}
+          onClick={() => {
+            straightenMemo.current = null
+            controls.onGeometryChange(NEUTRAL_RECIPE.geometry)
+          }}
         >
           Reset crop
         </Button>

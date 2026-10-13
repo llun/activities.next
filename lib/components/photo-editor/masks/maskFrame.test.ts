@@ -1,5 +1,29 @@
-import { getMaskFrameSize, getMaskRaster, packChannels } from './maskFrame'
+import {
+  createMaskFrameBuilder,
+  getMaskFrameSize,
+  getMaskRaster,
+  packChannels
+} from './maskFrame'
 import { createRaster } from './maskRaster'
+
+vi.mock('@/lib/components/photo-editor/engine/geometryCanvas', () => ({
+  createCanvas: vi.fn(() => ({
+    getContext: () => ({
+      setTransform: vi.fn(),
+      drawImage: vi.fn(),
+      putImageData: vi.fn(),
+      getImageData: () => ({ data: new Uint8ClampedArray(16) })
+    })
+  }))
+}))
+
+class FakeImageData {
+  data: Uint8ClampedArray
+  constructor(w: number, h: number) {
+    this.data = new Uint8ClampedArray(w * h * 4)
+  }
+}
+vi.stubGlobal('ImageData', FakeImageData)
 
 describe('getMaskFrameSize', () => {
   it('keeps the aspect with a long edge of at most 1024', () => {
@@ -75,5 +99,73 @@ describe('getMaskRaster', () => {
     const raster = getMaskRaster(background, { aaaaaaaa: subject })
     expect(Array.from(raster?.data ?? [])).toEqual([0, 191])
     expect(getMaskRaster(background, {})).toBeNull()
+  })
+})
+
+describe('createMaskFrameBuilder', () => {
+  const source = { width: 10, height: 10 }
+  const geometry = {
+    rotate90: 0 as const,
+    flipH: false,
+    straighten: 0,
+    crop: { x: 0, y: 0, width: 1, height: 1 },
+    aspect: 'original' as const
+  }
+  const frame = { width: 2, height: 2 }
+
+  it('returns null when masks list is empty', () => {
+    const builder = createMaskFrameBuilder()
+    expect(builder.build([], {}, source, geometry, frame)).toBeNull()
+  })
+
+  it('builds frames and reuses cached planes for unchanged masks', () => {
+    const builder = createMaskFrameBuilder()
+    const mask1 = {
+      id: 'm1',
+      kind: 'brush' as const,
+      points: [],
+      feather: 0,
+      adjustments: {}
+    }
+    const mask2 = {
+      id: 'm2',
+      kind: 'brush' as const,
+      points: [],
+      feather: 0,
+      adjustments: {}
+    }
+    const r1 = createRaster({ width: 2, height: 2 }, 100)
+    const r2 = createRaster({ width: 2, height: 2 }, 200)
+
+    const frame1 = builder.build(
+      [mask1, mask2],
+      { m1: r1, m2: r2 },
+      source,
+      geometry,
+      frame
+    )
+    expect(frame1).not.toBeNull()
+
+    // Mask 1 is edited with new raster; Mask 2 is unchanged
+    const r1Next = createRaster({ width: 2, height: 2 }, 150)
+    const frame2 = builder.build(
+      [mask1, mask2],
+      { m1: r1Next, m2: r2 },
+      source,
+      geometry,
+      frame
+    )
+    expect(frame2).not.toBeNull()
+
+    // Clear empties cached planes
+    builder.clear()
+    const frame3 = builder.build(
+      [mask1, mask2],
+      { m1: r1Next, m2: r2 },
+      source,
+      geometry,
+      frame
+    )
+    expect(frame3).not.toBeNull()
   })
 })

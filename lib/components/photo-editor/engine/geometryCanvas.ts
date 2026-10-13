@@ -29,14 +29,33 @@ export const drawGeometry = (
   geometry: Geometry,
   outWidth: number,
   outHeight: number,
-  region?: TileRect
+  regionOrTarget?: TileRect | DrawableCanvas,
+  targetCanvas?: DrawableCanvas
 ): DrawableCanvas => {
+  const isRegion = Boolean(
+    regionOrTarget &&
+    typeof regionOrTarget === 'object' &&
+    'x' in regionOrTarget &&
+    'w' in regionOrTarget
+  )
+  const region = isRegion ? (regionOrTarget as TileRect) : undefined
+  const target = isRegion
+    ? targetCanvas
+    : ((regionOrTarget as DrawableCanvas | undefined) ?? targetCanvas)
+
   const width = region ? region.w : outWidth
   const height = region ? region.h : outHeight
-  const canvas = createCanvas(width, height)
+  const canvas = target ?? createCanvas(width, height)
+  if (target) {
+    if (target.width !== width) target.width = width
+    if (target.height !== height) target.height = height
+  }
   const context = canvas.getContext('2d', { colorSpace: 'srgb' }) as
     CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
   if (!context) throw new Error('2D canvas is not available')
+  if (target) {
+    context.clearRect(0, 0, width, height)
+  }
   const sourceSize: Size = { width: source.width, height: source.height }
   const matrix = getGeometryTransform(sourceSize, geometry, {
     width: outWidth,

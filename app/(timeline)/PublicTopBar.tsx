@@ -2,8 +2,8 @@ import Link from 'next/link'
 
 import { Logo } from '@/lib/components/layout/logo'
 import { Button } from '@/lib/components/ui/button'
-import { getBaseURL } from '@/lib/config'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 // Public top bar shown to logged-out visitors in place of the app nav sidebar:
 // a slim sticky bar with the brand logo and Sign in / Create account links to
@@ -15,7 +15,8 @@ export const PublicTopBar = async () => {
   } = await getResolvedServerSettings()
   // Absolute logo URL on the canonical origin (ACTIVITIES_HOST) so it resolves
   // even when this page is served on a CDN alias domain, matching PublicFooter.
-  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
+  // In `next dev` it stays root-relative so it loads from the browser's origin.
+  const logoSrc = getBrandAssetSrc('/logo-nav.png')
   return (
     <header className="sticky top-0 z-30 border-b bg-surface-chrome backdrop-blur">
       {/* Full width below `md` to stay aligned with PublicShell's content

@@ -17,6 +17,9 @@ export const WB_TINT_GAIN = 0.15
 // Levels: how far a full whites / blacks slider moves the end points.
 export const WHITES_RANGE = 0.25
 export const BLACKS_RANGE = 0.1
+export const WHITES_SHOULDER_START = 0.25
+export const BLACKS_TOE_END = 0.75
+export const TONE_EDGE_SENSITIVITY = 3.0
 
 // Highlights and shadows: strength at slider = 100, and the smoothstep edges
 // of the masks built from the wide blur.
@@ -54,6 +57,9 @@ export const SHADER_CONSTANTS = {
   WB_TINT_GAIN,
   WHITES_RANGE,
   BLACKS_RANGE,
+  WHITES_SHOULDER_START,
+  BLACKS_TOE_END,
+  TONE_EDGE_SENSITIVITY,
   TONE_STRENGTH,
   TONE_SHADOW_EDGE,
   TONE_HIGHLIGHT_EDGE,
@@ -87,6 +93,25 @@ export const clamp = (value: number, min: number, max: number): number =>
 export const smoothstep = (edge0: number, edge1: number, x: number): number => {
   const t = clamp((x - edge0) / (edge1 - edge0), 0, 1)
   return t * t * (3 - 2 * t)
+}
+
+/** Smooth toe and shoulder curve for Whites and Blacks. */
+export const applyLevels = (
+  x: number,
+  whites: number,
+  blacks: number
+): number => {
+  const xc = clamp(x, 0, 1)
+  const wWeight = smoothstep(WHITES_SHOULDER_START, 1, xc)
+  const bWeight = 1 - smoothstep(0, BLACKS_TOE_END, xc)
+  const wTerm =
+    WHITES_RANGE *
+    whites *
+    wWeight *
+    (whites > 0 ? 1 - xc * 0.45 : clamp(x, 0, 1.5))
+  const bTerm =
+    BLACKS_RANGE * blacks * bWeight * (blacks < 0 ? xc : 1 - xc * 0.45)
+  return x + wTerm + bTerm
 }
 
 /** The 5 gaussian weights of the fine detail kernel (offsets -2..2). */
