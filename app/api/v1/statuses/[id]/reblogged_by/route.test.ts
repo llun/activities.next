@@ -591,7 +591,8 @@ describe('GET /api/v1/statuses/[id]/reblogged_by pagination, visibility and auth
       // must not drop the one the surrounding suite runs on.
       const {
         database: sqlDatabase,
-        knex: knexDatabase,
+        db: isolatedDb,
+        destroy: destroyIsolated,
         prepare: prepareIsolated
       } = createTestDatabase({ isolated: true })
       const previousDatabase = mockDatabase
@@ -614,26 +615,32 @@ describe('GET /api/v1/statuses/[id]/reblogged_by pagination, visibility and auth
 
         const legacyAnnounceId = `${ACTOR2_ID}/statuses/api-reblogged-by-legacy-boost`
         const createdAt = new Date('2024-04-01T00:00:00.000Z')
-        await knexDatabase('statuses').insert({
-          id: legacyAnnounceId,
-          url: null,
-          urlHash: null,
-          actorId: ACTOR2_ID,
-          type: StatusType.enum.Announce,
-          reply: '',
-          content: statusId,
-          originalStatusId: null,
-          createdAt,
-          updatedAt: createdAt
-        })
-        await knexDatabase('recipients').insert({
-          id: crypto.randomUUID(),
-          statusId: legacyAnnounceId,
-          actorId: ACTIVITY_STREAM_PUBLIC,
-          type: 'to',
-          createdAt,
-          updatedAt: createdAt
-        })
+        await isolatedDb
+          .insertInto('statuses')
+          .values({
+            id: legacyAnnounceId,
+            url: null,
+            urlHash: null,
+            actorId: ACTOR2_ID,
+            type: StatusType.enum.Announce,
+            reply: '',
+            content: statusId,
+            originalStatusId: null,
+            createdAt,
+            updatedAt: createdAt
+          })
+          .execute()
+        await isolatedDb
+          .insertInto('recipients')
+          .values({
+            id: crypto.randomUUID(),
+            statusId: legacyAnnounceId,
+            actorId: ACTIVITY_STREAM_PUBLIC,
+            type: 'to',
+            createdAt,
+            updatedAt: createdAt
+          })
+          .execute()
 
         const response = await GET(
           new NextRequest(
@@ -649,7 +656,7 @@ describe('GET /api/v1/statuses/[id]/reblogged_by pagination, visibility and auth
         ])
       } finally {
         mockDatabase = previousDatabase
-        await knexDatabase.destroy()
+        await destroyIsolated()
       }
     })
 

@@ -76,7 +76,7 @@ vi.mock('better-auth/oauth2', () => ({
 
 describe('OAuthGuard', () => {
   const testDb = createTestDatabase({ backend: 'sqlite' })
-  const { database, knex: instance } = testDb
+  const { database, db } = testDb
 
   beforeAll(async () => {
     await database.migrate()
@@ -421,9 +421,11 @@ describe('OAuthGuard', () => {
         publicKey: 'several-public-key-c'
       })
       // The last row inserted, with the greatest id, is the one created first.
-      await instance('actors')
-        .where('id', earliestActorId)
-        .update({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
+      await db
+        .updateTable('actors')
+        .set({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
+        .where('id', '=', earliestActorId)
+        .execute()
 
       mockStoredTokens.set(hashToken('several-actors-token'), {
         referenceId: '',

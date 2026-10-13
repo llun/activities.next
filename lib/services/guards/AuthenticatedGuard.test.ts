@@ -49,7 +49,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('AuthenticatedGuard', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -564,9 +564,11 @@ describe('AuthenticatedGuard', () => {
         publicKey: 'cohort-public-key',
         verificationCode: 'stale-verification-code'
       })
-      await instance('accounts')
-        .where('email', COHORT_EMAIL)
-        .update({ emailVerified: true })
+      await db
+        .updateTable('accounts')
+        .set({ emailVerified: true })
+        .where('email', '=', COHORT_EMAIL)
+        .execute()
     })
 
     it('admits a backfilled cohort account with outstanding verification code and emailVerified true', async () => {

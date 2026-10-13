@@ -1,7 +1,5 @@
-import knex, { Knex } from 'knex'
-
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import {
@@ -11,20 +9,13 @@ import {
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('databaseRunner', () => {
-  let knexDatabase: Knex
   let database: Database
   let db: Db
 
   beforeAll(async () => {
-    knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    database = getSQLDatabase(knexDatabase)
-    db = kyselyFor(knexDatabase)
+    const testDb = createTestDatabase({ backend: 'sqlite' })
+    database = testDb.database
+    db = testDb.db
     await database.migrate()
   })
 
@@ -33,8 +24,8 @@ describe('databaseRunner', () => {
   })
 
   afterEach(async () => {
-    await knexDatabase('queue_jobs').delete()
-    await knexDatabase('dead_letter_jobs').delete()
+    await db.deleteFrom('queue_jobs').execute()
+    await db.deleteFrom('dead_letter_jobs').execute()
   })
 
   const sampleMessage: JobMessage = {
@@ -180,11 +171,13 @@ describe('databaseRunner', () => {
     })
 
     // Update database payload directly before runner claims
-    await knexDatabase('queue_jobs')
-      .where({ id: 'job-fresh-payload-1' })
-      .update({
+    await db
+      .updateTable('queue_jobs')
+      .set({
         payload: JSON.stringify(updatedMessage)
       })
+      .where('id', '=', 'job-fresh-payload-1')
+      .execute()
 
     const executedPayloads: JobMessage[] = []
     const handleJob = async (message: JobMessage) => {
@@ -214,11 +207,13 @@ describe('databaseRunner', () => {
     const handleJob = async () => {
       // While handler is executing, backdate and simulate a concurrent stalled reclaim
       const now = Date.now()
-      await knexDatabase('queue_jobs')
-        .where({ id: 'job-stale-settlement-1' })
-        .update({
+      await db
+        .updateTable('queue_jobs')
+        .set({
           updated_at: new Date(now - 30 * 60 * 1000)
         })
+        .where('id', '=', 'job-stale-settlement-1')
+        .execute()
 
       const reclaimer = await database.claimQueueJob({
         id: 'job-stale-settlement-1',
@@ -254,11 +249,13 @@ describe('databaseRunner', () => {
 
     const handleJob = async () => {
       const now = Date.now()
-      await knexDatabase('queue_jobs')
-        .where({ id: 'job-stale-retry-1' })
-        .update({
+      await db
+        .updateTable('queue_jobs')
+        .set({
           updated_at: new Date(now - 30 * 60 * 1000)
         })
+        .where('id', '=', 'job-stale-retry-1')
+        .execute()
 
       await database.claimQueueJob({
         id: 'job-stale-retry-1',
@@ -292,11 +289,13 @@ describe('databaseRunner', () => {
 
     const handleJob = async () => {
       const now = Date.now()
-      await knexDatabase('queue_jobs')
-        .where({ id: 'job-stale-fail-1' })
-        .update({
+      await db
+        .updateTable('queue_jobs')
+        .set({
           updated_at: new Date(now - 30 * 60 * 1000)
         })
+        .where('id', '=', 'job-stale-fail-1')
+        .execute()
 
       await database.claimQueueJob({
         id: 'job-stale-fail-1',
@@ -483,12 +482,14 @@ describe('databaseRunner', () => {
     })
 
     // Backdate updated_at to simulate a worker that crashed 20 minutes ago
-    await knexDatabase('queue_jobs')
-      .where({ id: 'job-stalled-runner-1' })
-      .update({
+    await db
+      .updateTable('queue_jobs')
+      .set({
         status: 'processing',
         updated_at: new Date(now - 20 * 60 * 1000)
       })
+      .where('id', '=', 'job-stalled-runner-1')
+      .execute()
 
     const executed: string[] = []
     const handleJob = async (message: JobMessage) => {
@@ -525,9 +526,11 @@ describe('databaseRunner', () => {
         // A pending job in the future is never claimed by the runner.
         nextRunAt: status === 'pending' ? new Date(Date.now() + day) : at
       })
-      await knexDatabase('queue_jobs')
-        .where({ id })
-        .update({ updated_at: at, created_at: at })
+      await db
+        .updateTable('queue_jobs')
+        .set({ updated_at: at, created_at: at })
+        .where('id', '=', id)
+        .execute()
     }
     await seed('sweep-old-completed', 'completed', 10 * day)
     await seed('sweep-new-completed', 'completed', 1 * day)

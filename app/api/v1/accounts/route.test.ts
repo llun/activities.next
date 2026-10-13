@@ -1,10 +1,8 @@
-import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentials/route'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { Database } from '@/lib/database/types'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -360,12 +358,11 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   const PENDING_USERNAME = 'pendingnewbie'
   const ACTORLESS_USERNAME = 'actorlessuser'
 
-  const apiKnex = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const apiDatabase: Database = getSQLDatabase(apiKnex)
+  const {
+    database: apiDatabase,
+    db: apiDb,
+    destroy: destroyApiDatabase
+  } = createTestDatabase({ backend: 'sqlite' })
 
   let accountId: string
   let actorId: string
@@ -382,31 +379,37 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     referenceId: string | null
     scopes?: string[]
   }) => {
-    await apiKnex('oauthAccessToken').insert({
-      id: `token-${token}`,
-      token: hashToken(token),
-      clientId: CLIENT_ID,
-      userId: referenceId ? accountId : null,
-      referenceId,
-      scopes: JSON.stringify(scopes),
-      expiresAt: new Date(Date.now() + 3_600_000),
-      createdAt: new Date()
-    })
+    await apiDb
+      .insertInto('oauthAccessToken')
+      .values({
+        id: `token-${token}`,
+        token: hashToken(token),
+        clientId: CLIENT_ID,
+        userId: referenceId ? accountId : null,
+        referenceId,
+        scopes: JSON.stringify(scopes),
+        expiresAt: new Date(Date.now() + 3_600_000),
+        createdAt: new Date()
+      })
+      .execute()
   }
 
   beforeAll(async () => {
     await apiDatabase.migrate()
-    await apiKnex('oauthClient').insert({
-      id: 'register-api-client-row',
-      clientId: CLIENT_ID,
-      name: 'Register API App',
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      redirectUris: JSON.stringify(['https://app.test/redirect']),
-      requirePKCE: false,
-      disabled: false,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await apiDb
+      .insertInto('oauthClient')
+      .values({
+        id: 'register-api-client-row',
+        clientId: CLIENT_ID,
+        name: 'Register API App',
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        redirectUris: JSON.stringify(['https://app.test/redirect']),
+        requirePKCE: false,
+        disabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
     accountId = await apiDatabase.createAccount({
       domain: DOMAIN,
       email: 'newbie@llun.test',
@@ -479,20 +482,23 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     // account has no selectable actor. `OAuthAppGuard` leaves `currentActor`
     // null for it, which is indistinguishable from a genuine app token unless
     // the handler asks about the user.
-    await apiKnex('oauthAccessToken').insert({
-      id: `token-${ACTORLESS_USER_TOKEN}`,
-      token: hashToken(ACTORLESS_USER_TOKEN),
-      clientId: CLIENT_ID,
-      userId: actorlessAccountId,
-      referenceId: null,
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      expiresAt: new Date(Date.now() + 3_600_000),
-      createdAt: new Date()
-    })
+    await apiDb
+      .insertInto('oauthAccessToken')
+      .values({
+        id: `token-${ACTORLESS_USER_TOKEN}`,
+        token: hashToken(ACTORLESS_USER_TOKEN),
+        clientId: CLIENT_ID,
+        userId: actorlessAccountId,
+        referenceId: null,
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        expiresAt: new Date(Date.now() + 3_600_000),
+        createdAt: new Date()
+      })
+      .execute()
   })
 
   afterAll(async () => {
-    await apiKnex.destroy()
+    await destroyApiDatabase()
   })
 
   beforeEach(() => {

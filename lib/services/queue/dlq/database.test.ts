@@ -1,4 +1,3 @@
-import knex, { Knex } from 'knex'
 import {
   afterAll,
   beforeAll,
@@ -9,8 +8,8 @@ import {
   vi
 } from 'vitest'
 
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { DatabaseQueue } from '@/lib/services/queue/database'
@@ -18,21 +17,14 @@ import { DatabaseDLQProvider } from '@/lib/services/queue/dlq/database'
 import { JobMessage, Queue } from '@/lib/services/queue/type'
 
 describe('DatabaseDLQProvider', () => {
-  let knexDatabase: Knex
   let database: Database
   let db: Db
   let dbQueue: DatabaseQueue
 
   beforeAll(async () => {
-    knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    database = getSQLDatabase(knexDatabase)
-    db = kyselyFor(knexDatabase)
+    const testDb = createTestDatabase({ backend: 'sqlite' })
+    database = testDb.database
+    db = testDb.db
     await database.migrate()
     dbQueue = new DatabaseQueue(undefined, database)
   })
@@ -42,8 +34,8 @@ describe('DatabaseDLQProvider', () => {
   })
 
   beforeEach(async () => {
-    await knexDatabase('dead_letter_jobs').delete()
-    await knexDatabase('queue_jobs').delete()
+    await db.deleteFrom('dead_letter_jobs').execute()
+    await db.deleteFrom('queue_jobs').execute()
   })
 
   const samplePayload: JobMessage = {
@@ -159,16 +151,19 @@ describe('DatabaseDLQProvider', () => {
       const provider = new DatabaseDLQProvider(database, mockQueue)
 
       // Insert directly into dead_letter_jobs (as CloudTasks DLQ does without queue_jobs table)
-      await knexDatabase('dead_letter_jobs').insert({
-        id: 'cloudtasks-job-1',
-        job_name: 'deliverActivity',
-        payload: JSON.stringify(samplePayload),
-        error_message: 'CloudTasks task deadline exceeded',
-        attempts: 5,
-        status: 'failed',
-        created_at: new Date(),
-        updated_at: new Date()
-      })
+      await db
+        .insertInto('dead_letter_jobs')
+        .values({
+          id: 'cloudtasks-job-1',
+          job_name: 'deliverActivity',
+          payload: JSON.stringify(samplePayload),
+          error_message: 'CloudTasks task deadline exceeded',
+          attempts: 5,
+          status: 'failed',
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .execute()
 
       // Ensure no queue_jobs row exists
       const queueJob = await getQueueJobById(db, 'cloudtasks-job-1')
@@ -194,16 +189,19 @@ describe('DatabaseDLQProvider', () => {
       const provider = new DatabaseDLQProvider(database, mockQueue)
 
       for (const id of ['ct-batch-1', 'ct-batch-2']) {
-        await knexDatabase('dead_letter_jobs').insert({
-          id,
-          job_name: 'deliverActivity',
-          payload: JSON.stringify({ ...samplePayload, id }),
-          error_message: 'Failure',
-          attempts: 5,
-          status: 'failed',
-          created_at: new Date(),
-          updated_at: new Date()
-        })
+        await db
+          .insertInto('dead_letter_jobs')
+          .values({
+            id,
+            job_name: 'deliverActivity',
+            payload: JSON.stringify({ ...samplePayload, id }),
+            error_message: 'Failure',
+            attempts: 5,
+            status: 'failed',
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
       }
 
       const result = await provider.retryJobs(['ct-batch-1', 'ct-batch-2'])
@@ -223,16 +221,19 @@ describe('DatabaseDLQProvider', () => {
       const provider = new DatabaseDLQProvider(database, mockQueue)
 
       for (const id of ['ct-all-1', 'ct-all-2']) {
-        await knexDatabase('dead_letter_jobs').insert({
-          id,
-          job_name: 'deliverActivity',
-          payload: JSON.stringify({ ...samplePayload, id }),
-          error_message: 'Failure',
-          attempts: 5,
-          status: 'failed',
-          created_at: new Date(),
-          updated_at: new Date()
-        })
+        await db
+          .insertInto('dead_letter_jobs')
+          .values({
+            id,
+            job_name: 'deliverActivity',
+            payload: JSON.stringify({ ...samplePayload, id }),
+            error_message: 'Failure',
+            attempts: 5,
+            status: 'failed',
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .execute()
       }
 
       const result = await provider.retryAll()
@@ -246,16 +247,19 @@ describe('DatabaseDLQProvider', () => {
     it('discards, deletes, and counts dead letter jobs', async () => {
       const provider = new DatabaseDLQProvider(database, dbQueue)
 
-      await knexDatabase('dead_letter_jobs').insert({
-        id: 'manage-1',
-        job_name: 'deliverActivity',
-        payload: JSON.stringify(samplePayload),
-        error_message: 'Err',
-        attempts: 1,
-        status: 'failed',
-        created_at: new Date(),
-        updated_at: new Date()
-      })
+      await db
+        .insertInto('dead_letter_jobs')
+        .values({
+          id: 'manage-1',
+          job_name: 'deliverActivity',
+          payload: JSON.stringify(samplePayload),
+          error_message: 'Err',
+          attempts: 1,
+          status: 'failed',
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .execute()
 
       const listBefore = await provider.getJobs()
       expect(listBefore.total).toBe(1)

@@ -1,21 +1,18 @@
-import knex from 'knex'
 import { NextRequest } from 'next/server'
 
 import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentials/route'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from '@/lib/services/auth/constants'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 
 import { issueAccessToken } from './issueAccessToken'
 
-const mockKnex = knex({
-  client: 'better-sqlite3',
-  useNullAsDefault: true,
-  connection: { filename: ':memory:' }
-})
-const mockDatabase = getSQLDatabase(mockKnex)
+const {
+  database: mockDatabase,
+  db: mockDb,
+  destroy: destroyMockDatabase
+} = createTestDatabase({ backend: 'sqlite' })
 
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
@@ -54,17 +51,20 @@ describe('issueAccessToken', () => {
   beforeAll(async () => {
     await mockDatabase.migrate()
 
-    await mockKnex('oauthClient').insert({
-      id: 'oauth-client-row',
-      clientId: CLIENT_ID,
-      name: 'Issue Token App',
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      redirectUris: JSON.stringify(['https://app.test/redirect']),
-      requirePKCE: false,
-      disabled: false,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await mockDb
+      .insertInto('oauthClient')
+      .values({
+        id: 'oauth-client-row',
+        clientId: CLIENT_ID,
+        name: 'Issue Token App',
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        redirectUris: JSON.stringify(['https://app.test/redirect']),
+        requirePKCE: false,
+        disabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
 
     accountId = await mockDatabase.createAccount({
       domain: DOMAIN,
@@ -84,7 +84,7 @@ describe('issueAccessToken', () => {
   })
 
   afterAll(async () => {
-    await mockKnex.destroy()
+    await destroyMockDatabase()
   })
 
   it('returns a raw token but persists only its hash', async () => {
@@ -101,10 +101,11 @@ describe('issueAccessToken', () => {
     expect(issued.createdAt).toEqual(expect.any(Number))
 
     // The stored row holds the hash, never the raw token.
-    const stored = await mockKnex('oauthAccessToken')
-      .where('token', hashToken(issued.token))
-      .first()
-    expect(stored).toBeDefined()
+    const stored = await mockDb
+      .selectFrom('oauthAccessToken')
+      .selectAll()
+      .where('token', '=', hashToken(issued.token))
+      .executeTakeFirstOrThrow()
     expect(stored.token).toBe(hashToken(issued.token))
     expect(stored.token).not.toBe(issued.token)
     expect(stored.userId).toBe(accountId)
@@ -138,7 +139,7 @@ describe('issueAccessToken', () => {
     const WINDOW_MS = OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
 
     beforeEach(() => {
-      // Only `Date` is faked: knex and better-sqlite3 rely on real timers.
+      // Only `Date` is faked: the database driver relies on real timers.
       vi.useFakeTimers({ toFake: ['Date'] })
     })
 
@@ -159,10 +160,12 @@ describe('issueAccessToken', () => {
     }
 
     const storedExpiresAt = async (token: string) => {
-      const row = await mockKnex('oauthAccessToken')
-        .where('token', hashToken(token))
-        .first('expiresAt')
-      return getCompatibleTime(row.expiresAt)
+      const row = await mockDb
+        .selectFrom('oauthAccessToken')
+        .select('expiresAt')
+        .where('token', '=', hashToken(token))
+        .executeTakeFirstOrThrow()
+      return row.expiresAt
     }
 
     it('keeps a token valid while its client keeps using it', async () => {

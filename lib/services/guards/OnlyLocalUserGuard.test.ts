@@ -32,7 +32,7 @@ vi.mock('@/lib/config', async () => {
 })
 
 describe('OnlyLocalUserGuard', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -175,27 +175,30 @@ describe('OnlyLocalUserGuard', () => {
         privateKey: 'privateKey',
         publicKey: 'publicKey'
       })
-      // Written through raw knex on purpose: every mint path refuses a reserved
+      // Written through Kysely on purpose: every mint path refuses a reserved
       // name AND lowercases, so only a row predating both can look like this.
       // It must carry an accountId, or the guard's pre-existing
       // `actor?.account` check would 404 it and this suite would prove nothing.
-      await instance('actors').insert({
-        id: SQUATTER_ID,
-        username: '__INSTANCE__',
-        domain: 'llun.test',
-        accountId,
-        publicId: 'squatter-public-id-00000000000000000',
-        type: 'Person',
-        publicKey: 'publicKey',
-        privateKey: 'privateKey',
-        settings: JSON.stringify({
-          followersUrl: `${SQUATTER_ID}/followers`,
-          inboxUrl: `${SQUATTER_ID}/inbox`,
-          sharedInboxUrl: 'https://llun.test/inbox'
-        }),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
+      await db
+        .insertInto('actors')
+        .values({
+          id: SQUATTER_ID,
+          username: '__INSTANCE__',
+          domain: 'llun.test',
+          accountId,
+          publicId: 'squatter-public-id-00000000000000000',
+          type: 'Person',
+          publicKey: 'publicKey',
+          privateKey: 'privateKey',
+          settings: JSON.stringify({
+            followersUrl: `${SQUATTER_ID}/followers`,
+            inboxUrl: `${SQUATTER_ID}/inbox`,
+            sharedInboxUrl: 'https://llun.test/inbox'
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .execute()
     })
 
     it('confirms the squatter is a local account actor', async () => {
@@ -245,23 +248,26 @@ describe('OnlyLocalUserGuard', () => {
           publicKey: 'publicKey'
         })
         const id = `https://llun.test/users/${username}`
-        await instance('actors').insert({
-          id,
-          username,
-          domain: 'llun.test',
-          accountId,
-          publicId: `legacy${username}`.padEnd(36, '0').slice(0, 36),
-          type: 'Person',
-          publicKey: 'publicKey',
-          privateKey: 'privateKey',
-          settings: JSON.stringify({
-            followersUrl: `${id}/followers`,
-            inboxUrl: `${id}/inbox`,
-            sharedInboxUrl: 'https://llun.test/inbox'
-          }),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
+        await db
+          .insertInto('actors')
+          .values({
+            id,
+            username,
+            domain: 'llun.test',
+            accountId,
+            publicId: `legacy${username}`.padEnd(36, '0').slice(0, 36),
+            type: 'Person',
+            publicKey: 'publicKey',
+            privateKey: 'privateKey',
+            settings: JSON.stringify({
+              followersUrl: `${id}/followers`,
+              inboxUrl: `${id}/inbox`,
+              sharedInboxUrl: 'https://llun.test/inbox'
+            }),
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .execute()
 
         const guard = OnlyLocalUserGuard(mockHandler)
         const req = createRequest()
@@ -310,23 +316,26 @@ describe('OnlyLocalUserGuard', () => {
         publicKey: 'publicKey'
       })
       const id = 'https://llun.test/users/__instance__2'
-      await instance('actors').insert({
-        id,
-        username: '__instance__2',
-        domain: 'llun.test',
-        accountId,
-        publicId: 'indexed-squatter-id-0000000000000000',
-        type: 'Person',
-        publicKey: 'publicKey',
-        privateKey: 'privateKey',
-        settings: JSON.stringify({
-          followersUrl: `${id}/followers`,
-          inboxUrl: `${id}/inbox`,
-          sharedInboxUrl: 'https://llun.test/inbox'
-        }),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
+      await db
+        .insertInto('actors')
+        .values({
+          id,
+          username: '__instance__2',
+          domain: 'llun.test',
+          accountId,
+          publicId: 'indexed-squatter-id-0000000000000000',
+          type: 'Person',
+          publicKey: 'publicKey',
+          privateKey: 'privateKey',
+          settings: JSON.stringify({
+            followersUrl: `${id}/followers`,
+            inboxUrl: `${id}/inbox`,
+            sharedInboxUrl: 'https://llun.test/inbox'
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .execute()
     })
 
     it('confirms the indexed squatter resolves as a local account actor', async () => {

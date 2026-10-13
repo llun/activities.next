@@ -13,7 +13,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const { database, instance } = getTestSQLDatabaseWithInstance()
+const { database, db } = getTestSQLDatabaseWithInstance()
 vi.mock('@/lib/database', () => ({
   getDatabase: () => database
 }))
@@ -50,7 +50,13 @@ describe('POST /api/v1/actors/switch', () => {
   let deletingActorId: string
 
   const sessionActorId = async () =>
-    (await instance('sessions').where('token', SESSION_TOKEN).first())?.actorId
+    (
+      await db
+        .selectFrom('sessions')
+        .select('actorId')
+        .where('token', '=', SESSION_TOKEN)
+        .executeTakeFirst()
+    )?.actorId
 
   beforeAll(async () => {
     await database.migrate()
@@ -77,13 +83,16 @@ describe('POST /api/v1/actors/switch', () => {
       actorId: deletingActorId,
       scheduledAt: new Date(Date.now() + 86_400_000)
     })
-    await instance('sessions').insert({
-      id: 'session-1',
-      accountId: account.id,
-      token: SESSION_TOKEN,
-      expireAt: new Date(Date.now() + 86_400_000),
-      actorId: ACTOR1_ID
-    })
+    await db
+      .insertInto('sessions')
+      .values({
+        id: 'session-1',
+        accountId: account.id,
+        token: SESSION_TOKEN,
+        expireAt: new Date(Date.now() + 86_400_000),
+        actorId: ACTOR1_ID
+      })
+      .execute()
   })
 
   afterAll(async () => {
@@ -96,9 +105,11 @@ describe('POST /api/v1/actors/switch', () => {
       user: { email: seedActor1.email },
       session: { token: SESSION_TOKEN }
     })
-    await instance('sessions')
-      .where('token', SESSION_TOKEN)
-      .update({ actorId: ACTOR1_ID })
+    await db
+      .updateTable('sessions')
+      .set({ actorId: ACTOR1_ID })
+      .where('token', '=', SESSION_TOKEN)
+      .execute()
   })
 
   it('switches to an owned actor: updates the session actor, sets the cookie and returns the actor summary', async () => {
@@ -235,7 +246,10 @@ describe('POST /api/v1/actors/switch', () => {
 
   it('returns 500 without setting the cookie when the session row cannot be updated', async () => {
     const errorSpy = vi.spyOn(logger, 'error')
-    await instance.schema.renameTable('sessions', 'sessions_renamed')
+    await db.schema
+      .alterTable('sessions')
+      .renameTo('sessions_renamed')
+      .execute()
     try {
       const response = await post(buildRequest({ actorId: secondActorId }))
 
@@ -247,7 +261,10 @@ describe('POST /api/v1/actors/switch', () => {
       )
       expect(mockCookieSet).not.toHaveBeenCalled()
     } finally {
-      await instance.schema.renameTable('sessions_renamed', 'sessions')
+      await db.schema
+        .alterTable('sessions_renamed')
+        .renameTo('sessions')
+        .execute()
     }
   })
 })

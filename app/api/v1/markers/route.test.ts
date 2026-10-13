@@ -41,7 +41,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('/api/v1/markers', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -59,7 +59,7 @@ describe('/api/v1/markers', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    await instance('markers').delete()
+    await db.deleteFrom('markers').execute()
   })
 
   it('GET returns an empty object when nothing is set', async () => {
@@ -238,12 +238,15 @@ describe('/api/v1/markers', () => {
     it("accepts a non-v7 id naming one of the caller's own notifications", async () => {
       // A v4 row the previous build wrote and nothing has rewritten yet.
       const id = 'c0ffee00-0000-4000-8000-000000000000'
-      await instance('notifications').insert({
-        id,
-        actorId: ACTOR1_ID,
-        type: NotificationType.enum.follow,
-        sourceActorId: ACTOR2_ID
-      })
+      await db
+        .insertInto('notifications')
+        .values({
+          id,
+          actorId: ACTOR1_ID,
+          type: NotificationType.enum.follow,
+          sourceActorId: ACTOR2_ID
+        })
+        .execute()
 
       const response = await postNotificationsMarker(id)
       expect((await response.json()).notifications.last_read_id).toBe(id)
@@ -269,12 +272,15 @@ describe('/api/v1/markers', () => {
 
     it("does not accept another actor's notification id", async () => {
       const othersId = 'beef0000-0000-4000-8000-000000000000'
-      await instance('notifications').insert({
-        id: othersId,
-        actorId: ACTOR2_ID,
-        type: NotificationType.enum.follow,
-        sourceActorId: ACTOR1_ID
-      })
+      await db
+        .insertInto('notifications')
+        .values({
+          id: othersId,
+          actorId: ACTOR2_ID,
+          type: NotificationType.enum.follow,
+          sourceActorId: ACTOR1_ID
+        })
+        .execute()
 
       const response = await postNotificationsMarker(othersId)
 
@@ -389,7 +395,9 @@ describe('/api/v1/markers', () => {
       { params: Promise.resolve({}) }
     )
     expect(response.status).toBe(422)
-    expect(await instance('markers').select('id')).toHaveLength(0)
+    expect(await db.selectFrom('markers').select('id').execute()).toHaveLength(
+      0
+    )
   })
 
   it('POST rejects a body over the size cap with 413 before parsing it', async () => {

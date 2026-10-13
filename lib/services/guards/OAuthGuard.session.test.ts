@@ -95,7 +95,7 @@ describe('getTokenFromHeader', () => {
 })
 
 describe('OAuthGuard', () => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
+  const { database, db } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -288,9 +288,11 @@ describe('OAuthGuard', () => {
         publicKey: 'several-public-key-c'
       })
       // The last row inserted, with the greatest id, is the one created first.
-      await instance('actors')
-        .where('id', earliestActorId)
-        .update({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
+      await db
+        .updateTable('actors')
+        .set({ createdAt: new Date(Date.UTC(2020, 0, 1)) })
+        .where('id', '=', earliestActorId)
+        .execute()
 
       mockGetServerSession.mockResolvedValue({
         user: { email: 'session-several-actors@llun.test' }

@@ -5,7 +5,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { EXTERNAL_ACTOR1, seedExternal1 } from '@/lib/stub/seed/external1'
 import { urlToId } from '@/lib/utils/urlToId'
 
-const { database, instance } = getTestSQLDatabaseWithInstance()
+const { database, db } = getTestSQLDatabaseWithInstance()
 
 const ADMIN_ACTOR_ID = `https://${TEST_DOMAIN}/users/admin`
 const TARGET_ACTOR_ID = `https://${TEST_DOMAIN}/users/target`
@@ -90,9 +90,11 @@ describe('admin accounts API', () => {
       privateKey: 'private',
       publicKey: 'public'
     })
-    await instance('accounts')
-      .where('id', adminAccountId)
-      .update({ role: 'admin' })
+    await db
+      .updateTable('accounts')
+      .set({ role: 'admin' })
+      .where('id', '=', adminAccountId)
+      .execute()
     await database.createAccount({
       email: `target@${TEST_DOMAIN}`,
       username: 'target',
@@ -168,9 +170,11 @@ describe('admin accounts API', () => {
       actorId: target.actorId
     })
     expect(refreshed?.actor.suspendedAt).toBeTruthy()
-    const audit = await instance('moderation_actions')
-      .where('targetActorId', target.actorId)
-      .first()
+    const audit = await db
+      .selectFrom('moderation_actions')
+      .selectAll()
+      .where('targetActorId', '=', target.actorId)
+      .executeTakeFirstOrThrow()
     expect(audit.action).toBe('suspend')
     expect(audit.moderatorAccountId).toBe(adminAccountId)
 
@@ -314,9 +318,11 @@ describe('admin accounts API', () => {
     expect(activeReject.status).toBe(422)
 
     const pending = await makeLocalAccount()
-    await instance('accounts')
-      .where('id', pending.accountId)
-      .update({ approvedAt: null })
+    await db
+      .updateTable('accounts')
+      .set({ approvedAt: null })
+      .where('id', '=', pending.accountId)
+      .execute()
     const pendingReject = await rejectRoute.POST(
       adminRequest(`/api/v1/admin/accounts/${pending.id}/reject`, {
         method: 'POST'
@@ -376,8 +382,12 @@ describe('admin accounts API', () => {
     )
     expect(response.status).toBe(200)
 
-    const resolved = await instance('reports').where('id', report.id).first()
-    expect(Boolean(resolved.actionTaken)).toBe(true)
+    const resolved = await db
+      .selectFrom('reports')
+      .selectAll()
+      .where('id', '=', report.id)
+      .executeTakeFirstOrThrow()
+    expect(resolved.actionTaken).toBe(true)
     expect(resolved.actionTakenByActorId).toBe(ADMIN_ACTOR_ID)
   })
 
