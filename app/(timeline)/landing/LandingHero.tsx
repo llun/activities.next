@@ -2,7 +2,7 @@ import { Activity, Globe, Shield } from 'lucide-react'
 import Image from 'next/image'
 import { FC } from 'react'
 
-import { getBaseURL } from '@/lib/config'
+import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 interface LandingHeroProps {
   serviceName: string
@@ -15,8 +15,9 @@ interface LandingHeroProps {
  */
 export const LandingHero: FC<LandingHeroProps> = ({ serviceName }) => {
   // Absolute URL on the canonical origin (ACTIVITIES_HOST) so the logo resolves
-  // even when this landing page is served on a CDN alias domain.
-  const logoSrc = new URL('/logo.png', getBaseURL()).toString()
+  // even when this landing page is served on a CDN alias domain. In `next dev`
+  // it stays root-relative so it loads from the browser's origin.
+  const logoSrc = getBrandAssetSrc('/logo.png')
   return (
     <div
       className="relative flex h-full min-h-[60vh] flex-col justify-between overflow-hidden px-7 py-10 text-white sm:px-14 sm:py-14"

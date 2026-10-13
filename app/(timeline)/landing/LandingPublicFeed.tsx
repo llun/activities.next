@@ -2,8 +2,8 @@ import Image from 'next/image'
 import { FC } from 'react'
 
 import { Posts } from '@/lib/components/posts/posts'
-import { getBaseURL } from '@/lib/config'
 import { Status } from '@/lib/types/domain/status'
+import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 interface LandingPublicFeedProps {
   host: string
@@ -25,8 +25,9 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
 }) => {
   // Absolute URL on the configured host (ACTIVITIES_HOST) so the logo resolves
   // against the canonical origin even when served behind a CDN on an alias
-  // domain, where a root-relative `/logo-nav.png` may be redirected away.
-  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
+  // domain, where a root-relative `/logo-nav.png` may be redirected away. In
+  // `next dev` it stays root-relative so it loads from the browser's origin.
+  const logoSrc = getBrandAssetSrc('/logo-nav.png')
   return (
     // No `h-full` / `min-h-full`: the wrapper must grow to the whole feed so the
     // sticky bar below can stick for the full scroll of the (md+) scrolling

@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { FC } from 'react'
 
-import { getBaseURL } from '@/lib/config'
+import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 // Public footer shown to logged-out visitors, matching the web-public design:
 // a single bordered card with the brand line and a link to the project source.
@@ -9,8 +9,9 @@ import { getBaseURL } from '@/lib/config'
 export const PublicFooter: FC = () => {
   // Absolute URL on the configured host (ACTIVITIES_HOST) so the logo resolves
   // against the canonical origin even when served behind a CDN on an alias
-  // domain, where a root-relative `/logo-nav.png` may be redirected away.
-  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
+  // domain, where a root-relative `/logo-nav.png` may be redirected away. In
+  // `next dev` it stays root-relative so it loads from the browser's origin.
+  const logoSrc = getBrandAssetSrc('/logo-nav.png')
   return (
     // Matches PublicShell/PublicTopBar: full width below `md`, narrow from `md`.
     <footer className="mx-auto w-full max-w-[680px] px-4 py-8 max-md:max-w-none">
