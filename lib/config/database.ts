@@ -15,7 +15,8 @@ import { matcher } from './utils'
 // - pg: `connection` is a node-postgres client configuration (`host`, `port`,
 //   `user`, `password`, `database`, `ssl`, `application_name`, …) or a
 //   connection string (absent in the JSON: `{}`, so node-postgres reads the
-//   `PG*` environment variables, as with Knex); `pool.min` / `pool.max` size
+//   `PG*` environment variables; Knex built no pool without `connection`, so
+//   `yarn migrate` still needs it); `pool.min` / `pool.max` size
 //   the pool (Knex's defaults, 2 and 10, when `pool` is absent);
 //   `acquireConnectionTimeout` is how long a query waits for a free pooled
 //   connection, in milliseconds (60 000 when unset).
@@ -26,9 +27,10 @@ import { matcher } from './utils'
 // Knex's pool size when the configuration has no `pool`.
 export const DEFAULT_POSTGRES_POOL = { min: 2, max: 10 }
 
-// The pool sizes Knex's pool (tarn) accepted: a whole `min` >= 0, a whole
-// `max` > 0, and `min` <= `max`. Tarn refused anything else when Knex built
-// the pool; they are refused here, when the configuration is read.
+// The pool sizes Knex could use: tarn refused a `min` that is not a whole
+// number >= 0, a `max` that is not a whole number > 0 (except 0, for which
+// Knex built no pool, so every query failed) and a `min` above the `max`.
+// All of them are refused here, when the configuration is read.
 const getPoolSizeProblem = (min: number, max: number) => {
   if (!Number.isInteger(min) || min < 0) return 'min must be an integer >= 0'
   if (!Number.isInteger(max) || max <= 0) return 'max must be an integer > 0'
@@ -155,8 +157,10 @@ export const parseKnexDatabaseConfig = (value: unknown): DatabaseConfig => {
     warnIgnoredKeys(ignored)
     return PostgresDatabaseConfig.parse({
       client: 'pg',
-      // Knex read a missing connection as `{}`; node-postgres then takes the
-      // host, user, password and database from the PG* environment variables.
+      // Knex built no pool without a connection (every query failed with
+      // "Unable to acquire a connection"); here it is `{}`, and node-postgres
+      // takes the host, user, password and database from the PG* environment
+      // variables.
       connection: value.connection || {},
       ...(isObject(pool)
         ? {

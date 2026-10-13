@@ -90,8 +90,9 @@ describe('Database config', () => {
       expect(poolOf(config)).toEqual({ min: 2, max: 20 })
     })
 
-    // Knex's pool (tarn) refused these when it was built; they now fail when
-    // the configuration is read.
+    // Knex could not use these: tarn refused them when it was built, and with
+    // a max of 0 Knex built no pool. They now fail when the configuration is
+    // read.
     it.each([
       ['MAX', 'abc', 'the pool max must be an integer > 0'],
       ['MAX', '0', 'the pool max must be an integer > 0'],
@@ -372,18 +373,22 @@ describe('Database config', () => {
       // Knex's default min of 2 applies when only max is given.
       [{ max: 1 }, 'pool.max is smaller than min'],
       [{ min: 4, max: 3 }, 'pool.max is smaller than min']
-    ])('refuses the pool size %j, as Knex did', (pool, message) => {
-      expect(() =>
-        parseKnexDatabaseConfig({
-          client: 'pg',
-          connection: { host: 'db' },
-          pool
-        })
-      ).toThrow(message)
-    })
+    ])(
+      'refuses the pool size %j, which Knex could not use',
+      (pool, message) => {
+        expect(() =>
+          parseKnexDatabaseConfig({
+            client: 'pg',
+            connection: { host: 'db' },
+            pool
+          })
+        ).toThrow(message)
+      }
+    )
 
-    // Knex read a missing connection as {}; node-postgres then reads PGHOST,
-    // PGUSER, PGPASSWORD, PGDATABASE and the other PG* variables.
+    // Knex built no pool without a connection; the app reads it as {}, and
+    // node-postgres then reads PGHOST, PGUSER, PGPASSWORD, PGDATABASE and the
+    // other PG* variables.
     it.each([undefined, null, ''])(
       'reads a pg connection of %j as {}, for the PG* variables',
       (connection) => {
