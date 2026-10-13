@@ -17,7 +17,7 @@ vi.mock('@/lib/services/timelines/types', async (importOriginal) => {
 
 describe('backfillListTimelineForMembers member cap', () => {
   const testDb = createTestDatabase()
-  const { database, knex: instance } = testDb
+  const { database, db } = testDb
 
   const localActor = async (username: string) => {
     await database.createAccount({
@@ -60,9 +60,12 @@ describe('backfillListTimelineForMembers member cap', () => {
   }
 
   const storedStatusIds = async (ownerId: string, listId: string) => {
-    const rows = await instance('timelines')
-      .where({ actorId: ownerId, timeline: `list:${listId}` })
+    const rows = await db
+      .selectFrom('timelines')
       .select('statusId')
+      .where('actorId', '=', ownerId)
+      .where('timeline', '=', `list:${listId}`)
+      .execute()
     return rows.map((row) => row.statusId as string).sort()
   }
 

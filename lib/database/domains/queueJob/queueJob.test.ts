@@ -5,7 +5,9 @@ import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('QueueJobDatabase', () => {
-  const { database, db, knex: knexDatabase, prepare } = createTestDatabase()
+  // `knex` stays for the one case that checks a Knex transaction through
+  // `kyselyFor`, on purpose.
+  const { database, db, knex, prepare } = createTestDatabase()
 
   beforeAll(async () => {
     await prepare()
@@ -138,11 +140,13 @@ describe('QueueJobDatabase', () => {
     ).toBe(true)
 
     // Job was rescheduled to future before claim executes
-    await knexDatabase('queue_jobs')
-      .where({ id: 'rescheduled-between-discovery-1' })
-      .update({
+    await db
+      .updateTable('queue_jobs')
+      .set({
         next_run_at: new Date(now + 60000)
       })
+      .where('id', '=', 'rescheduled-between-discovery-1')
+      .execute()
 
     // Claim attempted at `now` must fail because next_run_at > now
     const claim = await database.claimQueueJob({
@@ -395,10 +399,10 @@ describe('QueueJobDatabase', () => {
       expect(claim).not.toBeNull()
 
       // Temporarily rename dead_letter_jobs table to force dead letter write failure
-      await knexDatabase.schema.renameTable(
-        'dead_letter_jobs',
-        'dead_letter_jobs_bak'
-      )
+      await db.schema
+        .alterTable('dead_letter_jobs')
+        .renameTo('dead_letter_jobs_bak')
+        .execute()
 
       try {
         await expect(
@@ -415,10 +419,10 @@ describe('QueueJobDatabase', () => {
         expect(queueJob?.status).toBe('processing')
         expect(queueJob?.claimToken).toBe(claim!.claimToken)
       } finally {
-        await knexDatabase.schema.renameTable(
-          'dead_letter_jobs_bak',
-          'dead_letter_jobs'
-        )
+        await db.schema
+          .alterTable('dead_letter_jobs_bak')
+          .renameTo('dead_letter_jobs')
+          .execute()
       }
     })
 
@@ -480,9 +484,11 @@ describe('QueueJobDatabase', () => {
         expect(claim).not.toBeNull()
 
         // Corrupt the payload directly in the database after claim
-        await knexDatabase('queue_jobs')
-          .where({ id: 'fail-dlq-corrupt-1' })
-          .update({ payload: 'corrupt-non-json-payload{{{' })
+        await db
+          .updateTable('queue_jobs')
+          .set({ payload: 'corrupt-non-json-payload{{{' })
+          .where('id', '=', 'fail-dlq-corrupt-1')
+          .execute()
 
         const success = await database.failQueueJobWithDeadLetter({
           id: 'fail-dlq-corrupt-1',
@@ -518,9 +524,11 @@ describe('QueueJobDatabase', () => {
 
       // JSON columns accept this value on every backend, even though it is not
       // a complete JobMessage. Dead-lettering must preserve the payload data.
-      await knexDatabase('queue_jobs')
-        .where({ id: 'fail-dlq-malformed-json-1' })
-        .update({ payload: JSON.stringify(malformedPayload) })
+      await db
+        .updateTable('queue_jobs')
+        .set({ payload: JSON.stringify(malformedPayload) })
+        .where('id', '=', 'fail-dlq-malformed-json-1')
+        .execute()
 
       const success = await database.failQueueJobWithDeadLetter({
         id: 'fail-dlq-malformed-json-1',
@@ -552,12 +560,14 @@ describe('QueueJobDatabase', () => {
     expect(claim1).not.toBeNull()
 
     // Worker 1 crashes / stalls; backdate updated_at by 20 minutes
-    await knexDatabase('queue_jobs')
-      .where({ id: 'stalled-reclaim-1' })
-      .update({
+    await db
+      .updateTable('queue_jobs')
+      .set({
         status: 'processing',
         updated_at: new Date(now - 20 * 60 * 1000)
       })
+      .where('id', '=', 'stalled-reclaim-1')
+      .execute()
 
     // Worker 2 reclaims after 15 min stalled timeout
     const stalledBefore = new Date(now - 15 * 60 * 1000)
@@ -733,9 +743,11 @@ describe('QueueJobDatabase', () => {
     expect(failedJob?.attempts).toBe(16)
     expect(failedJob?.lastErrorMessage).toBe('Terminal crash')
 
-    const dlqJob = await knexDatabase('dead_letter_jobs')
-      .where({ id: 'replay-test-1' })
-      .first()
+    const dlqJob = await db
+      .selectFrom('dead_letter_jobs')
+      .selectAll()
+      .where('id', '=', 'replay-test-1')
+      .executeTakeFirst()
     expect(dlqJob?.status).toBe('failed')
 
     // Replay job
@@ -749,32 +761,39 @@ describe('QueueJobDatabase', () => {
     expect(replayedJob?.lastErrorMessage).toBeNull()
     expect(replayedJob?.lastErrorStack).toBeNull()
 
-    const replayedDlq = await knexDatabase('dead_letter_jobs')
-      .where({ id: 'replay-test-1' })
-      .first()
+    const replayedDlq = await db
+      .selectFrom('dead_letter_jobs')
+      .selectAll()
+      .where('id', '=', 'replay-test-1')
+      .executeTakeFirst()
     expect(replayedDlq?.status).toBe('retried')
   })
 
   it('rolls back DLQ status update if queue job replay fails', async () => {
     // Insert a dead letter job without a corresponding queue_jobs row
-    await knexDatabase('dead_letter_jobs').insert({
-      id: 'missing-queue-job-1',
-      job_name: 'deliverActivity',
-      payload: JSON.stringify(samplePayload),
-      error_message: 'Some error',
-      attempts: 16,
-      status: 'failed',
-      created_at: new Date(),
-      updated_at: new Date()
-    })
+    await db
+      .insertInto('dead_letter_jobs')
+      .values({
+        id: 'missing-queue-job-1',
+        job_name: 'deliverActivity',
+        payload: JSON.stringify(samplePayload),
+        error_message: 'Some error',
+        attempts: 16,
+        status: 'failed',
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute()
 
     const success = await database.replayQueueJob({ id: 'missing-queue-job-1' })
     expect(success).toBe(false)
 
     // Verify DLQ status was NOT changed to retried because transaction rolled back
-    const dlqRecord = await knexDatabase('dead_letter_jobs')
-      .where({ id: 'missing-queue-job-1' })
-      .first()
+    const dlqRecord = await db
+      .selectFrom('dead_letter_jobs')
+      .selectAll()
+      .where('id', '=', 'missing-queue-job-1')
+      .executeTakeFirst()
     expect(dlqRecord?.status).toBe('failed')
   })
 
@@ -783,9 +802,7 @@ describe('QueueJobDatabase', () => {
       kind: 'a Knex transaction',
       id: 'missing-queue-job-knex-trx',
       replay: (id: string) =>
-        knexDatabase.transaction((trx) =>
-          replayQueueJob(kyselyFor(trx), { id })
-        )
+        knex.transaction((trx) => replayQueueJob(kyselyFor(trx), { id }))
     },
     {
       kind: 'a Kysely transaction',
@@ -796,22 +813,27 @@ describe('QueueJobDatabase', () => {
   ])(
     'rethrows inside $kind so that transaction rolls back',
     async ({ id, replay }) => {
-      await knexDatabase('dead_letter_jobs').insert({
-        id,
-        job_name: 'deliverActivity',
-        payload: JSON.stringify(samplePayload),
-        error_message: 'Some error',
-        attempts: 16,
-        status: 'failed',
-        created_at: new Date(),
-        updated_at: new Date()
-      })
+      await db
+        .insertInto('dead_letter_jobs')
+        .values({
+          id,
+          job_name: 'deliverActivity',
+          payload: JSON.stringify(samplePayload),
+          error_message: 'Some error',
+          attempts: 16,
+          status: 'failed',
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .execute()
 
       await expect(replay(id)).rejects.toThrow(`Cannot replay queue job ${id}`)
 
-      const dlqRecord = await knexDatabase('dead_letter_jobs')
-        .where({ id })
-        .first()
+      const dlqRecord = await db
+        .selectFrom('dead_letter_jobs')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst()
       expect(dlqRecord?.status).toBe('failed')
     }
   )
@@ -842,9 +864,11 @@ describe('QueueJobDatabase', () => {
     expect(job?.status).toBe('pending')
     expect(job?.attempts).toBe(0)
 
-    const dlqRecord = await knexDatabase('dead_letter_jobs')
-      .where({ id: 'concurrent-replay-1' })
-      .first()
+    const dlqRecord = await db
+      .selectFrom('dead_letter_jobs')
+      .selectAll()
+      .where('id', '=', 'concurrent-replay-1')
+      .executeTakeFirst()
     expect(dlqRecord?.status).toBe('retried')
   })
 
@@ -860,12 +884,14 @@ describe('QueueJobDatabase', () => {
     })
 
     // Manually backdate updated_at to simulate a crashed worker
-    await knexDatabase('queue_jobs')
-      .where({ id: 'stalled-1' })
-      .update({
+    await db
+      .updateTable('queue_jobs')
+      .set({
         status: 'processing',
         updated_at: new Date(now - 30 * 60 * 1000)
       })
+      .where('id', '=', 'stalled-1')
+      .execute()
 
     // Without stalled timeout, getDueQueueJobs ignores it
     const normalDue = await database.getDueQueueJobs({
@@ -908,9 +934,11 @@ describe('QueueJobDatabase', () => {
         status,
         nextRunAt: at
       })
-      await knexDatabase('queue_jobs')
-        .where({ id })
-        .update({ created_at: at, updated_at: at })
+      await db
+        .updateTable('queue_jobs')
+        .set({ created_at: at, updated_at: at })
+        .where('id', '=', id)
+        .execute()
     }
 
     it('deletes only completed jobs older than the cutoff', async () => {

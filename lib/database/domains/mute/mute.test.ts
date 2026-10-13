@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import type { Knex } from 'knex'
 
 import { muteQueries } from '@/lib/database/domains/mute/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -10,7 +9,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 describe('MuteDatabase', () => {
   const testDb = createTestDatabase()
-  const knexDatabase: Knex = testDb.knex
+  const db = testDb.db
   const database: Database = testDb.database
 
   beforeAll(async () => {
@@ -169,17 +168,20 @@ describe('MuteDatabase', () => {
     const pastEndsAt = Date.now() - 1000
 
     // Insert an expired mute directly (bypassing createMute so endsAt is in the past)
-    await knexDatabase('mutes').insert({
-      id: crypto.randomUUID(),
-      actorId: ACTOR1_ID,
-      actorHost: new URL(ACTOR1_ID).host,
-      targetActorId: target,
-      targetActorHost: new URL(target).host,
-      notifications: true,
-      endsAt: pastEndsAt,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await db
+      .insertInto('mutes')
+      .values({
+        id: crypto.randomUUID(),
+        actorId: ACTOR1_ID,
+        actorHost: new URL(ACTOR1_ID).host,
+        targetActorId: target,
+        targetActorHost: new URL(target).host,
+        notifications: true,
+        endsAt: pastEndsAt,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
 
     // Re-muting should succeed (UPDATE, not INSERT) and return fresh params
     const remute = await database.createMute({
@@ -192,10 +194,12 @@ describe('MuteDatabase', () => {
     expect(remute.notifications).toBe(false)
     expect(remute.endsAt).toBeNull()
     // Only one row should exist
-    const count = await knexDatabase('mutes')
-      .where({ actorId: ACTOR1_ID, targetActorId: target })
-      .count('id as n')
-      .first()
+    const count = await db
+      .selectFrom('mutes')
+      .select((eb) => eb.fn.countAll<number>().as('n'))
+      .where('actorId', '=', ACTOR1_ID)
+      .where('targetActorId', '=', target)
+      .executeTakeFirst()
     expect(Number(count?.n)).toBe(1)
     // And getMute now sees it as active
     await expect(
@@ -207,17 +211,20 @@ describe('MuteDatabase', () => {
     const target = targetActorId()
     const pastEndsAt = Date.now() - 1000
 
-    await knexDatabase('mutes').insert({
-      id: crypto.randomUUID(),
-      actorId: ACTOR1_ID,
-      actorHost: new URL(ACTOR1_ID).host,
-      targetActorId: target,
-      targetActorHost: new URL(target).host,
-      notifications: true,
-      endsAt: pastEndsAt,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await db
+      .insertInto('mutes')
+      .values({
+        id: crypto.randomUUID(),
+        actorId: ACTOR1_ID,
+        actorHost: new URL(ACTOR1_ID).host,
+        targetActorId: target,
+        targetActorHost: new URL(target).host,
+        notifications: true,
+        endsAt: pastEndsAt,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
 
     await expect(
       database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
@@ -257,17 +264,20 @@ describe('MuteDatabase', () => {
     it('omits expired mutes', async () => {
       const actorId = muteActorId()
       const target = targetActorId()
-      await knexDatabase('mutes').insert({
-        id: crypto.randomUUID(),
-        actorId,
-        actorHost: new URL(actorId).host,
-        targetActorId: target,
-        targetActorHost: new URL(target).host,
-        notifications: true,
-        endsAt: Date.now() - 1000,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
+      await db
+        .insertInto('mutes')
+        .values({
+          id: crypto.randomUUID(),
+          actorId,
+          actorHost: new URL(actorId).host,
+          targetActorId: target,
+          targetActorHost: new URL(target).host,
+          notifications: true,
+          endsAt: Date.now() - 1000,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .execute()
 
       const mutes = await database.getMutes({ actorId })
       expect(mutes).toHaveLength(0)
@@ -340,17 +350,20 @@ describe('MuteDatabase', () => {
 
       // Seed an expired mute with old timestamps.
       const oldDate = new Date(Date.now() - 60_000)
-      await knexDatabase('mutes').insert({
-        id: crypto.randomUUID(),
-        actorId,
-        actorHost: new URL(actorId).host,
-        targetActorId: oldTarget,
-        targetActorHost: new URL(oldTarget).host,
-        notifications: true,
-        endsAt: pastEndsAt,
-        createdAt: oldDate,
-        updatedAt: oldDate
-      })
+      await db
+        .insertInto('mutes')
+        .values({
+          id: crypto.randomUUID(),
+          actorId,
+          actorHost: new URL(actorId).host,
+          targetActorId: oldTarget,
+          targetActorHost: new URL(oldTarget).host,
+          notifications: true,
+          endsAt: pastEndsAt,
+          createdAt: oldDate,
+          updatedAt: oldDate
+        })
+        .execute()
       await new Promise((resolve) => setTimeout(resolve, 5))
 
       // Mute a second target fresh.
@@ -408,30 +421,33 @@ describe('MuteDatabase', () => {
     const pastEndsAt = Date.now() - 1000
     const futureEndsAt = Date.now() + 60_000
 
-    await knexDatabase('mutes').insert([
-      {
-        id: crypto.randomUUID(),
-        actorId,
-        actorHost: new URL(actorId).host,
-        targetActorId: expiredTarget,
-        targetActorHost: new URL(expiredTarget).host,
-        notifications: true,
-        endsAt: pastEndsAt,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: crypto.randomUUID(),
-        actorId,
-        actorHost: new URL(actorId).host,
-        targetActorId: activeTarget,
-        targetActorHost: new URL(activeTarget).host,
-        notifications: false,
-        endsAt: futureEndsAt,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ])
+    await db
+      .insertInto('mutes')
+      .values([
+        {
+          id: crypto.randomUUID(),
+          actorId,
+          actorHost: new URL(actorId).host,
+          targetActorId: expiredTarget,
+          targetActorHost: new URL(expiredTarget).host,
+          notifications: true,
+          endsAt: pastEndsAt,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: crypto.randomUUID(),
+          actorId,
+          actorHost: new URL(actorId).host,
+          targetActorId: activeTarget,
+          targetActorHost: new URL(activeTarget).host,
+          notifications: false,
+          endsAt: futureEndsAt,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ])
+      .execute()
 
     const relations = await database.getMuteRelations({
       actorIds: [actorId],
@@ -621,17 +637,20 @@ describe('MuteDatabase', () => {
       ] as const
       for (const [suffix, updatedAt] of mutes) {
         const target = targetActorId()
-        await knexDatabase('mutes').insert({
-          id: `${prefix}-${suffix}`,
-          actorId,
-          actorHost: new URL(actorId).host,
-          targetActorId: target,
-          targetActorHost: new URL(target).host,
-          notifications: true,
-          endsAt: null,
-          createdAt: updatedAt,
-          updatedAt
-        })
+        await db
+          .insertInto('mutes')
+          .values({
+            id: `${prefix}-${suffix}`,
+            actorId,
+            actorHost: new URL(actorId).host,
+            targetActorId: target,
+            targetActorHost: new URL(target).host,
+            notifications: true,
+            endsAt: null,
+            createdAt: updatedAt,
+            updatedAt
+          })
+          .execute()
       }
       const ids = (found: { id: string }[]) =>
         found.map((mute) => mute.id.slice(prefix.length + 1))
@@ -662,17 +681,20 @@ describe('MuteDatabase', () => {
         updatedAt: number
       ) => {
         const target = targetActorId()
-        await knexDatabase('mutes').insert({
-          id,
-          actorId,
-          actorHost: new URL(actorId).host,
-          targetActorId: target,
-          targetActorHost: new URL(target).host,
-          notifications: true,
-          endsAt: null,
-          createdAt: new Date(createdAt),
-          updatedAt: new Date(updatedAt)
-        })
+        await db
+          .insertInto('mutes')
+          .values({
+            id,
+            actorId,
+            actorHost: new URL(actorId).host,
+            targetActorId: target,
+            targetActorHost: new URL(target).host,
+            notifications: true,
+            endsAt: null,
+            createdAt: new Date(createdAt),
+            updatedAt: new Date(updatedAt)
+          })
+          .execute()
       }
       const base = Date.now() - 60_000
       // `remuted` was created first but muted again last, so it ranks first.

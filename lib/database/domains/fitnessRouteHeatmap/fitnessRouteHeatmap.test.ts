@@ -1219,7 +1219,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
 
   describe('restoring a row soft-deleted before deletion revoked its token', () => {
     it('drops the stale share token when the row is restored', async () => {
-      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      const { database, db, prepare } = getTestDatabaseWithInstance(true)
       await prepare()
       await database.migrate()
       await seedDatabase(database)
@@ -1233,9 +1233,11 @@ describe('FitnessRouteHeatmapDatabase', () => {
         region: 'legacy-deleted'
       })
       // Rows soft-deleted by older code kept their token.
-      await instance('fitness_route_heatmaps')
-        .where('id', created.id)
-        .update({ shareToken: token, deletedAt: new Date() })
+      await db
+        .updateTable('fitness_route_heatmaps')
+        .set({ shareToken: token, deletedAt: new Date() })
+        .where('id', '=', created.id)
+        .execute()
 
       const restored = await database.updateFitnessRouteHeatmapStatus({
         id: created.id,
@@ -1296,12 +1298,14 @@ describe('FitnessRouteHeatmapDatabase', () => {
     // deleted row's token on its own, so a test that restores first cannot
     // tell whether the delete revoked the token.
     const readStoredToken = async (
-      instance: ReturnType<typeof getTestDatabaseWithInstance>['instance'],
+      db: ReturnType<typeof getTestDatabaseWithInstance>['db'],
       id: string
     ) => {
-      const row = await instance('fitness_route_heatmaps')
-        .where('id', id)
-        .first('shareToken', 'deletedAt')
+      const row = await db
+        .selectFrom('fitness_route_heatmaps')
+        .select(['shareToken', 'deletedAt'])
+        .where('id', '=', id)
+        .executeTakeFirst()
       expect(row?.deletedAt).not.toBeNull()
       return row?.shareToken ?? null
     }
@@ -1323,7 +1327,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ) => database.deleteFitnessRouteHeatmapsForActor({ actorId })
       ]
     ])('%s nulls shareToken on the deleted row', async (_, remove) => {
-      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      const { database, db, prepare } = getTestDatabaseWithInstance(true)
       await prepare()
       await database.migrate()
       await seedDatabase(database)
@@ -1344,7 +1348,7 @@ describe('FitnessRouteHeatmapDatabase', () => {
 
       await remove(database, actorId, created.id)
 
-      await expect(readStoredToken(instance, created.id)).resolves.toBeNull()
+      await expect(readStoredToken(db, created.id)).resolves.toBeNull()
 
       await database.destroy()
     })

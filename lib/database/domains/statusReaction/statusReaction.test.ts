@@ -503,13 +503,16 @@ describe('StatusReactionDatabase', () => {
         name: string,
         createdAt: number
       ) =>
-        testDb.knex('status_reactions').insert({
-          statusId,
-          actorId,
-          name,
-          createdAt: new Date(createdAt),
-          updatedAt: new Date(createdAt)
-        })
+        testDb.db
+          .insertInto('status_reactions')
+          .values({
+            statusId,
+            actorId,
+            name,
+            createdAt: new Date(createdAt),
+            updatedAt: new Date(createdAt)
+          })
+          .execute()
 
       it('counts the per-actor cap on each status separately', async () => {
         const full = await createStatus('cap-full')

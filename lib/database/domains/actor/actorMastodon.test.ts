@@ -383,7 +383,7 @@ describe('ActorDatabase mastodon actors', () => {
       })
 
       it('falls back to the legacy id for an actor that predates the backfill', async () => {
-        await withFreshDatabaseAndInstance(async (freshDatabase, instance) => {
+        await withFreshDatabaseAndInstance(async (freshDatabase, db) => {
           const actorId = `https://${TEST_DOMAIN}/users/legacy-account-id`
           await freshDatabase.createActor({
             actorId,
@@ -395,9 +395,13 @@ describe('ActorDatabase mastodon actors', () => {
             publicKey: 'public-key',
             createdAt: Date.now()
           })
-          await instance('actors').where('id', actorId).update({
-            publicId: null
-          })
+          await db
+            .updateTable('actors')
+            .set({
+              publicId: null
+            })
+            .where('id', '=', actorId)
+            .execute()
 
           const actor = await freshDatabase.getMastodonActorFromId({
             id: actorId

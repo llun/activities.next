@@ -1,3 +1,5 @@
+import { sql } from 'kysely'
+
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   createActor,
@@ -77,9 +79,9 @@ const waitForLockWait = async (waiter: { state: { settled: boolean } }) => {
     if (waiter.state.settled) {
       throw new Error('the operation finished without waiting for a row lock')
     }
-    const { rows } = await testDb.knex.raw(
-      "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
-    )
+    const { rows } = await sql<{ waiting: number }>`
+      select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'
+    `.execute(testDb.db)
     if (rows[0].waiting > 0) return
     await new Promise((resolve) => setTimeout(resolve, 20))
   }

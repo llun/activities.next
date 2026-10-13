@@ -1,4 +1,5 @@
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { insertRowsInChunks } from '@/lib/database/testing/searchTestHelpers'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -76,7 +77,7 @@ describe('local public timeline actor id handling', () => {
   })
 
   describe('with more local actors than the query can bind', () => {
-    const { database, instance, captureQueries, prepare } =
+    const { database, db, captureQueries, prepare } =
       getTestDatabaseWithInstance(true)
 
     // Past the literal-id ceiling on BOTH backends, so the fallback semi-join
@@ -96,20 +97,24 @@ describe('local public timeline actor id handling', () => {
       await prepare()
       await database.migrate()
 
-      await instance.batchInsert(
+      await insertRowsInChunks(
+        db,
         'actors',
         Array.from({ length: LOCAL_ACTOR_COUNT }, (_, index) =>
           seedLocalActor(index)
         ),
         50
       )
-      await instance('actors').insert({
-        ...seedLocalActor(LOCAL_ACTOR_COUNT),
-        id: EMPTY_KEY_ID,
-        username: 'empty-key',
-        domain: 'remote.test',
-        privateKey: ''
-      })
+      await db
+        .insertInto('actors')
+        .values({
+          ...seedLocalActor(LOCAL_ACTOR_COUNT),
+          id: EMPTY_KEY_ID,
+          username: 'empty-key',
+          domain: 'remote.test',
+          privateKey: ''
+        })
+        .execute()
       await database.createNote({
         actorId: EMPTY_KEY_ID,
         to: [ACTIVITY_STREAM_PUBLIC],

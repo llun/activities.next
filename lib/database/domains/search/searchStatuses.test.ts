@@ -150,7 +150,7 @@ describe('SearchDatabase statuses', () => {
 
   it('indexes legacy raw-string status content', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/raw-string-search`
     const currentTime = new Date()
@@ -162,24 +162,30 @@ describe('SearchDatabase statuses', () => {
         id: actorId,
         username: 'alice'
       })
-      await knexDatabase('statuses').insert({
-        id: statusId,
-        url: statusId,
-        actorId,
-        type: StatusType.enum.Note,
-        content: '<p>Legacy raw string summitlegacy</p>',
-        reply: '',
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      await knexDatabase('recipients').insert({
-        id: crypto.randomUUID(),
-        statusId,
-        actorId: ACTIVITY_STREAM_PUBLIC,
-        type: 'to',
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
+      await db
+        .insertInto('statuses')
+        .values({
+          id: statusId,
+          url: statusId,
+          actorId,
+          type: StatusType.enum.Note,
+          content: '<p>Legacy raw string summitlegacy</p>',
+          reply: '',
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+        .execute()
+      await db
+        .insertInto('recipients')
+        .values({
+          id: crypto.randomUUID(),
+          statusId,
+          actorId: ACTIVITY_STREAM_PUBLIC,
+          type: 'to',
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+        .execute()
 
       await expect(
         database.reindexSearchStatuses({ limit: 10 })
@@ -341,7 +347,7 @@ describe('SearchDatabase statuses', () => {
 
   it('deletes stale status search documents in SQLite-safe batches', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusCount = 1005
     const currentTime = new Date()
@@ -370,9 +376,9 @@ describe('SearchDatabase statuses', () => {
         id: actorId,
         username: 'alice'
       })
-      await insertRowsInChunks(knexDatabase, 'statuses', statuses, 100)
+      await insertRowsInChunks(db, 'statuses', statuses, 100)
       await insertRowsInChunks(
-        knexDatabase,
+        db,
         'search_documents',
         statuses.map((status) => ({
           id: getSearchDocumentId({
@@ -398,10 +404,11 @@ describe('SearchDatabase statuses', () => {
         database.reindexSearchStatuses({ limit: statusCount + 1 })
       ).resolves.toEqual({ indexed: statusCount, nextCursor: null })
 
-      const countRow = await knexDatabase('search_documents')
-        .where('entityType', 'status')
-        .count<{ count: number | string }>({ count: 'id' })
-        .first()
+      const countRow = await db
+        .selectFrom('search_documents')
+        .select((eb) => eb.fn.countAll<number>().as('count'))
+        .where('entityType', '=', 'status')
+        .executeTakeFirst()
       expect(Number(countRow?.count ?? 0)).toBe(0)
     } finally {
       await database.destroy()
@@ -576,7 +583,7 @@ describe('SearchDatabase statuses', () => {
 
   it('deletes actor status search documents in SQLite-safe batches', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusCount = 1005
     const currentTime = new Date()
@@ -605,9 +612,9 @@ describe('SearchDatabase statuses', () => {
         id: actorId,
         username: 'alice'
       })
-      await insertRowsInChunks(knexDatabase, 'statuses', statuses, 100)
+      await insertRowsInChunks(db, 'statuses', statuses, 100)
       await insertRowsInChunks(
-        knexDatabase,
+        db,
         'search_documents',
         statuses.map((status) => ({
           id: getSearchDocumentId({
@@ -634,15 +641,17 @@ describe('SearchDatabase statuses', () => {
       )
 
       const [statusCountRow, searchDocumentCountRow] = await Promise.all([
-        knexDatabase('statuses')
-          .where('actorId', actorId)
-          .count<{ count: number | string }>({ count: 'id' })
-          .first(),
-        knexDatabase('search_documents')
-          .where('entityType', 'status')
-          .where('actorId', actorId)
-          .count<{ count: number | string }>({ count: 'id' })
-          .first()
+        db
+          .selectFrom('statuses')
+          .select((eb) => eb.fn.countAll<number>().as('count'))
+          .where('actorId', '=', actorId)
+          .executeTakeFirst(),
+        db
+          .selectFrom('search_documents')
+          .select((eb) => eb.fn.countAll<number>().as('count'))
+          .where('entityType', '=', 'status')
+          .where('actorId', '=', actorId)
+          .executeTakeFirst()
       ])
       expect(Number(statusCountRow?.count ?? 0)).toBe(0)
       expect(Number(searchDocumentCountRow?.count ?? 0)).toBe(0)

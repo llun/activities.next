@@ -1,9 +1,10 @@
-import { Knex } from 'knex'
+import { type Insertable } from 'kysely'
 import { randomUUID } from 'node:crypto'
 
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import type { Db } from '@/lib/database/kysely'
+import type { DB } from '@/lib/database/kysely/db'
 
 export const createSearchActor = async (
   database: ReturnType<typeof getSQLDatabase>,
@@ -36,14 +37,17 @@ export const createSearchActor = async (
   })
 }
 
-export const insertRowsInChunks = async (
-  knexDatabase: Knex,
-  tableName: string,
-  rows: Record<string, unknown>[],
+export const insertRowsInChunks = async <T extends keyof DB>(
+  db: Db,
+  tableName: T,
+  rows: Insertable<DB[T]>[],
   chunkSize: number
 ) => {
   for (let start = 0; start < rows.length; start += chunkSize) {
-    await knexDatabase(tableName).insert(rows.slice(start, start + chunkSize))
+    await db
+      .insertInto(tableName)
+      .values(rows.slice(start, start + chunkSize))
+      .execute()
   }
 }
 

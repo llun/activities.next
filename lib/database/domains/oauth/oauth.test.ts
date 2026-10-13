@@ -5,7 +5,7 @@ import { Scope } from '@/lib/types/database/operations'
 
 describe('OAuthDatabase', () => {
   const testDb = createTestDatabase()
-  const knexDatabase = testDb.knex
+  const db = testDb.db
   const database = testDb.database
 
   beforeAll(async () => {
@@ -14,46 +14,52 @@ describe('OAuthDatabase', () => {
 
     // Insert test clients directly into the oauthClient table
     const now = new Date()
-    await knexDatabase('oauthClient').insert({
-      id: crypto.randomUUID(),
-      clientId: 'test-client-1',
-      clientSecret: 'hashed-secret-1',
-      name: 'oauth-app1',
-      scopes: JSON.stringify([Scope.enum.read]),
-      redirectUris: JSON.stringify([
-        'https://oauth-app1.llun.dev/oauth/redirect'
-      ]),
-      requirePKCE: false,
-      disabled: false,
-      grantTypes: JSON.stringify([
-        'authorization_code',
-        'client_credentials',
-        'refresh_token'
-      ]),
-      responseTypes: JSON.stringify(['code']),
-      tokenEndpointAuthMethod: 'client_secret_post',
-      createdAt: now,
-      updatedAt: now
-    })
+    await db
+      .insertInto('oauthClient')
+      .values({
+        id: crypto.randomUUID(),
+        clientId: 'test-client-1',
+        clientSecret: 'hashed-secret-1',
+        name: 'oauth-app1',
+        scopes: JSON.stringify([Scope.enum.read]),
+        redirectUris: JSON.stringify([
+          'https://oauth-app1.llun.dev/oauth/redirect'
+        ]),
+        requirePKCE: false,
+        disabled: false,
+        grantTypes: JSON.stringify([
+          'authorization_code',
+          'client_credentials',
+          'refresh_token'
+        ]),
+        responseTypes: JSON.stringify(['code']),
+        tokenEndpointAuthMethod: 'client_secret_post',
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
 
-    await knexDatabase('oauthClient').insert({
-      id: crypto.randomUUID(),
-      clientId: 'test-client-2',
-      clientSecret: 'hashed-secret-2',
-      name: 'oauth-app2',
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-      redirectUris: JSON.stringify([
-        'https://oauth-app2.llun.dev/oauth/redirect'
-      ]),
-      requirePKCE: false,
-      disabled: false,
-      createdAt: now,
-      updatedAt: now
-    })
+    await db
+      .insertInto('oauthClient')
+      .values({
+        id: crypto.randomUUID(),
+        clientId: 'test-client-2',
+        clientSecret: 'hashed-secret-2',
+        name: 'oauth-app2',
+        scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+        redirectUris: JSON.stringify([
+          'https://oauth-app2.llun.dev/oauth/redirect'
+        ]),
+        requirePKCE: false,
+        disabled: false,
+        createdAt: now,
+        updatedAt: now
+      })
+      .execute()
   })
 
   afterAll(async () => {
-    await knexDatabase.destroy()
+    await testDb.destroy()
   })
 
   describe('clients', () => {
@@ -83,23 +89,28 @@ describe('OAuthDatabase', () => {
     const ORIGINAL_EXPIRES_AT = NOW + 60 * 60 * 1000
 
     beforeAll(async () => {
-      await knexDatabase('oauthAccessToken').insert(
-        ['extend-target', 'extend-neighbour'].map((token) => ({
-          id: crypto.randomUUID(),
-          token,
-          clientId: 'test-client-1',
-          scopes: JSON.stringify([Scope.enum.read]),
-          expiresAt: new Date(ORIGINAL_EXPIRES_AT),
-          createdAt: new Date(NOW)
-        }))
-      )
+      await db
+        .insertInto('oauthAccessToken')
+        .values(
+          ['extend-target', 'extend-neighbour'].map((token) => ({
+            id: crypto.randomUUID(),
+            token,
+            clientId: 'test-client-1',
+            scopes: JSON.stringify([Scope.enum.read]),
+            expiresAt: new Date(ORIGINAL_EXPIRES_AT),
+            createdAt: new Date(NOW)
+          }))
+        )
+        .execute()
     })
 
     const readExpiresAt = async (token: string) => {
-      const row = await knexDatabase('oauthAccessToken')
-        .where('token', token)
-        .first('expiresAt')
-      return row ? new Date(row.expiresAt).getTime() : null
+      const row = await db
+        .selectFrom('oauthAccessToken')
+        .select('expiresAt')
+        .where('token', '=', token)
+        .executeTakeFirst()
+      return row ? row.expiresAt : null
     }
 
     it('moves only the matching token to the new expiry', async () => {
@@ -115,9 +126,12 @@ describe('OAuthDatabase', () => {
     })
 
     it('does nothing for a token that is not stored, so a deleted token stays deleted', async () => {
-      const before = await knexDatabase('oauthAccessToken').count({
-        count: '*'
-      })
+      const countTokens = () =>
+        db
+          .selectFrom('oauthAccessToken')
+          .select((eb) => eb.fn.countAll<number>().as('count'))
+          .execute()
+      const before = await countTokens()
 
       await database.extendOAuthAccessToken({
         hashedToken: 'deleted-token',
@@ -125,9 +139,7 @@ describe('OAuthDatabase', () => {
       })
 
       expect(await readExpiresAt('deleted-token')).toBeNull()
-      expect(
-        await knexDatabase('oauthAccessToken').count({ count: '*' })
-      ).toEqual(before)
+      expect(await countTokens()).toEqual(before)
     })
   })
 
@@ -156,94 +168,118 @@ describe('OAuthDatabase', () => {
         publicKey: 'public-other'
       })
       // Two registered clients: an API client and an SSO sign-in.
-      await knexDatabase('oauthClient').insert([
-        {
-          id: crypto.randomUUID(),
-          clientId: 'ice-cubes',
-          name: 'Ice Cubes',
-          uri: 'icecubesapp.com',
-          scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
-          redirectUris: JSON.stringify(['https://icecubesapp.com/oauth']),
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: crypto.randomUUID(),
-          clientId: 'la-suite-docs',
-          name: 'La Suite Docs',
-          uri: 'docs.llun.dev',
-          scopes: JSON.stringify([Scope.enum.openid]),
-          redirectUris: JSON.stringify(['https://docs.llun.dev/oauth']),
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
+      await db
+        .insertInto('oauthClient')
+        .values([
+          {
+            id: crypto.randomUUID(),
+            clientId: 'ice-cubes',
+            name: 'Ice Cubes',
+            uri: 'icecubesapp.com',
+            scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+            redirectUris: JSON.stringify(['https://icecubesapp.com/oauth']),
+            createdAt: now,
+            updatedAt: now
+          },
+          {
+            id: crypto.randomUUID(),
+            clientId: 'la-suite-docs',
+            name: 'La Suite Docs',
+            uri: 'docs.llun.dev',
+            scopes: JSON.stringify([Scope.enum.openid]),
+            redirectUris: JSON.stringify(['https://docs.llun.dev/oauth']),
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
+        .execute()
 
       // A different account's grant for the same client must never leak.
-      await knexDatabase('oauthConsent').insert({
-        id: crypto.randomUUID(),
-        clientId: 'ice-cubes',
-        userId: OTHER_ACCOUNT,
-        referenceId: 'other-actor',
-        scopes: JSON.stringify(['read']),
-        createdAt: now,
-        updatedAt: now
-      })
+      await db
+        .insertInto('oauthConsent')
+        .values({
+          id: crypto.randomUUID(),
+          clientId: 'ice-cubes',
+          userId: OTHER_ACCOUNT,
+          referenceId: 'other-actor',
+          scopes: JSON.stringify(['read']),
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
     })
 
     beforeEach(async () => {
-      await knexDatabase('oauthAccessToken').where('userId', ACCOUNT).delete()
-      await knexDatabase('oauthRefreshToken').where('userId', ACCOUNT).delete()
-      await knexDatabase('oauthConsent').where('userId', ACCOUNT).delete()
+      await db
+        .deleteFrom('oauthAccessToken')
+        .where('userId', '=', ACCOUNT)
+        .execute()
+      await db
+        .deleteFrom('oauthRefreshToken')
+        .where('userId', '=', ACCOUNT)
+        .execute()
+      await db
+        .deleteFrom('oauthConsent')
+        .where('userId', '=', ACCOUNT)
+        .execute()
 
       const now = new Date()
       // Consents for the account under test. The API client was authorized
       // first (scopes stored as a JSON array); the SSO grant later (scopes
       // stored space-separated, the OAuth wire form) so it sorts newest-first.
-      await knexDatabase('oauthConsent').insert([
-        {
-          id: crypto.randomUUID(),
-          clientId: 'ice-cubes',
-          userId: ACCOUNT,
-          referenceId: ACTOR,
-          scopes: JSON.stringify(['read', 'write', 'follow', 'push']),
-          createdAt: new Date('2026-05-01T00:00:00.000Z'),
-          updatedAt: new Date('2026-05-01T00:00:00.000Z')
-        },
-        {
-          id: crypto.randomUUID(),
-          clientId: 'la-suite-docs',
-          userId: ACCOUNT,
-          referenceId: ACTOR,
-          scopes: 'openid read:accounts',
-          createdAt: new Date('2026-06-10T00:00:00.000Z'),
-          updatedAt: new Date('2026-06-10T00:00:00.000Z')
-        }
-      ])
+      await db
+        .insertInto('oauthConsent')
+        .values([
+          {
+            id: crypto.randomUUID(),
+            clientId: 'ice-cubes',
+            userId: ACCOUNT,
+            referenceId: ACTOR,
+            scopes: JSON.stringify(['read', 'write', 'follow', 'push']),
+            createdAt: new Date('2026-05-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-01T00:00:00.000Z')
+          },
+          {
+            id: crypto.randomUUID(),
+            clientId: 'la-suite-docs',
+            userId: ACCOUNT,
+            referenceId: ACTOR,
+            scopes: 'openid read:accounts',
+            createdAt: new Date('2026-06-10T00:00:00.000Z'),
+            updatedAt: new Date('2026-06-10T00:00:00.000Z')
+          }
+        ])
+        .execute()
 
       // Live tokens for the API client grant, so revoke can prove it deletes
       // them too.
-      await knexDatabase('oauthRefreshToken').insert({
-        id: 'refresh-ice-cubes',
-        token: 'refresh-token-ice-cubes',
-        clientId: 'ice-cubes',
-        userId: ACCOUNT,
-        referenceId: ACTOR,
-        scopes: 'read write',
-        expiresAt: new Date(now.getTime() + 86_400_000),
-        createdAt: now
-      })
-      await knexDatabase('oauthAccessToken').insert({
-        id: 'access-ice-cubes',
-        token: 'access-token-ice-cubes',
-        clientId: 'ice-cubes',
-        userId: ACCOUNT,
-        referenceId: ACTOR,
-        refreshId: 'refresh-ice-cubes',
-        scopes: 'read write',
-        expiresAt: new Date(now.getTime() + 3_600_000),
-        createdAt: now
-      })
+      await db
+        .insertInto('oauthRefreshToken')
+        .values({
+          id: 'refresh-ice-cubes',
+          token: 'refresh-token-ice-cubes',
+          clientId: 'ice-cubes',
+          userId: ACCOUNT,
+          referenceId: ACTOR,
+          scopes: 'read write',
+          expiresAt: new Date(now.getTime() + 86_400_000),
+          createdAt: now
+        })
+        .execute()
+      await db
+        .insertInto('oauthAccessToken')
+        .values({
+          id: 'access-ice-cubes',
+          token: 'access-token-ice-cubes',
+          clientId: 'ice-cubes',
+          userId: ACCOUNT,
+          referenceId: ACTOR,
+          refreshId: 'refresh-ice-cubes',
+          scopes: 'read write',
+          expiresAt: new Date(now.getTime() + 3_600_000),
+          createdAt: now
+        })
+        .execute()
     })
 
     it('lists the account grants newest-first, classifying SSO sign-ins', async () => {
@@ -293,14 +329,20 @@ describe('OAuthDatabase', () => {
       expect(apps.map((app) => app.clientId)).toEqual(['la-suite-docs'])
 
       expect(
-        await knexDatabase('oauthAccessToken')
-          .where('clientId', 'ice-cubes')
-          .andWhere('userId', ACCOUNT)
+        await db
+          .selectFrom('oauthAccessToken')
+          .selectAll()
+          .where('clientId', '=', 'ice-cubes')
+          .where('userId', '=', ACCOUNT)
+          .execute()
       ).toHaveLength(0)
       expect(
-        await knexDatabase('oauthRefreshToken')
-          .where('clientId', 'ice-cubes')
-          .andWhere('userId', ACCOUNT)
+        await db
+          .selectFrom('oauthRefreshToken')
+          .selectAll()
+          .where('clientId', '=', 'ice-cubes')
+          .where('userId', '=', ACCOUNT)
+          .execute()
       ).toHaveLength(0)
 
       // The other account's grant for the same client is untouched.
@@ -320,25 +362,31 @@ describe('OAuthDatabase', () => {
         publicKey: 'public-noactor'
       })
       const now = new Date()
-      await knexDatabase('oauthClient').insert({
-        id: crypto.randomUUID(),
-        clientId: 'client-credentials',
-        name: 'Client Credentials',
-        redirectUris: JSON.stringify(['https://example.test/oauth']),
-        createdAt: now,
-        updatedAt: now
-      })
+      await db
+        .insertInto('oauthClient')
+        .values({
+          id: crypto.randomUUID(),
+          clientId: 'client-credentials',
+          name: 'Client Credentials',
+          redirectUris: JSON.stringify(['https://example.test/oauth']),
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
       // A client-credentials-style grant with no delegated actor — persisted
       // here as an empty string rather than NULL.
-      await knexDatabase('oauthConsent').insert({
-        id: crypto.randomUUID(),
-        clientId: 'client-credentials',
-        userId: account,
-        referenceId: '',
-        scopes: JSON.stringify(['read']),
-        createdAt: now,
-        updatedAt: now
-      })
+      await db
+        .insertInto('oauthConsent')
+        .values({
+          id: crypto.randomUUID(),
+          clientId: 'client-credentials',
+          userId: account,
+          referenceId: '',
+          scopes: JSON.stringify(['read']),
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
 
       const apps = await database.getAccountConnectedApps({
         accountId: account

@@ -1,5 +1,4 @@
-import { Knex } from 'knex'
-
+import type { Db } from '@/lib/database/kysely'
 import {
   type TestDatabaseTools,
   getTestDatabaseWithInstance
@@ -36,14 +35,14 @@ export const createSigningAccount = async (
   })
 
 // Runs `test` against a freshly migrated database for the given backend and
-// destroys it afterwards. `tools` is that database's Kysely `db` and statement
-// capture.
+// destroys it afterwards. `db` is that database's Kysely instance; `tools` adds
+// its statement capture.
 export const createFreshDatabaseRunner =
   (backendName: string) =>
   async (
     test: (
       database: Database,
-      instance: Knex,
+      db: Db,
       tools: TestDatabaseTools
     ) => Promise<void>
   ) => {
@@ -52,7 +51,7 @@ export const createFreshDatabaseRunner =
     await fresh.prepare()
     await freshDatabase.migrate()
     try {
-      await test(freshDatabase, fresh.instance, fresh)
+      await test(freshDatabase, fresh.db, fresh)
     } finally {
       await freshDatabase.destroy()
     }

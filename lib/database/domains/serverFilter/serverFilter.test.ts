@@ -2,7 +2,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 describe('ServerFilterDatabase', () => {
   const testDb = createTestDatabase()
-  const { database, knex: knexDatabase } = testDb
+  const { database, db } = testDb
 
   beforeAll(async () => {
     await testDb.prepare()
@@ -208,20 +208,24 @@ describe('ServerFilterDatabase', () => {
       updatedAt: new Date(base + i)
     }))
     for (let start = 0; start < total; start += 100) {
-      await knexDatabase('server_filters').insert(
-        rows.slice(start, start + 100)
-      )
+      await db
+        .insertInto('server_filters')
+        .values(rows.slice(start, start + 100))
+        .execute()
     }
-    await knexDatabase('server_filter_keywords').insert(
-      [rows[0].id, rows[total - 1].id].map((filterId) => ({
-        id: `keyword-of-${filterId}`,
-        filterId,
-        keyword: `keyword of ${filterId}`,
-        wholeWord: false,
-        createdAt: new Date(base),
-        updatedAt: new Date(base)
-      }))
-    )
+    await db
+      .insertInto('server_filter_keywords')
+      .values(
+        [rows[0].id, rows[total - 1].id].map((filterId) => ({
+          id: `keyword-of-${filterId}`,
+          filterId,
+          keyword: `keyword of ${filterId}`,
+          wholeWord: false,
+          createdAt: new Date(base),
+          updatedAt: new Date(base)
+        }))
+      )
+      .execute()
 
     const records = await database.getServerFilterRecords()
     const bulk = records.filter((record) =>

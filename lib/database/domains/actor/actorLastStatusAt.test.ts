@@ -1,5 +1,4 @@
-import type { Knex } from 'knex'
-
+import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -11,14 +10,14 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // database (SQLite, or PostgreSQL under TEST_DATABASE_TYPE=pg) so it can
 // control `actors.createdAt` and read the raw column directly.
 const withDatabase = async (
-  test: (database: Database, instance: Knex) => Promise<void>
+  test: (database: Database, db: Db) => Promise<void>
 ) => {
   const testDb = createTestDatabase()
   await testDb.prepare()
   const { database } = testDb
   try {
     await database.migrate()
-    await test(database, testDb.knex)
+    await test(database, testDb.db)
   } finally {
     await testDb.destroy()
   }
@@ -189,7 +188,7 @@ describe('actors.lastStatusAt maintenance', () => {
   })
 
   it('clears it to null when the last remaining status is deleted', async () => {
-    await withDatabase(async (database, instance) => {
+    await withDatabase(async (database, db) => {
       const actorId = await createLocalActor(database, 'alice')
       await createNoteAt(database, actorId, '1', at('2026-03-01T10:00:00Z'))
       expect(await lastStatusDate(database, actorId)).toBe('2026-03-01')
@@ -200,9 +199,11 @@ describe('actors.lastStatusAt maintenance', () => {
       })
       expect(await lastStatusDate(database, actorId)).toBeNull()
       // The column itself is NULL, not a stale/zero value.
-      const row = await instance('actors')
-        .where('id', actorId)
-        .first('lastStatusAt')
+      const row = await db
+        .selectFrom('actors')
+        .select('lastStatusAt')
+        .where('id', '=', actorId)
+        .executeTakeFirst()
       expect(row?.lastStatusAt).toBeNull()
     })
   })
@@ -286,17 +287,21 @@ describe('getLocalMastodonActors ordering', () => {
   })
 
   it('orders by account creation for order=new, independent of activity', async () => {
-    await withDatabase(async (database, instance) => {
+    await withDatabase(async (database, db) => {
       const aliceId = await createLocalActor(database, 'alice')
       const bobId = await createLocalActor(database, 'bob')
 
       // Deterministic account age: alice older, bob newer.
-      await instance('actors')
-        .where('id', aliceId)
-        .update({ createdAt: new Date(at('2026-01-01T00:00:00Z')) })
-      await instance('actors')
-        .where('id', bobId)
-        .update({ createdAt: new Date(at('2026-01-02T00:00:00Z')) })
+      await db
+        .updateTable('actors')
+        .set({ createdAt: new Date(at('2026-01-01T00:00:00Z')) })
+        .where('id', '=', aliceId)
+        .execute()
+      await db
+        .updateTable('actors')
+        .set({ createdAt: new Date(at('2026-01-02T00:00:00Z')) })
+        .where('id', '=', bobId)
+        .execute()
 
       // Make the OLDER account (alice) the more recently active one.
       await createNoteAt(database, aliceId, '1', at('2026-05-01T00:00:00Z'))

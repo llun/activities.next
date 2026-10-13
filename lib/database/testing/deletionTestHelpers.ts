@@ -168,10 +168,10 @@ export const waitForLockWait = async (
 ): Promise<string[]> => {
   const waiting = async () =>
     (
-      await testDb.knex.raw(
-        "select query from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
-      )
-    ).rows.map((row: { query: string }) => row.query) as string[]
+      await sql<{ query: string }>`
+        select query from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'
+      `.execute(testDb.db)
+    ).rows.map((row) => row.query)
   for (let attempt = 0; attempt < 250; attempt += 1) {
     if (waiter.state.settled) {
       throw new Error('the operation finished without waiting for a row lock')

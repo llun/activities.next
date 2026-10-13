@@ -1231,10 +1231,10 @@ describe('claimFitnessRouteHeatmapPyramidBuild', () => {
     const replace = interfereAfterStatement(
       isStatement('select', PYRAMIDS),
       () =>
-        testDb
-          .knex('fitness_route_heatmap_pyramids')
-          .where('actorId', actorId)
-          .update({ id: 'replacement-row' })
+        testDb.db
+          .updateTable('fitness_route_heatmap_pyramids')
+          .set({ id: 'replacement-row' })
+          .where('actorId', '=', actorId)
     )
 
     const claim = await claimNowFor(actorId)
@@ -1286,10 +1286,9 @@ describe('claimFitnessRouteHeatmapPyramidBuild', () => {
     freezeTime()
     const clearAfterInsert = (actorId: string) =>
       interfereAfterStatement(isStatement('insert', PYRAMIDS), () =>
-        testDb
-          .knex('fitness_route_heatmap_pyramids')
-          .where('actorId', actorId)
-          .delete()
+        testDb.db
+          .deleteFrom('fitness_route_heatmap_pyramids')
+          .where('actorId', '=', actorId)
       )
 
     const survivor = await newActor()
