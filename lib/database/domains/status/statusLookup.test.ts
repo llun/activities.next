@@ -212,7 +212,7 @@ describe('StatusDatabase lookups', () => {
         // the rows it writes stay out of the suite's shared fixtures.
         const {
           database: freshDatabase,
-          knex: instance,
+          db: freshDb,
           prepare
         } = createTestDatabase({ isolated: true })
         await prepare()
@@ -253,9 +253,11 @@ describe('StatusDatabase lookups', () => {
             text: 'Simulated pre-backfill legacy status'
           })
           // Simulate a legacy row that predates the backfill migration.
-          await instance('statuses')
-            .where('id', withoutId)
-            .update({ publicId: null })
+          await freshDb
+            .updateTable('statuses')
+            .set({ publicId: null })
+            .where('id', '=', withoutId)
+            .execute()
 
           const map = await freshDatabase.getStatusPublicIds({
             statusIds: [withId, withoutId, `${localActorId}/statuses/missing`]

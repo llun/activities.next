@@ -1,4 +1,4 @@
-import { Knex } from 'knex'
+import type { Compilable } from 'kysely'
 
 import {
   databaseBeforeAll,
@@ -195,7 +195,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // an incumbent that moves the row in between must be caught by the
         // write re-asserting the read's premises. Staged from the claim's own
         // SELECT, which IS that window, rather than raced.
-        const stageOnClaimRead = (interfere: () => Knex.QueryBuilder) =>
+        const stageOnClaimRead = (interfere: () => Compilable) =>
           interfereAfterStatement(
             (sql) =>
               sql.trimStart().toLowerCase().startsWith('select') &&
@@ -212,7 +212,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // `Date.now()`, so landing exactly on it is ordinary.
           const {
             database: isolated,
-            instance,
+            db,
             prepare: prepareIsolated
           } = getTestDatabaseWithInstance(true)
           await prepareIsolated()
@@ -228,15 +228,18 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             expect(owner.claimed).toBe(true)
 
             const staleBefore = Date.now()
-            await instance('fitness_route_heatmap_pyramids')
-              .where('actorId', actorId)
-              .update({ updatedAt: new Date(staleBefore - 60_000) })
+            await db
+              .updateTable('fitness_route_heatmap_pyramids')
+              .set({ updatedAt: new Date(staleBefore - 60_000) })
+              .where('actorId', '=', actorId)
+              .execute()
 
             // The owner heartbeats onto the boundary itself.
             const staged = stageOnClaimRead(() =>
-              instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .update({ updatedAt: new Date(staleBefore) })
+              db
+                .updateTable('fitness_route_heatmap_pyramids')
+                .set({ updatedAt: new Date(staleBefore) })
+                .where('actorId', '=', actorId)
             )
 
             const thief = await isolated.claimFitnessRouteHeatmapPyramidBuild({
@@ -273,7 +276,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // this very suite was two job runs sharing one `Date.now()`.
           const {
             database: isolated,
-            instance,
+            db,
             prepare: prepareIsolated
           } = getTestDatabaseWithInstance(true)
           await prepareIsolated()
@@ -289,21 +292,24 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             expect(owner.claimed).toBe(true)
 
             // Abandoned-looking at read time...
-            await instance('fitness_route_heatmap_pyramids')
-              .where('actorId', actorId)
-              .update({ updatedAt: new Date(Date.now() - 600_000) })
+            await db
+              .updateTable('fitness_route_heatmap_pyramids')
+              .set({ updatedAt: new Date(Date.now() - 600_000) })
+              .where('actorId', '=', actorId)
+              .execute()
 
             const requestedAt = Date.now()
             // ...and finished by its owner before the write lands.
             const staged = stageOnClaimRead(() =>
-              instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .update({
+              db
+                .updateTable('fitness_route_heatmap_pyramids')
+                .set({
                   status: 'completed',
                   completedAt: new Date(requestedAt),
                   tileCount: 99,
                   updatedAt: new Date()
                 })
+                .where('actorId', '=', actorId)
             )
 
             const thief = await isolated.claimFitnessRouteHeatmapPyramidBuild({
@@ -361,7 +367,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // hands a demonstrably live build to a stranger.
             const {
               database: isolated,
-              instance,
+              db,
               prepare: prepareIsolated
             } = getTestDatabaseWithInstance(true)
             await prepareIsolated()
@@ -379,13 +385,16 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               expect(owner.claimed).toBe(true)
 
               // Abandoned-looking at read time, alive again by the write.
-              await instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .update({ updatedAt: new Date(Date.now() - 600_000) })
+              await db
+                .updateTable('fitness_route_heatmap_pyramids')
+                .set({ updatedAt: new Date(Date.now() - 600_000) })
+                .where('actorId', '=', actorId)
+                .execute()
               const staged = stageOnClaimRead(() =>
-                instance('fitness_route_heatmap_pyramids')
-                  .where('actorId', actorId)
-                  .update({ updatedAt: new Date() })
+                db
+                  .updateTable('fitness_route_heatmap_pyramids')
+                  .set({ updatedAt: new Date() })
+                  .where('actorId', '=', actorId)
               )
 
               const stranger =
@@ -421,7 +430,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // sweep.
           const {
             database: isolated,
-            instance,
+            db,
             prepare: prepareIsolated
           } = getTestDatabaseWithInstance(true)
           await prepareIsolated()
@@ -441,9 +450,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             })
 
             const staged = stageOnClaimRead(() =>
-              instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .update({ status: 'failed' })
+              db
+                .updateTable('fitness_route_heatmap_pyramids')
+                .set({ status: 'failed' })
+                .where('actorId', '=', actorId)
             )
 
             const continuation =
@@ -483,7 +493,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // read — a column left behind is not a cursor, at the write either.
             const {
               database: isolated,
-              instance,
+              db,
               prepare: prepareIsolated
             } = getTestDatabaseWithInstance(true)
             await prepareIsolated()
@@ -505,11 +515,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               })
 
               const staged = stageOnClaimRead(() =>
-                instance('fitness_route_heatmap_pyramids')
-                  .where('actorId', actorId)
-                  .update(
+                db
+                  .updateTable('fitness_route_heatmap_pyramids')
+                  .set(
                     Object.fromEntries(cleared.map((column) => [column, null]))
                   )
+                  .where('actorId', '=', actorId)
               )
 
               const continuation =
@@ -651,7 +662,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // live build where no sweep can reach them.
         const {
           database: isolated,
-          instance,
+          db,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -671,27 +682,31 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               sql.trimStart().toLowerCase().startsWith('update') &&
               sql.includes('fitness_route_heatmap_pyramids'),
             async () => {
-              await instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .delete()
-              await instance('fitness_route_heatmap_pyramids').insert({
-                id: replacementId,
-                actorId,
-                status: 'generating',
-                error: null,
-                version: 7,
-                claimSeq: 1,
-                totalCount: 0,
-                scannedCount: 0,
-                activityCount: 0,
-                tileCount: 0,
-                pointCount: 0,
-                cursorCreatedAt: null,
-                cursorId: null,
-                completedAt: null,
-                createdAt: new Date(),
-                updatedAt: new Date()
-              })
+              await db
+                .deleteFrom('fitness_route_heatmap_pyramids')
+                .where('actorId', '=', actorId)
+                .execute()
+              await db
+                .insertInto('fitness_route_heatmap_pyramids')
+                .values({
+                  id: replacementId,
+                  actorId,
+                  status: 'generating',
+                  error: null,
+                  version: 7,
+                  claimSeq: 1,
+                  totalCount: 0,
+                  scannedCount: 0,
+                  activityCount: 0,
+                  tileCount: 0,
+                  pointCount: 0,
+                  cursorCreatedAt: null,
+                  cursorId: null,
+                  completedAt: null,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                })
+                .execute()
             }
           )
 

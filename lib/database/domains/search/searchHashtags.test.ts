@@ -72,7 +72,7 @@ describe('SearchDatabase hashtags', () => {
 
   it('preserves zero-valued hashtag aggregate timestamps', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/epoch-hashtag`
     const createdAt = new Date(0)
@@ -84,40 +84,49 @@ describe('SearchDatabase hashtags', () => {
         id: actorId,
         username: 'alice'
       })
-      await knexDatabase('statuses').insert({
-        id: statusId,
-        url: statusId,
-        urlHash: null,
-        actorId,
-        type: StatusType.enum.Note,
-        content: JSON.stringify({
+      await db
+        .insertInto('statuses')
+        .values({
+          id: statusId,
           url: statusId,
-          text: 'Epoch hashtag day',
-          summary: ''
-        }),
-        reply: '',
-        replyHash: null,
-        createdAt,
-        updatedAt: createdAt
-      })
-      await knexDatabase('recipients').insert({
-        id: crypto.randomUUID(),
-        statusId,
-        actorId: ACTIVITY_STREAM_PUBLIC,
-        type: 'to',
-        createdAt,
-        updatedAt: createdAt
-      })
-      await knexDatabase('tags').insert({
-        id: crypto.randomUUID(),
-        statusId,
-        type: 'hashtag',
-        name: '#Epoch',
-        value: 'https://remote.test/tags/epoch',
-        nameNormalized: '#epoch',
-        createdAt,
-        updatedAt: createdAt
-      })
+          urlHash: null,
+          actorId,
+          type: StatusType.enum.Note,
+          content: JSON.stringify({
+            url: statusId,
+            text: 'Epoch hashtag day',
+            summary: ''
+          }),
+          reply: '',
+          replyHash: null,
+          createdAt,
+          updatedAt: createdAt
+        })
+        .execute()
+      await db
+        .insertInto('recipients')
+        .values({
+          id: crypto.randomUUID(),
+          statusId,
+          actorId: ACTIVITY_STREAM_PUBLIC,
+          type: 'to',
+          createdAt,
+          updatedAt: createdAt
+        })
+        .execute()
+      await db
+        .insertInto('tags')
+        .values({
+          id: crypto.randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: '#Epoch',
+          value: 'https://remote.test/tags/epoch',
+          nameNormalized: '#epoch',
+          createdAt,
+          updatedAt: createdAt
+        })
+        .execute()
 
       await database.indexHashtagSearchDocuments({
         hashtags: ['epoch']
@@ -278,7 +287,7 @@ describe('SearchDatabase hashtags', () => {
 
   it('reports reindex progress using the raw scanned row count', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/duplicate-normalized-hashtag`
     const createdAt = new Date(1)
@@ -290,49 +299,58 @@ describe('SearchDatabase hashtags', () => {
         id: actorId,
         username: 'alice'
       })
-      await knexDatabase('statuses').insert({
-        id: statusId,
-        url: statusId,
-        urlHash: null,
-        actorId,
-        type: StatusType.enum.Note,
-        content: JSON.stringify({ text: 'Duplicate normalized hashtag' }),
-        reply: '',
-        replyHash: null,
-        originalStatusId: null,
-        createdAt,
-        updatedAt: createdAt
-      })
-      await knexDatabase('recipients').insert({
-        id: 'duplicate-normalized-hashtag-recipient',
-        statusId,
-        actorId: ACTIVITY_STREAM_PUBLIC,
-        type: 'to',
-        createdAt,
-        updatedAt: createdAt
-      })
-      await knexDatabase('tags').insert([
-        {
-          id: 'duplicate-normalized-hashtag-tag-1',
-          statusId,
-          type: 'hashtag',
-          name: '#Duplicate',
-          value: 'https://remote.test/tags/duplicate',
-          nameNormalized: '#duplicate',
+      await db
+        .insertInto('statuses')
+        .values({
+          id: statusId,
+          url: statusId,
+          urlHash: null,
+          actorId,
+          type: StatusType.enum.Note,
+          content: JSON.stringify({ text: 'Duplicate normalized hashtag' }),
+          reply: '',
+          replyHash: null,
+          originalStatusId: null,
           createdAt,
           updatedAt: createdAt
-        },
-        {
-          id: 'duplicate-normalized-hashtag-tag-2',
+        })
+        .execute()
+      await db
+        .insertInto('recipients')
+        .values({
+          id: 'duplicate-normalized-hashtag-recipient',
           statusId,
-          type: 'hashtag',
-          name: 'Duplicate',
-          value: 'https://remote.test/tags/duplicate',
-          nameNormalized: 'duplicate',
+          actorId: ACTIVITY_STREAM_PUBLIC,
+          type: 'to',
           createdAt,
           updatedAt: createdAt
-        }
-      ])
+        })
+        .execute()
+      await db
+        .insertInto('tags')
+        .values([
+          {
+            id: 'duplicate-normalized-hashtag-tag-1',
+            statusId,
+            type: 'hashtag',
+            name: '#Duplicate',
+            value: 'https://remote.test/tags/duplicate',
+            nameNormalized: '#duplicate',
+            createdAt,
+            updatedAt: createdAt
+          },
+          {
+            id: 'duplicate-normalized-hashtag-tag-2',
+            statusId,
+            type: 'hashtag',
+            name: 'Duplicate',
+            value: 'https://remote.test/tags/duplicate',
+            nameNormalized: 'duplicate',
+            createdAt,
+            updatedAt: createdAt
+          }
+        ])
+        .execute()
 
       await expect(
         database.reindexSearchHashtags({
@@ -394,7 +412,7 @@ describe('SearchDatabase hashtags', () => {
 
   it('rebuilds hashtag search aggregates from legacy bare normalized tag names', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/legacy-hashtag`
 
@@ -414,16 +432,19 @@ describe('SearchDatabase hashtags', () => {
         text: 'Legacy hashtag day',
         createdAt: 1
       })
-      await knexDatabase('tags').insert({
-        id: crypto.randomUUID(),
-        statusId,
-        type: 'hashtag',
-        name: '#Legacy',
-        value: 'https://remote.test/tags/legacy',
-        nameNormalized: 'legacy',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
+      await db
+        .insertInto('tags')
+        .values({
+          id: crypto.randomUUID(),
+          statusId,
+          type: 'hashtag',
+          name: '#Legacy',
+          value: 'https://remote.test/tags/legacy',
+          nameNormalized: 'legacy',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .execute()
 
       await expect(
         database.reindexSearchHashtags({
@@ -448,7 +469,7 @@ describe('SearchDatabase hashtags', () => {
 
   it('deduplicates hashtag search aggregates across legacy tag name variants', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const firstStatusId = `${actorId}/statuses/duplicate-hashtag-1`
     const secondStatusId = `${actorId}/statuses/duplicate-hashtag-2`
@@ -478,28 +499,31 @@ describe('SearchDatabase hashtags', () => {
         text: 'Duplicate hashtag day 2',
         createdAt: 3
       })
-      await knexDatabase('tags').insert([
-        {
-          id: crypto.randomUUID(),
-          statusId: firstStatusId,
-          type: 'hashtag',
-          name: '#Cycling',
-          value: 'https://remote.test/tags/cycling',
-          nameNormalized: '#cycling',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: crypto.randomUUID(),
-          statusId: secondStatusId,
-          type: 'hashtag',
-          name: '#Cycling',
-          value: 'https://remote.test/tags/cycling',
-          nameNormalized: 'cycling',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ])
+      await db
+        .insertInto('tags')
+        .values([
+          {
+            id: crypto.randomUUID(),
+            statusId: firstStatusId,
+            type: 'hashtag',
+            name: '#Cycling',
+            value: 'https://remote.test/tags/cycling',
+            nameNormalized: '#cycling',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            id: crypto.randomUUID(),
+            statusId: secondStatusId,
+            type: 'hashtag',
+            name: '#Cycling',
+            value: 'https://remote.test/tags/cycling',
+            nameNormalized: 'cycling',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ])
+        .execute()
 
       const distinctTagQueries = (
         await testDb.captureQueries(() =>
@@ -537,7 +561,7 @@ describe('SearchDatabase hashtags', () => {
 
   it('counts a status once when it has both hashtag storage variants', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
     const statusId = `${actorId}/statuses/duplicate-variant-hashtag`
 
@@ -557,28 +581,31 @@ describe('SearchDatabase hashtags', () => {
         text: 'Duplicate storage variant hashtag',
         createdAt: 1
       })
-      await knexDatabase('tags').insert([
-        {
-          id: crypto.randomUUID(),
-          statusId,
-          type: 'hashtag',
-          name: '#Cycling',
-          value: 'https://remote.test/tags/cycling',
-          nameNormalized: '#cycling',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: crypto.randomUUID(),
-          statusId,
-          type: 'hashtag',
-          name: 'Cycling',
-          value: 'https://remote.test/tags/cycling',
-          nameNormalized: 'cycling',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ])
+      await db
+        .insertInto('tags')
+        .values([
+          {
+            id: crypto.randomUUID(),
+            statusId,
+            type: 'hashtag',
+            name: '#Cycling',
+            value: 'https://remote.test/tags/cycling',
+            nameNormalized: '#cycling',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            id: crypto.randomUUID(),
+            statusId,
+            type: 'hashtag',
+            name: 'Cycling',
+            value: 'https://remote.test/tags/cycling',
+            nameNormalized: 'cycling',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ])
+        .execute()
 
       await database.reindexSearchHashtags({
         limit: 10

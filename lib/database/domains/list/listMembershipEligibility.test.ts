@@ -1,5 +1,6 @@
+import { sql } from 'kysely'
+
 import { createLocalAccount } from '@/lib/database/domains/list/listTestHelpers'
-import { kyselyFor } from '@/lib/database/kysely'
 import { decreaseCounterValue } from '@/lib/database/kysely/counter'
 import { getDialectName } from '@/lib/database/kysely/dialect'
 import { selectFollowTargetActorIds } from '@/lib/database/kysely/visibility/followTarget'
@@ -744,10 +745,11 @@ describe('ListDatabase membership and eligibility', () => {
 })
 
 describe('addListAccounts with requireFollowOrRequest', () => {
-  // The raw Knex instance is what lets a race test see that one side is
+  // The pool's pending acquires are what let a race test see that one side is
   // blocked, so this suite uses getTestDatabaseWithInstance (which honours
   // TEST_DATABASE_TYPE like getTestDatabaseTable) on a database of its own.
-  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  const { database, db, pendingAcquires, prepare } =
+    getTestDatabaseWithInstance(true)
 
   beforeAll(async () => {
     await prepare()
@@ -810,13 +812,13 @@ describe('addListAccounts with requireFollowOrRequest', () => {
   // True once another connection is stuck: on PostgreSQL a backend waiting on
   // a row lock, on SQLite a caller queued for its single connection.
   const isAnotherConnectionWaiting = async () => {
-    if (getDialectName(kyselyFor(instance)) === 'sqlite') {
-      return instance.client.pool.numPendingAcquires() > 0
+    if (getDialectName(db) === 'sqlite') {
+      return pendingAcquires() > 0
     }
-    const { rows } = await instance.raw<{ rows: { waiting: number }[] }>(
-      `select count(*)::int as waiting from pg_stat_activity
-       where datname = current_database() and wait_event_type = 'Lock'`
-    )
+    const { rows } = await sql<{ waiting: number }>`
+      select count(*)::int as waiting from pg_stat_activity
+      where datname = current_database() and wait_event_type = 'Lock'
+    `.execute(db)
     return rows[0].waiting > 0
   }
   // Resolves when `operation` settles or is seen blocked, whichever is first.

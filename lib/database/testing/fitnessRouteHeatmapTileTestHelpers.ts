@@ -1,5 +1,4 @@
-import type { Knex } from 'knex'
-import { CompiledQuery } from 'kysely'
+import { type Compilable, CompiledQuery } from 'kysely'
 import { AsyncResource } from 'node:async_hooks'
 import { type MockInstance, expect, onTestFinished, vi } from 'vitest'
 
@@ -180,19 +179,19 @@ const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
  * connection. Fires once.
  *
  * On the connection that just ran the statement, because the Kysely driver
- * still holds it while the statement is announced, and a root Knex query
- * issued from there is refused by the mixed-transaction guard. Running it on
- * that connection also makes the interleaving independent of pool scheduling
- * on PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
+ * still holds it while the statement is announced, and a root query issued
+ * from there is refused by the transaction guard. Running it on that
+ * connection also makes the interleaving independent of pool scheduling on
+ * PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
  * where the interfering write autocommits as another worker's would; for a
  * window inside one, use `interfereAfterStatementFromOutside`.
  *
- * `interfere` returns a Knex query builder, which is compiled, not run: it
+ * `interfere` returns a Kysely query builder, which is compiled, not run: it
  * reads like the other writes these tests stage straight to the columns.
  */
 export const interfereAfterStatement = (
   matches: (sql: string) => boolean,
-  interfere: () => Knex.QueryBuilder
+  interfere: () => Compilable
 ) => {
   const state = { fired: false }
   addStatementHook({
@@ -200,8 +199,7 @@ export const interfereAfterStatement = (
     when: 'after',
     run: async (execute) => {
       state.fired = true
-      const { sql, bindings } = interfere().toSQL().toNative()
-      await execute(CompiledQuery.raw(sql, [...bindings]))
+      await execute(interfere().compile())
     }
   })
   return state
@@ -287,10 +285,10 @@ export const failStatement = (
  * this module was loaded in.
  *
  * A Kysely statement's listeners and hooks run inside the async context that
- * holds its connection, and the mixed-transaction guard refuses a root Knex
- * query there. A listener staging another worker's write has to leave that
- * context, as the other worker was never in it; it then waits for a
- * connection, or on PostgreSQL for the row lock, exactly as that worker would.
+ * holds its connection, and the transaction guard refuses a root query there.
+ * A listener staging another worker's write has to leave that context, as the
+ * other worker was never in it; it then waits for a connection, or on
+ * PostgreSQL for the row lock, exactly as that worker would.
  */
 export const outsideDatabaseContext = AsyncResource.bind(
   <T>(work: () => Promise<T>): Promise<T> => work()

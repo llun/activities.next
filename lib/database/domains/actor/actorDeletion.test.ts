@@ -682,18 +682,28 @@ describe('ActorDatabase deletion', () => {
 
       describe('deleting owned status-scoped data', () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
-        const { knex: knexDatabase, database: sqlDatabase } = testDb
+        const { db, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/delete-actor-status-data'
         const voterId = 'https://remote.test/users/delete-actor-voter'
         const noteId = `${actorId}/statuses/history-cleanup`
         const pollId = `${actorId}/statuses/poll-cleanup`
         const queries: string[] = []
         const currentTime = new Date()
-        const countRows = async (tableName: string, statusId: string) => {
-          const row = await knexDatabase(tableName)
-            .where({ statusId })
-            .count<{ count: number | string }>('* as count')
-            .first()
+        const countRows = async (
+          tableName:
+            | 'status_history'
+            | 'poll_answers'
+            | 'poll_voters'
+            | 'notifications'
+            | 'direct_conversation_statuses'
+            | 'fitness_files',
+          statusId: string
+        ) => {
+          const row = await db
+            .selectFrom(tableName)
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('statusId', '=', statusId)
+            .executeTakeFirst()
           return Number(row?.count ?? 0)
         }
 
@@ -746,47 +756,59 @@ describe('ActorDatabase deletion', () => {
             actorId: voterId,
             choices: [0]
           })
-          await knexDatabase('notifications').insert({
-            id: 'delete-actor-status-notification',
-            actorId: voterId,
-            type: 'mention',
-            sourceActorId: voterId,
-            statusId: noteId,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-          await knexDatabase('direct_conversation_statuses').insert({
-            conversationId: 'delete-actor-status-conversation',
-            statusId: noteId,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-          await knexDatabase('fitness_files').insert({
-            id: 'delete-actor-status-fitness-file',
-            actorId: voterId,
-            statusId: noteId,
-            path: '/tmp/delete-actor-status.fit',
-            fileName: 'delete-actor-status.fit',
-            fileType: 'fit',
-            mimeType: 'application/octet-stream',
-            bytes: 100,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-          await knexDatabase('counters').insert(
-            [noteId, pollId]
-              .flatMap((statusId) => [
-                CounterKey.totalLike(statusId),
-                CounterKey.totalReblog(statusId),
-                CounterKey.totalReply(statusId)
-              ])
-              .map((id) => ({
-                id,
-                value: 1,
-                createdAt: currentTime,
-                updatedAt: currentTime
-              }))
-          )
+          await db
+            .insertInto('notifications')
+            .values({
+              id: 'delete-actor-status-notification',
+              actorId: voterId,
+              type: 'mention',
+              sourceActorId: voterId,
+              statusId: noteId,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            })
+            .execute()
+          await db
+            .insertInto('direct_conversation_statuses')
+            .values({
+              conversationId: 'delete-actor-status-conversation',
+              statusId: noteId,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            })
+            .execute()
+          await db
+            .insertInto('fitness_files')
+            .values({
+              id: 'delete-actor-status-fitness-file',
+              actorId: voterId,
+              statusId: noteId,
+              path: '/tmp/delete-actor-status.fit',
+              fileName: 'delete-actor-status.fit',
+              fileType: 'fit',
+              mimeType: 'application/octet-stream',
+              bytes: 100,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            })
+            .execute()
+          await db
+            .insertInto('counters')
+            .values(
+              [noteId, pollId]
+                .flatMap((statusId) => [
+                  CounterKey.totalLike(statusId),
+                  CounterKey.totalReblog(statusId),
+                  CounterKey.totalReply(statusId)
+                ])
+                .map((id) => ({
+                  id,
+                  value: 1,
+                  createdAt: currentTime,
+                  updatedAt: currentTime
+                }))
+            )
+            .execute()
 
           await expect(countRows('status_history', noteId)).resolves.toBe(1)
           await expect(countRows('poll_answers', pollId)).resolves.toBe(1)
@@ -817,22 +839,26 @@ describe('ActorDatabase deletion', () => {
           ).resolves.toBe(0)
           await expect(countRows('fitness_files', noteId)).resolves.toBe(0)
           await expect(
-            knexDatabase('fitness_files')
-              .where({ id: 'delete-actor-status-fitness-file' })
-              .first('statusId')
+            db
+              .selectFrom('fitness_files')
+              .select('statusId')
+              .where('id', '=', 'delete-actor-status-fitness-file')
+              .executeTakeFirst()
           ).resolves.toEqual({ statusId: null })
           await expect(
-            knexDatabase('counters')
-              .whereIn(
+            db
+              .selectFrom('counters')
+              .select((eb) => eb.fn.countAll<number>().as('count'))
+              .where(
                 'id',
+                'in',
                 [noteId, pollId].flatMap((statusId) => [
                   CounterKey.totalLike(statusId),
                   CounterKey.totalReblog(statusId),
                   CounterKey.totalReply(statusId)
                 ])
               )
-              .count<{ count: number | string }>('* as count')
-              .first()
+              .executeTakeFirst()
               .then((row) => Number(row?.count ?? 0))
           ).resolves.toBe(0)
         })
@@ -873,7 +899,7 @@ describe('ActorDatabase deletion', () => {
       })
 
       it('removes list memberships of the deleted actor and the lists it owned', async () => {
-        await withFreshDatabaseAndInstance(async (freshDatabase, instance) => {
+        await withFreshDatabaseAndInstance(async (freshDatabase, db) => {
           const deletedId = `https://${TEST_DOMAIN}/users/list-deleted`
           const ownerId = `https://${TEST_DOMAIN}/users/list-owner`
           const memberId = `https://${TEST_DOMAIN}/users/list-member`
@@ -914,26 +940,41 @@ describe('ActorDatabase deletion', () => {
             targetActorIds: [memberId]
           })
           await expect(
-            instance('timelines').where({
-              timeline: listTimelineKey(deletedList.id)
-            })
+            db
+              .selectFrom('timelines')
+              .selectAll()
+              .where('timeline', '=', listTimelineKey(deletedList.id))
+              .execute()
           ).resolves.toHaveLength(1)
 
           await freshDatabase.deleteActorData({ actorId: deletedId })
 
           await expect(
-            instance('list_accounts')
-              .where('targetActorId', deletedId)
-              .orWhere('actorId', deletedId)
-              .orWhere('listId', deletedList.id)
+            db
+              .selectFrom('list_accounts')
+              .selectAll()
+              .where((eb) =>
+                eb.or([
+                  eb('targetActorId', '=', deletedId),
+                  eb('actorId', '=', deletedId),
+                  eb('listId', '=', deletedList.id)
+                ])
+              )
+              .execute()
           ).resolves.toEqual([])
           await expect(
-            instance('lists').where('actorId', deletedId)
+            db
+              .selectFrom('lists')
+              .selectAll()
+              .where('actorId', '=', deletedId)
+              .execute()
           ).resolves.toEqual([])
           await expect(
-            instance('timelines').where({
-              timeline: listTimelineKey(deletedList.id)
-            })
+            db
+              .selectFrom('timelines')
+              .selectAll()
+              .where('timeline', '=', listTimelineKey(deletedList.id))
+              .execute()
           ).resolves.toEqual([])
           // The other owner's list, its surviving member and that member's
           // feed rows are untouched.
@@ -941,17 +982,21 @@ describe('ActorDatabase deletion', () => {
             freshDatabase.getLists({ actorId: ownerId })
           ).resolves.toEqual([expect.objectContaining({ id: ownerList.id })])
           await expect(
-            instance('list_accounts')
-              .where('listId', ownerList.id)
-              .pluck('targetActorId')
+            db
+              .selectFrom('list_accounts')
+              .select('targetActorId')
+              .where('listId', '=', ownerList.id)
+              .execute()
+              .then((rows) => rows.map((row) => row.targetActorId))
           ).resolves.toEqual([memberId])
           await expect(
-            instance('timelines')
-              .where({
-                actorId: ownerId,
-                timeline: listTimelineKey(ownerList.id)
-              })
-              .pluck('statusId')
+            db
+              .selectFrom('timelines')
+              .select('statusId')
+              .where('actorId', '=', ownerId)
+              .where('timeline', '=', listTimelineKey(ownerList.id))
+              .execute()
+              .then((rows) => rows.map((row) => row.statusId))
           ).resolves.toEqual([memberStatusId])
         })
       })

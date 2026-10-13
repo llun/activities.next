@@ -877,7 +877,7 @@ describe('MediaDatabase', () => {
           }))
 
           for (const chunk of chunkArray(mediaRows, 50)) {
-            await isolated.instance('medias').insert(chunk)
+            await isolated.db.insertInto('medias').values(chunk).execute()
           }
 
           // Media 1 (chunk 1): own attachment -> should return 'own-status-1'
@@ -886,74 +886,77 @@ describe('MediaDatabase', () => {
           // Media 500 (chunk 1): foreign attachment only -> should return undefined
           // Media 501 (chunk 1): empty statusId attachment -> should return undefined
           // Media 1000 (chunk 2): own attachment -> should return 'own-status-1000'
-          await isolated.instance('attachments').insert([
-            {
-              id: 'att-chunk-1',
-              actorId: actors.primary.id,
-              mediaId: '1',
-              statusId: 'own-status-1',
-              mediaType: 'image/jpeg',
-              type: 'Document',
-              url: '/test/chunk-boundary-media-1.jpg',
-              createdAt: new Date(now),
-              updatedAt: new Date(now)
-            },
-            {
-              id: 'att-chunk-2-own',
-              actorId: actors.primary.id,
-              mediaId: '2',
-              statusId: 'status-own-2',
-              mediaType: 'image/jpeg',
-              type: 'Document',
-              url: '/test/chunk-boundary-media-2.jpg',
-              createdAt: new Date(now),
-              updatedAt: new Date(now)
-            },
-            {
-              id: 'att-chunk-2-foreign',
-              actorId: actors.replyAuthor.id,
-              mediaId: '2',
-              statusId: 'aaa-foreign-status-2',
-              mediaType: 'image/jpeg',
-              type: 'Document',
-              url: '/test/chunk-boundary-media-2.jpg',
-              createdAt: new Date(now),
-              updatedAt: new Date(now)
-            },
-            {
-              id: 'att-chunk-500-foreign',
-              actorId: actors.replyAuthor.id,
-              mediaId: '500',
-              statusId: 'foreign-status-500',
-              mediaType: 'image/jpeg',
-              type: 'Document',
-              url: '/test/chunk-boundary-media-500.jpg',
-              createdAt: new Date(now),
-              updatedAt: new Date(now)
-            },
-            {
-              id: 'att-chunk-501-empty',
-              actorId: actors.primary.id,
-              mediaId: '501',
-              statusId: '',
-              mediaType: 'image/jpeg',
-              type: 'Document',
-              url: '/test/chunk-boundary-media-501.jpg',
-              createdAt: new Date(now),
-              updatedAt: new Date(now)
-            },
-            {
-              id: 'att-chunk-1000',
-              actorId: actors.primary.id,
-              mediaId: '1000',
-              statusId: 'own-status-1000',
-              mediaType: 'image/jpeg',
-              type: 'Document',
-              url: '/test/chunk-boundary-media-1000.jpg',
-              createdAt: new Date(now),
-              updatedAt: new Date(now)
-            }
-          ])
+          await isolated.db
+            .insertInto('attachments')
+            .values([
+              {
+                id: 'att-chunk-1',
+                actorId: actors.primary.id,
+                mediaId: 1,
+                statusId: 'own-status-1',
+                mediaType: 'image/jpeg',
+                type: 'Document',
+                url: '/test/chunk-boundary-media-1.jpg',
+                createdAt: new Date(now),
+                updatedAt: new Date(now)
+              },
+              {
+                id: 'att-chunk-2-own',
+                actorId: actors.primary.id,
+                mediaId: 2,
+                statusId: 'status-own-2',
+                mediaType: 'image/jpeg',
+                type: 'Document',
+                url: '/test/chunk-boundary-media-2.jpg',
+                createdAt: new Date(now),
+                updatedAt: new Date(now)
+              },
+              {
+                id: 'att-chunk-2-foreign',
+                actorId: actors.replyAuthor.id,
+                mediaId: 2,
+                statusId: 'aaa-foreign-status-2',
+                mediaType: 'image/jpeg',
+                type: 'Document',
+                url: '/test/chunk-boundary-media-2.jpg',
+                createdAt: new Date(now),
+                updatedAt: new Date(now)
+              },
+              {
+                id: 'att-chunk-500-foreign',
+                actorId: actors.replyAuthor.id,
+                mediaId: 500,
+                statusId: 'foreign-status-500',
+                mediaType: 'image/jpeg',
+                type: 'Document',
+                url: '/test/chunk-boundary-media-500.jpg',
+                createdAt: new Date(now),
+                updatedAt: new Date(now)
+              },
+              {
+                id: 'att-chunk-501-empty',
+                actorId: actors.primary.id,
+                mediaId: 501,
+                statusId: '',
+                mediaType: 'image/jpeg',
+                type: 'Document',
+                url: '/test/chunk-boundary-media-501.jpg',
+                createdAt: new Date(now),
+                updatedAt: new Date(now)
+              },
+              {
+                id: 'att-chunk-1000',
+                actorId: actors.primary.id,
+                mediaId: 1000,
+                statusId: 'own-status-1000',
+                mediaType: 'image/jpeg',
+                type: 'Document',
+                url: '/test/chunk-boundary-media-1000.jpg',
+                createdAt: new Date(now),
+                updatedAt: new Date(now)
+              }
+            ])
+            .execute()
 
           const statements = await isolated.captureQueries(async () => {
             result = await isolatedDb.getMediasWithStatusForAccount({

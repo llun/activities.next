@@ -1,4 +1,5 @@
 import type { Knex } from 'knex'
+import { sql } from 'kysely'
 
 import {
   getSearchTokens,
@@ -34,7 +35,7 @@ describe('SearchDatabase document filtering', () => {
 
   it('creates SQLite FTS search documents and returns full-text matches', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
 
     try {
       await testDb.prepare()
@@ -48,11 +49,10 @@ describe('SearchDatabase document filtering', () => {
       })
 
       if (testDb.backend === 'sqlite') {
-        const ftsRows = await knexDatabase.raw(
-          'select id from search_documents_fts where search_documents_fts match ?',
-          ['runner']
-        )
-        expect(ftsRows).toEqual([
+        const ftsRows = await sql<{ id: string }>`
+          select id from search_documents_fts where search_documents_fts match ${'runner'}
+        `.execute(db)
+        expect(ftsRows.rows).toEqual([
           { id: 'account:https://remote.test/users/alice' }
         ])
       }
@@ -109,7 +109,7 @@ describe('SearchDatabase document filtering', () => {
 
   it('indexes a preloaded status row without reading the statuses table', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const statusId = 'https://remote.test/users/alice/statuses/preloaded'
 
     try {
@@ -130,12 +130,12 @@ describe('SearchDatabase document filtering', () => {
       })
 
       await expect(
-        knexDatabase('search_documents')
-          .where({
-            entityType: 'status',
-            entityId: statusId
-          })
-          .first()
+        db
+          .selectFrom('search_documents')
+          .selectAll()
+          .where('entityType', '=', 'status')
+          .where('entityId', '=', statusId)
+          .executeTakeFirst()
       ).resolves.toMatchObject({
         documentText: 'Preloaded trail run Morning effort',
         actorId: 'https://remote.test/users/alice',
@@ -148,7 +148,7 @@ describe('SearchDatabase document filtering', () => {
 
   describe('generic search document filtering by discoverability and status visibility', () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
 
     beforeAll(async () => {
       await testDb.prepare()
@@ -230,110 +230,122 @@ describe('SearchDatabase document filtering', () => {
         actorId: 'https://remote.test/users/self-forged-runner',
         visibility: 'private'
       })
-      await knexDatabase('actors').insert({
-        id: 'https://remote.test/users/followed-runner',
-        type: 'Person',
-        username: 'followed-runner',
-        domain: 'remote.test',
-        name: null,
-        summary: null,
-        accountId: null,
-        settings: JSON.stringify({
-          followersUrl: 'https://remote.test/users/followed-runner/followers',
-          inboxUrl: 'https://remote.test/users/followed-runner/inbox',
-          sharedInboxUrl: 'https://remote.test/inbox'
-        }),
-        publicKey: 'public-key',
-        privateKey: null,
-        deletionStatus: null,
-        deletionScheduledAt: null,
-        createdAt: new Date(1),
-        updatedAt: new Date(1)
-      })
-      await knexDatabase('actors').insert({
-        id: 'https://remote.test/users/self-forged-runner',
-        type: 'Person',
-        username: 'self-forged-runner',
-        domain: 'remote.test',
-        name: null,
-        summary: null,
-        accountId: null,
-        settings: JSON.stringify({
-          followersUrl: 'https://remote.test/users/followed-runner/followers',
-          inboxUrl: 'https://remote.test/users/self-forged-runner/inbox',
-          sharedInboxUrl: 'https://remote.test/inbox'
-        }),
-        publicKey: 'public-key',
-        privateKey: null,
-        deletionStatus: null,
-        deletionScheduledAt: null,
-        createdAt: new Date(1),
-        updatedAt: new Date(1)
-      })
-      await knexDatabase('recipients').insert([
-        {
-          id: 'search-direct-recipient',
-          statusId: 'https://remote.test/users/direct-runner/statuses/1',
-          actorId: 'https://remote.test/users/current-runner',
-          type: 'to'
-        },
-        {
-          id: 'search-followed-recipient',
-          statusId: 'https://remote.test/users/followed-runner/statuses/1',
-          actorId: 'https://remote.test/users/followed-runner/followers',
-          type: 'to'
-        },
-        {
-          id: 'search-unfollowed-recipient',
-          statusId: 'https://remote.test/users/unfollowed-runner/statuses/1',
-          actorId: 'https://remote.test/users/unfollowed-runner/followers',
-          type: 'to'
-        },
-        {
-          id: 'search-missing-actor-recipient',
-          statusId: 'https://remote.test/users/missing-runner/statuses/1',
-          actorId: 'https://remote.test/users/missing-runner/followers',
-          type: 'to'
-        },
-        {
-          id: 'search-forged-recipient',
-          statusId: 'https://remote.test/users/forged-runner/statuses/1',
-          actorId: 'https://remote.test/users/followed-runner/followers',
-          type: 'to'
-        },
-        {
-          id: 'search-self-forged-recipient',
-          statusId: 'https://remote.test/users/self-forged-runner/statuses/1',
-          actorId: 'https://remote.test/users/followed-runner/followers',
-          type: 'to'
-        }
-      ])
-      await knexDatabase('follows').insert([
-        {
-          id: 'search-followed-runner-follow',
-          actorId: 'https://remote.test/users/current-runner',
-          actorHost: 'remote.test',
-          targetActorId: 'https://remote.test/users/followed-runner',
-          targetActorHost: 'remote.test',
-          status: FollowStatus.enum.Accepted
-        },
-        {
-          id: 'search-missing-runner-follow',
-          actorId: 'https://remote.test/users/current-runner',
-          actorHost: 'remote.test',
-          targetActorId: 'https://remote.test/users/missing-runner',
-          targetActorHost: 'remote.test',
-          status: FollowStatus.enum.Accepted
-        },
-        {
-          id: 'search-self-forged-runner-follow',
-          actorId: 'https://remote.test/users/current-runner',
-          actorHost: 'remote.test',
-          targetActorId: 'https://remote.test/users/self-forged-runner',
-          targetActorHost: 'remote.test',
-          status: FollowStatus.enum.Accepted
-        }
-      ])
+      await db
+        .insertInto('actors')
+        .values({
+          id: 'https://remote.test/users/followed-runner',
+          type: 'Person',
+          username: 'followed-runner',
+          domain: 'remote.test',
+          name: null,
+          summary: null,
+          accountId: null,
+          settings: JSON.stringify({
+            followersUrl: 'https://remote.test/users/followed-runner/followers',
+            inboxUrl: 'https://remote.test/users/followed-runner/inbox',
+            sharedInboxUrl: 'https://remote.test/inbox'
+          }),
+          publicKey: 'public-key',
+          privateKey: null,
+          deletionStatus: null,
+          deletionScheduledAt: null,
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+      await db
+        .insertInto('actors')
+        .values({
+          id: 'https://remote.test/users/self-forged-runner',
+          type: 'Person',
+          username: 'self-forged-runner',
+          domain: 'remote.test',
+          name: null,
+          summary: null,
+          accountId: null,
+          settings: JSON.stringify({
+            followersUrl: 'https://remote.test/users/followed-runner/followers',
+            inboxUrl: 'https://remote.test/users/self-forged-runner/inbox',
+            sharedInboxUrl: 'https://remote.test/inbox'
+          }),
+          publicKey: 'public-key',
+          privateKey: null,
+          deletionStatus: null,
+          deletionScheduledAt: null,
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+      await db
+        .insertInto('recipients')
+        .values([
+          {
+            id: 'search-direct-recipient',
+            statusId: 'https://remote.test/users/direct-runner/statuses/1',
+            actorId: 'https://remote.test/users/current-runner',
+            type: 'to'
+          },
+          {
+            id: 'search-followed-recipient',
+            statusId: 'https://remote.test/users/followed-runner/statuses/1',
+            actorId: 'https://remote.test/users/followed-runner/followers',
+            type: 'to'
+          },
+          {
+            id: 'search-unfollowed-recipient',
+            statusId: 'https://remote.test/users/unfollowed-runner/statuses/1',
+            actorId: 'https://remote.test/users/unfollowed-runner/followers',
+            type: 'to'
+          },
+          {
+            id: 'search-missing-actor-recipient',
+            statusId: 'https://remote.test/users/missing-runner/statuses/1',
+            actorId: 'https://remote.test/users/missing-runner/followers',
+            type: 'to'
+          },
+          {
+            id: 'search-forged-recipient',
+            statusId: 'https://remote.test/users/forged-runner/statuses/1',
+            actorId: 'https://remote.test/users/followed-runner/followers',
+            type: 'to'
+          },
+          {
+            id: 'search-self-forged-recipient',
+            statusId: 'https://remote.test/users/self-forged-runner/statuses/1',
+            actorId: 'https://remote.test/users/followed-runner/followers',
+            type: 'to'
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('follows')
+        .values([
+          {
+            id: 'search-followed-runner-follow',
+            actorId: 'https://remote.test/users/current-runner',
+            actorHost: 'remote.test',
+            targetActorId: 'https://remote.test/users/followed-runner',
+            targetActorHost: 'remote.test',
+            status: FollowStatus.enum.Accepted
+          },
+          {
+            id: 'search-missing-runner-follow',
+            actorId: 'https://remote.test/users/current-runner',
+            actorHost: 'remote.test',
+            targetActorId: 'https://remote.test/users/missing-runner',
+            targetActorHost: 'remote.test',
+            status: FollowStatus.enum.Accepted
+          },
+          {
+            id: 'search-self-forged-runner-follow',
+            actorId: 'https://remote.test/users/current-runner',
+            actorHost: 'remote.test',
+            targetActorId: 'https://remote.test/users/self-forged-runner',
+            targetActorHost: 'remote.test',
+            status: FollowStatus.enum.Accepted
+          }
+        ])
+        .execute()
     })
 
     afterAll(async () => {

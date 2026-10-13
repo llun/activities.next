@@ -2,7 +2,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 describe('AccountNoteDatabase', () => {
   const testDb = createTestDatabase()
-  const { database, knex } = testDb
+  const { database, db } = testDb
 
   // Each test uses its own author so the tests don't depend on order.
   const author = (name: string) => `https://llun.test/users/note-${name}`
@@ -10,7 +10,12 @@ describe('AccountNoteDatabase', () => {
   const otherTarget = 'https://remote.test/users/other-target'
 
   const noteRows = (actorId: string, target: string) =>
-    knex('account_notes').where({ actorId, targetActorId: target }).select('id')
+    db
+      .selectFrom('account_notes')
+      .select('id')
+      .where('actorId', '=', actorId)
+      .where('targetActorId', '=', target)
+      .execute()
 
   beforeAll(async () => {
     await testDb.prepare()

@@ -1,16 +1,13 @@
-import knex from 'knex'
-
 import {
   primaryActorId,
   replyAuthorId
 } from '@/lib/database/domains/status/statusTestHelpers'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { kyselyFor } from '@/lib/database/kysely'
 import { potentiallyReadableStatus } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import {
   publiclyReadableStatus,
   publiclyReadableStatusIds
 } from '@/lib/database/kysely/visibility/publiclyReadable'
+import { createCompileOnlyDb } from '@/lib/database/testing/compileOnlyDb'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -20,14 +17,8 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 describe('StatusDatabase readable status SQL', () => {
   describe('public readable status SQL', () => {
     it('stores reply hashes for created replies', async () => {
-      const knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sqlDatabase = getSQLDatabase(knexDatabase)
+      const testDb = createTestDatabase({ backend: 'sqlite' })
+      const { db, database: sqlDatabase } = testDb
 
       try {
         await sqlDatabase.migrate()
@@ -58,28 +49,24 @@ describe('StatusDatabase readable status SQL', () => {
         })
 
         await expect(
-          knexDatabase('statuses')
-            .whereIn('id', [noteId, pollId])
-            .select('id', 'replyHash')
+          db
+            .selectFrom('statuses')
+            .select(['id', 'replyHash'])
+            .where('id', 'in', [noteId, pollId])
             .orderBy('id', 'asc')
+            .execute()
         ).resolves.toEqual([
           { id: noteId, replyHash: getHashFromString(reply) },
           { id: pollId, replyHash: getHashFromString(reply) }
         ])
       } finally {
-        await knexDatabase.destroy()
+        await testDb.destroy()
       }
     })
 
     it('uses reply hashes for recipientless parent URL visibility lookups', async () => {
-      const knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sqlDatabase = getSQLDatabase(knexDatabase)
+      const testDb = createTestDatabase({ backend: 'sqlite' })
+      const { db, database: sqlDatabase } = testDb
 
       try {
         await sqlDatabase.migrate()
@@ -108,9 +95,11 @@ describe('StatusDatabase readable status SQL', () => {
           cc: [],
           reply: (parent as StatusNote).url
         })
-        await knexDatabase('statuses')
-          .where('id', replyStatusId)
-          .update({ replyHash: null })
+        await db
+          .updateTable('statuses')
+          .set({ replyHash: null })
+          .where('id', '=', replyStatusId)
+          .execute()
 
         const results = await sqlDatabase.getStatusesByIds({
           statusIds: [replyStatusId],
@@ -119,17 +108,14 @@ describe('StatusDatabase readable status SQL', () => {
 
         expect(results).toEqual([])
       } finally {
-        await knexDatabase.destroy()
+        await testDb.destroy()
       }
     })
 
     it('includes publicly readable legacy Announces that only store the target in content', async () => {
       // getRebloggedBy runs on Kysely; this one reaches PostgreSQL too.
-      const {
-        database: sqlDatabase,
-        knex: knexDatabase,
-        prepare
-      } = createTestDatabase()
+      const testDb = createTestDatabase()
+      const { database: sqlDatabase, db, prepare } = testDb
 
       try {
         await prepare()
@@ -148,26 +134,32 @@ describe('StatusDatabase readable status SQL', () => {
 
         const legacyAnnounceId = `${replyAuthorId}/statuses/legacy-reblog`
         const createdAt = new Date('2024-04-01T00:00:00.000Z')
-        await knexDatabase('statuses').insert({
-          id: legacyAnnounceId,
-          url: null,
-          urlHash: null,
-          actorId: replyAuthorId,
-          type: StatusType.enum.Announce,
-          reply: '',
-          content: statusId,
-          originalStatusId: null,
-          createdAt,
-          updatedAt: createdAt
-        })
-        await knexDatabase('recipients').insert({
-          id: crypto.randomUUID(),
-          statusId: legacyAnnounceId,
-          actorId: ACTIVITY_STREAM_PUBLIC,
-          type: 'to',
-          createdAt,
-          updatedAt: createdAt
-        })
+        await db
+          .insertInto('statuses')
+          .values({
+            id: legacyAnnounceId,
+            url: null,
+            urlHash: null,
+            actorId: replyAuthorId,
+            type: StatusType.enum.Announce,
+            reply: '',
+            content: statusId,
+            originalStatusId: null,
+            createdAt,
+            updatedAt: createdAt
+          })
+          .execute()
+        await db
+          .insertInto('recipients')
+          .values({
+            id: crypto.randomUUID(),
+            statusId: legacyAnnounceId,
+            actorId: ACTIVITY_STREAM_PUBLIC,
+            type: 'to',
+            createdAt,
+            updatedAt: createdAt
+          })
+          .execute()
 
         await expect(
           sqlDatabase.getRebloggedBy({
@@ -182,7 +174,7 @@ describe('StatusDatabase readable status SQL', () => {
           }
         ])
       } finally {
-        await knexDatabase.destroy()
+        await testDb.destroy()
       }
     })
 
@@ -195,14 +187,8 @@ describe('StatusDatabase readable status SQL', () => {
       // is `COALESCE("originalStatusId", content)` and not the other way round.
       // `createAnnounce` always writes the two identically, so only a
       // hand-written row can tell the two orders apart.
-      const knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sqlDatabase = getSQLDatabase(knexDatabase)
+      const testDb = createTestDatabase({ backend: 'sqlite' })
+      const { db, database: sqlDatabase } = testDb
 
       try {
         await sqlDatabase.migrate()
@@ -237,26 +223,32 @@ describe('StatusDatabase readable status SQL', () => {
           content: string
         }) => {
           const createdAt = new Date('2024-05-01T00:00:00.000Z')
-          await knexDatabase('statuses').insert({
-            id,
-            url: null,
-            urlHash: null,
-            actorId: replyAuthorId,
-            type: StatusType.enum.Announce,
-            reply: '',
-            content,
-            originalStatusId,
-            createdAt,
-            updatedAt: createdAt
-          })
-          await knexDatabase('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId: ACTIVITY_STREAM_PUBLIC,
-            type: 'to',
-            createdAt,
-            updatedAt: createdAt
-          })
+          await db
+            .insertInto('statuses')
+            .values({
+              id,
+              url: null,
+              urlHash: null,
+              actorId: replyAuthorId,
+              type: StatusType.enum.Announce,
+              reply: '',
+              content,
+              originalStatusId,
+              createdAt,
+              updatedAt: createdAt
+            })
+            .execute()
+          await db
+            .insertInto('recipients')
+            .values({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId: ACTIVITY_STREAM_PUBLIC,
+              type: 'to',
+              createdAt,
+              updatedAt: createdAt
+            })
+            .execute()
         }
 
         const before = await sqlDatabase.getActorStatusesCount({
@@ -293,7 +285,7 @@ describe('StatusDatabase readable status SQL', () => {
           })
         ).resolves.toBe(before + 1)
       } finally {
-        await knexDatabase.destroy()
+        await testDb.destroy()
       }
     })
 
@@ -308,14 +300,8 @@ describe('StatusDatabase readable status SQL', () => {
       // `publiclyReadableStatus`. `createAnnounce` always writes
       // `reply: ''`, so no number anyone can observe moves if that filter
       // goes — only a hand-written row pins the invariant.
-      const knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      const sqlDatabase = getSQLDatabase(knexDatabase)
+      const testDb = createTestDatabase({ backend: 'sqlite' })
+      const { db, database: sqlDatabase } = testDb
 
       try {
         await sqlDatabase.migrate()
@@ -345,26 +331,32 @@ describe('StatusDatabase readable status SQL', () => {
         // it; it is still a boost, not a reply.
         const boostedReplyId = `${replyAuthorId}/statuses/boosted-reply-announce`
         const createdAt = new Date('2024-06-01T00:00:00.000Z')
-        await knexDatabase('statuses').insert({
-          id: boostedReplyId,
-          url: null,
-          urlHash: null,
-          actorId: replyAuthorId,
-          type: StatusType.enum.Announce,
-          reply: parentId,
-          content: parentId,
-          originalStatusId: parentId,
-          createdAt,
-          updatedAt: createdAt
-        })
-        await knexDatabase('recipients').insert({
-          id: crypto.randomUUID(),
-          statusId: boostedReplyId,
-          actorId: ACTIVITY_STREAM_PUBLIC,
-          type: 'to',
-          createdAt,
-          updatedAt: createdAt
-        })
+        await db
+          .insertInto('statuses')
+          .values({
+            id: boostedReplyId,
+            url: null,
+            urlHash: null,
+            actorId: replyAuthorId,
+            type: StatusType.enum.Announce,
+            reply: parentId,
+            content: parentId,
+            originalStatusId: parentId,
+            createdAt,
+            updatedAt: createdAt
+          })
+          .execute()
+        await db
+          .insertInto('recipients')
+          .values({
+            id: crypto.randomUUID(),
+            statusId: boostedReplyId,
+            actorId: ACTIVITY_STREAM_PUBLIC,
+            type: 'to',
+            createdAt,
+            updatedAt: createdAt
+          })
+          .execute()
 
         await expect(
           sqlDatabase.getStatusRepliesCount({
@@ -373,33 +365,28 @@ describe('StatusDatabase readable status SQL', () => {
           })
         ).resolves.toBe(1)
       } finally {
-        await knexDatabase.destroy()
+        await testDb.destroy()
       }
     })
   })
 
   describe('publiclyReadableStatus SQL', () => {
     // Compiles only: neither instance connects.
-    const compile = async (client: 'pg' | 'better-sqlite3') => {
-      const database = knex({ client, useNullAsDefault: true, connection: {} })
-      try {
-        const db = kyselyFor(database)
-        return db
-          .selectFrom('statuses')
-          .select('statuses.id')
-          .where((eb) => publiclyReadableStatus(db, eb))
-          .compile()
-      } finally {
-        await database.destroy()
-      }
+    const compile = (client: 'pg' | 'better-sqlite3') => {
+      const db = createCompileOnlyDb(client === 'pg' ? 'pg' : 'sqlite')
+      return db
+        .selectFrom('statuses')
+        .select('statuses.id')
+        .where((eb) => publiclyReadableStatus(db, eb))
+        .compile()
     }
 
     it.each([['pg' as const], ['better-sqlite3' as const]])(
       'inlines the Announce literal into the %s chain pointer',
-      async (client) => {
+      (client) => {
         // Inlined, so nothing bound sits inside the CASE: a bound value there
         // could swap places with another binding of the recursive term.
-        const { sql, parameters } = await compile(client)
+        const { sql, parameters } = compile(client)
 
         expect(sql).toContain(`= 'Announce' then coalesce(`)
         expect(sql.match(/then coalesce\(/g)).toHaveLength(3)
@@ -413,8 +400,8 @@ describe('StatusDatabase readable status SQL', () => {
 
     it.each([['pg' as const], ['better-sqlite3' as const]])(
       'correlates the %s chain seed to the outer row through one pointer equality',
-      async (client) => {
-        const { sql } = await compile(client)
+      (client) => {
+        const { sql } = compile(client)
         const unquoted = sql.replace(/"/g, '')
 
         expect(unquoted.toLowerCase()).toContain(
@@ -439,26 +426,21 @@ describe('StatusDatabase readable status SQL', () => {
     const targetActorId = 'https://llun.test/users/set-twin'
 
     // Compiles only: neither instance connects.
-    const compile = async (client: 'pg' | 'better-sqlite3') => {
-      const database = knex({ client, useNullAsDefault: true, connection: {} })
-      try {
-        const db = kyselyFor(database)
-        return publiclyReadableStatusIds(
-          db,
-          db
-            .selectFrom('statuses')
-            .select('statuses.id')
-            .where('statuses.actorId', '=', targetActorId)
-        ).compile()
-      } finally {
-        await database.destroy()
-      }
+    const compile = (client: 'pg' | 'better-sqlite3') => {
+      const db = createCompileOnlyDb(client === 'pg' ? 'pg' : 'sqlite')
+      return publiclyReadableStatusIds(
+        db,
+        db
+          .selectFrom('statuses')
+          .select('statuses.id')
+          .where('statuses.actorId', '=', targetActorId)
+      ).compile()
     }
 
     it.each([['pg' as const], ['better-sqlite3' as const]])(
       'inlines the Announce literal into the %s chain pointer',
-      async (client) => {
-        const { sql, parameters } = await compile(client)
+      (client) => {
+        const { sql, parameters } = compile(client)
 
         expect(sql).toContain(`= 'Announce' then coalesce(`)
         expect(sql.match(/then coalesce\(/g)).toHaveLength(2)
@@ -477,8 +459,8 @@ describe('StatusDatabase readable status SQL', () => {
 
     it.each([['pg' as const], ['better-sqlite3' as const]])(
       'seeds the %s recursion with the target set and follows one pointer equality',
-      async (client) => {
-        const { sql } = await compile(client)
+      (client) => {
+        const { sql } = compile(client)
         const unquoted = sql.replace(/"/g, '')
 
         expect(unquoted).toContain(
@@ -514,31 +496,24 @@ describe('StatusDatabase readable status SQL', () => {
     it('quotes camelCase identifiers in PostgreSQL follower audience checks', async () => {
       // Compiles only: the instance never connects. getStatusesByIds and the
       // feeds filter through this predicate.
-      const postgresDatabase = knex({ client: 'pg', connection: {} })
-      try {
-        const db = kyselyFor(postgresDatabase)
-        const { sql } = db
-          .selectFrom('statuses')
-          .selectAll()
-          .where('id', 'in', [`${primaryActorId}/statuses/postgres-readable`])
-          .where((eb) => potentiallyReadableStatus(db, eb, replyAuthorId))
-          .compile()
+      const db = createCompileOnlyDb('pg')
+      const { sql } = db
+        .selectFrom('statuses')
+        .selectAll()
+        .where('id', 'in', [`${primaryActorId}/statuses/postgres-readable`])
+        .where((eb) => potentiallyReadableStatus(db, eb, replyAuthorId))
+        .compile()
 
-        expect(sql).toContain(
-          '"followers_recipients"."statusId" = "statuses"."id"'
-        )
-        expect(sql).toContain(
-          '"follows"."targetActorId" = "statuses"."actorId"'
-        )
-        expect(sql).toContain(
-          '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
-        )
-        expect(sql).toContain(
-          '"followers_recipients"."actorId" = "status_actors"."settings"::jsonb ->> \'followersUrl\''
-        )
-      } finally {
-        await postgresDatabase.destroy()
-      }
+      expect(sql).toContain(
+        '"followers_recipients"."statusId" = "statuses"."id"'
+      )
+      expect(sql).toContain('"follows"."targetActorId" = "statuses"."actorId"')
+      expect(sql).toContain(
+        '"followers_recipients"."actorId" = "statuses"."actorId" || \'/followers\''
+      )
+      expect(sql).toContain(
+        '"followers_recipients"."actorId" = "status_actors"."settings"::jsonb ->> \'followersUrl\''
+      )
     })
   })
 })

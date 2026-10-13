@@ -1,7 +1,5 @@
 import crypto from 'crypto'
-import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
@@ -823,20 +821,17 @@ describe('AccountDatabase', () => {
       })
 
       it('records login counters once per account per UTC week', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { db, database: sqlDatabase } = testDb
 
         const getLoginTotal = async () => {
-          const row = await knexDatabase('counters')
+          const row = await db
+            .selectFrom('counters')
+            .select((eb) =>
+              eb.fn.sum<number | string | null>('value').as('total')
+            )
             .where('id', 'like', 'bucket:logins:%')
-            .sum<{ total: number | string | null }>('value as total')
-            .first()
+            .executeTakeFirst()
           return Number(row?.total ?? 0)
         }
 
@@ -873,10 +868,12 @@ describe('AccountDatabase', () => {
             expireAt: Date.now() + 60_000
           })
 
-          const markerRows = await knexDatabase('counters')
-            .where('id', `unique-login:${accountId}`)
+          const markerRows = await db
+            .selectFrom('counters')
+            .select(['id', 'value'])
+            .where('id', '=', `unique-login:${accountId}`)
             .orderBy('id', 'asc')
-            .select('id', 'value')
+            .execute()
 
           expect(await getLoginTotal()).toBe(2)
           expect(markerRows).toEqual([
@@ -887,19 +884,13 @@ describe('AccountDatabase', () => {
           ])
         } finally {
           vi.useRealTimers()
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       it('creates account sessions when login counter recording fails', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { db, database: sqlDatabase } = testDb
         const errorSpy = vi
           .spyOn(logger, 'error')
           .mockImplementation(() => undefined)
@@ -916,7 +907,7 @@ describe('AccountDatabase', () => {
             publicKey: 'public-login-failure-key'
           })
 
-          await knexDatabase.schema.dropTable('counters')
+          await db.schema.dropTable('counters').execute()
 
           await expect(
             sqlDatabase.createAccountSession({
@@ -926,15 +917,17 @@ describe('AccountDatabase', () => {
             })
           ).resolves.toBeUndefined()
 
-          const session = await knexDatabase('sessions')
-            .where('token', 'login-counter-failure')
-            .first()
+          const session = await db
+            .selectFrom('sessions')
+            .selectAll()
+            .where('token', '=', 'login-counter-failure')
+            .executeTakeFirst()
 
           expect(session).toMatchObject({ accountId })
         } finally {
           await new Promise((resolve) => setImmediate(resolve))
           errorSpy.mockRestore()
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
     })

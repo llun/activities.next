@@ -4,6 +4,7 @@ import { type Insertable, sql } from 'kysely'
 import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
 import type { Actors } from '@/lib/database/kysely/db'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { holdTransaction } from '@/lib/database/testing/heldTransaction'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { DEFAULT_NOTIFICATION_POLICY } from '@/lib/types/database/operations'
@@ -1036,9 +1037,9 @@ describe('transactions', () => {
 describe.runIf(testDb.backend === 'pg')('updateActor row lock', () => {
   const waitForLockWait = async () => {
     for (let attempt = 0; attempt < 250; attempt += 1) {
-      const { rows } = await testDb.knex.raw(
-        "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
-      )
+      const { rows } = await sql<{ waiting: number }>`
+        select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'
+      `.execute(db())
       if (rows[0].waiting > 0) return
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
@@ -1053,26 +1054,33 @@ describe.runIf(testDb.backend === 'pg')('updateActor row lock', () => {
       })
     })
 
-    const trx = await testDb.knex.transaction()
+    const { trx, commit, rollback } = await holdTransaction(db())
     let update: Promise<unknown> | undefined
     try {
-      await trx('actors').where('id', target).forUpdate().first()
+      await trx
+        .selectFrom('actors')
+        .selectAll()
+        .where('id', '=', target)
+        .forUpdate()
+        .executeTakeFirst()
       update = database.updateActor({
         actorId: target,
         appendNotificationAcceptedSenders: ['third']
       })
       await waitForLockWait()
-      await trx('actors')
-        .where('id', target)
-        .update({
+      await trx
+        .updateTable('actors')
+        .set({
           settings: JSON.stringify({
             ...settingsFor('l', REMOTE),
             notificationAcceptedSenders: ['first', 'second']
           })
         })
-      await trx.commit()
+        .where('id', '=', target)
+        .execute()
+      await commit()
     } catch (error) {
-      await trx.rollback()
+      await rollback()
       throw error
     }
     await update

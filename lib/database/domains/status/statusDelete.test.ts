@@ -1,17 +1,15 @@
-import knex from 'knex'
-
 import {
   extraActorId,
   primaryActorId,
   statuses
 } from '@/lib/database/domains/status/statusTestHelpers'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
 import { SQLITE_MAX_BINDINGS } from '@/lib/database/kysely/inList'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { insertRowsInChunks } from '@/lib/database/testing/searchTestHelpers'
 import { Database } from '@/lib/database/types'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -365,14 +363,8 @@ describe('StatusDatabase deletion', () => {
       })
 
       it('decreases reblog counter when deleting an announce', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { db, database: sqlDatabase } = testDb
         const originalActorId = 'https://remote.test/users/reblog-original'
         const reblogActorId = 'https://remote.test/users/reblog-deleter'
         const originalStatusId = `${originalActorId}/statuses/original`
@@ -420,9 +412,11 @@ describe('StatusDatabase deletion', () => {
             cc: [],
             originalStatusId
           })
-          await knexDatabase('statuses')
-            .where('id', announceId)
-            .update({ content: JSON.stringify({}) })
+          await db
+            .updateTable('statuses')
+            .set({ content: JSON.stringify({}) })
+            .where('id', '=', announceId)
+            .execute()
 
           const afterCreateReblogsCount =
             await sqlDatabase.getStatusReblogsCount({
@@ -438,19 +432,13 @@ describe('StatusDatabase deletion', () => {
             })
           expect(afterDeleteReblogsCount).toBe(beforeReblogsCount)
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       it('deletes reply cycles without unbounded recursion', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { db, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/reply-cycle'
         const firstStatusId = `${actorId}/statuses/cycle-a`
         const secondStatusId = `${actorId}/statuses/cycle-b`
@@ -484,12 +472,14 @@ describe('StatusDatabase deletion', () => {
             text: 'Reply cycle B',
             reply: firstStatusId
           })
-          await knexDatabase('statuses')
-            .where('id', firstStatusId)
-            .update({
+          await db
+            .updateTable('statuses')
+            .set({
               reply: secondStatusId,
               replyHash: getHashFromString(secondStatusId)
             })
+            .where('id', '=', firstStatusId)
+            .execute()
 
           await expect(
             sqlDatabase.deleteStatus({ statusId: firstStatusId })
@@ -501,13 +491,13 @@ describe('StatusDatabase deletion', () => {
             sqlDatabase.getStatus({ statusId: secondStatusId })
           ).resolves.toBeNull()
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       it('rejects very deep reply trees before building a long delete transaction', async () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
-        const { knex: knexDatabase, database: sqlDatabase } = testDb
+        const { db, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/deep-replies'
         const rootStatusId = `${actorId}/statuses/deep-0`
         const overLimitStatusId = `${actorId}/statuses/deep-100`
@@ -529,24 +519,27 @@ describe('StatusDatabase deletion', () => {
             const id = `${actorId}/statuses/deep-${index}`
             const reply =
               index === 0 ? '' : `${actorId}/statuses/deep-${index - 1}`
-            await knexDatabase('statuses').insert({
-              id,
-              url: id,
-              urlHash: getHashFromString(id),
-              actorId,
-              type: StatusType.enum.Note,
-              content: JSON.stringify({
+            await db
+              .insertInto('statuses')
+              .values({
                 id,
                 url: id,
-                text: `Deep reply ${index}`,
-                summary: ''
-              }),
-              reply,
-              replyHash: reply ? getHashFromString(reply) : null,
-              originalStatusId: null,
-              createdAt: new Date(index),
-              updatedAt: new Date(index)
-            })
+                urlHash: getHashFromString(id),
+                actorId,
+                type: StatusType.enum.Note,
+                content: JSON.stringify({
+                  id,
+                  url: id,
+                  text: `Deep reply ${index}`,
+                  summary: ''
+                }),
+                reply,
+                replyHash: reply ? getHashFromString(reply) : null,
+                originalStatusId: null,
+                createdAt: new Date(index),
+                updatedAt: new Date(index)
+              })
+              .execute()
           }
 
           const queries = (
@@ -567,16 +560,20 @@ describe('StatusDatabase deletion', () => {
             )
           ).toBe(false)
           await expect(
-            knexDatabase('statuses').where('id', rootStatusId).first('id')
+            db
+              .selectFrom('statuses')
+              .select('id')
+              .where('id', '=', rootStatusId)
+              .executeTakeFirst()
           ).resolves.toEqual({ id: rootStatusId })
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       it('deletes reply trees with bounded bulk cleanup queries', async () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
-        const { knex: knexDatabase, database: sqlDatabase } = testDb
+        const { database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/bulk-delete'
         const parentStatusId = `${actorId}/statuses/bulk-parent`
         const firstReplyStatusId = `${actorId}/statuses/bulk-reply-1`
@@ -664,13 +661,13 @@ describe('StatusDatabase deletion', () => {
           expect(searchDocumentDeletes).toHaveLength(1)
           expect(searchDocumentDeletes[0].sql).toContain('"entityid" in')
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       it('reserves actor filter bindings for owned status delete batches', async () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
-        const { knex: knexDatabase, database: sqlDatabase } = testDb
+        const { db, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/owned-batch-delete'
         const rootStatusId = `${actorId}/statuses/root`
         const replyCount = SQLITE_MAX_BINDINGS
@@ -741,7 +738,7 @@ describe('StatusDatabase deletion', () => {
               }
             })
           ]
-          await knexDatabase.batchInsert('statuses', statusRows, 80)
+          await insertRowsInChunks(db, 'statuses', statusRows, 80)
 
           const queries = (
             await testDb.captureQueries(async () => {
@@ -767,22 +764,26 @@ describe('StatusDatabase deletion', () => {
             SQLITE_MAX_BINDINGS
           )
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       it('deletes status history and poll votes with status-scoped cleanup', async () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
-        const { knex: knexDatabase, database: sqlDatabase } = testDb
+        const { db, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/delete-owned-status-data'
         const voterId = 'https://remote.test/users/delete-owned-status-voter'
         const noteId = `${actorId}/statuses/history-cleanup`
         const pollId = `${actorId}/statuses/poll-cleanup`
-        const countRows = async (tableName: string, statusId: string) => {
-          const row = await knexDatabase(tableName)
-            .where({ statusId })
-            .count<{ count: number | string }>('* as count')
-            .first()
+        const countRows = async (
+          tableName: 'status_history' | 'poll_answers' | 'poll_voters',
+          statusId: string
+        ) => {
+          const row = await db
+            .selectFrom(tableName)
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('statusId', '=', statusId)
+            .executeTakeFirst()
           return Number(row?.count ?? 0)
         }
 
@@ -862,22 +863,27 @@ describe('StatusDatabase deletion', () => {
           expect(hasDirectStatusIdDelete('poll_answers')).toBe(true)
           expect(hasDirectStatusIdDelete('poll_voters')).toBe(true)
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
 
       describe('deleting a status with auxiliary references', () => {
         const testDb = createTestDatabase({ backend: 'sqlite' })
-        const { knex: knexDatabase, database: sqlDatabase } = testDb
+        const { db, database: sqlDatabase } = testDb
         const actorId = 'https://remote.test/users/delete-aux-status-data'
         const statusId = `${actorId}/statuses/aux-cleanup`
         const queries: string[] = []
         const currentTime = new Date()
-        const countRows = async (tableName: string, statusId: string) => {
-          const row = await knexDatabase(tableName)
-            .where({ statusId })
-            .count<{ count: number | string }>('* as count')
-            .first()
+        const countRows = async (
+          tableName:
+            'notifications' | 'direct_conversation_statuses' | 'fitness_files',
+          statusId: string
+        ) => {
+          const row = await db
+            .selectFrom(tableName)
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('statusId', '=', statusId)
+            .executeTakeFirst()
           return Number(row?.count ?? 0)
         }
 
@@ -901,45 +907,57 @@ describe('StatusDatabase deletion', () => {
             cc: [],
             text: 'Auxiliary cleanup note'
           })
-          await knexDatabase('notifications').insert({
-            id: 'aux-status-notification',
-            actorId,
-            type: 'mention',
-            sourceActorId: actorId,
-            statusId,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-          await knexDatabase('direct_conversation_statuses').insert({
-            conversationId: 'aux-status-conversation',
-            statusId,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-          await knexDatabase('fitness_files').insert({
-            id: 'aux-status-fitness-file',
-            actorId,
-            statusId,
-            path: '/tmp/aux-status.fit',
-            fileName: 'aux-status.fit',
-            fileType: 'fit',
-            mimeType: 'application/octet-stream',
-            bytes: 100,
-            createdAt: currentTime,
-            updatedAt: currentTime
-          })
-          await knexDatabase('counters').insert(
-            [
-              CounterKey.totalLike(statusId),
-              CounterKey.totalReblog(statusId),
-              CounterKey.totalReply(statusId)
-            ].map((id) => ({
-              id,
-              value: 1,
+          await db
+            .insertInto('notifications')
+            .values({
+              id: 'aux-status-notification',
+              actorId,
+              type: 'mention',
+              sourceActorId: actorId,
+              statusId,
               createdAt: currentTime,
               updatedAt: currentTime
-            }))
-          )
+            })
+            .execute()
+          await db
+            .insertInto('direct_conversation_statuses')
+            .values({
+              conversationId: 'aux-status-conversation',
+              statusId,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            })
+            .execute()
+          await db
+            .insertInto('fitness_files')
+            .values({
+              id: 'aux-status-fitness-file',
+              actorId,
+              statusId,
+              path: '/tmp/aux-status.fit',
+              fileName: 'aux-status.fit',
+              fileType: 'fit',
+              mimeType: 'application/octet-stream',
+              bytes: 100,
+              createdAt: currentTime,
+              updatedAt: currentTime
+            })
+            .execute()
+          await db
+            .insertInto('counters')
+            .values(
+              [
+                CounterKey.totalLike(statusId),
+                CounterKey.totalReblog(statusId),
+                CounterKey.totalReply(statusId)
+              ].map((id) => ({
+                id,
+                value: 1,
+                createdAt: currentTime,
+                updatedAt: currentTime
+              }))
+            )
+            .execute()
 
           await expect(countRows('notifications', statusId)).resolves.toBe(1)
           await expect(
@@ -954,7 +972,7 @@ describe('StatusDatabase deletion', () => {
         })
 
         afterAll(async () => {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         })
 
         it('removes notifications, direct-conversation rows, fitness links and counters', async () => {
@@ -964,19 +982,22 @@ describe('StatusDatabase deletion', () => {
           ).resolves.toBe(0)
           await expect(countRows('fitness_files', statusId)).resolves.toBe(0)
           await expect(
-            knexDatabase('fitness_files')
-              .where({ id: 'aux-status-fitness-file' })
-              .first('statusId')
+            db
+              .selectFrom('fitness_files')
+              .select('statusId')
+              .where('id', '=', 'aux-status-fitness-file')
+              .executeTakeFirst()
           ).resolves.toEqual({ statusId: null })
           await expect(
-            knexDatabase('counters')
-              .whereIn('id', [
+            db
+              .selectFrom('counters')
+              .select((eb) => eb.fn.countAll<number>().as('count'))
+              .where('id', 'in', [
                 CounterKey.totalLike(statusId),
                 CounterKey.totalReblog(statusId),
                 CounterKey.totalReply(statusId)
               ])
-              .count<{ count: number | string }>('* as count')
-              .first()
+              .executeTakeFirst()
               .then((row) => Number(row?.count ?? 0))
           ).resolves.toBe(0)
         })
@@ -1015,20 +1036,17 @@ describe('StatusDatabase deletion', () => {
 
     describe('instance activity local status buckets', () => {
       it('increments local status buckets only for statuses from local actors', async () => {
-        const knexDatabase = knex({
-          client: 'better-sqlite3',
-          useNullAsDefault: true,
-          connection: {
-            filename: ':memory:'
-          }
-        })
-        const sqlDatabase = getSQLDatabase(knexDatabase)
+        const testDb = createTestDatabase({ backend: 'sqlite' })
+        const { db, database: sqlDatabase } = testDb
 
         const getCounterTotal = async (counterType: string) => {
-          const row = await knexDatabase('counters')
+          const row = await db
+            .selectFrom('counters')
+            .select((eb) =>
+              eb.fn.sum<number | string | null>('value').as('total')
+            )
             .where('id', 'like', `bucket:${counterType}:%`)
-            .sum<{ total: number | string | null }>('value as total')
-            .first()
+            .executeTakeFirst()
           return Number(row?.total ?? 0)
         }
 
@@ -1079,7 +1097,7 @@ describe('StatusDatabase deletion', () => {
           expect(await getCounterTotal('statuses')).toBe(2)
           expect(await getCounterTotal('local-statuses')).toBe(1)
         } finally {
-          await knexDatabase.destroy()
+          await testDb.destroy()
         }
       })
     })

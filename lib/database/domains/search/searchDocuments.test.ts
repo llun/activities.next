@@ -371,22 +371,25 @@ describe('searchDocuments visibility', () => {
   const otherViewer = `${HOST}/users/other-viewer`
 
   const insertActor = (id: string, settings: Record<string, unknown> | null) =>
-    testDb.knex('actors').insert({
-      id,
-      type: 'Person',
-      username: id.split('/').pop(),
-      domain: 'vis.test',
-      name: null,
-      summary: null,
-      accountId: null,
-      settings: settings ? JSON.stringify(settings) : null,
-      publicKey: 'public-key',
-      privateKey: null,
-      deletionStatus: null,
-      deletionScheduledAt: null,
-      createdAt: new Date(1),
-      updatedAt: new Date(1)
-    })
+    testDb.db
+      .insertInto('actors')
+      .values({
+        id,
+        type: 'Person',
+        username: id.split('/').pop(),
+        domain: 'vis.test',
+        name: null,
+        summary: null,
+        accountId: null,
+        settings: settings ? JSON.stringify(settings) : null,
+        publicKey: 'public-key',
+        privateKey: null,
+        deletionStatus: null,
+        deletionScheduledAt: null,
+        createdAt: new Date(1),
+        updatedAt: new Date(1)
+      })
+      .execute()
 
   const status = (name: string, author: string, visibility: string) =>
     database.upsertSearchDocument({
@@ -400,26 +403,32 @@ describe('searchDocuments visibility', () => {
   const statusId = (name: string) => `${HOST}/statuses/${name}`
   let recipientCount = 0
   const addRecipient = (name: string, actorId: string) =>
-    testDb.knex('recipients').insert({
-      id: `vis-recipient-${(recipientCount += 1)}`,
-      statusId: statusId(name),
-      actorId,
-      type: 'to'
-    })
+    testDb.db
+      .insertInto('recipients')
+      .values({
+        id: `vis-recipient-${(recipientCount += 1)}`,
+        statusId: statusId(name),
+        actorId,
+        type: 'to'
+      })
+      .execute()
   let followCount = 0
   const addFollow = (
     actorId: string,
     targetActorId: string,
     followStatus: string
   ) =>
-    testDb.knex('follows').insert({
-      id: `vis-follow-${(followCount += 1)}`,
-      actorId,
-      actorHost: 'vis.test',
-      targetActorId,
-      targetActorHost: 'vis.test',
-      status: followStatus
-    })
+    testDb.db
+      .insertInto('follows')
+      .values({
+        id: `vis-follow-${(followCount += 1)}`,
+        actorId,
+        actorHost: 'vis.test',
+        targetActorId,
+        targetActorHost: 'vis.test',
+        status: followStatus
+      })
+      .execute()
 
   beforeAll(async () => {
     const accepted = FollowStatus.enum.Accepted

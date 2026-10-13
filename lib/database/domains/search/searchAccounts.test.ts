@@ -46,7 +46,7 @@ describe('SearchDatabase accounts', () => {
 
   it('filters account search to followed actors when requested', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const aliceId = 'https://remote.test/users/alice'
     const bobId = 'https://remote.test/users/bob'
 
@@ -67,9 +67,9 @@ describe('SearchDatabase accounts', () => {
         username: 'bob',
         summary: 'Runner'
       })
-      await knexDatabase('actors')
-        .where('id', bobId)
-        .update({
+      await db
+        .updateTable('actors')
+        .set({
           settings: JSON.stringify({
             followersUrl: `${bobId}/followers`,
             inboxUrl: `${bobId}/inbox`,
@@ -77,6 +77,8 @@ describe('SearchDatabase accounts', () => {
             noindex: true
           })
         })
+        .where('id', '=', bobId)
+        .execute()
       await database.indexActorSearchDocument({ id: bobId })
       await database.createFollow({
         actorId: 'https://remote.test/users/viewer',
@@ -154,7 +156,7 @@ describe('SearchDatabase accounts', () => {
 
   it('only returns non-discoverable accounts for exact handle matches', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const actorId = 'https://remote.test/users/secret'
 
     try {
@@ -165,9 +167,9 @@ describe('SearchDatabase accounts', () => {
         username: 'secret',
         summary: 'Hidden account'
       })
-      await knexDatabase('actors')
-        .where('id', actorId)
-        .update({
+      await db
+        .updateTable('actors')
+        .set({
           settings: JSON.stringify({
             followersUrl: `${actorId}/followers`,
             inboxUrl: `${actorId}/inbox`,
@@ -175,6 +177,8 @@ describe('SearchDatabase accounts', () => {
             noindex: true
           })
         })
+        .where('id', '=', actorId)
+        .execute()
       await database.indexActorSearchDocument({ id: actorId })
 
       await expect(
@@ -202,9 +206,11 @@ describe('SearchDatabase accounts', () => {
           limit: 10
         })
       ).resolves.toEqual([actorId])
-      await knexDatabase('actors')
-        .where('id', actorId)
-        .update({ username: 'Secret' })
+      await db
+        .updateTable('actors')
+        .set({ username: 'Secret' })
+        .where('id', '=', actorId)
+        .execute()
       await database.indexActorSearchDocument({ id: actorId })
       await expect(
         database.searchAccountIds({
@@ -337,7 +343,7 @@ describe('SearchDatabase accounts', () => {
 
   it('paginates exact account matches with indexed results without skipping', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
     const exactActorId = 'https://remote.test/users/runner'
 
     try {
@@ -348,9 +354,9 @@ describe('SearchDatabase accounts', () => {
         username: 'runner',
         summary: 'Hidden runner'
       })
-      await knexDatabase('actors')
-        .where('id', exactActorId)
-        .update({
+      await db
+        .updateTable('actors')
+        .set({
           settings: JSON.stringify({
             followersUrl: `${exactActorId}/followers`,
             inboxUrl: `${exactActorId}/inbox`,
@@ -358,6 +364,8 @@ describe('SearchDatabase accounts', () => {
             noindex: true
           })
         })
+        .where('id', '=', exactActorId)
+        .execute()
       await database.indexActorSearchDocument({ id: exactActorId })
       await createSearchActor(database, {
         id: 'https://remote.test/users/alice',
@@ -552,33 +560,36 @@ describe('SearchDatabase accounts', () => {
 
   it('sizes SQLite account reindex batches from the search document column count', async () => {
     const testDb = createTestDatabase()
-    const { database, knex: knexDatabase } = testDb
+    const { database, db } = testDb
 
     try {
       await testDb.prepare()
       await database.migrate()
       for (let index = 0; index < 83; index += 1) {
         const actorId = `https://remote.test/users/batch-runner-${index}`
-        await knexDatabase('actors').insert({
-          id: actorId,
-          type: 'Person',
-          username: `batch-runner-${index}`,
-          domain: 'remote.test',
-          name: null,
-          summary: 'Runner',
-          accountId: null,
-          settings: JSON.stringify({
-            followersUrl: `${actorId}/followers`,
-            inboxUrl: `${actorId}/inbox`,
-            sharedInboxUrl: 'https://remote.test/inbox'
-          }),
-          publicKey: 'public-key',
-          privateKey: null,
-          deletionStatus: null,
-          deletionScheduledAt: null,
-          createdAt: new Date(1),
-          updatedAt: new Date(1)
-        })
+        await db
+          .insertInto('actors')
+          .values({
+            id: actorId,
+            type: 'Person',
+            username: `batch-runner-${index}`,
+            domain: 'remote.test',
+            name: null,
+            summary: 'Runner',
+            accountId: null,
+            settings: JSON.stringify({
+              followersUrl: `${actorId}/followers`,
+              inboxUrl: `${actorId}/inbox`,
+              sharedInboxUrl: 'https://remote.test/inbox'
+            }),
+            publicKey: 'public-key',
+            privateKey: null,
+            deletionStatus: null,
+            deletionScheduledAt: null,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          })
+          .execute()
       }
 
       const insertQueries = (

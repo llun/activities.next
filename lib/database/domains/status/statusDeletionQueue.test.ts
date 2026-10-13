@@ -1,8 +1,7 @@
-import { Knex } from 'knex'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { searchQueries } from '@/lib/database/domains/search/queries'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import {
   getTestDatabaseTable,
   getTestDatabaseWithInstance
@@ -17,7 +16,6 @@ const table = getTestDatabaseTable()
 
 describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
   let database: Database
-  let knexDatabase: Knex
   let db: Db
   let destroy: () => Promise<void>
   let primaryActor: Actor
@@ -26,8 +24,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
   beforeAll(async () => {
     const testDb = getTestDatabaseWithInstance(true, backendName)
     database = testDb.database
-    knexDatabase = testDb.instance
-    db = kyselyFor(knexDatabase)
+    db = testDb.db
     destroy = async () => {
       await database.destroy()
     }
@@ -143,9 +140,17 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(fetchedReply).toBeNull()
 
     // Dependent likes and tags are deleted
-    const remainingLikes = await knexDatabase('likes').where({ statusId })
+    const remainingLikes = await db
+      .selectFrom('likes')
+      .selectAll()
+      .where('statusId', '=', statusId)
+      .execute()
     expect(remainingLikes).toHaveLength(0)
-    const remainingTags = await knexDatabase('tags').where({ statusId })
+    const remainingTags = await db
+      .selectFrom('tags')
+      .selectAll()
+      .where('statusId', '=', statusId)
+      .execute()
     expect(remainingTags).toHaveLength(0)
 
     // Queue job is inserted
@@ -279,7 +284,11 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(secondResult).toBe(false)
 
     // Exactly one job exists in queue_jobs
-    const jobs = await knexDatabase('queue_jobs').where({ id: queueJobId })
+    const jobs = await db
+      .selectFrom('queue_jobs')
+      .selectAll()
+      .where('id', '=', queueJobId)
+      .execute()
     expect(jobs).toHaveLength(1)
   })
 
@@ -320,7 +329,10 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     })
 
     // Temporarily rename queue_jobs table to force insertion failure in createQueueJob
-    await knexDatabase.schema.renameTable('queue_jobs', 'queue_jobs_bak')
+    await db.schema
+      .alterTable('queue_jobs')
+      .renameTo('queue_jobs_bak')
+      .execute()
 
     const queueJobId = `job-insertion-fail-${backendName}-${Date.now()}`
     const queueJob: CreateQueueJobParams = {
@@ -342,7 +354,10 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
         })
       ).rejects.toThrow()
     } finally {
-      await knexDatabase.schema.renameTable('queue_jobs_bak', 'queue_jobs')
+      await db.schema
+        .alterTable('queue_jobs_bak')
+        .renameTo('queue_jobs')
+        .execute()
     }
 
     // Status and dependent rows MUST be restored / uncommitted
@@ -351,10 +366,18 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     const restoredReply = await database.getStatus({ statusId: replyId })
     expect(restoredReply).not.toBeNull()
 
-    const restoredLikes = await knexDatabase('likes').where({ statusId })
+    const restoredLikes = await db
+      .selectFrom('likes')
+      .selectAll()
+      .where('statusId', '=', statusId)
+      .execute()
     expect(restoredLikes).toHaveLength(1)
 
-    const restoredTags = await knexDatabase('tags').where({ statusId })
+    const restoredTags = await db
+      .selectFrom('tags')
+      .selectAll()
+      .where('statusId', '=', statusId)
+      .execute()
     expect(restoredTags).toHaveLength(1)
 
     // No queue job exists
@@ -385,7 +408,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     }
 
     // Force deletion failure by temporarily renaming the likes table
-    await knexDatabase.schema.renameTable('likes', 'likes_bak')
+    await db.schema.alterTable('likes').renameTo('likes_bak').execute()
 
     try {
       await expect(
@@ -396,7 +419,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
         })
       ).rejects.toThrow()
     } finally {
-      await knexDatabase.schema.renameTable('likes_bak', 'likes')
+      await db.schema.alterTable('likes_bak').renameTo('likes').execute()
     }
 
     // Transaction rolled back: no queue job was created
@@ -445,9 +468,11 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
       .spyOn(searchQueries, 'indexHashtagSearchDocuments')
       .mockImplementation(async () => {
         // Query the database outside any transaction to check committed state
-        const row = await knexDatabase('statuses')
-          .where({ id: statusId })
-          .first()
+        const row = await db
+          .selectFrom('statuses')
+          .selectAll()
+          .where('id', '=', statusId)
+          .executeTakeFirst()
         statusVisibleDuringRefresh = row ?? null
       })
 
