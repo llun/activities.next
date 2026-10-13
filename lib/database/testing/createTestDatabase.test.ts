@@ -1,13 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  createTestDatabase,
+  getLegacyKnex
+} from '@/lib/database/testing/createTestDatabase'
 
 const expectedBackend =
   process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
 
 describe('createTestDatabase', () => {
   const testDatabase = createTestDatabase()
-  const { database, db, knex } = testDatabase
+  const { database, db } = testDatabase
+  const knex = getLegacyKnex(database)
 
   beforeAll(async () => {
     await testDatabase.prepare()
@@ -82,7 +86,7 @@ describe('createTestDatabase backends', () => {
     await testDatabase.destroy()
 
     // Knex marks the pool destroyed; the pool no longer hands out connections.
-    expect(testDatabase.knex.client.pool).toBeUndefined()
+    expect(getLegacyKnex(testDatabase.database).client.pool).toBeUndefined()
     await expect(
       testDatabase.db.selectFrom('server_settings').select('key').execute()
     ).rejects.toThrow()

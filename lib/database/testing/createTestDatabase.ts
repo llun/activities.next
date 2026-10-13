@@ -22,6 +22,32 @@ import type { Database } from '@/lib/database/types'
 
 export type TestDatabaseBackend = 'sqlite' | 'pg'
 
+const legacyKnexByDatabase = new WeakMap<Database, Knex>()
+
+/**
+ * The raw Knex instance behind a test database's `database` (and so its `db`).
+ * Tests do not seed or read through it: use `db`, the facade or
+ * `lib/database/testing/fixtures.ts`. It exists only for the tests that need
+ * Knex itself and goes away with Knex:
+ *
+ * - the Knex-transaction interop tests, which open a Knex transaction and
+ *   hand it to `kyselyFor(trx)`;
+ * - the legacy migration tests, which run a migration module on Knex;
+ * - the tests of the Knex-backed connection (`kysely/driver`, `kysely/guard`,
+ *   `sqlcommenter`, `createTestDatabase`, `testUtils`, `queryCapture`,
+ *   `schema`).
+ *
+ * Takes the `database` of `createTestDatabase`, `getTestDatabaseWithInstance`
+ * or `getTestSQLDatabaseWithInstance`.
+ */
+export const getLegacyKnex = (database: Database): Knex => {
+  const knex = legacyKnexByDatabase.get(database)
+  if (!knex) {
+    throw new Error('getLegacyKnex: not the database of a test database')
+  }
+  return knex
+}
+
 export type CreateTestDatabaseOptions = {
   /** Defaults to `pg` when `TEST_DATABASE_TYPE=pg`, otherwise `sqlite`. */
   backend?: TestDatabaseBackend
@@ -39,11 +65,9 @@ export type TestDatabase = {
   database: Database
   /** Kysely on the same pool, for seeding and fixtures. */
   db: Db
-  /** The raw Knex instance behind `database` and `db`. */
-  knex: Knex
   /** Drops and recreates the PostgreSQL database; a no-op on SQLite. */
   prepare: () => Promise<void> | void
-  /** Closes the Knex pool (and so Kysely's). */
+  /** Closes the pool behind `database` and `db`. */
   destroy: () => Promise<void>
   /**
    * The statements the driver sends while `work` runs, as `{ sql, bindings }`
@@ -122,16 +146,17 @@ const build = ({
   prepare: () => Promise<void> | void
 }): TestDatabase => {
   const { onQuery, captureQueries } = createKnexQueryCapture(knex)
+  const database = withSchemaDumpMigrate(getSQLDatabase(knex), knex, loader)
+  legacyKnexByDatabase.set(database, knex)
   return {
     backend,
-    database: withSchemaDumpMigrate(getSQLDatabase(knex), knex, loader),
+    database,
     // Lazy: kyselyFor() is only needed by suites that use it. testUtils.test.ts
     // builds this around a mocked Knex whose client kyselyFor() does not
     // support.
     get db() {
       return kyselyFor(knex)
     },
-    knex,
     prepare,
     destroy: () => knex.destroy(),
     captureQueries,

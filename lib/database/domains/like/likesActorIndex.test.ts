@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
 import * as migration from '@/migrations/20261005073054_add_likes_actor_created_at_index'
 
 const INDEX = 'likes_actor_created_at_status_idx'
@@ -47,7 +48,8 @@ describe('likes (actorId, createdAt, statusId) index', () => {
   })
 
   it('serves the favourites page query without a table scan or sort', async () => {
-    const { database, instance } = getTestSQLDatabaseWithInstance()
+    const { database } = getTestSQLDatabaseWithInstance()
+    const instance = getLegacyKnex(database)
     try {
       await database.migrate()
       expect(await indexColumns(instance)).toEqual([

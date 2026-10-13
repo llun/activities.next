@@ -1,5 +1,3 @@
-import type { Knex } from 'knex'
-
 import {
   type TestDatabase,
   createTestDatabase
@@ -34,8 +32,8 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
 }
 
 // What `getTestDatabaseWithInstance` and `getTestSQLDatabaseWithInstance` hand
-// out besides the raw Knex `instance`: Kysely on the same pool for seeding and
-// reading, and statement capture. `db` stays a getter, as on `TestDatabase`,
+// out besides `database`: Kysely on the same pool for seeding and reading, and
+// statement capture. `db` stays a getter, as on `TestDatabase`,
 // so a suite built around a mocked Knex never builds a Kysely instance. Hand
 // them out with a getter, not a spread, which would read `db` eagerly.
 export type TestDatabaseTools = Pick<
@@ -44,9 +42,9 @@ export type TestDatabaseTools = Pick<
 >
 
 /**
- * A database honouring `TEST_DATABASE_TYPE`, plus its raw Knex instance, a
- * Kysely `db` on the same pool, statement capture (`captureQueries`,
- * `onQuery`) and the `prepare` step PostgreSQL needs, for a suite that is not
+ * A database honouring `TEST_DATABASE_TYPE`, plus a Kysely `db` on the same
+ * pool, statement capture (`captureQueries`, `onQuery`) and the `prepare` step
+ * PostgreSQL needs, for a suite that is not
  * shaped as a `describe.each` over `getTestDatabaseTable()` but still has to
  * run on both backends.
  *
@@ -61,7 +59,6 @@ export const getTestDatabaseWithInstance = (
   backend = process.env.TEST_DATABASE_TYPE
 ): {
   database: Database
-  instance: Knex
   prepare: PrepareFunction
 } & TestDatabaseTools => {
   const testDatabase = createTestDatabase({
@@ -70,7 +67,6 @@ export const getTestDatabaseWithInstance = (
   })
   return {
     database: testDatabase.database,
-    instance: testDatabase.knex,
     prepare: testDatabase.prepare,
     get db() {
       return testDatabase.db
@@ -81,9 +77,9 @@ export const getTestDatabaseWithInstance = (
   }
 }
 
-// Build a fresh in-memory SQLite database and also hand back the raw Knex
-// instance, for the rare test that needs to seed a state the public Database
-// interface cannot construct (e.g. a registration-pending account row with a
+// Build a fresh in-memory SQLite database and also hand back a Kysely `db`,
+// for the rare test that needs to seed a state the public Database interface
+// cannot construct (e.g. a registration-pending account row with a
 // null approvedAt).
 //
 // SQLite ONLY: this ignores `TEST_DATABASE_TYPE`, so a suite built on it passes
@@ -92,12 +88,10 @@ export const getTestDatabaseWithInstance = (
 // backends.
 export const getTestSQLDatabaseWithInstance = (): {
   database: Database
-  instance: Knex
 } & TestDatabaseTools => {
   const testDatabase = createTestDatabase({ backend: 'sqlite' })
   return {
     database: testDatabase.database,
-    instance: testDatabase.knex,
     get db() {
       return testDatabase.db
     },

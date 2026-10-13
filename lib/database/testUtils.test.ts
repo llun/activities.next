@@ -1,5 +1,7 @@
 import { Knex } from 'knex'
 
+import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -185,12 +187,9 @@ describe('SQLite test path', () => {
     process.env.TEST_DATABASE_PORT = 'invalid'
 
     expect(() => {
-      const { database, instance } = getTestDatabaseWithInstance(
-        false,
-        'sqlite'
-      )
+      const { database } = getTestDatabaseWithInstance(false, 'sqlite')
       expect(database).toBeDefined()
-      expect(instance).toBeDefined()
+      expect(getLegacyKnex(database)).toBeDefined()
     }).not.toThrow()
 
     expect(mockPgClientConstructor).not.toHaveBeenCalled()
@@ -321,12 +320,9 @@ describe('PostgreSQL test connection paths', () => {
     process.env.TEST_DATABASE_USERNAME = 'pguser'
     process.env.TEST_DATABASE_PASSWORD = 'pgpassword'
 
-    const { database, instance, prepare } = getTestDatabaseWithInstance(
-      true,
-      'pg'
-    )
+    const { database, prepare } = getTestDatabaseWithInstance(true, 'pg')
     expect(database).toBeDefined()
-    expect(instance).toBeDefined()
+    expect(getLegacyKnex(database)).toBeDefined()
 
     expect(mockKnex).toHaveBeenCalledWith({
       client: 'pg',

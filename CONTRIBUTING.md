@@ -836,14 +836,18 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   table name for the rest of its life.
 - **New tests get their database from `createTestDatabase()`**
   (`lib/database/testing/createTestDatabase.ts`). It returns the `Database`
-  facade (`database`, with the schema-dump `migrate()`), a Kysely `db`, the raw
-  Knex instance (`knex`), the PostgreSQL `prepare` step (a no-op on SQLite),
-  `destroy`, `backend`, and the statement capture described below
-  (`captureQueries`, `onQuery`, `pendingAcquires`). Seed or inspect state the
-  public `Database` methods cannot reach with the helpers in
-  `lib/database/testing/fixtures.ts` (`(db, params)` functions over Kysely);
-  use a public method instead when one already does the job. The helpers below
-  are one-line aliases over it.
+  facade (`database`, with the schema-dump `migrate()`), a Kysely `db`, the
+  PostgreSQL `prepare` step (a no-op on SQLite), `destroy`, `backend`, and the
+  statement capture described below (`captureQueries`, `onQuery`,
+  `pendingAcquires`). Seed or inspect state the public `Database` methods
+  cannot reach with `db` and the helpers in `lib/database/testing/fixtures.ts`
+  (`(db, params)` functions over Kysely); use a public method instead when one
+  already does the job. Neither it nor the helpers below hand out a raw Knex
+  instance. The few tests that need Knex itself (the Knex-transaction interop
+  tests, the legacy migration tests, and the tests of the Knex-backed
+  connection) call `getLegacyKnex(database)` from `createTestDatabase.ts`,
+  which goes away with Knex; do not use it to seed or read. The helpers below
+  are one-line aliases over `createTestDatabase`.
 - **To assert on the SQL a call sends, capture it with
   `testDb.captureQueries(work)`; never register a listener on the Knex
   instance** (`knex.on('query', …)`) in a test (`driver.test.ts` and
@@ -866,7 +870,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   strings are equal, which is how a test tells "inside one open transaction"
   from "autocommitted elsewhere"), or has to stop a runaway loop: a listener
   that throws fails the statement that triggered it. `getTestDatabaseWithInstance()`
-  returns the same `captureQueries`, `onQuery` and `db` next to its `instance`.
+  returns the same `captureQueries`, `onQuery` and `db` next to its `database`.
   `testDb.pendingAcquires()` is how many callers are queued for a pooled
   connection, for a race test that has to know another caller is stuck (on
   SQLite, one waiting for the single connection). A test that builds its own
@@ -880,7 +884,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   reported its job suite "verified on PostgreSQL 17" on exactly that basis.
   `getTestDatabaseTable()` (for a `describe.each` over backends) and
   `getTestDatabaseWithInstance()` (for a suite that is not shaped that way, or
-  that needs the raw Knex instance) do honour it. When a claim about
+  that wants the Kysely `db` next to the facade) do honour it. When a claim about
   cross-backend behaviour matters, verify it by pointing `TEST_DATABASE_HOST` at
   an unreachable address first: a suite that still passes is not running where
   you think it is.

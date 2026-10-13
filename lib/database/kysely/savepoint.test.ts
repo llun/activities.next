@@ -3,6 +3,7 @@ import type { Knex } from 'knex'
 import { type Db, inTransaction, kyselyFor } from '@/lib/database/kysely'
 import { inSavepoint } from '@/lib/database/kysely/savepoint'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 
@@ -19,7 +20,7 @@ describe('inSavepoint', () => {
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    instance = getLegacyKnex(test.database)
     await test.prepare()
     await database.migrate()
     db = test.db

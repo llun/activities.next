@@ -7,7 +7,10 @@ import {
   recordWeeklyLoginSafely
 } from '@/lib/database/domains/instanceActivity/queries'
 import { kyselyFor } from '@/lib/database/kysely'
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  createTestDatabase,
+  getLegacyKnex
+} from '@/lib/database/testing/createTestDatabase'
 import { formatBucketHour } from '@/lib/database/utils/counterBucket'
 
 // The same queries as instanceActivity.test.ts, on the committed schema and on
@@ -186,9 +189,9 @@ describe('instance activity on both backends', () => {
     })
 
     // Knex-transaction interop on purpose (`kyselyFor(trx)`), so this one
-    // keeps the raw Knex instance until the connection swap.
+    // takes the legacy Knex instance until the connection swap.
     it('joins the Knex transaction it is called from', async () => {
-      const { knex } = testDb
+      const knex = getLegacyKnex(testDb.database)
       await knex.transaction(async (trx) => {
         await recordWeeklyLoginSafely(
           kyselyFor(trx),

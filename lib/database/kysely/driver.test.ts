@@ -4,6 +4,7 @@ import { sql } from 'kysely'
 import { kyselyFor } from '@/lib/database/kysely'
 import { getKyselyDialectName } from '@/lib/database/kysely/driver'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 
 // Runs on SQLite by default and on PostgreSQL under TEST_DATABASE_TYPE=pg.
@@ -14,7 +15,7 @@ describe('Knex-backed Kysely driver', () => {
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = test.instance
+    instance = getLegacyKnex(test.database)
     await test.prepare()
     await database.migrate()
   })
@@ -184,13 +185,15 @@ describe('Knex-backed Kysely driver', () => {
     await test.prepare()
     await test.database.migrate()
     try {
-      const db = kyselyFor(test.instance)
+      const db = kyselyFor(getLegacyKnex(test.database))
       await db.destroy()
-      expect(kyselyFor(test.instance)).toBe(db)
+      expect(kyselyFor(getLegacyKnex(test.database))).toBe(db)
       await expect(
         db.selectFrom('likes').selectAll().execute()
       ).resolves.toEqual([])
-      await expect(test.instance('likes').count()).resolves.toBeDefined()
+      await expect(
+        getLegacyKnex(test.database)('likes').count()
+      ).resolves.toBeDefined()
     } finally {
       await test.database.destroy()
     }
