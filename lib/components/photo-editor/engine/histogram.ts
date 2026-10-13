@@ -6,6 +6,7 @@ export interface ImageStats {
   meanLinear: number
   /** Luma percentiles. */
   p005: number
+  p50: number
   p995: number
   /** Standard deviation of the perceptual luma. */
   sd: number
@@ -16,6 +17,8 @@ export interface ImageStats {
   midtone: { r: number; g: number; b: number }
   /** Mean of max(rgb) - min(rgb), sRGB. */
   meanChroma: number
+  /** Near-neutral midtone statistics (0.15 < luma < 0.85, chroma < 0.12). */
+  neutralMidtone: { r: number; g: number; b: number; weight: number }
 }
 
 export interface Histogram {
@@ -68,12 +71,19 @@ export const computeStats = (
   let midG = 0
   let midB = 0
   let chroma = 0
+  let neutralCount = 0
+  let neutralLinearR = 0
+  let neutralLinearG = 0
+  let neutralLinearB = 0
 
   for (let i = 0; i < count; i += 1) {
     const r = rgba[i * 4]
     const g = rgba[i * 4 + 1]
     const b = rgba[i * 4 + 2]
-    sumLinear += luma(LINEAR_LUT[r], LINEAR_LUT[g], LINEAR_LUT[b])
+    const linR = LINEAR_LUT[r]
+    const linG = LINEAR_LUT[g]
+    const linB = LINEAR_LUT[b]
+    sumLinear += luma(linR, linG, linB)
     const y = perceptual(r, g, b)
     bins[Math.min(PERCENTILE_BINS - 1, Math.floor(y * PERCENTILE_BINS))] += 1
     sumY += y
@@ -86,28 +96,41 @@ export const computeStats = (
       midG += g
       midB += b
     }
-    chroma += Math.max(r, g, b) - Math.min(r, g, b)
+    const maxChannel = Math.max(r, g, b)
+    const minChannel = Math.min(r, g, b)
+    const c = (maxChannel - minChannel) / 255
+    chroma += maxChannel - minChannel
+    if (y > 0.15 && y < 0.85 && c < 0.12) {
+      neutralCount += 1
+      neutralLinearR += linR
+      neutralLinearG += linG
+      neutralLinearB += linB
+    }
   }
 
   if (count === 0) {
     return {
       meanLinear: 0,
       p005: 0,
+      p50: 0.5,
       p995: 0,
       sd: 0,
       fractionHigh: 0,
       fractionLow: 0,
       midtone: { r: 0, g: 0, b: 0 },
-      meanChroma: 0
+      meanChroma: 0,
+      neutralMidtone: { r: 0, g: 0, b: 0, weight: 0 }
     }
   }
 
   const meanY = sumY / count
   const variance = Math.max(0, sumYSquared / count - meanY * meanY)
   const midDivisor = midCount > 0 ? midCount * 255 : 1
+  const neutralDivisor = neutralCount > 0 ? neutralCount : 1
   return {
     meanLinear: sumLinear / count,
     p005: percentile(bins, count, 0.005),
+    p50: percentile(bins, count, 0.5),
     p995: percentile(bins, count, 0.995),
     sd: Math.sqrt(variance),
     fractionHigh: high / count,
@@ -117,7 +140,13 @@ export const computeStats = (
       g: midG / midDivisor,
       b: midB / midDivisor
     },
-    meanChroma: chroma / count / 255
+    meanChroma: chroma / count / 255,
+    neutralMidtone: {
+      r: neutralLinearR / neutralDivisor,
+      g: neutralLinearG / neutralDivisor,
+      b: neutralLinearB / neutralDivisor,
+      weight: neutralCount / count
+    }
   }
 }
 

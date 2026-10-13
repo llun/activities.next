@@ -1,4 +1,5 @@
 import { computeAuto } from './auto'
+import { linearToSrgb } from './colour'
 import { computeStats } from './histogram'
 
 const image = (
@@ -81,9 +82,34 @@ describe('computeAuto', () => {
   })
 
   it('adds vibrance to a muted photo and none to a vivid one', () => {
-    expect(computeAuto(ramp(60, 200)).vibrance).toBe(20)
+    expect(computeAuto(ramp(60, 200)).vibrance).toBe(18)
     const vivid = image((i) => [i % 2 ? 255 : 0, i % 3 ? 0 : 255, 128])
     expect(computeAuto(vivid).vibrance).toBe(0)
+  })
+
+  it('does not invert temperature or tint on warm sunsets or lush foliage', () => {
+    // Warm sunset: strong red/amber chroma, no neutral midtones
+    const sunset = image(() => [255, 160, 30])
+    const sunsetAuto = computeAuto(sunset)
+    expect(sunsetAuto.temperature).toBe(0)
+    expect(sunsetAuto.tint).toBe(0)
+
+    // Lush foliage: green chroma, no neutral midtones
+    const foliage = image(() => [30, 180, 40])
+    const foliageAuto = computeAuto(foliage)
+    expect(foliageAuto.temperature).toBe(0)
+    expect(foliageAuto.tint).toBe(0)
+  })
+
+  it('dampens positive exposure when highlights are already bright', () => {
+    // Mostly dark with 5% clipping bright highlights
+    const darkWithBrightHighlights = image((i) =>
+      i < 20 ? [255, 255, 255] : [15, 15, 15]
+    )
+    const auto = computeAuto(darkWithBrightHighlights)
+    // Exposure should not aggressively push highlights to max (+0.85)
+    expect(auto.exposure).toBeLessThan(0.85)
+    expect(auto.exposure).toBeGreaterThan(0)
   })
 
   it('zeroes tiny values and leaves a balanced photo almost alone', () => {
@@ -107,12 +133,14 @@ describe('computeAuto', () => {
     const auto = computeAuto({
       meanLinear: 0.18,
       p005: 0.03,
+      p50: linearToSrgb(0.18),
       p995: 0.97,
       sd: 0.21,
       fractionHigh: 0,
       fractionLow: 0,
       midtone: { r: 0.5, g: 0.5, b: 0.5 },
-      meanChroma: 0.4
+      meanChroma: 0.4,
+      neutralMidtone: { r: 0.18, g: 0.18, b: 0.18, weight: 0 }
     })
     expect(auto).toEqual({
       exposure: 0,

@@ -39,10 +39,18 @@ interface Props {
   overlayVisible: boolean
   onOverlayVisibleChange: (visible: boolean) => void
   onTap: (point: { x: number; y: number }) => void
+  onBoxSelect?: (box: {
+    x0: number
+    y0: number
+    x1: number
+    y1: number
+  }) => void
   /** `radius` is in source pixels. */
   onStrokeStart: (point: { x: number; y: number }, radius: number) => void
   onStrokeMove: (point: { x: number; y: number }) => void
   onStrokeEnd: () => void
+  zoom?: number
+  pan?: { x: number; y: number }
 }
 
 const TAP_SLOP = 6
@@ -70,21 +78,32 @@ export const MaskStageLayer = ({
   overlayVisible,
   onOverlayVisibleChange,
   onTap,
+  onBoxSelect,
   onStrokeStart,
   onStrokeMove,
-  onStrokeEnd
+  onStrokeEnd,
+  zoom: _zoom = 1,
+  pan: _pan = { x: 0, y: 0 }
 }: Props) => {
   const layer = useRef<HTMLDivElement>(null)
   const ring = useRef<HTMLDivElement>(null)
   const press = useRef<{
     x: number
     y: number
+    startX: number
+    startY: number
     moved: boolean
     stroking: boolean
   } | null>(null)
   // True while Alt is held with the arrow keys in brush mode: one stroke.
   const keyStroke = useRef(false)
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
+  const [selectionBox, setSelectionBox] = useState<{
+    x: number
+    y: number
+    width: number
+    height: number
+  } | null>(null)
 
   const matrix = useMemo(
     () => getGeometryTransform(source, geometry, css),
@@ -121,7 +140,14 @@ export const MaskStageLayer = ({
     event.currentTarget.setPointerCapture?.(event.pointerId)
     const at = local(event)
     const stroking = mode === 'brush'
-    press.current = { ...at, moved: false, stroking }
+    press.current = {
+      x: at.x,
+      y: at.y,
+      startX: at.x,
+      startY: at.y,
+      moved: false,
+      stroking
+    }
     if (stroking) onStrokeStart(toSource(at.x, at.y), radius)
   }
 
@@ -130,23 +156,52 @@ export const MaskStageLayer = ({
     if (mode === 'brush' && canRefine) moveRing(at.x, at.y, true)
     const current = press.current
     if (!current) return
-    if (Math.hypot(at.x - current.x, at.y - current.y) > TAP_SLOP) {
+    const dist = Math.hypot(at.x - current.startX, at.y - current.startY)
+    if (dist > TAP_SLOP) {
       current.moved = true
     }
-    if (current.stroking) onStrokeMove(toSource(at.x, at.y))
+    if (current.stroking) {
+      onStrokeMove(toSource(at.x, at.y))
+    } else if (mode === 'add' && dist > 10) {
+      setSelectionBox({
+        x: Math.min(current.startX, at.x),
+        y: Math.min(current.startY, at.y),
+        width: Math.abs(at.x - current.startX),
+        height: Math.abs(at.y - current.startY)
+      })
+    }
   }
 
   const finish = (event: PointerEvent<HTMLDivElement>, cancelled: boolean) => {
     const current = press.current
     press.current = null
+    setSelectionBox(null)
     if (!current) return
     if (current.stroking) {
       onStrokeEnd()
       return
     }
-    if (!cancelled && !current.moved) {
-      const at = local(event)
-      onTap(toSource(at.x, at.y))
+    const at = local(event)
+    const dist = Math.hypot(at.x - current.startX, at.y - current.startY)
+    if (!cancelled) {
+      if (mode === 'add' && dist > 10 && onBoxSelect) {
+        const p0 = toSource(
+          Math.min(current.startX, at.x),
+          Math.min(current.startY, at.y)
+        )
+        const p1 = toSource(
+          Math.max(current.startX, at.x),
+          Math.max(current.startY, at.y)
+        )
+        onBoxSelect({
+          x0: Math.min(p0.x, p1.x),
+          y0: Math.min(p0.y, p1.y),
+          x1: Math.max(p0.x, p1.x),
+          y1: Math.max(p0.y, p1.y)
+        })
+      } else if (!current.moved) {
+        onTap(toSource(at.x, at.y))
+      }
     }
   }
 
@@ -261,6 +316,20 @@ export const MaskStageLayer = ({
           aria-hidden="true"
           className="pointer-events-none absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow ring-1 ring-black/60"
           style={{ left: cursor.x, top: cursor.y }}
+        />
+      ) : null}
+
+      {selectionBox ? (
+        <div
+          data-testid="mask-selection-box"
+          aria-hidden="true"
+          className="pointer-events-none absolute border-2 border-dashed border-primary bg-primary/20 shadow-sm"
+          style={{
+            left: selectionBox.x,
+            top: selectionBox.y,
+            width: selectionBox.width,
+            height: selectionBox.height
+          }}
         />
       ) : null}
 

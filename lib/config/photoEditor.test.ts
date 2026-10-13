@@ -25,8 +25,7 @@ const HF_DEFAULT = {
       'https://huggingface.co/Xenova/slimsam-77-uniform/resolve/5850ab45f587c112167512ffef949107115e26a0/',
     files: FILES
   },
-  connectOrigins: ['https://huggingface.co', 'https://*.hf.co'],
-  enhance: null
+  connectOrigins: ['https://huggingface.co', 'https://*.hf.co']
 }
 
 describe('getPhotoEditorConfig', () => {
@@ -65,8 +64,7 @@ describe('getPhotoEditorConfig', () => {
     const { config, onInvalid } = withValue(value)
     expect(config).toEqual({
       subjectModel: null,
-      connectOrigins: [],
-      enhance: null
+      connectOrigins: []
     })
     expect(onInvalid).not.toHaveBeenCalled()
   })
@@ -78,8 +76,7 @@ describe('getPhotoEditorConfig', () => {
     const { config, onInvalid } = withValue(value)
     expect(config).toEqual({
       subjectModel: { baseUrl: value, files: FILES },
-      connectOrigins: [new URL(value).origin],
-      enhance: null
+      connectOrigins: [new URL(value).origin]
     })
     expect(onInvalid).not.toHaveBeenCalled()
   })
@@ -97,8 +94,7 @@ describe('getPhotoEditorConfig', () => {
     const { config, onInvalid } = withValue(value)
     expect(config).toEqual({
       subjectModel: null,
-      connectOrigins: [],
-      enhance: null
+      connectOrigins: []
     })
     expect(onInvalid).toHaveBeenCalledTimes(1)
     expect(onInvalid.mock.calls[0][0]).toContain(KEY)
@@ -109,84 +105,5 @@ describe('getPhotoEditorConfig', () => {
     config.subjectModel!.files.encoder.bytes = 1
     config.connectOrigins.push('https://evil.example.com')
     expect(getPhotoEditorConfig()).toEqual(HF_DEFAULT)
-  })
-})
-
-describe('getPhotoEditorConfig enhance', () => {
-  const MODEL_KEY = 'ACTIVITIES_PHOTO_ENHANCE_MODEL'
-  const original = process.env[MODEL_KEY]
-  const ALT_TEXT = {
-    endpoint: 'https://api.example.com/v1/chat/completions',
-    apiKey: 'sk-test',
-    model: 'alt-model'
-  }
-
-  afterEach(() => {
-    if (original === undefined) delete process.env[MODEL_KEY]
-    else process.env[MODEL_KEY] = original
-  })
-
-  const withModel = (value: string | undefined, altText = ALT_TEXT) => {
-    if (value === undefined) delete process.env[MODEL_KEY]
-    else process.env[MODEL_KEY] = value
-    return getPhotoEditorConfig({ altText }).enhance
-  }
-
-  it.each([
-    ['unset', undefined],
-    ['blank', '   ']
-  ])(
-    'uses the alt text endpoint, key and model when the override is %s',
-    (_, value) => {
-      expect(withModel(value)).toEqual(ALT_TEXT)
-    }
-  )
-
-  it('lets ACTIVITIES_PHOTO_ENHANCE_MODEL override the model only', () => {
-    expect(withModel(' enhance-model ')).toEqual({
-      ...ALT_TEXT,
-      model: 'enhance-model'
-    })
-  })
-
-  it.each(['off', 'OFF', ' Off '])('is off for %j', (value) => {
-    expect(withModel(value)).toBeNull()
-  })
-
-  it.each([
-    ['null', null],
-    ['undefined', undefined]
-  ])(
-    'is null without alt text config (%s), whatever the override',
-    (_, altText) => {
-      delete process.env[MODEL_KEY]
-      expect(getPhotoEditorConfig({ altText }).enhance).toBeNull()
-      process.env[MODEL_KEY] = 'enhance-model'
-      expect(getPhotoEditorConfig({ altText }).enhance).toBeNull()
-    }
-  )
-
-  it('is null when no alt text config is passed at all', () => {
-    delete process.env[MODEL_KEY]
-    expect(getPhotoEditorConfig().enhance).toBeNull()
-  })
-
-  it('does not depend on the subject model setting', () => {
-    const key = 'ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL'
-    const previous = process.env[key]
-    process.env[key] = 'off'
-    try {
-      const config = getPhotoEditorConfig({ altText: ALT_TEXT })
-      expect(config.subjectModel).toBeNull()
-      expect(config.enhance).toEqual(ALT_TEXT)
-    } finally {
-      if (previous === undefined) delete process.env[key]
-      else process.env[key] = previous
-    }
-  })
-
-  it('does not hand out the alt text object it was given', () => {
-    const enhance = withModel(undefined)
-    expect(enhance).not.toBe(ALT_TEXT)
   })
 })

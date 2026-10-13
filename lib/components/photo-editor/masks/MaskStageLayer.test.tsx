@@ -15,6 +15,9 @@ const setup = (
 ) => {
   const handlers = {
     onTap: vi.fn(),
+    onBoxSelect: undefined as
+      | ((box: { x0: number; y0: number; x1: number; y1: number }) => void)
+      | undefined,
     onStrokeStart: vi.fn(),
     onStrokeMove: vi.fn(),
     onStrokeEnd: vi.fn(),
@@ -71,6 +74,24 @@ describe('MaskStageLayer', () => {
     fireEvent.pointerMove(layer, { clientX: 160, clientY: 75 })
     fireEvent.pointerUp(layer, { clientX: 160, clientY: 75 })
     expect(onTap).not.toHaveBeenCalled()
+  })
+
+  it('a drag in add mode draws a selection box and triggers onBoxSelect', () => {
+    const onBoxSelect = vi.fn()
+    const { layer, onTap } = setup({ onBoxSelect })
+    fireEvent.pointerDown(layer, { clientX: 100, clientY: 75, button: 0 })
+    fireEvent.pointerMove(layer, { clientX: 200, clientY: 150 })
+
+    expect(screen.getByTestId('mask-selection-box')).toBeInTheDocument()
+
+    fireEvent.pointerUp(layer, { clientX: 200, clientY: 150 })
+    expect(onTap).not.toHaveBeenCalled()
+    expect(onBoxSelect).toHaveBeenCalledTimes(1)
+    const [box] = onBoxSelect.mock.calls[0]
+    expect(box.x0).toBeCloseTo(0.25, 4)
+    expect(box.y0).toBeCloseTo(0.25, 4)
+    expect(box.x1).toBeCloseTo(0.5, 4)
+    expect(box.y1).toBeCloseTo(0.5, 4)
   })
 
   it('paints a stroke in brush mode, with the radius in source pixels', () => {

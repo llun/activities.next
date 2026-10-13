@@ -114,24 +114,21 @@ export const renderMaskChannel = (
   return alpha
 }
 
-let nextRasterId = 1
-const rasterIds = new WeakMap<MaskRaster, number>()
-const rasterId = (raster: MaskRaster) => {
-  let id = rasterIds.get(raster)
-  if (!id) {
-    id = nextRasterId
-    nextRasterId += 1
-    rasterIds.set(raster, id)
-  }
-  return id
-}
-
 /**
  * Builds the packed mask frame of a recipe for a frame size, keeping each
  * mask's geometry-transformed plane until its pixels or the geometry change.
  */
 export const createMaskFrameBuilder = () => {
-  const planes = new Map<string, { key: string; plane: Uint8ClampedArray }>()
+  const planes = new Map<
+    string,
+    {
+      raster: MaskRaster
+      geometryKey: string
+      width: number
+      height: number
+      data: Uint8ClampedArray
+    }
+  >()
 
   const build = (
     masks: Recipe['masks'],
@@ -141,23 +138,31 @@ export const createMaskFrameBuilder = () => {
     frame: Size
   ): MaskFrame | null => {
     if (masks.length === 0) return null
-    const geometryKey = `${JSON.stringify(geometry)}|${frame.width}x${frame.height}|${source.width}x${source.height}`
+    const geometryKey = `${JSON.stringify(geometry)}|${source.width}x${source.height}`
     const live = new Set<string>()
     const channels = masks.map((mask) => {
       live.add(mask.id)
-      const own = mask.kind === 'background' ? null : rasters[mask.id]
-      const subject =
-        mask.kind === 'background' && mask.of ? rasters[mask.of] : undefined
-      const base = own ?? subject
-      if (!base) return null
-      const key = `${geometryKey}|${mask.kind}|${rasterId(base)}`
-      const cached = planes.get(mask.id)
-      if (cached?.key === key) return cached.plane
       const raster = getMaskRaster(mask, rasters)
       if (!raster) return null
-      const plane = renderMaskChannel(raster, source, geometry, frame)
-      planes.set(mask.id, { key, plane })
-      return plane
+      const cached = planes.get(mask.id)
+      if (
+        cached &&
+        cached.raster === raster &&
+        cached.geometryKey === geometryKey &&
+        cached.width === frame.width &&
+        cached.height === frame.height
+      ) {
+        return cached.data
+      }
+      const data = renderMaskChannel(raster, source, geometry, frame)
+      planes.set(mask.id, {
+        raster,
+        geometryKey,
+        width: frame.width,
+        height: frame.height,
+        data
+      })
+      return data
     })
     for (const id of planes.keys()) if (!live.has(id)) planes.delete(id)
     return packChannels(channels, frame)

@@ -1,9 +1,11 @@
 import {
   type Adjustments,
   type Geometry,
+  type MaskAdjustments,
   NEUTRAL_RECIPE,
   type Recipe,
   isNeutralRecipe,
+  normalizeAdjustments,
   normalizeRecipe
 } from '@/lib/services/medias/edit/recipe'
 
@@ -21,6 +23,12 @@ const stable = (value: unknown): string => {
   }
   return JSON.stringify(value)
 }
+
+export const adjustmentsEqual = (
+  a: Adjustments | MaskAdjustments,
+  b: Adjustments | MaskAdjustments
+): boolean =>
+  stable(normalizeAdjustments(a)) === stable(normalizeAdjustments(b))
 
 export const recipesEqual = (a: Recipe, b: Recipe): boolean =>
   stable(normalizeRecipe(a)) === stable(normalizeRecipe(b))

@@ -89,7 +89,7 @@ describe('resizeCrop', () => {
     expect(next.x).toBeCloseTo(0.25, 5)
   })
 
-  it('keeps the ratio of an edge drag and centres the other axis', () => {
+  it('drags east handle with locked ratio and anchors west edge', () => {
     const start = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
     const next = resizeCrop(
       start,
@@ -99,8 +99,54 @@ describe('resizeCrop', () => {
       oriented,
       2
     )
+    expect(next.x).toBeCloseTo(0.25, 5)
     expect((next.width * 1000) / (next.height * 500)).toBeCloseTo(2, 5)
     expect(next.y + next.height / 2).toBeCloseTo(0.5, 5)
+  })
+
+  it('drags west handle with locked ratio and anchors east edge', () => {
+    const start = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
+    const next = resizeCrop(
+      start,
+      { x: -1, y: 0 },
+      { x: 150, y: 250 },
+      0,
+      oriented,
+      2
+    )
+    expect(next.x + next.width).toBeCloseTo(0.75, 5)
+    expect((next.width * 1000) / (next.height * 500)).toBeCloseTo(2, 5)
+    expect(next.y + next.height / 2).toBeCloseTo(0.5, 5)
+  })
+
+  it('drags south handle with locked ratio and anchors north edge', () => {
+    const start = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
+    const next = resizeCrop(
+      start,
+      { x: 0, y: 1 },
+      { x: 500, y: 450 },
+      0,
+      oriented,
+      1
+    )
+    expect(next.y).toBeCloseTo(0.25, 5)
+    expect((next.width * 1000) / (next.height * 500)).toBeCloseTo(1, 5)
+    expect(next.x + next.width / 2).toBeCloseTo(0.5, 5)
+  })
+
+  it('drags north handle with locked ratio and anchors south edge', () => {
+    const start = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
+    const next = resizeCrop(
+      start,
+      { x: 0, y: -1 },
+      { x: 500, y: 100 },
+      0,
+      oriented,
+      1
+    )
+    expect(next.y + next.height).toBeCloseTo(0.75, 5)
+    expect((next.width * 1000) / (next.height * 500)).toBeCloseTo(1, 5)
+    expect(next.x + next.width / 2).toBeCloseTo(0.5, 5)
   })
 
   it('does not grow past the image', () => {

@@ -96,8 +96,7 @@ describe('/api/v1/gallery/settings', () => {
     vi.mocked(getConfig).mockReturnValue(configWith() as never)
     vi.mocked(getPhotoEditorConfig).mockReturnValue({
       subjectModel: null,
-      connectOrigins: [],
-      enhance: null
+      connectOrigins: []
     })
     vi.mocked(getResolvedServerSettings).mockImplementation(
       resolveServerSettings
@@ -189,21 +188,10 @@ describe('/api/v1/gallery/settings', () => {
       })
     })
 
-    it('reports AI enhance and its model when the server has one', async () => {
-      vi.mocked(getPhotoEditorConfig).mockReturnValue({
-        subjectModel: null,
-        connectOrigins: [],
-        enhance: {
-          endpoint: 'https://x',
-          apiKey: 'k',
-          model: 'enhance-1'
-        }
-      })
-
+    it('reports AI enhance as unavailable', async () => {
       expect(await (await GET(getRequest(), context)).json()).toMatchObject({
-        photoEnhance: true,
-        photoEnhanceAvailable: true,
-        photoEnhanceModel: 'enhance-1'
+        photoEnhanceAvailable: false,
+        photoEnhanceModel: null
       })
     })
 

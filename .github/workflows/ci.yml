@@ -232,8 +232,8 @@ jobs:
   # gallery album lock the album writes share, the subject and place
   # lookups and subject suggestions) with the lookup, suggestion, quota and
   # map-attachment code over them, and the other suites that read or write
-  # media on a real database (the media describe, album, photo-edit, photo-edit
-  # enhance and photo-edit revert routes, status edits with media, the photo
+  # media on a real database (the media describe, album, photo-edit and
+  # photo-edit revert routes, status edits with media, the photo
   # editor domain, status writes and deletes that hydrate attachments, the
   # profile page data), the status lookups, poll reads, hashtag reads and pins
   # (statuses by url, url hash, publicId and path segment, an actor's own
@@ -363,7 +363,6 @@ jobs:
             'app/api/v1/media/[id]/edit/revert/route.test.ts' \
             'app/api/v1/media/[id]/albums/route.test.ts' \
             'app/api/v1/media/[id]/edit/route.test.ts' \
-            'app/api/v1/media/[id]/edit/enhance/route.test.ts' \
             'app/api/v1/statuses/[id]/route.update.test.ts' \
             'app/api/v1/statuses/[id]/route.update.galleryOnlyEdit.test.ts' \
             'app/(timeline)/[actor]/getProfileData.test.ts' \

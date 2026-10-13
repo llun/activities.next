@@ -39,9 +39,6 @@ const ASPECTS: ReadonlyArray<{ value: Aspect; label: string }> = [
 const hasOrientation = (aspect: Aspect) =>
   aspect === '4:5' || aspect === '3:2' || aspect === '16:9'
 
-const sameCrop = (a: CropRect, b: CropRect) =>
-  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
-
 const withPortrait = (geometry: Geometry, portrait: boolean): Geometry => {
   const { aspectPortrait: _previous, ...rest } = geometry
   return portrait ? { ...rest, aspectPortrait: true } : rest
@@ -67,7 +64,10 @@ export const CropPanel = ({
   const ratio = getAspectRatio(geometry.aspect, portrait, oriented)
   const isLandscape = (ratio ?? 1) >= 1
 
+  const baseCropRef = useRef<CropRect | null>(null)
+
   const applyAspect = (aspect: Aspect, nextPortrait: boolean) => {
+    baseCropRef.current = null
     const base = withPortrait({ ...geometry, aspect }, nextPortrait)
     controls.onGeometryChange({
       ...base,
@@ -92,30 +92,34 @@ export const CropPanel = ({
   }
 
   // Straightening shrinks the crop to stay inside the rotated image. The crop
-  // the user chose is kept, so turning back toward 0° grows it back instead of
-  // leaving it shrunk. A crop changed any other way (drag, undo) is the new
-  // base.
-  const straightenBase = useRef<{ chosen: CropRect; clamped: CropRect } | null>(
-    null
-  )
+  // at the start of the straighten interaction is kept as the base, so turning
+  // back toward 0° restores the original crop dimensions instead of leaving it
+  // shrunk. Clearing the base on commit or when aspect/rotate/flip changes ensures
+  // new edits establish a fresh base.
   const straighten = (value: number) => {
-    const memo = straightenBase.current
-    const base =
-      memo && sameCrop(memo.clamped, geometry.crop)
-        ? memo.chosen
-        : geometry.crop
+    if (!baseCropRef.current) {
+      baseCropRef.current = geometry.crop
+    }
+    const base = baseCropRef.current
     const clamped = clampCropToImage(base, value, oriented)
-    straightenBase.current = { chosen: base, clamped }
     controls.onGeometryChange(
       { ...geometry, straighten: value, crop: clamped },
       'straighten'
     )
   }
 
+  const handleStraightenCommit = () => {
+    baseCropRef.current = null
+    controls.onGestureEnd()
+  }
+
   const straightenRow = (
     <div
       className="space-y-1"
-      onPointerDownCapture={() => controls.onGestureStart('straighten')}
+      onPointerDownCapture={() => {
+        baseCropRef.current = geometry.crop
+        controls.onGestureStart('straighten')
+      }}
     >
       <div className="flex items-baseline justify-between text-sm">
         <span>Straighten</span>
@@ -139,7 +143,7 @@ export const CropPanel = ({
         disabled={disabled}
         formatValue={formatStraightenSpoken}
         onValueChange={straighten}
-        onValueCommit={controls.onGestureEnd}
+        onValueCommit={handleStraightenCommit}
       />
     </div>
   )
@@ -176,7 +180,10 @@ export const CropPanel = ({
         size="sm"
         className="max-md:min-h-10"
         disabled={disabled}
-        onClick={() => controls.onGeometryChange(rotateGeometry90(geometry))}
+        onClick={() => {
+          baseCropRef.current = null
+          controls.onGeometryChange(rotateGeometry90(geometry))
+        }}
       >
         <RotateCcw aria-hidden="true" />
         Rotate 90°
@@ -187,9 +194,10 @@ export const CropPanel = ({
         size="sm"
         className="max-md:min-h-10"
         disabled={disabled}
-        onClick={() =>
+        onClick={() => {
+          baseCropRef.current = null
           controls.onGeometryChange(flipGeometryHorizontal(geometry))
-        }
+        }}
       >
         <FlipHorizontal2 aria-hidden="true" />
         Flip
@@ -201,7 +209,10 @@ export const CropPanel = ({
           size="sm"
           className="max-md:min-h-10"
           disabled={disabled}
-          onClick={() => controls.onGeometryChange(NEUTRAL_RECIPE.geometry)}
+          onClick={() => {
+            baseCropRef.current = null
+            controls.onGeometryChange(NEUTRAL_RECIPE.geometry)
+          }}
         >
           Reset crop
         </Button>

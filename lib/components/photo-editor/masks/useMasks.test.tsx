@@ -282,4 +282,38 @@ describe('useMasks lifecycle', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(loadSubjectModel).not.toHaveBeenCalled()
   })
+
+  it('boxSelect segments the boxed subject and adds a subject mask', async () => {
+    vi.mocked(loadSubjectModel).mockResolvedValue({
+      encoder: new ArrayBuffer(8),
+      decoder: new ArrayBuffer(8)
+    })
+    const client = makeClient()
+    const onChange = vi.fn()
+    const announce = vi.fn()
+    const { result } = renderHook(() =>
+      useMasks({
+        recipe: NEUTRAL_RECIPE,
+        onChange,
+        source: { width: 400, height: 300 },
+        bitmap: BITMAP,
+        focus: null,
+        storedGeometry: null,
+        model: MODEL,
+        disabled: false,
+        announce,
+        createClient: () => client
+      })
+    )
+
+    await act(async () => {
+      await result.current.boxSelect({ x0: 0.2, y0: 0.2, x1: 0.6, y1: 0.6 })
+    })
+
+    expect(client.segment).toHaveBeenCalledTimes(1)
+    const points = vi.mocked(client.segment).mock.calls[0][0]
+    expect(points).toHaveLength(9) // 5 positive + 4 negative points
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(announce).toHaveBeenCalledWith('Subject selected')
+  })
 })

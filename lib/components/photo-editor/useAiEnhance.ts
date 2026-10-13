@@ -2,345 +2,399 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { MediaEditError, enhanceMediaEdit } from '@/lib/client/mediaEdit'
-import type {
-  EnhanceResponse,
-  EnhanceStyle
-} from '@/lib/services/medias/edit/enhanceSchema'
-import type { Recipe } from '@/lib/services/medias/edit/recipe'
+import { clamp } from '@/lib/components/photo-editor/engine/colour'
+import type { ImageStats } from '@/lib/components/photo-editor/engine/histogram'
+import type { Adjustments, Recipe } from '@/lib/services/medias/edit/recipe'
 
-import { snapshotsEqual } from './editorRecipe'
-import { renderEnhancePreview } from './engine/enhancePreview'
-import {
-  DEFAULT_ENHANCE_STRENGTH,
-  type EnhanceBase,
-  applyEnhance,
-  getEnhanceBase,
-  getEnhanceSubject,
-  hasBackgroundValues,
-  hasMaskValues,
-  resolveEnhanceBase
-} from './enhanceApply'
+import { adjustmentsEqual, snapshotsEqual } from './editorRecipe'
 import { ENHANCE_COPY, ENHANCE_STYLE_LABELS } from './enhanceCopy'
 import { getBackgroundOf } from './masks/maskRecipe'
+import {
+  DEFAULT_ENHANCE_STRENGTH,
+  type PresetId,
+  applyPreset,
+  computePresetAdjustments,
+  getEnhanceSubject,
+  scalePresetDelta
+} from './presets'
 
 export const ENHANCE_STRENGTH_KEY = 'ai:strength'
 
-export type EnhanceStatus = 'idle' | 'loading' | 'ready' | 'error'
+export type EnhanceStyle = PresetId
+export type EnhanceStatus = 'idle' | 'ready'
 
-/** What the AI tab reads and changes. */
+/** What the Look Presets (AI) tab reads and changes. */
 export interface AiTools {
-  /** The server has a model and the owner's switch is on; else no AI tab. */
+  /** Presets are available when a photo is loaded. */
   available: boolean
   model: string | null
   status: EnhanceStatus
   error: string | null
-  /** Trying again can help (a failed request), unlike off, not set up or 429. */
   retryable: boolean
   /**
    * The style on the photo right now, read from the recipe: null when the
    * recipe is not one this tab produced (after undo, or a slider moved), so
    * the panel never claims a suggestion that is not applied.
    */
-  style: EnhanceStyle | null
-  /** The Strength of the applied suggestion, else the last one chosen. */
+  style: PresetId | null
+  /** The Strength of the applied preset, else the last one chosen. */
   strength: number
-  /** A suggestion has arrived (the style and Strength controls show). */
+  /** A preset session has started (the style and Strength controls show). */
   hasSuggestion: boolean
-  /** The suggestion has subject or background values but no subject mask. */
+  /** The preset has subject adjustments but no subject mask exists. */
   needsSubjectMask: boolean
-  /** The suggestion has background values, a subject, but no background mask. */
+  /** The preset has background adjustments, a subject, but no background mask. */
   needsBackgroundMask: boolean
-  /** Sends the preview and applies the Natural style at the current Strength. */
+  /** Convenience alias: applies Natural (or chosen style) at current Strength. */
   enhance: () => void
-  setStyle: (style: EnhanceStyle) => void
+  setStyle: (style: PresetId) => void
+  selectStyle: (style: PresetId) => void
   setStrength: (strength: number) => void
+  commitStrength: () => void
+  resetStyle: () => void
 }
-
-export const describeEnhanceError = (error: unknown): string => {
-  if (error instanceof MediaEditError) {
-    if (error.status === 409) return ENHANCE_COPY.off
-    if (error.status === 503) return ENHANCE_COPY.notSetUp
-    if (error.status === 429) return ENHANCE_COPY.tooMany
-  }
-  return ENHANCE_COPY.failed
-}
-
-const RETRYABLE_STATUSES = [500, 502, 504]
-
-/**
- * Whether asking again can work: the model or the network failed. Off (409),
- * not set up (503), too many (429) and a refused preview will answer the same.
- */
-export const isRetryableEnhanceError = (error: unknown): boolean =>
-  error instanceof MediaEditError
-    ? RETRYABLE_STATUSES.includes(error.status)
-    : true
 
 interface Params {
-  mediaId: string
-  available: boolean
-  model: string | null
-  bitmap: ImageBitmap | null
+  mediaId?: string
+  available?: boolean
+  model?: string | null
+  bitmap?: ImageBitmap | null
   recipe: Recipe
   /** Records `next` in the history (one undo step, or coalesced by the key). */
   onChange: (next: Recipe, coalesceKey?: string) => void
-  disabled: boolean
+  disabled?: boolean
   /** Speaks to the editor's live region. */
   announce?: (text: string) => void
-  /** Changes when the editor reloads, which drops the suggestion. */
+  /** Changes when the editor reloads, which drops the preset session. */
   resetKey?: number
+  getStats?: () => ImageStats | null
 }
 
-/** What one recipe the AI tab produced was made from. */
 interface Applied {
-  style: EnhanceStyle
+  style: PresetId
   strength: number
-  /** The masks' adjustments from before the suggestion. */
-  base: EnhanceBase
-  /** The masks' adjustments right after the style was applied. */
-  wrote: EnhanceBase
+  base: Recipe
+}
+
+const roundTo = (value: number, step: number) =>
+  Number((Math.round(value / step) * step).toFixed(6)) + 0
+
+const sameExistingMaskAdjustments = (
+  currentMasks: Recipe['masks'],
+  producedMasks: Recipe['masks']
+): boolean => {
+  const currentById = new Map(currentMasks.map((m) => [m.id, m]))
+  for (const pm of producedMasks) {
+    const cm = currentById.get(pm.id)
+    if (!cm) continue
+    if (!adjustmentsEqual(cm.adjustments, pm.adjustments)) return false
+  }
+  return true
 }
 
 /**
- * The AI tab's state: the suggestion, the request, and which style and
- * Strength are on the photo. Applying a style replaces the global light,
- * colour and detail sliders (and, with a subject mask, the subject and
- * background values) in one undo step; dragging Strength is one step per drag.
- *
- * The recipes this tab produces are remembered by identity. Undo and redo hand
- * back the same recipe objects, so the style and Strength shown follow the
- * photo; a recipe that is not one of them (undone past the suggestion, or
- * edited by hand) reads as "not applied". A request that is still waiting when
- * the editor starts saving, or reloads, is abandoned.
+ * 100% local, instant client-side Look Presets controller.
  */
 export const useAiEnhance = ({
-  mediaId,
-  available,
-  model,
-  bitmap,
+  available = true,
+  model = null,
   recipe,
   onChange,
-  disabled,
+  disabled = false,
   announce,
-  resetKey = 0
+  resetKey = 0,
+  getStats
 }: Params): AiTools => {
-  const [suggestion, setSuggestion] = useState<EnhanceResponse | null>(null)
-  // The last style and Strength chosen: what a move starts from while the
-  // photo does not show a suggestion.
-  const [chosenStyle, setChosenStyle] = useState<EnhanceStyle>('natural')
+  const [hasActivated, setHasActivated] = useState(false)
+  const [chosenStyle, setChosenStyle] = useState<PresetId>('natural')
   const [chosenStrength, setChosenStrength] = useState(DEFAULT_ENHANCE_STRENGTH)
   const [status, setStatus] = useState<EnhanceStatus>('idle')
-  const [failure, setFailure] = useState<{
-    message: string
-    retryable: boolean
-  } | null>(null)
   const [seenResetKey, setSeenResetKey] = useState(resetKey)
-  const applied = useRef(new WeakMap<Recipe, Applied>())
-  // The last style written, for a hand edit that leaves some masks as written.
-  const lastApplied = useRef<Applied | null>(null)
 
-  // A reload starts the editor over, so nothing of the old suggestion stays.
+  const applied = useRef(new WeakMap<Recipe, Applied>())
+  const lastApplied = useRef<Applied | null>(null)
+  const lastProducedRecipeRef = useRef<Recipe | null>(null)
+  const sessionBaseRef = useRef<Recipe | null>(null)
+
   if (seenResetKey !== resetKey) {
     setSeenResetKey(resetKey)
-    setSuggestion(null)
+    setHasActivated(false)
     setChosenStyle('natural')
     setChosenStrength(DEFAULT_ENHANCE_STRENGTH)
     setStatus('idle')
-    setFailure(null)
+    applied.current = new WeakMap()
+    lastApplied.current = null
+    lastProducedRecipeRef.current = null
+    sessionBaseRef.current = null
   }
 
-  // The answer arrives after the user may have moved on; it is applied to the
-  // recipe as it is then.
   const recipeRef = useRef(recipe)
   const onChangeRef = useRef(onChange)
   const announceRef = useRef(announce)
-  const suggestionRef = useRef(suggestion)
-  const chosenStrengthRef = useRef(chosenStrength)
-  const controllerRef = useRef<AbortController | null>(null)
+  const getStatsRef = useRef(getStats)
+
   useEffect(() => {
     recipeRef.current = recipe
     onChangeRef.current = onChange
     announceRef.current = announce
-    suggestionRef.current = suggestion
-    chosenStrengthRef.current = chosenStrength
+    getStatsRef.current = getStats
   })
 
-  const abort = useCallback(() => controllerRef.current?.abort(), [])
-  useEffect(() => abort, [abort])
-  // Saving, and a reload, end a request in flight: its answer must not change
-  // a photo that is being stored.
   useEffect(() => {
-    if (disabled) abort()
-  }, [abort, disabled])
-  useEffect(() => {
-    abort()
     applied.current = new WeakMap()
     lastApplied.current = null
-  }, [abort, resetKey])
+    lastProducedRecipeRef.current = null
+    sessionBaseRef.current = null
+  }, [resetKey])
 
-  /** Applies one style, and remembers the recipe it made. */
   const applyStyle = useCallback(
-    (
-      from: Recipe,
-      answer: EnhanceResponse,
-      style: EnhanceStyle,
-      strength: number,
-      coalesceKey?: string
-    ) => {
-      // After a hand edit, a mask the edit left as the last style wrote it
-      // goes back to what it was before that style.
+    (from: Recipe, style: PresetId, strength: number, coalesceKey?: string) => {
       const base =
-        applied.current.get(from)?.base ??
-        resolveEnhanceBase(from, lastApplied.current ?? undefined)
-      const next = applyEnhance(from, answer[style], strength, base)
+        sessionBaseRef.current ?? applied.current.get(from)?.base ?? from
+      const updatedBase: Recipe = {
+        ...base,
+        geometry: from.geometry,
+        masks: from.masks.map((m) => {
+          const existing = base.masks.find((bm) => bm.id === m.id)
+          return existing ?? m
+        })
+      }
+      sessionBaseRef.current = updatedBase
+      const stats = getStatsRef.current?.() ?? null
+      const next = applyPreset(from, style, strength, stats, updatedBase)
       const entry: Applied = {
         style,
         strength,
-        base,
-        wrote: getEnhanceBase(next)
+        base: updatedBase
       }
       applied.current.set(next, entry)
       lastApplied.current = entry
-      // An unchanged recipe stays the same object in the history; it now
-      // stands for this style and Strength.
+      lastProducedRecipeRef.current = next
       if (snapshotsEqual(next, from)) applied.current.set(from, entry)
       onChangeRef.current(next, coalesceKey)
     },
     []
   )
 
-  const enhance = useCallback(() => {
-    if (!available || disabled || !bitmap || controllerRef.current) return
-    const controller = new AbortController()
-    controllerRef.current = controller
-    controller.signal.addEventListener(
-      'abort',
-      () => {
-        // An abandoned request frees the button at once, even if its fetch
-        // never settles.
-        if (controllerRef.current === controller) controllerRef.current = null
-        setStatus(suggestionRef.current ? 'ready' : 'idle')
-      },
-      { once: true }
-    )
-    setStatus('loading')
-    setFailure(null)
-    announceRef.current?.(ENHANCE_COPY.gettingSuggestion)
-    ;(async () => {
-      try {
-        const preview = await renderEnhancePreview(
-          bitmap,
-          recipeRef.current.geometry
+  useEffect(() => {
+    if (
+      sessionBaseRef.current &&
+      lastApplied.current &&
+      lastProducedRecipeRef.current
+    ) {
+      sessionBaseRef.current.geometry = recipe.geometry
+
+      const isApplied = applied.current.has(recipe)
+      if (!isApplied && !snapshotsEqual(recipe, sessionBaseRef.current)) {
+        const lastEntry = lastApplied.current
+        const presetDeltas = computePresetAdjustments(
+          lastEntry.style,
+          getStatsRef.current?.() ?? null
         )
-        const answer = await enhanceMediaEdit(
-          mediaId,
-          preview,
-          controller.signal
-        )
-        if (controller.signal.aborted) return
-        setSuggestion(answer)
-        setChosenStyle('natural')
-        setStatus('ready')
-        const from = recipeRef.current
-        applyStyle(
-          from,
-          answer,
-          'natural',
-          applied.current.get(from)?.strength ?? chosenStrengthRef.current
-        )
-      } catch (error) {
-        if (controller.signal.aborted) return
-        setStatus(suggestionRef.current ? 'ready' : 'error')
-        setFailure({
-          message: describeEnhanceError(error),
-          retryable: isRetryableEnhanceError(error)
-        })
-      } finally {
-        if (controllerRef.current === controller) controllerRef.current = null
+        const currentAdj = recipe.adjustments
+        const baseAdj = { ...sessionBaseRef.current.adjustments }
+        let changed = false
+        const allKeys = new Set([
+          ...Object.keys(currentAdj),
+          ...Object.keys(lastEntry.base.adjustments),
+          ...Object.keys(baseAdj)
+        ]) as Set<keyof Adjustments>
+
+        for (const key of allKeys) {
+          const curVal = currentAdj[key]
+          const delta = presetDeltas.global[key]
+          const scaledDelta =
+            delta !== undefined
+              ? scalePresetDelta(key, delta, lastEntry.strength)
+              : 0
+          const oldBaseVal = (baseAdj[key] ?? 0) as number
+          let expectedVal: number | undefined
+          if (key === 'exposure') {
+            const sum = clamp(roundTo(oldBaseVal + scaledDelta, 0.05), -5, 5)
+            expectedVal = sum !== 0 ? sum : undefined
+          } else {
+            const sum = clamp(Math.round(oldBaseVal + scaledDelta), -100, 100)
+            expectedVal = sum !== 0 ? sum : undefined
+          }
+          if (curVal !== expectedVal) {
+            if (curVal === undefined) {
+              delete baseAdj[key]
+              changed = true
+            } else {
+              const newBase =
+                key === 'exposure'
+                  ? clamp(roundTo(curVal - scaledDelta, 0.05), -5, 5)
+                  : clamp(Math.round(curVal - scaledDelta), -100, 100)
+              if (newBase !== 0) {
+                baseAdj[key] = newBase as any
+              } else {
+                delete baseAdj[key]
+              }
+              changed = true
+            }
+          }
+        }
+        if (changed) {
+          sessionBaseRef.current = {
+            ...sessionBaseRef.current,
+            adjustments: baseAdj
+          }
+        }
       }
-    })()
-  }, [applyStyle, available, bitmap, disabled, mediaId])
+    }
+  }, [recipe])
+
+  if (
+    !applied.current.has(recipe) &&
+    lastApplied.current &&
+    lastProducedRecipeRef.current &&
+    adjustmentsEqual(
+      recipe.adjustments,
+      lastProducedRecipeRef.current.adjustments
+    ) &&
+    sameExistingMaskAdjustments(
+      recipe.masks,
+      lastProducedRecipeRef.current.masks
+    )
+  ) {
+    applied.current.set(recipe, lastApplied.current)
+  }
 
   const current = applied.current.get(recipe) ?? null
-  // Undo and redo bring back a recipe this tab made: a hand edit after that
-  // starts from that style, not the last one applied.
   useEffect(() => {
     if (current) lastApplied.current = current
   })
   const shownStyle = current?.style ?? null
   const shownStrength = current?.strength ?? chosenStrength
 
+  const enhance = useCallback(() => {
+    if (!available || disabled) return
+    const styleToApply = chosenStyle ?? 'natural'
+    setHasActivated(true)
+    setStatus('ready')
+    applyStyle(recipe, styleToApply, shownStrength)
+  }, [applyStyle, available, chosenStyle, disabled, recipe, shownStrength])
+
   const setStyle = useCallback(
-    (next: EnhanceStyle) => {
+    (next: PresetId) => {
       setChosenStyle(next)
-      if (!suggestion || disabled) return
+      if (disabled) return
       setChosenStrength(shownStrength)
-      applyStyle(recipe, suggestion, next, shownStrength)
+      setHasActivated(true)
+      setStatus('ready')
+      applyStyle(recipe, next, shownStrength)
     },
-    [applyStyle, disabled, recipe, shownStrength, suggestion]
+    [applyStyle, disabled, recipe, shownStrength]
   )
 
   const setStrength = useCallback(
     (next: number) => {
       setChosenStrength(next)
-      if (!suggestion || disabled) return
+      if (disabled) return
       const style = shownStyle ?? chosenStyle
       setChosenStyle(style)
-      applyStyle(recipe, suggestion, style, next, ENHANCE_STRENGTH_KEY)
+      setHasActivated(true)
+      setStatus('ready')
+      applyStyle(recipe, style, next, ENHANCE_STRENGTH_KEY)
     },
-    [applyStyle, chosenStyle, disabled, recipe, shownStyle, suggestion]
+    [applyStyle, chosenStyle, disabled, recipe, shownStyle]
   )
 
-  // Speak the style that is on the photo whenever a suggestion or a style
-  // lands, including by undo and redo. Moving Strength stays silent.
+  const commitStrength = useCallback(() => {
+    // Gesture ends on slider release
+  }, [])
+
+  const resetStyle = useCallback(() => {
+    if (disabled) return
+    const currentEntry = applied.current.get(recipe)
+    const baseToRestore =
+      sessionBaseRef.current ?? currentEntry?.base ?? lastApplied.current?.base
+    if (baseToRestore) {
+      const baseAdjustments = baseToRestore.adjustments
+      const baseMasksById = new Map(baseToRestore.masks.map((m) => [m.id, m]))
+      const nextMasks = recipe.masks.map((mask) => {
+        const baseMask = baseMasksById.get(mask.id)
+        if (baseMask) {
+          return {
+            ...mask,
+            adjustments: { ...baseMask.adjustments }
+          }
+        }
+        return mask
+      })
+      const nextRecipe: Recipe = {
+        ...recipe,
+        geometry: recipe.geometry,
+        adjustments: { ...baseAdjustments },
+        masks: nextMasks
+      }
+      sessionBaseRef.current = null
+      setHasActivated(false)
+      setStatus('idle')
+      onChangeRef.current(nextRecipe)
+    }
+  }, [disabled, recipe])
+
+  const hasSuggestion = hasActivated
+
   useEffect(() => {
-    if (!suggestion || !shownStyle) return
+    if (!hasSuggestion || !shownStyle) return
     announceRef.current?.(
       ENHANCE_COPY.applied(ENHANCE_STYLE_LABELS[shownStyle])
     )
-  }, [suggestion, shownStyle])
+  }, [hasSuggestion, shownStyle])
 
-  const targetStyle = suggestion?.[shownStyle ?? chosenStyle]
+  const activeStyleId = shownStyle ?? chosenStyle
+  const presetAdjustments = computePresetAdjustments(
+    activeStyleId,
+    getStatsRef.current?.() ?? null
+  )
   const subject = getEnhanceSubject(recipe)
   const background = subject ? getBackgroundOf(recipe, subject.id) : undefined
+  const hasSubjectDeltas =
+    presetAdjustments.subject !== undefined &&
+    Object.keys(presetAdjustments.subject).length > 0
+  const hasBackgroundDeltas =
+    presetAdjustments.background !== undefined &&
+    Object.keys(presetAdjustments.background).length > 0
   const needsSubjectMask =
-    targetStyle !== undefined && hasMaskValues(targetStyle) && !subject
+    hasSuggestion && Boolean(hasSubjectDeltas && !subject)
   const needsBackgroundMask =
-    targetStyle !== undefined &&
-    subject !== undefined &&
-    !background &&
-    hasBackgroundValues(targetStyle)
+    hasSuggestion && Boolean(subject && !background && hasBackgroundDeltas)
 
   return useMemo(
     () => ({
       available,
       model,
       status,
-      error: failure?.message ?? null,
-      retryable: failure?.retryable ?? false,
+      error: null,
+      retryable: false,
       style: shownStyle,
       strength: shownStrength,
-      hasSuggestion: suggestion !== null,
+      hasSuggestion,
       needsSubjectMask,
       needsBackgroundMask,
       enhance,
       setStyle,
-      setStrength
+      selectStyle: setStyle,
+      setStrength,
+      commitStrength,
+      resetStyle
     }),
     [
       available,
       model,
       status,
-      failure,
       shownStyle,
       shownStrength,
-      suggestion,
+      hasSuggestion,
       needsSubjectMask,
       needsBackgroundMask,
       enhance,
       setStyle,
-      setStrength
+      setStrength,
+      commitStrength,
+      resetStyle
     ]
   )
 }

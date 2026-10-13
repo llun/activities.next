@@ -28,6 +28,9 @@ describe('shaders', () => {
       'WB_TINT_GAIN',
       'WHITES_RANGE',
       'BLACKS_RANGE',
+      'WHITES_SHOULDER_START',
+      'BLACKS_TOE_END',
+      'TONE_EDGE_SENSITIVITY',
       'TONE_STRENGTH',
       'TEXTURE_GAIN',
       'CLARITY_GAIN',
@@ -118,6 +121,38 @@ describe('shaders', () => {
         'vec4 reach = ceil(3.0 * uSigma);'
       )
       expect(MASK_BLUR_FRAGMENT_SHADER).toContain('step(vec4(abs(fi)), reach)')
+    })
+  })
+
+  describe('perceptual tone and detail', () => {
+    it('uses applyLevels with smooth toe and shoulder curve', () => {
+      expect(MAIN_FRAGMENT_SHADER).toContain(
+        'float applyLevels(float x, float whites, float blacks)'
+      )
+      expect(MAIN_FRAGMENT_SHADER).toContain(
+        'applyLevels(p, a.whites, a.blacks)'
+      )
+      expect(MAIN_FRAGMENT_SHADER).toContain(
+        'applyLevels(p.r, a.whites, a.blacks)'
+      )
+    })
+
+    it('uses edge-aware effective tone to avoid halos', () => {
+      expect(MAIN_FRAGMENT_SHADER).toContain(
+        'float edgeWeight = clamp(abs(Y - T) * TONE_EDGE_SENSITIVITY, 0.0, 1.0);'
+      )
+      expect(MAIN_FRAGMENT_SHADER).toContain(
+        'float effectiveT = mix(T, Y, edgeWeight);'
+      )
+    })
+
+    it('evaluates mid7 with neutral white balance to preserve luma invariance', () => {
+      expect(MAIN_FRAGMENT_SHADER).toContain('Adj gMid = g;')
+      expect(MAIN_FRAGMENT_SHADER).toContain('gMid.temperature = 0.0;')
+      expect(MAIN_FRAGMENT_SHADER).toContain('gMid.tint = 0.0;')
+      expect(MAIN_FRAGMENT_SHADER).toContain(
+        'vec3 mid7 = toStep7(vec3(blur.r), T, gMid);'
+      )
     })
   })
 })

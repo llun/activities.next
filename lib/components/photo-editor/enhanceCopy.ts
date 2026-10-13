@@ -1,10 +1,12 @@
+import type { PresetId } from './presets'
+
 /** The strings of the AI tab, in one place so the panels and tests agree. */
 export const ENHANCE_COPY = {
   tab: 'AI',
-  intro: 'Get a suggested edit for this photo, in three styles.',
+  intro: 'Choose a look preset to enhance this photo.',
   enhance: 'Enhance',
-  enhancing: 'Enhancing…',
   again: 'Enhance again',
+  reset: 'Reset look',
   style: 'Style',
   strength: 'Strength',
   suggestedBy: (model: string) => `Suggested by ${model}`,
@@ -13,16 +15,14 @@ export const ENHANCE_COPY = {
   needBackground:
     'Background changes apply once you add a background in Masks.',
   notApplied: 'Not applied. Pick a style to apply it again.',
-  gettingSuggestion: 'Getting a suggestion',
-  applied: (style: string) => `${style} suggestion applied`,
-  failed: "Couldn't get a suggestion.",
-  off: 'AI enhance is turned off.',
-  notSetUp: "AI enhance isn't set up on this server.",
-  tooMany: 'Too many suggestions. Try again later.'
+  applied: (style: string) => `${style} suggestion applied`
 } as const
 
-export const ENHANCE_STYLE_LABELS = {
+export const ENHANCE_STYLE_LABELS: Record<PresetId, string> = {
   natural: 'Natural',
   vivid: 'Vivid',
-  dramatic: 'Dramatic'
+  dramatic: 'Dramatic',
+  warm: 'Warm',
+  cool: 'Cool',
+  mono: 'B&W'
 } as const

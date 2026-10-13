@@ -9,7 +9,6 @@
 
 export const PHOTO_MASK_MODEL_BASE_URL_ENV =
   'ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL'
-export const PHOTO_ENHANCE_MODEL_ENV = 'ACTIVITIES_PHOTO_ENHANCE_MODEL'
 
 // `Xenova/slimsam-77-uniform`, pinned to one revision so the files below can be
 // checked byte for byte.
@@ -53,27 +52,14 @@ export const PHOTO_MASK_MODEL_FILES: PhotoEditorSubjectModel['files'] = {
   }
 }
 
-/** The vision model behind AI enhance: the alt text endpoint and key. */
-export type PhotoEditorEnhanceConfig = {
-  endpoint: string
-  apiKey: string
-  model: string
-}
-
 export type PhotoEditorConfig = {
   /** Null when Select subject is off; the brush works either way. */
   subjectModel: PhotoEditorSubjectModel | null
   /** The origins the browser fetches the model from; empty when off. */
   connectOrigins: string[]
-  /**
-   * Null when AI enhance is off or the alt text endpoint is not configured.
-   * Only set when the caller passes the alt text config (the CSP builder does
-   * not, and does not need it).
-   */
-  enhance: PhotoEditorEnhanceConfig | null
 }
 
-type ModelConfig = Omit<PhotoEditorConfig, 'enhance'>
+type ModelConfig = PhotoEditorConfig
 
 const OFF: ModelConfig = { subjectModel: null, connectOrigins: [] }
 
@@ -106,25 +92,6 @@ const parseBaseUrl = (raw: string): URL | null => {
 export type GetPhotoEditorConfigOptions = {
   /** Called with a message when the configured value is invalid. */
   onInvalid?: (message: string) => void
-  /**
-   * The alt text vision endpoint (`getAltTextConfig()?.altText`) that AI
-   * enhance reuses. Without it, `enhance` is null.
-   */
-  altText?: PhotoEditorEnhanceConfig | null
-}
-
-// The same derivation as `lib/config/gallery.ts` uses for subject suggestions:
-// the alt text endpoint and key, a model override, and `off`.
-const getEnhanceConfig = (
-  altText: PhotoEditorEnhanceConfig | null | undefined
-): PhotoEditorEnhanceConfig | null => {
-  const override = process.env.ACTIVITIES_PHOTO_ENHANCE_MODEL?.trim()
-  if (!altText || override?.toLowerCase() === 'off') return null
-  return {
-    endpoint: altText.endpoint,
-    apiKey: altText.apiKey,
-    model: override || altText.model
-  }
 }
 
 // The subject model: see `getPhotoEditorConfig` for the accepted values.
@@ -158,12 +125,7 @@ const getModelConfig = (
 }
 
 /**
- * Reads `ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL` and `ACTIVITIES_PHOTO_ENHANCE_MODEL`
- * at runtime.
- *
- * AI enhance (`enhance`): the alt text vision endpoint and key, with
- * `ACTIVITIES_PHOTO_ENHANCE_MODEL` overriding the model and `off` disabling
- * it; null when there is no alt text configuration.
+ * Reads `ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL` at runtime.
  *
  * Select subject (`subjectModel`):
  *
@@ -174,9 +136,6 @@ const getModelConfig = (
  * - anything else: treated as `off`, and `onInvalid` is told why.
  */
 export const getPhotoEditorConfig = ({
-  onInvalid,
-  altText
-}: GetPhotoEditorConfigOptions = {}): PhotoEditorConfig => ({
-  ...getModelConfig(onInvalid),
-  enhance: getEnhanceConfig(altText)
-})
+  onInvalid
+}: GetPhotoEditorConfigOptions = {}): PhotoEditorConfig =>
+  getModelConfig(onInvalid)

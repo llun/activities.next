@@ -175,7 +175,9 @@ const roundTo = (value: number, step: number) => {
   return Number(rounded.toFixed(6)) + 0
 }
 
-const normalizeAdjustments = <T extends Adjustments>(adjustments: T): T => {
+export const normalizeAdjustments = <T extends Adjustments>(
+  adjustments: T
+): T => {
   const result: Record<string, number> = {}
   for (const [key, value] of Object.entries(adjustments)) {
     if (typeof value !== 'number') continue

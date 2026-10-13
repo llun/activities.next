@@ -292,16 +292,6 @@ Optional. The photo editor's **Select subject** tool runs a small segmentation m
 
 The value is read at request time and changes the Content Security Policy. While the model is on, `connect-src` allows its origins (for the default, `https://huggingface.co` and `https://*.hf.co`, the CDN Hugging Face redirects to; for a custom URL, its origin only) and `script-src` gains `'wasm-unsafe-eval'` for the WebAssembly runtime. With `off`, neither is added. A self-hosted server must answer the browser's cross-origin `fetch` with CORS headers. An invalid value logs one warning and is treated as `off`; it never stops the server or the build.
 
-### AI enhance
-
-The editor's **AI** tab asks a vision model for suggested slider values (Natural, Vivid and Dramatic styles). It reuses the Alt Text Generation endpoint and key above, so it is available only when alt text is configured. The **server** calls the model, through the same guarded HTTPS client as alt text: the browser sends a small JPEG preview (at most 1536 px on the long edge) of the photo with its current crop and no adjustments, the server forwards it to the model, and nothing about the photo is stored. The answer is parsed strictly, and a suggestion that does not validate is discarded. Each person can turn AI enhance off under Settings → Media; each person can ask for 30 suggestions an hour.
-
-| Variable                         | Description                                                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ACTIVITIES_PHOTO_ENHANCE_MODEL` | Vision model used for AI enhance. Defaults to `ACTIVITIES_ALT_TEXT_MODEL`. Set to `off` to turn AI enhance off even when alt text is configured. |
-
-The value is read at request time, is server-side only, and does not change the Content Security Policy. Without an alt text configuration there is no AI tab, whatever this variable says.
-
 ## Media Storage
 
 Required for media uploads (images and video in posts). If no media storage is configured, media uploads are disabled.
