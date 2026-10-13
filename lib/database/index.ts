@@ -16,17 +16,12 @@ interface DatabaseInstance {
   connection: DatabaseHandle
 }
 
-// `yarn migrate` (the Knex CLI) is how migrations run; nothing in the app
-// calls `migrate()`. It runs the same Knex migrations on a Knex instance of
-// its own, loaded on first use, until the migration runner replaces Knex.
-const runKnexMigrations = async (config: DatabaseConfig) => {
-  const { default: knex } = await import('knex')
-  const instance = knex(config)
-  try {
-    await instance.migrate.latest({ disableTransactions: true })
-  } finally {
-    await instance.destroy()
-  }
+// `yarn migrate` is how migrations run; nothing in the app calls `migrate()`.
+// It runs the same migrations through lib/database/migrate, imported on first
+// use so neither the runner nor the migrations join the server bundle.
+const migrateDatabase = async (db: Kysely<DB>, config: DatabaseConfig) => {
+  const { migrateToLatest } = await import('@/lib/database/migrate')
+  await migrateToLatest({ db, config })
 }
 
 const getDatabaseInstance = memoize((): DatabaseInstance | null => {
@@ -39,7 +34,7 @@ const getDatabaseInstance = memoize((): DatabaseInstance | null => {
   return {
     connection,
     database: getSQLDatabase(connection.db, {
-      migrate: () => runKnexMigrations(config.database),
+      migrate: () => migrateDatabase(connection.db, config.database),
       destroy: connection.destroy
     })
   }

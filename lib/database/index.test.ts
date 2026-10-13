@@ -2,9 +2,12 @@ import { sql } from 'kysely'
 
 import { getDatabase, getKysely } from '@/lib/database'
 
-const { createDatabaseConnection } = vi.hoisted(() => ({
-  createDatabaseConnection: vi.fn()
+const { createDatabaseConnection, migrateToLatest } = vi.hoisted(() => ({
+  createDatabaseConnection: vi.fn(),
+  migrateToLatest: vi.fn()
 }))
+
+vi.mock('@/lib/database/migrate', () => ({ migrateToLatest }))
 
 vi.mock('@/lib/database/connection', async (importOriginal) => {
   const actual =
@@ -47,5 +50,18 @@ describe('the application database', () => {
       key: string
     }>`select key from server_settings`.execute(getKysely())
     expect(rows).toEqual([{ key: 'probe' }])
+  })
+
+  it('runs migrations through lib/database/migrate on its own database', async () => {
+    await getDatabase()?.migrate()
+
+    expect(migrateToLatest).toHaveBeenCalledTimes(1)
+    expect(migrateToLatest).toHaveBeenCalledWith({
+      db: getKysely(),
+      config: expect.objectContaining({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' }
+      })
+    })
   })
 })
