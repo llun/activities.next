@@ -412,11 +412,12 @@ const Page: FC<Props> = async ({ params }) => {
           // (`PostMenu`'s own error tooltip is not portalled, but it hangs
           // `top-full` mid-card, nowhere near an edge).
           //
-          // Only the top corners need compensating: the children that meet them
-          // round themselves. The last child is always the replies wrapper or
-          // the "No replies yet" block, neither of which paints a background —
-          // append a background-painting child last and the bottom corners will
-          // need the same treatment.
+          // The children that meet the corners round themselves. The last
+          // child is the replies wrapper or the "No replies yet" block, neither
+          // of which paints a background, or, at the end of a conversation with
+          // no replies, the focused post, which rounds its own bottom corners —
+          // append another background-painting child last and it will need the
+          // same treatment.
           POST_LIST_FRAME_CLASS,
           // Below `md` a signed-in page is the full-bleed feed surface. A
           // logged-out page is not one card but a stack of inset cards (the
