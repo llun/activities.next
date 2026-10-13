@@ -180,9 +180,9 @@ const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
  *
  * On the connection that just ran the statement, because the Kysely driver
  * still holds it while the statement is announced, and a root query issued
- * from there is refused by the transaction guard. Running it on
- * that connection also makes the interleaving independent of pool scheduling
- * on PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
+ * from there is refused by the transaction guard. Running it on that
+ * connection also makes the interleaving independent of pool scheduling on
+ * PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
  * where the interfering write autocommits as another worker's would; for a
  * window inside one, use `interfereAfterStatementFromOutside`.
  *
@@ -285,9 +285,10 @@ export const failStatement = (
  * this module was loaded in.
  *
  * A Kysely statement's listeners and hooks run inside the async context that
- * holds its connection, and the transaction guard refuses a root query there. A listener staging another worker's write has to leave that
- * context, as the other worker was never in it; it then waits for a
- * connection, or on PostgreSQL for the row lock, exactly as that worker would.
+ * holds its connection, and the transaction guard refuses a root query there.
+ * A listener staging another worker's write has to leave that context, as the
+ * other worker was never in it; it then waits for a connection, or on
+ * PostgreSQL for the row lock, exactly as that worker would.
  */
 export const outsideDatabaseContext = AsyncResource.bind(
   <T>(work: () => Promise<T>): Promise<T> => work()
