@@ -6,7 +6,7 @@ const OTHER_ACTOR_ID = 'https://llun.test/users/other'
 
 describe('FilterDatabase', () => {
   const testDb = createTestDatabase()
-  const { database, knex: knexDatabase } = testDb
+  const { database, db } = testDb
 
   beforeAll(async () => {
     await testDb.prepare()
@@ -138,17 +138,25 @@ describe('FilterDatabase', () => {
     await database.deleteFilter({ actorId: ACTOR1_ID, id: filter.id })
 
     expect(
-      await knexDatabase('filters').where({ id: filter.id }).first()
+      await db
+        .selectFrom('filters')
+        .selectAll()
+        .where('id', '=', filter.id)
+        .executeTakeFirst()
     ).toBeUndefined()
     expect(
-      await knexDatabase('filter_keywords')
-        .where({ filterId: filter.id })
-        .first()
+      await db
+        .selectFrom('filter_keywords')
+        .selectAll()
+        .where('filterId', '=', filter.id)
+        .executeTakeFirst()
     ).toBeUndefined()
     expect(
-      await knexDatabase('filter_statuses')
-        .where({ filterId: filter.id })
-        .first()
+      await db
+        .selectFrom('filter_statuses')
+        .selectAll()
+        .where('filterId', '=', filter.id)
+        .executeTakeFirst()
     ).toBeUndefined()
   })
 
@@ -173,10 +181,12 @@ describe('FilterDatabase', () => {
     })
     expect(first).not.toBeNull()
     expect(second).not.toBeNull()
-    const count = await knexDatabase('filter_statuses')
-      .where({ filterId: filter.id, statusId })
-      .count('id as n')
-      .first()
+    const count = await db
+      .selectFrom('filter_statuses')
+      .select((eb) => eb.fn.countAll<number>().as('n'))
+      .where('filterId', '=', filter.id)
+      .where('statusId', '=', statusId)
+      .executeTakeFirst()
     expect(Number(count?.n)).toBe(1)
   })
 
@@ -375,7 +385,10 @@ describe('FilterDatabase', () => {
       updatedAt: new Date(base + i)
     }))
     for (let start = 0; start < total; start += 100) {
-      await knexDatabase('filters').insert(rows.slice(start, start + 100))
+      await db
+        .insertInto('filters')
+        .values(rows.slice(start, start + 100))
+        .execute()
     }
     for (const id of [rows[0].id, rows[total - 1].id]) {
       await database.addFilterKeyword({

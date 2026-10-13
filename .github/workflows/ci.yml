@@ -696,7 +696,8 @@ jobs:
             lib/services/auth/schemaCompleteness.test.ts \
             lib/database/testing/createTestDatabase.test.ts \
             lib/database/testing/queryCapture.test.ts \
-            lib/database/testing/fixtures.test.ts
+            lib/database/testing/fixtures.test.ts \
+            lib/database/testing/heldTransaction.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1

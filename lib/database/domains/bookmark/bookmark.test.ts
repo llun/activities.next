@@ -408,10 +408,11 @@ describe('BookmarkDatabase', () => {
       const storedSources = async (statusId: string) =>
         Object.fromEntries(
           (
-            await testDb
-              .knex('bookmarks')
-              .where({ statusId })
-              .select('actorId', 'sourceStatusId')
+            await testDb.db
+              .selectFrom('bookmarks')
+              .select(['actorId', 'sourceStatusId'])
+              .where('statusId', '=', statusId)
+              .execute()
           ).map((row) => [row.actorId, row.sourceStatusId])
         )
 
@@ -559,13 +560,16 @@ describe('BookmarkDatabase', () => {
         // A row written before originalStatusId existed: the announced id is
         // only in the content.
         const legacyAnnounceId = `${ACTOR2_ID}/statuses/bookmark-legacy-${randomUUID()}`
-        await testDb.knex('statuses').insert({
-          id: legacyAnnounceId,
-          actorId: ACTOR2_ID,
-          type: StatusType.enum.Announce,
-          content: original.id,
-          originalStatusId: null
-        })
+        await testDb.db
+          .insertInto('statuses')
+          .values({
+            id: legacyAnnounceId,
+            actorId: ACTOR2_ID,
+            type: StatusType.enum.Announce,
+            content: original.id,
+            originalStatusId: null
+          })
+          .execute()
 
         await database.createBookmark({
           actorId: owner,
@@ -641,12 +645,15 @@ describe('BookmarkDatabase', () => {
         // 0 and 2 share a timestamp, 1 is the oldest and 3 the newest.
         const createdAts = [2_000, 1_000, 2_000, 3_000]
         for (const [index, status] of statuses.entries()) {
-          await testDb.knex('bookmarks').insert({
-            actorId,
-            statusId: status.id,
-            createdAt: new Date(createdAts[index]),
-            updatedAt: new Date(createdAts[index])
-          })
+          await testDb.db
+            .insertInto('bookmarks')
+            .values({
+              actorId,
+              statusId: status.id,
+              createdAt: new Date(createdAts[index]),
+              updatedAt: new Date(createdAts[index])
+            })
+            .execute()
         }
         const byStatus = (bookmarks: { statusId: string }[]) =>
           bookmarks.map((bookmark) =>

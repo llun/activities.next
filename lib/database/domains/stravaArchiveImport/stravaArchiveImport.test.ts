@@ -369,7 +369,7 @@ describe('StravaArchiveImportDatabase', () => {
 })
 
 describe('StravaArchiveImportDatabase pending media sanitising', () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  const { database, db, prepare } = getTestDatabaseWithInstance(true)
 
   beforeAll(async () => {
     await prepare()
@@ -390,9 +390,11 @@ describe('StravaArchiveImportDatabase pending media sanitising', () => {
       batchId: `batch-${id}`,
       visibility: 'private'
     })
-    await instance('strava_archive_imports')
-      .where({ id })
-      .update({ pendingMediaActivities: rawValue })
+    await db
+      .updateTable('strava_archive_imports')
+      .set({ pendingMediaActivities: rawValue })
+      .where('id', '=', id)
+      .execute()
     return (await database.getStravaArchiveImportById({ id }))
       ?.pendingMediaActivities
   }

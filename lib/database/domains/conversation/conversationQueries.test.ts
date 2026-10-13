@@ -1,10 +1,10 @@
-import knexFactory, { type Knex } from 'knex'
 import {
   InsertQueryNode,
   type KyselyPlugin,
   type RootOperationNode,
   SelectQueryNode,
-  TableNode
+  TableNode,
+  sql
 } from 'kysely'
 import { randomUUID } from 'node:crypto'
 
@@ -14,7 +14,10 @@ import {
   createConversationQueries
 } from '@/lib/database/domains/conversation/queries'
 import { type Db, kyselyFor } from '@/lib/database/kysely'
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -1466,12 +1469,12 @@ describe('syncDirectConversationForStatus', () => {
 describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
   'markDirectConversationRead with a concurrent writer',
   () => {
-    let other: Knex
+    let other: TestDatabase
 
     beforeAll(() => {
       // A second pool outside this database's transaction guard, standing in
       // for another server process.
-      other = knexFactory({ ...testDb.knex.client.config })
+      other = createTestDatabase()
     })
 
     afterAll(async () => {
@@ -1482,9 +1485,9 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
     // `stopped` turns true or the wait runs out first.
     const waitForLockWait = async (stopped: () => boolean) => {
       for (let attempt = 0; attempt < 250 && !stopped(); attempt += 1) {
-        const { rows } = await other.raw(
-          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
-        )
+        const { rows } = await sql<{ waiting: number }>`
+          select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'
+        `.execute(other.db)
         if (rows[0].waiting > 0) return true
         await new Promise((resolve) => setTimeout(resolve, 20))
       }
@@ -1524,16 +1527,16 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
         },
         transformResult: async ({ result, queryId }) => {
           if (watched.has(queryId) && !concurrent) {
-            concurrent = Promise.resolve(
-              other('direct_conversation_memberships')
-                .where('id', id)
-                .update({
-                  lastStatusId: `${p}-s2`,
-                  lastStatusCreatedAt: new Date(2000),
-                  unread: true,
-                  updatedAt: new Date()
-                })
-            )
+            concurrent = other.db
+              .updateTable('direct_conversation_memberships')
+              .set({
+                lastStatusId: `${p}-s2`,
+                lastStatusCreatedAt: new Date(2000),
+                unread: true,
+                updatedAt: new Date()
+              })
+              .where('id', '=', Number(id))
+              .execute()
             let updated = false
             const settled = concurrent.then(() => {
               updated = true

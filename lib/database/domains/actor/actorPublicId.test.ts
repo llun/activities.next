@@ -181,7 +181,7 @@ describe('ActorDatabase publicId', () => {
       })
 
       it('getActorPublicIds returns a map covering only requested ids that have publicIds', async () => {
-        await withFreshDatabase(async (freshDatabase, instance) => {
+        await withFreshDatabase(async (freshDatabase, db) => {
           const withId = `https://${TEST_DOMAIN}/users/public-id-with`
           const withoutId = `https://${TEST_DOMAIN}/users/public-id-legacy-without`
 
@@ -206,9 +206,11 @@ describe('ActorDatabase publicId', () => {
             createdAt: Date.now()
           })
           // Simulate a legacy row that predates the backfill migration.
-          await instance('actors')
-            .where('id', withoutId)
-            .update({ publicId: null })
+          await db
+            .updateTable('actors')
+            .set({ publicId: null })
+            .where('id', '=', withoutId)
+            .execute()
 
           const map = await freshDatabase.getActorPublicIds({
             actorIds: [

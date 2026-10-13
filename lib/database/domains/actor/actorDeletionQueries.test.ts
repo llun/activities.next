@@ -1,3 +1,4 @@
+import { sql } from 'kysely'
 import { randomUUID } from 'node:crypto'
 
 import { deleteActorData } from '@/lib/database/domains/actor/deletion'
@@ -1538,17 +1539,20 @@ describe('behaviour changes', () => {
     async () => {
       const actor = await seedActor('big', { local: true })
       await seedStatus({ id: statusIn(actor.id, 'post'), actorId: actor.id })
-      await testDb.knex('medias').insert({
-        actorId: actor.id,
-        accountId: actor.accountId,
-        original: 'big',
-        originalMimeType: 'image/png',
-        originalBytes: '9007199254740994',
-        thumbnailBytes: 1,
-        originalMetaData: '{}',
-        createdAt: at,
-        updatedAt: at
-      })
+      await db()
+        .insertInto('medias')
+        .values({
+          actorId: actor.id,
+          accountId: actor.accountId,
+          original: 'big',
+          originalMimeType: 'image/png',
+          originalBytes: 9007199254740994,
+          thumbnailBytes: 1,
+          originalMetaData: '{}',
+          createdAt: at,
+          updatedAt: at
+        })
+        .execute()
       const refresh = refreshSpy()
       const before = await dumpDatabaseWithoutBigMedia()
       await expect(
@@ -1564,9 +1568,9 @@ describe('behaviour changes', () => {
 // size either: it is left out, and its row is checked as text.
 const dumpDatabaseWithoutBigMedia = async () => {
   const dump = await dumpDatabase(testDb, ['medias'])
-  const { rows } = await testDb.knex.raw(
-    'select id, "originalBytes"::text as bytes from medias order by id'
-  )
+  const { rows } = await sql<{ id: string; bytes: string }>`
+    select id, "originalBytes"::text as bytes from medias order by id
+  `.execute(db())
   return { ...dump, medias: rows }
 }
 

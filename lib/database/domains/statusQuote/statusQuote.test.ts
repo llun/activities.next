@@ -659,13 +659,16 @@ describe('StatusQuoteDatabase', () => {
         // before d, so only the status id tie-break puts d first.
         const createdAts = { b: 1_000, c: 2_000, a: 3_000, d: 2_000 }
         for (const [suffix, createdAt] of Object.entries(createdAts)) {
-          await testDb.knex('status_quotes').insert({
-            statusId: `${prefix}-${suffix}`,
-            quotedStatusId,
-            state: 'accepted',
-            createdAt: new Date(createdAt),
-            updatedAt: new Date(createdAt)
-          })
+          await testDb.db
+            .insertInto('status_quotes')
+            .values({
+              statusId: `${prefix}-${suffix}`,
+              quotedStatusId,
+              state: 'accepted',
+              createdAt: new Date(createdAt),
+              updatedAt: new Date(createdAt)
+            })
+            .execute()
         }
         const suffixes = (ids: string[]) =>
           ids.map((id) => id.slice(prefix.length + 1))

@@ -8,7 +8,7 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('Wahoo fitness settings database operations', () => {
   const testDb = createTestDatabase()
-  const { database, knex: instance } = testDb
+  const { database, db } = testDb
   const webhookToken = 'wahoo-webhook-secret'
   const providerUserId = 'wahoo-user-123'
 
@@ -59,9 +59,11 @@ describe('Wahoo fitness settings database operations', () => {
       webhookToken
     })
 
-    const raw = await instance('fitness_settings')
-      .where({ id: settings.id })
-      .first()
+    const raw = await db
+      .selectFrom('fitness_settings')
+      .selectAll()
+      .where('id', '=', settings.id)
+      .executeTakeFirstOrThrow()
     expect(raw.webhookToken).toBeNull()
     expect(raw.wahooWebhookToken).not.toBe(webhookToken)
     const storedTokenHash = createHmac('sha256', getConfig().secretPhase)
@@ -148,9 +150,7 @@ describe('Wahoo fitness settings database operations', () => {
       serviceType: 'wahoo'
     })
 
-    // Read through Kysely: a raw Knex read returns the timestamp as a Date on
-    // PostgreSQL and as a number on SQLite.
-    const raw = await testDb.db
+    const raw = await db
       .selectFrom('fitness_settings')
       .selectAll()
       .where('id', '=', settings.id)
@@ -200,9 +200,7 @@ describe('Wahoo fitness settings database operations', () => {
       })
     ).resolves.toBeNull()
 
-    // Read through Kysely: a raw Knex read returns the timestamp as a Date on
-    // PostgreSQL and as a number on SQLite.
-    const raw = await testDb.db
+    const raw = await db
       .selectFrom('fitness_settings')
       .selectAll()
       .where('id', '=', settings.id)

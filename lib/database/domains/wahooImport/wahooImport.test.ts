@@ -4,7 +4,7 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('Wahoo import database operations', () => {
   const testDb = createTestDatabase()
-  const { database, knex: instance } = testDb
+  const { database, db } = testDb
   const actorId = DatabaseSeed.actors.primary.id
   const providerUserId = 'wahoo-import-user'
 
@@ -159,7 +159,7 @@ describe('Wahoo import database operations', () => {
     })
 
     expect(await database.deleteFitnessFile({ id: file!.id })).toBe(true)
-    await instance('fitness_files').where({ id: file!.id }).delete()
+    await db.deleteFrom('fitness_files').where('id', '=', file!.id).execute()
     expect(await database.getWahooImport(imported.id)).toMatchObject({
       fitnessFileId: undefined,
       statusId,

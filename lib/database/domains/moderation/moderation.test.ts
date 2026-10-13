@@ -1,5 +1,4 @@
-import type { Knex } from 'knex'
-
+import type { Db } from '@/lib/database/kysely'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -13,10 +12,10 @@ import { EXTERNAL_ACTOR1, seedExternal1 } from '@/lib/stub/seed/external1'
 // Each test gets its own database. On PostgreSQL it is this worker's
 // `_isolated` database, recreated per test, so the suite runs on both backends.
 const getFreshDatabaseWithInstance = async () => {
-  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  const { database, db, prepare } = getTestDatabaseWithInstance(true)
   await prepare()
   await database.migrate()
-  return { database, instance }
+  return { database, db }
 }
 
 const withFreshDatabase = async (
@@ -177,13 +176,15 @@ describe('ModerationDatabase', () => {
 
   describe('approveAccount', () => {
     it('sets approvedAt when null and is idempotent', async () => {
-      const { database, instance } = await getFreshDatabaseWithInstance()
+      const { database, db } = await getFreshDatabaseWithInstance()
       try {
         const { accountId } = await seedLocalActor(database, seedActor1)
         // createAccount approves on insert; make it pending for this test.
-        await instance('accounts')
-          .update({ approvedAt: null })
-          .where('id', accountId)
+        await db
+          .updateTable('accounts')
+          .set({ approvedAt: null })
+          .where('id', '=', accountId)
+          .execute()
 
         await database.approveAccount({ accountId })
         const approved = (await database.getAccountFromId({ id: accountId }))
@@ -203,15 +204,17 @@ describe('ModerationDatabase', () => {
 
   describe('rejectPendingAccount', () => {
     it('deletes a pending account and its actors and returns true', async () => {
-      const { database, instance } = await getFreshDatabaseWithInstance()
+      const { database, db } = await getFreshDatabaseWithInstance()
       try {
         const { accountId, actorId } = await seedLocalActor(
           database,
           seedActor1
         )
-        await instance('accounts')
-          .update({ approvedAt: null })
-          .where('id', accountId)
+        await db
+          .updateTable('accounts')
+          .set({ approvedAt: null })
+          .where('id', '=', accountId)
+          .execute()
 
         const rejected = await database.rejectPendingAccount({ accountId })
         expect(rejected).toBe(true)
@@ -220,12 +223,18 @@ describe('ModerationDatabase', () => {
         // The credential provider row created alongside the account is gone too,
         // so nothing dangles referencing the deleted account.
         expect(
-          await instance('account_providers')
-            .where('accountId', accountId)
-            .first()
+          await db
+            .selectFrom('account_providers')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .executeTakeFirst()
         ).toBeUndefined()
         expect(
-          await instance('sessions').where('accountId', accountId).first()
+          await db
+            .selectFrom('sessions')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .executeTakeFirst()
         ).toBeUndefined()
       } finally {
         await database.destroy()
@@ -458,7 +467,7 @@ describe('ModerationDatabase', () => {
   describe('getAdminAccounts filters', () => {
     // A rich fixture: one local account per moderation state, a staff account,
     // and a remote actor — so every v1/v2 filter can be exercised.
-    const seedRichFixture = async (database: Database, instance: Knex) => {
+    const seedRichFixture = async (database: Database, db: Db) => {
       const make = async (username: string) => {
         const accountId = await database.createAccount({
           email: `${username}@test.llun.dev`,
@@ -496,12 +505,16 @@ describe('ModerationDatabase', () => {
         accountId: disabled.accountId,
         disabled: true
       })
-      await instance('accounts')
-        .where('id', pending.accountId)
-        .update({ approvedAt: null })
-      await instance('accounts')
-        .where('id', staff.accountId)
-        .update({ role: 'admin' })
+      await db
+        .updateTable('accounts')
+        .set({ approvedAt: null })
+        .where('id', '=', pending.accountId)
+        .execute()
+      await db
+        .updateTable('accounts')
+        .set({ role: 'admin' })
+        .where('id', '=', staff.accountId)
+        .execute()
       await database.createActor(seedExternal1)
       return {
         active: active.actorId,
@@ -577,9 +590,9 @@ describe('ModerationDatabase', () => {
         absent: 'suspended'
       }
     ])('filters by $description', async ({ filter, present, absent }) => {
-      const { database, instance } = await getFreshDatabaseWithInstance()
+      const { database, db } = await getFreshDatabaseWithInstance()
       try {
-        const ids = await seedRichFixture(database, instance)
+        const ids = await seedRichFixture(database, db)
         const records = await database.getAdminAccounts({
           limit: 100,
           ...filter
@@ -640,7 +653,7 @@ describe('ModerationDatabase', () => {
 
   describe('getSessionIpsForAccounts', () => {
     it('returns latest-first distinct ips per account', async () => {
-      const { database, instance } = await getFreshDatabaseWithInstance()
+      const { database, db } = await getFreshDatabaseWithInstance()
       try {
         const { accountId, actorId } = await seedLocalActor(
           database,
@@ -653,9 +666,11 @@ describe('ModerationDatabase', () => {
           expireAt: Date.now() + 60_000
         })
         // Backfill the IP columns (createAccountSession does not set them).
-        await instance('sessions')
-          .where('token', 'session-a')
-          .update({ ipAddress: '203.0.113.9' })
+        await db
+          .updateTable('sessions')
+          .set({ ipAddress: '203.0.113.9' })
+          .where('token', '=', 'session-a')
+          .execute()
 
         const map = await database.getSessionIpsForAccounts({
           accountIds: [accountId]
@@ -669,7 +684,7 @@ describe('ModerationDatabase', () => {
 
   describe('setReportResolution', () => {
     it('stamps and clears the action-taken workflow columns', async () => {
-      const { database, instance } = await getFreshDatabaseWithInstance()
+      const { database, db } = await getFreshDatabaseWithInstance()
       try {
         const report = await database.createReport({
           actorId: 'https://test.llun.dev/users/reporter',
@@ -683,9 +698,11 @@ describe('ModerationDatabase', () => {
             actionTakenByActorId: 'https://test.llun.dev/users/mod'
           })
         ).toBe(true)
-        const resolved = await instance('reports')
-          .where('id', report.id)
-          .first()
+        const resolved = await db
+          .selectFrom('reports')
+          .selectAll()
+          .where('id', '=', report.id)
+          .executeTakeFirstOrThrow()
         expect(Boolean(resolved.actionTaken)).toBe(true)
         expect(resolved.actionTakenAt).toBeTruthy()
         expect(resolved.actionTakenByActorId).toBe(
@@ -696,9 +713,11 @@ describe('ModerationDatabase', () => {
           reportId: report.id,
           resolved: false
         })
-        const reopened = await instance('reports')
-          .where('id', report.id)
-          .first()
+        const reopened = await db
+          .selectFrom('reports')
+          .selectAll()
+          .where('id', '=', report.id)
+          .executeTakeFirstOrThrow()
         expect(Boolean(reopened.actionTaken)).toBe(false)
         expect(reopened.actionTakenAt).toBeNull()
         expect(reopened.actionTakenByActorId).toBeNull()

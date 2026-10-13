@@ -1,11 +1,10 @@
 import { createHash, randomBytes } from 'crypto'
-import type { Knex } from 'knex'
 
 import {
   type ConversationStatusSource,
   createConversationQueries
 } from '@/lib/database/domains/conversation/queries'
-import { bindDb, kyselyFor } from '@/lib/database/kysely'
+import { type Db, bindDb } from '@/lib/database/kysely'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
@@ -30,16 +29,12 @@ import {
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-// The conversation facade over `knexDatabase`, with status hydration from
+// The conversation facade over `db`, with status hydration from
 // `statusDatabase` instead of the status domain.
 const conversationDatabase = (
-  knexDatabase: Knex,
+  db: Db,
   statusDatabase: ConversationStatusSource
-) =>
-  bindDb(
-    () => kyselyFor(knexDatabase),
-    createConversationQueries(statusDatabase)
-  )
+) => bindDb(() => db, createConversationQueries(statusDatabase))
 
 // A fresh database per test, next to the suite-level one, so the membership
 // ids these tests address start at 1.
@@ -467,12 +462,12 @@ describe('ConversationDatabase', () => {
 
   describe('implementation details', () => {
     let testDb: TestDatabase
-    let knexDatabase: Knex
+    let db: Db
     let database: Database
 
     beforeEach(async () => {
       testDb = await createIsolatedDatabase()
-      knexDatabase = testDb.knex
+      db = testDb.db
       database = testDb.database
       await seedDatabase(database)
     })
@@ -497,21 +492,23 @@ describe('ConversationDatabase', () => {
         reply: root.id,
         createdAt: 8000
       })
-      const [membership] = await knexDatabase('direct_conversation_memberships')
-        .where({
-          actorId: ACTOR1_ID,
-          lastStatusId: reply.id
-        })
-        .select<{ id: string | number; conversationId: string }[]>()
+      const membership = await db
+        .selectFrom('direct_conversation_memberships')
+        .select(['id', 'conversationId'])
+        .where('actorId', '=', ACTOR1_ID)
+        .where('lastStatusId', '=', reply.id)
+        .executeTakeFirstOrThrow()
 
-      await knexDatabase('direct_conversation_memberships')
-        .where('id', membership.id)
-        .update({
+      await db
+        .updateTable('direct_conversation_memberships')
+        .set({
           lastStatusId: `${reply.id}/missing`,
           lastStatusCreatedAt: new Date(9000),
           unread: true,
           readAt: new Date(9000)
         })
+        .where('id', '=', membership.id)
+        .execute()
 
       const conversations = await database.getDirectConversations({
         actorId: ACTOR1_ID
@@ -519,23 +516,19 @@ describe('ConversationDatabase', () => {
       const conversation = conversations.find(
         (item) => item.conversationId === membership.conversationId
       )
-      const persistedMembership = await knexDatabase(
-        'direct_conversation_memberships'
-      )
-        .where('id', membership.id)
-        .first<{
-          lastStatusId: string
-          unread: boolean | number
-          readAt: Date
-        }>()
+      const persistedMembership = await db
+        .selectFrom('direct_conversation_memberships')
+        .select(['lastStatusId', 'unread', 'readAt'])
+        .where('id', '=', membership.id)
+        .executeTakeFirst()
 
       expect(conversation?.lastStatusId).toEqual(reply.id)
       expect(conversation?.lastStatus.id).toEqual(reply.id)
       expect(conversation?.unread).toBe(false)
       expect(conversation?.readAt).toEqual(9000)
       expect(persistedMembership?.lastStatusId).toEqual(`${reply.id}/missing`)
-      expect(Boolean(persistedMembership?.unread)).toBe(true)
-      expect(new Date(persistedMembership?.readAt ?? 0).getTime()).toEqual(9000)
+      expect(persistedMembership?.unread).toBe(true)
+      expect(persistedMembership?.readAt).toEqual(9000)
     })
 
     test('keeps conversation rows when local participants are excluded from memberships', async () => {
@@ -555,22 +548,24 @@ describe('ConversationDatabase', () => {
         excludedLocalActorIds: [ACTOR1_ID]
       })
 
-      const conversationStatus = await knexDatabase(
-        'direct_conversation_statuses'
-      )
-        .where({ statusId: status.id })
-        .first<{ conversationId: string }>()
+      const conversationStatus = await db
+        .selectFrom('direct_conversation_statuses')
+        .select('conversationId')
+        .where('statusId', '=', status.id)
+        .executeTakeFirst()
       expect(conversationStatus).toBeDefined()
       if (!conversationStatus) fail('Conversation status must be defined')
 
-      const participantRows = await knexDatabase(
-        'direct_conversation_participants'
-      )
-        .where({ conversationId: conversationStatus.conversationId })
-        .select<{ actorId: string }[]>('actorId')
-      const membershipRows = await knexDatabase(
-        'direct_conversation_memberships'
-      ).where({ conversationId: conversationStatus.conversationId })
+      const participantRows = await db
+        .selectFrom('direct_conversation_participants')
+        .select('actorId')
+        .where('conversationId', '=', conversationStatus.conversationId)
+        .execute()
+      const membershipRows = await db
+        .selectFrom('direct_conversation_memberships')
+        .selectAll()
+        .where('conversationId', '=', conversationStatus.conversationId)
+        .execute()
 
       expect(participantRows.map((row) => row.actorId).sort()).toEqual(
         [ACTOR1_ID, EXTERNAL_ACTOR1].sort()
@@ -584,47 +579,59 @@ describe('ConversationDatabase', () => {
           .filter((statusId: string) => statusId === 'status-60')
           .map(statusForId)
       )
-      const database = conversationDatabase(knexDatabase, {
+      const database = conversationDatabase(db, {
         getStatusesByIds
       } as unknown as StatusDatabase)
       const now = new Date()
       const conversationId = 'conversation-with-long-stale-tail'
 
-      await knexDatabase('direct_conversations').insert({
-        id: conversationId,
-        rootStatusId: 'status-1',
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_participants').insert({
-        id: 'participant-long-stale-tail',
-        conversationId,
-        actorId: ACTOR1_ID,
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_memberships').insert({
-        actorId: ACTOR1_ID,
-        conversationId,
-        lastStatusId: 'missing-last-status',
-        lastStatusCreatedAt: new Date(121_000),
-        unread: true,
-        readAt: null,
-        hiddenAt: null,
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_statuses').insert(
-        Array.from({ length: 120 }, (_, index) => {
-          const statusNumber = index + 1
-          return {
-            conversationId,
-            statusId: `status-${statusNumber}`,
-            createdAt: new Date(statusNumber * 1000),
-            updatedAt: now
-          }
+      await db
+        .insertInto('direct_conversations')
+        .values({
+          id: conversationId,
+          rootStatusId: 'status-1',
+          createdAt: now,
+          updatedAt: now
         })
-      )
+        .execute()
+      await db
+        .insertInto('direct_conversation_participants')
+        .values({
+          id: 'participant-long-stale-tail',
+          conversationId,
+          actorId: ACTOR1_ID,
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_memberships')
+        .values({
+          actorId: ACTOR1_ID,
+          conversationId,
+          lastStatusId: 'missing-last-status',
+          lastStatusCreatedAt: new Date(121_000),
+          unread: true,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values(
+          Array.from({ length: 120 }, (_, index) => {
+            const statusNumber = index + 1
+            return {
+              conversationId,
+              statusId: `status-${statusNumber}`,
+              createdAt: new Date(statusNumber * 1000),
+              updatedAt: now
+            }
+          })
+        )
+        .execute()
 
       const conversations = await database.getDirectConversations({
         actorId: ACTOR1_ID
@@ -654,7 +661,7 @@ describe('ConversationDatabase', () => {
           )
           .map(statusForId)
       )
-      const database = conversationDatabase(knexDatabase, {
+      const database = conversationDatabase(db, {
         getStatusesByIds
       } as unknown as StatusDatabase)
       const now = new Date()
@@ -678,46 +685,58 @@ describe('ConversationDatabase', () => {
         }
       ]
 
-      await knexDatabase('direct_conversations').insert(
-        staleConversations.map((conversation) => ({
-          id: conversation.conversationId,
-          rootStatusId: conversation.fallbackStatusIds[0],
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      await knexDatabase('direct_conversation_participants').insert(
-        staleConversations.map((conversation) => ({
-          id: `participant-${conversation.conversationId}`,
-          conversationId: conversation.conversationId,
-          actorId: ACTOR1_ID,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      await knexDatabase('direct_conversation_memberships').insert(
-        staleConversations.map((conversation, index) => ({
-          actorId: ACTOR1_ID,
-          conversationId: conversation.conversationId,
-          lastStatusId: conversation.missingStatusId,
-          lastStatusCreatedAt: new Date(10_000 - index * 1000),
-          unread: true,
-          readAt: null,
-          hiddenAt: null,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      await knexDatabase('direct_conversation_statuses').insert(
-        staleConversations.flatMap((conversation) =>
-          conversation.fallbackStatusIds.map((statusId, index) => ({
-            conversationId: conversation.conversationId,
-            statusId,
-            createdAt: new Date((index + 1) * 1000),
+      await db
+        .insertInto('direct_conversations')
+        .values(
+          staleConversations.map((conversation) => ({
+            id: conversation.conversationId,
+            rootStatusId: conversation.fallbackStatusIds[0],
+            createdAt: now,
             updatedAt: now
           }))
         )
-      )
+        .execute()
+      await db
+        .insertInto('direct_conversation_participants')
+        .values(
+          staleConversations.map((conversation) => ({
+            id: `participant-${conversation.conversationId}`,
+            conversationId: conversation.conversationId,
+            actorId: ACTOR1_ID,
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .execute()
+      await db
+        .insertInto('direct_conversation_memberships')
+        .values(
+          staleConversations.map((conversation, index) => ({
+            actorId: ACTOR1_ID,
+            conversationId: conversation.conversationId,
+            lastStatusId: conversation.missingStatusId,
+            lastStatusCreatedAt: new Date(10_000 - index * 1000),
+            unread: true,
+            readAt: null,
+            hiddenAt: null,
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values(
+          staleConversations.flatMap((conversation) =>
+            conversation.fallbackStatusIds.map((statusId, index) => ({
+              conversationId: conversation.conversationId,
+              statusId,
+              createdAt: new Date((index + 1) * 1000),
+              updatedAt: now
+            }))
+          )
+        )
+        .execute()
 
       let conversations: Awaited<
         ReturnType<typeof database.getDirectConversations>
@@ -808,11 +827,11 @@ describe('ConversationDatabase', () => {
 
   describe('direct conversation queries', () => {
     let testDb: TestDatabase
-    let knexDatabase: Knex
+    let db: Db
 
     beforeEach(async () => {
       testDb = await createIsolatedDatabase()
-      knexDatabase = testDb.knex
+      db = testDb.db
     })
 
     afterEach(async () => {
@@ -825,53 +844,65 @@ describe('ConversationDatabase', () => {
           statusIds.map(statusForId).reverse()
         )
       } as unknown as StatusDatabase
-      const database = conversationDatabase(knexDatabase, statusDatabase)
+      const database = conversationDatabase(db, statusDatabase)
       const now = new Date()
 
-      await knexDatabase('direct_conversations').insert({
-        id: 'conversation-ordered',
-        rootStatusId: 'status-1',
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_participants').insert({
-        id: 'participant-1',
-        conversationId: 'conversation-ordered',
-        actorId: ACTOR1_ID,
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_memberships').insert({
-        actorId: ACTOR1_ID,
-        conversationId: 'conversation-ordered',
-        lastStatusId: 'status-3',
-        lastStatusCreatedAt: new Date(3000),
-        unread: false,
-        readAt: null,
-        hiddenAt: null,
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_statuses').insert([
-        {
-          conversationId: 'conversation-ordered',
-          statusId: 'status-1',
-          createdAt: new Date(1000),
+      await db
+        .insertInto('direct_conversations')
+        .values({
+          id: 'conversation-ordered',
+          rootStatusId: 'status-1',
+          createdAt: now,
           updatedAt: now
-        },
-        {
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_participants')
+        .values({
+          id: 'participant-1',
           conversationId: 'conversation-ordered',
-          statusId: 'status-2',
-          createdAt: new Date(2000),
+          actorId: ACTOR1_ID,
+          createdAt: now,
           updatedAt: now
-        },
-        {
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_memberships')
+        .values({
+          actorId: ACTOR1_ID,
           conversationId: 'conversation-ordered',
-          statusId: 'status-3',
-          createdAt: new Date(3000),
+          lastStatusId: 'status-3',
+          lastStatusCreatedAt: new Date(3000),
+          unread: false,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
           updatedAt: now
-        }
-      ])
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values([
+          {
+            conversationId: 'conversation-ordered',
+            statusId: 'status-1',
+            createdAt: new Date(1000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-ordered',
+            statusId: 'status-2',
+            createdAt: new Date(2000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-ordered',
+            statusId: 'status-3',
+            createdAt: new Date(3000),
+            updatedAt: now
+          }
+        ])
+        .execute()
 
       const statuses = await database.getDirectConversationStatuses({
         actorId: ACTOR1_ID,
@@ -893,77 +924,89 @@ describe('ConversationDatabase', () => {
             .map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = conversationDatabase(knexDatabase, statusDatabase)
+      const database = conversationDatabase(db, statusDatabase)
       const now = new Date()
 
-      await knexDatabase('direct_conversations').insert([
-        {
-          id: 'conversation-stale',
-          rootStatusId: 'stale-fallback-status',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: 'conversation-fresh',
-          rootStatusId: 'fresh-status',
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
-      await knexDatabase('direct_conversation_participants').insert([
-        {
-          id: 'participant-stale',
-          conversationId: 'conversation-stale',
-          actorId: ACTOR1_ID,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: 'participant-fresh',
-          conversationId: 'conversation-fresh',
-          actorId: ACTOR1_ID,
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
-      await knexDatabase('direct_conversation_memberships').insert([
-        {
-          actorId: ACTOR1_ID,
-          conversationId: 'conversation-stale',
-          lastStatusId: 'stale-missing-status',
-          lastStatusCreatedAt: new Date(9000),
-          unread: true,
-          readAt: null,
-          hiddenAt: null,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          actorId: ACTOR1_ID,
-          conversationId: 'conversation-fresh',
-          lastStatusId: 'fresh-status',
-          lastStatusCreatedAt: new Date(8000),
-          unread: false,
-          readAt: null,
-          hiddenAt: null,
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
-      await knexDatabase('direct_conversation_statuses').insert([
-        {
-          conversationId: 'conversation-stale',
-          statusId: 'stale-fallback-status',
-          createdAt: new Date(1000),
-          updatedAt: now
-        },
-        {
-          conversationId: 'conversation-fresh',
-          statusId: 'fresh-status',
-          createdAt: new Date(8000),
-          updatedAt: now
-        }
-      ])
+      await db
+        .insertInto('direct_conversations')
+        .values([
+          {
+            id: 'conversation-stale',
+            rootStatusId: 'stale-fallback-status',
+            createdAt: now,
+            updatedAt: now
+          },
+          {
+            id: 'conversation-fresh',
+            rootStatusId: 'fresh-status',
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('direct_conversation_participants')
+        .values([
+          {
+            id: 'participant-stale',
+            conversationId: 'conversation-stale',
+            actorId: ACTOR1_ID,
+            createdAt: now,
+            updatedAt: now
+          },
+          {
+            id: 'participant-fresh',
+            conversationId: 'conversation-fresh',
+            actorId: ACTOR1_ID,
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('direct_conversation_memberships')
+        .values([
+          {
+            actorId: ACTOR1_ID,
+            conversationId: 'conversation-stale',
+            lastStatusId: 'stale-missing-status',
+            lastStatusCreatedAt: new Date(9000),
+            unread: true,
+            readAt: null,
+            hiddenAt: null,
+            createdAt: now,
+            updatedAt: now
+          },
+          {
+            actorId: ACTOR1_ID,
+            conversationId: 'conversation-fresh',
+            lastStatusId: 'fresh-status',
+            lastStatusCreatedAt: new Date(8000),
+            unread: false,
+            readAt: null,
+            hiddenAt: null,
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values([
+          {
+            conversationId: 'conversation-stale',
+            statusId: 'stale-fallback-status',
+            createdAt: new Date(1000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-fresh',
+            statusId: 'fresh-status',
+            createdAt: new Date(8000),
+            updatedAt: now
+          }
+        ])
+        .execute()
 
       const firstPage = await database.getDirectConversations({
         actorId: ACTOR1_ID,
@@ -994,7 +1037,7 @@ describe('ConversationDatabase', () => {
             .map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = conversationDatabase(knexDatabase, statusDatabase)
+      const database = conversationDatabase(db, statusDatabase)
       const now = new Date()
       const visibleConversations = Array.from({ length: 18 }, (_, index) => ({
         conversationId: `conversation-visible-${index}`,
@@ -1020,56 +1063,68 @@ describe('ConversationDatabase', () => {
         }
       ]
 
-      await knexDatabase('direct_conversations').insert(
-        memberships.map((membership) => ({
-          id: membership.conversationId,
-          rootStatusId: membership.statusId,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      await knexDatabase('direct_conversation_participants').insert(
-        memberships.map((membership) => ({
-          id: `participant-${membership.conversationId}`,
-          conversationId: membership.conversationId,
-          actorId: ACTOR1_ID,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      await knexDatabase('direct_conversation_memberships').insert(
-        memberships.map((membership) => ({
-          actorId: ACTOR1_ID,
-          conversationId: membership.conversationId,
-          lastStatusId: membership.statusId,
-          lastStatusCreatedAt: membership.createdAt,
-          unread: false,
-          readAt: null,
-          hiddenAt: null,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      await knexDatabase('direct_conversation_statuses').insert([
-        ...visibleConversations.map((membership) => ({
-          conversationId: membership.conversationId,
-          statusId: membership.statusId,
-          createdAt: membership.createdAt,
-          updatedAt: now
-        })),
-        {
-          conversationId: 'conversation-stale-boundary',
-          statusId: 'stale-fallback-status',
-          createdAt: new Date(1000),
-          updatedAt: now
-        },
-        {
-          conversationId: 'conversation-after-boundary',
-          statusId: 'after-boundary-status',
-          createdAt: new Date(8000),
-          updatedAt: now
-        }
-      ])
+      await db
+        .insertInto('direct_conversations')
+        .values(
+          memberships.map((membership) => ({
+            id: membership.conversationId,
+            rootStatusId: membership.statusId,
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .execute()
+      await db
+        .insertInto('direct_conversation_participants')
+        .values(
+          memberships.map((membership) => ({
+            id: `participant-${membership.conversationId}`,
+            conversationId: membership.conversationId,
+            actorId: ACTOR1_ID,
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .execute()
+      await db
+        .insertInto('direct_conversation_memberships')
+        .values(
+          memberships.map((membership) => ({
+            actorId: ACTOR1_ID,
+            conversationId: membership.conversationId,
+            lastStatusId: membership.statusId,
+            lastStatusCreatedAt: membership.createdAt,
+            unread: false,
+            readAt: null,
+            hiddenAt: null,
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values([
+          ...visibleConversations.map((membership) => ({
+            conversationId: membership.conversationId,
+            statusId: membership.statusId,
+            createdAt: membership.createdAt,
+            updatedAt: now
+          })),
+          {
+            conversationId: 'conversation-stale-boundary',
+            statusId: 'stale-fallback-status',
+            createdAt: new Date(1000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-after-boundary',
+            statusId: 'after-boundary-status',
+            createdAt: new Date(8000),
+            updatedAt: now
+          }
+        ])
+        .execute()
 
       const page = await database.getDirectConversations({
         actorId: ACTOR1_ID,
@@ -1095,65 +1150,77 @@ describe('ConversationDatabase', () => {
             .map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = conversationDatabase(knexDatabase, statusDatabase)
+      const database = conversationDatabase(db, statusDatabase)
       const now = new Date()
 
-      await knexDatabase('direct_conversations').insert({
-        id: 'conversation-with-invisible-statuses',
-        rootStatusId: 'status-1',
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_participants').insert({
-        id: 'participant-1',
-        conversationId: 'conversation-with-invisible-statuses',
-        actorId: ACTOR1_ID,
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_memberships').insert({
-        actorId: ACTOR1_ID,
-        conversationId: 'conversation-with-invisible-statuses',
-        lastStatusId: 'status-5',
-        lastStatusCreatedAt: new Date(5000),
-        unread: false,
-        readAt: null,
-        hiddenAt: null,
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_statuses').insert([
-        {
-          conversationId: 'conversation-with-invisible-statuses',
-          statusId: 'status-1',
-          createdAt: new Date(1000),
+      await db
+        .insertInto('direct_conversations')
+        .values({
+          id: 'conversation-with-invisible-statuses',
+          rootStatusId: 'status-1',
+          createdAt: now,
           updatedAt: now
-        },
-        {
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_participants')
+        .values({
+          id: 'participant-1',
           conversationId: 'conversation-with-invisible-statuses',
-          statusId: 'status-2',
-          createdAt: new Date(2000),
+          actorId: ACTOR1_ID,
+          createdAt: now,
           updatedAt: now
-        },
-        {
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_memberships')
+        .values({
+          actorId: ACTOR1_ID,
           conversationId: 'conversation-with-invisible-statuses',
-          statusId: 'status-3',
-          createdAt: new Date(3000),
+          lastStatusId: 'status-5',
+          lastStatusCreatedAt: new Date(5000),
+          unread: false,
+          readAt: null,
+          hiddenAt: null,
+          createdAt: now,
           updatedAt: now
-        },
-        {
-          conversationId: 'conversation-with-invisible-statuses',
-          statusId: 'status-4',
-          createdAt: new Date(4000),
-          updatedAt: now
-        },
-        {
-          conversationId: 'conversation-with-invisible-statuses',
-          statusId: 'status-5',
-          createdAt: new Date(5000),
-          updatedAt: now
-        }
-      ])
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values([
+          {
+            conversationId: 'conversation-with-invisible-statuses',
+            statusId: 'status-1',
+            createdAt: new Date(1000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-with-invisible-statuses',
+            statusId: 'status-2',
+            createdAt: new Date(2000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-with-invisible-statuses',
+            statusId: 'status-3',
+            createdAt: new Date(3000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-with-invisible-statuses',
+            statusId: 'status-4',
+            createdAt: new Date(4000),
+            updatedAt: now
+          },
+          {
+            conversationId: 'conversation-with-invisible-statuses',
+            statusId: 'status-5',
+            createdAt: new Date(5000),
+            updatedAt: now
+          }
+        ])
+        .execute()
 
       const firstPage = await database.getDirectConversationStatuses({
         actorId: ACTOR1_ID,
@@ -1185,29 +1252,38 @@ describe('ConversationDatabase', () => {
           statusIds.map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = conversationDatabase(knexDatabase, statusDatabase)
+      const database = conversationDatabase(db, statusDatabase)
       const now = new Date()
 
-      await knexDatabase('actors').insert([
-        { id: ACTOR1_ID, privateKey: 'private-key-1' },
-        { id: ACTOR2_ID, privateKey: 'private-key-2' }
-      ])
-      await knexDatabase('statuses').insert({
-        id: 'lightweight-parent',
-        url: parentUrl,
-        urlHash: getHashFromString(parentUrl),
-        actorId: ACTOR1_ID,
-        type: StatusType.enum.Note,
-        reply: '',
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('recipients').insert({
-        id: 'lightweight-parent-recipient',
-        statusId: 'lightweight-parent',
-        actorId: ACTOR2_ID,
-        type: 'to'
-      })
+      await db
+        .insertInto('actors')
+        .values([
+          { id: ACTOR1_ID, privateKey: 'private-key-1' },
+          { id: ACTOR2_ID, privateKey: 'private-key-2' }
+        ])
+        .execute()
+      await db
+        .insertInto('statuses')
+        .values({
+          id: 'lightweight-parent',
+          url: parentUrl,
+          urlHash: getHashFromString(parentUrl),
+          actorId: ACTOR1_ID,
+          type: StatusType.enum.Note,
+          reply: '',
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      await db
+        .insertInto('recipients')
+        .values({
+          id: 'lightweight-parent-recipient',
+          statusId: 'lightweight-parent',
+          actorId: ACTOR2_ID,
+          type: 'to'
+        })
+        .execute()
 
       const statusLookupQueries = (
         await testDb.captureQueries(() =>
@@ -1230,9 +1306,11 @@ describe('ConversationDatabase', () => {
             sql.includes('from "statuses"')
         )
 
-      const conversation = await knexDatabase('direct_conversations')
-        .where({ rootStatusId: 'lightweight-parent' })
-        .first<{ id: string }>()
+      const conversation = await db
+        .selectFrom('direct_conversations')
+        .select('id')
+        .where('rootStatusId', '=', 'lightweight-parent')
+        .executeTakeFirst()
 
       expect(conversation).toBeDefined()
       expect(statusLookupQueries).toHaveLength(1)
@@ -1248,26 +1326,35 @@ describe('ConversationDatabase', () => {
           statusIds.map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = conversationDatabase(knexDatabase, statusDatabase)
+      const database = conversationDatabase(db, statusDatabase)
       const now = new Date()
       const conversationId = conversationIdForRoot('root-status')
 
-      await knexDatabase('actors').insert([
-        { id: ACTOR1_ID, privateKey: 'private-key-1' },
-        { id: ACTOR2_ID, privateKey: 'private-key-2' }
-      ])
-      await knexDatabase('direct_conversations').insert({
-        id: conversationId,
-        rootStatusId: 'root-status',
-        createdAt: now,
-        updatedAt: now
-      })
-      await knexDatabase('direct_conversation_statuses').insert({
-        conversationId,
-        statusId: 'parent-status',
-        createdAt: new Date(1000),
-        updatedAt: now
-      })
+      await db
+        .insertInto('actors')
+        .values([
+          { id: ACTOR1_ID, privateKey: 'private-key-1' },
+          { id: ACTOR2_ID, privateKey: 'private-key-2' }
+        ])
+        .execute()
+      await db
+        .insertInto('direct_conversations')
+        .values({
+          id: conversationId,
+          rootStatusId: 'root-status',
+          createdAt: now,
+          updatedAt: now
+        })
+        .execute()
+      await db
+        .insertInto('direct_conversation_statuses')
+        .values({
+          conversationId,
+          statusId: 'parent-status',
+          createdAt: new Date(1000),
+          updatedAt: now
+        })
+        .execute()
 
       await database.syncDirectConversationForStatus({
         status: {
@@ -1280,9 +1367,11 @@ describe('ConversationDatabase', () => {
         } as StatusNote
       })
 
-      const syncedReply = await knexDatabase('direct_conversation_statuses')
-        .where('statusId', 'reply-status')
-        .first<{ conversationId: string }>()
+      const syncedReply = await db
+        .selectFrom('direct_conversation_statuses')
+        .select('conversationId')
+        .where('statusId', '=', 'reply-status')
+        .executeTakeFirst()
 
       expect(getStatus).not.toHaveBeenCalled()
       expect(syncedReply?.conversationId).toEqual(conversationId)

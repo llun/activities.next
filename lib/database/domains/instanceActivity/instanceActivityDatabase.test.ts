@@ -1,3 +1,5 @@
+import { sql } from 'kysely'
+
 import {
   getInstanceActivity,
   incrementLocalStatusBucket,
@@ -12,7 +14,7 @@ import { formatBucketHour } from '@/lib/database/utils/counterBucket'
 // both backends (that suite builds a minimal SQLite schema by hand).
 describe('instance activity on both backends', () => {
   const testDb = createTestDatabase()
-  const { knex } = testDb
+  const { db } = testDb
   const HOUR = 60 * 60 * 1000
   const WEEK = 7 * 24 * HOUR
 
@@ -22,9 +24,9 @@ describe('instance activity on both backends', () => {
   })
 
   beforeEach(async () => {
-    await knex('actors').delete()
-    await knex('accounts').delete()
-    await knex('counters').delete()
+    await db.deleteFrom('actors').execute()
+    await db.deleteFrom('accounts').execute()
+    await db.deleteFrom('counters').execute()
   })
 
   afterAll(async () => {
@@ -37,25 +39,32 @@ describe('instance activity on both backends', () => {
     value: number,
     bucketHour: Date | null = hour
   ) =>
-    knex('counters').insert({
-      id: `bucket:${type}:${formatBucketHour(hour)}`,
-      value,
-      bucketHour,
-      createdAt: hour,
-      updatedAt: hour
-    })
+    db
+      .insertInto('counters')
+      .values({
+        id: `bucket:${type}:${formatBucketHour(hour)}`,
+        value,
+        bucketHour,
+        createdAt: hour,
+        updatedAt: hour
+      })
+      .execute()
 
   const bucketTotal = async (type: string) => {
-    const rows = await knex('counters')
-      .where('id', 'like', `bucket:${type}:%`)
+    const rows = await db
+      .selectFrom('counters')
       .select('value')
+      .where('id', 'like', `bucket:${type}:%`)
+      .execute()
     return rows.reduce((total, row) => total + Number(row.value), 0)
   }
 
   const marker = async (accountId: string) => {
-    const row = await knex('counters')
-      .where('id', `unique-login:${accountId}`)
-      .first('value')
+    const row = await db
+      .selectFrom('counters')
+      .select('value')
+      .where('id', '=', `unique-login:${accountId}`)
+      .executeTakeFirst()
     return row && Number(row.value)
   }
 
@@ -82,22 +91,25 @@ describe('instance activity on both backends', () => {
         100,
         new Date(newestEnd + HOUR)
       )
-      await knex('counters').insert([
-        {
-          id: `bucket:logins:${formatBucketHour(new Date(oldest - HOUR))}`,
-          value: 100,
-          bucketHour: new Date(newest + HOUR),
-          createdAt: new Date(oldest),
-          updatedAt: new Date(oldest)
-        },
-        {
-          id: `bucket:logins:${formatBucketHour(new Date(newestEnd))}`,
-          value: 100,
-          bucketHour: new Date(newest + HOUR),
-          createdAt: new Date(oldest),
-          updatedAt: new Date(oldest)
-        }
-      ])
+      await db
+        .insertInto('counters')
+        .values([
+          {
+            id: `bucket:logins:${formatBucketHour(new Date(oldest - HOUR))}`,
+            value: 100,
+            bucketHour: new Date(newest + HOUR),
+            createdAt: new Date(oldest),
+            updatedAt: new Date(oldest)
+          },
+          {
+            id: `bucket:logins:${formatBucketHour(new Date(newestEnd))}`,
+            value: 100,
+            bucketHour: new Date(newest + HOUR),
+            createdAt: new Date(oldest),
+            updatedAt: new Date(oldest)
+          }
+        ])
+        .execute()
 
       const weeks = await getInstanceActivity(testDb.db, { now })
 
@@ -135,7 +147,6 @@ describe('instance activity on both backends', () => {
     const week2 = week1 + WEEK
 
     it('counts the first login of each week once per account', async () => {
-      const db = testDb.db
       await recordWeeklyLogin(db, 'login-a', new Date(week1 + 10 * HOUR))
       await recordWeeklyLogin(db, 'login-a', new Date(week1 + 30 * HOUR))
       // Another account keeps its own marker.
@@ -167,11 +178,17 @@ describe('instance activity on both backends', () => {
       await recordWeeklyLogin(testDb.db, undefined, new Date(week1))
       await recordWeeklyLogin(testDb.db, '', new Date(week1))
 
-      const [{ total }] = await knex('counters').count({ total: '*' })
-      expect(Number(total)).toBe(0)
+      const { total } = await db
+        .selectFrom('counters')
+        .select((eb) => eb.fn.countAll<number>().as('total'))
+        .executeTakeFirstOrThrow()
+      expect(total).toBe(0)
     })
 
+    // Knex-transaction interop on purpose (`kyselyFor(trx)`), so this one
+    // keeps the raw Knex instance until the connection swap.
     it('joins the Knex transaction it is called from', async () => {
+      const { knex } = testDb
       await knex.transaction(async (trx) => {
         await recordWeeklyLoginSafely(
           kyselyFor(trx),
@@ -196,32 +213,34 @@ describe('instance activity on both backends', () => {
       // failure is raised on that insert.
       const pg = testDb.backend === 'pg'
       if (pg) {
-        await knex.raw(`
+        await sql`
           CREATE FUNCTION fail_login_bucket() RETURNS trigger AS $$
           BEGIN RAISE EXCEPTION 'bucket failure'; END $$ LANGUAGE plpgsql
-        `)
-        await knex.raw(`
+        `.execute(db)
+        await sql`
           CREATE TRIGGER fail_login_bucket BEFORE INSERT ON counters
           FOR EACH ROW WHEN (NEW.id LIKE 'bucket:logins:%')
           EXECUTE FUNCTION fail_login_bucket()
-        `)
+        `.execute(db)
       } else {
-        await knex.raw(`
+        await sql`
           CREATE TRIGGER fail_login_bucket BEFORE INSERT ON counters
           WHEN NEW.id LIKE 'bucket:logins:%'
           BEGIN SELECT RAISE(ABORT, 'bucket failure'); END
-        `)
+        `.execute(db)
       }
       try {
         await expect(
           recordWeeklyLogin(testDb.db, 'login-retry', new Date(week1 + HOUR))
         ).rejects.toThrow('bucket failure')
       } finally {
-        await knex.raw(
-          pg
-            ? 'DROP TRIGGER fail_login_bucket ON counters; DROP FUNCTION fail_login_bucket()'
-            : 'DROP TRIGGER fail_login_bucket'
-        )
+        await sql
+          .raw(
+            pg
+              ? 'DROP TRIGGER fail_login_bucket ON counters; DROP FUNCTION fail_login_bucket()'
+              : 'DROP TRIGGER fail_login_bucket'
+          )
+          .execute(db)
       }
       expect(await marker('login-retry')).toBeUndefined()
 
@@ -240,23 +259,28 @@ describe('instance activity on both backends', () => {
 
       expect(await bucketTotal('local-statuses')).toBe(2)
       expect(await bucketTotal('statuses')).toBe(50)
-      const row = await knex('counters')
-        .where('id', 'bucket:local-statuses:2032030110')
-        .first('bucketHour')
+      const row = await db
+        .selectFrom('counters')
+        .select('bucketHour')
+        .where('id', '=', 'bucket:local-statuses:2032030110')
+        .executeTakeFirst()
       expect(row?.bucketHour).not.toBeNull()
     })
   })
 
   describe('getInstancePeers', () => {
     const insertActors = (domains: (string | null)[]) =>
-      knex('actors').insert(
-        domains.map((domain, index) => ({
-          id: `https://peer.test/users/${index}`,
-          username: `peer${index}`,
-          domain,
-          createdAt: new Date(index)
-        }))
-      )
+      db
+        .insertInto('actors')
+        .values(
+          domains.map((domain, index) => ({
+            id: `https://peer.test/users/${index}`,
+            username: `peer${index}`,
+            domain,
+            createdAt: new Date(index)
+          }))
+        )
+        .execute()
 
     it('lists each remote domain once, sorted, without the local one', async () => {
       await insertActors([
@@ -289,55 +313,67 @@ describe('instance activity on both backends', () => {
 
   describe('getInstanceAdminActorId', () => {
     it('is null without an admin account', async () => {
-      await knex('accounts').insert({ id: 'acct-user', email: 'u@x.test' })
-      await knex('actors').insert({
-        id: 'https://llun.test/users/user',
-        accountId: 'acct-user',
-        createdAt: new Date(1)
-      })
+      await db
+        .insertInto('accounts')
+        .values({ id: 'acct-user', email: 'u@x.test' })
+        .execute()
+      await db
+        .insertInto('actors')
+        .values({
+          id: 'https://llun.test/users/user',
+          accountId: 'acct-user',
+          createdAt: new Date(1)
+        })
+        .execute()
 
       expect(await testDb.database.getInstanceAdminActorId()).toBeNull()
     })
 
     it('picks the earliest live local actor of an admin account', async () => {
-      await knex('accounts').insert([
-        { id: 'acct-user', email: 'u@x.test', role: null },
-        { id: 'acct-mod', email: 'm@x.test', role: 'moderator' },
-        { id: 'acct-admin', email: 'a@x.test', role: 'admin' }
-      ])
-      await knex('actors').insert([
-        {
-          id: 'https://llun.test/users/user',
-          accountId: 'acct-user',
-          createdAt: new Date(1)
-        },
-        {
-          id: 'https://llun.test/users/mod',
-          accountId: 'acct-mod',
-          createdAt: new Date(2)
-        },
-        {
-          id: 'https://remote.test/users/remote',
-          accountId: null,
-          createdAt: new Date(3)
-        },
-        {
-          id: 'https://llun.test/users/admin-deleted',
-          accountId: 'acct-admin',
-          deletionStatus: 'scheduled',
-          createdAt: new Date(4)
-        },
-        {
-          id: 'https://llun.test/users/admin-late',
-          accountId: 'acct-admin',
-          createdAt: new Date(6)
-        },
-        {
-          id: 'https://llun.test/users/admin',
-          accountId: 'acct-admin',
-          createdAt: new Date(5)
-        }
-      ])
+      await db
+        .insertInto('accounts')
+        .values([
+          { id: 'acct-user', email: 'u@x.test', role: null },
+          { id: 'acct-mod', email: 'm@x.test', role: 'moderator' },
+          { id: 'acct-admin', email: 'a@x.test', role: 'admin' }
+        ])
+        .execute()
+      await db
+        .insertInto('actors')
+        .values([
+          {
+            id: 'https://llun.test/users/user',
+            accountId: 'acct-user',
+            createdAt: new Date(1)
+          },
+          {
+            id: 'https://llun.test/users/mod',
+            accountId: 'acct-mod',
+            createdAt: new Date(2)
+          },
+          {
+            id: 'https://remote.test/users/remote',
+            accountId: null,
+            createdAt: new Date(3)
+          },
+          {
+            id: 'https://llun.test/users/admin-deleted',
+            accountId: 'acct-admin',
+            deletionStatus: 'scheduled',
+            createdAt: new Date(4)
+          },
+          {
+            id: 'https://llun.test/users/admin-late',
+            accountId: 'acct-admin',
+            createdAt: new Date(6)
+          },
+          {
+            id: 'https://llun.test/users/admin',
+            accountId: 'acct-admin',
+            createdAt: new Date(5)
+          }
+        ])
+        .execute()
 
       expect(await testDb.database.getInstanceAdminActorId()).toBe(
         'https://llun.test/users/admin'

@@ -1,8 +1,8 @@
 import { sql } from 'kysely'
 
 import { reindexSearchHashtags } from '@/lib/database/domains/search/hashtags'
-import { kyselyFor } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { holdTransaction } from '@/lib/database/testing/heldTransaction'
 import {
   createSearchActor,
   readSearchDocument,
@@ -495,7 +495,7 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
   'indexHashtagSearchDocument with a concurrent writer',
   () => {
     const testDb = createTestDatabase()
-    const { database, db, knex } = testDb
+    const { database, db } = testDb
 
     beforeAll(async () => {
       await testDb.prepare()
@@ -509,9 +509,9 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
 
     const waitForLockWait = async () => {
       for (let attempt = 0; attempt < 250; attempt += 1) {
-        const { rows } = await knex.raw(
-          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
-        )
+        const { rows } = await sql<{ waiting: number }>`
+          select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'
+        `.execute(db)
         if (rows[0].waiting > 0) return
         await new Promise((resolve) => setTimeout(resolve, 20))
       }
@@ -522,10 +522,10 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
       await seedPublicNote(db, 'lock-1', 10, ['#hqlock'])
       await database.indexHashtagSearchDocument({ hashtag: 'hqlock' })
 
-      const trx = await knex.transaction()
+      const held = await holdTransaction(db)
       let refresh: Promise<void> | undefined
       try {
-        const writer = kyselyFor(trx)
+        const writer = held.trx
         await writer
           .selectFrom('search_documents')
           .select('id')
@@ -541,9 +541,9 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
           to: [PUBLIC]
         })
         await seedTag(writer, { statusId, name: '#hqlock' })
-        await trx.commit()
+        await held.commit()
       } catch (error) {
-        await trx.rollback()
+        await held.rollback()
         throw error
       }
       await refresh
@@ -558,11 +558,11 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
       await seedPublicNote(db, 'new-1', 10, ['#hqnew'])
 
       // Another refresh has inserted its placeholder and not committed yet.
-      const trx = await knex.transaction()
+      const held = await holdTransaction(db)
       let refresh: Promise<void> | undefined
       try {
         const now = new Date()
-        await kyselyFor(trx)
+        await held.trx
           .insertInto('search_documents')
           .values({
             id: 'hashtag:hqnew',
@@ -577,9 +577,9 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
         refresh = database.indexHashtagSearchDocument({ hashtag: 'hqnew' })
         await waitForLockWait()
         await seedPublicNote(db, 'new-2', 20, ['#hqnew'])
-        await trx.commit()
+        await held.commit()
       } catch (error) {
-        await trx.rollback()
+        await held.rollback()
         throw error
       }
       await refresh

@@ -231,17 +231,20 @@ describe('MediaEditDatabase', () => {
       render: render('revert-render', 600)
     })
     // A phase 2 mask, to show a revert frees it.
-    await testDb.knex('media_edit_files').insert({
-      id: crypto.randomUUID(),
-      mediaId: Number(media.id),
-      actorId: ACTOR1_ID,
-      slot: 'mask:m1',
-      path: 'medias/revert-mask.png',
-      bytes: 50,
-      mimeType: 'image/png',
-      metaData: JSON.stringify({ width: 512, height: 384 }),
-      createdAt: new Date()
-    })
+    await testDb.db
+      .insertInto('media_edit_files')
+      .values({
+        id: crypto.randomUUID(),
+        mediaId: Number(media.id),
+        actorId: ACTOR1_ID,
+        slot: 'mask:m1',
+        path: 'medias/revert-mask.png',
+        bytes: 50,
+        mimeType: 'image/png',
+        metaData: JSON.stringify({ width: 512, height: 384 }),
+        createdAt: new Date()
+      })
+      .execute()
     await increaseCounterValue(testDb.db, CounterKey.mediaUsage(accountId), 50)
     const before = await usage()
 

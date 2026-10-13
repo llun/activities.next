@@ -1,5 +1,8 @@
+import { sql } from 'kysely'
+
 import { useGalleryAlbumsFixture } from '@/lib/database/domains/gallery/galleryAlbumsTestFixture'
 import type { GalleryAlbumCursor } from '@/lib/database/domains/gallery/types'
+import { getDialectName } from '@/lib/database/kysely/dialect'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -858,7 +861,7 @@ describe('GalleryAlbumDatabase', () => {
 describe('gallery albums when an account is deleted', () => {
   // Its own database: the account is really removed, which no other test in
   // this file may see.
-  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  const { database, db, prepare } = getTestDatabaseWithInstance(true)
 
   beforeAll(async () => {
     await prepare()
@@ -866,8 +869,8 @@ describe('gallery albums when an account is deleted', () => {
     // SQLite may run without foreign keys, so nothing cascades there: the
     // delete itself has to remove the rows. (PostgreSQL always cascades, so
     // this proves the explicit deletes on SQLite only.)
-    if (instance.client.config.client === 'better-sqlite3') {
-      await instance.raw('PRAGMA foreign_keys = OFF')
+    if (getDialectName(db) === 'sqlite') {
+      await sql`PRAGMA foreign_keys = OFF`.execute(db)
     }
   })
 
@@ -875,11 +878,15 @@ describe('gallery albums when an account is deleted', () => {
     await database.destroy()
   })
 
-  const countRows = async (table: string, actorId: string) => {
-    const row = await instance(table)
-      .where('actorId', actorId)
-      .count<{ total: number | string }[]>({ total: '*' })
-      .first()
+  const countRows = async (
+    table: 'gallery_albums' | 'gallery_album_items',
+    actorId: string
+  ) => {
+    const row = await db
+      .selectFrom(table)
+      .select((eb) => eb.fn.countAll<number>().as('total'))
+      .where('actorId', '=', actorId)
+      .executeTakeFirst()
     return Number(row?.total ?? 0)
   }
 
@@ -951,8 +958,14 @@ describe('gallery albums when an account is deleted', () => {
 
     // The media vanishes without the store's cleanup (SQLite runs without
     // foreign keys; PostgreSQL cascades, with the same result).
-    await instance('attachments').where('mediaId', mediaIds[0]).delete()
-    await instance('medias').where('id', mediaIds[0]).delete()
+    await db
+      .deleteFrom('attachments')
+      .where('mediaId', '=', Number(mediaIds[0]))
+      .execute()
+    await db
+      .deleteFrom('medias')
+      .where('id', '=', Number(mediaIds[0]))
+      .execute()
 
     expect(
       await database.countGalleryAlbumStoredItems({
@@ -1036,7 +1049,11 @@ describe('gallery albums when an account is deleted', () => {
     expect(await countRows('gallery_albums', actorId)).toBe(0)
     expect(await countRows('gallery_album_items', actorId)).toBe(0)
     expect(
-      await instance('gallery_album_items').whereIn('mediaId', mediaIds)
+      await db
+        .selectFrom('gallery_album_items')
+        .selectAll()
+        .where('mediaId', 'in', mediaIds.map(Number))
+        .execute()
     ).toEqual([])
   })
 })

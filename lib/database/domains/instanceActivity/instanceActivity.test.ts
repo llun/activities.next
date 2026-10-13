@@ -1,55 +1,58 @@
-import knex, { Knex } from 'knex'
+import { sql } from 'kysely'
 
 import {
   getInstanceActivity as getInstanceActivityFromCounters,
   recordWeeklyLoginSafely
 } from '@/lib/database/domains/instanceActivity/queries'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
 import {
-  type CaptureQueries,
-  createKnexQueryCapture
-} from '@/lib/database/testing/queryCapture'
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
+import type { CaptureQueries } from '@/lib/database/testing/queryCapture'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 import { logger } from '@/lib/utils/logger'
 
 const toUnixSeconds = (date: Date) => Math.floor(date.getTime() / 1000)
 
 describe('instance activity counters', () => {
-  let database: Knex
-  let db: Db
+  let testDb: TestDatabase
+  let db: TestDatabase['db']
   let captureQueries: CaptureQueries
 
+  // An empty in-memory SQLite database (the schema dump is never loaded) with
+  // only the counters table, so the rows below can hold timestamp text.
   beforeEach(async () => {
-    database = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    db = kyselyFor(database)
-    ;({ captureQueries } = createKnexQueryCapture(database))
+    testDb = createTestDatabase({ backend: 'sqlite' })
+    db = testDb.db
+    captureQueries = testDb.captureQueries
 
-    await database.schema.createTable('counters', (table) => {
-      table.string('id').primary()
-      table.integer('value').defaultTo(0)
-      table.timestamp('bucketHour', { useTz: true }).nullable()
-      table.timestamp('createdAt', { useTz: true })
-      table.timestamp('updatedAt', { useTz: true })
-    })
+    await db.schema
+      .createTable('counters')
+      .addColumn('id', 'varchar(255)', (column) => column.primaryKey())
+      .addColumn('value', 'integer', (column) => column.defaultTo(0))
+      .addColumn('bucketHour', 'datetime')
+      .addColumn('createdAt', 'datetime')
+      .addColumn('updatedAt', 'datetime')
+      .execute()
   })
 
   afterEach(async () => {
-    await database.destroy()
+    await testDb.destroy()
   })
 
   it('groups SQLite timestamp strings without timezone as UTC', async () => {
     await withTimeZone('Europe/Amsterdam', async () => {
-      await database('counters').insert({
-        id: 'bucket:local-statuses:2026052500',
-        value: 1,
-        bucketHour: '2026-05-25 00:30:00.000',
-        createdAt: '2026-05-25 00:30:00.000',
-        updatedAt: '2026-05-25 00:30:00.000'
-      })
+      // Raw text, which a typed insert would not take (it writes a Date).
+      await sql`
+        insert into counters (id, value, "bucketHour", "createdAt", "updatedAt")
+        values (
+          'bucket:local-statuses:2026052500',
+          1,
+          '2026-05-25 00:30:00.000',
+          '2026-05-25 00:30:00.000',
+          '2026-05-25 00:30:00.000'
+        )
+      `.execute(db)
 
       const activity = await getInstanceActivityFromCounters(db, {
         now: new Date('2026-05-26T12:00:00.000Z')
@@ -99,7 +102,7 @@ describe('instance activity counters', () => {
       .mockImplementation(() => undefined)
 
     try {
-      await database.schema.dropTable('counters')
+      await db.schema.dropTable('counters').execute()
       await recordWeeklyLoginSafely(
         db,
         'account-log-error',

@@ -4,7 +4,7 @@ import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 
 /**
  * The two properties of the component rollup that need a state the public
- * `Database` interface cannot construct, so they take the raw Knex instance.
+ * `Database` interface cannot construct, so they write the rows through Kysely.
  *
  * Built on `getTestDatabaseWithInstance` rather than the SQLite-only
  * `getTestSQLDatabaseWithInstance`, because both are about how the join reads
@@ -12,7 +12,7 @@ import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
  * the pg environment variables having never opened a PostgreSQL connection.
  */
 describe('fitness gear component periods', () => {
-  const { database, db, instance, captureQueries, prepare } =
+  const { database, db, captureQueries, prepare } =
     getTestDatabaseWithInstance(true)
 
   const actorId = 'https://llun.test/users/periods'
@@ -99,9 +99,10 @@ describe('fitness gear component periods', () => {
       componentType: 'Frame'
     })
 
-    await instance('fitness_gear_component_periods')
-      .where('componentId', component!.id)
-      .delete()
+    await db
+      .deleteFrom('fitness_gear_component_periods')
+      .where('componentId', '=', component!.id)
+      .execute()
 
     const rollups = await database.getFitnessGearComponentDistanceRollups({
       actorId,
@@ -180,15 +181,18 @@ describe('fitness gear component periods', () => {
 
     // Only reachable by writing the row directly: `refit` refuses while a
     // period is open, and an edit can only move the outermost bounds.
-    await instance('fitness_gear_component_periods').insert({
-      id: 'overlapping-period',
-      componentId: component!.id,
-      installSequence: 2,
-      addedAt: new Date('2026-05-01T00:00:00.000Z'),
-      removedAt: new Date('2026-06-01T00:00:00.000Z'),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+    await db
+      .insertInto('fitness_gear_component_periods')
+      .values({
+        id: 'overlapping-period',
+        componentId: component!.id,
+        installSequence: 2,
+        addedAt: new Date('2026-05-01T00:00:00.000Z'),
+        removedAt: new Date('2026-06-01T00:00:00.000Z'),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .execute()
 
     const doubled = await database.getFitnessGearComponentDistanceRollups({
       actorId,

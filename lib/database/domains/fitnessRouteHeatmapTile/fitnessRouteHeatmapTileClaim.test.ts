@@ -77,7 +77,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // the guard this test is named for would never run.
         const {
           database: isolated,
-          instance,
+          db,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -95,18 +95,21 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // Backdated so the row genuinely reads as abandoned. Written to the
           // column directly: every mixin write refreshes `updatedAt`, which is
           // the whole point of it as a heartbeat.
-          await instance('fitness_route_heatmap_pyramids')
-            .where('actorId', actorId)
-            .update({ updatedAt: new Date(Date.now() - 600_000) })
+          await db
+            .updateTable('fitness_route_heatmap_pyramids')
+            .set({ updatedAt: new Date(Date.now() - 600_000) })
+            .where('actorId', '=', actorId)
+            .execute()
 
           const heartbeat = interfereAfterStatement(
             (sql) =>
               sql.trimStart().toLowerCase().startsWith('select') &&
               sql.includes('fitness_route_heatmap_pyramids'),
             () =>
-              instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .update({ updatedAt: new Date() })
+              db
+                .updateTable('fitness_route_heatmap_pyramids')
+                .set({ updatedAt: new Date() })
+                .where('actorId', '=', actorId)
           )
 
           const thief = await isolated.claimFitnessRouteHeatmapPyramidBuild({
@@ -244,7 +247,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // JS verdict and SQL predicate disagree can never be claimed at all.
         const {
           database: isolated,
-          instance,
+          db,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -260,9 +263,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // Written straight to the columns: the mixin's own writer would take
           // an epoch-0 cursor as a legitimate value either way, and the point
           // is what the READER makes of the stored row.
-          await instance('fitness_route_heatmap_pyramids')
-            .where('actorId', actorId)
-            .update({ cursorCreatedAt: new Date(0), cursorId: 'activity-0' })
+          await db
+            .updateTable('fitness_route_heatmap_pyramids')
+            .set({ cursorCreatedAt: new Date(0), cursorId: 'activity-0' })
+            .where('actorId', '=', actorId)
+            .execute()
 
           expect(
             await isolated.getFitnessRouteHeatmapPyramid({ actorId })
@@ -437,7 +442,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // has completed and before the claim's first read.
         const {
           database: isolated,
-          instance,
+          db,
           onQuery,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
@@ -474,9 +479,9 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               )
             },
             () =>
-              instance('fitness_route_heatmap_pyramids')
-                .where('actorId', actorId)
-                .delete()
+              db
+                .deleteFrom('fitness_route_heatmap_pyramids')
+                .where('actorId', '=', actorId)
           )
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
@@ -512,7 +517,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // permanent wedge is not an acceptable response to one.
         const {
           database: isolated,
-          instance,
+          db,
           prepare: prepareIsolated
         } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
@@ -533,9 +538,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               requestedAt: Date.now(),
               staleBefore: Date.now() - 120_000
             })
-            await instance('fitness_route_heatmap_pyramids')
-              .where('actorId', actorId)
-              .update(halfCursor)
+            await db
+              .updateTable('fitness_route_heatmap_pyramids')
+              .set(halfCursor)
+              .where('actorId', '=', actorId)
+              .execute()
 
             const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
               actorId,
@@ -853,7 +860,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // the fence is `claimSeq` and why it is worth pinning per shape.
           const {
             database: isolated,
-            instance,
+            db,
             prepare: prepareIsolated
           } = getTestDatabaseWithInstance(true)
           await prepareIsolated()
@@ -884,9 +891,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
                 sql.trimStart().toLowerCase().startsWith('select') &&
                 sql.includes('fitness_route_heatmap_pyramids'),
               () =>
-                instance('fitness_route_heatmap_pyramids')
-                  .where('actorId', actorId)
-                  .increment('claimSeq', 1)
+                db
+                  .updateTable('fitness_route_heatmap_pyramids')
+                  .set((eb) => ({ claimSeq: eb('claimSeq', '+', 1) }))
+                  .where('actorId', '=', actorId)
             )
 
             const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({

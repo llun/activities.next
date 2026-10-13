@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import type { Knex } from 'knex'
 
 import { getCounterValue } from '@/lib/database/kysely/counter'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -10,7 +9,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 describe('BlockDatabase', () => {
   const testDb = createTestDatabase()
-  const knexDatabase: Knex = testDb.knex
+  const db = testDb.db
   const database: Database = testDb.database
 
   beforeAll(async () => {
@@ -96,9 +95,11 @@ describe('BlockDatabase', () => {
     )
     await Promise.all(
       targets.map((block, index) =>
-        knexDatabase('blocks')
-          .where({ id: block.id })
-          .update({ createdAt: new Date(2026, 0, 1, 0, 0, index) })
+        db
+          .updateTable('blocks')
+          .set({ createdAt: new Date(2026, 0, 1, 0, 0, index) })
+          .where('id', '=', block.id)
+          .execute()
       )
     )
 
@@ -143,9 +144,11 @@ describe('BlockDatabase', () => {
     const tiedCreatedAt = new Date(2026, 0, 2, 0, 0, 0)
     await Promise.all(
       blocks.map((block) =>
-        knexDatabase('blocks')
-          .where({ id: block.id })
-          .update({ createdAt: tiedCreatedAt })
+        db
+          .updateTable('blocks')
+          .set({ createdAt: tiedCreatedAt })
+          .where('id', '=', block.id)
+          .execute()
       )
     )
 
@@ -513,9 +516,11 @@ describe('BlockDatabase', () => {
     // The foreign cursor is strictly newer, so a lookup that found it would
     // page to `mine` instead of returning nothing (two blocks written in the
     // same millisecond would leave that to the order of their random ids).
-    await knexDatabase('blocks')
-      .where({ id: theirs.id })
-      .update({ createdAt: new Date(mine.createdAt + 60_000) })
+    await db
+      .updateTable('blocks')
+      .set({ createdAt: new Date(mine.createdAt + 60_000) })
+      .where('id', '=', theirs.id)
+      .execute()
 
     await expect(database.getBlocks({ actorId, limit: 10 })).resolves.toEqual([
       mine
