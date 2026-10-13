@@ -1,4 +1,4 @@
-import type { Kysely, Transaction } from 'kysely'
+import type { AccessMode, IsolationLevel, Kysely, Transaction } from 'kysely'
 
 import type { DB } from '@/lib/database/kysely/db'
 import { runInTransactionScope } from '@/lib/database/kysely/guard'
@@ -13,8 +13,20 @@ export type Db = Kysely<DB> | Transaction<DB>
 export const isInTransaction = (db: Db): boolean => db.isTransaction
 
 /**
+ * How a new transaction starts. PostgreSQL honours both
+ * (`start transaction isolation level … read only`); SQLite's `begin` takes
+ * neither, and its transaction reads one snapshot anyway.
+ */
+export type TransactionOptions = {
+  isolationLevel?: IsolationLevel
+  accessMode?: AccessMode
+}
+
+/**
  * Runs `callback` in a transaction: `db` itself when it already is one,
- * otherwise a new Kysely transaction.
+ * otherwise a new Kysely transaction, started with `options`. Options cannot
+ * change a transaction that is already open, so passing any with a
+ * transaction rejects.
  *
  * While the new transaction is open, the root instance of the same database
  * refuses to run anything in this async context (see guard.ts): use the
@@ -22,15 +34,29 @@ export const isInTransaction = (db: Db): boolean => db.isTransaction
  */
 export const inTransaction = <T>(
   db: Db,
-  callback: (trx: Db) => Promise<T>
+  callback: (trx: Db) => Promise<T>,
+  { isolationLevel, accessMode }: TransactionOptions = {}
 ): Promise<T> => {
-  if (isInTransaction(db)) return callback(db)
+  if (isInTransaction(db)) {
+    if (isolationLevel || accessMode) {
+      return Promise.reject(
+        new Error(
+          'inTransaction cannot set the isolation level or access mode of a ' +
+            'transaction that is already open'
+        )
+      )
+    }
+    return callback(db)
+  }
   // Every instance derived from one root instance (withPlugin, a
   // transaction) shares its adapter, which is what the driver knows too.
   const key = db.getExecutor().adapter
-  return db
-    .transaction()
-    .execute((trx) => runInTransactionScope(key, () => callback(trx)))
+  let builder = db.transaction()
+  if (isolationLevel) builder = builder.setIsolationLevel(isolationLevel)
+  if (accessMode) builder = builder.setAccessMode(accessMode)
+  return builder.execute((trx) =>
+    runInTransactionScope(key, () => callback(trx))
+  )
 }
 
 // `never` arguments accept a query function of any parameter list after `db`:

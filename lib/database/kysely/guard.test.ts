@@ -150,4 +150,38 @@ describe('root instance inside inTransaction', () => {
     await transaction
     await expect(elsewhere).resolves.toBeDefined()
   })
+
+  it('starts a new transaction with the isolation level and access mode given', async () => {
+    const statements = await testDb.captureQueries(() =>
+      inTransaction(
+        db,
+        async (trx) => {
+          await sql`select 1`.execute(trx)
+        },
+        { isolationLevel: 'repeatable read', accessMode: 'read only' }
+      )
+    )
+    // SQLite's `begin` takes neither.
+    expect(statements.map(({ sql }) => sql)).toEqual([
+      testDb.backend === 'pg'
+        ? 'start transaction isolation level repeatable read read only'
+        : 'begin',
+      'select 1',
+      'commit'
+    ])
+  })
+
+  it('refuses to change the settings of a transaction that is already open', async () => {
+    await expect(
+      inTransaction(db, (trx) =>
+        inTransaction(trx, async () => 'ran', { accessMode: 'read only' })
+      )
+    ).rejects.toThrow(
+      'inTransaction cannot set the isolation level or access mode of a ' +
+        'transaction that is already open'
+    )
+    await expect(
+      inTransaction(db, (trx) => inTransaction(trx, async () => 'ran'))
+    ).resolves.toBe('ran')
+  })
 })

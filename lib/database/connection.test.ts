@@ -114,6 +114,57 @@ describe('createDatabaseConnection', () => {
     ])
   })
 
+  it('hands rows back as the driver reads them when normalizeResults is off', async () => {
+    const config = getTestDatabaseConfig(backend)
+    const raw = createDatabaseConnection(config, { normalizeResults: false })
+    const at = new Date('2026-02-03T04:05:06.789Z')
+    const document = { text: 'raw', tags: [1, 2] }
+    try {
+      await sql`
+        create table connection_raw_values (
+          flag boolean,
+          at ${sql.raw(backend === 'pg' ? 'timestamptz' : 'datetime')},
+          big bigint,
+          doc ${sql.raw(backend === 'pg' ? 'jsonb' : 'json')},
+          day date
+        )
+      `.execute(raw.db)
+      await sql`
+        insert into connection_raw_values (flag, at, big, doc, day)
+        values (${true}, ${at},
+          ${backend === 'pg' ? '9007199254740993' : 4102444800123},
+          ${JSON.stringify(document)}, '2026-02-03')
+      `.execute(raw.db)
+
+      const { rows } = await sql`
+        select flag, at, big, doc, day from connection_raw_values
+      `.execute(raw.db)
+      expect(rows).toEqual([
+        backend === 'pg'
+          ? {
+              // node-postgres's own types.
+              flag: true,
+              at,
+              big: '9007199254740993',
+              doc: document,
+              day: new Date(2026, 1, 3)
+            }
+          : {
+              // SQLite's stored values; bindings are still encoded the way
+              // Knex encoded them (Date -> epoch ms, boolean -> 0/1).
+              flag: 1,
+              at: at.getTime(),
+              big: 4102444800123,
+              doc: JSON.stringify(document),
+              day: '2026-02-03'
+            }
+      ])
+    } finally {
+      await sql`drop table if exists connection_raw_values`.execute(raw.db)
+      await raw.destroy()
+    }
+  })
+
   // PostgreSQL streams through a cursor, which the app does not configure.
   // Stored as SQLite holds them (0/1, JSON text, CURRENT_TIMESTAMP's UTC
   // text), the streamed rows come back converted by their declared types.

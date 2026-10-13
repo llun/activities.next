@@ -31,9 +31,7 @@ const ALLOWED = new Map<string, string>([
   ['lib/database/connection.ts', 'the connection'],
   // Keeps a transaction open across a race test on purpose, outside the
   // callback the guard would cover.
-  ['lib/database/testing/heldTransaction.ts', 'a test helper'],
-  // Its own Knex instance and Knex transaction until it moves to Kysely.
-  ['scripts/backup/productionArchive.ts', 'Knex, not Kysely']
+  ['lib/database/testing/heldTransaction.ts', 'a test helper']
 ])
 
 const collectSourceFiles = (directory: string): string[] => {

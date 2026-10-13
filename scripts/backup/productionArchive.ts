@@ -7,7 +7,7 @@ import { execFile, spawn } from 'child_process'
 import dotenvFlow from 'dotenv-flow'
 import { createReadStream, createWriteStream } from 'fs'
 import fs from 'fs/promises'
-import knex, { Knex } from 'knex'
+import { type Kysely, type RawBuilder, sql } from 'kysely'
 import os from 'os'
 import path from 'path'
 import { createInterface } from 'readline'
@@ -17,6 +17,7 @@ import type { ReadableStream as NodeReadableStream } from 'stream/web'
 import { inspect, promisify } from 'util'
 
 import { getConfig } from '@/lib/config'
+import type { DatabaseConfig } from '@/lib/config/database'
 import {
   FitnessStorageConfig,
   FitnessStorageS3Config,
@@ -27,6 +28,14 @@ import {
   MediaStorageS3Config,
   MediaStorageType
 } from '@/lib/config/mediaStorage'
+import { type DB, inTransaction } from '@/lib/database/kysely'
+import {
+  MIGRATION_LOCK_TABLES,
+  getAppliedMigrationNames,
+  getKnownMigrationNames,
+  migrateToLatest
+} from '@/lib/database/migrate'
+import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 
 const execFileAsync = promisify(execFile)
 
@@ -35,14 +44,12 @@ const DEFAULT_OUTPUT_DIR = 'backups/production-archives'
 const DEFAULT_DOWNLOAD_ENV_FILE = '.env.production'
 const DEFAULT_RESTORE_ENV_FILE = '.env.local'
 const DATABASE_DIR = 'database'
-const MIGRATIONS_DIR = 'migrations'
 const STORAGE_DIR = 'storage'
 const MANIFEST_FILE = 'manifest.json'
 const DATABASE_PAGE_SIZE = 1000
 export const PUBLIC_STORAGE_FETCH_TIMEOUT_MS = 60_000
 const INSERT_BATCH_SIZE = 250
 const SQLITE_INSERT_PARAMETER_LIMIT = 999
-const KNEX_MIGRATIONS_LOCK_TABLE = 'knex_migrations_lock'
 
 export type StorageScope = 'referenced' | 'all'
 export type StorageDestination = 'media' | 'fitness'
@@ -66,6 +73,21 @@ export interface RestoreArgs {
   safeStorageRoot: string
   yes: boolean
 }
+
+/**
+ * The database the archive exports or restores: Kysely on a connection that
+ * hands rows back as they are stored (`openArchiveDatabase`), or a transaction
+ * on it, and the configuration it was opened with.
+ */
+export interface ArchiveDatabase {
+  config: DatabaseConfig
+  db: Kysely<DB>
+}
+
+// The archive reads and writes every table by name, not just the ones the
+// generated `DB` types describe.
+// oxlint-disable-next-line typescript/no-explicit-any
+type AnyTableDb = Kysely<any>
 
 export interface ForeignKeyReference {
   fromTable: string
@@ -119,7 +141,7 @@ interface ArchiveStorageManifest {
   totalBytes: number
 }
 
-interface ArchiveManifest {
+export interface ArchiveManifest {
   createdAt: string
   database: {
     client: string
@@ -321,7 +343,10 @@ const isLocalSqliteConnection = (connection: unknown) => {
   return typeof filename === 'string' && filename.trim().length > 0
 }
 
-export const isLocalDatabaseConfig = (databaseConfig: Knex.Config) => {
+export const isLocalDatabaseConfig = (databaseConfig: {
+  client?: unknown
+  connection?: unknown
+}) => {
   const client = String(databaseConfig.client)
 
   if (client === 'better-sqlite3') {
@@ -657,9 +682,6 @@ const createArchiveName = () => {
   return `activitynext-production-${timestamp}.tar.gz`
 }
 
-const quoteIdentifier = (identifier: string) =>
-  `"${identifier.replaceAll('"', '""')}"`
-
 const tableFileName = (tableName: string) =>
   `${encodeURIComponent(tableName)}.jsonl`
 
@@ -671,54 +693,57 @@ const assertRelativeFilePath = (filePath: string) => {
   return normalized
 }
 
-const getKnexClientName = (database: Knex) =>
-  String(database.client.config.client)
+const getClientName = (database: ArchiveDatabase) =>
+  String(database.config.client)
 
-const getQueryRows = <T>(result: unknown): T[] => {
-  if (result && typeof result === 'object' && 'rows' in result) {
-    return (result as { rows: T[] }).rows
-  }
-
-  return result as T[]
-}
-
-export const getDatabaseTableNames = async (database: Knex) => {
-  const client = getKnexClientName(database)
+export const getDatabaseTableNames = async (database: ArchiveDatabase) => {
+  const client = getClientName(database)
 
   if (client === 'pg') {
-    const result = await database.raw(
-      `
+    const { rows } = await sql<{ name: string }>`
       select table_name as name
       from information_schema.tables
       where table_schema = 'public'
         and table_type = 'BASE TABLE'
-        and table_name <> ?
+        and table_name not in (${sql.join(MIGRATION_LOCK_TABLES)})
       order by table_name asc
-    `,
-      [KNEX_MIGRATIONS_LOCK_TABLE]
-    )
-    return getQueryRows<{ name: string }>(result).map((row) => row.name)
+    `.execute(database.db)
+    return rows.map((row) => row.name)
   }
 
   if (client === 'better-sqlite3') {
-    const rows = await database('sqlite_master')
-      .select('name')
-      .where('type', 'table')
-      .whereNot('name', 'sqlite_sequence')
-      .whereNot('name', KNEX_MIGRATIONS_LOCK_TABLE)
-      .orderBy('name', 'asc')
-    return rows.map((row: { name: string }) => row.name)
+    const { rows } = await sql<{ name: string }>`
+      select name
+      from sqlite_master
+      where type = 'table'
+        and name <> 'sqlite_sequence'
+        and name not in (${sql.join(MIGRATION_LOCK_TABLES)})
+      order by name asc
+    `.execute(database.db)
+    return rows.map((row) => row.name)
   }
 
   throw new Error(`Unsupported database client for archive: ${client}`)
 }
 
-const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
-  const client = getKnexClientName(database)
+const getSqliteTableInfo = async (
+  database: ArchiveDatabase,
+  tableName: string
+) => {
+  const { rows } = await sql<{ name: string; pk: number }>`
+    PRAGMA table_info(${sql.id(tableName)})
+  `.execute(database.db)
+  return rows
+}
+
+const getTablePrimaryKeyColumns = async (
+  database: ArchiveDatabase,
+  tableName: string
+) => {
+  const client = getClientName(database)
 
   if (client === 'pg') {
-    const result = await database.raw(
-      `
+    const { rows } = await sql<{ name: string }>`
       select kcu.column_name as name
       from information_schema.table_constraints tc
       join information_schema.key_column_usage kcu
@@ -726,19 +751,14 @@ const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
         and tc.table_schema = kcu.table_schema
       where tc.constraint_type = 'PRIMARY KEY'
         and tc.table_schema = 'public'
-        and tc.table_name = ?
+        and tc.table_name = ${tableName}
       order by kcu.ordinal_position asc
-    `,
-      [tableName]
-    )
-    return getQueryRows<{ name: string }>(result).map((row) => row.name)
+    `.execute(database.db)
+    return rows.map((row) => row.name)
   }
 
   if (client === 'better-sqlite3') {
-    const rows = await database.raw(
-      `PRAGMA table_info(${quoteIdentifier(tableName)})`
-    )
-    return getQueryRows<{ name: string; pk: number }>(rows)
+    return (await getSqliteTableInfo(database, tableName))
       .filter((row) => row.pk > 0)
       .sort((left, right) => left.pk - right.pk)
       .map((row) => row.name)
@@ -747,28 +767,27 @@ const getTablePrimaryKeyColumns = async (database: Knex, tableName: string) => {
   throw new Error(`Unsupported database client for export: ${client}`)
 }
 
-const getTableColumnNames = async (database: Knex, tableName: string) => {
-  const client = getKnexClientName(database)
+const getTableColumnNames = async (
+  database: ArchiveDatabase,
+  tableName: string
+) => {
+  const client = getClientName(database)
 
   if (client === 'pg') {
-    const result = await database.raw(
-      `
+    const { rows } = await sql<{ name: string }>`
       select column_name as name
       from information_schema.columns
       where table_schema = 'public'
-        and table_name = ?
+        and table_name = ${tableName}
       order by ordinal_position asc
-    `,
-      [tableName]
-    )
-    return getQueryRows<{ name: string }>(result).map((row) => row.name)
+    `.execute(database.db)
+    return rows.map((row) => row.name)
   }
 
   if (client === 'better-sqlite3') {
-    const rows = await database.raw(
-      `PRAGMA table_info(${quoteIdentifier(tableName)})`
+    return (await getSqliteTableInfo(database, tableName)).map(
+      (row) => row.name
     )
-    return getQueryRows<{ name: string }>(rows).map((row) => row.name)
   }
 
   throw new Error(`Unsupported database client for column discovery: ${client}`)
@@ -802,7 +821,7 @@ const getSqliteRowIdColumn = (columnNames: string[]) => {
 }
 
 const getTableExportOrder = async (
-  database: Knex,
+  database: ArchiveDatabase,
   tableName: string
 ): Promise<TableExportOrder> => {
   const primaryKeyColumns = await getTablePrimaryKeyColumns(database, tableName)
@@ -814,7 +833,7 @@ const getTableExportOrder = async (
     }
   }
 
-  const client = getKnexClientName(database)
+  const client = getClientName(database)
   const columnNames = await getTableColumnNames(database, tableName)
   if (client === 'pg') {
     return {
@@ -851,37 +870,18 @@ const getTableExportOrder = async (
   throw new Error(`Unsupported database client for export: ${client}`)
 }
 
-const getMigrationNames = async (database: Knex) => {
-  if (!(await database.schema.hasTable('knex_migrations'))) return []
-
-  const rows = await database('knex_migrations')
-    .select('name')
-    .orderBy('id', 'asc')
-
-  return rows
-    .map((row: { name?: unknown }) => row.name)
-    .filter((name): name is string => typeof name === 'string')
-}
-
-const configureExportTransaction = async (database: Knex) => {
-  const client = getKnexClientName(database)
-  if (client !== 'pg') return
-
-  await database.raw(
-    'set transaction isolation level repeatable read read only'
-  )
-}
-
+// The export reads one snapshot: on PostgreSQL a repeatable-read, read-only
+// transaction; on SQLite (whose `begin` takes no settings) an ordinary one,
+// which reads one snapshot anyway.
 const withDatabaseReadSnapshot = async <T>(
-  database: Knex,
-  callback: (transaction: Knex) => Promise<T>
-) => {
-  return database.transaction(async (transaction) => {
-    const snapshot = transaction as Knex
-    await configureExportTransaction(snapshot)
-    return callback(snapshot)
-  })
-}
+  database: ArchiveDatabase,
+  callback: (snapshot: ArchiveDatabase) => Promise<T>
+) =>
+  inTransaction(
+    database.db,
+    (transaction) => callback({ ...database, db: transaction }),
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
+  )
 
 const rawCursorAlias = (order: TableExportOrder, index: number) => {
   return order.aliases?.[index] ?? `__activitynext_archive_cursor_${index}`
@@ -911,8 +911,34 @@ const serializeArchiveRow = (
   return archiveRow
 }
 
+// `(c1 > v1) or (c1 = v1 and c2 > v2) or …`: the rows after `lastRow` in the
+// order of `order.columns`.
+const keysetAfter = (
+  order: TableExportOrder,
+  lastRow: Record<string, unknown>
+) =>
+  sql.join(
+    order.columns.map((column, index) => {
+      const conditions = order.columns
+        .slice(0, index)
+        .map(
+          (previousColumn, previousIndex) =>
+            sql`${sql.id(previousColumn)} = ${getOrderColumnValue(
+              lastRow,
+              order,
+              previousIndex
+            )}`
+        )
+      conditions.push(
+        sql`${sql.id(column)} > ${getOrderColumnValue(lastRow, order, index)}`
+      )
+      return sql`(${sql.join(conditions, sql` and `)})`
+    }),
+    sql` or `
+  )
+
 export const createTableRowsStream = (
-  database: Knex,
+  database: ArchiveDatabase,
   tableName: string,
   order: TableExportOrder,
   onRow: () => void
@@ -921,65 +947,31 @@ export const createTableRowsStream = (
     let lastRow: Record<string, unknown> | null = null
     let offset = 0
 
+    const selection =
+      order.raw && order.keyset
+        ? sql.join([
+            sql`*`,
+            ...order.columns.map(
+              (column, index) =>
+                sql`${sql.id(column)} as ${sql.id(rawCursorAlias(order, index))}`
+            )
+          ])
+        : sql`*`
+    const ordering = sql.join(
+      order.columns.map((column) => sql`${sql.id(column)} asc`)
+    )
+
     for (;;) {
-      const query = database(tableName).select('*').limit(DATABASE_PAGE_SIZE)
+      const filter: RawBuilder<unknown> =
+        order.keyset && lastRow
+          ? sql`where ${keysetAfter(order, lastRow)}`
+          : sql``
+      const page = order.keyset ? sql`` : sql`offset ${offset}`
 
-      if (order.raw && order.keyset) {
-        order.columns.forEach((column, index) => {
-          query.select(
-            database.raw('?? as ??', [column, rawCursorAlias(order, index)])
-          )
-        })
-      }
-
-      for (const column of order.columns) {
-        if (order.raw) {
-          query.orderByRaw('?? asc', [column])
-        } else {
-          query.orderBy(column, 'asc')
-        }
-      }
-
-      if (order.keyset && lastRow) {
-        query.where(function () {
-          for (let index = 0; index < order.columns.length; index += 1) {
-            this.orWhere(function () {
-              for (
-                let previousIndex = 0;
-                previousIndex < index;
-                previousIndex += 1
-              ) {
-                const previousColumn = order.columns[previousIndex]
-                const previousValue = getOrderColumnValue(
-                  lastRow!,
-                  order,
-                  previousIndex
-                )
-                if (order.raw) {
-                  this.whereRaw('?? = ?', [
-                    previousColumn,
-                    previousValue as Knex.Value
-                  ])
-                } else {
-                  this.where(previousColumn, previousValue as Knex.Value)
-                }
-              }
-
-              const column = order.columns[index]
-              const value = getOrderColumnValue(lastRow!, order, index)
-              if (order.raw) {
-                this.whereRaw('?? > ?', [column, value as Knex.Value])
-              } else {
-                this.where(column, '>', value as Knex.Value)
-              }
-            })
-          }
-        })
-      } else if (!order.keyset) {
-        query.offset(offset)
-      }
-
-      const rows = await query
+      const { rows } = await sql<Record<string, unknown>>`
+        select ${selection} from ${sql.id(tableName)} ${filter}
+        order by ${ordering} limit ${DATABASE_PAGE_SIZE} ${page}
+      `.execute(database.db)
 
       if (rows.length === 0) return
 
@@ -997,23 +989,23 @@ export const createTableRowsStream = (
 }
 
 export const exportDatabase = async (
-  database: Knex,
+  database: ArchiveDatabase,
   outputDir: string,
   options: { includeReferencedStoragePaths: boolean }
 ): Promise<DatabaseExportResult> => {
   const databaseDir = path.join(outputDir, DATABASE_DIR)
   await fs.mkdir(databaseDir, { recursive: true })
 
-  return withDatabaseReadSnapshot(database, async (transaction) => {
-    const tableNames = await getDatabaseTableNames(transaction)
-    const migrations = await getMigrationNames(transaction)
+  return withDatabaseReadSnapshot(database, async (snapshot) => {
+    const tableNames = await getDatabaseTableNames(snapshot)
+    const migrations = await getAppliedMigrationNames(snapshot)
     const tables: ArchiveTableManifest[] = []
 
     for (const tableName of tableNames) {
-      const order = await getTableExportOrder(transaction, tableName)
+      const order = await getTableExportOrder(snapshot, tableName)
       let rowCount = 0
       await pipeline(
-        createTableRowsStream(transaction, tableName, order, () => {
+        createTableRowsStream(snapshot, tableName, order, () => {
           rowCount += 1
         }),
         createWriteStream(path.join(databaseDir, tableFileName(tableName)))
@@ -1023,7 +1015,7 @@ export const exportDatabase = async (
     }
 
     const manifest = {
-      client: getKnexClientName(transaction),
+      client: getClientName(snapshot),
       migrations,
       tables
     }
@@ -1032,17 +1024,28 @@ export const exportDatabase = async (
       manifest,
       ...(options.includeReferencedStoragePaths
         ? {
-            referencedStoragePaths: await getReferencedStoragePaths(transaction)
+            referencedStoragePaths: await getReferencedStoragePaths(snapshot)
           }
         : null)
     }
   })
 }
 
-const tableExists = async (database: Knex, tableName: string) =>
-  database.schema.hasTable(tableName)
+// What Knex's `schema.hasTable` asked.
+const tableExists = async (database: ArchiveDatabase, tableName: string) => {
+  const { rows } =
+    getClientName(database) === 'pg'
+      ? await sql`
+          select * from information_schema.tables
+          where table_name = ${tableName} and table_schema = current_schema()
+        `.execute(database.db)
+      : await sql`
+          select * from sqlite_master where type = 'table' and name = ${tableName}
+        `.execute(database.db)
+  return rows.length > 0
+}
 
-const isKeysetValue = (value: unknown): value is Knex.Value =>
+const isKeysetValue = (value: unknown): value is number | string | Date =>
   typeof value === 'number' ||
   typeof value === 'string' ||
   value instanceof Date
@@ -1054,23 +1057,20 @@ const forEachKeysetRow = async <T extends { id: unknown }>({
   tableName
 }: {
   columns: string[]
-  database: Knex
+  database: ArchiveDatabase
   onRow: (row: T) => void
   tableName: string
 }) => {
-  let lastId: Knex.Value | null = null
+  let lastId: number | string | Date | null = null
 
   for (;;) {
-    const query = database(tableName)
-      .select(['id', ...columns])
-      .orderBy('id', 'asc')
-      .limit(DATABASE_PAGE_SIZE)
-
-    if (lastId !== null) {
-      query.where('id', '>', lastId)
-    }
-
-    const rows = (await query) as T[]
+    const filter: RawBuilder<unknown> =
+      lastId !== null ? sql`where ${sql.id('id')} > ${lastId}` : sql``
+    const { rows } = await sql<T>`
+      select ${sql.join(['id', ...columns].map((column) => sql.id(column)))}
+      from ${sql.id(tableName)} ${filter}
+      order by ${sql.id('id')} asc limit ${DATABASE_PAGE_SIZE}
+    `.execute(database.db)
     if (rows.length === 0) break
 
     for (const row of rows) {
@@ -1094,7 +1094,7 @@ const forEachKeysetRow = async <T extends { id: unknown }>({
 }
 
 export const getReferencedStoragePaths = async (
-  database: Knex
+  database: ArchiveDatabase
 ): Promise<ReferencedStoragePaths> => {
   const mediaFilePaths: string[] = []
   const fitnessFilePaths: string[] = []
@@ -1844,13 +1844,13 @@ const ensureRestoreTargetIsLocal = (
 }
 
 const getForeignKeyReferences = async (
-  database: Knex,
+  database: ArchiveDatabase,
   tables: string[]
 ): Promise<ForeignKeyReference[]> => {
-  const client = getKnexClientName(database)
+  const client = getClientName(database)
 
   if (client === 'pg') {
-    const result = await database.raw(`
+    const { rows } = await sql<ForeignKeyReference>`
       select
         tc.table_name as "fromTable",
         ccu.table_name as "toTable"
@@ -1863,17 +1863,17 @@ const getForeignKeyReferences = async (
         and ccu.table_schema = tc.table_schema
       where tc.constraint_type = 'FOREIGN KEY'
         and tc.table_schema = 'public'
-    `)
-    return getQueryRows<ForeignKeyReference>(result)
+    `.execute(database.db)
+    return rows
   }
 
   if (client === 'better-sqlite3') {
     const references: ForeignKeyReference[] = []
     for (const table of tables) {
-      const rows = await database.raw(
-        `PRAGMA foreign_key_list(${quoteIdentifier(table)})`
-      )
-      for (const row of getQueryRows<{ table: string }>(rows)) {
+      const { rows } = await sql<{ table: string }>`
+        PRAGMA foreign_key_list(${sql.id(table)})
+      `.execute(database.db)
+      for (const row of rows) {
         references.push({
           fromTable: table,
           toTable: row.table
@@ -1887,17 +1887,19 @@ const getForeignKeyReferences = async (
 }
 
 export const truncateTables = async (
-  database: Knex,
+  database: ArchiveDatabase,
   tableNames: string[],
   orderedTables: string[]
 ) => {
-  const client = getKnexClientName(database)
+  const client = getClientName(database)
   if (tableNames.length === 0) return
 
   if (client === 'pg') {
-    const tables = tableNames.map(quoteIdentifier).join(', ')
     try {
-      await database.raw(`truncate table ${tables} restart identity`)
+      await sql`
+        truncate table ${sql.join(tableNames.map((name) => sql.id(name)))}
+        restart identity
+      `.execute(database.db)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       throw new Error(
@@ -1911,29 +1913,23 @@ export const truncateTables = async (
   }
 
   if (client === 'better-sqlite3') {
-    const connection = await database.client.acquireConnection()
-
+    // `foreign_keys` is a setting of the connection, and cannot change inside
+    // a transaction. SQLite has one connection, so every statement below runs
+    // on the connection the pragma switched off, and nothing else runs on it
+    // until the pragma is back on.
+    await sql`PRAGMA foreign_keys = OFF`.execute(database.db)
     try {
-      await database.raw('PRAGMA foreign_keys = OFF').connection(connection)
-      try {
-        for (const tableName of [...orderedTables].reverse()) {
-          await database(tableName).connection(connection).delete()
-        }
-        if (
-          await database.schema
-            .connection(connection)
-            .hasTable('sqlite_sequence')
-        ) {
-          await database('sqlite_sequence')
-            .connection(connection)
-            .whereIn('name', tableNames)
-            .delete()
-        }
-      } finally {
-        await database.raw('PRAGMA foreign_keys = ON').connection(connection)
+      for (const tableName of [...orderedTables].reverse()) {
+        await sql`delete from ${sql.id(tableName)}`.execute(database.db)
+      }
+      if (await tableExists(database, 'sqlite_sequence')) {
+        await sql`
+          delete from ${sql.id('sqlite_sequence')}
+          where ${sql.id('name')} in (${sql.join(tableNames)})
+        `.execute(database.db)
       }
     } finally {
-      await database.client.releaseConnection(connection)
+      await sql`PRAGMA foreign_keys = ON`.execute(database.db)
     }
     return
   }
@@ -1969,47 +1965,34 @@ export const assertMatchingMigrations = (
   )
 }
 
-const getLocalMigrationFileNames = async () => {
-  const entries = await fs.readdir(
-    path.resolve(process.cwd(), MIGRATIONS_DIR),
-    {
-      withFileTypes: true
-    }
-  )
-
-  return entries
-    .filter((entry) => {
-      return entry.isFile() && /\.(cjs|js|mjs|ts)$/.test(entry.name)
-    })
-    .map((entry) => entry.name)
-    .sort()
-}
-
+// The archive's migration list (what its database had applied) must be what
+// this checkout ships and, once migrated, what the local database has
+// applied. A database with no migrations applied is migrated first.
 const ensureArchiveSchemaMatchesLocal = async (
-  database: Knex,
+  database: ArchiveDatabase,
   archiveMigrations: string[]
 ) => {
-  assertMatchingMigrations(
-    archiveMigrations,
-    await getLocalMigrationFileNames()
-  )
+  assertMatchingMigrations(archiveMigrations, await getKnownMigrationNames())
 
-  const migrationsBeforeLatest = await getMigrationNames(database)
+  const migrationsBeforeLatest = await getAppliedMigrationNames(database)
 
   if (migrationsBeforeLatest.length > 0) {
     assertMatchingMigrations(archiveMigrations, migrationsBeforeLatest)
     return
   }
 
-  await database.migrate.latest()
-  assertMatchingMigrations(archiveMigrations, await getMigrationNames(database))
+  await migrateToLatest(database)
+  assertMatchingMigrations(
+    archiveMigrations,
+    await getAppliedMigrationNames(database)
+  )
 }
 
 export const getRestoreInsertBatchSize = (
-  database: Knex,
+  database: ArchiveDatabase,
   row: Record<string, unknown>
 ) => {
-  const client = getKnexClientName(database)
+  const client = getClientName(database)
   if (client !== 'better-sqlite3') {
     return INSERT_BATCH_SIZE
   }
@@ -2096,26 +2079,46 @@ export const stringifyJsonColumnValues = (
   return normalized
 }
 
-const getJsonColumnNames = async (database: Knex, tableName: string) => {
-  const client = getKnexClientName(database)
+const getJsonColumnNames = async (
+  database: ArchiveDatabase,
+  tableName: string
+) => {
+  const client = getClientName(database)
   if (client !== 'pg') return new Set<string>()
 
-  const result = await database.raw(
-    `
+  const { rows } = await sql<{ name: string }>`
     select column_name as name
     from information_schema.columns
     where table_schema = 'public'
-      and table_name = ?
+      and table_name = ${tableName}
       and data_type in ('json', 'jsonb')
-    `,
-    [tableName]
-  )
+  `.execute(database.db)
 
-  return new Set(getQueryRows<{ name: string }>(result).map((row) => row.name))
+  return new Set(rows.map((row) => row.name))
+}
+
+// Each batch is one transaction of inserts of up to `chunkSize` rows, as
+// Knex's `batchInsert` did. A row without one of the batch's columns gets the
+// column's default on PostgreSQL and NULL on SQLite, as with Knex.
+const insertBatch = async (
+  database: ArchiveDatabase,
+  tableName: string,
+  rows: Record<string, unknown>[],
+  chunkSize: number
+) => {
+  await inTransaction(database.db, async (transaction) => {
+    const tableDb = transaction as unknown as AnyTableDb
+    for (let index = 0; index < rows.length; index += chunkSize) {
+      await tableDb
+        .insertInto(tableName)
+        .values(rows.slice(index, index + chunkSize))
+        .execute()
+    }
+  })
 }
 
 const restoreTableFromJsonLines = async (
-  database: Knex,
+  database: ArchiveDatabase,
   tableName: string,
   tableFilePath: string
 ) => {
@@ -2126,7 +2129,7 @@ const restoreTableFromJsonLines = async (
 
   const flushBatch = async () => {
     if (batch.length === 0) return
-    await database.batchInsert(tableName, batch, batchSize)
+    await insertBatch(database, tableName, batch, batchSize)
     rowCount += batch.length
     batch = []
     batchSize = INSERT_BATCH_SIZE
@@ -2151,13 +2154,15 @@ const restoreTableFromJsonLines = async (
   return rowCount
 }
 
-const resetPostgresSequences = async (database: Knex, tableNames: string[]) => {
-  const client = getKnexClientName(database)
+const resetPostgresSequences = async (
+  database: ArchiveDatabase,
+  tableNames: string[]
+) => {
+  const client = getClientName(database)
   if (client !== 'pg') return
 
   for (const tableName of tableNames) {
-    const result = await database.raw(
-      `
+    const { rows } = await sql<{ columnName: string; sequenceName: string }>`
       select
         a.attname as "columnName",
         pg_get_serial_sequence(
@@ -2168,41 +2173,47 @@ const resetPostgresSequences = async (database: Knex, tableNames: string[]) => {
       join pg_namespace n on n.oid = c.relnamespace
       join pg_attribute a on a.attrelid = c.oid
       where n.nspname = 'public'
-        and c.relname = ?
+        and c.relname = ${tableName}
         and a.attnum > 0
         and not a.attisdropped
         and pg_get_serial_sequence(
           format('%I.%I', n.nspname, c.relname),
           a.attname
         ) is not null
-    `,
-      [tableName]
-    )
+    `.execute(database.db)
 
-    for (const row of getQueryRows<{
-      columnName: string
-      sequenceName: string
-    }>(result)) {
-      await database.raw(
-        `
+    for (const row of rows) {
+      await sql`
         select setval(
-          ?,
+          ${row.sequenceName},
           coalesce(
-            (select max(${quoteIdentifier(row.columnName)})
-             from ${quoteIdentifier(tableName)}),
+            (select max(${sql.id(row.columnName)})
+             from ${sql.id(tableName)}),
             1
           ),
-          exists(select 1 from ${quoteIdentifier(tableName)})
+          exists(select 1 from ${sql.id(tableName)})
         )
-      `,
-        [row.sequenceName]
-      )
+      `.execute(database.db)
     }
   }
 }
 
-const restoreDatabase = async (
-  database: Knex,
+// SQLite's full-text search tables (`search_documents_fts`, an FTS5 table, and
+// the shadow tables that hold its index). SQLite refuses writes to the shadow
+// tables, and the FTS5 table indexes `search_documents` through that table's
+// triggers, so the restore writes neither: restoring `search_documents`
+// rebuilds the index. The export still includes them.
+const getSqliteFullTextTableNames = async (database: ArchiveDatabase) => {
+  if (getClientName(database) !== 'better-sqlite3') return new Set<string>()
+  const { rows } = await sql<{ name: string }>`
+    select name from pragma_table_list
+    where schema = 'main' and type in ('virtual', 'shadow')
+  `.execute(database.db)
+  return new Set(rows.map((row) => row.name))
+}
+
+export const restoreDatabase = async (
+  database: ArchiveDatabase,
   archiveDir: string,
   manifest: ArchiveManifest
 ) => {
@@ -2224,10 +2235,22 @@ const restoreDatabase = async (
 
   await assertArchiveTableFilesReadable(archiveDir, manifest.database.tables)
 
-  const foreignKeys = await getForeignKeyReferences(database, tableNames)
-  const orderedTables = sortTablesForRestore(tableNames, foreignKeys)
+  const fullTextTables = await getSqliteFullTextTableNames(database)
+  const restoredTables = tableNames.filter(
+    (table) => !fullTextTables.has(table)
+  )
+  for (const tableName of tableNames) {
+    if (!fullTextTables.has(tableName)) continue
+    console.log(
+      `Database: skipped ${tableName}; SQLite rebuilds full-text indexes ` +
+        'from the tables they index'
+    )
+  }
 
-  await truncateTables(database, tableNames, orderedTables)
+  const foreignKeys = await getForeignKeyReferences(database, restoredTables)
+  const orderedTables = sortTablesForRestore(restoredTables, foreignKeys)
+
+  await truncateTables(database, restoredTables, orderedTables)
 
   for (const tableName of orderedTables) {
     const rowCount = await restoreTableFromJsonLines(
@@ -2425,9 +2448,17 @@ const restoreStorage = async (
   }
 }
 
-const createDatabase = () => {
-  const config = getConfig()
-  return knex(config.database)
+/**
+ * Opens the connection the archive runs on: the app's connection code, with
+ * results left as the database returns them (no normalisation), so rows are
+ * exported, and restored, as they are stored.
+ */
+export const openArchiveDatabase = (config: DatabaseConfig) => {
+  const { db, destroy } = openScriptDatabase(config, {
+    normalizeResults: false
+  })
+  const database: ArchiveDatabase = { config, db }
+  return { database, destroy }
 }
 
 export const downloadProductionArchive = async (
@@ -2448,7 +2479,7 @@ export const downloadProductionArchive = async (
     path.join(os.tmpdir(), 'activitynext-production-archive-')
   )
   const archivePath = path.join(outputDir, createArchiveName())
-  const database = createDatabase()
+  const { database, destroy } = openArchiveDatabase(config.database)
 
   try {
     const needsReferencedStoragePaths =
@@ -2496,7 +2527,7 @@ export const downloadProductionArchive = async (
     console.log(`Archive written: ${archivePath}`)
     return 0
   } finally {
-    await database.destroy()
+    await destroy()
     await fs.rm(stagingDir, { force: true, recursive: true })
   }
 }
@@ -2518,7 +2549,7 @@ export const restoreProductionArchive = async (
   const archiveDir = await fs.mkdtemp(
     path.join(os.tmpdir(), 'activitynext-production-restore-')
   )
-  const database = createDatabase()
+  const { database, destroy } = openArchiveDatabase(config.database)
 
   try {
     await extractTarArchive(path.resolve(args.archive), archiveDir)
@@ -2535,7 +2566,7 @@ export const restoreProductionArchive = async (
     console.log('Restore complete.')
     return 0
   } finally {
-    await database.destroy()
+    await destroy()
     await fs.rm(archiveDir, { force: true, recursive: true })
   }
 }

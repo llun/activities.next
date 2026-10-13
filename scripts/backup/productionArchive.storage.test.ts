@@ -1,12 +1,13 @@
 import { S3Client } from '@aws-sdk/client-s3'
 import fs from 'fs/promises'
-import knex from 'knex'
+import { type Kysely, sql } from 'kysely'
 import os from 'os'
 import path from 'path'
 import { Readable } from 'stream'
 
 import { FitnessStorageType } from '@/lib/config/fitnessStorage'
 import { MediaStorageType } from '@/lib/config/mediaStorage'
+import { getTestDatabaseConfig } from '@/lib/database/testing/createTestDatabase'
 
 import type { StorageSource } from './productionArchive'
 import {
@@ -17,8 +18,38 @@ import {
   getReferencedStoragePaths,
   getStorageEndpoint,
   normalizeStorageHostname,
+  openArchiveDatabase,
   redactStorageError
 } from './productionArchive'
+
+// The archive's own connection on an in-memory SQLite database.
+const openSqliteArchiveDatabase = () => {
+  const { database, destroy } = openArchiveDatabase(
+    getTestDatabaseConfig('sqlite')
+  )
+  return {
+    database,
+    // The tests create tables the generated types do not know.
+    // oxlint-disable-next-line typescript/no-explicit-any
+    tableDb: database.db as unknown as Kysely<any>,
+    destroy
+  }
+}
+
+// Inserts `rows` in batches of 200, as the tests' Knex `batchInsert` did.
+const insertRows = async (
+  // oxlint-disable-next-line typescript/no-explicit-any
+  tableDb: Kysely<any>,
+  tableName: string,
+  rows: Record<string, unknown>[]
+) => {
+  for (let index = 0; index < rows.length; index += 200) {
+    await tableDb
+      .insertInto(tableName)
+      .values(rows.slice(index, index + 200))
+      .execute()
+  }
+}
 
 describe('production archive scripts', () => {
   describe('buildStoragePlan', () => {
@@ -265,36 +296,37 @@ describe('production archive scripts', () => {
 
   describe('getReferencedStoragePaths', () => {
     it('collects media and fitness paths with keyset pagination', async () => {
-      const database = knex({
-        client: 'better-sqlite3',
-        connection: { filename: ':memory:' },
-        useNullAsDefault: true
-      })
+      const { database, tableDb, destroy } = openSqliteArchiveDatabase()
       const mediaCount = 1005
       const fitnessCount = 1005
 
       try {
-        await database.schema.createTable('medias', (table) => {
-          table.increments('id').primary()
-          table.string('original')
-          table.string('thumbnail')
-        })
-        await database.schema.createTable('fitness_files', (table) => {
-          table.string('id').primary()
-          table.string('path')
-          table.string('mapImagePath')
-          table.string('mapImageEmailPath')
-        })
+        await sql`
+          create table medias (
+            id integer not null primary key autoincrement,
+            original varchar(255),
+            thumbnail varchar(255)
+          )
+        `.execute(database.db)
+        await sql`
+          create table fitness_files (
+            id varchar(255) primary key,
+            path varchar(255),
+            "mapImagePath" varchar(255),
+            "mapImageEmailPath" varchar(255)
+          )
+        `.execute(database.db)
 
-        await database.batchInsert(
+        await insertRows(
+          tableDb,
           'medias',
           Array.from({ length: mediaCount }, (_, index) => ({
             original: `medias/original-${index}.webp`,
             thumbnail: index % 2 === 0 ? `medias/thumb-${index}.webp` : null
-          })),
-          200
+          }))
         )
-        await database.batchInsert(
+        await insertRows(
+          tableDb,
           'fitness_files',
           Array.from({ length: fitnessCount }, (_, index) => ({
             id: `fitness-${String(index).padStart(4, '0')}`,
@@ -302,8 +334,7 @@ describe('production archive scripts', () => {
             mapImageEmailPath:
               index % 2 === 0 ? `medias/map-${index}.jpg` : null,
             path: `fitness/${index}.fit`
-          })),
-          200
+          }))
         )
 
         const paths = await getReferencedStoragePaths(database)
@@ -319,29 +350,29 @@ describe('production archive scripts', () => {
         expect(paths.mediaFilePaths).toContain('medias/map-1004.webp')
         expect(paths.mediaFilePaths).toContain('medias/map-1004.jpg')
       } finally {
-        await database.destroy()
+        await destroy()
       }
     })
 
     it('collects the files photo edits keep', async () => {
-      const database = knex({
-        client: 'better-sqlite3',
-        connection: { filename: ':memory:' },
-        useNullAsDefault: true
-      })
+      const { database, tableDb, destroy } = openSqliteArchiveDatabase()
 
       try {
-        await database.schema.createTable('medias', (table) => {
-          table.increments('id').primary()
-          table.string('original')
-          table.string('thumbnail')
-        })
-        await database.schema.createTable('media_edit_files', (table) => {
-          table.string('id').primary()
-          table.string('path')
-        })
-        await database('medias').insert({ original: 'medias/live.webp' })
-        await database('media_edit_files').insert([
+        await sql`
+          create table medias (
+            id integer not null primary key autoincrement,
+            original varchar(255),
+            thumbnail varchar(255)
+          )
+        `.execute(database.db)
+        await sql`
+          create table media_edit_files (
+            id varchar(255) primary key,
+            path varchar(255)
+          )
+        `.execute(database.db)
+        await insertRows(tableDb, 'medias', [{ original: 'medias/live.webp' }])
+        await insertRows(tableDb, 'media_edit_files', [
           { id: 'edit-1', path: 'medias/uploaded.jpg' },
           { id: 'edit-2', path: 'medias/superseded.webp' }
         ])
@@ -354,7 +385,7 @@ describe('production archive scripts', () => {
           'medias/uploaded.jpg'
         ])
       } finally {
-        await database.destroy()
+        await destroy()
       }
     })
   })
