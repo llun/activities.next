@@ -34,8 +34,7 @@ const legacyKnexByDatabase = new WeakMap<Database, Knex>()
  *   hand it to `kyselyFor(trx)`;
  * - the legacy migration tests, which run a migration module on Knex;
  * - the tests of the Knex-backed connection (`kysely/driver`, `kysely/guard`,
- *   `sqlcommenter`, `createTestDatabase`, `testUtils`, `queryCapture`,
- *   `schema`).
+ *   `testUtils`, `createTestDatabase`, `queryCapture`).
  *
  * Takes the `database` of `createTestDatabase`, `getTestDatabaseWithInstance`
  * or `getTestSQLDatabaseWithInstance`.

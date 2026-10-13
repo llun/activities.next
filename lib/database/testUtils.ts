@@ -33,9 +33,9 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
 
 // What `getTestDatabaseWithInstance` and `getTestSQLDatabaseWithInstance` hand
 // out besides `database`: Kysely on the same pool for seeding and reading, and
-// statement capture. `db` stays a getter, as on `TestDatabase`,
-// so a suite built around a mocked Knex never builds a Kysely instance. Hand
-// them out with a getter, not a spread, which would read `db` eagerly.
+// statement capture. `db` stays a getter, as on `TestDatabase`, so a suite
+// built around a mocked Knex never builds a Kysely instance. Hand them out
+// with a getter, not a spread, which would read `db` eagerly.
 export type TestDatabaseTools = Pick<
   TestDatabase,
   'db' | 'captureQueries' | 'onQuery' | 'pendingAcquires'
@@ -44,9 +44,8 @@ export type TestDatabaseTools = Pick<
 /**
  * A database honouring `TEST_DATABASE_TYPE`, plus a Kysely `db` on the same
  * pool, statement capture (`captureQueries`, `onQuery`) and the `prepare` step
- * PostgreSQL needs, for a suite that is not
- * shaped as a `describe.each` over `getTestDatabaseTable()` but still has to
- * run on both backends.
+ * PostgreSQL needs, for a suite that is not shaped as a `describe.each` over
+ * `getTestDatabaseTable()` but still has to run on both backends.
  *
  * `getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` below are
  * SQLite-ONLY and ignore `TEST_DATABASE_TYPE` entirely — which is a trap worth
