@@ -13,6 +13,7 @@ import {
   deleteActor,
   deleteSession,
   follow,
+  getAccountStatusesPage,
   getActorDomains,
   getActorStatuses,
   getBlocks,
@@ -862,6 +863,53 @@ describe('client accounts module', () => {
       await expect(getActorStatuses({ actorId: 'actor-123' })).rejects.toThrow(
         'Failed to load actor statuses: 500'
       )
+    })
+  })
+
+  describe('getAccountStatusesPage', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://local.example' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('asks the account statuses API for the page older than the cursor', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          statuses: [],
+          nextMaxStatusId: 'https://local.example/statuses/2'
+        }),
+        { status: 200 }
+      )
+
+      const res = await getAccountStatusesPage({
+        actorId: 'actor-123',
+        maxStatusId: 'https://local.example/statuses/1'
+      })
+      expect(res).toEqual({
+        statuses: [],
+        nextMaxStatusId: 'https://local.example/statuses/2'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://local.example/api/v1/accounts/actor-123/statuses?format=activities_next&max_id=https%3A%2F%2Flocal.example%2Fstatuses%2F1',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('throws when status is not 200', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      await expect(
+        getAccountStatusesPage({ actorId: 'actor-123', maxStatusId: 'cursor' })
+      ).rejects.toThrow('Failed to load account statuses: 500')
     })
   })
 

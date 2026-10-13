@@ -7,6 +7,7 @@ import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCou
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -37,8 +38,12 @@ type ProfileData = {
   statuses: Status[]
   statusesCount: number | null
   statusPagination: {
+    // A remote actor's feed pages through its outbox collection pages.
     nextPageUrl: string | null
     prevPageUrl: string | null
+    // A local account's feed pages through its stored statuses with a
+    // Mastodon-style `max_id` cursor instead: the last status scanned.
+    nextMaxStatusId?: string | null
   }
   attachments: Attachment[]
   followingCount: number | null
@@ -129,6 +134,7 @@ export const getProfileData = async (
         database.getActorStatuses({
           actorId: persistedActor.id,
           currentActorId: currentActor?.id,
+          limit: PER_PAGE_LIMIT,
           ...visibilityScope
         }),
         database.getAttachmentsForActor({
@@ -179,7 +185,8 @@ export const getProfileData = async (
     // prefetched into the `followerStateByActorId` map the statuses route
     // builds — that route scans repeatedly and reuses the map across batches,
     // where this renders one page. Bounded by page size and issued
-    // concurrently; revisit if a profile page ever pages server-side.
+    // concurrently. Later pages come from `GET /api/v1/accounts/:id/statuses`,
+    // which runs the same checks.
     const statuses = (
       await Promise.all(
         scopedStatuses.map(async (status) =>
@@ -201,7 +208,14 @@ export const getProfileData = async (
       statusesCount,
       statusPagination: {
         nextPageUrl: null,
-        prevPageUrl: null
+        prevPageUrl: null,
+        // A full page may have more behind it. The cursor is the last status
+        // scanned, not the last one kept, so statuses this viewer cannot read
+        // at the end of the page are not scanned again.
+        nextMaxStatusId:
+          scopedStatuses.length >= PER_PAGE_LIMIT
+            ? scopedStatuses[scopedStatuses.length - 1].id
+            : null
       },
       attachments,
       followingCount,

@@ -12,6 +12,7 @@ import {
   canActorReadStatus,
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import {
   decodeCursor,
   resolveStatusCursor
@@ -20,6 +21,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
+import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -59,7 +61,12 @@ const StatusQueryParams = z.object({
     .enum(['true', 'false', '1', '0'])
     .transform((val) => val === 'true' || val === '1')
     .optional(),
-  tagged: z.string().optional()
+  tagged: z.string().optional(),
+  // The web profile pages with this, like the home timeline does with
+  // `/api/v1/timelines/:timeline?format=activities_next`: same Mastodon
+  // cursor semantics, but the body carries the app's own status shape and the
+  // next `max_id` instead of a Link header.
+  format: TimelineFormat.optional()
 })
 
 export const GET = traceApiRoute(
@@ -87,6 +94,8 @@ export const GET = traceApiRoute(
         })
       }
       const parsedParams = parsed.data
+      const isActivitiesNextFormat =
+        parsedParams.format === TimelineFormat.enum.activities_next
 
       const {
         limit,
@@ -139,6 +148,7 @@ export const GET = traceApiRoute(
       const readableStatuses: Status[] = []
       let nextMaxId = maxId
       let scannedBatches = 0
+      let isExhausted = false
 
       while (
         readableStatuses.length < limit &&
@@ -148,6 +158,12 @@ export const GET = traceApiRoute(
 
         const statuses = await database.getActorStatuses({
           actorId: id,
+          // Only the app's own format carries the viewer's like/bookmark/
+          // reaction state on the status itself; the Mastodon serializer
+          // looks it up on its own.
+          ...(isActivitiesNextFormat
+            ? { currentActorId: currentActor?.id }
+            : {}),
           maxStatusId: nextMaxId,
           minStatusId: minId || sinceId,
           limit,
@@ -162,7 +178,10 @@ export const GET = traceApiRoute(
           pinned: parsedParams.pinned === true
         })
 
-        if (statuses.length === 0) break
+        if (statuses.length === 0) {
+          isExhausted = true
+          break
+        }
 
         const originalAuthorIds: string[] = []
         if (currentActor) {
@@ -213,7 +232,10 @@ export const GET = traceApiRoute(
 
         readableStatuses.push(...readableBatch)
 
-        if (statuses.length < limit) break
+        if (statuses.length < limit) {
+          isExhausted = true
+          break
+        }
         nextMaxId = statuses[statuses.length - 1].id
       }
 
@@ -269,6 +291,31 @@ export const GET = traceApiRoute(
               .slice(0, Math.max(0, limit - readableStatuses.length))
           ].sort((a, b) => b.createdAt - a.createdAt)
         : readableStatuses.slice(0, limit)
+
+      if (isActivitiesNextFormat) {
+        // The next cursor is the last status SCANNED, not the last one served,
+        // so a page whose tail was unreadable to this viewer is not scanned
+        // again. When more readable statuses were found than fit the page, the
+        // page ends at its last served status instead. A live remote page has
+        // no usable cursor (see the Link header note below).
+        const lastServedStatus = visibleStatuses[visibleStatuses.length - 1]
+        const nextMaxStatusId = servedLiveStatuses
+          ? null
+          : readableStatuses.length > limit
+            ? lastServedStatus.id
+            : isExhausted
+              ? null
+              : (nextMaxId ?? null)
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            statuses: visibleStatuses.map((status) => cleanJson(status)),
+            nextMaxStatusId
+          }
+        })
+      }
+
       const visibleStatusIds = visibleStatuses.map((status) => status.id)
       const pinnedStatusIds =
         currentActor?.id === id && parsedParams.pinned === true
