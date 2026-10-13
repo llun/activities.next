@@ -146,6 +146,18 @@ const Harness = ({
       >
         Add mask
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          const { clarity: _clarity, ...rest } = history.present.adjustments
+          history.set({
+            ...history.present,
+            adjustments: rest
+          })
+        }}
+      >
+        Reset clarity
+      </button>
     </>
   )
 }
@@ -570,6 +582,58 @@ describe('AiPanel', () => {
       expect(latest.recipe.masks).toHaveLength(1)
       expect(latest.recipe.masks[0].id).toBe('brush-new')
       expect(latest.recipe.masks[0].adjustments).toEqual({ exposure: 0.2 })
+    })
+
+    it('does not resurrect an undone manual slider tweak when changing Strength', () => {
+      render(<Harness />)
+      runEnhance()
+      expect(latest.recipe.adjustments.tint).toBeUndefined()
+
+      // Manual slider tweak sets tint: 7
+      fireEvent.click(screen.getByRole('button', { name: 'Nudge' }))
+      expect(latest.recipe.adjustments.tint).toBe(7)
+
+      // Undo the manual slider tweak
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(latest.recipe.adjustments.tint).toBeUndefined()
+
+      // Changing Strength must not resurrect the undone tint: 7
+      fireEvent.keyDown(strengthSlider(), { key: 'End' })
+      expect(latest.recipe.adjustments.tint).toBeUndefined()
+      expect(latest.recipe.adjustments.clarity).toBe(10)
+    })
+
+    it('respects a manual slider reset to 0 when changing Strength', () => {
+      render(<Harness />)
+      runEnhance()
+      // Natural at Strength 80 sets clarity: 8
+      expect(latest.recipe.adjustments.clarity).toBe(8)
+
+      // User manually resets clarity to 0 (deletes clarity key)
+      fireEvent.click(screen.getByRole('button', { name: 'Reset clarity' }))
+      expect(latest.recipe.adjustments.clarity).toBeUndefined()
+
+      // Moving Strength from 80 to 100 (delta changes from +8 to +10) adds +2 to the -8 base
+      fireEvent.keyDown(strengthSlider(), { key: 'End' })
+      expect(latest.recipe.adjustments.clarity).toBe(2)
+    })
+
+    it('does not mark the initial state as preset-active after setting Strength to 0 and undoing', () => {
+      render(<Harness />)
+      runEnhance()
+      // Move Strength to 0 so the preset recipe has empty adjustments like NEUTRAL_RECIPE
+      fireEvent.keyDown(strengthSlider(), { key: 'Home' })
+      expect(latest.recipe.adjustments).toEqual({})
+      expect(screen.getByRole('radio', { name: 'Natural' })).toBeChecked()
+
+      // Undo Strength 0 -> back to Strength 80, then Undo -> back to initial NEUTRAL_RECIPE
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(latest.recipe).toBe(NEUTRAL_RECIPE)
+      expect(screen.queryAllByRole('radio', { checked: true })).toEqual([])
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Not applied. Pick a style to apply it again.'
+      )
     })
   })
 

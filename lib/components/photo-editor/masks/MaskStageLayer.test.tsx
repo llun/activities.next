@@ -3,7 +3,9 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { createRef } from 'react'
 
+import { EditorStage } from '@/lib/components/photo-editor/EditorStage'
 import { NEUTRAL_RECIPE } from '@/lib/services/medias/edit/recipe'
 
 import { MaskStageLayer } from './MaskStageLayer'
@@ -92,6 +94,27 @@ describe('MaskStageLayer', () => {
     expect(box.y0).toBeCloseTo(0.25, 4)
     expect(box.x1).toBeCloseTo(0.5, 4)
     expect(box.y1).toBeCloseTo(0.5, 4)
+  })
+
+  it('transforms all 4 box-select corners accurately when rotated or straightened', () => {
+    const onBoxSelect = vi.fn()
+    // Straighten by 20 degrees: diagonal corners alone would underestimate the source bounding box
+    const { layer } = setup({
+      onBoxSelect,
+      geometry: {
+        ...NEUTRAL_RECIPE.geometry,
+        straighten: 20
+      }
+    })
+    fireEvent.pointerDown(layer, { clientX: 100, clientY: 75, button: 0 })
+    fireEvent.pointerMove(layer, { clientX: 300, clientY: 225 })
+    fireEvent.pointerUp(layer, { clientX: 300, clientY: 225 })
+
+    expect(onBoxSelect).toHaveBeenCalledTimes(1)
+    const [box] = onBoxSelect.mock.calls[0]
+    // Under 20° rotation, the 4-corner bounding box is wider/taller than a 2-corner diagonal
+    expect(box.x1 - box.x0).toBeGreaterThan(0.5)
+    expect(box.y1 - box.y0).toBeGreaterThan(0.5)
   })
 
   it('paints a stroke in brush mode, with the radius in source pixels', () => {
@@ -222,6 +245,74 @@ describe('MaskStageLayer', () => {
     const toggle = screen.getByRole('button', { name: 'Overlay' })
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(toggle)
+    expect(onOverlayVisibleChange).toHaveBeenCalledWith(false)
+  })
+
+  it('intercepts Space+drag in EditorStage when zoomed in so MaskStageLayer does not stroke or tap', () => {
+    const onTap = vi.fn()
+    const onStrokeStart = vi.fn()
+    const onOverlayVisibleChange = vi.fn()
+    const containerRef = createRef<HTMLDivElement>()
+    const canvasRef = createRef<HTMLCanvasElement>()
+
+    render(
+      <EditorStage
+        containerRef={containerRef}
+        canvasRef={canvasRef}
+        canvasKey={0}
+        bitmap={null}
+        box={SIZE}
+        css={SIZE}
+        status="ready"
+        tab="masks"
+        comparing={false}
+        geometry={NEUTRAL_RECIPE.geometry}
+        orientedSize={{ width: 4000, height: 3000 }}
+        disabled={false}
+        announcement=""
+        maskLayer={
+          <MaskStageLayer
+            css={SIZE}
+            source={{ width: 4000, height: 3000 }}
+            geometry={NEUTRAL_RECIPE.geometry}
+            points={[]}
+            mode="brush"
+            canRefine
+            disabled={false}
+            hint={null}
+            busy={false}
+            brushSize={40}
+            overlayVisible
+            onOverlayVisibleChange={onOverlayVisibleChange}
+            onTap={onTap}
+            onStrokeStart={onStrokeStart}
+            onStrokeMove={vi.fn()}
+            onStrokeEnd={vi.fn()}
+          />
+        }
+        onCropChange={vi.fn()}
+        onGestureStart={vi.fn()}
+        onGestureEnd={vi.fn()}
+        onRetry={vi.fn()}
+      />
+    )
+
+    // Zoom to 2x via the stage zoom button
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom 2x' }))
+
+    // Hold Space on the document body (not on a button) and drag on the mask layer
+    fireEvent.keyDown(document.body, { code: 'Space' })
+    const layer = screen.getByTestId('mask-stage-layer')
+    fireEvent.pointerDown(layer, { clientX: 200, clientY: 150, button: 0 })
+    fireEvent.pointerMove(layer, { clientX: 230, clientY: 170 })
+    fireEvent.pointerUp(layer, { clientX: 230, clientY: 170 })
+    fireEvent.keyUp(document.body, { code: 'Space' })
+
+    expect(onStrokeStart).not.toHaveBeenCalled()
+    expect(onTap).not.toHaveBeenCalled()
+
+    // Clicking the Overlay button inside MaskStageLayer still works while zoomed in
+    fireEvent.click(screen.getByRole('button', { name: 'Overlay' }))
     expect(onOverlayVisibleChange).toHaveBeenCalledWith(false)
   })
 })

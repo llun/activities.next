@@ -227,12 +227,16 @@ export const boxToPromptPoints = (box: {
     { x: clampUnit(cx + 0.22 * w), y: clampUnit(cy + 0.22 * h), label: 1 }
   ]
 
-  const negatives: MaskPoint[] = [
+  const candidateNegatives: MaskPoint[] = [
     { x: clampOuter(minX - marginX), y: clampOuter(minY - marginY), label: 0 },
     { x: clampOuter(maxX + marginX), y: clampOuter(minY - marginY), label: 0 },
     { x: clampOuter(minX - marginX), y: clampOuter(maxY + marginY), label: 0 },
     { x: clampOuter(maxX + marginX), y: clampOuter(maxY + marginY), label: 0 }
   ]
+
+  const negatives = candidateNegatives.filter(
+    (pt) => pt.x < minX || pt.x > maxX || pt.y < minY || pt.y > maxY
+  )
 
   return [...positives, ...negatives]
 }

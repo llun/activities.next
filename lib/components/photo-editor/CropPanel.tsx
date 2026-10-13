@@ -44,6 +44,12 @@ const withPortrait = (geometry: Geometry, portrait: boolean): Geometry => {
   return portrait ? { ...rest, aspectPortrait: true } : rest
 }
 
+const sameCrop = (a: CropRect, b: CropRect): boolean =>
+  Math.abs(a.x - b.x) < 1e-6 &&
+  Math.abs(a.y - b.y) < 1e-6 &&
+  Math.abs(a.width - b.width) < 1e-6 &&
+  Math.abs(a.height - b.height) < 1e-6
+
 /**
  * The Crop tab: aspect presets, straighten, rotate, flip, reset, and the
  * output size. On a phone (`compact`) it replaces the chip area.
@@ -64,10 +70,12 @@ export const CropPanel = ({
   const ratio = getAspectRatio(geometry.aspect, portrait, oriented)
   const isLandscape = (ratio ?? 1) >= 1
 
-  const baseCropRef = useRef<CropRect | null>(null)
+  const straightenMemo = useRef<{ chosen: CropRect; clamped: CropRect } | null>(
+    null
+  )
 
   const applyAspect = (aspect: Aspect, nextPortrait: boolean) => {
-    baseCropRef.current = null
+    straightenMemo.current = null
     const base = withPortrait({ ...geometry, aspect }, nextPortrait)
     controls.onGeometryChange({
       ...base,
@@ -91,17 +99,21 @@ export const CropPanel = ({
     applyAspect(next, false)
   }
 
-  // Straightening shrinks the crop to stay inside the rotated image. The crop
-  // at the start of the straighten interaction is kept as the base, so turning
-  // back toward 0° restores the original crop dimensions instead of leaving it
-  // shrunk. Clearing the base on commit or when aspect/rotate/flip changes ensures
-  // new edits establish a fresh base.
+  // Straightening shrinks the crop to stay inside the rotated image. We
+  // remember both the un-clamped crop (`chosen`) and the resulting clamped
+  // crop (`clamped`). As long as `geometry.crop` still matches `clamped`,
+  // subsequent straighten gestures, keyboard steps, or a reset to 0° continue
+  // clamping from `chosen` so returning to 0° restores the original crop.
+  // Any external crop change (overlay drag, aspect preset, rotate, flip, reset,
+  // undo/redo) breaks the match or clears the memo so the new crop is adopted.
   const straighten = (value: number) => {
-    if (!baseCropRef.current) {
-      baseCropRef.current = geometry.crop
-    }
-    const base = baseCropRef.current
-    const clamped = clampCropToImage(base, value, oriented)
+    const memo = straightenMemo.current
+    const chosen =
+      memo && sameCrop(memo.clamped, geometry.crop)
+        ? memo.chosen
+        : geometry.crop
+    const clamped = clampCropToImage(chosen, value, oriented)
+    straightenMemo.current = { chosen, clamped }
     controls.onGeometryChange(
       { ...geometry, straighten: value, crop: clamped },
       'straighten'
@@ -109,17 +121,13 @@ export const CropPanel = ({
   }
 
   const handleStraightenCommit = () => {
-    baseCropRef.current = null
     controls.onGestureEnd()
   }
 
   const straightenRow = (
     <div
       className="space-y-1"
-      onPointerDownCapture={() => {
-        baseCropRef.current = geometry.crop
-        controls.onGestureStart('straighten')
-      }}
+      onPointerDownCapture={() => controls.onGestureStart('straighten')}
     >
       <div className="flex items-baseline justify-between text-sm">
         <span>Straighten</span>
@@ -181,7 +189,7 @@ export const CropPanel = ({
         className="max-md:min-h-10"
         disabled={disabled}
         onClick={() => {
-          baseCropRef.current = null
+          straightenMemo.current = null
           controls.onGeometryChange(rotateGeometry90(geometry))
         }}
       >
@@ -195,7 +203,7 @@ export const CropPanel = ({
         className="max-md:min-h-10"
         disabled={disabled}
         onClick={() => {
-          baseCropRef.current = null
+          straightenMemo.current = null
           controls.onGeometryChange(flipGeometryHorizontal(geometry))
         }}
       >
@@ -210,7 +218,7 @@ export const CropPanel = ({
           className="max-md:min-h-10"
           disabled={disabled}
           onClick={() => {
-            baseCropRef.current = null
+            straightenMemo.current = null
             controls.onGeometryChange(NEUTRAL_RECIPE.geometry)
           }}
         >

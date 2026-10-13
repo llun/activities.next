@@ -148,11 +148,22 @@ export const EditorStage = ({
   }
 
   useEffect(() => {
+    if (zoom <= 1) {
+      spacePressed.current = false
+      setSpaceHeld(false)
+    }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        spacePressed.current = true
-        setSpaceHeld(true)
+      if (e.code !== 'Space' || zoom <= 1) return
+      const target = e.target as HTMLElement | null
+      if (
+        target?.closest(
+          'button, input, textarea, select, [role="slider"], [role="radio"], [role="tab"], [role="menuitem"]'
+        )
+      ) {
+        return
       }
+      spacePressed.current = true
+      setSpaceHeld(true)
     }
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -172,18 +183,20 @@ export const EditorStage = ({
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
     }
-  }, [])
+  }, [zoom])
 
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+  const onPointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
     if (zoom <= 1 || tab === 'crop') return
-    const canPan =
+    if ((event.target as HTMLElement | null)?.closest('button')) return
+    const shouldPan =
       event.button === 1 ||
       spacePressed.current ||
       spaceHeld ||
-      tab === 'adjust' ||
-      tab === 'ai'
+      (event.button === 0 && tab !== 'masks')
 
-    if (canPan) {
+    if (shouldPan) {
+      event.stopPropagation()
+      event.preventDefault()
       isDragging.current = true
       dragStart.current = {
         x: event.clientX,
@@ -263,7 +276,7 @@ export const EditorStage = ({
         ref={containerRef}
         className="relative flex size-full items-center justify-center overflow-hidden"
         onDoubleClick={onDoubleClick}
-        onPointerDown={onPointerDown}
+        onPointerDownCapture={onPointerDownCapture}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}

@@ -6,7 +6,8 @@ import { clamp } from '@/lib/components/photo-editor/engine/colour'
 import type { ImageStats } from '@/lib/components/photo-editor/engine/histogram'
 import type { Adjustments, Recipe } from '@/lib/services/medias/edit/recipe'
 
-import { adjustmentsEqual, snapshotsEqual } from './editorRecipe'
+import { ADJUSTMENT_CONTROLS, MASK_CONTROLS } from './adjustmentControls'
+import { snapshotsEqual } from './editorRecipe'
 import { ENHANCE_COPY, ENHANCE_STYLE_LABELS } from './enhanceCopy'
 import { getBackgroundOf } from './masks/maskRecipe'
 import {
@@ -14,8 +15,7 @@ import {
   type PresetId,
   applyPreset,
   computePresetAdjustments,
-  getEnhanceSubject,
-  scalePresetDelta
+  getEnhanceSubject
 } from './presets'
 
 export const ENHANCE_STRENGTH_KEY = 'ai:strength'
@@ -74,23 +74,11 @@ interface Applied {
   style: PresetId
   strength: number
   base: Recipe
+  tweaked?: boolean
 }
 
 const roundTo = (value: number, step: number) =>
   Number((Math.round(value / step) * step).toFixed(6)) + 0
-
-const sameExistingMaskAdjustments = (
-  currentMasks: Recipe['masks'],
-  producedMasks: Recipe['masks']
-): boolean => {
-  const currentById = new Map(currentMasks.map((m) => [m.id, m]))
-  for (const pm of producedMasks) {
-    const cm = currentById.get(pm.id)
-    if (!cm) continue
-    if (!adjustmentsEqual(cm.adjustments, pm.adjustments)) return false
-  }
-  return true
-}
 
 /**
  * 100% local, instant client-side Look Presets controller.
@@ -112,9 +100,8 @@ export const useAiEnhance = ({
   const [seenResetKey, setSeenResetKey] = useState(resetKey)
 
   const applied = useRef(new WeakMap<Recipe, Applied>())
-  const lastApplied = useRef<Applied | null>(null)
-  const lastProducedRecipeRef = useRef<Recipe | null>(null)
-  const sessionBaseRef = useRef<Recipe | null>(null)
+  const knownRecipes = useRef(new WeakSet<Recipe>([recipe]))
+  const prevRecipeRef = useRef<Recipe>(recipe)
 
   if (seenResetKey !== resetKey) {
     setSeenResetKey(resetKey)
@@ -123,9 +110,8 @@ export const useAiEnhance = ({
     setChosenStrength(DEFAULT_ENHANCE_STRENGTH)
     setStatus('idle')
     applied.current = new WeakMap()
-    lastApplied.current = null
-    lastProducedRecipeRef.current = null
-    sessionBaseRef.current = null
+    knownRecipes.current = new WeakSet([recipe])
+    prevRecipeRef.current = recipe
   }
 
   const recipeRef = useRef(recipe)
@@ -140,132 +126,151 @@ export const useAiEnhance = ({
     getStatsRef.current = getStats
   })
 
-  useEffect(() => {
-    applied.current = new WeakMap()
-    lastApplied.current = null
-    lastProducedRecipeRef.current = null
-    sessionBaseRef.current = null
-  }, [resetKey])
+  if (prevRecipeRef.current !== recipe) {
+    const prev = prevRecipeRef.current
+    const wasKnown = knownRecipes.current.has(recipe)
+    prevRecipeRef.current = recipe
+    knownRecipes.current.add(recipe)
+
+    if (
+      !applied.current.has(recipe) &&
+      !wasKnown &&
+      applied.current.has(prev)
+    ) {
+      const prevEntry = applied.current.get(prev)!
+      const stats = getStats?.() ?? null
+      const presetAtStrength = applyPreset(
+        prevEntry.base,
+        prevEntry.style,
+        prevEntry.strength,
+        stats
+      )
+      const nextBaseAdjustments: Adjustments = {
+        ...prevEntry.base.adjustments
+      }
+      let manualAdjustmentChanged = false
+
+      for (const control of ADJUSTMENT_CONTROLS) {
+        const key = control.key
+        const curVal = recipe.adjustments[key] ?? 0
+        const prevVal = prev.adjustments[key] ?? 0
+        if (curVal !== prevVal) {
+          manualAdjustmentChanged = true
+          const scaledDelta =
+            (presetAtStrength.adjustments[key] ?? 0) -
+            (prevEntry.base.adjustments[key] ?? 0)
+          const rawBase = curVal - scaledDelta
+          const newBaseVal =
+            key === 'exposure'
+              ? clamp(roundTo(rawBase, 0.01), control.min, control.max)
+              : clamp(Math.round(rawBase), control.min, control.max)
+          if (newBaseVal !== 0) {
+            nextBaseAdjustments[key] = newBaseVal
+          } else {
+            delete nextBaseAdjustments[key]
+          }
+        }
+      }
+
+      const prevMasksById = new Map(prev.masks.map((m) => [m.id, m]))
+      const baseMasksById = new Map(prevEntry.base.masks.map((m) => [m.id, m]))
+      const presetMasksById = new Map(
+        presetAtStrength.masks.map((m) => [m.id, m])
+      )
+
+      const nextBaseMasks = recipe.masks.map((mask) => {
+        if (mask.kind === 'brush') return mask
+        const prevMask = prevMasksById.get(mask.id)
+        const baseMask = baseMasksById.get(mask.id)
+        const presetMask = presetMasksById.get(mask.id)
+        if (prevMask && baseMask) {
+          const nextMaskAdj = { ...baseMask.adjustments }
+          for (const control of MASK_CONTROLS) {
+            const key = control.key as keyof typeof nextMaskAdj
+            const curVal = mask.adjustments[key] ?? 0
+            const prevVal = prevMask.adjustments[key] ?? 0
+            if (curVal !== prevVal) {
+              manualAdjustmentChanged = true
+              const scaledDelta =
+                (presetMask?.adjustments[key] ?? 0) -
+                (baseMask.adjustments[key] ?? 0)
+              const rawBase = curVal - scaledDelta
+              const newBaseVal =
+                key === 'exposure'
+                  ? clamp(roundTo(rawBase, 0.01), control.min, control.max)
+                  : clamp(Math.round(rawBase), control.min, control.max)
+              if (newBaseVal !== 0) {
+                nextMaskAdj[key] = newBaseVal
+              } else {
+                delete nextMaskAdj[key]
+              }
+            }
+          }
+          return { ...mask, adjustments: nextMaskAdj }
+        }
+        return mask
+      })
+
+      const nextBase: Recipe = {
+        ...prevEntry.base,
+        geometry: recipe.geometry,
+        adjustments: nextBaseAdjustments,
+        masks: nextBaseMasks
+      }
+
+      applied.current.set(recipe, {
+        style: prevEntry.style,
+        strength: prevEntry.strength,
+        base: nextBase,
+        tweaked: Boolean(prevEntry.tweaked || manualAdjustmentChanged)
+      })
+    }
+  }
 
   const applyStyle = useCallback(
     (from: Recipe, style: PresetId, strength: number, coalesceKey?: string) => {
-      const base =
-        sessionBaseRef.current ?? applied.current.get(from)?.base ?? from
-      const updatedBase: Recipe = {
+      const base = applied.current.get(from)?.base ?? from
+      const baseMasksById = new Map(base.masks.map((m) => [m.id, m]))
+      const effectiveBase: Recipe = {
         ...base,
         geometry: from.geometry,
         masks: from.masks.map((m) => {
-          const existing = base.masks.find((bm) => bm.id === m.id)
-          return existing ?? m
+          if (m.kind === 'brush') return m
+          const existing = baseMasksById.get(m.id)
+          return existing
+            ? { ...m, adjustments: { ...existing.adjustments } }
+            : m
         })
       }
-      sessionBaseRef.current = updatedBase
       const stats = getStatsRef.current?.() ?? null
-      const next = applyPreset(from, style, strength, stats, updatedBase)
+      const next = applyPreset(from, style, strength, stats, effectiveBase)
       const entry: Applied = {
         style,
         strength,
-        base: updatedBase
+        base: effectiveBase,
+        tweaked: false
       }
       applied.current.set(next, entry)
-      lastApplied.current = entry
-      lastProducedRecipeRef.current = next
-      if (snapshotsEqual(next, from)) applied.current.set(from, entry)
+      knownRecipes.current.add(next)
+      if (snapshotsEqual(next, from) && applied.current.has(from)) {
+        applied.current.set(from, entry)
+      }
       onChangeRef.current(next, coalesceKey)
     },
     []
   )
 
-  useEffect(() => {
-    if (
-      sessionBaseRef.current &&
-      lastApplied.current &&
-      lastProducedRecipeRef.current
-    ) {
-      sessionBaseRef.current.geometry = recipe.geometry
-
-      const isApplied = applied.current.has(recipe)
-      if (!isApplied && !snapshotsEqual(recipe, sessionBaseRef.current)) {
-        const lastEntry = lastApplied.current
-        const presetDeltas = computePresetAdjustments(
-          lastEntry.style,
-          getStatsRef.current?.() ?? null
-        )
-        const currentAdj = recipe.adjustments
-        const baseAdj = { ...sessionBaseRef.current.adjustments }
-        let changed = false
-        const allKeys = new Set([
-          ...Object.keys(currentAdj),
-          ...Object.keys(lastEntry.base.adjustments),
-          ...Object.keys(baseAdj)
-        ]) as Set<keyof Adjustments>
-
-        for (const key of allKeys) {
-          const curVal = currentAdj[key]
-          const delta = presetDeltas.global[key]
-          const scaledDelta =
-            delta !== undefined
-              ? scalePresetDelta(key, delta, lastEntry.strength)
-              : 0
-          const oldBaseVal = (baseAdj[key] ?? 0) as number
-          let expectedVal: number | undefined
-          if (key === 'exposure') {
-            const sum = clamp(roundTo(oldBaseVal + scaledDelta, 0.05), -5, 5)
-            expectedVal = sum !== 0 ? sum : undefined
-          } else {
-            const sum = clamp(Math.round(oldBaseVal + scaledDelta), -100, 100)
-            expectedVal = sum !== 0 ? sum : undefined
-          }
-          if (curVal !== expectedVal) {
-            if (curVal === undefined) {
-              delete baseAdj[key]
-              changed = true
-            } else {
-              const newBase =
-                key === 'exposure'
-                  ? clamp(roundTo(curVal - scaledDelta, 0.05), -5, 5)
-                  : clamp(Math.round(curVal - scaledDelta), -100, 100)
-              if (newBase !== 0) {
-                baseAdj[key] = newBase as any
-              } else {
-                delete baseAdj[key]
-              }
-              changed = true
-            }
-          }
-        }
-        if (changed) {
-          sessionBaseRef.current = {
-            ...sessionBaseRef.current,
-            adjustments: baseAdj
-          }
-        }
-      }
-    }
-  }, [recipe])
-
-  if (
-    !applied.current.has(recipe) &&
-    lastApplied.current &&
-    lastProducedRecipeRef.current &&
-    adjustmentsEqual(
-      recipe.adjustments,
-      lastProducedRecipeRef.current.adjustments
-    ) &&
-    sameExistingMaskAdjustments(
-      recipe.masks,
-      lastProducedRecipeRef.current.masks
-    )
-  ) {
-    applied.current.set(recipe, lastApplied.current)
-  }
-
   const current = applied.current.get(recipe) ?? null
-  useEffect(() => {
-    if (current) lastApplied.current = current
-  })
-  const shownStyle = current?.style ?? null
+  const shownStyle = current && !current.tweaked ? current.style : null
   const shownStrength = current?.strength ?? chosenStrength
+
+  useEffect(() => {
+    if (current && !current.tweaked) {
+      setStatus('ready')
+    } else if (!current) {
+      setStatus('idle')
+    }
+  }, [current])
 
   const enhance = useCallback(() => {
     if (!available || disabled) return
@@ -291,13 +296,13 @@ export const useAiEnhance = ({
     (next: number) => {
       setChosenStrength(next)
       if (disabled) return
-      const style = shownStyle ?? chosenStyle
+      const style = current?.style ?? chosenStyle
       setChosenStyle(style)
       setHasActivated(true)
       setStatus('ready')
       applyStyle(recipe, style, next, ENHANCE_STRENGTH_KEY)
     },
-    [applyStyle, chosenStyle, disabled, recipe, shownStyle]
+    [applyStyle, chosenStyle, current, disabled, recipe]
   )
 
   const commitStrength = useCallback(() => {
@@ -306,33 +311,31 @@ export const useAiEnhance = ({
 
   const resetStyle = useCallback(() => {
     if (disabled) return
-    const currentEntry = applied.current.get(recipe)
-    const baseToRestore =
-      sessionBaseRef.current ?? currentEntry?.base ?? lastApplied.current?.base
-    if (baseToRestore) {
-      const baseAdjustments = baseToRestore.adjustments
-      const baseMasksById = new Map(baseToRestore.masks.map((m) => [m.id, m]))
-      const nextMasks = recipe.masks.map((mask) => {
-        const baseMask = baseMasksById.get(mask.id)
-        if (baseMask) {
-          return {
-            ...mask,
-            adjustments: { ...baseMask.adjustments }
-          }
+    const entry = applied.current.get(recipe)
+    if (!entry) return
+    const baseMasksById = new Map(entry.base.masks.map((m) => [m.id, m]))
+    const nextMasks = recipe.masks.map((mask) => {
+      if (mask.kind === 'brush') return mask
+      const baseMask = baseMasksById.get(mask.id)
+      if (baseMask) {
+        return {
+          ...mask,
+          adjustments: { ...baseMask.adjustments }
         }
-        return mask
-      })
-      const nextRecipe: Recipe = {
-        ...recipe,
-        geometry: recipe.geometry,
-        adjustments: { ...baseAdjustments },
-        masks: nextMasks
       }
-      sessionBaseRef.current = null
-      setHasActivated(false)
-      setStatus('idle')
-      onChangeRef.current(nextRecipe)
+      return mask
+    })
+    const restored: Recipe = {
+      ...recipe,
+      geometry: recipe.geometry,
+      adjustments: { ...entry.base.adjustments },
+      masks: nextMasks
     }
+    knownRecipes.current.add(restored)
+    setHasActivated(false)
+    setStatus('idle')
+    setChosenStrength(DEFAULT_ENHANCE_STRENGTH)
+    onChangeRef.current(restored)
   }, [disabled, recipe])
 
   const hasSuggestion = hasActivated

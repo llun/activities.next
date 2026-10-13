@@ -162,13 +162,23 @@ export const MaskStageLayer = ({
     }
     if (current.stroking) {
       onStrokeMove(toSource(at.x, at.y))
-    } else if (mode === 'add' && dist > 10) {
-      setSelectionBox({
-        x: Math.min(current.startX, at.x),
-        y: Math.min(current.startY, at.y),
-        width: Math.abs(at.x - current.startX),
-        height: Math.abs(at.y - current.startY)
-      })
+    } else if (mode === 'add') {
+      const clampX = (v: number) => Math.min(css.width, Math.max(0, v))
+      const clampY = (v: number) => Math.min(css.height, Math.max(0, v))
+      const minX = clampX(Math.min(current.startX, at.x))
+      const maxX = clampX(Math.max(current.startX, at.x))
+      const minY = clampY(Math.min(current.startY, at.y))
+      const maxY = clampY(Math.max(current.startY, at.y))
+      if (maxX - minX > 10 && maxY - minY > 10) {
+        setSelectionBox({
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY
+        })
+      } else {
+        setSelectionBox(null)
+      }
     }
   }
 
@@ -182,22 +192,30 @@ export const MaskStageLayer = ({
       return
     }
     const at = local(event)
-    const dist = Math.hypot(at.x - current.startX, at.y - current.startY)
     if (!cancelled) {
-      if (mode === 'add' && dist > 10 && onBoxSelect) {
-        const p0 = toSource(
-          Math.min(current.startX, at.x),
-          Math.min(current.startY, at.y)
-        )
-        const p1 = toSource(
-          Math.max(current.startX, at.x),
-          Math.max(current.startY, at.y)
-        )
+      const clampX = (v: number) => Math.min(css.width, Math.max(0, v))
+      const clampY = (v: number) => Math.min(css.height, Math.max(0, v))
+      const minX = clampX(Math.min(current.startX, at.x))
+      const maxX = clampX(Math.max(current.startX, at.x))
+      const minY = clampY(Math.min(current.startY, at.y))
+      const maxY = clampY(Math.max(current.startY, at.y))
+      const boxW = maxX - minX
+      const boxH = maxY - minY
+      if (mode === 'add' && boxW > 10 && boxH > 10 && onBoxSelect) {
+        const corners = [
+          toSource(minX, minY),
+          toSource(maxX, minY),
+          toSource(minX, maxY),
+          toSource(maxX, maxY)
+        ]
+        const clampUnit = (v: number) => Math.min(1, Math.max(0, v))
+        const xs = corners.map((c) => c.x)
+        const ys = corners.map((c) => c.y)
         onBoxSelect({
-          x0: Math.min(p0.x, p1.x),
-          y0: Math.min(p0.y, p1.y),
-          x1: Math.max(p0.x, p1.x),
-          y1: Math.max(p0.y, p1.y)
+          x0: clampUnit(Math.min(...xs)),
+          y0: clampUnit(Math.min(...ys)),
+          x1: clampUnit(Math.max(...xs)),
+          y1: clampUnit(Math.max(...ys))
         })
       } else if (!current.moved) {
         onTap(toSource(at.x, at.y))

@@ -24,7 +24,7 @@ import {
 } from './brushRaster'
 import { type Focus, focusToSourcePoint } from './focusPoint'
 import { MASK_COPY } from './maskCopy'
-import { outputToSource } from './maskGeometry'
+import { outputToSource, sourceToOutput } from './maskGeometry'
 import {
   type MaskRaster,
   cloneRaster,
@@ -310,24 +310,36 @@ export const useMasks = ({
 
   const selectSubject = useCallback(async () => {
     if (disabled || !model || !canAddMask(recipeRef.current)) return
-    const activeGeometry = storedGeometry ?? recipeRef.current.geometry
+    const currentGeometry = recipeRef.current.geometry
+    const thumbW = 64
+    const thumbH = 64
+    const matrix = getGeometryTransform(source, currentGeometry, {
+      width: thumbW,
+      height: thumbH
+    })
+    const focusPoint = focus
+      ? focusToSourcePoint(focus, source, storedGeometry)
+      : null
+    const centerSource = outputToSource(
+      matrix,
+      { x: 0.5 * thumbW, y: 0.5 * thumbH },
+      source
+    )
     let points: MaskPoint[] = [
-      focusToSourcePoint(focus, source, activeGeometry)
+      focusPoint ?? {
+        x: Math.min(1, Math.max(0, centerSource.x)),
+        y: Math.min(1, Math.max(0, centerSource.y)),
+        label: 1
+      }
     ]
     if (bitmap) {
       try {
-        const thumbW = 64
-        const thumbH = 64
         const canvas = createCanvas(thumbW, thumbH)
         const context = canvas.getContext('2d', {
           willReadFrequently: true
         }) as
           CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
         if (context) {
-          const matrix = getGeometryTransform(source, activeGeometry, {
-            width: thumbW,
-            height: thumbH
-          })
           context.imageSmoothingEnabled = true
           context.imageSmoothingQuality = 'high'
           context.setTransform(
@@ -340,18 +352,25 @@ export const useMasks = ({
           )
           context.drawImage(bitmap, 0, 0)
           const pixels = context.getImageData(0, 0, thumbW, thumbH)
+          let currentFocus: Focus | null = null
+          if (focusPoint) {
+            const outPx = sourceToOutput(matrix, focusPoint, source)
+            const outPt = { x: outPx.x / thumbW, y: outPx.y / thumbH }
+            if (outPt.x >= 0 && outPt.x <= 1 && outPt.y >= 0 && outPt.y <= 1) {
+              currentFocus = { x: outPt.x * 2 - 1, y: 1 - outPt.y * 2 }
+            }
+          }
           const salient = detectSalientPoints(
             pixels.data,
             thumbW,
             thumbH,
-            focus
+            currentFocus
           )
           if (salient.length > 0) {
-            const outputSize = { width: thumbW, height: thumbH }
             points = salient.map((pt) => {
               const back = outputToSource(
                 matrix,
-                { x: pt.x * outputSize.width, y: pt.y * outputSize.height },
+                { x: pt.x * thumbW, y: pt.y * thumbH },
                 source
               )
               return {

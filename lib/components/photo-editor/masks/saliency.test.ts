@@ -126,4 +126,16 @@ describe('boxToPromptPoints', () => {
     expect(positives[0].x).toBeCloseTo(0.5, 3)
     expect(positives[0].y).toBeCloseTo(0.5, 3)
   })
+
+  it('omits negative corner points that would be clamped inside a box touching the image edge', () => {
+    const box = { x0: 0, y0: 0, x1: 0.5, y1: 0.5 }
+    const points = boxToPromptPoints(box)
+    const negatives = points.filter((p) => p.label === 0)
+    // Top-left corner (0.01, 0.01) falls inside [0, 0.5] x [0, 0.5], so it must be omitted
+    expect(negatives).toHaveLength(3)
+    for (const neg of negatives) {
+      const isOutside = neg.x < 0 || neg.x > 0.5 || neg.y < 0 || neg.y > 0.5
+      expect(isOutside).toBe(true)
+    }
+  })
 })

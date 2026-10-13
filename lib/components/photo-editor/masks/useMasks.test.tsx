@@ -316,4 +316,46 @@ describe('useMasks lifecycle', () => {
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(announce).toHaveBeenCalledWith('Subject selected')
   })
+
+  it('selectSubject maps focus through storedGeometry rather than current recipe.geometry', async () => {
+    vi.mocked(loadSubjectModel).mockResolvedValue({
+      encoder: new ArrayBuffer(8),
+      decoder: new ArrayBuffer(8)
+    })
+    const client = makeClient()
+    const onChange = vi.fn()
+    // Photo was not previously edited (storedGeometry: null), so focus (-0.5, 0.5)
+    // is at source (0.25, 0.25). Even after rotating in the editor (rotate90: 1),
+    // focusPoint must stay (0.25, 0.25) instead of being transformed by rotate90: 1.
+    const rotatedRecipe = {
+      ...NEUTRAL_RECIPE,
+      geometry: {
+        ...NEUTRAL_RECIPE.geometry,
+        rotate90: 1 as const
+      }
+    }
+    const { result } = renderHook(() =>
+      useMasks({
+        recipe: rotatedRecipe,
+        onChange,
+        source: { width: 400, height: 300 },
+        bitmap: BITMAP,
+        focus: { x: -0.5, y: 0.5 },
+        storedGeometry: null,
+        model: MODEL,
+        disabled: false,
+        announce: vi.fn(),
+        createClient: () => client
+      })
+    )
+
+    await act(async () => {
+      await result.current.selectSubject()
+    })
+
+    expect(client.segment).toHaveBeenCalledTimes(1)
+    const points = vi.mocked(client.segment).mock.calls[0][0]
+    expect(points[0].x).toBeCloseTo(0.25, 4)
+    expect(points[0].y).toBeCloseTo(0.25, 4)
+  })
 })
