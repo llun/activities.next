@@ -16,9 +16,10 @@ import {
 } from 'kysely'
 import type { Pool, PoolConfig } from 'pg'
 
-import type {
-  DatabaseConfig,
-  PostgresDatabaseConfig
+import {
+  DEFAULT_POSTGRES_POOL,
+  type DatabaseConfig,
+  type PostgresDatabaseConfig
 } from '@/lib/config/database'
 import type { DB } from '@/lib/database/kysely/db'
 import {
@@ -106,8 +107,6 @@ export type DatabaseHandle = {
 export const DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS = 60_000
 // How long an idle pooled connection is kept above `min` (Knex's pool: 30 s).
 export const POOL_IDLE_TIMEOUT_MS = 30_000
-// Knex's pool size when the configuration has no `pool`.
-const DEFAULT_POOL = { min: 2, max: 10 }
 const APPLICATION_NAME = 'Activities.next'
 
 // What the connection needs of better-sqlite3 (it ships no type declarations).
@@ -458,8 +457,8 @@ const getPostgresClientConfig = (config: PostgresDatabaseConfig) => {
 const createPool = (pg: PgModule, config: PostgresDatabaseConfig): Pool => {
   const pool = new pg.Pool({
     ...getPostgresClientConfig(config),
-    min: config.pool?.min ?? DEFAULT_POOL.min,
-    max: config.pool?.max ?? DEFAULT_POOL.max,
+    min: config.pool?.min ?? DEFAULT_POSTGRES_POOL.min,
+    max: config.pool?.max ?? DEFAULT_POSTGRES_POOL.max,
     connectionTimeoutMillis:
       config.acquireConnectionTimeout ?? DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,

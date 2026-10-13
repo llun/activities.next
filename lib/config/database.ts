@@ -14,13 +14,27 @@ import { matcher } from './utils'
 //   `useNullAsDefault` is always set, for those Knex tools.
 // - pg: `connection` is a node-postgres client configuration (`host`, `port`,
 //   `user`, `password`, `database`, `ssl`, `application_name`, …) or a
-//   connection string; `pool.min` / `pool.max` size the pool (Knex's defaults,
-//   2 and 10, when `pool` is absent); `acquireConnectionTimeout` is how long a
-//   query waits for a free pooled connection, in milliseconds (60 000 when
-//   unset).
+//   connection string (absent in the JSON: `{}`, so node-postgres reads the
+//   `PG*` environment variables, as with Knex); `pool.min` / `pool.max` size
+//   the pool (Knex's defaults, 2 and 10, when `pool` is absent);
+//   `acquireConnectionTimeout` is how long a query waits for a free pooled
+//   connection, in milliseconds (60 000 when unset).
 //
 // Other keys in the JSON (Knex's `searchPath`, `debug`, pool hooks and timers,
 // …) are ignored with a warning naming them.
+
+// Knex's pool size when the configuration has no `pool`.
+export const DEFAULT_POSTGRES_POOL = { min: 2, max: 10 }
+
+// The pool sizes Knex's pool (tarn) accepted: a whole `min` >= 0, a whole
+// `max` > 0, and `min` <= `max`. Tarn refused anything else when Knex built
+// the pool; they are refused here, when the configuration is read.
+const getPoolSizeProblem = (min: number, max: number) => {
+  if (!Number.isInteger(min) || min < 0) return 'min must be an integer >= 0'
+  if (!Number.isInteger(max) || max <= 0) return 'max must be an integer > 0'
+  if (min > max) return 'max is smaller than min'
+  return null
+}
 
 const SqliteDatabaseConfig = z.object({
   client: z.literal('better-sqlite3'),
@@ -28,17 +42,31 @@ const SqliteDatabaseConfig = z.object({
   useNullAsDefault: z.literal(true)
 })
 
-const PostgresDatabaseConfig = z.object({
-  client: z.literal('pg'),
-  connection: z.union([z.string().min(1), z.record(z.string(), z.unknown())]),
-  pool: z
-    .object({
-      min: z.number().int().nonnegative().optional(),
-      max: z.number().int().positive().optional()
-    })
-    .optional(),
-  acquireConnectionTimeout: z.number().int().positive().optional()
-})
+const PostgresDatabaseConfig = z
+  .object({
+    client: z.literal('pg'),
+    connection: z.union([z.string().min(1), z.record(z.string(), z.unknown())]),
+    pool: z
+      .object({
+        min: z.number().optional(),
+        max: z.number().optional()
+      })
+      .optional(),
+    acquireConnectionTimeout: z.number().int().positive().optional()
+  })
+  .superRefine(({ pool }, context) => {
+    const problem = getPoolSizeProblem(
+      pool?.min ?? DEFAULT_POSTGRES_POOL.min,
+      pool?.max ?? DEFAULT_POSTGRES_POOL.max
+    )
+    if (problem) {
+      context.addIssue({
+        code: 'custom',
+        path: ['pool'],
+        message: `pool.${problem}`
+      })
+    }
+  })
 
 export const DatabaseConfig = z.discriminatedUnion('client', [
   SqliteDatabaseConfig,
@@ -127,7 +155,9 @@ export const parseKnexDatabaseConfig = (value: unknown): DatabaseConfig => {
     warnIgnoredKeys(ignored)
     return PostgresDatabaseConfig.parse({
       client: 'pg',
-      connection: value.connection,
+      // Knex read a missing connection as `{}`; node-postgres then takes the
+      // host, user, password and database from the PG* environment variables.
+      connection: value.connection || {},
       ...(isObject(pool)
         ? {
             pool: {
@@ -143,6 +173,23 @@ export const parseKnexDatabaseConfig = (value: unknown): DatabaseConfig => {
   }
 
   throw unsupportedClientError(client)
+}
+
+const getEnvironmentPool = () => {
+  const min = process.env.ACTIVITIES_DATABASE_PG_POOL_MIN
+    ? parseInt(process.env.ACTIVITIES_DATABASE_PG_POOL_MIN, 10)
+    : 1
+  const max = process.env.ACTIVITIES_DATABASE_PG_POOL_MAX
+    ? parseInt(process.env.ACTIVITIES_DATABASE_PG_POOL_MAX, 10)
+    : 5
+  const problem = getPoolSizeProblem(min, max)
+  if (problem) {
+    throw new Error(
+      `Invalid ACTIVITIES_DATABASE_PG_POOL_MIN / ACTIVITIES_DATABASE_PG_POOL_MAX: ` +
+        `the pool ${problem} (read min ${min}, max ${max})`
+    )
+  }
+  return { min, max }
 }
 
 export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
@@ -208,14 +255,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
                 }
               : {})
           },
-          pool: {
-            min: process.env.ACTIVITIES_DATABASE_PG_POOL_MIN
-              ? parseInt(process.env.ACTIVITIES_DATABASE_PG_POOL_MIN, 10)
-              : 1,
-            max: process.env.ACTIVITIES_DATABASE_PG_POOL_MAX
-              ? parseInt(process.env.ACTIVITIES_DATABASE_PG_POOL_MAX, 10)
-              : 5
-          }
+          pool: getEnvironmentPool()
         }
       }
     }

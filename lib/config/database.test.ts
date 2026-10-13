@@ -90,6 +90,36 @@ describe('Database config', () => {
       expect(poolOf(config)).toEqual({ min: 2, max: 20 })
     })
 
+    // Knex's pool (tarn) refused these when it was built; they now fail when
+    // the configuration is read.
+    it.each([
+      ['MAX', 'abc', 'the pool max must be an integer > 0'],
+      ['MAX', '0', 'the pool max must be an integer > 0'],
+      ['MAX', '-3', 'the pool max must be an integer > 0'],
+      ['MIN', 'abc', 'the pool min must be an integer >= 0'],
+      ['MIN', '-1', 'the pool min must be an integer >= 0'],
+      ['MIN', '6', 'the pool max is smaller than min']
+    ])(
+      'refuses ACTIVITIES_DATABASE_PG_POOL_%s=%s',
+      (variable, value, message) => {
+        process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+        process.env[`ACTIVITIES_DATABASE_PG_POOL_${variable}`] = value
+
+        expect(() => getDatabaseConfig()).toThrow(
+          'Invalid ACTIVITIES_DATABASE_PG_POOL_MIN / ACTIVITIES_DATABASE_PG_POOL_MAX: ' +
+            message
+        )
+      }
+    )
+
+    it('accepts a pool min of 0 and a min equal to max', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      process.env.ACTIVITIES_DATABASE_PG_POOL_MIN = '0'
+      expect(poolOf(getDatabaseConfig())).toEqual({ min: 0, max: 5 })
+      process.env.ACTIVITIES_DATABASE_PG_POOL_MIN = '5'
+      expect(poolOf(getDatabaseConfig())).toEqual({ min: 5, max: 5 })
+    })
+
     it('builds pg config with ssl require', () => {
       process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
       process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'require'
@@ -334,6 +364,37 @@ describe('Database config', () => {
         'ACTIVITIES_DATABASE must be a JSON object'
       )
     })
+
+    it.each([
+      [{ max: 0 }, 'pool.max must be an integer > 0'],
+      [{ max: 2.5 }, 'pool.max must be an integer > 0'],
+      [{ min: -1 }, 'pool.min must be an integer >= 0'],
+      // Knex's default min of 2 applies when only max is given.
+      [{ max: 1 }, 'pool.max is smaller than min'],
+      [{ min: 4, max: 3 }, 'pool.max is smaller than min']
+    ])('refuses the pool size %j, as Knex did', (pool, message) => {
+      expect(() =>
+        parseKnexDatabaseConfig({
+          client: 'pg',
+          connection: { host: 'db' },
+          pool
+        })
+      ).toThrow(message)
+    })
+
+    // Knex read a missing connection as {}; node-postgres then reads PGHOST,
+    // PGUSER, PGPASSWORD, PGDATABASE and the other PG* variables.
+    it.each([undefined, null, ''])(
+      'reads a pg connection of %j as {}, for the PG* variables',
+      (connection) => {
+        expect(
+          parseKnexDatabaseConfig({
+            client: 'pg',
+            ...(connection === undefined ? {} : { connection })
+          })
+        ).toEqual({ client: 'pg', connection: {} })
+      }
+    )
 
     it('refuses a pool size of the wrong type', () => {
       expect(() =>

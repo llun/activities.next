@@ -1,6 +1,9 @@
 import { sql } from 'kysely'
 
-import type { DatabaseConfig } from '@/lib/config/database'
+import {
+  type DatabaseConfig,
+  parseKnexDatabaseConfig
+} from '@/lib/config/database'
 import {
   DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS,
   type DatabaseHandle,
@@ -347,6 +350,45 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
       name: string
     }>`select current_setting('application_name') as name`.execute(observer.db)
     expect(rows).toEqual([{ name: 'Activities.next' }])
+  })
+
+  // A Knex-shaped ACTIVITIES_DATABASE without `connection` leaves the
+  // connection settings to node-postgres' PG* environment variables.
+  it('connects through the PG* variables when the JSON has no connection', async () => {
+    const config = getTestDatabaseConfig('pg', true)
+    if (config.client !== 'pg' || typeof config.connection === 'string') {
+      throw new Error('expected a pg configuration object')
+    }
+    const { host, port, user, password, database } = config.connection
+    const variables = {
+      PGHOST: host,
+      PGPORT: port,
+      PGUSER: user,
+      PGPASSWORD: password,
+      PGDATABASE: database
+    }
+    const saved = Object.fromEntries(
+      Object.keys(variables).map((name) => [name, process.env[name]])
+    )
+    for (const [name, value] of Object.entries(variables)) {
+      if (value === undefined || value === null) delete process.env[name]
+      else process.env[name] = String(value)
+    }
+    const handle = createDatabaseConnection(
+      parseKnexDatabaseConfig({ client: 'pg' })
+    )
+    try {
+      const { rows } = await sql<{
+        name: string
+      }>`select current_database() as name`.execute(handle.db)
+      expect(rows).toEqual([{ name: database }])
+    } finally {
+      await handle.destroy()
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+    }
   })
 
   it('never opens more than max connections', async () => {
