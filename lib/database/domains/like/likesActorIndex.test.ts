@@ -1,17 +1,25 @@
 import knex from 'knex'
+import { sql } from 'kysely'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
+import { type Db } from '@/lib/database/kysely'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
-import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
 import * as migration from '@/migrations/20261005073054_add_likes_actor_created_at_index'
 
 const INDEX = 'likes_actor_created_at_status_idx'
 
+const INDEX_COLUMNS = `select name from pragma_index_info('${INDEX}') order by seqno`
+
 const indexColumns = async (instance: ReturnType<typeof knex>) => {
-  const rows = (await instance.raw(
-    `select name from pragma_index_info('${INDEX}') order by seqno`
-  )) as { name: string }[]
+  const rows = (await instance.raw(INDEX_COLUMNS)) as { name: string }[]
+  return rows.map((row) => row.name)
+}
+
+const schemaIndexColumns = async (db: Db) => {
+  const { rows } = await sql<{
+    name: string
+  }>`${sql.raw(INDEX_COLUMNS)}`.execute(db)
   return rows.map((row) => row.name)
 }
 
@@ -48,21 +56,20 @@ describe('likes (actorId, createdAt, statusId) index', () => {
   })
 
   it('serves the favourites page query without a table scan or sort', async () => {
-    const { database } = getTestSQLDatabaseWithInstance()
-    const instance = getLegacyKnex(database)
+    const { database, db } = getTestSQLDatabaseWithInstance()
     try {
       await database.migrate()
-      expect(await indexColumns(instance)).toEqual([
+      expect(await schemaIndexColumns(db)).toEqual([
         'actorId',
         'createdAt',
         'statusId'
       ])
 
-      const plan = (await instance.raw(
-        `explain query plan
-         select * from likes where actorId = ? order by createdAt desc, statusId desc limit ?`,
-        ['https://llun.test/users/actor', 20]
-      )) as { detail: string }[]
+      const { rows: plan } = await sql<{ detail: string }>`
+        explain query plan
+        select * from likes where actorId = ${'https://llun.test/users/actor'}
+        order by createdAt desc, statusId desc limit ${20}
+      `.execute(db)
       const details = plan.map((row) => row.detail).join('\n')
 
       expect(details).toContain(INDEX)

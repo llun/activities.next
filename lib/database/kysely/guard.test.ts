@@ -1,34 +1,33 @@
-import type { Knex } from 'knex'
-import { ParseJSONResultsPlugin } from 'kysely'
+import { ParseJSONResultsPlugin, sql } from 'kysely'
 
+import { createDatabaseConnection } from '@/lib/database/connection'
 import {
-  MixedDatabaseTransactionError,
+  type Db,
+  TransactionScopeError,
   inTransaction,
-  kyselyFor
+  isInTransaction
 } from '@/lib/database/kysely'
-import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
-import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
-import type { Database } from '@/lib/database/types'
-import { createDeferred } from '@/lib/testing/deferred'
+import {
+  createTestDatabase,
+  getTestDatabaseConfig
+} from '@/lib/database/testing/createTestDatabase'
 
-// Knex and Kysely share one pool. These pin what happens when the two meet
-// inside a transaction, on SQLite (one pooled connection, where a wrong turn
-// used to deadlock or silently lose a write) and, under
-// TEST_DATABASE_TYPE=pg, on PostgreSQL.
-describe('mixing Knex and Kysely transactions', () => {
-  let database: Database
-  let instance: Knex
+// The root instance inside a transaction of the same database: on SQLite
+// (one connection, where it would wait forever) and, under
+// TEST_DATABASE_TYPE=pg, on PostgreSQL (where it would run outside the
+// transaction). Each refusal must come at once; Vitest's timeout would catch
+// a hang.
+describe('root instance inside inTransaction', () => {
+  const testDb = createTestDatabase()
+  const { db } = testDb
 
   beforeAll(async () => {
-    const test = getTestDatabaseWithInstance()
-    database = test.database
-    instance = getLegacyKnex(test.database)
-    await test.prepare()
-    await database.migrate()
+    await testDb.prepare()
+    await testDb.database.migrate()
   })
 
   afterAll(async () => {
-    await database.destroy()
+    await testDb.destroy()
   })
 
   const like = (actorId: string) => ({
@@ -40,204 +39,115 @@ describe('mixing Knex and Kysely transactions', () => {
 
   const likedActorIds = async (prefix: string) =>
     (
-      await instance('likes')
+      await db
+        .selectFrom('likes')
         .select('actorId')
         .where('actorId', 'like', `${prefix}%`)
         .orderBy('actorId')
-    ).map((row: { actorId: string }) => row.actorId)
-
-  it('commits kyselyFor(trx) writes with the Knex transaction', async () => {
-    await instance.transaction(async (trx) => {
-      await trx('likes').insert(like('commit-knex'))
-      await kyselyFor(trx)
-        .insertInto('likes')
-        .values(like('commit-kysely'))
         .execute()
-    })
-    expect(await likedActorIds('commit-')).toEqual([
-      'commit-knex',
-      'commit-kysely'
-    ])
-  })
+    ).map((row) => row.actorId)
 
-  it('rolls kyselyFor(trx) writes back with the Knex transaction', async () => {
+  it('refuses a root query inside the transaction, at once', async () => {
     await expect(
-      instance.transaction(async (trx) => {
-        await trx('likes').insert(like('rollback-knex'))
-        await kyselyFor(trx)
-          .insertInto('likes')
-          .values(like('rollback-kysely'))
-          .execute()
-        throw new Error('roll back')
+      inTransaction(db, async (trx) => {
+        await trx.insertInto('likes').values(like('refused-trx')).execute()
+        await db.selectFrom('likes').selectAll().execute()
       })
-    ).rejects.toThrow('roll back')
-    expect(await likedActorIds('rollback-')).toEqual([])
+    ).rejects.toThrow(TransactionScopeError)
+    // The transaction rolled back with the error.
+    expect(await likedActorIds('refused-')).toEqual([])
   })
 
-  it('refuses to open a transaction on kyselyFor(trx)', async () => {
-    await instance.transaction(async (trx) => {
-      await expect(
-        kyselyFor(trx)
-          .transaction()
-          .execute(async () => undefined)
-      ).rejects.toThrow(MixedDatabaseTransactionError)
-    })
-  })
-
-  it('refuses kyselyFor(trx) after the Knex transaction finished', async () => {
-    let finished: Knex.Transaction | undefined
-    await instance.transaction(async (trx) => {
-      finished = trx
-    })
+  it('names the transaction to use instead', async () => {
     await expect(
-      kyselyFor(finished as Knex.Transaction)
-        .selectFrom('likes')
-        .selectAll()
-        .execute()
-    ).rejects.toThrow('Transaction query already complete')
+      inTransaction(db, () => db.selectFrom('likes').selectAll().execute())
+    ).rejects.toThrow(/Use the transaction passed to the callback instead/)
   })
 
-  // Spike failure 3: deadlocked on SQLite's single pooled connection.
-  it('fails fast when the root Kysely instance queries inside a Knex transaction', async () => {
-    await instance.transaction(async (trx) => {
-      await trx('likes').insert(like('root-query-knex'))
-      await expect(
-        kyselyFor(instance).selectFrom('likes').selectAll().execute()
-      ).rejects.toThrow(/kyselyFor\(trx\)/)
-    })
-    // The Knex transaction itself is unaffected.
-    expect(await likedActorIds('root-query-')).toEqual(['root-query-knex'])
+  it('refuses a root transaction inside the transaction', async () => {
+    await expect(
+      inTransaction(db, () => db.transaction().execute(async () => undefined))
+    ).rejects.toThrow(TransactionScopeError)
   })
 
-  // The guard follows async context, so work started without `await` inside
-  // the transaction is refused too.
-  it('refuses fire-and-forget root Kysely work inside a Knex transaction', async () => {
-    let started: Promise<unknown> | undefined
-    await instance.transaction(async () => {
-      started = kyselyFor(instance).selectFrom('likes').selectAll().execute()
+  it('refuses root work started without await inside the transaction', async () => {
+    let started: Promise<unknown> = Promise.resolve()
+    await inTransaction(db, async () => {
+      started = db.selectFrom('likes').selectAll().execute()
       started.catch(() => undefined)
     })
-    await expect(started).rejects.toThrow(MixedDatabaseTransactionError)
+    await expect(started).rejects.toThrow(TransactionScopeError)
   })
 
-  // Spike failure 2: "cannot start a transaction within a transaction".
-  it('fails fast when a root Kysely transaction opens inside a Knex transaction', async () => {
-    await instance.transaction(async () => {
-      await expect(
-        kyselyFor(instance)
-          .transaction()
-          .execute(async () => undefined)
-      ).rejects.toThrow(MixedDatabaseTransactionError)
+  it('runs the transaction statements and commits them', async () => {
+    await inTransaction(db, async (trx) => {
+      await trx.insertInto('likes').values(like('commit-one')).execute()
+      await trx.insertInto('likes').values(like('commit-two')).execute()
     })
+    expect(await likedActorIds('commit-')).toEqual(['commit-one', 'commit-two'])
   })
 
-  // Spike failure 1, from inside: the Knex write was rolled back with the
-  // Kysely transaction without any error.
-  it('fails fast when a root Knex query runs inside a Kysely transaction', async () => {
-    await expect(
-      kyselyFor(instance)
-        .transaction()
-        .execute(async (trx) => {
-          await trx.insertInto('likes').values(like('inside-kysely')).execute()
-          await instance('likes').insert(like('inside-knex'))
-        })
-    ).rejects.toThrow(MixedDatabaseTransactionError)
-    expect(await likedActorIds('inside-')).toEqual([])
+  it('lets the root instance run again once the transaction has ended', async () => {
+    await inTransaction(db, async (trx) => {
+      await trx.insertInto('likes').values(like('after-trx')).execute()
+    })
+    await expect(likedActorIds('after-')).resolves.toEqual(['after-trx'])
   })
 
-  // Spike failure 1, from another request: the Knex write now waits for the
-  // connection and lands after the Kysely transaction rolls back.
-  it('keeps a concurrent Knex write when a Kysely transaction rolls back', async () => {
-    const inserted = createDeferred<void>()
-    const release = createDeferred<void>()
-    const kyselyWork = kyselyFor(instance)
-      .transaction()
-      .execute(async (trx) => {
-        await trx
-          .insertInto('likes')
-          .values(like('concurrent-kysely'))
-          .execute()
-        inserted.resolve()
-        await release.promise
-        throw new Error('roll back')
+  it('reuses the transaction it is given, including a derived instance', async () => {
+    await inTransaction(db, async (trx) => {
+      const derived = trx.withPlugin(new ParseJSONResultsPlugin())
+      expect(isInTransaction(derived)).toBe(true)
+      await inTransaction(derived, async (inner) => {
+        expect(inner).toBe(derived)
+        await inner.insertInto('likes').values(like('nested-one')).execute()
       })
-
-    await inserted.promise
-    const knexWrite = instance('likes').insert(like('concurrent-knex'))
-    const knexDone = knexWrite.then(() => undefined)
-    release.resolve()
-
-    await expect(kyselyWork).rejects.toThrow('roll back')
-    await knexDone
-    expect(await likedActorIds('concurrent-')).toEqual(['concurrent-knex'])
+    })
+    expect(await likedActorIds('nested-')).toEqual(['nested-one'])
   })
 
-  it('fails fast when the root Kysely instance is used inside its own transaction', async () => {
+  it('refuses a root instance derived from the guarded one', async () => {
+    const derived = db.withPlugin(new ParseJSONResultsPlugin())
+    expect(isInTransaction(derived)).toBe(false)
     await expect(
-      kyselyFor(instance)
-        .transaction()
-        .execute(async () => {
-          await kyselyFor(instance).selectFrom('likes').selectAll().execute()
-        })
-    ).rejects.toThrow(/callback instead/)
+      inTransaction(db, () => derived.selectFrom('likes').selectAll().execute())
+    ).rejects.toThrow(TransactionScopeError)
   })
 
-  it('refuses Kysely controlled transactions', async () => {
-    await expect(
-      kyselyFor(instance).startTransaction().execute()
-    ).rejects.toThrow(/db\.transaction\(\)\.execute/)
-    // The connection went back to the pool.
-    await expect(instance('likes').count()).resolves.toBeDefined()
-  })
-
-  it('refuses stream() on the root instance, where it would hold the pool', async () => {
-    await expect(
-      (async () => {
-        for await (const row of kyselyFor(instance)
-          .selectFrom('likes')
-          .selectAll()
-          .stream()) {
-          void row
-        }
-      })()
-    ).rejects.toThrow(MixedDatabaseTransactionError)
-    // The connection went back to the pool.
-    await expect(instance('likes').count()).resolves.toBeDefined()
-  })
-
-  it('streams inside a Kysely transaction and inside kyselyFor(trx)', async () => {
-    await instance('likes').insert({ ...like('guard-stream'), statusId: 's1' })
-    const collect = async (db: ReturnType<typeof kyselyFor>) => {
-      const ids: string[] = []
-      for await (const row of db
-        .selectFrom('likes')
-        .select('actorId')
-        .where('actorId', '=', 'guard-stream')
-        .stream()) {
-        ids.push(row.actorId)
-      }
-      return ids
+  it('does not refuse another database', async () => {
+    const other = createDatabaseConnection(getTestDatabaseConfig('sqlite'))
+    try {
+      await inTransaction(db, async () => {
+        const { rows } = await sql<{ one: number }>`select 1 as one`.execute(
+          other.db
+        )
+        expect(rows).toEqual([{ one: 1 }])
+      })
+    } finally {
+      await other.destroy()
     }
-    await kyselyFor(instance)
-      .transaction()
-      .execute(async (trx) => {
-        expect(await collect(trx)).toEqual(['guard-stream'])
-      })
-    await instance.transaction(async (trx) => {
-      expect(await collect(kyselyFor(trx))).toEqual(['guard-stream'])
-    })
   })
 
-  it('treats instances derived from kyselyFor(trx) as already in the transaction', async () => {
-    await instance.transaction(async (trx) => {
-      const derived = kyselyFor(trx).withPlugin(new ParseJSONResultsPlugin())
-      await inTransaction(derived, async (db) => {
-        await db
-          .insertInto('likes')
-          .values({ ...like('guard-derived'), statusId: 's-derived' })
-          .execute()
-      })
+  it('does not refuse other async contexts while the transaction is open', async () => {
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
     })
-    expect(await likedActorIds('guard-derived')).toEqual(['guard-derived'])
+    let entered = () => {}
+    const inside = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const transaction = inTransaction(db, async (trx: Db) => {
+      await trx.insertInto('likes').values(like('context-trx')).execute()
+      entered()
+      await gate
+    })
+    await inside
+    // Another request: it waits for SQLite's only connection, or gets
+    // another pooled one on PostgreSQL, instead of being refused.
+    const elsewhere = db.selectFrom('likes').select('actorId').execute()
+    release()
+    await transaction
+    await expect(elsewhere).resolves.toBeDefined()
   })
 })

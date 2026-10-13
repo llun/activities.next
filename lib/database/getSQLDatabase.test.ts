@@ -1,21 +1,16 @@
-import { Knex } from 'knex'
+import type { Kysely } from 'kysely'
 
 import { actorQueries } from '@/lib/database/domains/actor/queries'
 import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
 import { createListQueries } from '@/lib/database/domains/list/queries'
 import { statusQueries } from '@/lib/database/domains/status/queries'
 import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
+import type { DB } from '@/lib/database/kysely'
 
 import { getSQLDatabase } from './getSQLDatabase'
 
-const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
-  kyselyForMock: vi.fn(),
+const { createLikeMock } = vi.hoisted(() => ({
   createLikeMock: vi.fn()
-}))
-
-vi.mock('@/lib/database/kysely', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/database/kysely')>()),
-  kyselyFor: kyselyForMock
 }))
 
 vi.mock('@/lib/database/domains/like/queries', () => ({
@@ -84,8 +79,6 @@ describe('getSQLDatabase', () => {
   const mutableActorQueries = actorQueries as unknown as Record<string, unknown>
   const realActorQueries = { ...mutableActorQueries }
 
-  let _knexMock: Knex
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -102,27 +95,21 @@ describe('getSQLDatabase', () => {
     }
   })
 
+  // A stand-in for the root Kysely instance: the queries are spies, so they
+  // only have to receive it.
   const createComposedDatabase = () => {
-    const knexDatabase = {
-      migrate: {
-        latest: vi.fn().mockResolvedValue(undefined)
-      },
+    const kyselyDb = {
+      name: 'kysely',
       destroy: vi.fn().mockResolvedValue(undefined)
-    } as unknown as Knex
-
-    _knexMock = knexDatabase
-
-    const database = getSQLDatabase(knexDatabase)
-
-    return {
-      database,
-      knexDatabase
     }
+    const migrate = vi.fn().mockResolvedValue(undefined)
+    const database = getSQLDatabase(kyselyDb as unknown as Kysely<DB>, {
+      migrate
+    })
+    return { database, kyselyDb, migrate }
   }
 
-  it('binds the status and actor deletions to kyselyFor(knex), resolved on each call', async () => {
-    const kyselyDb = { name: 'kysely' }
-    kyselyForMock.mockReturnValue(kyselyDb)
+  it('binds the status and actor deletions to the Kysely instance', async () => {
     const deleteStatus = vi.fn().mockResolvedValue(undefined)
     const deleteStatusWithQueueJob = vi.fn().mockResolvedValue(true)
     const deleteStatusEditHistory = vi.fn().mockResolvedValue(undefined)
@@ -133,8 +120,7 @@ describe('getSQLDatabase', () => {
       deleteStatusEditHistory
     })
     mutableActorQueries.deleteActorData = deleteActorData
-    const { database, knexDatabase } = createComposedDatabase()
-    expect(kyselyForMock).not.toHaveBeenCalled()
+    const { database, kyselyDb } = createComposedDatabase()
 
     const queueJob = { name: 'sendDeleteNote', payload: {} }
     await database.deleteStatus({ statusId: 'status', actorId: 'actor' })
@@ -147,8 +133,6 @@ describe('getSQLDatabase', () => {
     ).resolves.toBe(true)
     await database.deleteStatusEditHistory({ statusId: 'status' })
     await database.deleteActorData({ actorId: 'actor' })
-
-    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
     expect(deleteStatus).toHaveBeenCalledWith(kyselyDb, {
       statusId: 'status',
       actorId: 'actor'
@@ -176,15 +160,12 @@ describe('getSQLDatabase', () => {
       const statuses = [{ id: 'status' }]
       const getStatusesByIdsQuery = vi.fn().mockResolvedValue(statuses)
       mutableStatusQueries.getStatusesByIds = getStatusesByIdsQuery
-      const kyselyDb = { name: 'kysely' }
-      kyselyForMock.mockReturnValue(kyselyDb)
-      const { knexDatabase } = createComposedDatabase()
+      const { kyselyDb } = createComposedDatabase()
       const [getStatusesByIds] = factory().mock.calls[0]
 
       await expect(getStatusesByIds(['status'], 'viewer')).resolves.toBe(
         statuses
       )
-      expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
       expect(getStatusesByIdsQuery).toHaveBeenCalledWith(kyselyDb, {
         statusIds: ['status'],
         currentActorId: 'viewer'
@@ -192,17 +173,12 @@ describe('getSQLDatabase', () => {
     }
   )
 
-  it('binds like queries to kyselyFor(knex), resolved on each call', async () => {
-    const { database, knexDatabase } = createComposedDatabase()
-    const kyselyDb = { name: 'kysely' }
-    kyselyForMock.mockReturnValue(kyselyDb)
+  it('binds like queries to the Kysely instance', async () => {
+    const { database, kyselyDb } = createComposedDatabase()
     createLikeMock.mockResolvedValue(true)
-    expect(kyselyForMock).not.toHaveBeenCalled()
 
     const params = { actorId: 'actor', statusId: 'status' }
     await expect(database.createLike(params)).resolves.toBe(true)
-
-    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
     expect(createLikeMock).toHaveBeenCalledWith(kyselyDb, params)
   })
 
@@ -214,15 +190,12 @@ describe('getSQLDatabase', () => {
     await expect(merged.testPriority()).resolves.toBe('status')
 
     // The timeline queries are the last spread: a property they define wins
-    // over the status facade's, and is bound to the Kysely instance of this
-    // Knex one.
-    const kyselyDb = { name: 'kysely' }
-    kyselyForMock.mockReturnValue(kyselyDb)
+    // over the status facade's, and is bound to the Kysely instance.
     const testPriority = vi.fn().mockResolvedValue('timeline')
     createTimelineQueriesMock.mockReturnValueOnce({
       testPriority
     } as unknown as ReturnType<typeof createTimelineQueries>)
-    const { database: withTimeline, knexDatabase } = createComposedDatabase()
+    const { database: withTimeline, kyselyDb } = createComposedDatabase()
     const mergedWithTimeline = withTimeline as unknown as Record<
       string,
       (...args: unknown[]) => Promise<string>
@@ -230,23 +203,16 @@ describe('getSQLDatabase', () => {
     await expect(mergedWithTimeline.testPriority('arg')).resolves.toBe(
       'timeline'
     )
-    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
     expect(testPriority).toHaveBeenCalledWith(kyselyDb, 'arg')
   })
 
-  it('binds the status queries to kyselyFor(knex)', async () => {
-    // A status query is bound to the Kysely instance of this Knex one,
-    // resolved on each call.
-    const kyselyDb = { name: 'kysely' }
-    kyselyForMock.mockReturnValue(kyselyDb)
+  it('binds the status queries to the Kysely instance', async () => {
     const getTags = vi.fn().mockResolvedValue(['tag'])
     mutableStatusQueries.getTags = getTags
-    const { database, knexDatabase } = createComposedDatabase()
-    expect(kyselyForMock).not.toHaveBeenCalledWith(knexDatabase)
+    const { database, kyselyDb } = createComposedDatabase()
     await expect(database.getTags({ statusId: 'status' })).resolves.toEqual([
       'tag'
     ])
-    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
     expect(getTags).toHaveBeenCalledWith(kyselyDb, { statusId: 'status' })
 
     // The reads, hydration and deletions are Kysely queries too, and the row
@@ -272,12 +238,28 @@ describe('getSQLDatabase', () => {
     expect(realActorQueries.deleteActorData).toEqual(expect.any(Function))
   })
 
-  it('proxies migrate and destroy to knex lifecycle methods', async () => {
-    const { database, knexDatabase } = createComposedDatabase()
+  it('runs the migrate option and destroys the Kysely instance', async () => {
+    const { database, kyselyDb, migrate } = createComposedDatabase()
     await database.migrate()
-    expect(knexDatabase.migrate.latest).toHaveBeenCalledTimes(1)
+    expect(migrate).toHaveBeenCalledTimes(1)
 
     await database.destroy()
-    expect(knexDatabase.destroy).toHaveBeenCalledTimes(1)
+    expect(kyselyDb.destroy).toHaveBeenCalledTimes(1)
+  })
+
+  it("runs the destroy option instead of the Kysely instance's own", async () => {
+    const kyselyDb = { destroy: vi.fn() }
+    const destroy = vi.fn().mockResolvedValue(undefined)
+    const database = getSQLDatabase(kyselyDb as unknown as Kysely<DB>, {
+      destroy
+    })
+    await database.destroy()
+    expect(destroy).toHaveBeenCalledTimes(1)
+    expect(kyselyDb.destroy).not.toHaveBeenCalled()
+  })
+
+  it('refuses migrate() without a migrate option', async () => {
+    const database = getSQLDatabase({ name: 'kysely' } as unknown as Kysely<DB>)
+    await expect(database.migrate()).rejects.toThrow('yarn migrate')
   })
 })

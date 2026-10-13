@@ -1,66 +1,51 @@
-import knex from 'knex'
 import { sql } from 'kysely'
 
-import {
-  assertSupportedDatabaseClient,
-  getKnex,
-  getKysely
-} from '@/lib/database'
-import { kyselyFor } from '@/lib/database/kysely'
+import { getDatabase, getKysely } from '@/lib/database'
 
-describe('assertSupportedDatabaseClient', () => {
-  it('accepts better-sqlite3', async () => {
-    const db = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    try {
-      expect(() => assertSupportedDatabaseClient(db)).not.toThrow()
-    } finally {
-      await db.destroy()
-    }
-  })
+const { createDatabaseConnection } = vi.hoisted(() => ({
+  createDatabaseConnection: vi.fn()
+}))
 
-  it('accepts pg', async () => {
-    const db = knex({ client: 'pg', connection: { host: 'localhost' } })
-    try {
-      expect(() => assertSupportedDatabaseClient(db)).not.toThrow()
-    } finally {
-      await db.destroy()
-    }
-  })
-
-  it.each([
-    { client: 'mysql2', dialect: 'mysql' },
-    { client: 'mysql', dialect: 'mysql' },
-    { client: 'sqlite3', dialect: 'sqlite3' },
-    { client: 'pgnative', dialect: 'postgresql' }
-  ])('throws for the unsupported $client driver', ({ client, dialect }) => {
-    const destroy = vi.fn()
-    const fake = {
-      client: { dialect, driverName: client },
-      destroy
-    } as unknown as knex.Knex
-    expect(() => assertSupportedDatabaseClient(fake)).toThrow(
-      /Unsupported database client.*Only better-sqlite3/s
-    )
-    expect(destroy).toHaveBeenCalled()
-  })
+vi.mock('@/lib/database/connection', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/database/connection')>()
+  createDatabaseConnection.mockImplementation(actual.createDatabaseConnection)
+  return { ...actual, createDatabaseConnection }
 })
 
 // The test setup configures an in-memory better-sqlite3 database.
-describe('getKysely', () => {
+describe('the application database', () => {
   afterAll(async () => {
-    await getKnex().destroy()
+    await getDatabase()?.destroy()
   })
 
-  it('is the Kysely instance on the application Knex pool', async () => {
+  it('opens one connection, with sqlcommenter on, from the configuration', async () => {
     const db = getKysely()
-    expect(db).toBe(kyselyFor(getKnex()))
     expect(getKysely()).toBe(db)
+    getDatabase()
+
+    expect(createDatabaseConnection).toHaveBeenCalledTimes(1)
+    expect(createDatabaseConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' }
+      }),
+      { sqlcommenter: true }
+    )
 
     const result = await sql<{ value: number }>`select 1 as value`.execute(db)
     expect(result.rows).toEqual([{ value: 1 }])
+  })
+
+  it('serves the facade from the same Kysely instance', async () => {
+    const database = getDatabase()
+    await sql`create table server_settings (key text primary key, value text, "createdAt" datetime, "updatedAt" datetime)`.execute(
+      getKysely()
+    )
+    await database?.setServerSettings([{ key: 'probe', value: 'yes' }])
+    const { rows } = await sql<{
+      key: string
+    }>`select key from server_settings`.execute(getKysely())
+    expect(rows).toEqual([{ key: 'probe' }])
   })
 })

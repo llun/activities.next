@@ -6,11 +6,8 @@ import {
   recordWeeklyLogin,
   recordWeeklyLoginSafely
 } from '@/lib/database/domains/instanceActivity/queries'
-import { kyselyFor } from '@/lib/database/kysely'
-import {
-  createTestDatabase,
-  getLegacyKnex
-} from '@/lib/database/testing/createTestDatabase'
+import { inTransaction } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { formatBucketHour } from '@/lib/database/utils/counterBucket'
 
 // The same queries as instanceActivity.test.ts, on the committed schema and on
@@ -188,26 +185,22 @@ describe('instance activity on both backends', () => {
       expect(total).toBe(0)
     })
 
-    // Knex-transaction interop on purpose (`kyselyFor(trx)`), so this one
-    // takes the legacy Knex instance until the connection swap.
-    it('joins the Knex transaction it is called from', async () => {
-      const knex = getLegacyKnex(testDb.database)
-      await knex.transaction(async (trx) => {
-        await recordWeeklyLoginSafely(
-          kyselyFor(trx),
-          'login-trx',
-          new Date(week1 + HOUR)
-        )
-      })
+    it('joins the transaction it is called from', async () => {
+      await inTransaction(db, (trx) =>
+        recordWeeklyLoginSafely(trx, 'login-trx', new Date(week1 + HOUR))
+      )
       expect(await marker('login-trx')).toBe(week1 / 1000)
 
-      const rolledBack = await knex.transaction()
-      await recordWeeklyLoginSafely(
-        kyselyFor(rolledBack),
-        'login-rollback',
-        new Date(week1 + HOUR)
-      )
-      await rolledBack.rollback()
+      await expect(
+        inTransaction(db, async (trx) => {
+          await recordWeeklyLoginSafely(
+            trx,
+            'login-rollback',
+            new Date(week1 + HOUR)
+          )
+          throw new Error('roll back')
+        })
+      ).rejects.toThrow('roll back')
       expect(await marker('login-rollback')).toBeUndefined()
     })
 

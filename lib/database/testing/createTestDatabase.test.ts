@@ -1,9 +1,7 @@
+import { sql } from 'kysely'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import {
-  createTestDatabase,
-  getLegacyKnex
-} from '@/lib/database/testing/createTestDatabase'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 const expectedBackend =
   process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
@@ -11,7 +9,6 @@ const expectedBackend =
 describe('createTestDatabase', () => {
   const testDatabase = createTestDatabase()
   const { database, db } = testDatabase
-  const knex = getLegacyKnex(database)
 
   beforeAll(async () => {
     await testDatabase.prepare()
@@ -22,10 +19,18 @@ describe('createTestDatabase', () => {
     await testDatabase.destroy()
   })
 
-  it('defaults to the backend named by TEST_DATABASE_TYPE', () => {
+  it('defaults to the backend named by TEST_DATABASE_TYPE', async () => {
     expect(testDatabase.backend).toBe(expectedBackend)
-    expect(knex.client.config.client).toBe(
-      expectedBackend === 'pg' ? 'pg' : 'better-sqlite3'
+    // Ask the server which engine it is: only PostgreSQL has version().
+    const probe =
+      expectedBackend === 'pg'
+        ? sql<{ engine: string }>`select version() as engine`
+        : sql<{
+            engine: string
+          }>`select 'SQLite ' || sqlite_version() as engine`
+    const { rows } = await probe.execute(db)
+    expect(rows[0].engine).toMatch(
+      expectedBackend === 'pg' ? /^PostgreSQL / : /^SQLite /
     )
   })
 
@@ -79,16 +84,15 @@ describe('createTestDatabase backends', () => {
     await testDatabase.destroy()
   })
 
-  it('destroy() closes the Knex pool', async () => {
+  it('destroy() closes the connection', async () => {
     const testDatabase = createTestDatabase()
     await testDatabase.prepare()
     await testDatabase.database.migrate()
     await testDatabase.destroy()
 
-    // Knex marks the pool destroyed; the pool no longer hands out connections.
-    expect(getLegacyKnex(testDatabase.database).client.pool).toBeUndefined()
+    // The driver is destroyed and hands out no more connections.
     await expect(
       testDatabase.db.selectFrom('server_settings').select('key').execute()
-    ).rejects.toThrow()
+    ).rejects.toThrow('driver has already been destroyed')
   })
 })

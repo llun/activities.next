@@ -1,6 +1,4 @@
-import knexFactory from 'knex'
-
-import { type Db, kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import { getDialectName } from '@/lib/database/kysely/dialect'
 import {
   SQLITE_MAX_BINDINGS,
@@ -11,20 +9,13 @@ import {
   selectInChunks
 } from '@/lib/database/kysely/inList'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createCompileOnlyDb } from '@/lib/database/testing/compileOnlyDb'
 import type { Database } from '@/lib/database/types'
 
 describe('batch sizes', () => {
   // Compiles only: neither instance connects.
-  const sqlite = knexFactory({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const postgres = knexFactory({ client: 'pg', connection: {} })
-
-  afterAll(async () => {
-    await Promise.all([sqlite.destroy(), postgres.destroy()])
-  })
+  const sqlite = createCompileOnlyDb('sqlite')
+  const postgres = createCompileOnlyDb('pg')
 
   it.each([
     { reserved: 0, size: 999 },
@@ -35,15 +26,15 @@ describe('batch sizes', () => {
   ])(
     'fits an in list with $reserved other bindings into SQLite’s $size',
     ({ reserved, size }) => {
-      expect(getWhereInBatchSize(kyselyFor(sqlite), reserved)).toBe(size)
+      expect(getWhereInBatchSize(sqlite, reserved)).toBe(size)
       // PostgreSQL takes the default whatever is reserved.
-      expect(getWhereInBatchSize(kyselyFor(postgres), reserved)).toBe(1000)
+      expect(getWhereInBatchSize(postgres, reserved)).toBe(1000)
     }
   )
 
   it('uses the default in-list size on PostgreSQL only', () => {
-    expect(getWhereInBatchSize(kyselyFor(postgres), 0, 250)).toBe(250)
-    expect(getWhereInBatchSize(kyselyFor(sqlite), 0, 250)).toBe(999)
+    expect(getWhereInBatchSize(postgres, 0, 250)).toBe(250)
+    expect(getWhereInBatchSize(sqlite, 0, 250)).toBe(999)
   })
 
   it.each([
@@ -57,21 +48,19 @@ describe('batch sizes', () => {
     'fits $sqliteRows rows of three columns on SQLite and $postgresRows on PostgreSQL under a cap of $cap',
     ({ cap, sqliteRows, postgresRows }) => {
       const row = { a: 1, b: 2, c: 3 }
-      expect(getInsertBatchSize(kyselyFor(sqlite), row, cap)).toBe(sqliteRows)
-      expect(getInsertBatchSize(kyselyFor(postgres), row, cap)).toBe(
-        postgresRows
-      )
+      expect(getInsertBatchSize(sqlite, row, cap)).toBe(sqliteRows)
+      expect(getInsertBatchSize(postgres, row, cap)).toBe(postgresRows)
     }
   )
 
   it('counts a row with no columns as one column', () => {
-    expect(getInsertBatchSize(kyselyFor(sqlite), {})).toBe(999)
-    expect(getInsertBatchSize(kyselyFor(postgres), {})).toBe(1000)
+    expect(getInsertBatchSize(sqlite, {})).toBe(999)
+    expect(getInsertBatchSize(postgres, {})).toBe(1000)
   })
 
   it('keeps a SQLite statement within its bind limit and leaves PostgreSQL at 1000', () => {
-    const sqliteDb = kyselyFor(sqlite)
-    const postgresDb = kyselyFor(postgres)
+    const sqliteDb = sqlite
+    const postgresDb = postgres
     expect(getWhereInBatchSize(sqliteDb, 1)).toBe(SQLITE_MAX_BINDINGS - 1)
     expect(getWhereInBatchSize(postgresDb, 1)).toBe(1000)
     expect(getInsertBatchSize(sqliteDb, { a: 1, b: 2, c: 3 })).toBe(

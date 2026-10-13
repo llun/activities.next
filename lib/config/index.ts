@@ -1,5 +1,4 @@
 import fs from 'fs'
-import { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 import { PHASE_PRODUCTION_BUILD } from 'next/dist/shared/lib/constants'
 import path from 'path'
@@ -10,7 +9,7 @@ import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 import { AltTextConfig, getAltTextConfig } from './altText'
 import { AuthConfig, getAuthConfig } from './auth'
-import { getDatabaseConfig } from './database'
+import { type DatabaseConfig, getDatabaseConfig } from './database'
 import {
   EmailConfig,
   UnsupportedEmailProviderError,
@@ -44,7 +43,8 @@ const Config = z.object({
   privacyPolicy: z.string().nullish(),
   termsOfService: z.string().nullish(),
   languages: z.string().array().default(['en']),
-  database: z.custom<Knex.Config>(),
+  // Parsed and checked by getDatabaseConfig (lib/config/database.ts).
+  database: z.custom<DatabaseConfig>(),
   queue: QueueConfig.optional(),
   push: PushConfig.optional(),
   // Normalized to lowercase once on load so the `allowEmails` gate is

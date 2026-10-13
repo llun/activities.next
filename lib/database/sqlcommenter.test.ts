@@ -1,241 +1,153 @@
 import { Span, trace } from '@opentelemetry/api'
-import knex, { Knex } from 'knex'
 import { sql } from 'kysely'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { kyselyFor } from '@/lib/database/kysely'
+import {
+  type DatabaseHandle,
+  createDatabaseConnection
+} from '@/lib/database/connection'
+import { inTransaction } from '@/lib/database/kysely'
+import {
+  createTestDatabase,
+  getTestDatabaseConfig
+} from '@/lib/database/testing/createTestDatabase'
 
-import { attachSqlcommenter } from './index'
+import { getTraceparentCommentSuffix } from './sqlcommenter'
 
-describe('attachSqlcommenter', () => {
-  const db = attachSqlcommenter(
-    knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-  )
+const traceparent =
+  "/* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' */"
 
+const spanWith = (spanContext: {
+  traceId: string
+  spanId: string
+  traceFlags: number
+}) => ({ spanContext: () => spanContext }) as unknown as Span
+
+const validSpan = spanWith({
+  traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
+  spanId: '3ca938408dc381d3',
+  traceFlags: 1
+})
+
+describe('getTraceparentCommentSuffix', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('appends traceparent comment when active span is present and valid', async () => {
-    const mockSpan = {
-      spanContext: () => ({
-        traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
-        spanId: '3ca938408dc381d3',
-        traceFlags: 1
-      })
-    } as unknown as Span
-
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-
-    const query = db('statuses').select('*')
-    // Trigger query start event
-    db.emit('start', query)
-
-    const sql = query.toSQL().sql
-    expect(sql).toContain(
-      "/* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' */"
-    )
+  it('is a leading-space comment naming the active span', () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(validSpan)
+    expect(getTraceparentCommentSuffix()).toBe(` ${traceparent}`)
   })
 
-  it('appends the traceparent comment only once when the same builder is executed twice', async () => {
-    // knex fires `start` once per execution, and a builder can be executed
-    // more than once. Without an idempotency guard the second `start` captures
-    // the already-patched toSQL and stacks a second identical suffix.
-    const mockSpan = {
-      spanContext: () => ({
-        traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
-        spanId: '3ca938408dc381d3',
-        traceFlags: 1
-      })
-    } as unknown as Span
-
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-
-    const query = db('statuses').select('*')
-    db.emit('start', query)
-    db.emit('start', query)
-
-    const occurrences = query.toSQL().sql.match(/\/\* traceparent=/g) ?? []
-    expect(occurrences).toHaveLength(1)
-  })
-
-  it('appends the traceparent comment as a SUFFIX, never a leading comment', async () => {
-    // Cloud SQL Insights (and the sqlcommenter spec generally) parses the
-    // trace tag out of a comment trailing the statement. knex's own
-    // `builder.comment()` always compiles as a LEADING comment, so this test
-    // pins the placement explicitly rather than merely asserting the tag is
-    // present somewhere in the string (see `toContain` above, which passes
-    // whether the tag is a prefix or a suffix and would not have caught the
-    // original bug).
-    const mockSpan = {
-      spanContext: () => ({
-        traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
-        spanId: '3ca938408dc381d3',
-        traceFlags: 1
-      })
-    } as unknown as Span
-
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-
-    const query = db('statuses').select('*')
-    db.emit('start', query)
-
-    const sql = query.toSQL().sql
-
-    // The compiled statement must not START with the comment (that is what
-    // knex's `builder.comment()` produces) and must END with it instead.
-    expect(sql).not.toMatch(/^\s*\/\*/)
-    expect(sql).toMatch(
-      /\/\* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' \*\/\s*$/
-    )
-    expect(sql.indexOf('/*')).toBeGreaterThan(sql.indexOf('select'))
-  })
-
-  it('appends the traceparent comment onto toNative() output too', async () => {
-    // `Sql#toNative()` is a separate closure over the same compiled object;
-    // some dialects read `.sql` through it rather than the plain `.sql`
-    // field, so the suffix must be visible there as well.
-    const mockSpan = {
-      spanContext: () => ({
-        traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
-        spanId: '3ca938408dc381d3',
-        traceFlags: 1
-      })
-    } as unknown as Span
-
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-
-    const query = db('statuses').select('*')
-    db.emit('start', query)
-
-    const compiled = query.toSQL()
-    const native = compiled.toNative()
-    expect(native.sql).toMatch(
-      /\/\* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' \*\/\s*$/
-    )
-  })
-
-  it('does not append comment when no active span exists', async () => {
+  it('is null without an active span', () => {
     vi.spyOn(trace, 'getActiveSpan').mockReturnValue(undefined)
-
-    const query = db('statuses').select('*')
-    db.emit('start', query)
-
-    const sql = query.toSQL().sql
-    expect(sql).not.toContain('traceparent')
+    expect(getTraceparentCommentSuffix()).toBeNull()
   })
 
-  it('does not append comment when span context is invalid', async () => {
-    const mockSpan = {
-      spanContext: () => ({
+  it('is null for an invalid span context', () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(
+      spanWith({
         traceId: '00000000000000000000000000000000',
         spanId: '0000000000000000',
         traceFlags: 0
       })
-    } as unknown as Span
+    )
+    expect(getTraceparentCommentSuffix()).toBeNull()
+  })
 
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-
-    const query = db('statuses').select('*')
-    db.emit('start', query)
-
-    const sql = query.toSQL().sql
-    expect(sql).not.toContain('traceparent')
+  it('is null when reading the span throws', () => {
+    vi.spyOn(trace, 'getActiveSpan').mockImplementation(() => {
+      throw new Error('tracer broke')
+    })
+    expect(getTraceparentCommentSuffix()).toBeNull()
   })
 })
 
-describe('sqlcommenter on Kysely queries', () => {
-  const traceparent =
-    "/* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' */"
-  const mockSpan = {
-    spanContext: () => ({
-      traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
-      spanId: '3ca938408dc381d3',
-      traceFlags: 1
-    })
-  } as unknown as Span
+// Cloud SQL Insights reads the trace tag from a comment TRAILING the
+// statement, so the connection with `sqlcommenter` on appends it to every
+// statement it sends. Runs on SQLite and, under TEST_DATABASE_TYPE=pg,
+// PostgreSQL, where the server is asked what it received.
+describe('sqlcommenter on the connection', () => {
+  const backend = process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
+  const testDb = createTestDatabase()
+  let connection: DatabaseHandle
 
-  const createInstance = () =>
-    knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-
-  const captureSql = async (
-    instance: Knex,
-    run: () => Promise<unknown>
-  ): Promise<string[]> => {
+  const capture = async (run: () => Promise<unknown>) => {
     const statements: string[] = []
-    const onQuery = ({ sql }: { sql: string }) => statements.push(sql)
-    instance.on('query', onQuery)
+    const stop = connection.onQuery(({ sql }) => statements.push(sql))
     try {
       await run()
     } finally {
-      instance.off('query', onQuery)
+      stop()
     }
     return statements
   }
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    connection = createDatabaseConnection(getTestDatabaseConfig(backend), {
+      sqlcommenter: true
+    })
+  })
+
+  afterAll(async () => {
+    await connection.destroy()
+    await testDb.destroy()
+  })
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('appends the traceparent comment as a suffix of the executed SQL', async () => {
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-    const instance = attachSqlcommenter(createInstance())
-    try {
-      const statements = await captureSql(instance, () =>
-        sql`select 1 as one`.execute(kyselyFor(instance))
-      )
-      expect(statements).toEqual([`select 1 as one ${traceparent}`])
-    } finally {
-      await instance.destroy()
-    }
+  it('appends the traceparent comment as a suffix of the statement sent', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(validSpan)
+    const statements = await capture(() =>
+      sql`select 1 as one`.execute(connection.db)
+    )
+    expect(statements).toEqual([`select 1 as one ${traceparent}`])
   })
 
-  it('appends it inside a Knex transaction through kyselyFor(trx)', async () => {
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-    const instance = attachSqlcommenter(createInstance())
-    try {
-      const statements = await captureSql(instance, () =>
-        instance.transaction((trx) =>
-          sql`select 2 as two`.execute(kyselyFor(trx))
-        )
-      )
-      expect(statements).toContain(`select 2 as two ${traceparent}`)
-    } finally {
-      await instance.destroy()
-    }
+  it('appends it to every statement of a transaction', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(validSpan)
+    const statements = await capture(() =>
+      inTransaction(connection.db, (trx) => sql`select 2 as two`.execute(trx))
+    )
+    expect(statements).toEqual([
+      `begin ${traceparent}`,
+      `select 2 as two ${traceparent}`,
+      `commit ${traceparent}`
+    ])
   })
 
-  it('adds nothing when the Knex instance has no sqlcommenter hook', async () => {
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
-    const instance = createInstance()
-    try {
-      const statements = await captureSql(instance, () =>
-        sql`select 1 as one`.execute(kyselyFor(instance))
-      )
-      expect(statements).toEqual(['select 1 as one'])
-    } finally {
-      await instance.destroy()
+  it.runIf(backend === 'pg')(
+    'reaches the server as part of the statement text',
+    async () => {
+      vi.spyOn(trace, 'getActiveSpan').mockReturnValue(validSpan)
+      const { rows } = await sql<{ query: string }>`
+        select query from pg_stat_activity where pid = pg_backend_pid()
+      `.execute(connection.db)
+      const query = rows[0].query.trimEnd()
+      expect(query.slice(-traceparent.length)).toBe(traceparent)
     }
-  })
+  )
 
   it('adds nothing when there is no active span', async () => {
     vi.spyOn(trace, 'getActiveSpan').mockReturnValue(undefined)
-    const instance = attachSqlcommenter(createInstance())
+    const statements = await capture(() =>
+      sql`select 1 as one`.execute(connection.db)
+    )
+    expect(statements).toEqual(['select 1 as one'])
+  })
+
+  it('adds nothing on a connection without sqlcommenter', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(validSpan)
+    const statements: string[] = []
+    const stop = testDb.onQuery(({ sql }) => statements.push(sql))
     try {
-      const statements = await captureSql(instance, () =>
-        sql`select 1 as one`.execute(kyselyFor(instance))
-      )
-      expect(statements).toEqual(['select 1 as one'])
+      await sql`select 1 as one`.execute(testDb.db)
     } finally {
-      await instance.destroy()
+      stop()
     }
+    expect(statements).toEqual(['select 1 as one'])
   })
 })

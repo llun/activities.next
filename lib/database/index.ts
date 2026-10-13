@@ -1,113 +1,62 @@
-import knex, { Knex } from 'knex'
 import type { Kysely } from 'kysely'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
-import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { type DB, kyselyFor } from '@/lib/database/kysely'
-import { getKyselyDialectName } from '@/lib/database/kysely/driver'
+import type { DatabaseConfig } from '@/lib/config/database'
 import {
-  getTraceparentCommentSuffix,
-  markSqlcommenterAttached
-} from '@/lib/database/sqlcommenter'
+  type DatabaseHandle,
+  createDatabaseConnection
+} from '@/lib/database/connection'
+import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
+import type { DB } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'
 
 interface DatabaseInstance {
   database: Database
-  knex: Knex
+  connection: DatabaseHandle
 }
 
-// sqlcommenter (https://google.github.io/sqlcommenter/spec/) — and Cloud SQL
-// Insights specifically, which is why this exists — parses the trace tag out
-// of a TRAILING SQL comment. knex's own `builder.comment()` cannot produce
-// that: its query compiler's `components` order always places `comments`
-// before `columns`/`join`/`where`, so `.comment()` compiles as a LEADING
-// comment (`/* … */ select …`) no matter when it is called. Insights would
-// therefore never see the tag, and the query <-> trace correlation this
-// feature exists for would silently never work.
-//
-// Rather than fight the compiler's fixed component order, wrap this one
-// builder's `toSQL()` so the tag is appended to the already-compiled SQL
-// string instead. Mutating the returned `Sql` object's `.sql` field (rather
-// than re-running the compiler with a different comment placement) also keeps
-// `Sql#toNative()` in sync for free: its `toNative()` closure reads `.sql` off
-// that same object at call time, so it picks up the appended suffix too.
-// Appending happens on the object `toSQL()` hands back, before binding
-// positions are rewritten for the target dialect (e.g. `?` -> `$1` for
-// PostgreSQL) — the trace tag never contains a `?`, so it cannot shift any
-// binding position.
-//
-// Kysely queries never fire `start` (no Knex builder is involved), so the
-// shared Kysely driver appends the same suffix itself for every instance
-// marked here (see lib/database/kysely/driver.ts).
-export const attachSqlcommenter = (db: Knex): Knex => {
-  markSqlcommenterAttached(db)
-  db.on('start', (builder: Knex.QueryBuilder) => {
-    try {
-      const commentSuffix = getTraceparentCommentSuffix()
-      if (!commentSuffix) return
-
-      if (typeof builder?.toSQL !== 'function') return
-      // knex fires `start` once per EXECUTION, not once per builder, and a
-      // builder can be executed more than once (awaiting the same instance
-      // twice re-runs `client.runner(this).run()`). Without this guard the
-      // second `start` would capture the already-patched `toSQL` as its
-      // "original" and stack a second identical suffix. Mark the instance so a
-      // re-fired `start` is a no-op.
-      const patchable = builder as Knex.QueryBuilder & {
-        __sqlcommenterPatched?: boolean
-      }
-      if (patchable.__sqlcommenterPatched) return
-      patchable.__sqlcommenterPatched = true
-      const originalToSQL = builder.toSQL.bind(builder)
-      builder.toSQL = () => {
-        const compiled = originalToSQL()
-        try {
-          compiled.sql = `${compiled.sql}${commentSuffix}`
-        } catch {
-          // Tracing failures must never alter query execution
-        }
-        return compiled
-      }
-    } catch {
-      // Tracing failures must never alter query execution
-    }
-  })
-  return db
-}
-
-export const assertSupportedDatabaseClient = (db: Knex): void => {
+// `yarn migrate` (the Knex CLI) is how migrations run; nothing in the app
+// calls `migrate()`. It runs the same Knex migrations on a Knex instance of
+// its own, loaded on first use, until the migration runner replaces Knex.
+const runKnexMigrations = async (config: DatabaseConfig) => {
+  const { default: knex } = await import('knex')
+  const instance = knex(config)
   try {
-    getKyselyDialectName(db.client)
-  } catch (error) {
-    void db.destroy()
-    throw error
+    await instance.migrate.latest({ disableTransactions: true })
+  } finally {
+    await instance.destroy()
   }
 }
 
 const getDatabaseInstance = memoize((): DatabaseInstance | null => {
   const config = getConfig()
-  const db = attachSqlcommenter(knex(config.database))
-  // Only better-sqlite3 and pg are supported. Fail here, at startup, rather
-  // than on the first request that reaches a Kysely-backed query.
-  assertSupportedDatabaseClient(db)
-  return { database: getSQLDatabase(db), knex: db }
+  // Only better-sqlite3 and pg are supported; an unsupported client fails
+  // here, at startup, rather than on the first request.
+  const connection = createDatabaseConnection(config.database, {
+    sqlcommenter: true
+  })
+  return {
+    connection,
+    database: getSQLDatabase(connection.db, {
+      migrate: () => runKnexMigrations(config.database),
+      destroy: connection.destroy
+    })
+  }
 })
 
-export const getKnex = (): Knex => {
+/**
+ * The application's Kysely instance, for code outside the `Database` facade
+ * (the better-auth adapter and the operator scripts). It is the facade's own
+ * instance, so a script closes it with `database.destroy()`.
+ */
+export const getKysely = (): Kysely<DB> => {
   const instance = getDatabaseInstance()
   if (!instance) {
     throw new Error('Database not initialized')
   }
-  return instance.knex
+  return instance.connection.db
 }
-
-/**
- * The application's Kysely instance, for code outside the `Database` facade
- * (the better-auth adapter and the operator scripts). It runs on the same
- * connection pool as the facade, so a script closes it with `database.destroy()`.
- */
-export const getKysely = (): Kysely<DB> => kyselyFor(getKnex())
 
 export const getDatabase = (): Database | null => {
   return getDatabaseInstance()?.database ?? null

@@ -2,9 +2,9 @@ import type { Knex } from 'knex'
 
 import {
   type TestDatabase,
-  createTestDatabase,
-  getLegacyKnex
+  createTestDatabase
 } from '@/lib/database/testing/createTestDatabase'
+import { createLegacyKnex } from '@/lib/database/testing/legacyKnex'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import * as migration from '@/migrations/20260517002000_add_direct_conversations'
 import * as replyHashMigration from '@/migrations/20260519000000_add_status_reply_hash'
@@ -20,10 +20,10 @@ describe('direct conversations migration', () => {
 
   beforeEach(async () => {
     // An empty database (no schema): the tests build the tables the
-    // migrations start from.
+    // migrations start from, on the Knex instance the migrations run on.
     testDb = createTestDatabase()
     await testDb.prepare()
-    database = getLegacyKnex(testDb.database)
+    database = createLegacyKnex(testDb.backend)
 
     await database.schema.createTable('actors', (table) => {
       table.string('id').primary()
@@ -102,6 +102,7 @@ describe('direct conversations migration', () => {
   })
 
   afterEach(async () => {
+    await database.destroy()
     await testDb.destroy()
   })
 

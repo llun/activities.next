@@ -302,9 +302,10 @@ jobs:
   # JavaScript, the gallery media scope checked on the album reads' join, the
   # Kysely status visibility, actor-visible status, list eligibility, replies
   # policy, block/mute, follow-target, exclusive-list and publicly-readable
-  # predicates checked against the rows each selects, and the Knex-backed Kysely
-  # driver (result normalisation, the mixed-transaction guard, counters, bucket
-  # counters, chunked IN lists, savepoints).
+  # predicates checked against the rows each selects, and the database
+  # connection (its pool, sqlcommenter tags, result normalisation pinned to
+  # golden values, the transaction guard, counters, bucket counters, chunked IN
+  # lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -673,7 +674,9 @@ jobs:
             lib/database/domains/conversation/conversation.test.ts \
             lib/database/domains/conversation/conversationQueries.test.ts \
             lib/database/domains/conversation/directConversationsMigration.test.ts \
-            lib/database/kysely/driver.test.ts \
+            lib/database/connection.test.ts \
+            lib/database/sqlcommenter.test.ts \
+            lib/database/kysely/normalizeGolden.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \
             lib/database/kysely/counterBucket.test.ts \

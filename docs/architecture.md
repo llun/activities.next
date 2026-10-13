@@ -26,7 +26,7 @@ Domain and service boundary: Core library (lib/)
         │
         ▼
 Infrastructure boundary
-  ├─ Database layer: Knex and Kysely with SQLite/PostgreSQL
+  ├─ Database layer: Kysely with SQLite/PostgreSQL (Knex for migrations)
   ├─ File storage: local filesystem, S3, or S3-compatible object storage
   └─ External services: QStash, SMTP/Resend/SES, OpenTelemetry
 ```
@@ -120,7 +120,7 @@ Knex migration files that define the database schema. Migrations are designed to
 
 ### Database Abstraction
 
-All database operations go through the `lib/database/` layer. Its queries are written with [Kysely](https://kysely.dev/), as plain query functions grouped by domain under `lib/database/domains/<name>/`, bound into the `Database` facade by `getSQLDatabase`; [Knex.js](https://knexjs.org/) runs the migrations and owns the connection pool Kysely borrows (see [Kysely](maintenance.md#kysely) in the maintenance guide). This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
+All database operations go through the `lib/database/` layer. Its queries are written with [Kysely](https://kysely.dev/), as plain query functions grouped by domain under `lib/database/domains/<name>/`, bound into the `Database` facade by `getSQLDatabase`; Kysely owns the connection (`createDatabaseConnection` in `lib/database/connection.ts`: better-sqlite3, or a node-postgres pool) and [Knex.js](https://knexjs.org/) only runs the migrations (see [Kysely](maintenance.md#kysely) in the maintenance guide). This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
 
 ### Mastodon API Compatibility
 
@@ -237,7 +237,7 @@ Wahoo cloud synchronization requires an asynchronous durable backend. The authen
 
 Wahoo OAuth callback and token-refresh writes are fenced by the saved credential revision. Changing application credentials invalidates outstanding authorization state, and disconnect clears credentials; an in-flight callback or refresh cannot restore tokens after either change.
 
-External queue clients (`@upstash/qstash` and `@google-cloud/tasks`), the PostgreSQL driver (`pg`), and optional email providers (`nodemailer`, `resend`, `@aws-sdk/client-ses`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`, `@activities/nodemailer`, `@activities/resend`, `@activities/ses`). They are loaded on demand dynamically (via `dynamicImport` with type stubs for queue and email clients, or Knex dynamic driver loading for PostgreSQL), preventing optional SDKs from being unconditionally bundled into the minimal standalone application. The Dockerfile includes `@activities/nodemailer` by default; builds omitting email workspaces gracefully disable email delivery.
+External queue clients (`@upstash/qstash` and `@google-cloud/tasks`), the PostgreSQL driver (`pg`), and optional email providers (`nodemailer`, `resend`, `@aws-sdk/client-ses`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`, `@activities/nodemailer`, `@activities/resend`, `@activities/ses`). They are loaded on demand dynamically (via `dynamicImport`, with type stubs for queue and email clients), preventing optional SDKs from being unconditionally bundled into the minimal standalone application. Because the standalone tracer cannot follow `dynamicImport`, `pg` and the packages it depends on are listed in `outputFileTracingIncludes` in `next.config.ts`, which `test/next.config.test.ts` checks against `pg`'s dependency tree. The Dockerfile includes `@activities/nodemailer` by default; builds omitting email workspaces gracefully disable email delivery.
 
 #### Gallery albums
 
@@ -658,7 +658,7 @@ Other tables: sessions, notifications, medias, gallery_gears,
 | **UI Library**       | React 19                                                                                                                              |
 | **Styling**          | Tailwind CSS                                                                                                                          |
 | **UI Components**    | Radix UI primitives                                                                                                                   |
-| **Database**         | Knex.js + Kysely (SQLite / PostgreSQL)                                                                                                |
+| **Database**         | Kysely (SQLite / PostgreSQL), Knex.js for migrations                                                                                  |
 | **Authentication**   | better-auth                                                                                                                           |
 | **Logging**          | Pino                                                                                                                                  |
 | **Testing**          | Vitest (native ESM)                                                                                                                   |
@@ -1714,10 +1714,12 @@ legacy shape left to copy.
 - Optional external SDKs, email providers, and database drivers
   (`@google-cloud/tasks`, `@upstash/qstash`, `nodemailer`, `resend`,
   `@aws-sdk/client-ses`, `pg`) must reside in dedicated workspace packages under
-  `packages/*` and be imported dynamically (via `dynamicImport` with type stubs
-  in `lib/types/optional-modules.d.ts` for queue and email SDKs, or Knex dynamic
-  driver loading for database clients), never through static top-level imports in
-  core `app/` or `lib/` modules, so minimal standalone builds run without them.
+  `packages/*` and be imported dynamically (via `dynamicImport`, with type stubs
+  in `lib/types/optional-modules.d.ts` for queue and email SDKs), never through
+  static top-level imports in core `app/` or `lib/` modules, so minimal
+  standalone builds run without them. A package loaded that way is invisible to
+  the standalone tracer, so list it and its dependencies in
+  `outputFileTracingIncludes` (`next.config.ts`), as `pg` is.
 
 <a id="review-client-components-data-flow"></a>
 

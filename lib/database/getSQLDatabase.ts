@@ -1,4 +1,4 @@
-import type { Knex } from 'knex'
+import type { Kysely } from 'kysely'
 
 import { accountQueries } from '@/lib/database/domains/account/queries'
 import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
@@ -59,22 +59,30 @@ import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
 import { trendsQueries } from '@/lib/database/domains/trends/queries'
 import { wahooImportQueries } from '@/lib/database/domains/wahooImport/queries'
-import {
-  bindDb,
-  installKnexKyselyGuard,
-  kyselyFor
-} from '@/lib/database/kysely'
+import { type DB, bindDb } from '@/lib/database/kysely'
 import type { Database } from '@/lib/database/types'
 
-// The facade: every domain's queries bound to the Kysely instance over this
-// Knex one. Knex itself only runs the migrations and owns the connection pool.
-export const getSQLDatabase = (database: Knex): Database => {
-  // Track Knex transactions from the start, so a Kysely call inside one is
-  // caught even if it is the first Kysely call (see lib/database/kysely/guard.ts).
-  installKnexKyselyGuard(database)
-  // `kyselyFor` runs on first use, so a mocked Knex without a client still
-  // builds the facade.
-  const kysely = () => kyselyFor(database)
+export type SQLDatabaseOptions = {
+  /**
+   * What `migrate()` runs. Without it `migrate()` throws: migrations run from
+   * `yarn migrate`, and the test databases load the schema dump instead.
+   */
+  migrate?: () => Promise<void>
+  /**
+   * What `destroy()` runs; `db.destroy()` without it. The connection's own
+   * destroy (lib/database/connection.ts) also refuses later queries when
+   * nothing had connected yet, which Kysely's alone does not.
+   */
+  destroy?: () => Promise<void>
+}
+
+// The facade: every domain's queries bound to the root Kysely instance `db`.
+// `destroy()` closes the connection behind it.
+export const getSQLDatabase = (
+  db: Kysely<DB>,
+  { migrate, destroy }: SQLDatabaseOptions = {}
+): Database => {
+  const kysely = () => db
   const statusDatabase = bindDb(kysely, statusQueries)
   // The list, collection and timeline feeds hydrate through the status
   // facade's getStatusesByIds (on the root Kysely instance), outside their
@@ -86,11 +94,16 @@ export const getSQLDatabase = (database: Knex): Database => {
 
   return {
     async migrate() {
-      await database.migrate.latest({ disableTransactions: true })
+      if (!migrate) {
+        throw new Error(
+          'migrate() is not available on this database; run `yarn migrate`'
+        )
+      }
+      await migrate()
     },
 
     async destroy() {
-      await database.destroy()
+      await (destroy ? destroy() : db.destroy())
     },
 
     ...bindDb(kysely, accountQueries),

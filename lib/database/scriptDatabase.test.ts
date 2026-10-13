@@ -1,6 +1,6 @@
-import knex from 'knex'
 import { sql } from 'kysely'
 
+import type { DatabaseConfig } from '@/lib/config/database'
 import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 import {
   TEST_PG_DATABASE,
@@ -8,12 +8,7 @@ import {
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 
-vi.mock('knex', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('knex')>()
-  return { ...actual, default: vi.fn(actual.default) }
-})
-
-const sqliteConfig = {
+const sqliteConfig: DatabaseConfig = {
   client: 'better-sqlite3',
   useNullAsDefault: true,
   connection: { filename: ':memory:' }
@@ -55,18 +50,10 @@ describe('openScriptDatabase', () => {
     }
   })
 
-  it('closes the pool and throws for a client Kysely does not support', async () => {
-    const destroy = vi.fn()
-    const unsupported = {
-      client: { dialect: 'mysql', driverName: 'mysql2' },
-      destroy
-    } as unknown as ReturnType<typeof knex>
-    vi.mocked(knex).mockReturnValueOnce(unsupported)
-
-    expect(() => openScriptDatabase({ client: 'mysql2' })).toThrow(
-      /Unsupported database client.*Only better-sqlite3/s
-    )
-    expect(destroy).toHaveBeenCalled()
+  it('throws for a client the connection does not support', () => {
+    expect(() =>
+      openScriptDatabase({ client: 'mysql2' } as unknown as DatabaseConfig)
+    ).toThrow(/Unsupported database client "mysql2".*only better-sqlite3/s)
   })
 
   it.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(

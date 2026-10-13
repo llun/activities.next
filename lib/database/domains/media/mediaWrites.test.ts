@@ -16,9 +16,8 @@ import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
 // account, another account's, another status's attachment, another media's
 // album items, edit files and covers), each transaction is checked to keep
 // nothing when its last write fails, and the row locks are read off the
-// statements PostgreSQL is sent. The Knex album writes take the album lock
-// through `kyselyFor(trx)`; that it runs inside their own transaction is
-// pinned at the end. Runs on PostgreSQL in CI.
+// statements PostgreSQL is sent. The album writes take the album lock inside
+// their own transaction; that is pinned at the end. Runs on PostgreSQL in CI.
 
 const testDb = createTestDatabase()
 const { database, db } = testDb

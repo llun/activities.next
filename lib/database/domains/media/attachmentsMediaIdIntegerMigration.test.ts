@@ -1,9 +1,7 @@
 import knex, { Knex } from 'knex'
 
-import {
-  createTestDatabase,
-  getLegacyKnex
-} from '@/lib/database/testing/createTestDatabase'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { createLegacyKnex } from '@/lib/database/testing/legacyKnex'
 import * as migration from '@/migrations/20261012100000_attachments_media_id_integer_sqlite'
 
 type TableInfoRow = {
@@ -447,35 +445,39 @@ describe('attachments mediaId on the test database', () => {
   it.runIf(testDb.backend === 'pg')(
     'is a no-op on PostgreSQL in both directions',
     async () => {
-      const columnType = async () => {
-        const result = await getLegacyKnex(testDb.database).raw(
-          "SELECT data_type FROM information_schema.columns WHERE table_name = 'attachments' AND column_name = 'mediaId'"
+      // The migration runs on a Knex instance on the same database.
+      const legacy = createLegacyKnex('pg')
+      try {
+        const columnType = async () => {
+          const result = await legacy.raw(
+            "SELECT data_type FROM information_schema.columns WHERE table_name = 'attachments' AND column_name = 'mediaId'"
+          )
+          return result.rows[0]?.data_type
+        }
+        await legacy('attachments').insert([
+          { id: 'one', mediaId: 12 },
+          { id: 'two', mediaId: null }
+        ])
+
+        await migration.up(legacy)
+        expect(await columnType()).toBe('integer')
+        await migration.down(legacy)
+        expect(await columnType()).toBe('integer')
+
+        const rows = await legacy('attachments').orderBy('id')
+        expect(rows.map(({ id, mediaId }) => ({ id, mediaId }))).toEqual([
+          { id: 'one', mediaId: 12 },
+          { id: 'two', mediaId: null }
+        ])
+        const indexes = await legacy.raw(
+          "SELECT indexname FROM pg_indexes WHERE tablename = 'attachments'"
         )
-        return result.rows[0]?.data_type
+        expect(
+          indexes.rows.map(({ indexname }: { indexname: string }) => indexname)
+        ).toContain('attachments_mediaId_idx')
+      } finally {
+        await legacy.destroy()
       }
-      await getLegacyKnex(testDb.database)('attachments').insert([
-        { id: 'one', mediaId: 12 },
-        { id: 'two', mediaId: null }
-      ])
-
-      await migration.up(getLegacyKnex(testDb.database))
-      expect(await columnType()).toBe('integer')
-      await migration.down(getLegacyKnex(testDb.database))
-      expect(await columnType()).toBe('integer')
-
-      const rows = await getLegacyKnex(testDb.database)('attachments').orderBy(
-        'id'
-      )
-      expect(rows.map(({ id, mediaId }) => ({ id, mediaId }))).toEqual([
-        { id: 'one', mediaId: 12 },
-        { id: 'two', mediaId: null }
-      ])
-      const indexes = await getLegacyKnex(testDb.database).raw(
-        "SELECT indexname FROM pg_indexes WHERE tablename = 'attachments'"
-      )
-      expect(
-        indexes.rows.map(({ indexname }: { indexname: string }) => indexname)
-      ).toContain('attachments_mediaId_idx')
     }
   )
 })

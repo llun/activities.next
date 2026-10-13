@@ -38,7 +38,7 @@ ACTIVITIES_DATABASE_PG_PASSWORD=your_strong_password
 ACTIVITIES_DATABASE_PG_DATABASE=activitynext
 ```
 
-Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is a plain [Knex configuration object](https://knexjs.org/guide/#configuration-options):
+Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is in the shape of a [Knex configuration object](https://knexjs.org/guide/#configuration-options). The app reads only `client`, `connection`, `pool.min`/`pool.max` and `acquireConnectionTimeout` from it and logs a warning naming any other key it ignores (see [Environment Variables](environment-variables.md#full-json-configuration)):
 
 ```json
 {

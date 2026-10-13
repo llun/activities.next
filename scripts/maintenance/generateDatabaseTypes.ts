@@ -6,7 +6,7 @@
 // latest migration (configured with the same inline ACTIVITIES_DATABASE_*
 // settings `yarn migrate` takes); the SQLite schema comes from loading the
 // committed migrations/schema.sqlite.sql into an in-memory database. Both are
-// read with Kysely's own introspection through lib/database/kysely, and each
+// read with Kysely's own introspection through lib/database/connection, and each
 // column is typed so the value is honest on BOTH backends — see the header
 // emitted below and docs/setup.md ("Regenerating the Kysely DB types").
 //
@@ -19,14 +19,16 @@
 //       [--output lib/database/kysely/db.ts]
 //
 // It only reads the schema; it never writes to either database.
-import knex, { Knex } from 'knex'
 import type { ColumnMetadata, TableMetadata } from 'kysely'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import * as prettier from 'prettier'
 
-import { getDatabaseConfig } from '@/lib/config/database'
-import { kyselyFor } from '@/lib/database/kysely'
+import { type DatabaseConfig, getDatabaseConfig } from '@/lib/config/database'
+import {
+  type DatabaseHandle,
+  createDatabaseConnection
+} from '@/lib/database/connection'
 
 const DEFAULT_OUTPUT = 'lib/database/kysely/db.ts'
 const SQLITE_SCHEMA = 'migrations/schema.sqlite.sql'
@@ -264,9 +266,9 @@ const HEADER = `// GENERATED FILE — do not edit by hand.
 // migration changes the schema (see docs/setup.md, "Regenerating the Kysely DB
 // types"). CI's PostgreSQL Schema Dump Sync job fails when this file drifts.
 //
-// The select side is what the Knex-backed Kysely driver returns on BOTH
-// backends after normalisation (lib/database/kysely/normalize.ts); the
-// insert/update side is what both backends accept:
+// The select side is what the database connection (lib/database/connection.ts)
+// returns on BOTH backends after normalisation (lib/database/kysely/
+// normalize.ts); the insert/update side is what both backends accept:
 // - Timestamp: read as epoch milliseconds (branded as EpochMs), written as a
 //   Date. Compare a timestamp column only through timestampValue() from
 //   lib/database/kysely/dialect.ts: the brand stops bare numbers (PostgreSQL
@@ -304,50 +306,41 @@ const parseOutput = (argv: string[]) => {
   return value
 }
 
-const introspect = async (instance: Knex) => {
-  const tables = await kyselyFor(instance).introspection.getTables()
-  return tables.filter(
-    (table) =>
-      !table.isView &&
-      !EXCLUDED_TABLE.test(table.name) &&
-      (table.schema === undefined || table.schema === 'public')
-  )
-}
-
-const loadSqliteTables = async () => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
+const introspect = async (config: DatabaseConfig, schema?: string) => {
+  const connection: DatabaseHandle = createDatabaseConnection(config)
   try {
-    const connection = await instance.client.acquireConnection()
-    try {
-      connection.exec(readFileSync(SQLITE_SCHEMA, 'utf8'))
-    } finally {
-      await instance.client.releaseConnection(connection)
-    }
-    return await introspect(instance)
+    if (schema) await connection.executeScript(schema)
+    const tables = await connection.db.introspection.getTables()
+    return tables.filter(
+      (table) =>
+        !table.isView &&
+        !EXCLUDED_TABLE.test(table.name) &&
+        (table.schema === undefined || table.schema === 'public')
+    )
   } finally {
-    await instance.destroy()
+    await connection.destroy()
   }
 }
 
+const loadSqliteTables = () =>
+  introspect(
+    {
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    },
+    readFileSync(SQLITE_SCHEMA, 'utf8')
+  )
+
 const loadPostgresTables = async () => {
   const config = getDatabaseConfig()?.database
-  const client = String(config?.client ?? '')
-  if (!config || client !== 'pg') {
+  if (config?.client !== 'pg') {
     throw new Error(
       'Point ACTIVITIES_DATABASE_CLIENT=pg and ACTIVITIES_DATABASE_PG_* at a ' +
         'local PostgreSQL database migrated to the latest migration'
     )
   }
-  const instance = knex(config)
-  try {
-    return await introspect(instance)
-  } finally {
-    await instance.destroy()
-  }
+  return introspect(config)
 }
 
 const main = async () => {

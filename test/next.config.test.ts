@@ -177,6 +177,45 @@ describe('next config runtime isolation', () => {
     )
   })
 
+  // The database connection loads `pg` through dynamicImport, which the
+  // standalone tracer cannot follow, so pg and everything it requires have to
+  // be listed: its dependencies and the optional ones that are installed
+  // (pg-cloudflare).
+  it('includes pg and every package pg depends on', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
+    const includes = loadedNextConfig.outputFileTracingIncludes?.['/**/*']
+
+    const required = new Set<string>()
+    const visit = (name: string) => {
+      if (required.has(name)) return
+      required.add(name)
+      const manifest = JSON.parse(
+        fs.readFileSync(
+          path.join(originalCwd, 'node_modules', name, 'package.json'),
+          'utf-8'
+        )
+      ) as {
+        dependencies?: Record<string, string>
+        optionalDependencies?: Record<string, string>
+      }
+      Object.keys(manifest.dependencies ?? {}).forEach(visit)
+      Object.keys(manifest.optionalDependencies ?? {})
+        .filter((optional) =>
+          fs.existsSync(path.join(originalCwd, 'node_modules', optional))
+        )
+        .forEach(visit)
+    }
+    visit('pg')
+    expect(required).toContain('pg-cloudflare')
+
+    expect(required.size).toBeGreaterThan(5)
+    expect(includes).toEqual(
+      expect.arrayContaining(
+        [...required].map((name) => `./node_modules/${name}/**/*`)
+      )
+    )
+  })
+
   it('does not reference ACTIVITIES runtime variables in next config source', () => {
     expect(
       fs.readFileSync(path.join(originalCwd, 'next.config.ts'), 'utf-8')
