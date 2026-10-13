@@ -126,9 +126,8 @@ describe('sqlcommenter on the connection', () => {
       const { rows } = await sql<{ query: string }>`
         select query from pg_stat_activity where pid = pg_backend_pid()
       `.execute(connection.db)
-      expect(rows[0].query.trimEnd()).toMatch(
-        new RegExp(`${traceparent.replace(/[*/]/g, '\\$&')}$`)
-      )
+      const query = rows[0].query.trimEnd()
+      expect(query.slice(-traceparent.length)).toBe(traceparent)
     }
   )
 
