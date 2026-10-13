@@ -182,7 +182,8 @@ describe('next config runtime isolation', () => {
 
   // The database connection loads `pg` through dynamicImport, which the
   // standalone tracer cannot follow, so pg and everything it requires have to
-  // be listed.
+  // be listed: its dependencies and the optional ones that are installed
+  // (pg-cloudflare).
   it('includes pg and every package pg depends on', async () => {
     const { default: loadedNextConfig } = await loadNextConfig()
     const includes = loadedNextConfig.outputFileTracingIncludes?.['/**/*']
@@ -196,10 +197,19 @@ describe('next config runtime isolation', () => {
           path.join(originalCwd, 'node_modules', name, 'package.json'),
           'utf-8'
         )
-      ) as { dependencies?: Record<string, string> }
+      ) as {
+        dependencies?: Record<string, string>
+        optionalDependencies?: Record<string, string>
+      }
       Object.keys(manifest.dependencies ?? {}).forEach(visit)
+      Object.keys(manifest.optionalDependencies ?? {})
+        .filter((optional) =>
+          fs.existsSync(path.join(originalCwd, 'node_modules', optional))
+        )
+        .forEach(visit)
     }
     visit('pg')
+    expect(required).toContain('pg-cloudflare')
 
     expect(required.size).toBeGreaterThan(5)
     expect(includes).toEqual(
