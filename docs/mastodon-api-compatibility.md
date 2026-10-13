@@ -598,10 +598,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   backdated direct message older than a conversation's latest message does not
   mark the conversation unread or move it up the conversations list (its mention
   notification still arrives). Mastodon clients never send it.
-- **`?format=activities_next`** — timeline endpoints and
-  `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
-  status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
-  uses it to render the interactive timeline post component).
+- **`?format=activities_next`** — timeline endpoints,
+  `GET /api/v1/trends/statuses` and `GET /api/v1/accounts/:id/statuses` accept
+  this query flag to return the raw internal status JSON instead of the Mastodon
+  status shape (the web `/explore` Posts tab uses it to render the interactive
+  timeline post component). On the account statuses endpoint the body is
+  `{ statuses, nextMaxStatusId }` with no `Link` header: a local account's
+  profile page loads its older posts with it, passing `nextMaxStatusId` back as
+  `max_id` the way Mastodon's web profile pages this endpoint.
 - **Presigned / direct-to-storage media** — `/api/v1/medias/presigned` (and the
   Strava archive presigned upload) provide an asynchronous upload path that
   offloads bytes directly to object storage.

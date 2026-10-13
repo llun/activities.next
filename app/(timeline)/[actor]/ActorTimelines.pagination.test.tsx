@@ -10,12 +10,13 @@ import {
   waitForElementToBeRemoved
 } from '@testing-library/react'
 
-import { getActorStatuses } from '@/lib/client'
+import { getAccountStatusesPage, getActorStatuses } from '@/lib/client'
 
 import { ActorTimelines } from './ActorTimelines'
 import { FIXED_CURRENT_TIME, createStatus } from './ActorTimelines.testUtils'
 
 vi.mock('@/lib/client', () => ({
+  getAccountStatusesPage: vi.fn(),
   getActorStatuses: vi.fn()
 }))
 
@@ -39,9 +40,96 @@ vi.mock('@/lib/components/ui/button', async () => ({
 
 describe('ActorTimelines', () => {
   const getActorStatusesMock = getActorStatuses as jest.Mock
+  const getAccountStatusesPageMock = getAccountStatusesPage as jest.Mock
 
   beforeEach(() => {
     getActorStatusesMock.mockReset()
+    getAccountStatusesPageMock.mockReset()
+  })
+
+  it('pages a local account with the max_id cursor until there is no next page', async () => {
+    getAccountStatusesPageMock
+      .mockResolvedValueOnce({
+        statuses: [createStatus('https://local.example/statuses/2')],
+        nextMaxStatusId: 'https://local.example/statuses/2'
+      })
+      .mockResolvedValueOnce({
+        statuses: [createStatus('https://local.example/statuses/3')],
+        nextMaxStatusId: null
+      })
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://local.example/users/actor"
+        statuses={[createStatus('https://local.example/statuses/1')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{
+          nextPageUrl: null,
+          prevPageUrl: null,
+          nextMaxStatusId: 'https://local.example/statuses/1'
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('https://local.example/statuses/2')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('https://local.example/statuses/3')
+
+    expect(getActorStatusesMock).not.toHaveBeenCalled()
+    expect(getAccountStatusesPageMock).toHaveBeenNthCalledWith(1, {
+      actorId: 'https://local.example/users/actor',
+      maxStatusId: 'https://local.example/statuses/1'
+    })
+    expect(getAccountStatusesPageMock).toHaveBeenNthCalledWith(2, {
+      actorId: 'https://local.example/users/actor',
+      maxStatusId: 'https://local.example/statuses/2'
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Load more' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('steps the max_id cursor back when the post it points at is deleted', async () => {
+    getAccountStatusesPageMock.mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://local.example/users/actor"
+        statuses={[
+          createStatus('https://local.example/statuses/1'),
+          createStatus('https://local.example/statuses/2')
+        ]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{
+          nextPageUrl: null,
+          prevPageUrl: null,
+          nextMaxStatusId: 'https://local.example/statuses/2'
+        }}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByTestId('trigger-delete-https://local.example/statuses/2')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() =>
+      expect(getAccountStatusesPageMock).toHaveBeenCalledWith({
+        actorId: 'https://local.example/users/actor',
+        maxStatusId: 'https://local.example/statuses/1'
+      })
+    )
   })
 
   it('loads and appends older actor statuses from the next outbox page', async () => {
