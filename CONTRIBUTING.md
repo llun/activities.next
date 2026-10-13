@@ -454,7 +454,7 @@ activities.next/
 │   ├── activities/            # ActivityPub protocol logic
 │   ├── components/            # Shared React components
 │   ├── config/                # Configuration loaders
-│   ├── database/              # Database abstraction (Knex)
+│   ├── database/              # Database abstraction (Kysely)
 │   ├── jobs/                  # Background job handlers
 │   ├── services/              # Business logic services
 │   ├── types/                 # TypeScript type definitions
@@ -828,11 +828,12 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `TEST_DATABASE_PORT` defaulting to 5432) for running the suite against a throwaway **local** PostgreSQL. In that
   mode each Vitest worker drops and recreates its **own** database named
   `test_<VITEST_POOL_ID>` — a single shared database would let one worker
-  destroy the schema another worker is mid-test on. The schema loader also has
-  to `RESET search_path` on the connection it loads `migrations/schema.sql`
-  into, because pg_dump's leading
+  destroy the schema another worker is mid-test on. The schema loader runs
+  `migrations/schema.sql` on a client of its own that it closes afterwards
+  (`executeScript` in `lib/database/connection.ts`), never on a pooled
+  connection, because pg_dump's leading
   `SELECT pg_catalog.set_config('search_path', '', false)` is session-scoped and
-  would otherwise leave that pooled connection unable to resolve any unqualified
+  would otherwise leave that connection unable to resolve any unqualified
   table name for the rest of its life.
 - **New tests get their database from `createTestDatabase()`**
   (`lib/database/testing/createTestDatabase.ts`). It returns the `Database`
@@ -842,17 +843,17 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `pendingAcquires`). Seed or inspect state the public `Database` methods
   cannot reach with `db` and the helpers in `lib/database/testing/fixtures.ts`
   (`(db, params)` functions over Kysely); use a public method instead when one
-  already does the job. Neither it nor the helpers below hand out a raw Knex
-  instance. The few tests that need Knex itself (the Knex-transaction interop
-  tests, the legacy migration tests, and the tests of the Knex-backed
-  connection) call `getLegacyKnex(database)` from `createTestDatabase.ts`,
-  which goes away with Knex; do not use it to seed or read. The helpers below
-  are one-line aliases over `createTestDatabase`.
+  already does the job. Nothing in it uses Knex. The legacy migration tests,
+  which run a Knex migration module (`up(knex)`), build a Knex instance with
+  `createLegacyKnex(backend)` (`lib/database/testing/legacyKnex.ts`): on
+  PostgreSQL it opens the same per-worker database, on SQLite a separate
+  in-memory one. It goes away with the Knex migrations; do not use it to seed
+  or read. A test that needs a connection of its own (the connection and
+  sqlcommenter tests) opens it with `createDatabaseConnection` and
+  `getTestDatabaseConfig(backend)`, and destroys it. The helpers below are
+  one-line aliases over `createTestDatabase`.
 - **To assert on the SQL a call sends, capture it with
-  `testDb.captureQueries(work)`; never register a listener on the Knex
-  instance** (`knex.on('query', …)`) in a test (`driver.test.ts` and
-  `sqlcommenter.test.ts`, which test the driver itself, are the exceptions
-  until the connection swap). It resolves to the
+  `testDb.captureQueries(work)`.** It resolves to the
   `{ sql, bindings }[]` the driver sent while `work` ran, in order, with the
   `begin` / `commit` / `rollback` of any transaction; statements sent before or
   after `work` are not in it, and statements another caller sends while it runs
@@ -873,7 +874,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   returns the same `captureQueries`, `onQuery` and `db` next to its `database`.
   `testDb.pendingAcquires()` is how many callers are queued for a pooled
   connection, for a race test that has to know another caller is stuck (on
-  SQLite, one waiting for the single connection). A test that builds its own
+  SQLite, one waiting for the single connection; on PostgreSQL, one waiting
+  for a free pooled client). A test that builds its own
   Knex instance, as the legacy migration tests do to run a migration module
   against hand-made tables, gets the same `captureQueries` and `onQuery` from
   `createKnexQueryCapture(knex)` (`lib/database/testing/queryCapture.ts`).
@@ -1023,7 +1025,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   their own session check have no wiring table, so their own 401/403 tests are
   the only proof and must stay.
   A test that drives a real guard supplies the bearer token's row through the
-  `Database` the guard is given, never by mocking `getKnex`: the guard suites
+  `Database` the guard is given, never by mocking the connection: the guard suites
   and the route canaries call `stubAccessTokenLookup`
   (`lib/services/guards/OAuthGuard.testUtils.ts`), which stubs
   `getOAuthAccessTokenByHash` on their test database (a token it has no row for
