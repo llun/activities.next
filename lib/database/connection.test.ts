@@ -410,9 +410,19 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
         .poll(() => errors.mock.calls.length, { timeout: 5_000 })
         .toBeGreaterThan(0)
       expect(errors).toHaveBeenCalledWith(
-        expect.objectContaining({ err: expect.any(Error) }),
+        {
+          err: expect.objectContaining({
+            type: 'DatabaseError',
+            code: '57P01',
+            message: 'terminating connection due to administrator command'
+          })
+        },
         'PostgreSQL idle client error'
       )
+      // The client node-postgres attaches to the error stays out of the log.
+      for (const [entry] of errors.mock.calls) {
+        expect(entry).not.toHaveProperty('err.client')
+      }
       const second = await pid()
       expect(second).not.toBe(first)
     } finally {

@@ -471,14 +471,29 @@ const createPool = (pg: PgModule, config: PostgresDatabaseConfig): Pool => {
   // statements. An `error` event without a listener crashes the process; the
   // pool has already dropped the client, and the next query gets a new one.
   pool.on('error', (error) => {
-    logger.error({ err: error }, 'PostgreSQL idle client error')
+    logger.error({ err: describeError(error) }, 'PostgreSQL idle client error')
   })
   pool.on('connect', (client) => {
     client.on('error', (error) => {
-      logger.error({ err: error }, 'PostgreSQL client error')
+      logger.error({ err: describeError(error) }, 'PostgreSQL client error')
     })
   })
   return pool
+}
+
+// node-postgres attaches the client to an idle client's error (`err.client`);
+// the log gets the error without it, so a whole client object and its
+// connection settings never reach the log.
+const describeError = (error: Error) => {
+  const { client: _client, ...fields } = error as Error & { client?: unknown }
+  // The spread copies the error's own fields (code, severity, detail, ...);
+  // message and stack are not own enumerable fields, so they are set after.
+  return {
+    ...fields,
+    type: error.constructor.name,
+    message: error.message,
+    stack: error.stack
+  }
 }
 
 // node-postgres still hands a client to a `connect()` that was already waiting
