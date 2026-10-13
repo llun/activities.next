@@ -464,16 +464,25 @@ const createPool = (pg: PgModule, config: PostgresDatabaseConfig): Pool => {
     idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
     types: createPostgresTypeParsers(pg.types)
   })
-  // node-postgres emits `error` on the pool when an idle client loses its
-  // connection (a server restart, pg_terminate_backend, a network drop) and
-  // on a client whose connection fails while it is checked out between
-  // statements. An `error` event without a listener crashes the process; the
-  // pool has already dropped the client, and the next query gets a new one.
+  // A client's connection can fail (a server restart, pg_terminate_backend, a
+  // network drop) while it is idle in the pool or while it is checked out
+  // between statements, for example in an open transaction while the app
+  // awaits something else. node-postgres emits `error` on the client, and an
+  // `error` event without a listener crashes the process. For an idle client
+  // the pool's own listener drops the client and re-emits the error on the
+  // pool; while the client is checked out the pool has no listener on it, so
+  // each client gets one of its own. The pool's listener logs an idle
+  // client's error and the client's listener a checked-out client's, so each
+  // failure is logged once. The next query gets a new connection.
+  const checkedOut = new WeakSet<object>()
+  pool.on('acquire', (client) => checkedOut.add(client))
+  pool.on('release', (_error, client) => checkedOut.delete(client))
   pool.on('error', (error) => {
     logger.error({ err: describeError(error) }, 'PostgreSQL idle client error')
   })
   pool.on('connect', (client) => {
     client.on('error', (error) => {
+      if (!checkedOut.has(client)) return
       logger.error({ err: describeError(error) }, 'PostgreSQL client error')
     })
   })

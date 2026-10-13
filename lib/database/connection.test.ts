@@ -16,7 +16,10 @@ import {
   createTestDatabase,
   getTestDatabaseConfig
 } from '@/lib/database/testing/createTestDatabase'
-import { holdTransaction } from '@/lib/database/testing/heldTransaction'
+import {
+  type HeldTransaction,
+  holdTransaction
+} from '@/lib/database/testing/heldTransaction'
 import { logger } from '@/lib/utils/logger'
 
 const backend = process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
@@ -467,7 +470,65 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
       }
       const second = await pid()
       expect(second).not.toBe(first)
+      // Logged once: the pool reports an idle client's error, and the
+      // client's own listener stays quiet while the client is idle.
+      expect(errors).toHaveBeenCalledTimes(1)
     } finally {
+      errors.mockRestore()
+      await handle.destroy()
+    }
+  })
+
+  // While a client is checked out, here by a transaction left open while the
+  // app awaits something else, the pool has no listener on it. Without the
+  // connection's own listener the server ending the backend would emit an
+  // unhandled `error` and crash the process.
+  it('survives the server dropping a connection inside an open transaction', async () => {
+    const errors = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const crashes: unknown[] = []
+    const onCrash = (error: unknown) => {
+      crashes.push(error)
+    }
+    process.on('uncaughtException', onCrash)
+    process.on('unhandledRejection', onCrash)
+    const handle = open({ min: 0, max: 1 })
+    let held: HeldTransaction | undefined
+    try {
+      held = await holdTransaction(handle.db)
+      const { rows } = await sql<{
+        pid: number
+      }>`select pg_backend_pid() as pid`.execute(held.trx)
+      await sql`select pg_terminate_backend(${rows[0].pid})`.execute(
+        observer.db
+      )
+      await expect
+        .poll(() => errors.mock.calls.length, { timeout: 5_000 })
+        .toBeGreaterThan(0)
+      expect(errors).toHaveBeenCalledWith(
+        {
+          err: expect.objectContaining({
+            type: 'DatabaseError',
+            code: '57P01',
+            message: 'terminating connection due to administrator command'
+          })
+        },
+        'PostgreSQL client error'
+      )
+      for (const [, message] of errors.mock.calls) {
+        expect(message).toBe('PostgreSQL client error')
+      }
+      // The transaction ended with its connection; the pool replaces it.
+      await held.rollback().catch(() => undefined)
+      held = undefined
+      const after = await sql<{
+        one: number
+      }>`select 1 as one`.execute(handle.db)
+      expect(after.rows).toEqual([{ one: 1 }])
+      expect(crashes).toEqual([])
+    } finally {
+      await held?.rollback().catch(() => undefined)
+      process.off('uncaughtException', onCrash)
+      process.off('unhandledRejection', onCrash)
       errors.mockRestore()
       await handle.destroy()
     }
