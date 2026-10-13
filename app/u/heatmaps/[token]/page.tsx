@@ -2,8 +2,8 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
-import { getBaseURL } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
+import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
 import { loadSharedHeatmap } from './loadSharedHeatmap'
@@ -48,7 +48,7 @@ const Page: FC<PageProps> = async ({ params }) => {
       token={token}
       signinUrl="/auth/signin"
       signupUrl="/auth/signup"
-      logoSrc={new URL('/logo-nav.png', getBaseURL()).toString()}
+      logoSrc={getBrandAssetSrc('/logo-nav.png')}
     />
   )
 }

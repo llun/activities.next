@@ -21,8 +21,9 @@ export interface SharedHeatmapPageProps {
   signinUrl: string
   signupUrl: string
   /**
-   * Absolute logo URL on the canonical origin (`getBaseURL()`): on a CDN alias
-   * domain the root-relative default is redirected away.
+   * Logo URL from `getBrandAssetSrc`: absolute on the canonical origin (on a
+   * CDN alias domain the root-relative default is redirected away), or
+   * root-relative in `next dev`.
    */
   logoSrc: string
   /** The share token this page was reached by; addresses its tiles. */
