@@ -4,6 +4,7 @@ import {
   SAM_INPUT_SIZE,
   SAM_MEAN,
   SAM_STD,
+  extractGuideRgba,
   getSamResize,
   preprocessSam,
   toSamPrompt
@@ -109,5 +110,31 @@ describe('toSamPrompt', () => {
     const prompt = toSamPrompt(points, { width: 1024, height: 1024 })
     expect(prompt.coordinates).toHaveLength(MAX_MASK_POINTS * 2)
     expect(prompt.labels).toHaveLength(MAX_MASK_POINTS)
+  })
+})
+
+describe('extractGuideRgba', () => {
+  it('returns a copy of rgba at the same size', () => {
+    const resized = { width: 2, height: 2 }
+    const rgba = new Uint8ClampedArray([
+      255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 128, 128, 128, 255
+    ])
+    const guide = extractGuideRgba(rgba, resized)
+    expect(guide).toEqual(rgba)
+    expect(guide).not.toBe(rgba)
+  })
+
+  it('resamples when maskSize differs from resized', () => {
+    const resized = { width: 4, height: 4 }
+    const rgba = new Uint8ClampedArray(4 * 4 * 4).fill(255)
+    const guide = extractGuideRgba(rgba, resized, { width: 2, height: 2 })
+    expect(guide).toHaveLength(2 * 2 * 4)
+    expect(guide[0]).toBe(255)
+  })
+
+  it('rejects mismatched buffer lengths', () => {
+    expect(() =>
+      extractGuideRgba(new Uint8ClampedArray(10), { width: 4, height: 4 })
+    ).toThrow()
   })
 })

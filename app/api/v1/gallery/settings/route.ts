@@ -1,4 +1,4 @@
-import { getConfig, getPhotoEditorConfig } from '@/lib/config'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
 import { getGalleryLookupAvailability } from '@/lib/services/gallery/galleryLookupAvailability'
@@ -16,12 +16,11 @@ const toEntity = async (
   database: Database,
   settings: GallerySettings
 ): Promise<GallerySettingsEntity> => {
-  const { enhance } = getPhotoEditorConfig()
   return {
     ...settings,
     altTextAvailable: Boolean(getConfig().altText),
-    photoEnhanceAvailable: enhance !== null,
-    photoEnhanceModel: enhance?.model ?? null,
+    photoEnhanceAvailable: false,
+    photoEnhanceModel: null,
     ...(await getGalleryLookupAvailability(database))
   }
 }

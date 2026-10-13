@@ -38,6 +38,15 @@ vec3 linToSrgb(vec3 c) {
 float lumaOf(vec3 c) {
   return LUMA_R * c.r + LUMA_G * c.g + LUMA_B * c.b;
 }
+
+float applyLevels(float x, float whites, float blacks) {
+  float xc = clamp(x, 0.0, 1.0);
+  float wWeight = smoothstep(WHITES_SHOULDER_START, 1.0, xc);
+  float bWeight = 1.0 - smoothstep(0.0, BLACKS_TOE_END, xc);
+  float wTerm = WHITES_RANGE * whites * wWeight * (whites > 0.0 ? 1.0 - xc * 0.45 : clamp(x, 0.0, 1.5));
+  float bTerm = BLACKS_RANGE * blacks * bWeight * (blacks < 0.0 ? xc : 1.0 - xc * 0.45);
+  return x + wTerm + bTerm;
+}
 `
 
 /**
@@ -206,19 +215,22 @@ vec3 whiteBalance(Adj a) {
 
 // The blurred luma, taken through steps 2-5 (the grey keeps its luma).
 float toneOf(float blurred, Adj a) {
-  float wp = 1.0 - WHITES_RANGE * a.whites;
-  float bp = -BLACKS_RANGE * a.blacks;
-  return (linToSrgb1(srgbToLin1(blurred) * exp2(a.exposure)) - bp) / (wp - bp);
+  float p = linToSrgb1(srgbToLin1(blurred) * exp2(a.exposure));
+  return applyLevels(p, a.whites, a.blacks);
 }
 
 vec3 toStep7(vec3 rgb, float T, Adj a) {
-  float wp = 1.0 - WHITES_RANGE * a.whites;
-  float bp = -BLACKS_RANGE * a.blacks;
   vec3 p = linToSrgb(srgbToLin(rgb) * whiteBalance(a) * exp2(a.exposure));
-  p = (p - bp) / (wp - bp);
-  float ws = 1.0 - smoothstep(0.0, TONE_SHADOW_EDGE, T);
-  float wh = smoothstep(TONE_HIGHLIGHT_EDGE, 1.0, T);
+  p = vec3(
+    applyLevels(p.r, a.whites, a.blacks),
+    applyLevels(p.g, a.whites, a.blacks),
+    applyLevels(p.b, a.whites, a.blacks)
+  );
   float Y = lumaOf(p);
+  float edgeWeight = clamp(abs(Y - T) * TONE_EDGE_SENSITIVITY, 0.0, 1.0);
+  float effectiveT = mix(T, Y, edgeWeight);
+  float ws = 1.0 - smoothstep(0.0, TONE_SHADOW_EDGE, effectiveT);
+  float wh = smoothstep(TONE_HIGHLIGHT_EDGE, 1.0, effectiveT);
   float y1 = Y + TONE_STRENGTH * a.shadows * ws
     * (a.shadows > 0.0 ? clamp(1.0 - Y, 0.0, 1.0) : Y);
   float y2 = y1 + TONE_STRENGTH * a.highlights * wh
@@ -277,7 +289,10 @@ void main() {
 
   vec3 p = toStep7(rgb, T, g);
   vec3 fine7 = toStep7(fine, T, g);
-  vec3 mid7 = toStep7(vec3(blur.r), T, g);
+  Adj gMid = g;
+  gMid.temperature = 0.0;
+  gMid.tint = 0.0;
+  vec3 mid7 = toStep7(vec3(blur.r), T, gMid);
 
   // Detail (step 8).
   float Y = lumaOf(p);

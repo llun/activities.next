@@ -17,7 +17,11 @@ import {
 import type { Geometry, Recipe } from '@/lib/services/medias/edit/recipe'
 
 import { BLUR_MAX_EDGE } from './engine/colour'
-import { drawGeometry } from './engine/geometryCanvas'
+import {
+  type DrawableCanvas,
+  createCanvas,
+  drawGeometry
+} from './engine/geometryCanvas'
 import {
   type MaskOverlay,
   type Renderer,
@@ -41,8 +45,8 @@ import { useElementSize } from './useElementSize'
 export type EditorTab = 'adjust' | 'crop' | 'masks' | 'ai'
 export type RendererStatus = 'idle' | 'ready' | 'lost' | 'error'
 
-const HISTOGRAM_INTERVAL_MS = 150
-const HISTOGRAM_EDGE = 512
+export const HISTOGRAM_DEBOUNCE_MS = 120
+export const HISTOGRAM_MAX_EDGE = 160
 const AUTO_EDGE = 512
 
 interface Args {
@@ -88,6 +92,10 @@ export const useRenderer = ({
   const frameRequest = useRef(0)
   const histogramTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const histogramAt = useRef(0)
+  const previewCanvasRef = useRef<DrawableCanvas | null>(null)
+  const blurCanvasRef = useRef<DrawableCanvas | null>(null)
+  if (!previewCanvasRef.current) previewCanvasRef.current = createCanvas(1, 1)
+  if (!blurCanvasRef.current) blurCanvasRef.current = createCanvas(1, 1)
 
   useEffect(() => {
     adjustmentsRef.current = recipe.adjustments
@@ -136,11 +144,16 @@ export const useRenderer = ({
     histogramTimer.current = null
     histogramAt.current = Date.now()
     const renderer = rendererRef.current
-    const pixels = renderer?.readPreview(HISTOGRAM_EDGE)
+    const pixels = renderer?.readPreview(HISTOGRAM_MAX_EDGE)
     if (pixels) {
       setHistogram(computeHistogram(pixels.data, pixels.width, pixels.height))
     }
   }, [])
+
+  const scheduleHistogram = useCallback(() => {
+    if (histogramTimer.current) clearTimeout(histogramTimer.current)
+    histogramTimer.current = setTimeout(publishHistogram, HISTOGRAM_DEBOUNCE_MS)
+  }, [publishHistogram])
 
   const schedule = useCallback(() => {
     if (frameRequest.current) return
@@ -152,14 +165,9 @@ export const useRenderer = ({
         masks: getMaskSliders(recipeRef.current.masks),
         overlay: overlayRef.current
       })
-      if (histogramTimer.current) return
-      const wait = Math.max(
-        0,
-        HISTOGRAM_INTERVAL_MS - (Date.now() - histogramAt.current)
-      )
-      histogramTimer.current = setTimeout(publishHistogram, wait)
+      scheduleHistogram()
     })
-  }, [publishHistogram])
+  }, [scheduleHistogram])
 
   // The renderer lives as long as the canvas does.
   useEffect(() => {
@@ -199,7 +207,8 @@ export const useRenderer = ({
         bitmap,
         previewGeometry,
         pixels.width,
-        pixels.height
+        pixels.height,
+        previewCanvasRef.current ?? undefined
       )
       const blurSize = fitLongEdge(pixels, BLUR_MAX_EDGE)
       const blur =
@@ -209,7 +218,8 @@ export const useRenderer = ({
               bitmap,
               previewGeometry,
               blurSize.width,
-              blurSize.height
+              blurSize.height,
+              blurCanvasRef.current ?? undefined
             )
       renderer.setPreviewFrame({ image, size: pixels, blur, blurSize })
       setFrameVersion((version) => version + 1)

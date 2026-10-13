@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { Size } from '@/lib/services/medias/edit/geometry'
+import { createCanvas } from '@/lib/components/photo-editor/engine/geometryCanvas'
+import {
+  type Size,
+  getGeometryTransform
+} from '@/lib/services/medias/edit/geometry'
 import {
   type Geometry,
   MAX_MASKS,
@@ -20,6 +24,7 @@ import {
 } from './brushRaster'
 import { type Focus, focusToSourcePoint } from './focusPoint'
 import { MASK_COPY } from './maskCopy'
+import { outputToSource, sourceToOutput } from './maskGeometry'
 import {
   type MaskRaster,
   cloneRaster,
@@ -51,6 +56,7 @@ import {
   isModelCached,
   loadSubjectModel
 } from './modelCache'
+import { boxToPromptPoints, detectSalientPoints } from './saliency'
 import { type SamClient, type SamMask, createSamClient } from './samClient'
 import { getSamResize } from './samPre'
 
@@ -304,20 +310,95 @@ export const useMasks = ({
 
   const selectSubject = useCallback(async () => {
     if (disabled || !model || !canAddMask(recipeRef.current)) return
-    const point = focusToSourcePoint(focus, source, storedGeometry)
-    const result = await segment([point])
+    const currentGeometry = recipeRef.current.geometry
+    const thumbW = 64
+    const thumbH = 64
+    const matrix = getGeometryTransform(source, currentGeometry, {
+      width: thumbW,
+      height: thumbH
+    })
+    const focusPoint = focus
+      ? focusToSourcePoint(focus, source, storedGeometry)
+      : null
+    const centerSource = outputToSource(
+      matrix,
+      { x: 0.5 * thumbW, y: 0.5 * thumbH },
+      source
+    )
+    let points: MaskPoint[] = [
+      focusPoint ?? {
+        x: Math.min(1, Math.max(0, centerSource.x)),
+        y: Math.min(1, Math.max(0, centerSource.y)),
+        label: 1
+      }
+    ]
+    if (bitmap) {
+      try {
+        const canvas = createCanvas(thumbW, thumbH)
+        const context = canvas.getContext('2d', {
+          willReadFrequently: true
+        }) as
+          CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+        if (context) {
+          context.imageSmoothingEnabled = true
+          context.imageSmoothingQuality = 'high'
+          context.setTransform(
+            matrix.a,
+            matrix.b,
+            matrix.c,
+            matrix.d,
+            matrix.e,
+            matrix.f
+          )
+          context.drawImage(bitmap, 0, 0)
+          const pixels = context.getImageData(0, 0, thumbW, thumbH)
+          let currentFocus: Focus | null = null
+          if (focusPoint) {
+            const outPx = sourceToOutput(matrix, focusPoint, source)
+            const outPt = { x: outPx.x / thumbW, y: outPx.y / thumbH }
+            if (outPt.x >= 0 && outPt.x <= 1 && outPt.y >= 0 && outPt.y <= 1) {
+              currentFocus = { x: outPt.x * 2 - 1, y: 1 - outPt.y * 2 }
+            }
+          }
+          const salient = detectSalientPoints(
+            pixels.data,
+            thumbW,
+            thumbH,
+            currentFocus
+          )
+          if (salient.length > 0) {
+            points = salient.map((pt) => {
+              const back = outputToSource(
+                matrix,
+                { x: pt.x * thumbW, y: pt.y * thumbH },
+                source
+              )
+              return {
+                x: Math.min(1, Math.max(0, back.x)),
+                y: Math.min(1, Math.max(0, back.y)),
+                label: pt.label
+              }
+            })
+          }
+        }
+      } catch {
+        // Fall back to focus point if canvas extraction is unavailable
+      }
+    }
+    const result = await segment(points)
     if (!result) return
     const latest = recipeRef.current
     if (!canAddMask(latest)) return
     const id = newMaskId(latest.masks.map((mask) => mask.id))
-    onChange(
-      withRaster(addSubjectMask(latest, id, point), id, toRaster(result))
-    )
+    const withSub = addSubjectMask(latest, id, points[0])
+    const withAllPts = setSubjectPoints(withSub, id, points)
+    onChange(withRaster(withAllPts, id, toRaster(result)))
     setSelectedId(id)
     setRefineMode('add')
     announce('Subject selected')
   }, [
     announce,
+    bitmap,
     disabled,
     focus,
     model,
@@ -326,6 +407,36 @@ export const useMasks = ({
     source,
     storedGeometry
   ])
+
+  const boxSelect = useCallback(
+    async (box: { x0: number; y0: number; x1: number; y1: number }) => {
+      if (disabled || !model) return
+      const points = boxToPromptPoints(box)
+      const result = await segment(points)
+      if (!result) return
+      const latest = recipeRef.current
+      const mask = getMask(latest, effectiveId)
+      if (mask && mask.kind === 'subject' && getMask(latest, mask.id)) {
+        onChange(
+          withRaster(
+            setSubjectPoints(latest, mask.id, points),
+            mask.id,
+            toRaster(result)
+          )
+        )
+        announce('Subject updated')
+      } else if (canAddMask(latest)) {
+        const id = newMaskId(latest.masks.map((m) => m.id))
+        const withSub = addSubjectMask(latest, id, points[0])
+        const withAllPts = setSubjectPoints(withSub, id, points)
+        onChange(withRaster(withAllPts, id, toRaster(result)))
+        setSelectedId(id)
+        setRefineMode('add')
+        announce('Subject selected')
+      }
+    },
+    [announce, disabled, effectiveId, model, onChange, segment]
+  )
 
   const addBackground = useCallback(() => {
     const latest = recipeRef.current
@@ -478,6 +589,13 @@ export const useMasks = ({
       if (!base) return
       const raster = cloneRaster(base)
       const perSource = raster.width / source.width
+      if (
+        stroke.current &&
+        stroke.current.frame !== null &&
+        stroke.current.frame !== 0
+      ) {
+        cancelAnimationFrame(stroke.current.frame)
+      }
       stroke.current = {
         id: mask.id,
         raster,
@@ -532,6 +650,7 @@ export const useMasks = ({
       hasRaster: Boolean(raster),
       live,
       selectSubject,
+      boxSelect,
       addBackground,
       addBrush,
       remove,
@@ -560,6 +679,7 @@ export const useMasks = ({
       raster,
       live,
       selectSubject,
+      boxSelect,
       addBackground,
       addBrush,
       remove,

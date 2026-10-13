@@ -6,7 +6,7 @@ import type { SamRequest, SamResponse } from './samMessages'
 export interface SamMask {
   width: number
   height: number
-  data: Uint8Array
+  data: Uint8Array | Uint8ClampedArray
 }
 
 /**

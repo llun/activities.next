@@ -177,19 +177,6 @@ export const PhotoEditorDialog = ({
     announce: setAnnouncement
   })
 
-  const enhanceCapability = editState?.capabilities.enhance
-  const ai = useAiEnhance({
-    mediaId,
-    available: Boolean(enhanceCapability?.available),
-    model: enhanceCapability?.model ?? null,
-    bitmap,
-    recipe: present,
-    onChange: change,
-    disabled: !ready,
-    announce: setAnnouncement,
-    resetKey: loadVersion
-  })
-
   // The mask pixels the preview draws: the recipe's, with a stroke in progress.
   const { live: liveRaster } = maskTools
   const presentRasters = getRasters(present)
@@ -218,6 +205,19 @@ export const PhotoEditorDialog = ({
     rasters: previewRasters,
     tab,
     overlay
+  })
+
+  const ai = useAiEnhance({
+    mediaId,
+    available: true,
+    model: null,
+    bitmap,
+    recipe: present,
+    onChange: change,
+    disabled: !ready,
+    announce: setAnnouncement,
+    resetKey: loadVersion,
+    getStats: renderer.getAutoStats
   })
 
   // Load the saved recipe and the unedited original.
@@ -585,6 +585,7 @@ export const PhotoEditorDialog = ({
         overlayVisible={maskTools.overlayVisible}
         onOverlayVisibleChange={maskTools.setOverlayVisible}
         onTap={(point) => void maskTools.tap(point)}
+        onBoxSelect={maskTools.boxSelect}
         onStrokeStart={maskTools.strokeStart}
         onStrokeMove={maskTools.strokeMove}
         onStrokeEnd={maskTools.strokeEnd}
@@ -635,6 +636,7 @@ export const PhotoEditorDialog = ({
           disabled={saving}
           announcement={announcement}
           maskLayer={maskLayer}
+          masks={maskTools}
           onCropChange={onCropChange}
           onGestureStart={history.beginGesture}
           onGestureEnd={history.endGesture}

@@ -136,14 +136,11 @@ export const resizeCrop = (
   if (ratio !== null) {
     if (direction.x !== 0 && direction.y !== 0) {
       width = Math.max(width, height * ratio)
+      height = width / ratio
     } else if (direction.x !== 0) {
-      // An edge handle changes the size along its own axis only.
+      height = width / ratio
     } else {
       width = height * ratio
-    }
-    height = width / ratio
-    if (direction.y === 0) {
-      // Width drove the size; keep the crop's middle on its own axis.
     }
   }
 

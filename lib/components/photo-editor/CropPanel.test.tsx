@@ -64,14 +64,95 @@ describe('CropPanel', () => {
     ).toHaveClass('max-md:min-h-10')
   })
 
-  it('gives the crop back when straighten returns to 0', () => {
+  it('gives the crop back when straighten returns to 0 across keyboard commits (keyUp)', () => {
     render(<Harness />)
     const thumb = screen.getByRole('slider', { name: 'Straighten' })
     fireEvent.keyDown(thumb, { key: 'End' })
+    fireEvent.keyUp(thumb, { key: 'End' })
     expect(latest.geometry.straighten).toBe(45)
     expect(latest.geometry.crop.width).toBeLessThan(START_CROP.width)
     fireEvent.keyDown(thumb, { key: 'Delete' })
+    fireEvent.keyUp(thumb, { key: 'Delete' })
     expect(latest.geometry.straighten).toBe(0)
     expect(latest.geometry.crop).toEqual(START_CROP)
+  })
+
+  it('restores the pre-straighten crop across multiple pointer gestures and double-click reset', () => {
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({
+        width: 200,
+        height: 20,
+        top: 0,
+        left: 0,
+        right: 200,
+        bottom: 20,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      })
+    HTMLElement.prototype.setPointerCapture = vi.fn()
+    HTMLElement.prototype.hasPointerCapture = vi.fn(() => true)
+    HTMLElement.prototype.releasePointerCapture = vi.fn()
+    try {
+      render(<Harness />)
+      const thumb = screen.getByRole('slider', { name: 'Straighten' })
+      const sliderRoot = thumb.closest('[data-slot="slider"]')!
+
+      // First pointer gesture: drag from 0° to ~20° and release (commits value)
+      fireEvent.pointerDown(sliderRoot, {
+        button: 0,
+        buttons: 1,
+        pointerId: 1,
+        clientX: 144,
+        clientY: 10
+      })
+      fireEvent.pointerUp(sliderRoot, {
+        button: 0,
+        pointerId: 1,
+        clientX: 144,
+        clientY: 10
+      })
+      expect(latest.geometry.straighten).toBeGreaterThan(15)
+      expect(latest.geometry.crop.width).toBeLessThan(START_CROP.width)
+
+      // Second pointer gesture: drag back to 0° (or double-click reset) and release
+      fireEvent.pointerDown(sliderRoot, {
+        button: 0,
+        buttons: 1,
+        pointerId: 1,
+        clientX: 100,
+        clientY: 10
+      })
+      fireEvent.pointerUp(sliderRoot, {
+        button: 0,
+        pointerId: 1,
+        clientX: 100,
+        clientY: 10
+      })
+      expect(latest.geometry.straighten).toBe(0)
+      expect(latest.geometry.crop).toEqual(START_CROP)
+
+      // Double-click reset after another pointer drag also restores START_CROP
+      fireEvent.pointerDown(sliderRoot, {
+        button: 0,
+        buttons: 1,
+        pointerId: 1,
+        clientX: 144,
+        clientY: 10
+      })
+      fireEvent.pointerUp(sliderRoot, {
+        button: 0,
+        pointerId: 1,
+        clientX: 144,
+        clientY: 10
+      })
+      expect(latest.geometry.straighten).toBeGreaterThan(15)
+      fireEvent.doubleClick(sliderRoot)
+      expect(latest.geometry.straighten).toBe(0)
+      expect(latest.geometry.crop).toEqual(START_CROP)
+    } finally {
+      rectSpy.mockRestore()
+    }
   })
 })

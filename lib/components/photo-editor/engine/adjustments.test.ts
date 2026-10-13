@@ -6,7 +6,13 @@ import {
   applyAdjustmentsWithTerms,
   applyMaskAdjustments
 } from './adjustments'
-import { type Rgb, linearToSrgb, luma, srgbToLinear } from './colour'
+import {
+  type Rgb,
+  applyLevels,
+  linearToSrgb,
+  luma,
+  srgbToLinear
+} from './colour'
 
 const context = (
   rgb: Rgb,
@@ -120,6 +126,42 @@ describe('applyAdjustments', () => {
     expect(apply([0.1, 0.1, 0.1], { blacks: -100 })[0]).toBeLessThan(0.1)
   })
 
+  it('applyLevels preserves identity at 0, 0 and localized shoulder/toe', () => {
+    for (const x of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]) {
+      expect(applyLevels(x, 0, 0)).toBeCloseTo(x, 6)
+    }
+    // Raising whites lifts bright tones (> 0.25) but leaves shadows (<= 0.25) untouched
+    expect(applyLevels(0.2, 1, 0)).toBe(0.2)
+    expect(applyLevels(0.25, 1, 0)).toBe(0.25)
+    expect(applyLevels(0.8, 1, 0)).toBeGreaterThan(0.8)
+
+    // Lowering whites recovers highlights without darkening shadows
+    expect(applyLevels(0.1, -1, 0)).toBe(0.1)
+    expect(applyLevels(0.9, -1, 0)).toBeLessThan(0.9)
+
+    // Raising blacks lifts dark shadows (< 0.75) but leaves highlights (>= 0.75) untouched
+    expect(applyLevels(0.2, 0, 1)).toBeGreaterThan(0.2)
+    expect(applyLevels(0.75, 0, 1)).toBe(0.75)
+    expect(applyLevels(0.9, 0, 1)).toBe(0.9)
+
+    // Lowering blacks deepens shadows and anchors 0 at 0
+    expect(applyLevels(0, 0, -1)).toBe(0)
+    expect(applyLevels(0.2, 0, -1)).toBeLessThan(0.2)
+  })
+
+  it('edge-aware tone prevents haloing across sharp high-contrast edges', () => {
+    // Sharp edge: pixel is bright (0.9), but blurred tone is dark (0.1)
+    const sharpEdgeCtx = context([0.9, 0.9, 0.9], { tone: 0.1 })
+    // If tone was purely coarse T=0.1, shadows=100 would falsely lift the bright pixel.
+    // With edge-stopping, effectiveT blends toward Y=0.9, drastically reducing false shadow lifting.
+    const withEdge = applyAdjustments(
+      [0.9, 0.9, 0.9],
+      { shadows: 100 },
+      sharpEdgeCtx
+    )
+    expect(withEdge[0]).toBeCloseTo(0.9, 1)
+  })
+
   it('texture sharpens against the fine neighbourhood', () => {
     const rgb: Rgb = [0.6, 0.6, 0.6]
     const out = apply(rgb, { texture: 100 }, { fine: [0.4, 0.4, 0.4] })
@@ -132,6 +174,24 @@ describe('applyAdjustments', () => {
     const rgb: Rgb = [0.6, 0.6, 0.6]
     const out = apply(rgb, { clarity: 100 }, { mid: 0.4 })
     expect(out[0]).toBeGreaterThan(0.6)
+  })
+
+  it('clarity mid7 evaluates with neutral white balance so lumaOf(mid) is invariant to temperature and tint', () => {
+    const grey: Rgb = [0.5, 0.5, 0.5]
+    const ctx = context(grey, { mid: 0.5 })
+    const { terms: tNeutral } = applyAdjustmentsWithTerms(
+      grey,
+      { temperature: 0, tint: 0, clarity: 50 },
+      ctx
+    )
+    const { terms: tWarm } = applyAdjustmentsWithTerms(
+      grey,
+      { temperature: 80, tint: 40, clarity: 50 },
+      ctx
+    )
+    // detailMid = Y - lumaOf(mid). Across temperature/tint changes,
+    // detailMid should remain within 0.001 of neutral because mid7 ignores WB
+    expect(Math.abs(tWarm.detailMid - tNeutral.detailMid)).toBeLessThan(1e-3)
   })
 
   it('vignette is 0 at the centre and darkens the corners', () => {

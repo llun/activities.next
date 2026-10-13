@@ -56,6 +56,42 @@ export const preprocessSam = (
   return tensor
 }
 
+export const getSamMaskSize = (resized: Size): Size => resized
+
+/** Extracts guide RGBA at maskSize (resampling if maskSize differs from resized). */
+export const extractGuideRgba = (
+  rgba: Uint8ClampedArray | Uint8Array,
+  resized: Size,
+  maskSize: Size = getSamMaskSize(resized)
+): Uint8ClampedArray => {
+  if (rgba.length !== resized.width * resized.height * 4) {
+    throw new Error('The pixels do not match the resized size')
+  }
+  if (maskSize.width === resized.width && maskSize.height === resized.height) {
+    return new Uint8ClampedArray(rgba)
+  }
+  const out = new Uint8ClampedArray(maskSize.width * maskSize.height * 4)
+  for (let y = 0; y < maskSize.height; y += 1) {
+    const sy = Math.min(
+      resized.height - 1,
+      Math.max(0, Math.floor(((y + 0.5) * resized.height) / maskSize.height))
+    )
+    for (let x = 0; x < maskSize.width; x += 1) {
+      const sx = Math.min(
+        resized.width - 1,
+        Math.max(0, Math.floor(((x + 0.5) * resized.width) / maskSize.width))
+      )
+      const srcIdx = (sy * resized.width + sx) * 4
+      const dstIdx = (y * maskSize.width + x) * 4
+      out[dstIdx] = rgba[srcIdx]
+      out[dstIdx + 1] = rgba[srcIdx + 1]
+      out[dstIdx + 2] = rgba[srcIdx + 2]
+      out[dstIdx + 3] = rgba[srcIdx + 3]
+    }
+  }
+  return out
+}
+
 export interface SamPrompt {
   /** [x0, y0, x1, y1, ...] in pixels of the resized (1024 long edge) picture. */
   coordinates: Float32Array

@@ -20,9 +20,12 @@ describe('computeStats', () => {
     const stats = computeStats(data, 10, 10)
     expect(stats.sd).toBeCloseTo(0, 3)
     expect(stats.p005).toBeCloseTo(stats.p995, 2)
+    expect(stats.p50).toBeCloseTo(128 / 255, 1)
     expect(stats.meanChroma).toBe(0)
     expect(stats.midtone.r).toBeCloseTo(128 / 255, 3)
     expect(stats.meanLinear).toBeCloseTo(0.2158, 2)
+    expect(stats.neutralMidtone.weight).toBe(1)
+    expect(stats.neutralMidtone.r).toBeCloseTo(0.2158, 2)
   })
 
   it('gives percentiles and fractions for black and white halves', () => {
@@ -35,20 +38,26 @@ describe('computeStats', () => {
     )
     const stats = computeStats(data, 20, 20)
     expect(stats.p005).toBeLessThan(0.01)
+    expect(stats.p50).toBeGreaterThanOrEqual(0)
     expect(stats.p995).toBeGreaterThan(0.99)
     expect(stats.fractionHigh).toBeCloseTo(0.5, 5)
     expect(stats.fractionLow).toBeCloseTo(0.5, 5)
     expect(stats.sd).toBeCloseTo(0.5, 1)
     expect(stats.midtone).toEqual({ r: 0, g: 0, b: 0 })
+    expect(stats.neutralMidtone.weight).toBe(0)
   })
 
   it('measures chroma', () => {
     const stats = computeStats(pixels([[255, 0, 0]], 4), 2, 2)
     expect(stats.meanChroma).toBe(1)
+    expect(stats.neutralMidtone.weight).toBe(0)
   })
 
   it('handles an empty image', () => {
     expect(computeStats(new Uint8ClampedArray(0), 0, 0).meanLinear).toBe(0)
+    expect(
+      computeStats(new Uint8ClampedArray(0), 0, 0).neutralMidtone.weight
+    ).toBe(0)
   })
 })
 

@@ -4,11 +4,11 @@ import type {
 } from '@/lib/services/medias/edit/recipe'
 
 import {
-  BLACKS_RANGE,
   CLARITY_GAIN,
   MIN_LUMA,
   type Rgb,
   TEXTURE_GAIN,
+  TONE_EDGE_SENSITIVITY,
   TONE_HIGHLIGHT_EDGE,
   TONE_SHADOW_EDGE,
   TONE_STRENGTH,
@@ -17,7 +17,7 @@ import {
   VIGNETTE_STRENGTH,
   WB_TEMPERATURE_GAIN,
   WB_TINT_GAIN,
-  WHITES_RANGE,
+  applyLevels,
   clamp,
   linearToSrgb,
   luma,
@@ -90,20 +90,12 @@ const scaleLuma = (p: Rgb, y: number): Rgb => {
   return scaled
 }
 
-/** Levels end points (step 5). */
-const levels = (n: Normalized) => {
-  const wp = 1 - WHITES_RANGE * n.whites
-  const bp = -BLACKS_RANGE * n.blacks
-  return { wp, bp }
-}
-
 /** The tone blur sample put through steps 2-5 on its luma. */
 export const toneSample = (tone: number, adjustments: Adjustments): number => {
   const n = normalize(adjustments)
-  const { wp, bp } = levels(n)
   // White balance leaves a grey's luma alone, so only exposure and levels act.
   const p = linearToSrgb(srgbToLinear(tone) * Math.pow(2, n.exposure))
-  return (p - bp) / (wp - bp)
+  return applyLevels(p, n.whites, n.blacks)
 }
 
 /** Steps 1-7: white balance, exposure, levels, tone, contrast. */
@@ -124,16 +116,17 @@ const toStep7 = (rgb: Rgb, n: Normalized, T: number): Rgb => {
     linearToSrgb(srgbToLinear(rgb[2]) * gB * exposure)
   ]
   // 5. Levels.
-  const { wp, bp } = levels(n)
   p = [
-    (p[0] - bp) / (wp - bp),
-    (p[1] - bp) / (wp - bp),
-    (p[2] - bp) / (wp - bp)
+    applyLevels(p[0], n.whites, n.blacks),
+    applyLevels(p[1], n.whites, n.blacks),
+    applyLevels(p[2], n.whites, n.blacks)
   ]
-  // 6. Tone.
-  const ws = 1 - smoothstep(0, TONE_SHADOW_EDGE, T)
-  const wh = smoothstep(TONE_HIGHLIGHT_EDGE, 1, T)
+  // 6. Tone with edge-stopping weight.
   const Y = lumaOf(p)
+  const edgeWeight = clamp(Math.abs(Y - T) * TONE_EDGE_SENSITIVITY, 0, 1)
+  const effectiveT = T + (Y - T) * edgeWeight
+  const ws = 1 - smoothstep(0, TONE_SHADOW_EDGE, effectiveT)
+  const wh = smoothstep(TONE_HIGHLIGHT_EDGE, 1, effectiveT)
   const y1 =
     Y +
     TONE_STRENGTH * n.shadows * ws * (n.shadows > 0 ? clamp(1 - Y, 0, 1) : Y)
@@ -203,7 +196,11 @@ export const applyAdjustmentsWithTerms = (
   // Steps 1-7 on the pixel, on its fine neighbourhood and on the mid blur.
   let p = toStep7(rgb, n, T)
   const fine = toStep7(context.fine, n, T)
-  const mid = toStep7([context.mid, context.mid, context.mid], n, T)
+  const mid = toStep7(
+    [context.mid, context.mid, context.mid],
+    { ...n, temperature: 0, tint: 0 },
+    T
+  )
 
   // 8. Detail.
   const Y = lumaOf(p)

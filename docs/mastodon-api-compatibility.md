@@ -494,16 +494,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `mask_<id>` PNG per new or changed subject or brush mask) stores the
   browser's render as the live file, `GET …/edit/masks/:maskId` streams one
   stored mask PNG (owner-only, `Cache-Control: private`; never federated nor
-  in any public entity), `POST …/edit/enhance` (multipart: `preview`, a JPEG of
-  at most 3 MB and 1536 px) answers `{ natural, vivid, dramatic, model }`
-  slider suggestions from the server's vision model without storing anything
-  (409 when the owner turned it off, 503 when the server has no model, 429
-  after 30 an hour, 502 when the model's answer is unusable), and
+  in any public entity), and
   `POST …/edit/revert` (JSON) restores
   the original and removes the masks. `GET` lists the stored masks as
   `edit.masks: [{ id, url }]` and offers the browser's subject model as
-  `capabilities.subjectModel` (`null` when the server turned it off) and AI
-  enhance as `capabilities.enhance: { available, model }`. Errors are `{ error }`; a stale `base_version` is
+  `capabilities.subjectModel` (`null` when the server turned it off). Photo editing uses client-side Look Presets rather than a remote enhance endpoint. Errors are `{ error }`; a stale `base_version` is
   `409 { error: 'stale', edit: { version, saveId } }`. The owner's `details`
   gains `edit: { version, editedAt }` and the public media details gain
   `editedAt` (ISO 8601, null when unedited). The Mastodon `MediaAttachment`
