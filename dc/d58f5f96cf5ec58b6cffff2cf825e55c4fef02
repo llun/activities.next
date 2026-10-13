@@ -1,0 +1,34 @@
+lib/components/photo-editor/AiPanel.test.tsx
+  h_580a04e334fef4 149-160,586-637
+lib/components/photo-editor/CropPanel.test.tsx
+  h_580a04e334fef4 67,71,75,79-157
+lib/components/photo-editor/CropPanel.tsx
+  h_580a04e334fef4 47-52,73-75,78,102-108,110-116,130,192,206,221
+lib/components/photo-editor/EditorStage.tsx
+  h_580a04e334fef4 151-154,156-163,165-166,186,188,190-191,195,197-199,279
+lib/components/photo-editor/masks/MaskStageLayer.test.tsx
+  h_580a04e334fef4 6,8,99-119,250-317
+lib/components/photo-editor/masks/MaskStageLayer.tsx
+  h_580a04e334fef4 165-181,196-213,215-218
+lib/components/photo-editor/masks/saliency.test.ts
+  h_580a04e334fef4 129-140
+lib/components/photo-editor/masks/saliency.ts
+  h_580a04e334fef4 230,237-240
+lib/components/photo-editor/masks/useMasks.test.tsx
+  h_580a04e334fef4 319-360
+lib/components/photo-editor/masks/useMasks.ts
+  h_580a04e334fef4 27,313-327,329-333,355-362,367,373
+lib/components/photo-editor/useAiEnhance.ts
+  h_580a04e334fef4 9-10,18,77,103-104,113-114,129-228,232-234,238-242,246,250-251,254-257,264,267-274,299,305,314-323,326-332,334-338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dcd58f5f96cf5ec58b6cffff2cf825e55c4fef02",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
