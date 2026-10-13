@@ -115,22 +115,53 @@ describe('createDatabaseConnection', () => {
   })
 
   // PostgreSQL streams through a cursor, which the app does not configure.
+  // Stored as SQLite holds them (0/1, JSON text, CURRENT_TIMESTAMP's UTC
+  // text), the streamed rows come back converted by their declared types.
   it.runIf(backend === 'sqlite')(
     'streams rows on SQLite, normalised like the rest',
     async () => {
-      await db
-        .insertInto('counters')
-        .values({ id: 'connection-stream', value: 7, createdAt: new Date(0) })
-        .execute()
-      const streamed: unknown[] = []
+      await sql`
+        insert into "customEmojis"
+          (id, shortcode, url, "staticUrl", disabled, "visibleInPicker", "createdAt")
+        values
+          ('connection-stream', 'connection_stream', 'https://llun.test/s.png',
+           'https://llun.test/s.png', 1, 0, '2026-02-03 04:05:06')
+      `.execute(db)
+      await sql`
+        insert into status_history ("statusId", data, "createdAt")
+        values ('connection-stream', '{"text":"streamed","tags":[1,2]}', 1770091506789)
+      `.execute(db)
+
+      const emojis: unknown[] = []
       for await (const row of db
-        .selectFrom('counters')
-        .select(['value', 'createdAt'])
+        .selectFrom('customEmojis')
+        .select(['disabled', 'visibleInPicker', 'createdAt'])
         .where('id', '=', 'connection-stream')
         .stream()) {
-        streamed.push(row)
+        emojis.push(row)
       }
-      expect(streamed).toEqual([{ value: 7, createdAt: 0 }])
+      expect(emojis).toEqual([
+        {
+          disabled: true,
+          visibleInPicker: false,
+          createdAt: Date.UTC(2026, 1, 3, 4, 5, 6)
+        }
+      ])
+
+      const history: unknown[] = []
+      for await (const row of db
+        .selectFrom('status_history')
+        .select(['data', 'createdAt'])
+        .where('statusId', '=', 'connection-stream')
+        .stream()) {
+        history.push(row)
+      }
+      expect(history).toEqual([
+        {
+          data: { text: 'streamed', tags: [1, 2] },
+          createdAt: 1770091506789
+        }
+      ])
     }
   )
 
