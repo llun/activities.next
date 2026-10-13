@@ -283,6 +283,37 @@ describe('Database config', () => {
       expect(warned()).toEqual([])
     })
 
+    // Knex took Math.min of its timeouts, so a numeric string worked as a
+    // number; tarn refused what was not a whole number > 0 ("abc" was NaN).
+    it.each([
+      ['30000', 30000],
+      [' 5000 ', 5000]
+    ])(
+      'reads an acquireConnectionTimeout of %j as the number %j',
+      (acquireConnectionTimeout, expected) => {
+        expect(
+          parseKnexDatabaseConfig({
+            client: 'pg',
+            connection: { host: 'db' },
+            acquireConnectionTimeout
+          })
+        ).toMatchObject({ acquireConnectionTimeout: expected })
+      }
+    )
+
+    it.each(['abc', '', '0', '-5', '1.5', 0, -1, null])(
+      'refuses an acquireConnectionTimeout of %j, which Knex could not use',
+      (acquireConnectionTimeout) => {
+        expect(() =>
+          parseKnexDatabaseConfig({
+            client: 'pg',
+            connection: { host: 'db' },
+            acquireConnectionTimeout
+          })
+        ).toThrow()
+      }
+    )
+
     it('keeps a pg connection string', () => {
       expect(
         parseKnexDatabaseConfig({

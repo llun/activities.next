@@ -54,7 +54,10 @@ const PostgresDatabaseConfig = z
         max: z.number().optional()
       })
       .optional(),
-    acquireConnectionTimeout: z.number().int().positive().optional()
+    // Knex took the smallest of its timeouts with Math.min, which turned a
+    // numeric string such as "30000" into a number; tarn then refused anything
+    // that is not a whole number > 0 ("abc" became NaN), as it is here.
+    acquireConnectionTimeout: z.coerce.number().int().positive().optional()
   })
   .superRefine(({ pool }, context) => {
     const problem = getPoolSizeProblem(
