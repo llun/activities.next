@@ -1,76 +1,75 @@
-import type { Knex } from 'knex'
 import { sql } from 'kysely'
 
-import { kyselyFor } from '@/lib/database/kysely'
-import { getKyselyDialectName } from '@/lib/database/kysely/driver'
-import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
-import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
-import type { Database } from '@/lib/database/types'
+import type { DatabaseConfig } from '@/lib/config/database'
+import {
+  DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS,
+  type DatabaseHandle,
+  POOL_IDLE_TIMEOUT_MS,
+  type QueryEndEvent,
+  type QueryEvent,
+  createDatabaseConnection
+} from '@/lib/database/connection'
+import {
+  createTestDatabase,
+  getTestDatabaseConfig
+} from '@/lib/database/testing/createTestDatabase'
+import { holdTransaction } from '@/lib/database/testing/heldTransaction'
+import { logger } from '@/lib/utils/logger'
+
+const backend = process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
 
 // Runs on SQLite by default and on PostgreSQL under TEST_DATABASE_TYPE=pg.
-describe('Knex-backed Kysely driver', () => {
-  let database: Database
-  let instance: Knex
+// What each column type reads back as is pinned in
+// lib/database/kysely/normalizeGolden.test.ts.
+describe('createDatabaseConnection', () => {
+  const testDb = createTestDatabase()
+  const { db } = testDb
 
   beforeAll(async () => {
-    const test = getTestDatabaseWithInstance()
-    database = test.database
-    instance = getLegacyKnex(test.database)
-    await test.prepare()
-    await database.migrate()
+    await testDb.prepare()
+    await testDb.database.migrate()
   })
 
   afterAll(async () => {
-    await database.destroy()
+    await testDb.destroy()
   })
 
-  it('reads timestamps written by Knex as epoch milliseconds', async () => {
-    const createdAt = new Date('2026-01-02T03:04:05.678Z')
-    await instance('likes').insert({
-      actorId: 'driver-actor-1',
-      statusId: 'driver-status-1',
-      createdAt,
-      updatedAt: createdAt
-    })
-
-    const row = await kyselyFor(instance)
-      .selectFrom('likes')
-      .select(['createdAt', 'updatedAt'])
-      .where('actorId', '=', 'driver-actor-1')
-      .executeTakeFirstOrThrow()
-
-    expect(row).toEqual({
-      createdAt: createdAt.getTime(),
-      updatedAt: createdAt.getTime()
-    })
+  it('opens the backend the configuration names', () => {
+    expect(
+      createDatabaseConnection(getTestDatabaseConfig('sqlite')).backend
+    ).toBe('sqlite')
+    expect(
+      createDatabaseConnection({
+        client: 'pg',
+        connection: { host: '127.0.0.1' }
+      }).backend
+    ).toBe('pg')
   })
 
-  it('reads a CURRENT_TIMESTAMP column default as epoch milliseconds', async () => {
-    const before = Math.floor(Date.now() / 1000) * 1000
-    await instance('likes').insert({
-      actorId: 'driver-actor-2',
-      statusId: 'driver-status-2'
-    })
+  it.each(['mysql2', 'sqlite3', 'pg-native', undefined])(
+    'throws for the unsupported %s client, naming the supported ones',
+    (client) => {
+      expect(() =>
+        createDatabaseConnection({ client } as unknown as DatabaseConfig)
+      ).toThrow(
+        `Unsupported database client "${client}": only better-sqlite3 ` +
+          '(SQLite) and pg (PostgreSQL) are supported'
+      )
+    }
+  )
 
-    const row = await kyselyFor(instance)
-      .selectFrom('likes')
-      .select('createdAt as at')
-      .where('actorId', '=', 'driver-actor-2')
-      .executeTakeFirstOrThrow()
-
-    expect(typeof row.at).toBe('number')
-    expect(row.at).toBeGreaterThanOrEqual(before)
-    expect(row.at).toBeLessThanOrEqual(Date.now())
+  it('keeps the timeouts Knex used', () => {
+    expect(DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS).toBe(60_000)
+    expect(POOL_IDLE_TIMEOUT_MS).toBe(30_000)
   })
 
-  it('binds Date and boolean values the same way Knex does', async () => {
+  it('binds Date and boolean values and reads them back normalised', async () => {
     const createdAt = new Date('2026-02-03T04:05:06.789Z')
-    const db = kyselyFor(instance)
     await db
       .insertInto('customEmojis')
       .values({
-        id: 'driver-emoji-1',
-        shortcode: 'driver_one',
+        id: 'connection-emoji-1',
+        shortcode: 'connection_one',
         url: 'https://llun.test/one.png',
         staticUrl: 'https://llun.test/one.png',
         disabled: true,
@@ -79,145 +78,358 @@ describe('Knex-backed Kysely driver', () => {
         updatedAt: createdAt
       })
       .execute()
-    await instance('customEmojis').insert({
-      id: 'driver-emoji-2',
-      shortcode: 'driver_two',
-      url: 'https://llun.test/two.png',
-      staticUrl: 'https://llun.test/two.png',
-      disabled: true,
-      visibleInPicker: false,
-      createdAt,
-      updatedAt: createdAt
-    })
 
-    // Both rows are stored identically, whichever library wrote them.
-    const raw = await instance('customEmojis')
-      .select('disabled', 'visibleInPicker', 'createdAt')
-      .whereIn('id', ['driver-emoji-1', 'driver-emoji-2'])
-      .orderBy('id')
-    expect(raw[0]).toEqual(raw[1])
-
-    const rows = await db
+    const row = await db
       .selectFrom('customEmojis')
       .select(['disabled', 'visibleInPicker', 'createdAt'])
-      .where('id', 'in', ['driver-emoji-1', 'driver-emoji-2'])
-      .execute()
+      .where('id', '=', 'connection-emoji-1')
+      .executeTakeFirstOrThrow()
+    expect(row).toEqual({
+      disabled: true,
+      visibleInPicker: false,
+      createdAt: createdAt.getTime()
+    })
+
+    // Stored the way Knex stored them: epoch ms and 0/1 on SQLite. Read as
+    // expressions, which the SQLite normalisation leaves as they are (it
+    // converts a column by its declared type).
+    const { rows } = await sql<{ storedFlag: unknown; storedTime: unknown }>`
+      select ${sql.raw(
+        backend === 'pg'
+          ? `"disabled"::text as "storedFlag", (extract(epoch from "createdAt") * 1000)::bigint as "storedTime"`
+          : `"disabled" + 0 as "storedFlag", "createdAt" + 0 as "storedTime"`
+      )} from "customEmojis" where id = 'connection-emoji-1'
+    `.execute(db)
     expect(rows).toEqual([
       {
-        disabled: true,
-        visibleInPicker: false,
-        createdAt: createdAt.getTime()
-      },
-      { disabled: true, visibleInPicker: false, createdAt: createdAt.getTime() }
+        storedFlag: backend === 'pg' ? 'true' : 1,
+        storedTime: createdAt.getTime()
+      }
     ])
   })
 
-  it('reads JSON parsed and bigint counters as numbers', async () => {
-    const db = kyselyFor(instance)
-    await db
-      .insertInto('status_history')
-      .values({
-        statusId: 'driver-status-3',
-        data: JSON.stringify({ text: 'hello', tags: ['a'] })
+  // PostgreSQL streams through a cursor, which the app does not configure.
+  it.runIf(backend === 'sqlite')(
+    'streams rows on SQLite, normalised like the rest',
+    async () => {
+      await db
+        .insertInto('counters')
+        .values({ id: 'connection-stream', value: 7, createdAt: new Date(0) })
+        .execute()
+      const streamed: unknown[] = []
+      for await (const row of db
+        .selectFrom('counters')
+        .select(['value', 'createdAt'])
+        .where('id', '=', 'connection-stream')
+        .stream()) {
+        streamed.push(row)
+      }
+      expect(streamed).toEqual([{ value: 7, createdAt: 0 }])
+    }
+  )
+
+  describe('statement listeners', () => {
+    it('announces each statement before it runs and reports when it ends', async () => {
+      const handle = createDatabaseConnection(getTestDatabaseConfig('sqlite'))
+      const events: string[] = []
+      const ended: QueryEndEvent[] = []
+      const stopQuery = handle.onQuery(({ sql }) => {
+        events.push(`start ${sql}`)
       })
-      .execute()
-    await instance('counters').insert({
-      id: 'driver-counter',
-      value: 42,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      const stopEnd = handle.onQueryEnd((event) => {
+        events.push(`end ${event.sql}`)
+        ended.push(event)
+      })
+      try {
+        await sql`select ${1} as one`.execute(handle.db)
+        await expect(
+          sql`select * from no_such_table`.execute(handle.db)
+        ).rejects.toThrow('no_such_table')
+      } finally {
+        stopQuery()
+        stopEnd()
+        await handle.destroy()
+      }
+
+      expect(events).toEqual([
+        'start select ? as one',
+        'end select ? as one',
+        'start select * from no_such_table',
+        'end select * from no_such_table'
+      ])
+      expect(ended[0]).toMatchObject({ bindings: [1] })
+      expect(ended[0].error).toBeUndefined()
+      expect(ended[0].durationMs).toBeGreaterThanOrEqual(0)
+      expect(String(ended[1].error)).toContain('no_such_table')
+      expect(Object.keys(ended[1]).sort()).toEqual([
+        'bindings',
+        'connection',
+        'durationMs',
+        'error',
+        'sql'
+      ])
     })
 
-    const history = await db
-      .selectFrom('status_history')
-      .select('data')
-      .where('statusId', '=', 'driver-status-3')
-      .executeTakeFirstOrThrow()
-    const counter = await db
-      .selectFrom('counters')
-      .select('value')
-      .where('id', '=', 'driver-counter')
-      .executeTakeFirstOrThrow()
+    it('fails the statement whose listener throws, before it runs', async () => {
+      const handle = createDatabaseConnection(getTestDatabaseConfig('sqlite'))
+      const ended: QueryEndEvent[] = []
+      handle.onQueryEnd((event) => ended.push(event))
+      const stop = handle.onQuery(({ sql }) => {
+        if (sql.startsWith('create')) throw new Error('refused')
+      })
+      try {
+        await expect(
+          sql`create table refused (id integer)`.execute(handle.db)
+        ).rejects.toThrow('refused')
+        stop()
+        // Never sent, so the table does not exist.
+        await expect(
+          sql`select * from refused`.execute(handle.db)
+        ).rejects.toThrow('no such table')
+      } finally {
+        await handle.destroy()
+      }
+      expect(ended.map(({ sql }) => sql)).toEqual(['select * from refused'])
+    })
 
-    expect(history.data).toEqual({ text: 'hello', tags: ['a'] })
-    expect(counter.value).toBe(42)
+    it('keeps the statement when an end listener throws', async () => {
+      const handle = createDatabaseConnection(getTestDatabaseConfig('sqlite'))
+      handle.onQueryEnd(() => {
+        throw new Error('observer failed')
+      })
+      try {
+        const { rows } = await sql<{
+          one: number
+        }>`select 1 as one`.execute(handle.db)
+        expect(rows).toEqual([{ one: 1 }])
+      } finally {
+        await handle.destroy()
+      }
+    })
+
+    it('names the connection each statement ran on', async () => {
+      const events: QueryEvent[] = []
+      const stop = testDb.onQuery((event) => events.push(event))
+      try {
+        await db.transaction().execute(async (trx) => {
+          await sql`select 1`.execute(trx)
+        })
+      } finally {
+        stop()
+      }
+      expect(events.map(({ sql }) => sql)).toEqual([
+        'begin',
+        'select 1',
+        'commit'
+      ])
+      expect(new Set(events.map(({ connection }) => connection)).size).toBe(1)
+    })
   })
 
-  it('reports affected rows', async () => {
-    const result = await kyselyFor(instance)
-      .deleteFrom('likes')
-      .where('actorId', 'in', ['driver-actor-1', 'driver-actor-2'])
-      .executeTakeFirst()
-    expect(result.numDeletedRows).toBe(BigInt(2))
+  describe('destroy', () => {
+    it('closes the connection, after which queries fail', async () => {
+      const handle = createDatabaseConnection(
+        getTestDatabaseConfig(backend, true)
+      )
+      if (backend === 'pg')
+        await createTestDatabase({ isolated: true }).prepare()
+      await sql`select 1`.execute(handle.db)
+      await handle.destroy()
+      await expect(sql`select 1`.execute(handle.db)).rejects.toThrow(
+        'driver has already been destroyed'
+      )
+      // A second destroy is harmless.
+      await expect(handle.destroy()).resolves.toBeUndefined()
+    })
+
+    // Kysely's own destroy skips a driver that never connected, which would
+    // let a later query open a pool nobody closes.
+    it('is final even before the first query', async () => {
+      const handle = createDatabaseConnection(
+        getTestDatabaseConfig(backend, true)
+      )
+      await expect(handle.destroy()).resolves.toBeUndefined()
+      await expect(sql`select 1`.execute(handle.db)).rejects.toThrow(
+        'driver has already been destroyed'
+      )
+      await expect(handle.executeScript('select 1')).rejects.toThrow(
+        'driver has already been destroyed'
+      )
+    })
   })
 
-  it('announces Kysely statements on the Knex query events', async () => {
-    const queries: { sql: string; bindings: unknown[] }[] = []
-    const errors: string[] = []
-    const onQuery = ({ sql, bindings }: { sql: string; bindings: unknown[] }) =>
-      queries.push({ sql, bindings })
-    const onError = (_error: Error, { sql }: { sql: string }) =>
-      errors.push(sql)
-    instance.on('query', onQuery)
-    instance.on('query-error', onError)
-    try {
-      await kyselyFor(instance)
-        .selectFrom('likes')
-        .select('statusId')
-        .where('actorId', '=', 'driver-events')
-        .execute()
-      await expect(
-        sql`select * from no_such_table`.execute(kyselyFor(instance))
-      ).rejects.toThrow()
-    } finally {
-      instance.off('query', onQuery)
-      instance.off('query-error', onError)
+  describe('executeScript', () => {
+    it('runs several statements at once', async () => {
+      const handle = createDatabaseConnection(
+        getTestDatabaseConfig(backend, true)
+      )
+      if (backend === 'pg')
+        await createTestDatabase({ isolated: true }).prepare()
+      try {
+        await handle.executeScript(
+          'create table script_one (id integer); create table script_two (id integer);'
+        )
+        await expect(
+          sql`select count(*) as total from script_one, script_two`.execute(
+            handle.db
+          )
+        ).resolves.toMatchObject({ rows: [{ total: 0 }] })
+      } finally {
+        await handle.destroy()
+      }
+    })
+  })
+
+  it.runIf(backend === 'sqlite')(
+    'counts callers queued for the single SQLite connection',
+    async () => {
+      const held = await holdTransaction(db)
+      let queued: Promise<unknown> | undefined
+      try {
+        expect(testDb.pendingAcquires()).toBe(0)
+        queued = sql`select 1`.execute(db)
+        await expect.poll(() => testDb.pendingAcquires()).toBe(1)
+      } finally {
+        await held.commit()
+      }
+      await expect(queued).resolves.toBeDefined()
+      expect(testDb.pendingAcquires()).toBe(0)
     }
-
-    expect(queries).toHaveLength(2)
-    expect(queries[0].sql).toMatch(/^select "statusId" from "likes" where/)
-    expect(queries[0].bindings).toEqual(['driver-events'])
-    expect(errors).toEqual(['select * from no_such_table'])
-  })
-
-  it('keeps the shared instance and the Knex pool usable after destroy()', async () => {
-    const test = getTestDatabaseWithInstance(true)
-    await test.prepare()
-    await test.database.migrate()
-    try {
-      const db = kyselyFor(getLegacyKnex(test.database))
-      await db.destroy()
-      expect(kyselyFor(getLegacyKnex(test.database))).toBe(db)
-      await expect(
-        db.selectFrom('likes').selectAll().execute()
-      ).resolves.toEqual([])
-      await expect(
-        getLegacyKnex(test.database)('likes').count()
-      ).resolves.toBeDefined()
-    } finally {
-      await test.database.destroy()
-    }
-  })
+  )
 })
 
-describe('getKyselyDialectName', () => {
-  it.each([
-    { client: 'better-sqlite3', dialect: 'sqlite3', expected: 'sqlite' },
-    { client: 'pg', dialect: 'postgresql', expected: 'postgres' }
-  ])('maps $client to $expected', ({ client, dialect, expected }) => {
-    expect(
-      getKyselyDialectName({ dialect, driverName: client } as Knex.Client)
-    ).toBe(expected)
+// The pool keeps Knex's effective behaviour: `max` connections at most, a
+// query that cannot get one fails after the acquire timeout instead of
+// waiting forever, and a connection the server drops is replaced.
+describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
+  const testDb = createTestDatabase({ isolated: true })
+  const APPLICATION = 'activities-pool-test'
+  let observer: DatabaseHandle
+
+  const open = (
+    pool: { min?: number; max?: number },
+    acquireConnectionTimeout?: number
+  ) => {
+    const config = getTestDatabaseConfig('pg', true)
+    if (config.client !== 'pg' || typeof config.connection === 'string') {
+      throw new Error('expected a pg configuration object')
+    }
+    return createDatabaseConnection({
+      ...config,
+      connection: { ...config.connection, application_name: APPLICATION },
+      pool,
+      ...(acquireConnectionTimeout ? { acquireConnectionTimeout } : {})
+    })
+  }
+
+  // Backends of the pool under test, as the server sees them.
+  const backendPids = async () => {
+    const { rows } = await sql<{ pid: number }>`
+      select pid from pg_stat_activity
+      where application_name = ${APPLICATION} and datname = current_database()
+      order by pid
+    `.execute(observer.db)
+    return rows.map(({ pid }) => pid)
+  }
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    observer = createDatabaseConnection(getTestDatabaseConfig('pg', true))
   })
 
-  it.each([
-    { client: 'mysql2', dialect: 'mysql' },
-    { client: 'mysql', dialect: 'mysql' },
-    { client: 'sqlite3', dialect: 'sqlite3' },
-    { client: 'pgnative', dialect: 'postgresql' }
-  ])('names the unsupported $client driver', ({ client, dialect }) => {
-    expect(() =>
-      getKyselyDialectName({ dialect, driverName: client } as Knex.Client)
-    ).toThrow(`Knex "${dialect}" dialect with the "${client}" driver`)
+  afterAll(async () => {
+    await observer.destroy()
+    await testDb.destroy()
+  })
+
+  it('names its connections Activities.next unless configured otherwise', async () => {
+    const { rows } = await sql<{
+      name: string
+    }>`select current_setting('application_name') as name`.execute(observer.db)
+    expect(rows).toEqual([{ name: 'Activities.next' }])
+  })
+
+  it('never opens more than max connections', async () => {
+    const handle = open({ min: 0, max: 2 })
+    const connections = new Set<string>()
+    handle.onQuery(({ connection }) => connections.add(connection))
+    try {
+      let busiest = 0
+      const watching = (async () => {
+        for (let i = 0; i < 20; i += 1) {
+          busiest = Math.max(busiest, (await backendPids()).length)
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+      })()
+      await Promise.all(
+        Array.from({ length: 8 }, () =>
+          sql`select pg_sleep(0.05)`.execute(handle.db)
+        )
+      )
+      await watching
+      expect(connections.size).toBe(2)
+      expect(busiest).toBeLessThanOrEqual(2)
+      expect(busiest).toBeGreaterThan(0)
+    } finally {
+      await handle.destroy()
+    }
+  })
+
+  it('fails a query that waits longer than the acquire timeout', async () => {
+    const handle = open({ min: 0, max: 1 }, 300)
+    const held = await holdTransaction(handle.db)
+    try {
+      const startedAt = Date.now()
+      const waiting = sql`select 1`.execute(handle.db)
+      await expect.poll(() => handle.pendingAcquires()).toBe(1)
+      await expect(waiting).rejects.toThrow(
+        'timeout exceeded when trying to connect'
+      )
+      expect(Date.now() - startedAt).toBeLessThan(5_000)
+      expect(handle.pendingAcquires()).toBe(0)
+    } finally {
+      await held.commit()
+      await handle.destroy()
+    }
+  })
+
+  it('survives the server dropping an idle connection, and reconnects', async () => {
+    const errors = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const handle = open({ min: 1, max: 1 })
+    try {
+      const pid = async () => {
+        const { rows } = await sql<{
+          pid: number
+        }>`select pg_backend_pid() as pid`.execute(handle.db)
+        return rows[0].pid
+      }
+      const first = await pid()
+      await sql`select pg_terminate_backend(${first})`.execute(observer.db)
+      // The pool reports the idle client's error instead of crashing.
+      await expect
+        .poll(() => errors.mock.calls.length, { timeout: 5_000 })
+        .toBeGreaterThan(0)
+      expect(errors).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'PostgreSQL idle client error'
+      )
+      const second = await pid()
+      expect(second).not.toBe(first)
+    } finally {
+      errors.mockRestore()
+      await handle.destroy()
+    }
+  })
+
+  it('closes every connection on destroy', async () => {
+    const handle = open({ min: 1, max: 3 })
+    await Promise.all(
+      Array.from({ length: 3 }, () =>
+        sql`select pg_sleep(0.05)`.execute(handle.db)
+      )
+    )
+    expect((await backendPids()).length).toBeGreaterThan(0)
+    await handle.destroy()
+    await expect.poll(backendPids).toEqual([])
   })
 })

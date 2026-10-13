@@ -13,11 +13,9 @@ import {
   type ConversationStatusSource,
   createConversationQueries
 } from '@/lib/database/domains/conversation/queries'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
 import {
   type TestDatabase,
-  createTestDatabase,
-  getLegacyKnex
+  createTestDatabase
 } from '@/lib/database/testing/createTestDatabase'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -1419,51 +1417,35 @@ describe('syncDirectConversationForStatus', () => {
     ).toEqual([])
   })
 
-  it.each([
-    [
-      'a Kysely transaction',
-      (callback: (trx: Db) => Promise<void>) =>
-        db.transaction().execute(callback)
-    ],
-    [
-      'a Knex transaction through kyselyFor',
-      (callback: (trx: Db) => Promise<void>) =>
-        getLegacyKnex(testDb.database).transaction((trx) =>
-          callback(kyselyFor(trx))
-        )
-    ]
-  ])(
-    "runs in the caller's transaction (%s) and rolls back with it",
-    async (_, inCallerTransaction) => {
-      const p = nextPrefix()
-      const a = await seedActor(actorIdOf(`${p}-a`), true)
-      const b = await seedActor(actorIdOf(`${p}-b`), true)
-      const status = await seedStatus({
-        id: `${a}/statuses/s1`,
-        actorId: a,
-        to: [b],
-        createdAt: 1000
+  it("runs in the caller's transaction and rolls back with it", async () => {
+    const p = nextPrefix()
+    const a = await seedActor(actorIdOf(`${p}-a`), true)
+    const b = await seedActor(actorIdOf(`${p}-b`), true)
+    const status = await seedStatus({
+      id: `${a}/statuses/s1`,
+      actorId: a,
+      to: [b],
+      createdAt: 1000
+    })
+    const conversationId = getConversationIdForRootStatusId(status.id)
+
+    await expect(
+      db.transaction().execute(async (trx) => {
+        await queries.syncDirectConversationForStatus(trx, { status })
+        const inside = await trx
+          .selectFrom('direct_conversation_memberships')
+          .select('actorId')
+          .where('conversationId', '=', conversationId)
+          .execute()
+        expect(inside).toHaveLength(2)
+        throw new Error('caller failed')
       })
-      const conversationId = getConversationIdForRootStatusId(status.id)
+    ).rejects.toThrow('caller failed')
 
-      await expect(
-        inCallerTransaction(async (trx) => {
-          await queries.syncDirectConversationForStatus(trx, { status })
-          const inside = await trx
-            .selectFrom('direct_conversation_memberships')
-            .select('actorId')
-            .where('conversationId', '=', conversationId)
-            .execute()
-          expect(inside).toHaveLength(2)
-          throw new Error('caller failed')
-        })
-      ).rejects.toThrow('caller failed')
-
-      expect(await membershipsOf(conversationId)).toEqual([])
-      expect(await participantsOf(conversationId)).toEqual([])
-      expect(await conversationIdOfStatus(status.id)).toEqual([])
-    }
-  )
+    expect(await membershipsOf(conversationId)).toEqual([])
+    expect(await participantsOf(conversationId)).toEqual([])
+    expect(await conversationIdOfStatus(status.id)).toEqual([])
+  })
 })
 
 // On PostgreSQL markDirectConversationRead locks the membership row between

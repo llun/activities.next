@@ -1,6 +1,7 @@
-// Result normalisation for the Knex-backed Kysely driver, so code written
-// against Kysely gets one representation per column type on both backends and
-// never needs getCompatibleTime / getCompatibleJSON / Number() shims:
+// Result normalisation for the database connection (lib/database/connection.ts),
+// so code written against Kysely gets one representation per column type on
+// both backends and never needs getCompatibleTime / getCompatibleJSON /
+// Number() shims:
 //
 // | column type          | PostgreSQL (node-postgres)  | SQLite (better-sqlite3)     | returned as        |
 // | -------------------- | --------------------------- | --------------------------- | ------------------ |
@@ -12,16 +13,16 @@
 // | json, jsonb          | parsed                      | JSON text                   | parsed             |
 // | date                 | Date (local midnight)       | whatever was written        | as written: text   |
 //
-// PostgreSQL is normalised with per-query type parsers (never the global
-// `pg.types`, which Knex relies on); SQLite from each statement's declared
-// column types, which better-sqlite3 reports through aliases. Expression
-// columns (`count(*)`, `max(...)`) have no declared type on SQLite and come
-// back as SQLite produced them: a domain mapper converts those itself.
+// PostgreSQL is normalised with the type parsers every pooled client is
+// created with (never the global `pg.types`); SQLite from each statement's
+// declared column types, which better-sqlite3 reports through aliases.
+// Expression columns (`count(*)`, `max(...)`) have no declared type on SQLite
+// and come back as SQLite produced them: a domain mapper converts those itself.
 //
 // Bindings on SQLite are encoded exactly like Knex's better-sqlite3
-// `_formatBindings` (Date -> epoch ms, boolean -> 0/1), so rows written by
-// either library compare and sort the same. Never bind ISO strings for
-// timestamps: SQLite orders INTEGER before TEXT, so cursors would misorder.
+// `_formatBindings` (Date -> epoch ms, boolean -> 0/1), so rows Knex wrote
+// before compare and sort the same as rows written now. Never bind ISO strings
+// for timestamps: SQLite orders INTEGER before TEXT, so cursors would misorder.
 
 // Same rule as getCompatibleTime: SQLite's CURRENT_TIMESTAMP default writes
 // UTC text without a zone designator.

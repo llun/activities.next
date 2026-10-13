@@ -1,7 +1,3 @@
-import { Knex } from 'knex'
-
-import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
-
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -12,9 +8,12 @@ import {
   getTestSQLDatabaseWithInstance
 } from './testUtils'
 
-const mockKnex = vi.fn()
-vi.mock('knex', () => ({
-  default: (...args: unknown[]) => mockKnex(...args)
+// The connection each test database opens, without connecting: the tests
+// check the configuration it was opened with.
+const mockCreateDatabaseConnection = vi.fn()
+vi.mock('@/lib/database/connection', () => ({
+  createDatabaseConnection: (...args: unknown[]) =>
+    mockCreateDatabaseConnection(...args)
 }))
 
 const mockPgClientConstructor = vi.fn()
@@ -35,28 +34,22 @@ vi.mock('pg', () => ({
   Client: MockPgClient
 }))
 
-const createMockKnexInstance = () => {
-  const mockConnection = {
-    exec: vi.fn()
-  }
-  const mockRawQuery = {
-    connection: vi.fn().mockResolvedValue(undefined)
-  }
-  return {
-    client: {
-      acquireConnection: vi.fn().mockResolvedValue(mockConnection),
-      releaseConnection: vi.fn().mockResolvedValue(undefined)
-    },
-    raw: vi.fn().mockReturnValue(mockRawQuery)
-  } as unknown as Knex
-}
+const createMockConnection = (config: { client: string }) => ({
+  backend: config.client === 'pg' ? 'pg' : 'sqlite',
+  db: {},
+  destroy: vi.fn().mockResolvedValue(undefined),
+  onQuery: vi.fn(),
+  onQueryEnd: vi.fn(),
+  pendingAcquires: vi.fn().mockReturnValue(0),
+  executeScript: vi.fn().mockResolvedValue(undefined)
+})
 
 describe('PostgreSQL test port resolution', () => {
   const initialEnv = { ...process.env }
 
   beforeEach(() => {
     process.env = { ...initialEnv }
-    mockKnex.mockReset()
+    mockCreateDatabaseConnection.mockReset()
     mockPgClientConstructor.mockReset()
     mockPgClientConnect.mockReset()
     mockPgClientQuery.mockReset()
@@ -66,7 +59,7 @@ describe('PostgreSQL test port resolution', () => {
     mockPgClientQuery.mockResolvedValue(undefined)
     mockPgClientEnd.mockResolvedValue(undefined)
 
-    mockKnex.mockImplementation(() => createMockKnexInstance())
+    mockCreateDatabaseConnection.mockImplementation(createMockConnection)
   })
 
   afterEach(() => {
@@ -152,13 +145,13 @@ describe('SQLite test path', () => {
 
   beforeEach(() => {
     process.env = { ...initialEnv }
-    mockKnex.mockReset()
+    mockCreateDatabaseConnection.mockReset()
     mockPgClientConstructor.mockReset()
     mockPgClientConnect.mockReset()
     mockPgClientQuery.mockReset()
     mockPgClientEnd.mockReset()
 
-    mockKnex.mockImplementation(() => createMockKnexInstance())
+    mockCreateDatabaseConnection.mockImplementation(createMockConnection)
   })
 
   afterEach(() => {
@@ -175,11 +168,11 @@ describe('SQLite test path', () => {
       expect(table[0][0]).toBe('sqlite')
     }).not.toThrow()
 
-    expect(mockKnex).toHaveBeenCalledWith(
-      expect.objectContaining({
-        client: 'better-sqlite3'
-      })
-    )
+    expect(mockCreateDatabaseConnection).toHaveBeenCalledWith({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
     expect(mockPgClientConstructor).not.toHaveBeenCalled()
   })
 
@@ -189,7 +182,6 @@ describe('SQLite test path', () => {
     expect(() => {
       const { database } = getTestDatabaseWithInstance(false, 'sqlite')
       expect(database).toBeDefined()
-      expect(getLegacyKnex(database)).toBeDefined()
     }).not.toThrow()
 
     expect(mockPgClientConstructor).not.toHaveBeenCalled()
@@ -212,7 +204,7 @@ describe('PostgreSQL test connection paths', () => {
 
   beforeEach(() => {
     process.env = { ...initialEnv }
-    mockKnex.mockReset()
+    mockCreateDatabaseConnection.mockReset()
     mockPgClientConstructor.mockReset()
     mockPgClientConnect.mockReset()
     mockPgClientQuery.mockReset()
@@ -222,7 +214,7 @@ describe('PostgreSQL test connection paths', () => {
     mockPgClientQuery.mockResolvedValue(undefined)
     mockPgClientEnd.mockResolvedValue(undefined)
 
-    mockKnex.mockImplementation(() => createMockKnexInstance())
+    mockCreateDatabaseConnection.mockImplementation(createMockConnection)
   })
 
   afterEach(() => {
@@ -236,7 +228,7 @@ describe('PostgreSQL test connection paths', () => {
     ? `test_${(process.env.VITEST_POOL_ID ?? '').replace(/\D/g, '')}`
     : 'test'
 
-  it('reuses the same resolved configuration for Knex and administrative client on table database with default port', async () => {
+  it('reuses the same resolved configuration for the connection and administrative client on table database with default port', async () => {
     delete process.env.TEST_DATABASE_PORT
     process.env.TEST_DATABASE_TYPE = 'pg'
     process.env.TEST_DATABASE_HOST = '127.0.0.1'
@@ -248,7 +240,7 @@ describe('PostgreSQL test connection paths', () => {
     const [name, database, prepare] = table[0]
     expect(name).toBe('pg')
 
-    expect(mockKnex).toHaveBeenCalledWith({
+    expect(mockCreateDatabaseConnection).toHaveBeenCalledWith({
       client: 'pg',
       connection: {
         host: '127.0.0.1',
@@ -281,7 +273,7 @@ describe('PostgreSQL test connection paths', () => {
     await database.migrate()
   })
 
-  it('reuses the same resolved configuration for Knex and administrative client on table database with explicit port', async () => {
+  it('reuses the same resolved configuration for the connection and administrative client on table database with explicit port', async () => {
     process.env.TEST_DATABASE_PORT = '55432'
     process.env.TEST_DATABASE_TYPE = 'pg'
     process.env.TEST_DATABASE_HOST = '127.0.0.1'
@@ -291,7 +283,7 @@ describe('PostgreSQL test connection paths', () => {
     const table = getTestDatabaseTable()
     const [, , prepare] = table[0]
 
-    expect(mockKnex).toHaveBeenCalledWith({
+    expect(mockCreateDatabaseConnection).toHaveBeenCalledWith({
       client: 'pg',
       connection: {
         host: '127.0.0.1',
@@ -322,9 +314,8 @@ describe('PostgreSQL test connection paths', () => {
 
     const { database, prepare } = getTestDatabaseWithInstance(true, 'pg')
     expect(database).toBeDefined()
-    expect(getLegacyKnex(database)).toBeDefined()
 
-    expect(mockKnex).toHaveBeenCalledWith({
+    expect(mockCreateDatabaseConnection).toHaveBeenCalledWith({
       client: 'pg',
       connection: {
         host: '127.0.0.1',
@@ -360,7 +351,7 @@ describe('PostgreSQL test connection paths', () => {
     expect(() => getTestDatabaseTable()).toThrow(
       /must be a decimal integer between 1 and 65535/
     )
-    expect(mockKnex).not.toHaveBeenCalled()
+    expect(mockCreateDatabaseConnection).not.toHaveBeenCalled()
     expect(mockPgClientConstructor).not.toHaveBeenCalled()
   })
 
@@ -370,7 +361,7 @@ describe('PostgreSQL test connection paths', () => {
     expect(() => getTestDatabaseWithInstance(false, 'pg')).toThrow(
       /must be a decimal integer between 1 and 65535/
     )
-    expect(mockKnex).not.toHaveBeenCalled()
+    expect(mockCreateDatabaseConnection).not.toHaveBeenCalled()
     expect(mockPgClientConstructor).not.toHaveBeenCalled()
   })
 })

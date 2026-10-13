@@ -1,5 +1,7 @@
 import type { Knex } from 'knex'
 
+import type { QueryEvent as ConnectionQueryEvent } from '@/lib/database/connection'
+
 /** One statement the database driver sent. */
 export type CapturedQuery = {
   sql: string
@@ -13,9 +15,7 @@ export type CapturedQuery = {
  * test tells "inside one open transaction" from "autocommitted on another
  * pooled connection". Do not parse or print it; its format is the driver's.
  */
-export type QueryEvent = CapturedQuery & {
-  connection: string
-}
+export type QueryEvent = ConnectionQueryEvent
 
 export type QueryListener = (query: QueryEvent) => void
 
@@ -43,6 +43,28 @@ export type CaptureQueries = (
   work: () => Promise<unknown> | unknown
 ) => Promise<CapturedQuery[]>
 
+/**
+ * `onQuery` and `captureQueries` over a statement subscription, such as the
+ * `onQuery` of the connection `createTestDatabase` opens.
+ */
+export const createQueryCapture = (
+  subscribe: OnQuery
+): { onQuery: OnQuery; captureQueries: CaptureQueries } => {
+  const captureQueries: CaptureQueries = async (work) => {
+    const captured: CapturedQuery[] = []
+    const unsubscribe = subscribe(({ sql, bindings }) => {
+      captured.push({ sql, bindings })
+    })
+    try {
+      await work()
+    } finally {
+      unsubscribe()
+    }
+    return captured
+  }
+  return { onQuery: subscribe, captureQueries }
+}
+
 type KnexQueryEvent = {
   sql: string
   bindings?: unknown[]
@@ -50,18 +72,10 @@ type KnexQueryEvent = {
 }
 
 /**
- * Statement capture over the Knex `query` events. The Kysely driver announces
- * each statement it runs on its Knex client the way a Knex query is, so this
- * sees both.
- *
- * The test database (`createTestDatabase`) is the way tests get this. Call it
- * directly only for a test that builds its own Knex instance, which is how the
- * legacy migration tests run their migration module. Everything past
- * `onQuery` and `captureQueries` below is for those tests alone and goes away
- * with them.
- *
- * Nothing touches `knex` until the first `onQuery`, so it can be built around
- * a mocked Knex instance.
+ * LEGACY: statement capture over a Knex instance's `query` events, for the
+ * legacy migration tests, which run a migration module on a Knex instance they
+ * build themselves (see `createLegacyKnex`). It goes away with the Knex
+ * migrations. Every other test captures through `createTestDatabase`.
  */
 export const createKnexQueryCapture = (
   knex: Knex
@@ -71,7 +85,7 @@ export const createKnexQueryCapture = (
   /**
    * Like `onQuery`, but called when a statement has finished: the listener
    * gets no statement text, only the signal. Pairs a statement's start with
-   * its end to measure concurrency. Legacy migration tests only.
+   * its end to measure concurrency.
    */
   onQuerySettled: (listener: () => void) => () => void
 } => {
@@ -89,19 +103,6 @@ export const createKnexQueryCapture = (
     }
   }
 
-  const captureQueries: CaptureQueries = async (work) => {
-    const captured: CapturedQuery[] = []
-    const unsubscribe = onQuery(({ sql, bindings }) => {
-      captured.push({ sql, bindings })
-    })
-    try {
-      await work()
-    } finally {
-      unsubscribe()
-    }
-    return captured
-  }
-
   const onQuerySettled = (listener: () => void) => {
     knex.on('query-response', listener)
     knex.on('query-error', listener)
@@ -111,5 +112,5 @@ export const createKnexQueryCapture = (
     }
   }
 
-  return { onQuery, captureQueries, onQuerySettled }
+  return { ...createQueryCapture(onQuery), onQuerySettled }
 }

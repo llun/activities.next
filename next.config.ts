@@ -41,6 +41,10 @@ const nextConfig: NextConfig = {
   // ever changes.
   // Similarly, @google-cloud/tasks dynamically loads protos/protos.json and
   // client configs via json-helper.cjs which @vercel/nft misses.
+  // node-postgres (from the @activities/pg workspace) is loaded through
+  // dynamicImport, which the tracer cannot follow, so pg and its dependencies
+  // are listed here; in an image built without that workspace these match
+  // nothing.
   outputFileTracingIncludes: {
     '/**/*': [
       './node_modules/sharp/**/*',
@@ -84,7 +88,21 @@ const nextConfig: NextConfig = {
       './node_modules/stream-shift/**/*',
       './node_modules/uncrypto/**/*',
       './node_modules/util-deprecate/**/*',
-      './node_modules/wrappy/**/*'
+      './node_modules/wrappy/**/*',
+      './node_modules/pg/**/*',
+      './node_modules/pg-cloudflare/**/*',
+      './node_modules/pg-connection-string/**/*',
+      './node_modules/pg-int8/**/*',
+      './node_modules/pg-pool/**/*',
+      './node_modules/pg-protocol/**/*',
+      './node_modules/pg-types/**/*',
+      './node_modules/pgpass/**/*',
+      './node_modules/postgres-array/**/*',
+      './node_modules/postgres-bytea/**/*',
+      './node_modules/postgres-date/**/*',
+      './node_modules/postgres-interval/**/*',
+      './node_modules/split2/**/*',
+      './node_modules/xtend/**/*'
     ]
   },
   assetPrefix: '/activities',

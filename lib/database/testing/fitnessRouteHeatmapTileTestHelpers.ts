@@ -2,7 +2,7 @@ import { type Compilable, CompiledQuery } from 'kysely'
 import { AsyncResource } from 'node:async_hooks'
 import { type MockInstance, expect, onTestFinished, vi } from 'vitest'
 
-import { KnexPoolDriver } from '@/lib/database/kysely/driver'
+import { InstrumentedConnection } from '@/lib/database/connection'
 import type { OnQuery } from '@/lib/database/testing/queryCapture'
 import { Database } from '@/lib/database/types'
 
@@ -131,11 +131,11 @@ type StatementHook = {
 
 const statementHooks: StatementHook[] = []
 const pendingPauses: Array<() => void> = []
-let executeSpy: MockInstance<KnexPoolDriver['execute']> | undefined
+let executeSpy: MockInstance<InstrumentedConnection['executeQuery']> | undefined
 
 /**
- * Runs `hook` once, on the first statement the Kysely driver
- * (`lib/database/kysely/driver.ts`) executes that it matches and no earlier
+ * Runs `hook` once, on the first statement the database connection
+ * (`lib/database/connection.ts`) executes that it matches and no earlier
  * hook has claimed, on that statement's own connection. Every hook is removed,
  * and every pause released, when the test finishes.
  */
@@ -143,7 +143,7 @@ const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
   statementHooks.push({ ...hook, fired: false })
   if (executeSpy) return
 
-  const execute = KnexPoolDriver.prototype.execute
+  const execute = InstrumentedConnection.prototype.executeQuery
   const claimHook = (when: StatementHook['when'], sql: string) => {
     const found = statementHooks.find(
       (candidate) =>
@@ -153,17 +153,19 @@ const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
     return found
   }
   executeSpy = vi
-    .spyOn(KnexPoolDriver.prototype, 'execute')
+    .spyOn(InstrumentedConnection.prototype, 'executeQuery')
     .mockImplementation(async function (
-      this: KnexPoolDriver,
-      ...[raw, compiledQuery]: Parameters<KnexPoolDriver['execute']>
+      this: InstrumentedConnection,
+      ...[compiledQuery, options]: Parameters<
+        InstrumentedConnection['executeQuery']
+      >
     ) {
-      const run = (query: CompiledQuery) => execute.call(this, raw, query)
+      const run = (query: CompiledQuery) => execute.call(this, query, options)
       await claimHook('before', compiledQuery.sql)?.run(run)
       const result = await run(compiledQuery)
       await claimHook('after', compiledQuery.sql)?.run(run)
       return result
-    } as KnexPoolDriver['execute'])
+    } as InstrumentedConnection['executeQuery'])
   onTestFinished(() => {
     statementHooks.length = 0
     for (const release of pendingPauses.splice(0)) release()
@@ -178,9 +180,9 @@ const addStatementHook = (hook: Omit<StatementHook, 'fired'>) => {
  * run, and before the method sees its result, `interfere` runs on the SAME
  * connection. Fires once.
  *
- * On the connection that just ran the statement, because the Kysely driver
- * still holds it while the statement is announced, and a root query issued
- * from there is refused by the transaction guard. Running it on that
+ * On the connection that just ran the statement, because Kysely still holds
+ * it then, and a root query issued from inside the method's transaction is
+ * refused by the transaction guard. Running it on that
  * connection also makes the interleaving independent of pool scheduling on
  * PostgreSQL. So it only fits a window OUTSIDE the method's transactions,
  * where the interfering write autocommits as another worker's would; for a

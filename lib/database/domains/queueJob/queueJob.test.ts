@@ -1,17 +1,10 @@
 import { replayQueueJob } from '@/lib/database/domains/queueJob/queries'
-import { kyselyFor } from '@/lib/database/kysely'
-import {
-  createTestDatabase,
-  getLegacyKnex
-} from '@/lib/database/testing/createTestDatabase'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('QueueJobDatabase', () => {
   const { database, db, prepare } = createTestDatabase()
-  // The legacy Knex stays for the one case that checks a Knex transaction
-  // through `kyselyFor`, on purpose.
-  const knex = getLegacyKnex(database)
 
   beforeAll(async () => {
     await prepare()
@@ -801,46 +794,33 @@ describe('QueueJobDatabase', () => {
     expect(dlqRecord?.status).toBe('failed')
   })
 
-  it.each([
-    {
-      kind: 'a Knex transaction',
-      id: 'missing-queue-job-knex-trx',
-      replay: (id: string) =>
-        knex.transaction((trx) => replayQueueJob(kyselyFor(trx), { id }))
-    },
-    {
-      kind: 'a Kysely transaction',
-      id: 'missing-queue-job-kysely-trx',
-      replay: (id: string) =>
-        db.transaction().execute((trx) => replayQueueJob(trx, { id }))
-    }
-  ])(
-    'rethrows inside $kind so that transaction rolls back',
-    async ({ id, replay }) => {
-      await db
-        .insertInto('dead_letter_jobs')
-        .values({
-          id,
-          job_name: 'deliverActivity',
-          payload: JSON.stringify(samplePayload),
-          error_message: 'Some error',
-          attempts: 16,
-          status: 'failed',
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .execute()
+  it('rethrows inside a transaction so that transaction rolls back', async () => {
+    const id = 'missing-queue-job-kysely-trx'
+    await db
+      .insertInto('dead_letter_jobs')
+      .values({
+        id,
+        job_name: 'deliverActivity',
+        payload: JSON.stringify(samplePayload),
+        error_message: 'Some error',
+        attempts: 16,
+        status: 'failed',
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute()
 
-      await expect(replay(id)).rejects.toThrow(`Cannot replay queue job ${id}`)
+    await expect(
+      db.transaction().execute((trx) => replayQueueJob(trx, { id }))
+    ).rejects.toThrow(`Cannot replay queue job ${id}`)
 
-      const dlqRecord = await db
-        .selectFrom('dead_letter_jobs')
-        .selectAll()
-        .where('id', '=', id)
-        .executeTakeFirst()
-      expect(dlqRecord?.status).toBe('failed')
-    }
-  )
+    const dlqRecord = await db
+      .selectFrom('dead_letter_jobs')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst()
+    expect(dlqRecord?.status).toBe('failed')
+  })
 
   it('handles concurrent replay safely so only one replay commits', async () => {
     await database.createQueueJob({

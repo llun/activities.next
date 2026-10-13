@@ -3,9 +3,9 @@
 // migration changes the schema (see docs/setup.md, "Regenerating the Kysely DB
 // types"). CI's PostgreSQL Schema Dump Sync job fails when this file drifts.
 //
-// The select side is what the Knex-backed Kysely driver returns on BOTH
-// backends after normalisation (lib/database/kysely/normalize.ts); the
-// insert/update side is what both backends accept:
+// The select side is what the database connection (lib/database/connection.ts)
+// returns on BOTH backends after normalisation (lib/database/kysely/
+// normalize.ts); the insert/update side is what both backends accept:
 // - Timestamp: read as epoch milliseconds (branded as EpochMs), written as a
 //   Date. Compare a timestamp column only through timestampValue() from
 //   lib/database/kysely/dialect.ts: the brand stops bare numbers (PostgreSQL

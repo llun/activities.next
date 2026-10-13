@@ -1,8 +1,9 @@
-import knexFactory, { type Knex } from 'knex'
 import { noop } from 'lodash'
 
+import type { DatabaseConfig } from '@/lib/config/database'
+import { createDatabaseConnection } from '@/lib/database/connection'
 import { getSQLDatabase } from '@/lib/database/getSQLDatabase'
-import { type Db, kyselyFor } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import {
   TEST_PG_DATABASE,
   getTestPgConnection,
@@ -11,41 +12,12 @@ import {
 import {
   type CaptureQueries,
   type OnQuery,
-  createKnexQueryCapture
+  createQueryCapture
 } from '@/lib/database/testing/queryCapture'
-import {
-  applyPostgresSchema,
-  applySqliteSchema,
-  withSchemaDumpMigrate
-} from '@/lib/database/testing/schema'
+import { loadSchemaDump } from '@/lib/database/testing/schema'
 import type { Database } from '@/lib/database/types'
 
 export type TestDatabaseBackend = 'sqlite' | 'pg'
-
-const legacyKnexByDatabase = new WeakMap<Database, Knex>()
-
-/**
- * The raw Knex instance behind a test database's `database` (and so its `db`).
- * Tests do not seed or read through it: use `db`, the facade or
- * `lib/database/testing/fixtures.ts`. It exists only for the tests that need
- * Knex itself and goes away with Knex:
- *
- * - the Knex-transaction interop tests, which open a Knex transaction and
- *   hand it to `kyselyFor(trx)`;
- * - the legacy migration tests, which run a migration module on Knex;
- * - the tests of the Knex-backed connection (`kysely/driver`, `kysely/guard`,
- *   `testUtils`, `createTestDatabase`, `queryCapture`).
- *
- * Takes the `database` of `createTestDatabase`, `getTestDatabaseWithInstance`
- * or `getTestSQLDatabaseWithInstance`.
- */
-export const getLegacyKnex = (database: Database): Knex => {
-  const knex = legacyKnexByDatabase.get(database)
-  if (!knex) {
-    throw new Error('getLegacyKnex: not the database of a test database')
-  }
-  return knex
-}
 
 export type CreateTestDatabaseOptions = {
   /** Defaults to `pg` when `TEST_DATABASE_TYPE=pg`, otherwise `sqlite`. */
@@ -62,7 +34,7 @@ export type TestDatabase = {
   backend: TestDatabaseBackend
   /** The `Database` facade; `migrate()` loads the committed schema dump. */
   database: Database
-  /** Kysely on the same pool, for seeding and fixtures. */
+  /** The root Kysely instance behind `database`, for seeding and fixtures. */
   db: Db
   /** Drops and recreates the PostgreSQL database; a no-op on SQLite. */
   prepare: () => Promise<void> | void
@@ -95,21 +67,38 @@ export const createTestDatabase = ({
   isolated = false
 }: CreateTestDatabaseOptions = {}): TestDatabase => {
   if (backend !== 'pg') {
-    const knex = knexFactory({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
     return build({
       backend: 'sqlite',
-      knex,
-      loader: applySqliteSchema,
+      config: getTestDatabaseConfig('sqlite'),
       prepare: noop
     })
   }
+  const connection = getTestPgConnection()
+  const databaseName = getTestPgDatabaseName(isolated)
+  return build({
+    backend: 'pg',
+    config: getTestDatabaseConfig('pg', isolated),
+    prepare: () => recreatePgDatabase(connection, databaseName)
+  })
+}
 
+/**
+ * The connection configuration `createTestDatabase` uses: an in-memory SQLite
+ * database, or this worker's PostgreSQL test database (which only exists once
+ * a test database's `prepare()` has run). For a test that opens a connection
+ * of its own with `createDatabaseConnection`.
+ */
+export const getTestDatabaseConfig = (
+  backend: TestDatabaseBackend,
+  isolated = false
+): DatabaseConfig => {
+  if (backend !== 'pg') {
+    return {
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    }
+  }
   // An isolated caller needs its OWN database, not the suite's: `prepare` drops
   // and recreates, so sharing the per-worker name would destroy the database
   // the surrounding suite is running against. ONE extra name per worker rather
@@ -117,49 +106,42 @@ export const createTestDatabase = ({
   // isolated caller destroys its instance before the next begins, so reusing
   // the name keeps the server's database count bounded by the worker count
   // instead of growing with the number of such tests.
-  const connection = getTestPgConnection()
-  const databaseName = isolated
-    ? `${TEST_PG_DATABASE}_isolated`
-    : TEST_PG_DATABASE
-  const knex = knexFactory({
+  return {
     client: 'pg',
-    connection: { ...connection, database: databaseName }
-  })
-  return build({
-    backend: 'pg',
-    knex,
-    loader: applyPostgresSchema,
-    prepare: () => recreatePgDatabase(connection, databaseName)
-  })
+    connection: {
+      ...getTestPgConnection(),
+      database: getTestPgDatabaseName(isolated)
+    }
+  }
 }
+
+/** The PostgreSQL database `createTestDatabase` uses in this worker. */
+export const getTestPgDatabaseName = (isolated = false) =>
+  isolated ? `${TEST_PG_DATABASE}_isolated` : TEST_PG_DATABASE
 
 const build = ({
   backend,
-  knex,
-  loader,
+  config,
   prepare
 }: {
   backend: TestDatabaseBackend
-  knex: Knex
-  loader: (instance: Knex) => Promise<void>
+  config: DatabaseConfig
   prepare: () => Promise<void> | void
 }): TestDatabase => {
-  const { onQuery, captureQueries } = createKnexQueryCapture(knex)
-  const database = withSchemaDumpMigrate(getSQLDatabase(knex), knex, loader)
-  legacyKnexByDatabase.set(database, knex)
+  // Nothing connects until the first query.
+  const connection = createDatabaseConnection(config)
+  const { onQuery, captureQueries } = createQueryCapture(connection.onQuery)
   return {
     backend,
-    database,
-    // Lazy: kyselyFor() is only needed by suites that use it. testUtils.test.ts
-    // builds this around a mocked Knex whose client kyselyFor() does not
-    // support.
-    get db() {
-      return kyselyFor(knex)
-    },
+    database: getSQLDatabase(connection.db, {
+      migrate: () => loadSchemaDump(connection),
+      destroy: connection.destroy
+    }),
+    db: connection.db,
     prepare,
-    destroy: () => knex.destroy(),
+    destroy: connection.destroy,
     captureQueries,
     onQuery,
-    pendingAcquires: () => knex.client.pool.numPendingAcquires()
+    pendingAcquires: connection.pendingAcquires
   }
 }

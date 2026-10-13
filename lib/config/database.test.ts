@@ -1,4 +1,9 @@
-import { getDatabaseConfig } from './database'
+import { logger } from '@/lib/utils/logger'
+
+import { getDatabaseConfig, parseKnexDatabaseConfig } from './database'
+
+const poolOf = (config: ReturnType<typeof getDatabaseConfig>) =>
+  config?.database.client === 'pg' ? config.database.pool : undefined
 
 describe('Database config', () => {
   const originalEnv = process.env
@@ -72,7 +77,7 @@ describe('Database config', () => {
 
       const config = getDatabaseConfig()
 
-      expect(config?.database.pool).toEqual({ min: 1, max: 5 })
+      expect(poolOf(config)).toEqual({ min: 1, max: 5 })
     })
 
     it('reads the pg pool size from env vars', () => {
@@ -82,7 +87,7 @@ describe('Database config', () => {
 
       const config = getDatabaseConfig()
 
-      expect(config?.database.pool).toEqual({ min: 2, max: 20 })
+      expect(poolOf(config)).toEqual({ min: 2, max: 20 })
     })
 
     it('builds pg config with ssl require', () => {
@@ -170,6 +175,185 @@ describe('Database config', () => {
       process.env.ACTIVITIES_DATABASE_CLIENT = ''
 
       expect(getDatabaseConfig()).toBeNull()
+    })
+  })
+
+  // ACTIVITIES_DATABASE is JSON written for Knex. The keys the connection uses
+  // are kept, the rest are ignored with a warning.
+  describe('parseKnexDatabaseConfig', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const warnings = () => {
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+      return () => warn.mock.calls.map(([fields]) => fields)
+    }
+
+    it('keeps a better-sqlite3 filename and always sets useNullAsDefault', () => {
+      const warned = warnings()
+      expect(
+        parseKnexDatabaseConfig({
+          client: 'better-sqlite3',
+          connection: { filename: 'data.sqlite' }
+        })
+      ).toEqual({
+        client: 'better-sqlite3',
+        connection: { filename: 'data.sqlite' },
+        useNullAsDefault: true
+      })
+      expect(warned()).toEqual([])
+    })
+
+    it('reads a bare better-sqlite3 connection string as the filename', () => {
+      expect(
+        parseKnexDatabaseConfig({
+          client: 'better-sqlite3',
+          connection: ':memory:',
+          useNullAsDefault: true
+        })
+      ).toEqual({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true
+      })
+    })
+
+    it('refuses better-sqlite3 without a filename', () => {
+      expect(() =>
+        parseKnexDatabaseConfig({ client: 'better-sqlite3', connection: {} })
+      ).toThrow()
+    })
+
+    it('keeps the pg connection object as given, with pool and timeout', () => {
+      const warned = warnings()
+      const connection = {
+        host: 'db.internal',
+        port: 5432,
+        user: 'app',
+        password: 'secret',
+        database: 'activities',
+        ssl: { rejectUnauthorized: false },
+        application_name: 'custom'
+      }
+      expect(
+        parseKnexDatabaseConfig({
+          client: 'pg',
+          connection,
+          pool: { min: 0, max: 7 },
+          acquireConnectionTimeout: 5000
+        })
+      ).toEqual({
+        client: 'pg',
+        connection,
+        pool: { min: 0, max: 7 },
+        acquireConnectionTimeout: 5000
+      })
+      expect(warned()).toEqual([])
+    })
+
+    it('keeps a pg connection string', () => {
+      expect(
+        parseKnexDatabaseConfig({
+          client: 'pg',
+          connection: 'postgres://app:secret@db.internal:5432/activities'
+        })
+      ).toEqual({
+        client: 'pg',
+        connection: 'postgres://app:secret@db.internal:5432/activities'
+      })
+    })
+
+    it.each(['postgres', 'postgresql'])(
+      "reads Knex's %s alias as pg",
+      (client) => {
+        expect(
+          parseKnexDatabaseConfig({ client, connection: { host: 'db' } })
+        ).toEqual({ client: 'pg', connection: { host: 'db' } })
+      }
+    )
+
+    it('leaves the pool unset when the JSON has none', () => {
+      const config = parseKnexDatabaseConfig({
+        client: 'pg',
+        connection: { host: 'db' }
+      })
+      expect(config.client === 'pg' && config.pool).toBeUndefined()
+    })
+
+    it('ignores the settings it does not use, and names them in a warning', () => {
+      const warned = warnings()
+      expect(
+        parseKnexDatabaseConfig({
+          client: 'pg',
+          connection: { host: 'db' },
+          searchPath: ['public'],
+          debug: true,
+          useNullAsDefault: true,
+          pool: { min: 1, max: 4, idleTimeoutMillis: 1000, afterCreate: null }
+        })
+      ).toEqual({
+        client: 'pg',
+        connection: { host: 'db' },
+        pool: { min: 1, max: 4 }
+      })
+      expect(warned()).toEqual([
+        {
+          keys: [
+            'searchPath',
+            'debug',
+            'pool.idleTimeoutMillis',
+            'pool.afterCreate',
+            'useNullAsDefault'
+          ]
+        }
+      ])
+    })
+
+    it('names the SQLite settings it does not use', () => {
+      const warned = warnings()
+      parseKnexDatabaseConfig({
+        client: 'better-sqlite3',
+        connection: { filename: ':memory:', options: { readonly: true } },
+        pool: { max: 1 }
+      })
+      expect(warned()).toEqual([{ keys: ['connection.options', 'pool'] }])
+    })
+
+    it.each(['mysql2', 'sqlite3', 'pg-native', ''])(
+      'throws for the unsupported client "%s"',
+      (client) => {
+        expect(() =>
+          parseKnexDatabaseConfig({ client, connection: {} })
+        ).toThrow(`Unsupported database client "${client}"`)
+      }
+    )
+
+    it('refuses a value that is not an object', () => {
+      expect(() => parseKnexDatabaseConfig([])).toThrow(
+        'ACTIVITIES_DATABASE must be a JSON object'
+      )
+    })
+
+    it('refuses a pool size of the wrong type', () => {
+      expect(() =>
+        parseKnexDatabaseConfig({
+          client: 'pg',
+          connection: { host: 'db' },
+          pool: { max: 'ten' }
+        })
+      ).toThrow()
+    })
+
+    it('is what getDatabaseConfig returns for ACTIVITIES_DATABASE', () => {
+      process.env.ACTIVITIES_DATABASE = JSON.stringify({
+        client: 'postgresql',
+        connection: { host: 'db' },
+        pool: { max: 3 }
+      })
+      expect(getDatabaseConfig()).toEqual({
+        database: { client: 'pg', connection: { host: 'db' }, pool: { max: 3 } }
+      })
     })
   })
 })

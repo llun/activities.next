@@ -1,7 +1,8 @@
-import knex, { type Knex } from 'knex'
 import type { Kysely } from 'kysely'
 
-import { type DB, kyselyFor } from '@/lib/database/kysely'
+import type { DatabaseConfig } from '@/lib/config/database'
+import { createDatabaseConnection } from '@/lib/database/connection'
+import type { DB } from '@/lib/database/kysely'
 
 export interface ScriptDatabase {
   /** Kysely on the connection this call opened. */
@@ -16,18 +17,13 @@ export interface ScriptDatabase {
  * app). `config` is `getConfig().database`.
  *
  * Only better-sqlite3 and pg are supported, as for the app: any other client
- * throws here, and the pool is closed first.
+ * throws here, before anything connects.
  *
- * Unlike the app's connection it has no sqlcommenter hook attached; a script
- * has no request to trace, so the app's connection adds no trace tag to a
- * script's queries either.
+ * Unlike the app's connection it adds no sqlcommenter trace tag; a script has
+ * no request to trace, so the app's connection adds none to a script's queries
+ * either.
  */
-export const openScriptDatabase = (config: Knex.Config): ScriptDatabase => {
-  const instance = knex(config)
-  try {
-    return { db: kyselyFor(instance), destroy: () => instance.destroy() }
-  } catch (error) {
-    void instance.destroy()
-    throw error
-  }
+export const openScriptDatabase = (config: DatabaseConfig): ScriptDatabase => {
+  const { db, destroy } = createDatabaseConnection(config)
+  return { db, destroy }
 }

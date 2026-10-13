@@ -1,9 +1,6 @@
-import type { Knex } from 'knex'
-
-import { type Db, inTransaction, kyselyFor } from '@/lib/database/kysely'
+import { type Db, inTransaction } from '@/lib/database/kysely'
 import { inSavepoint } from '@/lib/database/kysely/savepoint'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
-import { getLegacyKnex } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 
@@ -14,13 +11,11 @@ describe('inSavepoint', () => {
   const ACTOR = 'https://example.com/users/savepoint'
 
   let database: Database
-  let instance: Knex
   let db: Db
 
   beforeAll(async () => {
     const test = getTestDatabaseWithInstance()
     database = test.database
-    instance = getLegacyKnex(test.database)
     await test.prepare()
     await database.migrate()
     db = test.db
@@ -115,18 +110,5 @@ describe('inSavepoint', () => {
       'needs the transaction'
     )
     expect(await stored()).toEqual([])
-  })
-
-  it('works on the Kysely view of a Knex transaction', async () => {
-    await instance.transaction(async (knexTrx) => {
-      const trx = kyselyFor(knexTrx)
-      await dismiss(trx, 'a')
-      await expect(inSavepoint(trx, () => dismiss(trx, 'a'))).rejects.toSatisfy(
-        isUniqueConstraintError
-      )
-      await dismiss(trx, 'b')
-    })
-
-    expect(await stored()).toEqual(['a', 'b'])
   })
 })
