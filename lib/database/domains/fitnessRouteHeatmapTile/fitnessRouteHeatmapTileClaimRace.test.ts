@@ -668,6 +668,8 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         await prepareIsolated()
         await isolated.migrate()
 
+        let swap:
+          ReturnType<typeof interfereAfterStatementFromOutside> | undefined
         try {
           const actorId = await createActor(isolated)
           const replacementId = crypto.randomUUID()
@@ -677,7 +679,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // held: like a rival worker, the interference waits for the claim's
           // transaction (for SQLite's one connection, or on PostgreSQL for the
           // row lock the compare-and-swap holds).
-          const swap = interfereAfterStatementFromOutside(
+          swap = interfereAfterStatementFromOutside(
             (sql) =>
               sql.trimStart().toLowerCase().startsWith('update') &&
               sql.includes('fitness_route_heatmap_pyramids'),
@@ -749,6 +751,9 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             })
           }
         } finally {
+          // The interference runs on its own; let it finish before the
+          // database it writes to closes.
+          await swap?.settled
           await isolated.destroy()
         }
       })

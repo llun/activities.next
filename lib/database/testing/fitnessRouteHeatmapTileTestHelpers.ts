@@ -218,18 +218,27 @@ export const interfereAfterStatement = (
  * worker would: it waits for a connection, or on PostgreSQL for the row lock
  * the method's transaction holds. A rejection from `interfere` is not
  * observed here; make it fail the test through what it was meant to change.
+ * `settled` resolves once `interfere` has finished either way: await it
+ * before destroying the database, or the rest of `interfere` can still be
+ * running and be refused.
  */
 export const interfereAfterStatementFromOutside = (
   matches: (sql: string) => boolean,
   interfere: () => Promise<unknown>
 ) => {
-  const state = { fired: false }
+  const state: { fired: boolean; settled: Promise<void> } = {
+    fired: false,
+    settled: Promise.resolve()
+  }
   addStatementHook({
     matches,
     when: 'after',
     run: async () => {
       state.fired = true
-      void outsideDatabaseContext(interfere)
+      state.settled = outsideDatabaseContext(interfere).then(
+        () => undefined,
+        () => undefined
+      )
     }
   })
   return state
