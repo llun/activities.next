@@ -421,6 +421,41 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
     }
   })
 
+  // node-postgres hands the new client to a connect() that was already in
+  // flight when the pool started ending; unreleased, it would keep destroy()
+  // waiting forever.
+  it('does not hang when destroyed while a query is still connecting', async () => {
+    const { default: pg } = await import('pg')
+    const connect = pg.Client.prototype.connect
+    let connecting = () => {}
+    const started = new Promise<void>((resolve) => {
+      connecting = resolve
+    })
+    const delayed = vi
+      .spyOn(pg.Client.prototype, 'connect')
+      .mockImplementation(function (
+        this: InstanceType<typeof pg.Client>,
+        ...args: Parameters<typeof connect>
+      ) {
+        connecting()
+        setTimeout(() => connect.apply(this, args), 200)
+        return undefined as unknown as ReturnType<typeof connect>
+      } as typeof connect)
+    const handle = open({ min: 0, max: 2 })
+    try {
+      const query = sql`select 1`.execute(handle.db).then(
+        () => 'resolved',
+        (error: Error) => error.message
+      )
+      await started
+      await handle.destroy()
+      await expect(query).resolves.toBe('driver has already been destroyed')
+      await expect.poll(backendPids).toEqual([])
+    } finally {
+      delayed.mockRestore()
+    }
+  })
+
   it('closes every connection on destroy', async () => {
     const handle = open({ min: 1, max: 3 })
     await Promise.all(

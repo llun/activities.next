@@ -6,6 +6,7 @@ import {
   Kysely,
   PostgresAdapter,
   PostgresDialect,
+  type PostgresPool,
   type QueryCompiler,
   type QueryResult,
   SqliteAdapter,
@@ -480,6 +481,32 @@ const createPool = (pg: PgModule, config: PostgresDatabaseConfig): Pool => {
   return pool
 }
 
+// node-postgres still hands a client to a `connect()` that was already waiting
+// for a new connection when `end()` was called. Kysely's driver drops its pool
+// before calling `end()`, so it fails on that client without releasing it,
+// and `end()` then waits for the client forever. The driver gets this pool
+// instead, which releases such a client itself and fails that `connect()`.
+const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
+  let ending = false
+  return {
+    // What Kysely's driver reads off a pg Pool besides these two methods.
+    Client: pg.Client as PostgresPool['Client'],
+    options: pool.options,
+    async connect() {
+      const client = await pool.connect()
+      if (ending) {
+        client.release()
+        throw new Error('driver has already been destroyed')
+      }
+      return client
+    },
+    async end() {
+      ending = true
+      await pool.end()
+    }
+  }
+}
+
 /**
  * Opens a database connection on Kysely's own dialects. Nothing connects
  * until the first query. Only better-sqlite3 and pg are supported.
@@ -522,7 +549,7 @@ export const createDatabaseConnection = (
           pool: async () => {
             pg = await loadPg()
             pool = createPool(pg, config)
-            return pool
+            return releaseLateClients(pool, pg)
           }
         })
 
