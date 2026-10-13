@@ -182,6 +182,97 @@ describe('StatusThread', () => {
     expect(screen.getByText('Replies show up here.')).toBeInTheDocument()
   })
 
+  it('hides the empty state under the last post of a conversation', () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/root',
+      actor: mockBob,
+      actorId: mockBob.id,
+      text: 'Ancestor Root',
+      createdAt: BASE_TIME
+    })
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/last',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: root.id,
+      text: 'Last Reply',
+      createdAt: BASE_TIME + 60000
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        currentActor={mockAlice}
+        currentTime={BASE_TIME + 100000}
+      />
+    )
+
+    expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+    // Nothing follows it, so the focused post closes the frame itself.
+    expect(screen.getByTestId('focused-status')).toHaveClass(
+      'border-b-0',
+      'rounded-b-lg'
+    )
+  })
+
+  it('hides the empty state for a reply whose parent is unavailable', () => {
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/orphan',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: 'https://remote.test/statuses/gone',
+      text: 'Orphan Reply',
+      createdAt: BASE_TIME
+    })
+
+    render(
+      <StatusThread host={host} status={focused} currentTime={BASE_TIME} />
+    )
+
+    expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+    // Logged out, the sign-in block follows inside the desktop frame, so only
+    // the mobile inset card ends at the focused post.
+    const focusedRow = screen.getByTestId('focused-status')
+    expect(focusedRow).toHaveClass('border-b', 'max-md:rounded-b-lg')
+    expect(focusedRow).not.toHaveClass('border-b-0')
+  })
+
+  it('swaps the empty state for the reply composer until it is cancelled', () => {
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/lonely',
+      actor: mockBob,
+      actorId: mockBob.id,
+      text: 'Lonely Status',
+      createdAt: BASE_TIME
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        currentActor={mockAlice}
+        currentTime={BASE_TIME}
+      />
+    )
+
+    expect(screen.getByText('No replies yet')).toBeInTheDocument()
+    expect(screen.getByText('Be the first to reply.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText(/Reply/i))
+
+    expect(screen.getByPlaceholderText(/Reply to Bob/i)).toBeInTheDocument()
+    expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(
+      screen.queryByPlaceholderText(/Reply to Bob/i)
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('No replies yet')).toBeInTheDocument()
+  })
+
   it('renders focusedFooter when provided', () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/focused',
