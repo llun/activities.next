@@ -32,6 +32,8 @@ import {
   assertMatchingMigrations,
   exportDatabase,
   getDatabaseTableNames,
+  getFts5Arguments,
+  getFts5ContentTable,
   getRestoreInsertBatchSize,
   openArchiveDatabase,
   readJsonLines,
@@ -40,6 +42,41 @@ import {
   stringifyJsonColumnValues,
   truncateTables
 } from './productionArchive'
+
+// Every `migrateToLatest` call, with how the connection it was given reads a
+// timestamp column: a normalising connection as epoch milliseconds (a number),
+// the archive's own as stored text (a string). The restore must migrate on a
+// normalising connection (lib/database/migrate).
+const migrationCalls = vi.hoisted(() => [] as { readsTimestampAs: string }[])
+vi.mock('@/lib/database/migrate', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/database/migrate')>()
+  const { sql: probeSql } = await import('kysely')
+  return {
+    ...actual,
+    migrateToLatest: async (
+      target: Parameters<typeof actual.migrateToLatest>[0]
+    ) => {
+      const at = await target.db.connection().execute(async (connection) => {
+        await probeSql`
+          create temp table migration_probe (at timestamp)
+        `.execute(connection)
+        try {
+          await probeSql`
+            insert into migration_probe (at) values ('2026-01-02 03:04:05')
+          `.execute(connection)
+          const { rows } = await probeSql<{ at: unknown }>`
+            select at from migration_probe
+          `.execute(connection)
+          return rows[0].at
+        } finally {
+          await probeSql`drop table migration_probe`.execute(connection)
+        }
+      })
+      migrationCalls.push({ readsTimestampAs: typeof at })
+      return actual.migrateToLatest(target)
+    }
+  }
+})
 
 const sqliteMemoryConfig = getTestDatabaseConfig('sqlite')
 
@@ -426,6 +463,83 @@ describe('production archive scripts', () => {
     })
   })
 
+  // The FTS5 declarations below are all accepted by SQLite, which reads their
+  // content table (or none) the same way.
+  describe('getFts5ContentTable', () => {
+    const create = (args: string) =>
+      `CREATE VIRTUAL TABLE notes_fts USING fts5(${args})`
+
+    it.each([
+      // The migration's own declaration (search_documents_fts).
+      [
+        "id UNINDEXED, documentText, content='search_documents', content_rowid='rowid'",
+        'search_documents'
+      ],
+      ['body, content=docs', 'docs'],
+      ['body, content="docs"', 'docs'],
+      ['body, content=[docs]', 'docs'],
+      ['body, content=`docs`', 'docs'],
+      ["body, content = 'it''s'", "it's"],
+      ['body, content="a""b"', 'a"b'],
+      ['body, content=[a b]', 'a b'],
+      // Option names in any case; the table name as written.
+      ['body, CONTENT=Docs', 'Docs'],
+      ["body, Content = 'Docs'", 'Docs'],
+      // Contentless.
+      ["body, content=''", ''],
+      ['body, content=""', ''],
+      // Self-contained: no content option, or `content=` only inside another
+      // argument's quoted value or a comment.
+      ['body', null],
+      ["body, content_rowid='rowid'", null],
+      [`body, tokenize = "unicode61 separators ', content=x'"`, null],
+      ['body, "x, content=y"', null],
+      ['body, [x, content=y]', null],
+      ['body /* , content=x */', null],
+      ['body -- , content=x\n', null],
+      [`body, tokenize="unicode61 separators ',='", content=[docs]`, 'docs']
+    ])('reads %j as %j', (args, expected) => {
+      expect(getFts5ContentTable(create(args))).toBe(expected)
+    })
+
+    it('matches fts5 in any case and ignores other modules', () => {
+      expect(
+        getFts5ContentTable(
+          'create virtual table notes_fts using FTS5 (body, content=docs)'
+        )
+      ).toBe('docs')
+      expect(
+        getFts5ContentTable(
+          'create virtual table notes_fts using fts4(body, content=docs)'
+        )
+      ).toBeNull()
+      expect(
+        getFts5ContentTable(
+          'create virtual table boxes using rtree(id, minX, maxX)'
+        )
+      ).toBeNull()
+    })
+
+    it('splits arguments only outside quotes, brackets and parentheses', () => {
+      expect(
+        getFts5Arguments(
+          create(
+            `body, tokenize = "porter unicode61 separators ',)'", ` +
+              `prefix='2 3', content=[x, y]`
+          )
+        )
+      ).toEqual([
+        'body',
+        `tokenize = "porter unicode61 separators ',)'"`,
+        "prefix='2 3'",
+        'content=[x, y]'
+      ])
+      expect(getFts5Arguments(create('body, content=docs').slice(0, -1))).toBe(
+        null
+      )
+    })
+  })
+
   describe('getDatabaseTableNames', () => {
     it('excludes SQLite internal and Knex lock tables', async () => {
       const { database, destroy } = openSqliteArchiveDatabase()
@@ -634,11 +748,11 @@ describe('production archive scripts', () => {
       }
     }
 
-    const restore = async (config: DatabaseConfig) => {
+    const restore = async (config: DatabaseConfig, fromDir = archiveDir) => {
       const { database, destroy } = openArchiveDatabase(config)
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
       try {
-        await restoreDatabase(database, archiveDir, manifest)
+        await restoreDatabase(database, fromDir, manifest)
       } finally {
         logSpy.mockRestore()
         await destroy()
@@ -739,6 +853,26 @@ describe('production archive scripts', () => {
         await destroy()
       }
 
+      if (backend === 'pg') {
+        // A server whose sessions default to another zone and date style,
+        // which the archive's connection replaces with ISO and UTC. Set
+        // after seeding: the app's normalising connection, like
+        // node-postgres's parsers, expects the ISO style.
+        const admin = createDatabaseConnection(sourceConfig)
+        try {
+          await sql`
+            alter database ${sql.id(getTestPgDatabaseName())}
+            set "TimeZone" to 'Asia/Kolkata'
+          `.execute(admin.db)
+          await sql`
+            alter database ${sql.id(getTestPgDatabaseName())}
+            set "DateStyle" to 'SQL, DMY'
+          `.execute(admin.db)
+        } finally {
+          await admin.destroy()
+        }
+      }
+
       // The export, and the statements it sent. It runs east of UTC, where a
       // `date` read as a local-midnight `Date` would be written as the
       // previous day.
@@ -773,6 +907,18 @@ describe('production archive scripts', () => {
 
     afterAll(async () => {
       await fs.rm(tempDir, { force: true, recursive: true })
+      if (backend === 'pg') {
+        // The next file in this worker may use the database without
+        // recreating it.
+        const admin = createDatabaseConnection(sourceConfig)
+        try {
+          await sql`
+            alter database ${sql.id(getTestPgDatabaseName())} reset all
+          `.execute(admin.db)
+        } finally {
+          await admin.destroy()
+        }
+      }
     })
 
     it('exports in one read-only repeatable-read snapshot', () => {
@@ -817,9 +963,24 @@ describe('production archive scripts', () => {
         (await readTable('counters')).map((row) => [row.id, row.createdAt])
       )
       if (backend === 'pg') {
-        // The server's text, in its zone, with the microseconds.
-        expect(counters.get('round-trip:micro')).toMatch(
-          /^2026-02-0[34] \d\d:\d\d:06\.789123[+-]\d\d(:\d\d)?$/
+        // The source's sessions default to Asia/Kolkata and the SQL style
+        // (`03/02/2026 09:35:06.789123 IST`), but the archive holds ISO text
+        // in UTC, with the microseconds.
+        const other = createDatabaseConnection(sourceConfig)
+        try {
+          const { rows } = await sql<{ zone: string; style: string }>`
+            select current_setting('TimeZone') as zone,
+                   current_setting('DateStyle') as style
+          `.execute(other.db)
+          expect(rows).toEqual([{ zone: 'Asia/Kolkata', style: 'SQL, DMY' }])
+        } finally {
+          await other.destroy()
+        }
+        expect(counters.get('round-trip:micro')).toBe(
+          '2026-02-03 04:05:06.789123+00'
+        )
+        expect(counters.get('round-trip:big')).toBe(
+          '2026-02-03 04:05:06.789+00'
         )
       } else {
         expect(counters.get('round-trip:big')).toBe(SQLITE_STORED_TIME)
@@ -844,7 +1005,12 @@ describe('production archive scripts', () => {
           await target.destroy()
         }
 
+        const migrationsBefore = migrationCalls.length
         await restore(targetConfig)
+        // The restore migrated once, on a connection that normalises results.
+        expect(migrationCalls.slice(migrationsBefore)).toEqual([
+          { readsTimestampAs: 'number' }
+        ])
 
         const source = await dumpTables(sourceConfig)
         const restored = await dumpTables(targetConfig)
@@ -967,6 +1133,62 @@ describe('production archive scripts', () => {
       }
     })
 
+    // An archive written before its connection set UTC holds each timestamp
+    // in its server's zone; the offset says which instant it is.
+    it.runIf(backend === 'pg')(
+      'restores a timestamp written with another offset as the same instant',
+      async () => {
+        const offsetArchiveDir = path.join(tempDir, 'offset-archive')
+        await fs.cp(archiveDir, offsetArchiveDir, { recursive: true })
+        const countersFile = path.join(
+          offsetArchiveDir,
+          'database',
+          'counters.jsonl'
+        )
+        const lines = (await fs.readFile(countersFile, 'utf8'))
+          .split('\n')
+          .filter((line) => line.length > 0)
+        let rewritten = 0
+        await fs.writeFile(
+          countersFile,
+          lines
+            .map((line) => {
+              const row = JSON.parse(line)
+              if (row.id !== 'round-trip:micro') return line
+              rewritten += 1
+              return JSON.stringify({
+                ...row,
+                createdAt: '2026-02-03 09:35:06.789123+05:30',
+                updatedAt: '2026-02-03 09:35:06.789123+05:30'
+              })
+            })
+            .join('\n') + '\n'
+        )
+        expect(rewritten).toBe(1)
+
+        await restore(targetConfig, offsetArchiveDir)
+
+        const { database, destroy } = openArchiveDatabase(targetConfig)
+        try {
+          const { rows } = await sql<Record<string, unknown>>`
+            select "createdAt", "updatedAt",
+                   ("createdAt" at time zone 'UTC')::text as "utc"
+            from counters where id = 'round-trip:micro'
+          `.execute(database.db)
+          expect(rows).toEqual([
+            {
+              createdAt: '2026-02-03 04:05:06.789123+00',
+              updatedAt: '2026-02-03 04:05:06.789123+00',
+              utc: '2026-02-03 04:05:06.789123'
+            }
+          ])
+        } finally {
+          await destroy()
+        }
+      },
+      ROUND_TRIP_TIMEOUT_MS
+    )
+
     it(
       'replaces the data of a database that is already migrated',
       async () => {
@@ -1046,43 +1268,139 @@ describe('production archive scripts', () => {
 
     // Only an external-content FTS5 table can be rebuilt from the table it
     // indexes; a contentless one holds what the restore would have to write.
+    // The archive also holds an ordinary table, which a refusal that came
+    // after the deletes would have emptied.
     it.runIf(backend === 'sqlite')(
-      'refuses a SQLite virtual table it could not rebuild',
+      'refuses a SQLite virtual table it could not rebuild, before deleting anything',
       async () => {
         const otherArchiveDir = path.join(tempDir, 'contentless-archive')
         await fs.mkdir(path.join(otherArchiveDir, 'database'), {
           recursive: true
         })
         await fs.writeFile(
+          path.join(otherArchiveDir, 'database', 'notes.jsonl'),
+          `${JSON.stringify({ id: 2, body: 'restored' })}\n`
+        )
+        await fs.writeFile(
           path.join(otherArchiveDir, 'database', 'notes_fts.jsonl'),
           ''
         )
+        // The target is migrated whether or not the tests before this one
+        // ran, so the refusal is the only thing the restore can stop at.
+        const app = createDatabaseConnection(targetConfig)
+        try {
+          await migrateToLatest({ db: app.db, config: targetConfig })
+        } finally {
+          await app.destroy()
+        }
         const { database, destroy } = openArchiveDatabase(targetConfig)
         try {
           await sql`
+            create table notes (id integer primary key, body text)
+          `.execute(database.db)
+          await sql`
+            insert into notes (id, body) values (1, 'kept')
+          `.execute(database.db)
+          await sql`
             create virtual table notes_fts using fts5(body, content='')
           `.execute(database.db)
+          const before = await dumpTables(targetConfig)
+          expect(before.notes).toEqual([
+            JSON.stringify({ id: 1, body: 'kept' })
+          ])
+
           await expect(
             restoreDatabase(database, otherArchiveDir, {
               ...manifest,
               database: {
                 ...manifest.database!,
-                tables: [{ name: 'notes_fts', rowCount: 0 }]
+                tables: [
+                  { name: 'notes', rowCount: 1 },
+                  { name: 'notes_fts', rowCount: 0 }
+                ]
               }
             })
           ).rejects.toThrow(
             'Cannot restore SQLite virtual or shadow table(s) notes_fts'
           )
-          // Nothing was deleted.
-          const { rows } = await sql<{ count: number }>`
-            select count(*) as count from actors
+
+          // Nothing was deleted: neither the archived ordinary table nor any
+          // other table of the target.
+          const { rows } = await sql`
+            select id, body from notes
           `.execute(database.db)
-          expect(rows[0].count).toBeGreaterThan(0)
+          expect(rows).toEqual([{ id: 1, body: 'kept' }])
+          expect(await dumpTables(targetConfig)).toEqual(before)
         } finally {
           await sql`drop table if exists notes_fts`.execute(database.db)
+          await sql`drop table if exists notes`.execute(database.db)
           await destroy()
         }
-      }
+      },
+      ROUND_TRIP_TIMEOUT_MS
+    )
+
+    // FTS5 reads `content=` with any quoting, and SQLite matches table names
+    // in any case; the restore rebuilds such an index too. The table has no
+    // triggers, so only the rebuild indexes the restored row.
+    it.runIf(backend === 'sqlite')(
+      'rebuilds a full-text index whose content table is quoted or in another case',
+      async () => {
+        const otherArchiveDir = path.join(tempDir, 'quoted-content-archive')
+        await fs.mkdir(path.join(otherArchiveDir, 'database'), {
+          recursive: true
+        })
+        await fs.writeFile(
+          path.join(otherArchiveDir, 'database', 'docs.jsonl'),
+          `${JSON.stringify({ id: 7, body: 'quotedword' })}\n`
+        )
+        await fs.writeFile(
+          path.join(otherArchiveDir, 'database', 'docs_fts.jsonl'),
+          ''
+        )
+        const app = createDatabaseConnection(targetConfig)
+        try {
+          await migrateToLatest({ db: app.db, config: targetConfig })
+        } finally {
+          await app.destroy()
+        }
+        const { database, destroy } = openArchiveDatabase(targetConfig)
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+        try {
+          await sql`
+            create table docs (id integer primary key, body text)
+          `.execute(database.db)
+          await sql`
+            create virtual table docs_fts
+            using FTS5(body, CONTENT=[Docs], content_rowid=id)
+          `.execute(database.db)
+
+          await restoreDatabase(database, otherArchiveDir, {
+            ...manifest,
+            database: {
+              ...manifest.database!,
+              tables: [
+                { name: 'docs', rowCount: 1 },
+                { name: 'docs_fts', rowCount: 0 }
+              ]
+            }
+          })
+
+          expect(logSpy).toHaveBeenCalledWith(
+            'Database: rebuilt docs_fts from Docs'
+          )
+          const { rows } = await sql<{ id: number }>`
+            select rowid as id from docs_fts where docs_fts match 'quotedword'
+          `.execute(database.db)
+          expect(rows).toEqual([{ id: 7 }])
+        } finally {
+          logSpy.mockRestore()
+          await sql`drop table if exists docs_fts`.execute(database.db)
+          await sql`drop table if exists docs`.execute(database.db)
+          await destroy()
+        }
+      },
+      ROUND_TRIP_TIMEOUT_MS
     )
   })
 })
