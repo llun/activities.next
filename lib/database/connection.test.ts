@@ -150,13 +150,11 @@ describe('createDatabaseConnection', () => {
         backend === 'pg'
           ? {
               // node-postgres's own types, except dates and timestamps,
-              // which stay the server's text: a timestamptz in the server's
-              // zone, with its microseconds.
+              // which stay the server's text: ISO style, a timestamptz in
+              // UTC, with its microseconds.
               flag: true,
               atUtc: '2026-02-03 04:05:06.789123',
-              at: expect.stringMatching(
-                /^2026-02-0[34] \d\d:\d\d:06\.789123[+-]\d\d(:\d\d)?$/
-              ),
+              at: '2026-02-03 04:05:06.789123+00',
               stamp: '2026-02-03 04:05:06.789123',
               big: '9007199254740993',
               doc: document,
@@ -174,11 +172,80 @@ describe('createDatabaseConnection', () => {
               day: '2026-02-03'
             }
       ])
+
+      if (backend === 'pg') {
+        // Arrays of dates and timestamps stay the server's text too.
+        const { rows: arrays } = await sql`
+          select array['2026-02-03'::date] as days,
+                 array['2026-02-03 04:05:06.789123'::timestamp] as stamps,
+                 array['2026-02-03 04:05:06.789123+00'::timestamptz] as ats
+        `.execute(raw.db)
+        expect(arrays).toEqual([
+          {
+            days: '{2026-02-03}',
+            stamps: '{"2026-02-03 04:05:06.789123"}',
+            ats: '{"2026-02-03 04:05:06.789123+00"}'
+          }
+        ])
+      }
     } finally {
       await sql`drop table if exists connection_raw_values`.execute(raw.db)
       await raw.destroy()
     }
   })
+
+  // The text does not depend on the server's settings: each connection that
+  // does not normalise sets ISO and UTC for itself, here over sessions that
+  // default to Asia/Kolkata and the SQL style (as `ALTER DATABASE … SET` or
+  // the server's configuration would make them). The app's connection keeps
+  // what the server gives it.
+  it.runIf(backend === 'pg')(
+    'reads dates and timestamps as ISO text in UTC whatever the server defaults to',
+    async () => {
+      const base = getTestDatabaseConfig('pg')
+      if (base.client !== 'pg' || typeof base.connection === 'string') {
+        throw new Error('expected a pg configuration object')
+      }
+      const config = {
+        ...base,
+        connection: {
+          ...base.connection,
+          options: '-c TimeZone=Asia/Kolkata -c DateStyle=SQL,DMY'
+        }
+      }
+      const settings = sql<{ zone: string; style: string }>`
+        select current_setting('TimeZone') as zone,
+               current_setting('DateStyle') as style
+      `
+      const app = createDatabaseConnection(config)
+      const raw = createDatabaseConnection(config, { normalizeResults: false })
+      try {
+        expect((await settings.execute(app.db)).rows).toEqual([
+          { zone: 'Asia/Kolkata', style: 'SQL, DMY' }
+        ])
+        expect((await settings.execute(raw.db)).rows).toEqual([
+          { zone: 'UTC', style: 'ISO, DMY' }
+        ])
+        const { rows } = await sql`
+          select '2026-02-03 04:05:06.789123+00'::timestamptz as at,
+                 '2026-02-03 04:05:06.789123'::timestamp as stamp,
+                 '2026-01-02'::date as day,
+                 array['2026-01-02'::date] as days
+        `.execute(raw.db)
+        expect(rows).toEqual([
+          {
+            at: '2026-02-03 04:05:06.789123+00',
+            stamp: '2026-02-03 04:05:06.789123',
+            day: '2026-01-02',
+            days: '{2026-01-02}'
+          }
+        ])
+      } finally {
+        await app.destroy()
+        await raw.destroy()
+      }
+    }
+  )
 
   // PostgreSQL streams through a cursor, which the app does not configure.
   // Stored as SQLite holds them (0/1, JSON text, CURRENT_TIMESTAMP's UTC

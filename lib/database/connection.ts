@@ -1,5 +1,5 @@
 import {
-  type CompiledQuery,
+  CompiledQuery,
   type DatabaseConnection,
   type Dialect,
   type Driver,
@@ -50,7 +50,8 @@ import { logger } from '@/lib/utils/logger'
 // declared column types; on PostgreSQL by the type parsers every pooled client
 // is created with. `normalizeResults: false` turns both off for the production
 // archive, which reads and writes rows as the drivers read them, except that
-// PostgreSQL dates and timestamps stay the text the server sends.
+// PostgreSQL dates and timestamps stay the text the server sends, in ISO
+// style and UTC (`setCanonicalDateOutput`).
 
 export type DatabaseBackend = 'sqlite' | 'pg'
 
@@ -80,9 +81,10 @@ export type CreateDatabaseConnectionOptions = {
    * Off, rows come back close to how the driver reads them: on PostgreSQL
    * node-postgres's default types (int8 and numeric as strings, booleans,
    * JSON parsed), except that `date`, `timestamp` and `timestamptz` values
-   * are the text the server sends (`2026-01-02`,
-   * `2026-02-03 04:05:06.789123+00`) rather than a `Date`, which would lose
-   * microseconds and read a `date` as local midnight; on SQLite the stored
+   * are the text the server sends, with each connection's `DateStyle` set to
+   * ISO and `TimeZone` to UTC (`2026-01-02`, `2026-02-03 04:05:06.789123+00`),
+   * rather than a `Date`, which would lose microseconds and read a `date` as
+   * local midnight; on SQLite the stored
    * values (0/1, epoch ms or text, JSON text). For the production archive,
    * which exports and restores rows in these forms. Bindings are encoded the
    * same way either way.
@@ -566,6 +568,26 @@ const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
   }
 }
 
+// A connection that does not normalise results (the production archive's)
+// reads dates and timestamps as the text the server sends, which depends on
+// the session's `DateStyle` and `TimeZone`. Each new connection sets both
+// (ISO, UTC), so the text is the same whatever the server, database or role
+// defaults are: `2026-01-02`, `2026-02-03 04:05:06.789123+00`. A statement
+// rather than the `options` startup parameter, so it works with any
+// connection configuration (a connection string, a socket, a connector's
+// stream) and through poolers that reject startup options. It runs on the
+// driver's own connection, before the instrumented driver hands it out, so
+// `onQuery` listeners do not see it. The app's normalising connection keeps
+// the server's settings.
+const setCanonicalDateOutput = async (connection: DatabaseConnection) => {
+  await connection.executeQuery(
+    CompiledQuery.raw(
+      "select set_config('DateStyle', 'ISO', false), " +
+        "set_config('TimeZone', 'UTC', false)"
+    )
+  )
+}
+
 /**
  * Opens a database connection on Kysely's own dialects. Nothing connects
  * until the first query. Only better-sqlite3 and pg are supported.
@@ -612,7 +634,10 @@ export const createDatabaseConnection = (
             pg = await loadPg()
             pool = createPool(pg, config, normalizeResults)
             return releaseLateClients(pool, pg)
-          }
+          },
+          ...(normalizeResults
+            ? {}
+            : { onCreateConnection: setCanonicalDateOutput })
         })
 
   const adapter =

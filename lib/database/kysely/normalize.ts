@@ -164,7 +164,10 @@ export const createPostgresTypeParsers = (
 // as the process's local midnight, which JSON writes as the previous day in
 // UTC when the process runs east of UTC, and it would drop a timestamp's
 // microseconds. The text says exactly what is stored, whatever the process's
-// zone, and PostgreSQL reads it back as the same value.
+// zone, and PostgreSQL reads it back as the same value. The connection sets
+// each session's `DateStyle` to ISO and `TimeZone` to UTC
+// (lib/database/connection.ts), so the text does not depend on the server's
+// settings either.
 export const createRawPostgresTypeParsers = (
   defaults: PostgresTypes
 ): PostgresTypes => ({
