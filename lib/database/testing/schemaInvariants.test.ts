@@ -277,9 +277,13 @@ describe('schema invariants', () => {
         .selectFrom('actors')
         .select('username')
         .where('domain', '=', 'invariants.test')
-        .orderBy('username')
         .execute()
-      expect(rows.map(({ username }) => username)).toEqual(['Alice', 'alice'])
+      // Sorted here: the database collation decides whether `Alice` or
+      // `alice` comes first.
+      expect(rows.map(({ username }) => username).sort()).toEqual([
+        'Alice',
+        'alice'
+      ])
     })
 
     it('refuses a second period with the same install sequence for a component', async () => {
