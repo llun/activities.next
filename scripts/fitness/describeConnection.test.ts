@@ -104,6 +104,16 @@ describe('describeConnection', () => {
     expect(describeConnection().isLocal).toBe(true)
   })
 
+  it('reads a connection string with an empty host as node-postgres does, not by its placeholder host', () => {
+    // `new URL` rejects `u@/db`; node-postgres parses it with a placeholder
+    // host and then treats the host as unset.
+    withConnectionString('postgresql://u@/db')
+    expect(describeConnection().isLocal).toBe(true)
+
+    vi.stubEnv('PGHOST', '10.1.2.3')
+    expect(describeConnection().isLocal).toBe(false)
+  })
+
   it('does not count a connection string it cannot parse as local', () => {
     // `new URL` rejects the port; a substring match on the scheme
     // ("postgres") once counted it as local.
