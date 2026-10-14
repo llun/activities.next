@@ -1,6 +1,6 @@
 'use client'
 
-import { Home } from 'lucide-react'
+import { ArrowUp, Home } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -49,6 +49,7 @@ import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { RefreshButton } from '@/lib/components/refresh-button'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
+import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPageToTop'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
@@ -132,6 +133,22 @@ const isUnauthorizedError = (error: unknown): boolean => {
     return true
   }
   return false
+}
+
+// A row whose bottom edge is above this line (just under the sticky header)
+// has scrolled out of view upwards; the same line the scroll anchor uses.
+const VIEW_TOP_EDGE = 80
+
+/** The status id of the first feed row still on screen, if any. */
+const findFirstVisibleStatusId = (): string | null => {
+  if (typeof document === 'undefined') return null
+  const elements = document.querySelectorAll<HTMLElement>('[data-status-id]')
+  for (let i = 0; i < elements.length; i++) {
+    if (elements[i].getBoundingClientRect().bottom > VIEW_TOP_EDGE) {
+      return elements[i].getAttribute('data-status-id')
+    }
+  }
+  return null
 }
 
 const findStatusElement = (statusId: string): HTMLElement | null => {
@@ -221,6 +238,12 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     useState<boolean>(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [newerPostsCount, setNewerPostsCount] = useState<number>(0)
+  // Posts that loaded above the reading spot (a refresh while scrolled down,
+  // or the saved timeline reopening under a fresher first page) and have not
+  // been scrolled into view yet. They count towards the "new posts" pill with
+  // the polled posts that are not loaded at all.
+  const unseenAboveIdsRef = useRef<Set<string>>(new Set())
+  const [unseenAboveCount, setUnseenAboveCount] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
   const [loadingGapSegmentIndex, setLoadingGapSegmentIndex] = useState<
     number | null
@@ -300,6 +323,47 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
   }, [])
 
+  // Adds every status in `nextSegments` that `previousStatuses` did not have.
+  // Whether each one is above the reader is settled by the recount below,
+  // once the merged list has rendered and the scroll anchor is restored.
+  const markNewAsUnseen = useCallback(
+    (previousStatuses: Status[], nextSegments: HydratedTimelineSegment[]) => {
+      const previousIds = new Set(previousStatuses.map((status) => status.id))
+      for (const segment of nextSegments) {
+        for (const status of segment.statuses) {
+          if (!previousIds.has(status.id)) {
+            unseenAboveIdsRef.current.add(status.id)
+          }
+        }
+      }
+    },
+    []
+  )
+
+  // Keeps only the unseen posts that are still above the first row on
+  // screen: a post that has scrolled into view (or sits below it) is seen.
+  const recountUnseenAbove = useCallback(() => {
+    const unseen = unseenAboveIdsRef.current
+    if (unseen.size === 0) {
+      setUnseenAboveCount(0)
+      return
+    }
+    const statuses = currentStatusesRef.current
+    const firstVisibleId = findFirstVisibleStatusId()
+    const firstVisibleIndex = firstVisibleId
+      ? statuses.findIndex((status) => status.id === firstVisibleId)
+      : -1
+    // Nothing on screen to measure against yet: keep the count as it is.
+    if (firstVisibleIndex < 0) return
+
+    const stillAbove = new Set<string>()
+    for (let i = 0; i < firstVisibleIndex; i++) {
+      if (unseen.has(statuses[i].id)) stillAbove.add(statuses[i].id)
+    }
+    unseenAboveIdsRef.current = stillAbove
+    setUnseenAboveCount(stillAbove.size)
+  }, [])
+
   // IndexedDB Hydration on mount for profile.id
   useEffect(() => {
     if (initialSegments && initialSegments.length > 0) {
@@ -327,6 +391,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 incomingNextMaxStatusId: initialNextMaxStatusId ?? null,
                 incomingPrevMinStatusId: statuses[0]?.id ?? null
               })
+              // The saved reading spot comes back below the fresher first
+              // page, so those posts are new to the reader.
+              markNewAsUnseen(cached.statuses, merged.segments)
               segmentsActorIdRef.current = profile.id
               setSegments(merged.segments)
             } else {
@@ -357,7 +424,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     return () => {
       isCancelled = true
     }
-  }, [profile.id, initialSegments, statuses, initialNextMaxStatusId])
+  }, [
+    profile.id,
+    initialSegments,
+    statuses,
+    initialNextMaxStatusId,
+    markNewAsUnseen
+  ])
 
   // Offline persistence whenever segments or context change
   useEffect(() => {
@@ -444,6 +517,30 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
+
+  // Recount whenever the list changes (the anchor restore above has already
+  // put the reading spot back by then) and as the reader scrolls, so the pill
+  // counts down while they read upwards.
+  useEffect(() => {
+    recountUnseenAbove()
+  }, [currentStatuses, recountUnseenAbove])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let frame: number | null = null
+    const handleScroll = () => {
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+        recountUnseenAbove()
+      })
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [recountUnseenAbove])
 
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
@@ -723,6 +820,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           incomingNextMaxStatusId: result.nextMaxStatusId,
           incomingPrevMinStatusId: result.prevMinStatusId
         })
+        markNewAsUnseen(currentStatusesRef.current, merged.segments)
         segmentsActorIdRef.current = profile.id
         setSegments(merged.segments)
 
@@ -825,7 +923,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         setIsRefreshing(false)
       }
     },
-    [onUnauthorized]
+    [onUnauthorized, markNewAsUnseen]
   )
 
   const handleLoadGap = useCallback(
@@ -882,14 +980,23 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   const handleCleanTopSnapshot = useCallback(async () => {
     setNewerPostsCount(0)
-    if (
-      typeof window !== 'undefined' &&
-      typeof window.scrollTo === 'function'
-    ) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    scrollPageToTop()
     await refreshTimeline({ preserveScroll: false })
   }, [refreshTimeline])
+
+  // The pill counts both kinds of new posts. Posts the poll found are not
+  // loaded yet, so they need a refresh; posts already loaded above only need
+  // the jump.
+  const newPostsCount = unseenAboveCount + newerPostsCount
+  const handleNewPostsPill = useCallback(() => {
+    unseenAboveIdsRef.current = new Set()
+    setUnseenAboveCount(0)
+    if (newerPostsCount > 0) {
+      void handleCleanTopSnapshot()
+      return
+    }
+    scrollPageToTop()
+  }, [newerPostsCount, handleCleanTopSnapshot])
 
   // Offline / online listeners and auto-reconnect refresh
   useEffect(() => {
@@ -992,6 +1099,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     <div className="space-y-6">
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
+        isHidden={newPostsCount > 0}
       />
       <PageHeader
         // Below `md` Refresh sits at the end of the compact bar, which then
@@ -999,7 +1107,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         // meets the bar's hairline directly.
         flushOnMobile
         actionsInMobileBar
-        title="Timeline"
+        // Tapping the title goes back to the newest post, as tapping a column
+        // header does in Mastodon.
+        title={
+          <button
+            type="button"
+            onClick={scrollPageToTop}
+            title="Back to the newest post"
+            className="cursor-pointer rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            Timeline
+          </button>
+        }
         actions={
           <div className="flex items-center gap-2">
             <AnnouncementIconButton state={announcements} />
@@ -1013,15 +1132,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         // The new-posts pill floats under the header and follows it on scroll.
         bottomSlot={
           <div className="flex justify-center">
-            {newerPostsCount > 0 ? (
+            {newPostsCount > 0 ? (
               <Button
                 type="button"
                 variant="pill"
-                onClick={handleCleanTopSnapshot}
-                className="pointer-events-auto shadow-xs dark:bg-background dark:hover:bg-accent"
+                onClick={handleNewPostsPill}
+                className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
               >
-                {newerPostsCount} new {newerPostsCount === 1 ? 'post' : 'posts'}{' '}
-                ↑
+                <ArrowUp className="text-primary" aria-hidden="true" />
+                {newPostsCount} new {newPostsCount === 1 ? 'post' : 'posts'}
               </Button>
             ) : null}
           </div>

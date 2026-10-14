@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ActorInfo,
@@ -21,6 +21,7 @@ import { Logo } from '@/lib/components/layout/logo'
 import { type NavItem, buildNavLayout } from '@/lib/components/layout/nav-items'
 import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
+import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPageToTop'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   DropdownMenu,
@@ -210,6 +211,31 @@ export function Sidebar({
     }
     return pathname === href || pathname.startsWith(href + '/')
   }
+
+  // Tapping the item of the page already open goes back to its top, as
+  // tapping a column header does in Mastodon, instead of re-opening the same
+  // route at the same scroll position. Modified clicks keep their link
+  // behaviour (new tab, new window).
+  const handleNavClick =
+    (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+      const isCurrentPage =
+        href === '/'
+          ? pathname === '/' || pathname === '/app'
+          : pathname === href
+      if (
+        isCurrentPage &&
+        !event.defaultPrevented &&
+        event.button === 0 &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey
+      ) {
+        event.preventDefault()
+        scrollPageToTop()
+      }
+      onNavigate?.()
+    }
 
   const isListsSectionActive =
     pathname === '/lists' || pathname.startsWith('/lists/')
@@ -426,7 +452,7 @@ export function Sidebar({
                 <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
-                    onClick={onNavigate}
+                    onClick={handleNavClick(item.href)}
                     ref={registerRow(`nav:${item.id}`)}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
@@ -517,7 +543,7 @@ export function Sidebar({
                         <li key={item.id} className="group relative">
                           <Link
                             href={item.href}
-                            onClick={onNavigate}
+                            onClick={handleNavClick(item.href)}
                             ref={registerRow(`more:${item.id}`)}
                             aria-current={isActive ? 'page' : undefined}
                             className={cn(
@@ -618,6 +644,7 @@ export function Sidebar({
                       <TooltipTrigger asChild>
                         <Link
                           href={item.href}
+                          onClick={handleNavClick(item.href)}
                           ref={registerRow(`rail:${item.id}`)}
                           // The row is an icon, and the tooltip beside it only
                           // describes: without this the rail reads out as a list

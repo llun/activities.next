@@ -4,12 +4,20 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 
+import { scrollPageToTop } from './scrollPageToTop'
+
 interface ScrollToTopButtonProps {
   isLoadMoreVisible?: boolean
+  /**
+   * Hides the button while another control already leads back up, such as
+   * the home timeline's "N new posts" pill.
+   */
+  isHidden?: boolean
 }
 
 export const ScrollToTopButton: FC<ScrollToTopButtonProps> = ({
-  isLoadMoreVisible = false
+  isLoadMoreVisible = false,
+  isHidden = false
 }) => {
   const [isVisible, setIsVisible] = useState(false)
   const timeoutRef = useRef<number | null>(null)
@@ -49,15 +57,8 @@ export const ScrollToTopButton: FC<ScrollToTopButtonProps> = ({
     }
   }, [toggleVisibility])
 
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    })
-  }
-
   // Hide the button if load more is visible or if not scrolled enough
-  if (!isVisible || isLoadMoreVisible) {
+  if (!isVisible || isLoadMoreVisible || isHidden) {
     return null
   }
 
@@ -65,7 +66,7 @@ export const ScrollToTopButton: FC<ScrollToTopButtonProps> = ({
     <Button
       type="button"
       variant="pill"
-      onClick={scrollToTop}
+      onClick={scrollPageToTop}
       className="fixed inset-x-0 mx-auto w-fit h-auto bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] z-30 bg-popover text-popover-foreground shadow-lg dark:border-border dark:bg-popover dark:hover:bg-accent md:hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-200"
       aria-label="Scroll to top"
     >

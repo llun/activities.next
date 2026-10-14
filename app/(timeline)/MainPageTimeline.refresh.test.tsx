@@ -589,7 +589,7 @@ describe('MainPageTimeline', () => {
           })
         )
 
-        const banner = screen.getByRole('button', { name: '2 new posts ↑' })
+        const banner = screen.getByRole('button', { name: '2 new posts' })
         expect(banner).toBeInTheDocument()
         expect(banner).toHaveAttribute('data-variant', 'pill')
       })
@@ -598,7 +598,7 @@ describe('MainPageTimeline', () => {
         const { post1, newPostA, newPostB } =
           await renderWithTwoNewPostsDetected()
 
-        const banner = screen.getByRole('button', { name: '2 new posts ↑' })
+        const banner = screen.getByRole('button', { name: '2 new posts' })
 
         // Mock clean top snapshot fetch
         vi.mocked(getTimeline).mockResolvedValueOnce({
@@ -629,7 +629,7 @@ describe('MainPageTimeline', () => {
       })
     })
 
-    it('renders singular "1 new post ↑" when polling detects a single new post', async () => {
+    it('renders singular "1 new post" when polling detects a single new post', async () => {
       vi.useFakeTimers()
       try {
         const post1 = createStatus('https://activities.local/users/llun/s/1')
@@ -659,12 +659,160 @@ describe('MainPageTimeline', () => {
           await Promise.resolve()
         })
 
-        const banner = screen.getByRole('button', { name: '1 new post ↑' })
+        const banner = screen.getByRole('button', { name: '1 new post' })
         expect(banner).toBeInTheDocument()
         expect(banner).toHaveAttribute('data-variant', 'pill')
       } finally {
         vi.useRealTimers()
       }
+    })
+  })
+
+  describe('posts loaded above the reading spot', () => {
+    const scrollToMock = vi.fn()
+    let originalScrollTo: typeof window.scrollTo
+    let originalRect: typeof HTMLElement.prototype.getBoundingClientRect
+    let originalRaf: typeof window.requestAnimationFrame
+    // Where each feed row sits on screen, by status id: a row whose bottom is
+    // above the sticky header (80px) has scrolled out of view upwards.
+    let rowTops: Record<string, number>
+
+    beforeEach(() => {
+      originalScrollTo = window.scrollTo
+      scrollToMock.mockClear()
+      window.scrollTo = scrollToMock
+      originalRect = HTMLElement.prototype.getBoundingClientRect
+      rowTops = {}
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        const id = this.getAttribute('data-status-id')
+        const top = id && id in rowTops ? rowTops[id] : 0
+        return {
+          top,
+          bottom: top + 100,
+          left: 0,
+          right: 0,
+          width: 0,
+          height: 100,
+          x: 0,
+          y: top,
+          toJSON: () => ({})
+        } as DOMRect
+      }
+      originalRaf = window.requestAnimationFrame
+      window.requestAnimationFrame = (callback: FrameRequestCallback) => {
+        queueMicrotask(() => callback(0))
+        return 1
+      }
+    })
+
+    afterEach(() => {
+      window.scrollTo = originalScrollTo
+      HTMLElement.prototype.getBoundingClientRect = originalRect
+      window.requestAnimationFrame = originalRaf
+    })
+
+    it('counts posts a refresh loads above the reader, down to none as they scroll into view', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+      const newA = createStatus('https://activities.local/users/llun/s/new-a')
+      const newB = createStatus('https://activities.local/users/llun/s/new-b')
+      rowTops = { [post1.id]: -400, [post2.id]: 120 }
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1, post2]}
+        />
+      )
+
+      // Coming back online refreshes in place, keeping the reading spot.
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newA, newB, post1, post2],
+        nextMaxStatusId: null,
+        prevMinStatusId: newA.id
+      })
+      rowTops = {
+        [newA.id]: -900,
+        [newB.id]: -650,
+        [post1.id]: -400,
+        [post2.id]: 120
+      }
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+
+      expect(
+        await screen.findByRole('button', { name: '2 new posts' })
+      ).toBeInTheDocument()
+
+      // Reading upwards: the newer of the two is still above.
+      rowTops = {
+        [newA.id]: -250,
+        [newB.id]: 0,
+        [post1.id]: 250,
+        [post2.id]: 770
+      }
+      await act(async () => {
+        window.dispatchEvent(new Event('scroll'))
+        await Promise.resolve()
+      })
+      expect(
+        screen.getByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
+
+      rowTops = {
+        [newA.id]: 100,
+        [newB.id]: 350,
+        [post1.id]: 600,
+        [post2.id]: 1120
+      }
+      await act(async () => {
+        window.dispatchEvent(new Event('scroll'))
+        await Promise.resolve()
+      })
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('jumps to the newest post without reloading when every new post is loaded', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const newA = createStatus('https://activities.local/users/llun/s/new-a')
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newA, post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: newA.id
+      })
+      rowTops = { [newA.id]: -300, [post1.id]: 120 }
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+
+      const pill = await screen.findByRole('button', { name: '1 new post' })
+      vi.mocked(getTimeline).mockClear()
+      await act(async () => {
+        fireEvent.click(pill)
+      })
+
+      expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+      expect(getTimeline).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: /new post/ })
+      ).not.toBeInTheDocument()
     })
   })
 

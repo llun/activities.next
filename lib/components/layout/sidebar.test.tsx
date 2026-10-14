@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -589,6 +590,61 @@ describe('Sidebar', () => {
       expect(
         screen.getAllByRole('link', { name: 'Timeline' })[0]
       ).toHaveAttribute('aria-current', 'page')
+    })
+  })
+
+  describe('tapping the page already open', () => {
+    const scrollTo = vi.fn()
+    let originalScrollTo: typeof window.scrollTo
+
+    beforeEach(() => {
+      originalScrollTo = window.scrollTo
+      scrollTo.mockClear()
+      window.scrollTo = scrollTo
+    })
+
+    afterEach(() => {
+      window.scrollTo = originalScrollTo
+    })
+
+    it('scrolls the open page back to the top instead of following the link', () => {
+      mockPathname.mockReturnValue('/')
+      const onNavigate = vi.fn()
+      renderSidebar(<Sidebar lists={[]} onNavigate={onNavigate} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      const click = createEvent.click(timeline, { button: 0 })
+      fireEvent(timeline, click)
+
+      expect(click.defaultPrevented).toBe(true)
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+      // The drawer still closes.
+      expect(onNavigate).toHaveBeenCalled()
+    })
+
+    it('follows the link to another page', () => {
+      mockPathname.mockReturnValue('/search')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      const click = createEvent.click(timeline, { button: 0 })
+      fireEvent(timeline, click)
+
+      expect(scrollTo).not.toHaveBeenCalled()
+    })
+
+    it('keeps a modified click as a link, for a new tab', () => {
+      mockPathname.mockReturnValue('/')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      const click = createEvent.click(timeline, { button: 0, metaKey: true })
+      fireEvent(timeline, click)
+
+      expect(scrollTo).not.toHaveBeenCalled()
     })
   })
 })
