@@ -4,6 +4,7 @@ import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { createGalleryGear, updateGalleryGear } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -13,7 +14,6 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import type { GalleryGearEntity } from '@/lib/services/gallery/galleryEntities'
 import type { GalleryGearKind } from '@/lib/types/database/gallery'
 
@@ -107,40 +107,51 @@ export const GalleryGearFormDialog: FC<Props> = ({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="gallery-gear-name">Name</Label>
-            <Input
-              id="gallery-gear-name"
-              ref={nameInputRef}
-              value={name}
-              maxLength={255}
-              onChange={(event) => {
-                setName(event.target.value)
-                setNameError(null)
-              }}
-              disabled={isSaving}
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={
-                nameError ? 'gallery-gear-name-error' : undefined
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Shown everywhere instead of brand and model. Leave it empty to use
-              both.
-            </p>
-            {nameError ? (
-              <p
-                id="gallery-gear-name-error"
-                className="text-xs text-destructive-text"
-              >
-                {nameError}
-              </p>
-            ) : null}
-          </div>
+          <FormRow
+            stacked
+            className="p-0"
+            label="Name"
+            htmlFor="gallery-gear-name"
+            hint="Shown everywhere instead of brand and model. Leave it empty to use both."
+          >
+            {({ describedBy }) => (
+              <>
+                <Input
+                  id="gallery-gear-name"
+                  ref={nameInputRef}
+                  value={name}
+                  maxLength={255}
+                  onChange={(event) => {
+                    setName(event.target.value)
+                    setNameError(null)
+                  }}
+                  disabled={isSaving}
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={
+                    [describedBy, nameError ? 'gallery-gear-name-error' : null]
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
+                />
+                {nameError ? (
+                  <p
+                    id="gallery-gear-name-error"
+                    className="mt-1.5 text-xs text-destructive-text"
+                  >
+                    {nameError}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </FormRow>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gallery-gear-brand">Brand</Label>
+            <FormRow
+              stacked
+              className="p-0"
+              label="Brand"
+              htmlFor="gallery-gear-brand"
+            >
               <Input
                 id="gallery-gear-brand"
                 value={brand}
@@ -151,9 +162,13 @@ export const GalleryGearFormDialog: FC<Props> = ({
                 }}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gallery-gear-model">Model</Label>
+            </FormRow>
+            <FormRow
+              stacked
+              className="p-0"
+              label="Model"
+              htmlFor="gallery-gear-model"
+            >
               <Input
                 id="gallery-gear-model"
                 value={model}
@@ -164,27 +179,32 @@ export const GalleryGearFormDialog: FC<Props> = ({
                 }}
                 disabled={isSaving}
               />
-            </div>
+            </FormRow>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="gallery-gear-product-url">Product page</Label>
-            <Input
-              id="gallery-gear-product-url"
-              type="url"
-              inputMode="url"
-              placeholder="https://"
-              // The column is varchar(255); a longer value would come back as
-              // a bare "Unprocessable entity", so it stops at the input.
-              maxLength={255}
-              value={productUrl}
-              onChange={(event) => setProductUrl(event.target.value)}
-              disabled={isSaving}
-            />
-            <p className="text-xs text-muted-foreground">
-              Optional link to the manufacturer&apos;s product page.
-            </p>
-          </div>
+          <FormRow
+            stacked
+            className="p-0"
+            label="Product page"
+            htmlFor="gallery-gear-product-url"
+            hint="Optional link to the manufacturer's product page."
+          >
+            {({ describedBy }) => (
+              <Input
+                id="gallery-gear-product-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://"
+                // The column is varchar(255); a longer value would come back as
+                // a bare "Unprocessable entity", so it stops at the input.
+                maxLength={255}
+                value={productUrl}
+                onChange={(event) => setProductUrl(event.target.value)}
+                disabled={isSaving}
+                aria-describedby={describedBy}
+              />
+            )}
+          </FormRow>
 
           {error && <Alert title={error} />}
 

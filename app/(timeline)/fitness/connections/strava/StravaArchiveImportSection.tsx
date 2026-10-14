@@ -15,9 +15,9 @@ import {
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 const MAX_ARCHIVE_BATCH_NOT_READY_POLLS = 90
@@ -333,17 +333,25 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
           .
         </p>
 
-        <Label htmlFor="archiveFile">Archive File</Label>
-        <Input
-          id="archiveFile"
-          type="file"
-          accept=".zip,application/zip,application/x-zip-compressed"
-          onChange={handleArchiveFileChange}
-          disabled={isArchiveControlsDisabled}
-        />
-        {archiveFile && (
-          <p className="text-xs text-muted-foreground">{archiveFile.name}</p>
-        )}
+        <FormRow
+          stacked
+          className="p-0"
+          label="Archive File"
+          htmlFor="archiveFile"
+        >
+          <Input
+            id="archiveFile"
+            type="file"
+            accept=".zip,application/zip,application/x-zip-compressed"
+            onChange={handleArchiveFileChange}
+            disabled={isArchiveControlsDisabled}
+          />
+          {archiveFile && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {archiveFile.name}
+            </p>
+          )}
+        </FormRow>
       </div>
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground">

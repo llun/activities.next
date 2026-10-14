@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { deleteActor } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -101,50 +102,60 @@ export function DeleteActorDialog({
             </ul>
           </Alert>
 
-          <div className="space-y-3">
-            <Label>When should this actor be deleted?</Label>
-            <RadioGroup
-              value={delayOption}
-              onValueChange={(value) =>
-                setDelayOption(value as 'immediate' | 'delayed')
-              }
-              className="space-y-2"
-            >
-              <div className="flex items-start space-x-3 py-1">
-                <RadioGroupItem value="delayed" id="delayed" className="mt-1" />
-                <div className="space-y-1">
-                  <Label htmlFor="delayed" className="font-medium">
-                    Delete after 3 days (Recommended)
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    You can cancel the deletion within 3 days if you change your
-                    mind. The actor will be disabled immediately.
-                  </p>
+          <FormRow
+            stacked
+            className="p-0"
+            label="When should this actor be deleted?"
+          >
+            {({ labelledBy }) => (
+              <RadioGroup
+                aria-labelledby={labelledBy}
+                value={delayOption}
+                onValueChange={(value) =>
+                  setDelayOption(value as 'immediate' | 'delayed')
+                }
+                className="space-y-2"
+              >
+                <div className="flex items-start gap-3 py-1">
+                  <RadioGroupItem
+                    value="delayed"
+                    id="delayed"
+                    className="mt-1"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="delayed" className="font-medium">
+                      Delete after 3 days (Recommended)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      You can cancel the deletion within 3 days if you change
+                      your mind. The actor will be disabled immediately.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start space-x-3 py-1">
-                <RadioGroupItem
-                  value="immediate"
-                  id="immediate"
-                  className="mt-1"
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="immediate" className="font-medium">
-                    Delete immediately
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    The actor and all data will be deleted right away. This
-                    cannot be undone.
-                  </p>
+                <div className="flex items-start gap-3 py-1">
+                  <RadioGroupItem
+                    value="immediate"
+                    id="immediate"
+                    className="mt-1"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="immediate" className="font-medium">
+                      Delete immediately
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      The actor and all data will be deleted right away. This
+                      cannot be undone.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </RadioGroup>
-          </div>
+              </RadioGroup>
+            )}
+          </FormRow>
 
           {error && <Alert title={error} />}
         </div>
 
-        <DialogFooter separated className="gap-2">
+        <DialogFooter separated>
           <Button
             type="button"
             variant="outline"

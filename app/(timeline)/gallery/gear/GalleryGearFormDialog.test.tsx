@@ -102,7 +102,7 @@ describe('GalleryGearFormDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save camera' }))
 
     expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(
-      'Give the camera a name.'
+      /Give the camera a name\./
     )
     expect(screen.getByLabelText('Name')).toBeInvalid()
     expect(screen.getByLabelText('Name')).toHaveFocus()
