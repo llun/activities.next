@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, useMemo, useState } from 'react'
+import { FC, Fragment, ReactNode, useMemo, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
+import { TimelineGapRow } from './TimelineGapRow'
 import { BoostCarousel } from './boost-carousel'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { InlineStatusComposer } from './inline-status-composer'
@@ -70,6 +71,9 @@ export interface TimelineFeedProps {
    * Defaults to false (boosts stay as individual timeline rows).
    */
   readingGroupBoosts?: boolean
+  gapAfterStatusIds?: Record<string, number>
+  loadingGapSegmentIndex?: number | null
+  onLoadGap?: (segmentIndex: number) => void
 }
 
 export const TimelineFeed: FC<TimelineFeedProps> = ({
@@ -96,7 +100,10 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   onLike,
   onBookmark,
   onDelete,
-  readingGroupBoosts = false
+  readingGroupBoosts = false,
+  gapAfterStatusIds,
+  loadingGapSegmentIndex,
+  onLoadGap
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -232,10 +239,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         )}
       >
         {rows.map((row) => {
+          let rowContent: ReactNode = null
+          let rowStatusIds: string[] = []
+
           if (row.kind === 'status') {
             const status = statusMap.get(row.entryId)
             if (!status) return null
 
+            rowStatusIds = [status.id]
             const actualStatus = getActualStatus(status)
             const replyTarget = getStatusReplyTargetId(actualStatus)
             const isReply = Boolean(replyTarget)
@@ -243,9 +254,10 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               ? timelineContext?.ancestorsById?.[replyTarget]
               : undefined
 
-            return (
+            rowContent = (
               <div
                 key={row.key}
+                data-status-id={status.id}
                 className={cn(
                   'min-h-0 min-w-0',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
@@ -257,21 +269,21 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 })}
               </div>
             )
-          }
-
-          if (row.kind === 'thread') {
+          } else if (row.kind === 'thread') {
             const threadStatuses = row.entryIds
               .map((id) => statusMap.get(id))
               .filter((s): s is Status => Boolean(s))
 
             if (threadStatuses.length === 0) return null
+            rowStatusIds = threadStatuses.map((s) => s.id)
 
             const isExpanded = expandedThreads.has(row.key)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
 
-            return (
+            rowContent = (
               <div
                 key={row.key}
+                data-status-id={threadStatuses[0]?.id}
                 aria-label="Thread"
                 className={cn(
                   'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
@@ -342,18 +354,18 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 )}
               </div>
             )
-          }
-
-          if (row.kind === 'conversation') {
+          } else if (row.kind === 'conversation') {
             const convStatuses = row.entryIds
               .map((id) => statusMap.get(id))
               .filter((s): s is Status => Boolean(s))
 
             if (convStatuses.length === 0) return null
+            rowStatusIds = convStatuses.map((s) => s.id)
 
-            return (
+            rowContent = (
               <div
                 key={row.key}
+                data-status-id={convStatuses[0]?.id}
                 aria-label="Conversation"
                 className={cn(
                   'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
@@ -378,28 +390,53 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 })}
               </div>
             )
-          }
-
-          if (row.kind === 'boosts') {
+          } else if (row.kind === 'boosts') {
             const boostStatuses = row.entryIds
               .map((id) => statusMap.get(id))
               .filter((s): s is Status => Boolean(s))
 
-            return (
-              <BoostCarousel
-                key={row.key}
-                statuses={boostStatuses}
-                currentActor={currentActor}
-                onReply={onReply}
-                onBoost={onBoost}
-                onLike={onLike}
-                onBookmark={onBookmark}
-                onDelete={onDelete}
-              />
+            if (boostStatuses.length === 0) return null
+            rowStatusIds = boostStatuses.map((s) => s.id)
+
+            rowContent = (
+              <div key={row.key} data-status-id={boostStatuses[0]?.id}>
+                <BoostCarousel
+                  statuses={boostStatuses}
+                  currentActor={currentActor}
+                  onReply={onReply}
+                  onBoost={onBoost}
+                  onLike={onLike}
+                  onBookmark={onBookmark}
+                  onDelete={onDelete}
+                />
+              </div>
             )
           }
 
-          return null
+          if (!rowContent) return null
+
+          let gapSegmentIndex: number | undefined
+          if (gapAfterStatusIds) {
+            for (const id of rowStatusIds) {
+              if (gapAfterStatusIds[id] !== undefined) {
+                gapSegmentIndex = gapAfterStatusIds[id]
+                break
+              }
+            }
+          }
+
+          return (
+            <Fragment key={row.key}>
+              {rowContent}
+              {gapSegmentIndex !== undefined && onLoadGap ? (
+                <TimelineGapRow
+                  segmentIndex={gapSegmentIndex}
+                  isLoading={loadingGapSegmentIndex === gapSegmentIndex}
+                  onLoadGap={onLoadGap}
+                />
+              ) : null}
+            </Fragment>
+          )
         })}
       </section>
       <OwnPostMediasModal

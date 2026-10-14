@@ -575,5 +575,20 @@ describe('Sidebar', () => {
         'min-h-[44px]'
       )
     })
+
+    it('marks Timeline item as active when pathname is / or /app', () => {
+      mockPathname.mockReturnValue('/')
+      const { unmount } = renderSidebar(<Sidebar lists={[]} />)
+      expect(
+        screen.getAllByRole('link', { name: 'Timeline' })[0]
+      ).toHaveAttribute('aria-current', 'page')
+      unmount()
+
+      mockPathname.mockReturnValue('/app')
+      renderSidebar(<Sidebar lists={[]} />)
+      expect(
+        screen.getAllByRole('link', { name: 'Timeline' })[0]
+      ).toHaveAttribute('aria-current', 'page')
+    })
   })
 })

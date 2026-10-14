@@ -21,24 +21,40 @@ export const SESSION_REFRESH_INTERVAL_MS = 60 * 60 * 1000
  */
 export const SessionKeepAlive = () => {
   useEffect(() => {
-    let lastRefreshAt = Date.now()
-    refreshAuthSession()
+    let lastRefreshAt = 0
+    let isRefreshing = false
+
+    const runRefresh = async () => {
+      if (isRefreshing) return
+      isRefreshing = true
+      try {
+        const ok = await refreshAuthSession()
+        if (ok) {
+          lastRefreshAt = Date.now()
+        }
+      } finally {
+        isRefreshing = false
+      }
+    }
 
     const refreshIfDue = () => {
       if (document.visibilityState !== 'visible') return
       if (Date.now() - lastRefreshAt < SESSION_REFRESH_INTERVAL_MS) return
-      lastRefreshAt = Date.now()
-      refreshAuthSession()
+      void runRefresh()
     }
+
+    void runRefresh()
 
     const interval = window.setInterval(
       refreshIfDue,
       SESSION_REFRESH_INTERVAL_MS
     )
     document.addEventListener('visibilitychange', refreshIfDue)
+    window.addEventListener('online', refreshIfDue)
     return () => {
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', refreshIfDue)
+      window.removeEventListener('online', refreshIfDue)
     }
   }, [])
 

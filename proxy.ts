@@ -173,6 +173,15 @@ export async function proxy(request: NextRequest) {
   }
 
   if (request.method === 'GET' || request.method === 'HEAD') {
+    if (pathname === '/sw.js') {
+      const response = withContentSecurityPolicy(NextResponse.next(), request)
+      response.headers.set(
+        'Cache-Control',
+        'no-cache, no-store, must-revalidate'
+      )
+      return response
+    }
+
     const acceptValue = request.headers.get('Accept')
 
     if (

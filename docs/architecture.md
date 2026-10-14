@@ -85,7 +85,7 @@ The frontend and API layer, organized using Next.js route groups:
 | Directory             | Purpose                                                                                                                                                                  |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)                                                                                                     |
-| `app/(nosidebar)/`    | Authentication pages without sidebar (login, signup, OAuth consent)                                                                                                      |
+| `app/(nosidebar)/`    | Authentication and standalone pages without sidebar (login, signup, OAuth consent, `/app` offline shell)                                                                 |
 | `app/embed/`          | Public embed widgets (framable interactive heatmap embeds and static share images)                                                                                       |
 | `app/health/`         | Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`                                                                                                 |
 | `app/api/auth/`       | Authentication endpoints (better-auth)                                                                                                                                   |
@@ -601,6 +601,10 @@ counter, and leaves the files to the storage cleanup script
 (`cleanupMediaStorage.ts`), as it does the media's own files. The storage
 cleanup and both archives treat the files as referenced.
 
+### Offline-First PWA Launch & Timeline Caching
+
+The application provides an instant, network-independent launch shell at `/app` (with Service Worker root fallback) backed by an IndexedDB status and timeline store with contiguous segment tracking, bounded retention, and background revalidation. See [Offline-First PWA Launch & Timeline Caching](#agents-offline-first-pwa-launch-timeline-caching) for full details.
+
 ## Database Schema (Simplified)
 
 ```
@@ -710,6 +714,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Review: Post media layout](#review-post-media-layout)
 - [Review: Status delete & unboost federation](#review-status-delete-unboost-federation)
 - [Review: Link preview cards](#review-link-preview-cards)
+- [Offline-First PWA Launch & Timeline Caching](#agents-offline-first-pwa-launch-timeline-caching)
 
 <a id="agents-server-client-module-boundary"></a>
 
@@ -2631,3 +2636,12 @@ legacy shape left to copy.
   store markdown (so wiring them up needs that asymmetry fixed first, not just
   the call added). Don't flag these as bugs, and don't "fix" them with a sweep
   that has nothing to run it.
+
+<a id="agents-offline-first-pwa-launch-timeline-caching"></a>
+
+### Offline-First PWA Launch & Timeline Caching
+
+- **Network-independent launch shell at `/app` with legacy root fallback.** The standalone Progressive Web App entrypoint is configured in `app/manifest.ts` with `start_url: '/app'` and `scope: '/'`. Navigating to `/app` renders `app/(nosidebar)/app/page.tsx` (`OfflineAppShell`), which is completely decoupled from initial server-side timeline fetching and mounts a client-driven timeline viewer directly from IndexedDB. When navigating to `/` with an existing active account in IndexedDB (`activities_offline_v1`), the Service Worker (`public/sw.js`) serves the pre-cached `/app` shell to allow instant offline startup without waiting for an SSR response.
+- **Service Worker atomic shell staging, static asset caching, and RSC bypass.** `public/sw.js` stages shell resources atomically under `activities-shell-<buildId>`, caching the shell document and required pre-rendered bundles during installation before swapping the active cache on activation. All Next.js static assets (`/_next/static/*` and subpath-prefixed `/activities/_next/static/*`) are handled via a Cache-First strategy. To prevent caching transient React Server Component payloads or corrupting App Router navigation states, the Service Worker strictly bypasses caching for any request carrying the Next.js RSC header (`RSC: 1`) or query parameter (`?_rsc=`). The worker itself (`/sw.js`) is served with `Cache-Control: no-cache, no-store, must-revalidate` injected by `proxy.ts` so updates are discovered immediately on browser checks. Avatar and media thumbnails are cached separately in a bounded LRU cache (`activities-media-v1`) capped at 150 entries.
+- **IndexedDB schema, partitioning, bounded retention, and cleanup.** Offline persistence uses IndexedDB (`lib/client/offline/offlineDb.ts`) under database name `activities_offline_v1` across four stores: `meta` (active actor pointer, client configuration, and schema version), `bootstrap` (cached actor profile, instance metadata, and user preferences from `GET /api/v1/accounts/bootstrap`), `statuses` (normalized status records keyed by canonical ActivityPub URI `status.id`), and `timelines` (ordered status id lists partitioned by `[actorId, timeline, filterKey]`). Retention is strictly bounded: each timeline retains at most 200 statuses, and metadata is preserved for at most 3 recently active actors. Logging out via `LogoutButton` triggers a full wipe of `activities_offline_v1` to ensure no private account or status data persists across user sessions.
+- **Contiguous segment tracking, gap resolution, and scroll restoration.** Timelines are assembled from contiguous status segments using `lib/client/offline/mergeTimelineSegments.ts`. Non-contiguous segments render a `TimelineGapRow` that lets users fetch missing slices. To prevent browser scroll jump during offline hydration and dynamic segment insertion, automatic scroll restoration is disabled in favor of manual management (`history.scrollRestoration = 'manual'`). Background and foreground reconciliation uses `POST /api/v1/statuses/reconcile` to batch-verify cached status states (re-checking deletions, boost counts, and favorites against the server) and `GET /api/v1/accounts/bootstrap` to keep actor and instance metadata synchronized.

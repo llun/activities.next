@@ -10,7 +10,14 @@ import {
   within
 } from '@testing-library/react'
 
-import { getTimeline } from '@/lib/client'
+import { TimelineRequestError, getTimeline } from '@/lib/client'
+import {
+  clearAllOfflineData,
+  getOfflineTimeline,
+  saveOfflineScrollAnchor,
+  saveOfflineTimeline
+} from '@/lib/client/offline'
+import { reconcileCachedStatuses } from '@/lib/client/statuses'
 import { Timeline } from '@/lib/services/timelines/types'
 
 import { MainPageTimeline } from './MainPageTimeline'
@@ -30,8 +37,33 @@ vi.mock('next/navigation', () => ({
   })
 }))
 
-vi.mock('@/lib/client', () => ({
-  getTimeline: vi.fn()
+vi.mock('@/lib/client', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/client')>('@/lib/client')
+  return {
+    ...actual,
+    getTimeline: vi.fn()
+  }
+})
+
+vi.mock('@/lib/client/offline', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/client/offline')>(
+    '@/lib/client/offline'
+  )
+  return {
+    ...actual,
+    clearAllOfflineData: vi.fn().mockResolvedValue(undefined),
+    getOfflineTimeline: vi.fn().mockResolvedValue(null),
+    saveOfflineTimeline: vi.fn().mockResolvedValue(undefined),
+    saveOfflineScrollAnchor: vi.fn().mockResolvedValue(undefined)
+  }
+})
+
+vi.mock('@/lib/client/statuses', () => ({
+  reconcileCachedStatuses: vi.fn().mockResolvedValue({
+    statuses: [],
+    removedStatusIds: []
+  })
 }))
 
 vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
@@ -61,9 +93,35 @@ vi.mock('@/lib/components/posts/posts', async () => ({
   Posts: (await import('./MainPageTimeline.testUtils')).MockFeed
 }))
 
-vi.mock('@/lib/components/posts/timeline-feed', async () => ({
-  TimelineFeed: (await import('./MainPageTimeline.testUtils')).MockFeed
-}))
+vi.mock('@/lib/components/posts/timeline-feed', async () => {
+  const utils = await import('./MainPageTimeline.testUtils')
+  const { TimelineGapRow } =
+    await import('@/lib/components/posts/TimelineGapRow')
+  return {
+    TimelineFeed: (props: {
+      gapAfterStatusIds?: Record<string, number>
+      loadingGapSegmentIndex?: number | null
+      onLoadGap?: (index: number) => void
+      [key: string]: unknown
+    }) => (
+      <div>
+        <utils.MockFeed {...(props as Parameters<typeof utils.MockFeed>[0])} />
+        {props.gapAfterStatusIds &&
+          props.onLoadGap &&
+          Object.entries(props.gapAfterStatusIds).map(
+            ([statusId, segmentIndex]) => (
+              <TimelineGapRow
+                key={statusId}
+                segmentIndex={segmentIndex}
+                isLoading={props.loadingGapSegmentIndex === segmentIndex}
+                onLoadGap={props.onLoadGap!}
+              />
+            )
+          )}
+      </div>
+    )
+  }
+})
 
 vi.mock('@/lib/components/ui/button', async () => ({
   Button: (await import('./MainPageTimeline.testUtils')).MockButton
@@ -76,6 +134,14 @@ describe('MainPageTimeline', () => {
 
   beforeEach(() => {
     vi.mocked(getTimeline).mockReset()
+    vi.mocked(clearAllOfflineData).mockReset().mockResolvedValue(undefined)
+    vi.mocked(getOfflineTimeline).mockReset().mockResolvedValue(null)
+    vi.mocked(saveOfflineTimeline).mockReset().mockResolvedValue(undefined)
+    vi.mocked(saveOfflineScrollAnchor).mockReset().mockResolvedValue(undefined)
+    vi.mocked(reconcileCachedStatuses).mockReset().mockResolvedValue({
+      statuses: [],
+      removedStatusIds: []
+    })
     resetIntersectionObserver()
   })
 
@@ -661,6 +727,298 @@ describe('MainPageTimeline', () => {
       expect(
         screen.getByRole('button', { name: 'View reply' })
       ).toBeInTheDocument()
+    })
+  })
+
+  describe('offline persistence and refresh', () => {
+    it('preserves older loaded pages when refreshTimeline runs', async () => {
+      const post0 = createStatus('https://activities.local/users/llun/s/0')
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+      const post3 = createStatus('https://activities.local/users/llun/s/3')
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post0, post1],
+        nextMaxStatusId: post2.id,
+        prevMinStatusId: post0.id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1, post2]}
+          initialSegments={[
+            {
+              statuses: [post1, post2],
+              nextMaxStatusId: post3.id,
+              prevMinStatusId: post1.id
+            },
+            {
+              statuses: [post3],
+              nextMaxStatusId: null,
+              prevMinStatusId: post3.id
+            }
+          ]}
+        />
+      )
+
+      expect(screen.getByTestId('post-' + post1.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post2.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post3.id)).toBeInTheDocument()
+
+      const refreshButton = screen.getByRole('button', {
+        name: 'Refresh timeline'
+      })
+      fireEvent.click(refreshButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('post-' + post1.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post2.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post3.id)).toBeInTheDocument()
+    })
+
+    it('creates and bridges a TimelineGapRow when a refresh returns non-overlapping newer posts', async () => {
+      const post0 = createStatus('https://activities.local/users/llun/s/0')
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+      const post3 = createStatus('https://activities.local/users/llun/s/3')
+
+      // Refresh returns post0 with cursor "cursor-gap", which does not overlap with post2
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post0],
+        nextMaxStatusId: 'cursor-gap',
+        prevMinStatusId: post0.id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post2, post3]}
+        />
+      )
+
+      const refreshButton = screen.getByRole('button', {
+        name: 'Refresh timeline'
+      })
+      fireEvent.click(refreshButton)
+
+      // Post 0 is added, and gap row appears because post0 does not overlap with post2
+      await waitFor(() => {
+        expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
+      })
+      const loadGapButton = await screen.findByRole('button', {
+        name: /load missing posts/i
+      })
+      expect(loadGapButton).toBeInTheDocument()
+
+      // When clicking Load missing posts, it fetches with maxStatusId: 'cursor-gap'
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post1],
+        nextMaxStatusId: post2.id,
+        prevMinStatusId: post1.id
+      })
+
+      fireEvent.click(loadGapButton)
+
+      await waitFor(() => {
+        expect(getTimeline).toHaveBeenCalledWith({
+          timeline: Timeline.MAIN,
+          maxStatusId: 'cursor-gap'
+        })
+      })
+
+      // The gap bridges and all posts are in the feed, gap row is removed
+      await waitFor(() => {
+        expect(screen.getByTestId('post-' + post1.id)).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post2.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post3.id)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /load missing posts/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('preserves cached posts and cursors when getTimeline rejects with TimelineRequestError', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+
+      vi.mocked(getTimeline).mockRejectedValueOnce(
+        new TimelineRequestError('Network error', 500)
+      )
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1, post2]}
+          initialNextMaxStatusId="cursor-1"
+        />
+      )
+
+      const refreshButton = screen.getByRole('button', {
+        name: 'Refresh timeline'
+      })
+      fireEvent.click(refreshButton)
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to load posts')).toBeInTheDocument()
+      })
+
+      // Cached posts and pagination cursor are preserved
+      expect(screen.getByTestId('post-' + post1.id)).toBeInTheDocument()
+      expect(screen.getByTestId('post-' + post2.id)).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Load more' })
+      ).toBeInTheDocument()
+    })
+
+    it('clears offline cache and calls onUnauthorized on 401 TimelineRequestError', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const onUnauthorized = vi.fn()
+
+      vi.mocked(getTimeline).mockRejectedValueOnce(
+        new TimelineRequestError('Unauthorized', 401)
+      )
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          onUnauthorized={onUnauthorized}
+        />
+      )
+
+      const refreshButton = screen.getByRole('button', {
+        name: 'Refresh timeline'
+      })
+      fireEvent.click(refreshButton)
+
+      await waitFor(() => {
+        expect(clearAllOfflineData).toHaveBeenCalledTimes(1)
+        expect(onUnauthorized).toHaveBeenCalledTimes(1)
+        expect(
+          screen.getByText('Session expired. Please sign in again.')
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('reconciles cached statuses and removes deleted posts from older cached pages', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+
+      vi.mocked(reconcileCachedStatuses).mockResolvedValueOnce({
+        statuses: [],
+        removedStatusIds: [post2.id]
+      })
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: post1.id
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1, post2]}
+        />
+      )
+
+      expect(screen.getByTestId('post-' + post2.id)).toBeInTheDocument()
+
+      const refreshButton = screen.getByRole('button', {
+        name: 'Refresh timeline'
+      })
+      fireEvent.click(refreshButton)
+
+      await waitFor(() => {
+        expect(reconcileCachedStatuses).toHaveBeenCalledWith({
+          statusIds: [post2.id]
+        })
+      })
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('post-' + post2.id)).not.toBeInTheDocument()
+      })
+      expect(screen.getByTestId('post-' + post1.id)).toBeInTheDocument()
+    })
+
+    it('uses partition key timeline: "home" when loading and persisting offline timeline', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      await waitFor(() => {
+        expect(getOfflineTimeline).toHaveBeenCalledWith({
+          actorId: profile.id,
+          timeline: 'home'
+        })
+      })
+
+      await waitFor(() => {
+        expect(saveOfflineTimeline).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: profile.id,
+            timeline: 'home'
+          })
+        )
+      })
+    })
+
+    it('renders offline status bar with last updated time when offline event fires', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          initialLastRefreshedAt={FIXED_CURRENT_TIME - 2 * 60 * 1000}
+        />
+      )
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+      fireEvent(window, new Event('offline'))
+
+      await waitFor(() => {
+        const statusBar = screen.getByRole('status')
+        expect(statusBar).toBeInTheDocument()
+        expect(statusBar).toHaveTextContent(/Offline · Updated 2m ago/)
+      })
+
+      fireEvent(window, new Event('online'))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      })
     })
   })
 })

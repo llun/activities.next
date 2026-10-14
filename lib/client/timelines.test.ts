@@ -4,6 +4,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
+  TimelineRequestError,
   getCollectionFeed,
   getCollectionTimeline,
   getHashtagTimeline,
@@ -120,8 +121,73 @@ describe('client timelines module', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
-    it('returns empty result when status is not 200', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
+    it('throws TimelineRequestError on non-200 responses with status and unauthorized flag', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Session expired' }), {
+        status: 401
+      })
+
+      await expect(getTimeline({ timeline: Timeline.HOME })).rejects.toSatisfy(
+        (error: unknown) => {
+          expect(error).toBeInstanceOf(TimelineRequestError)
+          const err = error as TimelineRequestError
+          expect(err.message).toBe('Session expired')
+          expect(err.status).toBe(401)
+          expect(err.isUnauthorized).toBe(true)
+          return true
+        }
+      )
+
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Access denied' }), {
+        status: 403
+      })
+
+      await expect(getTimeline({ timeline: Timeline.HOME })).rejects.toSatisfy(
+        (error: unknown) => {
+          expect(error).toBeInstanceOf(TimelineRequestError)
+          const err = error as TimelineRequestError
+          expect(err.status).toBe(403)
+          expect(err.isUnauthorized).toBe(true)
+          return true
+        }
+      )
+
+      fetchMock.mockResponseOnce('Internal server error', { status: 500 })
+
+      await expect(getTimeline({ timeline: Timeline.HOME })).rejects.toSatisfy(
+        (error: unknown) => {
+          expect(error).toBeInstanceOf(TimelineRequestError)
+          const err = error as TimelineRequestError
+          expect(err.status).toBe(500)
+          expect(err.isUnauthorized).toBe(false)
+          return true
+        }
+      )
+    })
+
+    it('throws TimelineRequestError on network failures', async () => {
+      fetchMock.mockRejectOnce(new Error('Network offline'))
+
+      await expect(getTimeline({ timeline: Timeline.HOME })).rejects.toSatisfy(
+        (error: unknown) => {
+          expect(error).toBeInstanceOf(TimelineRequestError)
+          const err = error as TimelineRequestError
+          expect(err.message).toBe('Network offline')
+          expect(err.status).toBeUndefined()
+          expect(err.isUnauthorized).toBe(false)
+          return true
+        }
+      )
+    })
+
+    it('returns empty result when 200 OK has empty statuses', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
+      )
 
       const res = await getTimeline({ timeline: Timeline.HOME })
       expect(res).toEqual({
@@ -129,6 +195,25 @@ describe('client timelines module', () => {
         nextMaxStatusId: null,
         prevMinStatusId: null
       })
+    })
+
+    it('forwards signal to fetch', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-1' }],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
+      )
+
+      const controller = new AbortController()
+      await getTimeline({ timeline: Timeline.HOME, signal: controller.signal })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/timelines/home'),
+        expect.objectContaining({ signal: controller.signal })
+      )
     })
   })
 
@@ -168,6 +253,24 @@ describe('client timelines module', () => {
         statuses: [],
         nextMaxStatusId: null
       })
+    })
+
+    it('forwards signal to fetch', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-tag' }],
+          nextMaxStatusId: null
+        }),
+        { status: 200 }
+      )
+
+      const controller = new AbortController()
+      await getHashtagTimeline({ tag: 'tech', signal: controller.signal })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/tags/tech'),
+        expect.objectContaining({ signal: controller.signal })
+      )
     })
   })
 
@@ -213,6 +316,25 @@ describe('client timelines module', () => {
         prevMinStatusId: null
       })
     })
+
+    it('forwards signal to fetch', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-list' }],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
+      )
+
+      const controller = new AbortController()
+      await getListTimeline({ listId: 'list-1', signal: controller.signal })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/timelines/list/list-1'),
+        expect.objectContaining({ signal: controller.signal })
+      )
+    })
   })
 
   describe('getCollectionTimeline', () => {
@@ -255,6 +377,28 @@ describe('client timelines module', () => {
         prevMinStatusId: null
       })
     })
+
+    it('forwards signal to fetch', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-col' }],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
+      )
+
+      const controller = new AbortController()
+      await getCollectionTimeline({
+        collectionId: 'col-1',
+        signal: controller.signal
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/timelines/collection/col-1'),
+        expect.objectContaining({ signal: controller.signal })
+      )
+    })
   })
 
   describe('getCollectionFeed', () => {
@@ -295,6 +439,28 @@ describe('client timelines module', () => {
         nextMaxStatusId: null,
         prevMinStatusId: null
       })
+    })
+
+    it('forwards signal to fetch', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-feed' }],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
+      )
+
+      const controller = new AbortController()
+      await getCollectionFeed({
+        collectionId: 'col-1',
+        signal: controller.signal
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/collections/col-1/feed'),
+        expect.objectContaining({ signal: controller.signal })
+      )
     })
   })
 

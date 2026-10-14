@@ -755,6 +755,21 @@ describe('proxy', () => {
     })
   })
 
+  it('sets no-cache headers on /sw.js', async () => {
+    const request = new NextRequest('https://llun.social/sw.js', {
+      method: 'GET'
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('Cache-Control')).toBe(
+      'no-cache, no-store, must-revalidate'
+    )
+    expect(response?.headers.get('Content-Security-Policy')).toContain(
+      "default-src 'none'"
+    )
+  })
+
   // Walk proxy.ts's static import graph, reporting every disallowed specifier
   // reached and the files visited on the way. The visited set is returned so a
   // caller can prove the walk got somewhere: if module resolution ever breaks,

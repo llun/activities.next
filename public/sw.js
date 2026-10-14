@@ -1,6 +1,417 @@
-/* global self, clients */
+/* global self, clients, caches, indexedDB, Response, Request */
 
-self.addEventListener('push', (event) => {
+const sw = typeof self !== 'undefined' ? self : globalThis
+const getClients = () => (typeof clients !== 'undefined' ? clients : sw.clients)
+
+const MEDIA_CACHE_NAME = 'activities-media-v1'
+const MAX_MEDIA_ENTRIES = 150
+const SHELL_CACHE_PREFIX = 'activities-shell-'
+const OFFLINE_DB_NAME = 'activities_offline_v1'
+
+const SVG_PLACEHOLDER =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" fill="#e2e8f0"/><path d="M35 45a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM25 70h50L60 50 48 65l-8-10-15 15Z" fill="#94a3b8"/></svg>'
+
+function getSvgPlaceholderResponse() {
+  return new Response(SVG_PLACEHOLDER, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'no-store'
+    }
+  })
+}
+
+const RESERVED_STATIC_DIRS = new Set([
+  'chunks',
+  'css',
+  'media',
+  'development',
+  'webpack'
+])
+
+function hashString(str) {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) + hash + str.charCodeAt(i)
+    hash = hash & hash
+  }
+  return Math.abs(hash).toString(36)
+}
+
+function extractBuildId(html) {
+  const manifestMatch = html.match(
+    /(?:\/activities)?\/_next\/static\/([a-zA-Z0-9_-]+)\/(?:_buildManifest|_ssgManifest)/
+  )
+  if (manifestMatch) return manifestMatch[1]
+
+  const jsonMatch = html.match(/"buildId":"([^"]+)"/)
+  if (jsonMatch) return jsonMatch[1]
+
+  const segmentMatches = html.matchAll(
+    /(?:\/activities)?\/_next\/static\/([a-zA-Z0-9_-]+)\//g
+  )
+  for (const m of segmentMatches) {
+    if (m[1] && !RESERVED_STATIC_DIRS.has(m[1])) {
+      return m[1]
+    }
+  }
+
+  const staticAssets = Array.from(extractAppShellAssets(html)).filter((url) =>
+    url.includes('/_next/static/')
+  )
+  if (staticAssets.length > 0) {
+    staticAssets.sort()
+    return `fp-${hashString(staticAssets.join('|'))}`
+  }
+
+  return 'latest'
+}
+
+function extractAppShellAssets(html) {
+  const assets = new Set()
+
+  const staticMatches = html.match(
+    /(?:\/activities)?\/_next\/static\/[a-zA-Z0-9_./-]+(?:\?[^"'\s<>]*)?/g
+  )
+  if (staticMatches) {
+    for (const match of staticMatches) {
+      assets.add(match)
+    }
+  }
+
+  const iconMatches = html.match(
+    /(?:\/(?:icon-192|icon-512|apple-touch-icon)\.png|\/favicon\.ico)(?:\?[^"'\s<>]*)?/g
+  )
+  if (iconMatches) {
+    for (const match of iconMatches) {
+      assets.add(match)
+    }
+  }
+
+  assets.add('/manifest.webmanifest')
+  assets.add('/icon-192.png')
+  assets.add('/icon-512.png')
+  assets.add('/apple-touch-icon.png')
+  assets.add('/favicon.ico')
+
+  return Array.from(assets)
+}
+
+async function getCurrentShellCacheKey() {
+  const keys = await caches.keys()
+  return keys.find((k) => k.startsWith(SHELL_CACHE_PREFIX)) || null
+}
+
+async function getCachedAppShell() {
+  const keys = await caches.keys()
+  const shellKeys = keys.filter((k) => k.startsWith(SHELL_CACHE_PREFIX))
+  for (const key of shellKeys) {
+    const cache = await caches.open(key)
+    const match = await cache.match('/app')
+    if (match) {
+      return match
+    }
+  }
+  return null
+}
+
+async function stageAppShell() {
+  try {
+    const currentActiveCacheKey = await getCurrentShellCacheKey()
+
+    const response = await fetch('/app', { cache: 'no-store' })
+    if (!response.ok) return null
+    const html = await response.text()
+    const buildId = extractBuildId(html)
+    const targetCacheName = `${SHELL_CACHE_PREFIX}${buildId}`
+
+    const assets = extractAppShellAssets(html)
+    const targetCache = await caches.open(targetCacheName)
+
+    await targetCache.put(
+      '/app',
+      new Response(html, {
+        headers: response.headers,
+        status: response.status,
+        statusText: response.statusText
+      })
+    )
+
+    for (const assetUrl of assets) {
+      const assetRes = await fetch(assetUrl)
+      if (!assetRes.ok) {
+        if (targetCacheName !== currentActiveCacheKey) {
+          await caches.delete(targetCacheName)
+        }
+        return null
+      }
+      await targetCache.put(assetUrl, assetRes)
+    }
+
+    const allCacheNames = await caches.keys()
+    for (const name of allCacheNames) {
+      if (name.startsWith(SHELL_CACHE_PREFIX) && name !== targetCacheName) {
+        await caches.delete(name)
+      }
+    }
+
+    return targetCacheName
+  } catch {
+    return null
+  }
+}
+
+async function hasActiveOfflineSession() {
+  if (typeof indexedDB === 'undefined') return false
+
+  if (typeof indexedDB.databases === 'function') {
+    try {
+      const dbs = await indexedDB.databases()
+      const exists = dbs && dbs.some((db) => db && db.name === OFFLINE_DB_NAME)
+      if (!exists) return false
+    } catch {
+      // ignore and fall through to open check
+    }
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(OFFLINE_DB_NAME)
+      let upgraded = false
+      req.onupgradeneeded = () => {
+        upgraded = true
+        try {
+          req.transaction?.abort()
+        } catch {
+          // ignore
+        }
+        try {
+          req.result?.close()
+        } catch {
+          // ignore
+        }
+      }
+      req.onerror = () => resolve(false)
+      req.onblocked = () => resolve(false)
+      req.onsuccess = () => {
+        const db = req.result
+        if (
+          upgraded ||
+          !db ||
+          !db.objectStoreNames ||
+          !db.objectStoreNames.contains('meta')
+        ) {
+          try {
+            db?.close()
+          } catch {
+            // ignore
+          }
+          return resolve(false)
+        }
+        try {
+          const tx = db.transaction('meta', 'readonly')
+          const store = tx.objectStore('meta')
+          const getReq = store.get('activeSession')
+          getReq.onsuccess = () => {
+            const val = getReq.result
+            try {
+              db.close()
+            } catch {
+              // ignore
+            }
+            resolve(Boolean(val && val.actorId))
+          }
+          getReq.onerror = () => {
+            try {
+              db.close()
+            } catch {
+              // ignore
+            }
+            resolve(false)
+          }
+        } catch {
+          try {
+            db.close()
+          } catch {
+            // ignore
+          }
+          resolve(false)
+        }
+      }
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+async function trimLru(cache, maxEntries) {
+  try {
+    const keys = await cache.keys()
+    if (keys.length > maxEntries) {
+      const excess = keys.length - maxEntries
+      for (let i = 0; i < excess; i++) {
+        await cache.delete(keys[i])
+      }
+    }
+  } catch {
+    // safe ignore
+  }
+}
+
+sw.addEventListener('install', (event) => {
+  if (typeof sw.skipWaiting === 'function') {
+    sw.skipWaiting()
+  }
+  event.waitUntil(stageAppShell())
+})
+
+sw.addEventListener('activate', (event) => {
+  const c = getClients()
+  if (c && typeof c.claim === 'function') {
+    event.waitUntil(c.claim())
+  }
+})
+
+sw.addEventListener('fetch', (event) => {
+  const { request } = event
+  const url = new URL(request.url)
+
+  // 1. Navigation handling
+  if (request.mode === 'navigate') {
+    // NEVER intercept Next.js RSC requests
+    const isRsc =
+      request.headers.get('rsc') === '1' || url.searchParams.has('_rsc')
+    if (isRsc || request.method !== 'GET') {
+      return
+    }
+
+    if (url.pathname === '/app') {
+      event.respondWith(
+        (async () => {
+          const cached = await getCachedAppShell()
+          event.waitUntil(stageAppShell())
+          if (cached) {
+            return cached
+          }
+          return fetch(request)
+        })()
+      )
+      return
+    }
+
+    if (url.pathname === '/') {
+      event.respondWith(
+        (async () => {
+          const hasActiveSession = await hasActiveOfflineSession()
+          if (hasActiveSession) {
+            const cached = await getCachedAppShell()
+            event.waitUntil(stageAppShell())
+            if (cached) {
+              return cached
+            }
+            return fetch(request)
+          }
+
+          // Unauthenticated visitors: go to network so they see <Landing>
+          try {
+            return await fetch(request)
+          } catch (_err) {
+            const cached = await getCachedAppShell()
+            if (cached) {
+              return cached
+            }
+            throw _err
+          }
+        })()
+      )
+      return
+    }
+
+    return
+  }
+
+  // 2. Cache-First for static Next.js assets and staged shell assets
+  const isStaticAsset =
+    url.pathname.startsWith('/activities/_next/static/') ||
+    url.pathname.startsWith('/_next/static/')
+  const isShellAsset =
+    url.pathname === '/manifest.webmanifest' ||
+    url.pathname === '/icon-192.png' ||
+    url.pathname === '/icon-512.png' ||
+    url.pathname === '/apple-touch-icon.png' ||
+    url.pathname === '/favicon.ico' ||
+    url.pathname.endsWith('/manifest.webmanifest') ||
+    url.pathname.endsWith('/icon-192.png') ||
+    url.pathname.endsWith('/icon-512.png') ||
+    url.pathname.endsWith('/apple-touch-icon.png') ||
+    url.pathname.endsWith('/favicon.ico')
+
+  if (request.method === 'GET' && (isStaticAsset || isShellAsset)) {
+    event.respondWith(
+      (async () => {
+        let cached = await caches.match(request)
+        if (!cached && isShellAsset) {
+          cached = await caches.match(url.pathname)
+        }
+        if (cached) {
+          return cached
+        }
+        const response = await fetch(request)
+        if (response.ok) {
+          const keys = await caches.keys()
+          const currentShellKey = keys.find((k) =>
+            k.startsWith(SHELL_CACHE_PREFIX)
+          )
+          if (currentShellKey) {
+            const cache = await caches.open(currentShellKey)
+            await cache.put(request, response.clone())
+          }
+        }
+        return response
+      })()
+    )
+    return
+  }
+
+  // 3. Bounded LRU Stale-While-Revalidate media cache (activities-media-v1, max 150 entries)
+  if (
+    request.method === 'GET' &&
+    (request.destination === 'image' ||
+      url.pathname.startsWith('/api/v1/files/'))
+  ) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(MEDIA_CACHE_NAME)
+        const cached = await cache.match(request)
+
+        const fetchPromise = fetch(request)
+          .then(async (networkResponse) => {
+            if (networkResponse.ok || networkResponse.type === 'opaque') {
+              await cache.put(request, networkResponse.clone())
+              await trimLru(cache, MAX_MEDIA_ENTRIES)
+            }
+            return networkResponse
+          })
+          .catch(() => null)
+
+        if (cached) {
+          event.waitUntil(fetchPromise)
+          return cached
+        }
+
+        const networkResult = await fetchPromise
+        if (networkResult) {
+          return networkResult
+        }
+
+        return getSvgPlaceholderResponse()
+      })()
+    )
+    return
+  }
+})
+
+sw.addEventListener('push', (event) => {
   if (!event.data) return
 
   let data
@@ -20,26 +431,34 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/notifications' }
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  if (
+    sw.registration &&
+    typeof sw.registration.showNotification === 'function'
+  ) {
+    event.waitUntil(sw.registration.showNotification(title, options))
+  }
 })
 
-self.addEventListener('notificationclick', (event) => {
+sw.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = new URL(
     event.notification.data?.url || '/notifications',
-    self.location.origin
+    sw.location.origin
   ).href
 
-  event.waitUntil(
-    clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url === url && 'focus' in client) {
-            return client.focus()
+  const c = getClients()
+  if (c && typeof c.matchAll === 'function') {
+    event.waitUntil(
+      c
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            if (client.url === url && 'focus' in client) {
+              return client.focus()
+            }
           }
-        }
-        return clients.openWindow(url)
-      })
-  )
+          return c.openWindow(url)
+        })
+    )
+  }
 })

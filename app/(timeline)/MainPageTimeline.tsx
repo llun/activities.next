@@ -3,9 +3,31 @@
 import { Home } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  FC,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { getTimeline } from '@/lib/client'
+import {
+  HydratedTimelineSegment,
+  ScrollAnchorState,
+  appendOlderPageToSegments,
+  clearAllOfflineData,
+  getOfflineTimeline,
+  mergeFreshPageIntoSegments,
+  mergeGapPageIntoSegments,
+  reconcileSegmentsWithServerBatch,
+  saveOfflineScrollAnchor,
+  saveOfflineTimeline
+} from '@/lib/client/offline'
+import { reconcileCachedStatuses } from '@/lib/client/statuses'
+import { TimelineRequestError } from '@/lib/client/timelines'
 import { AnnouncementIconButton } from '@/lib/components/announcements/AnnouncementBanner'
 import { useAnnouncements } from '@/lib/components/announcements/useAnnouncements'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
@@ -40,12 +62,22 @@ import {
   StatusPoll,
   getOriginalStatus
 } from '@/lib/types/domain/status'
-import { TimelineContext } from '@/lib/types/domain/timeline'
+import {
+  TimelineContext,
+  TimelineParentPreview
+} from '@/lib/types/domain/timeline'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
-interface MainPageTimelineProps {
+export type CompatibleTimelineContext =
+  | TimelineContext
+  | {
+      ancestors?: Record<string, TimelineParentPreview>
+      ancestorsById?: Record<string, TimelineParentPreview>
+    }
+
+export interface MainPageTimelineProps {
   host: string
   profile: ActorProfile
   currentTime: number
@@ -53,10 +85,65 @@ interface MainPageTimelineProps {
   /** Photos the top composer opens with (`/?media=`), already validated. */
   initialMedia?: PostBoxAttachment[]
   statuses: Status[]
-  timelineContext?: TimelineContext
+  timelineContext?: CompatibleTimelineContext
   initialNextMaxStatusId?: string | null
   postLineLimit?: PostLineLimit
   readingGroupBoosts?: boolean
+  initialSegments?: HydratedTimelineSegment[]
+  initialScrollAnchor?: ScrollAnchorState | null
+  initialLastRefreshedAt?: number | null
+  refreshOnMount?: boolean
+  onUnauthorized?: () => void
+}
+
+const formatLastUpdated = (timestamp: number, current: number): string => {
+  const diffSec = Math.max(0, Math.floor((current - timestamp) / 1000))
+  if (diffSec < 60) return 'just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
+}
+
+const isUnauthorizedError = (error: unknown): boolean => {
+  if (
+    typeof TimelineRequestError !== 'undefined' &&
+    error instanceof TimelineRequestError
+  ) {
+    return error.isUnauthorized
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    ((error as { status?: number }).status === 401 ||
+      (error as { status?: number }).status === 403)
+  ) {
+    return true
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'isUnauthorized' in error &&
+    Boolean((error as { isUnauthorized?: boolean }).isUnauthorized)
+  ) {
+    return true
+  }
+  return false
+}
+
+const findStatusElement = (statusId: string): HTMLElement | null => {
+  if (typeof document === 'undefined') return null
+  const elements = document.querySelectorAll<HTMLElement>('[data-status-id]')
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i]
+    if (el.getAttribute('data-status-id') === statusId) {
+      return el
+    }
+  }
+  return null
 }
 
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({
@@ -69,28 +156,82 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   timelineContext,
   initialNextMaxStatusId = null,
   postLineLimit,
-  readingGroupBoosts
+  readingGroupBoosts,
+  initialSegments,
+  initialScrollAnchor = null,
+  initialLastRefreshedAt = null,
+  refreshOnMount = false,
+  onUnauthorized
 }) => {
   const router = useRouter()
   // One announcements state for every copy the header renders (desktop box and
   // mobile bar), so there is one fetch, one timer and one open state.
   const announcements = useAnnouncements()
-  const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+
+  const [segments, setSegments] = useState<HydratedTimelineSegment[]>(() => {
+    if (initialSegments && initialSegments.length > 0) {
+      return initialSegments
+    }
+    if (statuses && statuses.length > 0) {
+      return [
+        {
+          statuses,
+          nextMaxStatusId: initialNextMaxStatusId ?? null,
+          prevMinStatusId: statuses[0]?.id ?? null
+        }
+      ]
+    }
+    return []
+  })
+  const segmentsRef = useRef<HydratedTimelineSegment[]>(segments)
+  segmentsRef.current = segments
+
+  const currentStatuses = useMemo(
+    () => segments.flatMap((s) => s.statuses),
+    [segments]
+  )
+  const currentStatusesRef = useRef<Status[]>(currentStatuses)
+  currentStatusesRef.current = currentStatuses
+
+  const normalizedTimelineContext = useMemo((): TimelineContext | undefined => {
+    if (!timelineContext) return undefined
+    if ('ancestorsById' in timelineContext && timelineContext.ancestorsById) {
+      return { ancestorsById: timelineContext.ancestorsById }
+    }
+    if ('ancestors' in timelineContext && timelineContext.ancestors) {
+      return { ancestorsById: timelineContext.ancestors }
+    }
+    return { ancestorsById: {} }
+  }, [timelineContext])
+
   const [currentTimelineContext, setCurrentTimelineContext] = useState<
     TimelineContext | undefined
-  >(timelineContext)
+  >(normalizedTimelineContext)
+
   const [replyToastStatus, setReplyToastStatus] = useState<Status | null>(null)
-  const [_nextMaxStatusId, setNextMaxStatusId] = useState<string | null>(
-    initialNextMaxStatusId
-  )
-  const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
-    statuses.length > 0 || Boolean(initialNextMaxStatusId)
-  )
+  const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(() => {
+    if (initialSegments && initialSegments.length > 0) {
+      return Boolean(
+        initialSegments[initialSegments.length - 1]?.nextMaxStatusId
+      )
+    }
+    return statuses.length > 0 || Boolean(initialNextMaxStatusId)
+  })
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [newerPostsCount, setNewerPostsCount] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const [loadingGapSegmentIndex, setLoadingGapSegmentIndex] = useState<
+    number | null
+  >(null)
+
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(
+    initialLastRefreshedAt
+  )
+  const [pendingScrollAnchor, setPendingScrollAnchor] =
+    useState<ScrollAnchorState | null>(initialScrollAnchor)
+  const [isOffline, setIsOffline] = useState<boolean>(false)
 
   const isLoadingRef = useRef<boolean>(false)
   const isPollingRef = useRef<boolean>(false)
@@ -99,8 +240,33 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     initialNextMaxStatusId ||
       (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
-  const currentStatusesRef = useRef<Status[]>(currentStatuses)
-  currentStatusesRef.current = currentStatuses
+  const activeProfileIdRef = useRef<string>(profile.id)
+  activeProfileIdRef.current = profile.id
+  const segmentsActorIdRef = useRef<string>(profile.id)
+  const lastReconciledAtRef = useRef<number>(0)
+  const restoredAnchorRef = useRef<string | null>(null)
+
+  const gapAfterStatusIds = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i]
+      if (seg.statuses.length > 0 && seg.nextMaxStatusId !== null) {
+        const lastStatus = seg.statuses[seg.statuses.length - 1]
+        map[lastStatus.id] = i
+      }
+    }
+    return map
+  }, [segments])
+
+  useEffect(() => {
+    if (segments.length > 0) {
+      const last = segments[segments.length - 1]
+      setHasMoreStatuses(Boolean(last.nextMaxStatusId))
+      if (last.nextMaxStatusId) {
+        lastStatusIdRef.current = last.nextMaxStatusId
+      }
+    }
+  }, [segments])
 
   // Gently reconcile attachment metadata if the statuses prop delivers
   // updated classifications (e.g. after navigating back from detail view,
@@ -109,21 +275,198 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   useEffect(() => {
     if (!statuses || statuses.length === 0) return
 
-    setCurrentStatuses((previousStatuses) =>
-      reconcileStatusesMetadata(previousStatuses, statuses)
+    setSegments((prev) =>
+      prev.map((seg) => ({
+        ...seg,
+        statuses: reconcileStatusesMetadata(seg.statuses, statuses)
+      }))
     )
   }, [statuses])
 
   useEffect(() => {
-    if (timelineContext) {
-      setCurrentTimelineContext(timelineContext)
+    if (normalizedTimelineContext) {
+      setCurrentTimelineContext(normalizedTimelineContext)
     }
-  }, [timelineContext])
+  }, [normalizedTimelineContext])
+
+  // Set scroll restoration to manual so we control exact anchor preservation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.history) {
+      try {
+        window.history.scrollRestoration = 'manual'
+      } catch {
+        // safe ignore
+      }
+    }
+  }, [])
+
+  // IndexedDB Hydration on mount for profile.id
+  useEffect(() => {
+    if (initialSegments && initialSegments.length > 0) {
+      return
+    }
+    let isCancelled = false
+    const hydrateFromOffline = async () => {
+      try {
+        const cached = await getOfflineTimeline({
+          actorId: profile.id,
+          timeline: 'home'
+        })
+        if (isCancelled || activeProfileIdRef.current !== profile.id) return
+
+        if (cached && cached.segments && cached.segments.length > 0) {
+          const cachedCount = cached.statuses.length
+          if (
+            cachedCount > statuses.length ||
+            (cached.segments.length > 1 && cachedCount > 0)
+          ) {
+            if (statuses.length > 0) {
+              const merged = mergeFreshPageIntoSegments({
+                currentSegments: cached.segments,
+                incomingStatuses: statuses,
+                incomingNextMaxStatusId: initialNextMaxStatusId ?? null,
+                incomingPrevMinStatusId: statuses[0]?.id ?? null
+              })
+              segmentsActorIdRef.current = profile.id
+              setSegments(merged.segments)
+            } else {
+              segmentsActorIdRef.current = profile.id
+              setSegments(cached.segments)
+            }
+            if (cached.ancestorsById) {
+              setCurrentTimelineContext((prev) => ({
+                ancestorsById: {
+                  ...(cached.ancestorsById || {}),
+                  ...(prev?.ancestorsById || {})
+                }
+              }))
+            }
+            if (cached.lastRefreshedAt) {
+              setLastRefreshedAt(cached.lastRefreshedAt)
+            }
+            if (cached.scrollAnchor) {
+              setPendingScrollAnchor(cached.scrollAnchor)
+            }
+          }
+        }
+      } catch {
+        // offline read errors are silently ignored
+      }
+    }
+    void hydrateFromOffline()
+    return () => {
+      isCancelled = true
+    }
+  }, [profile.id, initialSegments, statuses, initialNextMaxStatusId])
+
+  // Offline persistence whenever segments or context change
+  useEffect(() => {
+    if (segments.length === 0) return
+    if (segmentsActorIdRef.current !== profile.id) return
+    const actorId = profile.id
+    void saveOfflineTimeline({
+      actorId,
+      timeline: 'home',
+      segments,
+      ancestorsById: currentTimelineContext?.ancestorsById ?? {},
+      lastRefreshedAt: lastRefreshedAt ?? Date.now()
+    })
+  }, [profile.id, segments, currentTimelineContext, lastRefreshedAt])
+
+  // Scroll anchor restoration
+  useLayoutEffect(() => {
+    if (!pendingScrollAnchor || !pendingScrollAnchor.statusId) return
+    if (restoredAnchorRef.current === pendingScrollAnchor.statusId) return
+
+    const el = findStatusElement(pendingScrollAnchor.statusId)
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      const diff = rect.top - pendingScrollAnchor.offsetTop
+      if (Math.abs(diff) > 2) {
+        window.scrollBy({ top: diff, behavior: 'instant' as ScrollBehavior })
+      }
+      restoredAnchorRef.current = pendingScrollAnchor.statusId
+    }
+  }, [pendingScrollAnchor, segments])
+
+  // Scroll anchor tracking
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const recordScrollAnchor = () => {
+      const actorId = activeProfileIdRef.current
+      const elements =
+        document.querySelectorAll<HTMLElement>('[data-status-id]')
+      for (let i = 0; i < elements.length; i++) {
+        const el = elements[i]
+        const rect = el.getBoundingClientRect()
+        if (rect.bottom > 80) {
+          const statusId = el.getAttribute('data-status-id')
+          if (statusId) {
+            const anchor: ScrollAnchorState = {
+              statusId,
+              offsetTop: Math.round(rect.top),
+              updatedAt: Date.now()
+            }
+            void saveOfflineScrollAnchor({
+              actorId,
+              timeline: 'home',
+              scrollAnchor: anchor
+            })
+          }
+          break
+        }
+      }
+    }
+
+    const handleScroll = () => {
+      if (timeoutId) return
+      timeoutId = setTimeout(() => {
+        timeoutId = null
+        recordScrollAnchor()
+      }, 200)
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        recordScrollAnchor()
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      window.removeEventListener('scroll', handleScroll)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
 
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
   const onStatusCreated = (status: Status) => {
-    setCurrentStatuses((previousValue) => [status, ...previousValue])
+    setSegments((prev) => {
+      if (prev.length === 0) {
+        return [
+          {
+            statuses: [status],
+            nextMaxStatusId: null,
+            prevMinStatusId: status.id
+          }
+        ]
+      }
+      return [
+        {
+          ...prev[0],
+          statuses: [status, ...prev[0].statuses],
+          prevMinStatusId: status.id
+        },
+        ...prev.slice(1)
+      ]
+    })
   }
 
   // When a reply is created inline from a feed row, update the parent status's
@@ -137,11 +480,14 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         ? originalReply.reply.trim()
         : null) || getStatusReplyTargetId(originalReply)
 
-    if (parentId) {
-      setCurrentStatuses((previousStatuses) => {
+    setSegments((prev) => {
+      let inserted = false
+      const updated = prev.map((seg) => {
+        if (inserted) return seg
+
         const withUpdatedCount = updateMatchingStatus(
-          previousStatuses,
-          parentId,
+          seg.statuses,
+          parentId || '',
           (target) => ({
             ...target,
             totalReplies: (target.totalReplies ?? 0) + 1,
@@ -160,22 +506,38 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         })
 
         if (parentIndex !== -1) {
+          inserted = true
           if (withUpdatedCount.some((s) => s.id === reply.id)) {
-            return withUpdatedCount
+            return { ...seg, statuses: withUpdatedCount }
           }
           const next = [...withUpdatedCount]
           next.splice(parentIndex + 1, 0, reply)
-          return next
+          return { ...seg, statuses: next }
         }
 
-        if (withUpdatedCount.some((s) => s.id === reply.id)) {
-          return withUpdatedCount
-        }
-        return [reply, ...withUpdatedCount]
+        return { ...seg, statuses: withUpdatedCount }
       })
-    } else {
-      setCurrentStatuses((previousStatuses) => [reply, ...previousStatuses])
-    }
+
+      if (!inserted) {
+        if (updated.length === 0) {
+          return [
+            {
+              statuses: [reply],
+              nextMaxStatusId: null,
+              prevMinStatusId: reply.id
+            }
+          ]
+        }
+        return [
+          {
+            ...updated[0],
+            statuses: [reply, ...updated[0].statuses]
+          },
+          ...updated.slice(1)
+        ]
+      }
+      return updated
+    })
 
     setReplyToastStatus(reply)
   }, [])
@@ -183,30 +545,39 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const onPostUpdated = useCallback((status: Status) => {
     // Announce-aware (like onPostDeleted): also refreshes a boost row whose
     // original was the edited post. An edited status is always a note/poll.
-    setCurrentStatuses((previousStatuses) =>
-      updateMatchingStatus(
-        previousStatuses,
-        status.id,
-        () => status as StatusNote | StatusPoll
-      )
+    setSegments((prev) =>
+      prev.map((seg) => ({
+        ...seg,
+        statuses: updateMatchingStatus(
+          seg.statuses,
+          status.id,
+          () => status as StatusNote | StatusPoll
+        )
+      }))
     )
   }, [])
 
   const onPostDeleted = useCallback((status: Status) => {
-    setCurrentStatuses((previousStatuses) =>
-      removeOriginalStatus(previousStatuses, status.id)
+    setSegments((prev) =>
+      prev.map((seg) => ({
+        ...seg,
+        statuses: removeOriginalStatus(seg.statuses, status.id)
+      }))
     )
   }, [])
 
   const onLikeChanged = useCallback(
     (status: StatusNote | StatusPoll, isLiked: boolean) => {
-      setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorLiked: isLiked,
-          totalLikes: isLiked
-            ? target.totalLikes + 1
-            : Math.max(0, target.totalLikes - 1)
+      setSegments((prev) =>
+        prev.map((seg) => ({
+          ...seg,
+          statuses: updateMatchingStatus(seg.statuses, status.id, (target) => ({
+            ...target,
+            isActorLiked: isLiked,
+            totalLikes: isLiked
+              ? target.totalLikes + 1
+              : Math.max(0, target.totalLikes - 1)
+          }))
         }))
       )
     },
@@ -215,10 +586,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   const onBookmarkChanged = useCallback(
     (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
-      setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorBookmarked: isBookmarked
+      setSegments((prev) =>
+        prev.map((seg) => ({
+          ...seg,
+          statuses: updateMatchingStatus(seg.statuses, status.id, (target) => ({
+            ...target,
+            isActorBookmarked: isBookmarked
+          }))
         }))
       )
     },
@@ -227,10 +601,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   const onReactionsChanged = useCallback(
     (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
-      setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          reactions
+      setSegments((prev) =>
+        prev.map((seg) => ({
+          ...seg,
+          statuses: updateMatchingStatus(seg.statuses, status.id, (target) => ({
+            ...target,
+            reactions
+          }))
         }))
       )
     },
@@ -238,7 +615,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
 
   const loadMoreStatuses = useCallback(async () => {
-    const lastStatusId = lastStatusIdRef.current
+    const currentSegs = segmentsRef.current
+    const lastSeg = currentSegs[currentSegs.length - 1]
+    const lastStatusId =
+      lastSeg?.nextMaxStatusId ??
+      lastStatusIdRef.current ??
+      (currentStatusesRef.current.length > 0
+        ? currentStatusesRef.current[currentStatusesRef.current.length - 1].id
+        : null)
+
     if (isLoadingRef.current || !lastStatusId) return
 
     isLoadingRef.current = true
@@ -250,23 +635,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         maxStatusId: lastStatusId
       })
       const nextCursor = result.nextMaxStatusId ?? null
-      setNextMaxStatusId(nextCursor)
       lastStatusIdRef.current = nextCursor
       setHasMoreStatuses(Boolean(result.nextMaxStatusId))
 
-      if (result.statuses.length > 0) {
-        setCurrentStatuses((prev) => {
-          const existingIds = new Set(prev.map((s) => s.id))
-          const newStatuses = result.statuses.filter(
-            (s) => !existingIds.has(s.id)
-          )
-          if (newStatuses.length === 0) {
-            return prev
-          }
-          return [...prev, ...newStatuses]
+      setSegments((prev) => {
+        const appended = appendOlderPageToSegments({
+          currentSegments: prev,
+          incomingStatuses: result.statuses,
+          incomingNextMaxStatusId: result.nextMaxStatusId
         })
-      }
-      if (result.context) {
+        return appended.segments
+      })
+
+      if (result.context?.ancestorsById) {
         setCurrentTimelineContext((prev) => ({
           ancestorsById: {
             ...(prev?.ancestorsById ?? {}),
@@ -275,56 +656,222 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }))
       }
       lastFailedFetchRef.current = null
-    } catch (_error) {
-      setFetchError('Failed to load posts')
-      lastFailedFetchRef.current = loadMoreStatuses
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        try {
+          await clearAllOfflineData()
+        } catch {
+          // safe ignore
+        }
+        onUnauthorized?.()
+        setFetchError('Session expired. Please sign in again.')
+      } else {
+        setFetchError('Failed to load posts')
+        lastFailedFetchRef.current = loadMoreStatuses
+      }
     } finally {
       isLoadingRef.current = false
       setLoadingMoreStatuses(false)
     }
-  }, [])
+  }, [onUnauthorized])
 
   const { loadMoreRef, isLoadMoreVisible } = useLoadMoreOnVisible({
     enabled: hasMoreStatuses,
     onLoadMore: loadMoreStatuses
   })
 
-  const refreshTimeline = useCallback(async () => {
-    // isLoadingRef serializes refreshes, so only one runs at a time and there
-    // is no concurrent request to guard against.
-    if (isLoadingRef.current) return
+  const refreshTimeline = useCallback(
+    async (options?: { preserveScroll?: boolean }) => {
+      // isLoadingRef serializes refreshes, so only one runs at a time and there
+      // is no concurrent request to guard against.
+      if (isLoadingRef.current) return
 
-    isLoadingRef.current = true
-    setIsRefreshing(true)
-    setLoadingMoreStatuses(true)
-    setFetchError(null)
+      isLoadingRef.current = true
+      setIsRefreshing(true)
+      setLoadingMoreStatuses(true)
+      setFetchError(null)
 
-    try {
-      const result = await getTimeline({ timeline: Timeline.MAIN })
-      setCurrentStatuses(result.statuses)
-      if (result.context) {
-        setCurrentTimelineContext(result.context)
+      let capturedAnchor: { statusId: string; offsetTop: number } | null = null
+      const shouldPreserve =
+        options?.preserveScroll ??
+        (typeof window !== 'undefined' && window.scrollY > 50)
+
+      if (shouldPreserve && typeof document !== 'undefined') {
+        const elements =
+          document.querySelectorAll<HTMLElement>('[data-status-id]')
+        for (let i = 0; i < elements.length; i++) {
+          const el = elements[i]
+          const rect = el.getBoundingClientRect()
+          if (rect.bottom > 80) {
+            const statusId = el.getAttribute('data-status-id')
+            if (statusId) {
+              capturedAnchor = { statusId, offsetTop: Math.round(rect.top) }
+            }
+            break
+          }
+        }
       }
-      setNextMaxStatusId(result.nextMaxStatusId ?? null)
-      setHasMoreStatuses(
-        result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
-      )
-      lastStatusIdRef.current =
-        result.nextMaxStatusId ||
-        (result.statuses.length > 0
-          ? result.statuses[result.statuses.length - 1].id
-          : null)
-      setNewerPostsCount(0)
-      lastFailedFetchRef.current = null
-    } catch (_error) {
-      setFetchError('Failed to load posts')
-      lastFailedFetchRef.current = refreshTimeline
-    } finally {
-      setLoadingMoreStatuses(false)
-      isLoadingRef.current = false
-      setIsRefreshing(false)
-    }
-  }, [])
+
+      try {
+        const result = await getTimeline({
+          timeline: Timeline.MAIN
+        })
+
+        const merged = mergeFreshPageIntoSegments({
+          currentSegments: segmentsRef.current,
+          incomingStatuses: result.statuses,
+          incomingNextMaxStatusId: result.nextMaxStatusId,
+          incomingPrevMinStatusId: result.prevMinStatusId
+        })
+        segmentsActorIdRef.current = profile.id
+        setSegments(merged.segments)
+
+        const lastSeg = merged.segments[merged.segments.length - 1]
+        if (lastSeg) {
+          setHasMoreStatuses(Boolean(lastSeg.nextMaxStatusId))
+          lastStatusIdRef.current =
+            lastSeg.nextMaxStatusId ||
+            (lastSeg.statuses.length > 0
+              ? lastSeg.statuses[lastSeg.statuses.length - 1].id
+              : null)
+        } else {
+          setHasMoreStatuses(Boolean(result.nextMaxStatusId))
+          lastStatusIdRef.current =
+            result.nextMaxStatusId ||
+            (result.statuses.length > 0
+              ? result.statuses[result.statuses.length - 1].id
+              : null)
+        }
+
+        if (result.context?.ancestorsById) {
+          setCurrentTimelineContext((prev) => ({
+            ancestorsById: {
+              ...(prev?.ancestorsById ?? {}),
+              ...result.context?.ancestorsById
+            }
+          }))
+        }
+
+        const now = Date.now()
+        setLastRefreshedAt(now)
+        setNewerPostsCount(0)
+        lastFailedFetchRef.current = null
+
+        if (capturedAnchor) {
+          restoredAnchorRef.current = null
+          setPendingScrollAnchor({
+            statusId: capturedAnchor.statusId,
+            offsetTop: capturedAnchor.offsetTop,
+            updatedAt: now
+          })
+        }
+
+        // Trigger background batch revalidation of up to 80 cached status.ids outside
+        // the newly fetched top page (throttled to at most once every 5 minutes per mount)
+        if (now - lastReconciledAtRef.current > 5 * 60 * 1000) {
+          lastReconciledAtRef.current = now
+          const fetchedIds = new Set(result.statuses.map((s) => s.id))
+          const cachedIdsOutsideTop: string[] = []
+          for (const seg of merged.segments) {
+            for (const st of seg.statuses) {
+              if (!fetchedIds.has(st.id)) {
+                cachedIdsOutsideTop.push(st.id)
+              }
+            }
+          }
+
+          if (cachedIdsOutsideTop.length > 0) {
+            const batchToReconcile = cachedIdsOutsideTop.slice(0, 80)
+            void (async () => {
+              try {
+                const reconcileResult = await reconcileCachedStatuses({
+                  statusIds: batchToReconcile
+                })
+                if (
+                  reconcileResult.removedStatusIds.length > 0 ||
+                  reconcileResult.statuses.length > 0
+                ) {
+                  setSegments((currSegments) => {
+                    const reconciled = reconcileSegmentsWithServerBatch({
+                      currentSegments: currSegments,
+                      updatedStatuses: reconcileResult.statuses,
+                      removedStatusIds: reconcileResult.removedStatusIds
+                    })
+                    return reconciled.segments
+                  })
+                }
+              } catch {
+                // background reconciliation is best-effort
+              }
+            })()
+          }
+        }
+      } catch (error) {
+        if (isUnauthorizedError(error)) {
+          try {
+            await clearAllOfflineData()
+          } catch {
+            // safe ignore
+          }
+          onUnauthorized?.()
+          setFetchError('Session expired. Please sign in again.')
+        } else {
+          setFetchError('Failed to load posts')
+          lastFailedFetchRef.current = () => refreshTimeline(options)
+        }
+      } finally {
+        setLoadingMoreStatuses(false)
+        isLoadingRef.current = false
+        setIsRefreshing(false)
+      }
+    },
+    [onUnauthorized]
+  )
+
+  const handleLoadGap = useCallback(
+    async (segmentIndex: number) => {
+      const seg = segmentsRef.current[segmentIndex]
+      if (!seg || !seg.nextMaxStatusId) return
+
+      setLoadingGapSegmentIndex(segmentIndex)
+      try {
+        const result = await getTimeline({
+          timeline: Timeline.MAIN,
+          maxStatusId: seg.nextMaxStatusId
+        })
+        setSegments((prevSegments) => {
+          const merged = mergeGapPageIntoSegments({
+            currentSegments: prevSegments,
+            segmentIndex,
+            incomingStatuses: result.statuses,
+            incomingNextMaxStatusId: result.nextMaxStatusId
+          })
+          return merged.segments
+        })
+        if (result.context?.ancestorsById) {
+          setCurrentTimelineContext((prev) => ({
+            ancestorsById: {
+              ...(prev?.ancestorsById ?? {}),
+              ...result.context?.ancestorsById
+            }
+          }))
+        }
+      } catch (error) {
+        if (isUnauthorizedError(error)) {
+          try {
+            await clearAllOfflineData()
+          } catch {
+            // safe ignore
+          }
+          onUnauthorized?.()
+          setFetchError('Session expired. Please sign in again.')
+        }
+      } finally {
+        setLoadingGapSegmentIndex(null)
+      }
+    },
+    [onUnauthorized]
+  )
 
   const handleRetry = useCallback(() => {
     setFetchError(null)
@@ -341,8 +888,32 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     ) {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-    await refreshTimeline()
+    await refreshTimeline({ preserveScroll: false })
   }, [refreshTimeline])
+
+  // Offline / online listeners and auto-reconnect refresh
+  useEffect(() => {
+    setIsOffline(!navigator.onLine)
+    const handleOnline = () => {
+      setIsOffline(false)
+      void refreshTimeline({ preserveScroll: true })
+    }
+    const handleOffline = () => {
+      setIsOffline(true)
+    }
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [refreshTimeline])
+
+  useEffect(() => {
+    if (refreshOnMount) {
+      void refreshTimeline({ preserveScroll: true })
+    }
+  }, [refreshOnMount, refreshTimeline])
 
   useEffect(() => {
     const pollNewerPosts = async () => {
@@ -352,7 +923,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       ) {
         return
       }
-      if (isLoadingRef.current || isPollingRef.current) return
+      if (
+        isLoadingRef.current ||
+        isPollingRef.current ||
+        (typeof navigator !== 'undefined' && !navigator.onLine)
+      ) {
+        return
+      }
 
       const topStatus = currentStatusesRef.current[0]
       if (!topStatus) return
@@ -427,7 +1004,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           <div className="flex items-center gap-2">
             <AnnouncementIconButton state={announcements} />
             <RefreshButton
-              onRefresh={refreshTimeline}
+              onRefresh={() => refreshTimeline()}
               refreshing={isRefreshing}
               accessibleName="Refresh timeline"
             />
@@ -450,6 +1027,25 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           </div>
         }
       />
+
+      {isOffline && (
+        <div
+          role="status"
+          className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3.5 py-2 text-xs text-muted-foreground"
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="size-2 rounded-full bg-muted-foreground/60"
+              aria-hidden="true"
+            />
+            <span>
+              {lastRefreshedAt
+                ? `Offline · Updated ${formatLastUpdated(lastRefreshedAt, currentTime)}`
+                : 'Offline · Showing saved timeline'}
+            </span>
+          </div>
+        </div>
+      )}
 
       <section
         className={cn(POST_LIST_FRAME_CLASS, 'p-4', MOBILE_FEED_SURFACE_CLASS)}
@@ -498,6 +1094,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             onLikeChanged={onLikeChanged}
             onBookmarkChanged={onBookmarkChanged}
             onReactionsChanged={onReactionsChanged}
+            gapAfterStatusIds={gapAfterStatusIds}
+            loadingGapSegmentIndex={loadingGapSegmentIndex}
+            onLoadGap={handleLoadGap}
           />
         ) : isLoadingMoreStatuses || isRefreshing ? (
           <div role="status">
@@ -529,12 +1128,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       {fetchError && (
         <Alert title={fetchError} onRetry={handleRetry}>
-          Check your connection and try again.
+          {fetchError.includes('Session expired')
+            ? 'Your session has expired. Please sign in again to continue.'
+            : 'Check your connection and try again.'}
         </Alert>
       )}
 
       {hasMoreStatuses && (
         <LoadMoreButton
+          containerRef={loadMoreRef}
           presentation="overlay"
           hasItems={currentStatuses.length > 0}
           isLoading={isLoadingMoreStatuses}

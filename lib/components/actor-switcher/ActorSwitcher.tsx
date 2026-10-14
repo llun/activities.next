@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
+import { setActiveOfflineSession } from '@/lib/client/offline'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -73,6 +74,11 @@ export function ActorSwitcher({
       const didSwitch = await switchActor({ actorId })
 
       if (didSwitch) {
+        try {
+          await setActiveOfflineSession({ actorId })
+        } catch {
+          // safe ignore
+        }
         // Use hard navigation to ensure full page reload with new actor
         window.location.reload()
       } else {

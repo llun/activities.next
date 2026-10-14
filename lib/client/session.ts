@@ -12,16 +12,19 @@ import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
  * extends the database row AND re-issues the cookie in the same response.
  *
  * Resolves whether or not anyone is signed in; it never throws, because a
- * failed refresh only means the next attempt tries again.
+ * failed refresh only means the next attempt tries again. Returns true if
+ * the request succeeded with a 2xx response, false otherwise.
  */
-export const refreshAuthSession = async (): Promise<void> => {
+export const refreshAuthSession = async (): Promise<boolean> => {
   try {
-    await fetch(`${AUTH_BASE_PATH}/get-session`, {
+    const response = await fetch(`${AUTH_BASE_PATH}/get-session`, {
       method: 'GET',
       credentials: 'include',
       cache: 'no-store'
     })
+    return response.ok
   } catch {
     // Offline or a transient network failure: nothing to recover here.
+    return false
   }
 }

@@ -201,4 +201,14 @@ describe('MobileNav', () => {
     const profileLink = screen.getByRole('link', { name: /Alice/ })
     expect(profileLink).toHaveAttribute('href', '/@alice@example.com')
   })
+
+  it('marks Timeline as active in drawer when pathname is /app', () => {
+    mockPathname.mockReturnValue('/app')
+    renderMobileNav(<MobileNav />)
+
+    fireEvent.click(screen.getByTestId('mobile-trigger'))
+
+    const timelineLink = screen.getByRole('link', { name: 'Timeline' })
+    expect(timelineLink).toHaveAttribute('aria-current', 'page')
+  })
 })

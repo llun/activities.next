@@ -909,3 +909,41 @@ export const getFavourites = async ({
     prevMinFavouriteId: data.prevMinFavouriteId ?? null
   }
 }
+
+export interface ReconcileStatusesParams {
+  statusIds: string[]
+  signal?: AbortSignal
+}
+
+export interface ReconcileStatusesResult {
+  statuses: Status[]
+  removedStatusIds: string[]
+}
+
+export async function reconcileCachedStatuses({
+  statusIds,
+  signal
+}: ReconcileStatusesParams): Promise<ReconcileStatusesResult> {
+  if (statusIds.length === 0) {
+    return { statuses: [], removedStatusIds: [] }
+  }
+
+  const response = await fetch('/api/v1/statuses/reconcile', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ statusIds: statusIds.slice(0, 80) }),
+    signal
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to reconcile statuses')
+  }
+
+  const data = (await response.json()) as Partial<ReconcileStatusesResult>
+  return {
+    statuses: data.statuses ?? [],
+    removedStatusIds: data.removedStatusIds ?? []
+  }
+}

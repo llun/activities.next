@@ -18,6 +18,7 @@ import {
   getTranslationLanguages,
   likeStatus,
   reactToStatus,
+  reconcileCachedStatuses,
   repostStatus,
   resetTranslationCapabilityForTesting,
   resetTranslationLanguagesForTesting,
@@ -1229,6 +1230,70 @@ describe('client statuses module', () => {
         nextMaxFavouriteId: null,
         prevMinFavouriteId: null
       })
+    })
+  })
+
+  describe('reconcileCachedStatuses', () => {
+    it('returns empty result immediately without fetching when statusIds is empty', async () => {
+      const res = await reconcileCachedStatuses({ statusIds: [] })
+
+      expect(res).toEqual({ statuses: [], removedStatusIds: [] })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('posts to /api/v1/statuses/reconcile with statusIds capped at 80', async () => {
+      const statusIds = Array.from({ length: 100 }, (_, i) => `status-${i}`)
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-0' }],
+          removedStatusIds: ['status-1']
+        }),
+        { status: 200 }
+      )
+
+      const res = await reconcileCachedStatuses({ statusIds })
+
+      expect(res).toEqual({
+        statuses: [{ id: 'status-0' }],
+        removedStatusIds: ['status-1']
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/reconcile',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ statusIds: statusIds.slice(0, 80) })
+        })
+      )
+    })
+
+    it('forwards signal to fetch', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ statuses: [], removedStatusIds: [] }),
+        { status: 200 }
+      )
+
+      const controller = new AbortController()
+      await reconcileCachedStatuses({
+        statusIds: ['status-1'],
+        signal: controller.signal
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/reconcile',
+        expect.objectContaining({ signal: controller.signal })
+      )
+    })
+
+    it('throws when response is not ok', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Reconciliation failed' }),
+        { status: 500 }
+      )
+
+      await expect(
+        reconcileCachedStatuses({ statusIds: ['status-1'] })
+      ).rejects.toThrow('Reconciliation failed')
     })
   })
 })

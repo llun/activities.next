@@ -204,8 +204,12 @@ export function Sidebar({
     [shown]
   )
 
-  const isItemActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/')
+  const isItemActive = (href: string) => {
+    if (href === '/') {
+      return pathname === '/' || pathname === '/app'
+    }
+    return pathname === href || pathname.startsWith(href + '/')
+  }
 
   const isListsSectionActive =
     pathname === '/lists' || pathname.startsWith('/lists/')

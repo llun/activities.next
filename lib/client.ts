@@ -7,6 +7,7 @@
 export * from './client/accountPreferences'
 export * from './client/accounts'
 export * from './client/accountSettings'
+export * from './client/bootstrap'
 
 // --- Admin ---
 export * from './client/adminAccounts'
@@ -53,6 +54,9 @@ export * from './client/fitnessImports'
 export * from './client/fitnessRoutes'
 export * from './client/strava'
 export * from './client/wahoo'
+
+// --- Offline & Sync ---
+export * from './client/offline'
 
 // --- HTTP & Base Utilities ---
 export * from './client/http'
