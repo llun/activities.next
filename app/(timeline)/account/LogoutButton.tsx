@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { clearAllOfflineData } from '@/lib/client/offline'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
@@ -18,8 +19,13 @@ export const LogoutButton = ({
 }) => {
   const [error, setError] = useState<string>()
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     setError(undefined)
+    try {
+      await clearAllOfflineData()
+    } catch {
+      // safe fallback
+    }
     authClient.signOut({
       fetchOptions: {
         onSuccess: () => {

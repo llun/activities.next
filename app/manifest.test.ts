@@ -7,6 +7,8 @@ import manifest from './manifest'
 describe('manifest', () => {
   it('exports versioned app icons to invalidate caches', () => {
     const m = manifest()
+    expect(m.start_url).toBe('/app')
+    expect(m.scope).toBe('/')
     const v = encodeURIComponent(VERSION)
     expect(m.icons).toEqual([
       {

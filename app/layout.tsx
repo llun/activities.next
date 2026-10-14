@@ -2,6 +2,7 @@ import { SpanStatusCode, trace } from '@opentelemetry/api'
 import type { Metadata, Viewport } from 'next'
 
 import { InAppHistoryTracker } from '@/lib/components/navigation-history/InAppHistoryTracker'
+import { ServiceWorkerRegistration } from '@/lib/components/offline/ServiceWorkerRegistration'
 import { ThemeProvider } from '@/lib/components/theme'
 import { THEME_INIT_SCRIPT } from '@/lib/components/theme/theme-core'
 import { withVersion } from '@/lib/utils/version'
@@ -59,6 +60,7 @@ export default function RootLayout({
           {/* Lets a history-based Back tell an in-app return from a direct
               entry; spans every route group, renders nothing. */}
           <InAppHistoryTracker />
+          <ServiceWorkerRegistration />
           {children}
         </ThemeProvider>
       </body>

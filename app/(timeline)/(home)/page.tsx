@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 
 import { MainPageTimeline } from '@/app/(timeline)/MainPageTimeline'
 import { Landing } from '@/app/(timeline)/landing/Landing'
+import { OfflineCacheSeeder } from '@/lib/components/offline/OfflineCacheSeeder'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -127,17 +128,26 @@ const Page = async ({ searchParams }: PageProps = {}) => {
     statuses
   })
   return (
-    <MainPageTimeline
-      host={host}
-      currentTime={Date.now()}
-      statuses={statuses.map((item) => cleanJson(item))}
-      timelineContext={cleanJson(timelineContext)}
-      initialNextMaxStatusId={nextMaxStatusId}
-      profile={getActorProfile(actor)}
-      isMediaUploadEnabled={Boolean(mediaStorage)}
-      initialMedia={initialMedia}
-      postLineLimit={settings?.postLineLimit}
-    />
+    <>
+      <OfflineCacheSeeder
+        actorId={actor.id}
+        accountId={actor.account?.id}
+        initialStatuses={statuses.map((item) => cleanJson(item))}
+        initialTimelineContext={cleanJson(timelineContext)}
+        initialNextMaxStatusId={nextMaxStatusId}
+      />
+      <MainPageTimeline
+        host={host}
+        currentTime={Date.now()}
+        statuses={statuses.map((item) => cleanJson(item))}
+        timelineContext={cleanJson(timelineContext)}
+        initialNextMaxStatusId={nextMaxStatusId}
+        profile={getActorProfile(actor)}
+        isMediaUploadEnabled={Boolean(mediaStorage)}
+        initialMedia={initialMedia}
+        postLineLimit={settings?.postLineLimit}
+      />
+    </>
   )
 }
 

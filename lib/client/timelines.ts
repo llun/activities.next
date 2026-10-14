@@ -2,6 +2,21 @@ import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
 import type { TimelineContext } from '@/lib/types/domain/timeline'
+import { isAbortError } from '@/lib/utils/isAbortError'
+
+import { parseApiError } from './http'
+
+export class TimelineRequestError extends Error {
+  readonly status?: number
+  readonly isUnauthorized: boolean
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'TimelineRequestError'
+    this.status = status
+    this.isUnauthorized = status === 401 || status === 403
+  }
+}
 
 export interface GetTimelineParams {
   timeline: Timeline
@@ -10,6 +25,7 @@ export interface GetTimelineParams {
   maxStatusId?: string
   limit?: number
   includeContext?: boolean
+  signal?: AbortSignal
 }
 
 export interface GetTimelineResult {
@@ -27,7 +43,8 @@ const getTimelinePage = async ({
   prevMinStatusId,
   maxStatusId,
   limit,
-  includeContext
+  includeContext,
+  signal
 }: GetTimelineParams): Promise<GetTimelineResult> => {
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
@@ -41,20 +58,33 @@ const getTimelinePage = async ({
   if (limit) {
     url.searchParams.append('limit', `${limit}`)
   }
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
+
+  let response: Response
+  try {
+    response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      },
+      signal
+    })
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error
     }
-  })
-  if (response.status !== 200) {
-    return {
-      statuses: [],
-      ...(includeContext ? { context: { ancestorsById: {} } } : {}),
-      nextMaxStatusId: null,
-      prevMinStatusId: null
+    if (error instanceof TimelineRequestError) {
+      throw error
     }
+    const message =
+      error instanceof Error ? error.message : 'Failed to fetch timeline'
+    throw new TimelineRequestError(message)
   }
+
+  if (!response.ok) {
+    const message = await parseApiError(response, 'Failed to fetch timeline')
+    throw new TimelineRequestError(message, response.status)
+  }
+
   const data = await response.json()
   return {
     statuses: data.statuses as Status[],
@@ -74,7 +104,8 @@ export const getTimeline = async ({
   prevMinStatusId,
   maxStatusId,
   limit,
-  includeContext
+  includeContext,
+  signal
 }: GetTimelineParams): Promise<GetTimelineResult> => {
   let result = await getTimelinePage({
     timeline,
@@ -82,7 +113,8 @@ export const getTimeline = async ({
     prevMinStatusId,
     maxStatusId,
     limit,
-    includeContext
+    includeContext,
+    signal
   })
   let currentMaxStatusId = result.nextMaxStatusId
   let continuations = 0
@@ -99,7 +131,8 @@ export const getTimeline = async ({
       prevMinStatusId,
       maxStatusId: currentMaxStatusId,
       limit,
-      includeContext
+      includeContext,
+      signal
     })
     currentMaxStatusId = result.nextMaxStatusId
   }
@@ -110,6 +143,7 @@ export const getTimeline = async ({
 export interface GetHashtagTimelineParams {
   tag: string
   maxStatusId?: string
+  signal?: AbortSignal
 }
 
 export interface GetHashtagTimelineResult {
@@ -119,7 +153,8 @@ export interface GetHashtagTimelineResult {
 
 const getHashtagTimelinePage = async ({
   tag,
-  maxStatusId
+  maxStatusId,
+  signal
 }: GetHashtagTimelineParams): Promise<GetHashtagTimelineResult> => {
   const path = `/api/v1/tags/${encodeURIComponent(tag)}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
@@ -130,7 +165,8 @@ const getHashtagTimelinePage = async ({
     method: 'GET',
     headers: {
       Accept: 'application/json'
-    }
+    },
+    signal
   })
   if (response.status !== 200) {
     return { statuses: [], nextMaxStatusId: null }
@@ -144,9 +180,10 @@ const getHashtagTimelinePage = async ({
 
 export const getHashtagTimeline = async ({
   tag,
-  maxStatusId
+  maxStatusId,
+  signal
 }: GetHashtagTimelineParams): Promise<GetHashtagTimelineResult> => {
-  let result = await getHashtagTimelinePage({ tag, maxStatusId })
+  let result = await getHashtagTimelinePage({ tag, maxStatusId, signal })
   let currentMaxStatusId = result.nextMaxStatusId
   let continuations = 0
 
@@ -158,7 +195,8 @@ export const getHashtagTimeline = async ({
     continuations++
     result = await getHashtagTimelinePage({
       tag,
-      maxStatusId: currentMaxStatusId
+      maxStatusId: currentMaxStatusId,
+      signal
     })
     currentMaxStatusId = result.nextMaxStatusId
   }
@@ -171,6 +209,7 @@ export interface GetListTimelineParams {
   minStatusId?: string
   maxStatusId?: string
   limit?: number
+  signal?: AbortSignal
 }
 
 // The list timeline does no server-side content filtering, so an empty page
@@ -181,7 +220,8 @@ export const getListTimeline = async ({
   listId,
   minStatusId,
   maxStatusId,
-  limit
+  limit,
+  signal
 }: GetListTimelineParams): Promise<GetTimelineResult> => {
   const url = new URL(
     `${window.origin}/api/v1/timelines/list/${encodeURIComponent(
@@ -194,7 +234,8 @@ export const getListTimeline = async ({
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: { Accept: 'application/json' }
+    headers: { Accept: 'application/json' },
+    signal
   })
   if (response.status !== 200) {
     return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
@@ -212,6 +253,7 @@ export interface GetCollectionTimelineParams {
   minStatusId?: string
   maxStatusId?: string
   limit?: number
+  signal?: AbortSignal
 }
 
 // The owner's private collection feed (every member, owner visibility). Mirrors
@@ -220,7 +262,8 @@ export const getCollectionTimeline = async ({
   collectionId,
   minStatusId,
   maxStatusId,
-  limit
+  limit,
+  signal
 }: GetCollectionTimelineParams): Promise<GetTimelineResult> => {
   const url = new URL(
     `${window.origin}/api/v1/timelines/collection/${encodeURIComponent(
@@ -233,7 +276,8 @@ export const getCollectionTimeline = async ({
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: { Accept: 'application/json' }
+    headers: { Accept: 'application/json' },
+    signal
   })
   if (response.status !== 200) {
     return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
@@ -254,7 +298,8 @@ export const getCollectionFeed = async ({
   collectionId,
   minStatusId,
   maxStatusId,
-  limit
+  limit,
+  signal
 }: GetCollectionTimelineParams): Promise<GetTimelineResult> => {
   const url = new URL(
     `${window.origin}/api/v1/collections/${encodeURIComponent(
@@ -267,7 +312,8 @@ export const getCollectionFeed = async ({
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: { Accept: 'application/json' }
+    headers: { Accept: 'application/json' },
+    signal
   })
   if (response.status !== 200) {
     return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }

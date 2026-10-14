@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
+import { setActiveOfflineSession } from '@/lib/client/offline'
 
 import { ActorSwitcher } from './ActorSwitcher'
 
@@ -36,6 +37,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/client', () => ({
   switchActor: vi.fn(),
   cancelActorDeletion: vi.fn()
+}))
+
+vi.mock('@/lib/client/offline', () => ({
+  setActiveOfflineSession: vi.fn().mockResolvedValue(undefined)
 }))
 
 const mockAddActorDialog = vi.fn()
@@ -159,6 +164,10 @@ describe('ActorSwitcher', () => {
 
       expect(switchActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
       await waitFor(() => {
+        expect(setActiveOfflineSession).toHaveBeenCalledWith({
+          accountId: '',
+          actorId: 'actor-2'
+        })
         expect(window.location.reload).toHaveBeenCalled()
       })
     })

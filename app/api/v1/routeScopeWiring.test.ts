@@ -203,6 +203,10 @@ const EXPECTED: Array<{
     scopes: ['profile', 'read', 'read:accounts']
   },
   {
+    module: '@/app/api/v1/accounts/bootstrap/route',
+    scopes: ['read', 'read:accounts']
+  },
+  {
     module: '@/app/api/v1/follow_requests/count/route',
     scopes: ['read'],
     guard: 'OAuthGuard'
@@ -316,6 +320,10 @@ const EXPECTED: Array<{
     module: '@/app/api/v1/statuses/[id]/retry-fitness/route',
     scopes: ['write'],
     guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/statuses/reconcile/route',
+    scopes: ['read', 'read:statuses']
   },
   // scheduled statuses
   {
