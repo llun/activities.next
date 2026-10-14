@@ -76,8 +76,8 @@ export interface RestoreArgs {
 
 /**
  * The database the archive exports or restores: Kysely on a connection that
- * hands rows back as they are stored (`openArchiveDatabase`), or a transaction
- * on it, and the configuration it was opened with.
+ * does not normalise results (`openArchiveDatabase`), or a transaction on it,
+ * and the configuration it was opened with.
  */
 export interface ArchiveDatabase {
   config: DatabaseConfig
@@ -2205,18 +2205,100 @@ const resetPostgresSequences = async (
   }
 }
 
-// SQLite's full-text search tables (`search_documents_fts`, an FTS5 table, and
-// the shadow tables that hold its index). SQLite refuses writes to the shadow
-// tables, and the FTS5 table indexes `search_documents` through that table's
-// triggers, so the restore writes neither: restoring `search_documents`
-// rebuilds the index. The export still includes them.
-const getSqliteFullTextTableNames = async (database: ArchiveDatabase) => {
-  if (getClientName(database) !== 'better-sqlite3') return new Set<string>()
-  const { rows } = await sql<{ name: string }>`
-    select name from pragma_table_list
+// SQLite's full-text search tables: an external-content FTS5 table
+// (`search_documents_fts`, which indexes `search_documents`) and the shadow
+// tables that hold its index (`_data`, `_idx`, `_docsize`, `_config`). SQLite
+// refuses writes to the shadow tables, and the index can be rebuilt from its
+// content table, so the restore writes none of them and rebuilds the index
+// once the content table is restored. The export still includes them. Any
+// other virtual or shadow table (a contentless or self-contained FTS5 table,
+// an rtree, ...) holds data that could not be rebuilt, so it is refused rather
+// than skipped.
+type SqliteFullTextTables = {
+  /** The FTS5 tables and their shadow tables, which the restore skips. */
+  skipped: Set<string>
+  /** Each FTS5 table with the content table it indexes. */
+  indexes: { name: string; contentTable: string }[]
+}
+
+// The `content` option of a `create virtual table … using fts5(…)`, unquoted;
+// null when it has none (a self-contained table) and '' when it is contentless.
+const getFts5ContentTable = (createSql: string) => {
+  const option =
+    /[(,]\s*content\s*=\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|[^\s,)]+)/i.exec(
+      createSql
+    )?.[1]
+  if (option === undefined) return null
+  if (option.startsWith("'") || option.startsWith('"')) {
+    const quote = option[0]
+    return option.slice(1, -1).replaceAll(`${quote}${quote}`, quote)
+  }
+  return option
+}
+
+const getSqliteFullTextTables = async (
+  database: ArchiveDatabase,
+  archivedTables: string[]
+): Promise<SqliteFullTextTables> => {
+  const result: SqliteFullTextTables = { skipped: new Set(), indexes: [] }
+  if (getClientName(database) !== 'better-sqlite3') return result
+
+  const { rows: special } = await sql<{ name: string; type: string }>`
+    select name, type from pragma_table_list
     where schema = 'main' and type in ('virtual', 'shadow')
   `.execute(database.db)
-  return new Set(rows.map((row) => row.name))
+  const { rows: virtualTables } = await sql<{ name: string; sql: string }>`
+    select name, sql from sqlite_master
+    where type = 'table' and sql like 'create virtual table%'
+  `.execute(database.db)
+
+  for (const table of virtualTables) {
+    if (!/\busing\s+fts5\s*\(/i.test(table.sql)) continue
+    const contentTable = getFts5ContentTable(table.sql)
+    if (!contentTable) continue
+    result.indexes.push({ name: table.name, contentTable })
+    result.skipped.add(table.name)
+    for (const shadow of special) {
+      if (
+        shadow.type === 'shadow' &&
+        shadow.name.startsWith(`${table.name}_`)
+      ) {
+        result.skipped.add(shadow.name)
+      }
+    }
+  }
+
+  const archived = new Set(archivedTables)
+  const refused = special
+    .map((table) => table.name)
+    .filter((name) => archived.has(name) && !result.skipped.has(name))
+  if (refused.length > 0) {
+    throw new Error(
+      `Cannot restore SQLite virtual or shadow table(s) ${refused.join(', ')}: ` +
+        'only external-content FTS5 tables, which are rebuilt from the table ' +
+        'they index, can be restored.'
+    )
+  }
+  return result
+}
+
+// Rebuilds each full-text index from its restored content table. The content
+// table's triggers already index the rows as they are inserted; the rebuild
+// also drops whatever the index held that the content table does not (an
+// index that had drifted before the restore).
+const rebuildSqliteFullTextIndexes = async (
+  database: ArchiveDatabase,
+  fullText: SqliteFullTextTables,
+  restoredTables: string[]
+) => {
+  const restored = new Set(restoredTables)
+  for (const { name, contentTable } of fullText.indexes) {
+    if (!restored.has(contentTable)) continue
+    await sql`
+      insert into ${sql.id(name)} (${sql.id(name)}) values ('rebuild')
+    `.execute(database.db)
+    console.log(`Database: rebuilt ${name} from ${contentTable}`)
+  }
 }
 
 export const restoreDatabase = async (
@@ -2242,15 +2324,15 @@ export const restoreDatabase = async (
 
   await assertArchiveTableFilesReadable(archiveDir, manifest.database.tables)
 
-  const fullTextTables = await getSqliteFullTextTableNames(database)
+  const fullText = await getSqliteFullTextTables(database, tableNames)
   const restoredTables = tableNames.filter(
-    (table) => !fullTextTables.has(table)
+    (table) => !fullText.skipped.has(table)
   )
   for (const tableName of tableNames) {
-    if (!fullTextTables.has(tableName)) continue
+    if (!fullText.skipped.has(tableName)) continue
     console.log(
-      `Database: skipped ${tableName}; SQLite rebuilds full-text indexes ` +
-        'from the tables they index'
+      `Database: skipped ${tableName}; the full-text index is rebuilt from ` +
+        'the table it indexes'
     )
   }
 
@@ -2269,6 +2351,7 @@ export const restoreDatabase = async (
     console.log(`Database: restored ${rowCount} row(s) into ${tableName}`)
   }
 
+  await rebuildSqliteFullTextIndexes(database, fullText, restoredTables)
   await resetPostgresSequences(database, tableNames)
 }
 
@@ -2457,8 +2540,10 @@ const restoreStorage = async (
 
 /**
  * Opens the connection the archive runs on: the app's connection code, with
- * results left as the database returns them (no normalisation), so rows are
- * exported, and restored, as they are stored.
+ * results not normalised (`normalizeResults: false`): SQLite's stored values,
+ * and on PostgreSQL node-postgres's own types with dates and timestamps as
+ * the server's text, so rows are exported and restored without losing a
+ * timestamp's microseconds or moving a `date` with the process's zone.
  */
 export const openArchiveDatabase = (config: DatabaseConfig) => {
   const { db, destroy } = openScriptDatabase(config, {
