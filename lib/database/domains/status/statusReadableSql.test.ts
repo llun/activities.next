@@ -179,10 +179,10 @@ describe('StatusDatabase readable status SQL', () => {
     })
 
     it('resolves a boost through originalStatusId when content disagrees', async () => {
-      // `20260517000000_add_status_original_status_id.js` backfills
-      // `originalStatusId` by JSON-parsing `content` and writing out the `.url`
-      // or `.id` it finds, leaving `content` holding the raw body. Migrated rows
-      // therefore carry two different non-null strings and only
+      // The `20260517000000_add_status_original_status_id` migration
+      // backfilled `originalStatusId` by JSON-parsing `content` and writing out
+      // the `.url` or `.id` it found, leaving `content` holding the raw body.
+      // Migrated rows therefore carry two different non-null strings and only
       // `originalStatusId` names the boosted status — which is why the pointer
       // is `COALESCE("originalStatusId", content)` and not the other way round.
       // `createAnnounce` always writes the two identically, so only a

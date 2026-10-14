@@ -165,9 +165,9 @@ describe('publicly readable status predicates', () => {
       { isPublic: true }
     )
 
-    // Legacy shape: before `20260517000000_add_status_original_status_id.js`
-    // the boosted id lived only in `content`. `COALESCE` is what still reads
-    // it, and no writer produces this row today.
+    // Legacy shape: before the `20260517000000_add_status_original_status_id`
+    // migration the boosted id lived only in `content`. `COALESCE` is what
+    // still reads it, and no writer produces this row today.
     ids.legacyBoost = await announce('legacy-boost', ids.publicNote, {
       isPublic: true
     })
