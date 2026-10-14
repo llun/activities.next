@@ -3827,7 +3827,7 @@ __metadata:
     eld: "npm:^2.1.0"
     exifr: "npm:^7.1.3"
     fast-xml-parser: "npm:^5.11.2"
-    fit-file-parser: "npm:^6.2.1"
+    fit-file-parser: "npm:^6.2.2"
     got: "npm:^16.0.0"
     html-react-parser: "npm:^6.1.8"
     htmlparser2: "npm:^12.0.0"
@@ -4925,12 +4925,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fit-file-parser@npm:^6.2.1":
-  version: 6.2.1
-  resolution: "fit-file-parser@npm:6.2.1"
+"fit-file-parser@npm:^6.2.2":
+  version: 6.2.2
+  resolution: "fit-file-parser@npm:6.2.2"
   dependencies:
     buffer: "npm:^6.0.3"
-  checksum: 10c0/01fb799f577421676f44550ae30b69285c48723a25a5d8b4f755b1a0b5056a09217c327eb01e2c03632965accceadfce10aa297743c595acca9937594bf73bf3
+  checksum: 10c0/d0d5b9c18c4ff1efb018edfc31de07db08a783664e47f5f49a32a6072847a43c7de22a4b244b78ab6793499180efd7b1a7f3d623c8fc0ad675ed99b1347c6ef5
   languageName: node
   linkType: hard
 
