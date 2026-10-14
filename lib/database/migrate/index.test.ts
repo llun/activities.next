@@ -17,6 +17,7 @@ import {
   MigrationRunError,
   getAppliedMigrationNames,
   getKnownMigrationNames,
+  getMigrationLockState,
   getMigrationStatus,
   migrateDown,
   migrateToLatest,
@@ -159,6 +160,11 @@ const countRows = async (db: Kysely<DB>, table: string) => {
   `.execute(db)
   return Number(rows[0].count)
 }
+
+// Statements that write: the ones a run refused by the SQLite lock must not
+// send.
+const isWrite = (statement: string) =>
+  /^\s*(insert|update|delete|create|drop|alter|replace)\b/i.test(statement)
 
 const readLockRows = async (db: Kysely<DB>) => {
   const { rows } = await sql<{ id: string; is_locked: number }>`
@@ -688,7 +694,9 @@ describe('lib/database/migrate', () => {
           expect(await readLockRows(connection.db)).toEqual([
             { id: 'migration_lock', is_locked: 0 }
           ])
+          // It connects, and writes nothing.
           expect(await unlockMigrations(target)).toBe('advisory')
+          expect(statements.at(-1)?.trim()).toBe('select 1')
         } finally {
           for (const stop of stops) stop()
           await other.destroy()
@@ -722,9 +730,21 @@ describe('lib/database/migrate', () => {
         try {
           first = migrateToLatest(target, registry)
           await inside
-          await expect(
-            migrateToLatest({ db: other.db, config }, registry)
-          ).rejects.toThrow(MIGRATION_LOCKED_MESSAGE)
+          // Refused after reading the lock row, without a write, so it never
+          // takes SQLite's write lock while the first run is migrating.
+          const refusedStatements: string[] = []
+          const stop = other.onQuery(({ sql: statement }) => {
+            refusedStatements.push(statement)
+          })
+          try {
+            await expect(
+              migrateToLatest({ db: other.db, config }, registry)
+            ).rejects.toThrow(MIGRATION_LOCKED_MESSAGE)
+          } finally {
+            stop()
+          }
+          expect(refusedStatements.length).toBeGreaterThan(0)
+          expect(refusedStatements.filter(isWrite)).toEqual([])
           release()
           expect(await first).toEqual([
             BASELINE_MIGRATION,
@@ -761,21 +781,91 @@ describe('lib/database/migrate', () => {
       'keeps the lock a killed run left until it is unlocked',
       async () => {
         expect(await unlockMigrations(target)).toBe('not-held')
+        expect(await getMigrationLockState(target)).toBe('free')
         await migrateToLatest(target)
+        expect(await getMigrationLockState(target)).toBe('free')
         // What a run killed while it held the lock leaves behind.
         await sql`
           update kysely_migration_lock set is_locked = 1
         `.execute(connection.db)
+        expect(await getMigrationLockState(target)).toBe('held')
 
-        await expect(migrateToLatest(target)).rejects.toThrow(
-          MIGRATION_LOCKED_MESSAGE
-        )
+        const statements: string[] = []
+        const stop = connection.onQuery(({ sql: statement }) => {
+          statements.push(statement)
+        })
+        try {
+          await expect(migrateToLatest(target)).rejects.toThrow(
+            MIGRATION_LOCKED_MESSAGE
+          )
+        } finally {
+          stop()
+        }
+        // Refused without a write.
+        expect(statements.filter(isWrite)).toEqual([])
         expect(await unlockMigrations(target)).toBe('released')
         expect(await readLockRows(connection.db)).toEqual([
           { id: 'migration_lock', is_locked: 0 }
         ])
         expect(await unlockMigrations(target)).toBe('not-held')
         expect(await migrateToLatest(target)).toEqual([])
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
+      'keeps the migration error when the lock cannot be released, and says to unlock',
+      async () => {
+        // Without its table the release fails, as a release that times out
+        // on a busy file would.
+        const failing: MigrationRegistry = {
+          '20300101000000_drop_and_fail': {
+            up: async (db) => {
+              await sql`drop table kysely_migration_lock`.execute(db)
+              throw new Error('boom')
+            },
+            config: { transaction: false }
+          }
+        }
+        const failure = await migrateToLatest(target, failing).catch(
+          (error: unknown) => error
+        )
+        expect(failure).toBeInstanceOf(MigrationRunError)
+        const message = (failure as Error).message
+        expect(message).toMatch(
+          /^Migration 20300101000000_drop_and_fail failed: boom\n/
+        )
+        expect(message).toContain(
+          'The migration lock (kysely_migration_lock) could not be released: ' +
+            'no such table: kysely_migration_lock.'
+        )
+        expect(message).toContain('run `yarn migrate:unlock`')
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
+      'fails a run whose lock cannot be released after it applied, and says to unlock',
+      async () => {
+        const registry: MigrationRegistry = {
+          '20300101000000_drop_lock_table': {
+            up: async (db) => {
+              await sql`drop table kysely_migration_lock`.execute(db)
+            },
+            config: { transaction: false }
+          }
+        }
+        const failure = await migrateToLatest(target, registry).catch(
+          (error: unknown) => error
+        )
+        expect(failure).toBeInstanceOf(Error)
+        expect((failure as Error).message).toBe(
+          'The migrations ran, but the lock stays held. The migration lock ' +
+            '(kysely_migration_lock) could not be released: no such table: ' +
+            'kysely_migration_lock. If no run is going on, run ' +
+            '`yarn migrate:unlock`.'
+        )
+        expect(await getAppliedMigrationNames(target)).toEqual([
+          '20300101000000_drop_lock_table'
+        ])
       }
     )
   })

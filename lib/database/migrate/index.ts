@@ -132,6 +132,36 @@ export const MIGRATION_LOCKED_MESSAGE =
   '`yarn migrate:down` is running on this database, or one was interrupted. ' +
   'If none is running, run `yarn migrate:unlock`, then run this again.'
 
+// The lock row's state, read without writing: `missing` until the first run
+// on this database creates it.
+const readSqliteLock = async (
+  db: Kysely<DB>
+): Promise<'missing' | 'held' | 'free'> => {
+  if (!(await tableExists(db, MIGRATION_LOCK_TABLE))) return 'missing'
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const row = await (db as unknown as Kysely<any>)
+    .selectFrom(MIGRATION_LOCK_TABLE)
+    .select('is_locked')
+    .where('id', '=', MIGRATION_LOCK_ROW)
+    .executeTakeFirst()
+  if (!row) return 'missing'
+  return Number(row.is_locked) !== 0 ? 'held' : 'free'
+}
+
+// oxlint-disable-next-line typescript/no-explicit-any
+const releaseSqliteLock = async (db: Kysely<any>) => {
+  await db
+    .updateTable(MIGRATION_LOCK_TABLE)
+    .set({ is_locked: 0 })
+    .where('id', '=', MIGRATION_LOCK_ROW)
+    .execute()
+}
+
+const lockReleaseHint = (releaseError: unknown) =>
+  'The migration lock (kysely_migration_lock) could not be released: ' +
+  `${releaseError instanceof Error ? releaseError.message : String(releaseError)}. ` +
+  'If no run is going on, run `yarn migrate:unlock`.'
+
 const withSqliteRunLock = async <T>(
   db: Kysely<DB>,
   run: () => Promise<T>
@@ -139,26 +169,36 @@ const withSqliteRunLock = async <T>(
   if (getMigrationBackend(db) !== 'sqlite') return run()
   // oxlint-disable-next-line typescript/no-explicit-any
   const anyDb = db as unknown as Kysely<any>
-  // The Migrator's two tables with its own DDL, in its order, so the schema
-  // (and the dumps) are what it would have created; it then finds them.
-  await anyDb.schema
-    .createTable('kysely_migration')
-    .ifNotExists()
-    .addColumn('name', 'varchar(255)', (col) => col.notNull().primaryKey())
-    .addColumn('timestamp', 'varchar(255)', (col) => col.notNull())
-    .execute()
-  await anyDb.schema
-    .createTable(MIGRATION_LOCK_TABLE)
-    .ifNotExists()
-    .addColumn('id', 'varchar(255)', (col) => col.notNull().primaryKey())
-    .addColumn('is_locked', 'integer', (col) => col.notNull().defaultTo(0))
-    .execute()
-  await anyDb
-    .insertInto(MIGRATION_LOCK_TABLE)
-    .values({ id: MIGRATION_LOCK_ROW, is_locked: 0 })
-    .onConflict((conflict) => conflict.column('id').doNothing())
-    .execute()
-  // One statement, so SQLite's write lock makes it atomic across processes.
+  // Read first: a run that finds the lock held is refused without writing,
+  // so it cannot take SQLite's write lock while the holder is migrating
+  // (which would make the holder's next write fail with `database is
+  // locked`).
+  const lock = await readSqliteLock(db)
+  if (lock === 'held') throw new Error(MIGRATION_LOCKED_MESSAGE)
+  if (lock === 'missing') {
+    // The Migrator's two tables with its own DDL, in its order, so the
+    // schema (and the dumps) are what it would have created; it then finds
+    // them.
+    await anyDb.schema
+      .createTable('kysely_migration')
+      .ifNotExists()
+      .addColumn('name', 'varchar(255)', (col) => col.notNull().primaryKey())
+      .addColumn('timestamp', 'varchar(255)', (col) => col.notNull())
+      .execute()
+    await anyDb.schema
+      .createTable(MIGRATION_LOCK_TABLE)
+      .ifNotExists()
+      .addColumn('id', 'varchar(255)', (col) => col.notNull().primaryKey())
+      .addColumn('is_locked', 'integer', (col) => col.notNull().defaultTo(0))
+      .execute()
+    await anyDb
+      .insertInto(MIGRATION_LOCK_TABLE)
+      .values({ id: MIGRATION_LOCK_ROW, is_locked: 0 })
+      .onConflict((conflict) => conflict.column('id').doNothing())
+      .execute()
+  }
+  // One statement, so SQLite's write lock makes it atomic across processes:
+  // of two runs that both read it free, one sets it and the other is refused.
   const { numUpdatedRows } = await anyDb
     .updateTable(MIGRATION_LOCK_TABLE)
     .set({ is_locked: 1 })
@@ -166,15 +206,43 @@ const withSqliteRunLock = async <T>(
     .where('is_locked', '=', 0)
     .executeTakeFirst()
   if (Number(numUpdatedRows) !== 1) throw new Error(MIGRATION_LOCKED_MESSAGE)
+  let result: T
   try {
-    return await run()
-  } finally {
-    await anyDb
-      .updateTable(MIGRATION_LOCK_TABLE)
-      .set({ is_locked: 0 })
-      .where('id', '=', MIGRATION_LOCK_ROW)
-      .execute()
+    result = await run()
+  } catch (error) {
+    // The run's error is the one thrown; a failed release only adds to its
+    // message, since the lock then stays held.
+    try {
+      await releaseSqliteLock(anyDb)
+    } catch (releaseError) {
+      if (error instanceof Error) {
+        error.message = `${error.message}\n${lockReleaseHint(releaseError)}`
+      }
+    }
+    throw error
   }
+  try {
+    await releaseSqliteLock(anyDb)
+  } catch (releaseError) {
+    throw new Error(
+      `The migrations ran, but the lock stays held. ${lockReleaseHint(releaseError)}`,
+      { cause: releaseError }
+    )
+  }
+  return result
+}
+
+/**
+ * Whether a run holds the SQLite migration lock, read without writing, as
+ * `yarn migrate:status` reports it: `held` (so `yarn migrate` would be
+ * refused until it is released) or `free`. On PostgreSQL the lock is the
+ * Migrator's advisory lock (`advisory`), and nothing is read.
+ */
+export const getMigrationLockState = async ({
+  db
+}: MigrationTarget): Promise<'held' | 'free' | 'advisory'> => {
+  if (getMigrationBackend(db) !== 'sqlite') return 'advisory'
+  return (await readSqliteLock(db)) === 'held' ? 'held' : 'free'
 }
 
 /**
@@ -182,12 +250,16 @@ const withSqliteRunLock = async <T>(
  * `yarn migrate:unlock` does: `released` when it was held, `not-held`
  * otherwise. On PostgreSQL the lock is the Migrator's advisory lock, which
  * ends with the connection holding it, so there is nothing to release
- * (`advisory`) and nothing is written.
+ * (`advisory`): it only runs `select 1`, so a configuration that does not
+ * reach the database fails here instead of reporting nothing to release.
  */
 export const unlockMigrations = async ({
   db
 }: MigrationTarget): Promise<'released' | 'not-held' | 'advisory'> => {
-  if (getMigrationBackend(db) !== 'sqlite') return 'advisory'
+  if (getMigrationBackend(db) !== 'sqlite') {
+    await sql`select 1`.execute(db)
+    return 'advisory'
+  }
   if (!(await tableExists(db, MIGRATION_LOCK_TABLE))) return 'not-held'
   // oxlint-disable-next-line typescript/no-explicit-any
   const { numUpdatedRows } = await (db as unknown as Kysely<any>)

@@ -16,13 +16,16 @@
  *   the schema; an empty database gets the baseline schema; a database behind
  *   v1.192.34 is refused before anything is written. On SQLite a second run
  *   is refused while one holds the lock row in `kysely_migration_lock`.
- * - `status` lists the applied and pending migrations and the handover state.
- *   It only reads: it creates no table (and no SQLite file), so it can run
- *   against production before a deploy. Exits 1 when `latest` would refuse
- *   the database or it has migrations this checkout does not know.
+ * - `status` lists the applied and pending migrations and the handover state,
+ *   and on SQLite a held lock row. It only reads: it creates no table (and no
+ *   SQLite file), so it can run against production before a deploy. Exits 1
+ *   when `latest` would refuse the database (a held SQLite lock included) or
+ *   it has migrations this checkout does not know.
  * - `down` rolls back the last migration applied; never the baseline.
- * - `unlock` releases the SQLite lock row a killed run left held. PostgreSQL's
- *   lock is an advisory lock its connection releases: nothing to unlock.
+ * - `unlock` releases the SQLite lock row a killed run left held; it does not
+ *   create a missing SQLite file (exit 1). PostgreSQL's lock is an advisory
+ *   lock its connection releases: it only connects (`select 1`), so a wrong
+ *   configuration fails, and has nothing to unlock.
  * - `make <name>` writes `migrations/<yyyymmddhhmmss>_<name>.ts` from
  *   migrations/migration.stub. Register it in migrations/index.ts and its
  *   name in migrations/names.ts.
@@ -49,6 +52,7 @@ import {
   BASELINE_MIGRATION,
   type MigrationStatus,
   type MigrationTarget,
+  getMigrationLockState,
   getMigrationStatus,
   migrateDown,
   migrateToLatest,
@@ -140,6 +144,19 @@ export const readStatus = (target: MigrationTarget) =>
     target.config.client === 'pg' ? { accessMode: 'read only' } : {}
   )
 
+/** The line `yarn migrate:status` adds when the SQLite lock row is held. */
+export const LOCK_HELD_STATUS =
+  'Lock: held: kysely_migration_lock is locked, so `yarn migrate` would be ' +
+  'refused. Another run is going on, or one was interrupted; if none is ' +
+  'running, release it with `yarn migrate:unlock`.'
+
+// Whether `config` is a SQLite file that does not exist: opening it would
+// create it.
+const isMissingSqliteFile = (config: DatabaseConfig) =>
+  config.client === 'better-sqlite3' &&
+  config.connection.filename !== ':memory:' &&
+  !existsSync(config.connection.filename)
+
 const formatTimestamp = (date: Date) =>
   [
     date.getUTCFullYear(),
@@ -218,24 +235,32 @@ export const runMigrateCommand = async (args: string[]): Promise<number> => {
   console.log(`Database: ${client} — ${target}`)
 
   if (command === 'status') {
-    if (
-      config.client === 'better-sqlite3' &&
-      config.connection.filename !== ':memory:' &&
-      !existsSync(config.connection.filename)
-    ) {
-      // Opening it would create the file.
+    if (isMissingSqliteFile(config)) {
       console.log(
         'The database file does not exist yet: `yarn migrate` creates it ' +
           'and loads the baseline schema.'
       )
       return 0
     }
-    const status = await withDatabase(config, readStatus)
+    const { status, lock } = await withDatabase(config, async (target) => ({
+      status: await readStatus(target),
+      lock: await getMigrationLockState(target)
+    }))
     console.log(formatStatus(status))
-    return isBlockingStatus(status) ? 1 : 0
+    if (lock === 'held') console.log(LOCK_HELD_STATUS)
+    return isBlockingStatus(status) || lock === 'held' ? 1 : 0
   }
 
   if (command === 'unlock') {
+    if (isMissingSqliteFile(config)) {
+      // A lock row lives in the file, so a missing file holds none; most
+      // likely the file name is wrong.
+      console.log(
+        'The database file does not exist, so it holds no migration lock; ' +
+          'it was not created. Check the database settings above.'
+      )
+      return 1
+    }
     const result = await withDatabase(config, unlockMigrations)
     console.log(
       result === 'released'

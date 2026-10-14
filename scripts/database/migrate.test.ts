@@ -20,6 +20,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { describeConnection } from '../fitness/describeConnection'
 import {
+  LOCK_HELD_STATUS,
   getMigrationDatabaseConfig,
   makeMigration,
   readStatus,
@@ -407,6 +408,18 @@ describe('scripts/database/migrate', () => {
         await connection.destroy()
       }
 
+      // The status shows it, with the exit code `yarn migrate` gives, and
+      // writes nothing.
+      const before = await fs.readFile(filename)
+      const lockedStatus = await run(['status'])
+      expect(lockedStatus.exitCode).toBe(1)
+      expect(lockedStatus.output).toContain(
+        `Handover: recorded: ${BASELINE_MIGRATION} is applied.`
+      )
+      expect(lockedStatus.output).toContain(LOCK_HELD_STATUS)
+      expect(LOCK_HELD_STATUS).toContain('`yarn migrate:unlock`')
+      expect((await fs.readFile(filename)).equals(before)).toBe(true)
+
       vi.spyOn(console, 'log').mockImplementation(() => {})
       await expect(runMigrateCommand(['latest'])).rejects.toThrow(
         MIGRATION_LOCKED_MESSAGE
@@ -418,11 +431,62 @@ describe('scripts/database/migrate', () => {
       expect(unlocked.output).toContain(
         'Released the migration lock (kysely_migration_lock).'
       )
+      const unlockedStatus = await run(['status'])
+      expect(unlockedStatus.exitCode).toBe(0)
+      expect(unlockedStatus.output).not.toContain('Lock:')
       expect((await run(['latest'])).output).toContain('Already up to date.')
       expect((await run(['unlock'])).output).toContain(
         'The migration lock was not held; nothing to release.'
       )
     })
+
+    it('does not create a missing SQLite file to unlock it', async () => {
+      const filename = path.join(tempDir, 'mistyped.sqlite')
+      vi.stubEnv('ACTIVITIES_DATABASE_SQLITE_FILENAME', filename)
+
+      const unlocked = await run(['unlock'])
+      expect(unlocked.exitCode).toBe(1)
+      expect(unlocked.output).toContain(
+        'The database file does not exist, so it holds no migration lock; ' +
+          'it was not created.'
+      )
+      await expect(fs.access(filename)).rejects.toThrow()
+    })
+
+    it('connects to PostgreSQL to unlock, so a configuration that does not reach it fails', async () => {
+      vi.stubEnv('ACTIVITIES_DATABASE', JSON.stringify({ client: 'pg' }))
+      // A directory with no server socket in it: the connection fails.
+      vi.stubEnv('PGHOST', tempDir)
+      vi.stubEnv('PGPORT', '5596')
+      vi.stubEnv('PGDATABASE', 'legacy')
+      vi.stubEnv('PGUSER', 'operator')
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await expect(runMigrateCommand(['unlock'])).rejects.toThrow()
+      expect(log).not.toHaveBeenCalledWith(
+        expect.stringContaining('nothing to release')
+      )
+    })
+
+    it.runIf(backend === 'pg')(
+      'reports nothing to release on a PostgreSQL database it reaches',
+      async () => {
+        await recreatePgDatabase(
+          getTestPgConnection(),
+          getTestPgDatabaseName(true)
+        )
+        vi.stubEnv(
+          'ACTIVITIES_DATABASE',
+          JSON.stringify(getTestDatabaseConfig('pg', true))
+        )
+        const unlocked = await run(['unlock'])
+        expect(unlocked.exitCode).toBe(0)
+        expect(unlocked.output).toContain(
+          'PostgreSQL: the migration lock is an advisory lock that ends ' +
+            'with the connection holding it; nothing to release.'
+        )
+      }
+    )
 
     it('refuses an unknown command', async () => {
       const { exitCode, output } = await run(['rollback'])
