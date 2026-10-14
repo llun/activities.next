@@ -481,7 +481,7 @@ activities.next/
 - `package.json` → `prettier` — Code formatting rules
 - `vitest.config.ts` — Test configuration
 - `next.config.ts` — Next.js configuration
-- `migrations/index.ts` — the migrations `yarn migrate` runs (`scripts/database/migrate.ts`)
+- `migrations/index.ts` — the migrations `yarn migrate` runs (`scripts/database/migrate.ts`), with their names in `migrations/names.ts`
 - `Dockerfile` — Docker container build
 
 ## Common Tasks
@@ -507,14 +507,15 @@ activities.next/
 yarn migrate:make descriptive_migration_name
 ```
 
-Edit the generated `migrations/<timestamp>_descriptive_migration_name.ts`, register it in `migrations/index.ts`, then run:
+Edit the generated `migrations/<timestamp>_descriptive_migration_name.ts`, register it in `migrations/index.ts` and its name in `migrations/names.ts`, then run:
 
 ```bash
 yarn migrate
 ```
 
 `yarn migrate:status` lists the applied and pending migrations without writing
-anything, and `yarn migrate:down` rolls back the last one (never the baseline).
+anything, `yarn migrate:down` rolls back the last one (never the baseline), and
+`yarn migrate:unlock` releases the SQLite migration lock a killed run left held.
 
 > **Important:** All migrations must work with SQLite and PostgreSQL. A migration exports `up(db)` and `down(db)` taking a `Kysely<any>`: use Kysely's schema and query builders and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic. Each migration runs in its own transaction on both backends; export `config = { transaction: false }` only for a step that cannot run in one, and make it safe to run again. The first migration, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/`; never edit those files or anything in `migrations/legacy/` (the Knex migrations before it, which never run again).
 
@@ -1150,7 +1151,7 @@ each ends with the Definition of Done gate.
 
 ### Adding a database migration
 
-1. `yarn migrate:make <name>` — never hand-write the file (migrations are TypeScript with named `up`/`down` taking a `Kysely<any>`, from `migrations/migration.stub`) — then register it in `migrations/index.ts`.
+1. `yarn migrate:make <name>` — never hand-write the file (migrations are TypeScript with named `up`/`down` taking a `Kysely<any>`, from `migrations/migration.stub`) — then register it in `migrations/index.ts` and its name in `migrations/names.ts`.
 2. Use Kysely's schema and query builders; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines**). It runs in its own transaction unless it exports `config = { transaction: false }`.
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
 4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump or type drift.

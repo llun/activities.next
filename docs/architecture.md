@@ -114,7 +114,7 @@ The frontend and API layer, organized using Next.js route groups:
 
 ### `migrations/` — Database Schema
 
-TypeScript migrations that `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts`. The first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database, or records it on one the Knex migrations built; `migrations/legacy/` keeps those Knex migrations read-only. Migrations are designed to work with SQLite and PostgreSQL.
+TypeScript migrations that `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts` (their names in `migrations/names.ts`). The first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database, or records it on one the Knex migrations built; `migrations/legacy/` keeps those Knex migrations read-only. Migrations are designed to work with SQLite and PostgreSQL.
 
 ## Key Design Decisions
 

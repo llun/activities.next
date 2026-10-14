@@ -135,7 +135,7 @@ Guidelines:
 
 - `app/` contains the Next.js App Router UI and API routes (see `app/api/` and route groups like `app/(nosidebar)/`).
 - `lib/` hosts core domain logic, database access, services, jobs, and shared utilities.
-- `migrations/` holds the TypeScript migrations that `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts`; the first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database or records it on one the Knex migrations built. `migrations/legacy/` keeps the 181 Knex migrations read-only: they never run again, and their tests stay until they are retired.
+- `migrations/` holds the TypeScript migrations that `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts` (their names in `migrations/names.ts`); the first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database or records it on one the Knex migrations built. `migrations/legacy/` keeps the 181 Knex migrations read-only: they never run again, and their tests stay until they are retired.
 - `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
 - `packages/` holds modular optional workspace packages (`packages/cloudtasks`, `packages/nodemailer`, `packages/pg`, `packages/qstash`, `packages/resend`, `packages/ses`) isolated from the root package so minimal Docker images omit heavy optional SDKs.
 - `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities; `lint/` holds the local Oxlint JS plugin (`agentsRules.mjs`) that carries the AGENTS.md conventions Oxlint cannot express natively, plus its guard test.

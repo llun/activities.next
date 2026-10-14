@@ -299,12 +299,13 @@ describe('lib/database/migrate', () => {
       ).resolves.toEqual([BASELINE_MIGRATION])
     })
 
-    it('reports zero nodeinfo counters on a fresh install', async () => {
+    it('reports zero nodeinfo and servicestat counters on a fresh install', async () => {
       await migrateToLatest(target)
-      // The Knex chain seeded zero-valued nodeinfo:* rows; the baseline is
-      // schema only, and a missing counter reads as zero.
+      // The Knex chain seeded zero-valued nodeinfo:* and servicestat:*
+      // counters on an empty database; the baseline does not, and both read
+      // as zero.
       const { rows } = await sql<{ id: string }>`
-        select id from counters where id like 'nodeinfo:%'
+        select id from counters
       `.execute(connection.db)
       expect(rows).toEqual([])
 
@@ -314,6 +315,9 @@ describe('lib/database/migrate', () => {
         activeHalfyear: 0,
         localPosts: 0
       })
+      expect(
+        await getSQLDatabase(connection.db).getServiceStats()
+      ).toMatchObject({ totalAccounts: 0, totalActors: 0, totalStatuses: 0 })
     })
 
     it('reads the status without creating any table', async () => {

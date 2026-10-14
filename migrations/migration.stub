@@ -6,10 +6,13 @@ import type { Kysely } from 'kysely'
 // export `const config = { transaction: false }` only for a statement that
 // cannot run in one (lib/database/migrate/types.ts). Keep `up` safe to run
 // twice: the migration is recorded just after its transaction commits.
+// Use only the `db` it is given, never the app's root Kysely instance: inside
+// the transaction that is refused, and under `transaction: false` on SQLite
+// it would deadlock (the migrator holds the single connection).
 //
-// Register it in migrations/index.ts, then regenerate both schema dumps and
-// the Kysely DB types (docs/setup.md, "Keeping the reference schema dumps in
-// sync").
+// Register it in migrations/index.ts and its name in migrations/names.ts,
+// then regenerate both schema dumps and the Kysely DB types (docs/setup.md,
+// "Keeping the reference schema dumps in sync").
 
 // oxlint-disable-next-line typescript/no-explicit-any
 export const up = async (db: Kysely<any>): Promise<void> => {}
