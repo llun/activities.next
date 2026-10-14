@@ -30,8 +30,9 @@ vi.mock('@/lib/database', () => ({
 }))
 
 const mockPublish = vi.fn()
+let mockRunsInline = false
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: () => ({ publish: mockPublish, runsInline: false })
+  getQueue: () => ({ publish: mockPublish, runsInline: mockRunsInline })
 }))
 
 vi.mock('next/headers', () => ({
@@ -59,6 +60,7 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     vi.clearAllMocks()
     mockPublish.mockReset()
     mockPublish.mockResolvedValue(undefined)
+    mockRunsInline = false
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -66,6 +68,7 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   const post = (
@@ -251,6 +254,108 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     expect(new Set(chosenJobIds).size).toBe(2)
   })
 
+  it.each([
+    { runsInline: false, publishes: true, processed: false },
+    { runsInline: true, publishes: true, processed: true },
+    { runsInline: true, publishes: false, processed: false },
+    { runsInline: false, publishes: false, processed: false }
+  ])(
+    'reports processed=$processed when the queue runsInline=$runsInline and publishing works=$publishes',
+    async ({ runsInline, publishes, processed }) => {
+      const { chosen } = await createPair()
+      mockRunsInline = runsInline
+      if (!publishes) mockPublish.mockRejectedValue(new Error('queue down'))
+
+      const response = await post(chosen.id)
+
+      expect(response.status).toBe(200)
+      // `processed` says "the job already ran", i.e. the map is final and a
+      // re-read of the page will show it. It is not part of the file.
+      expect((await response.json()).processed).toBe(processed)
+    }
+  )
+
+  it('reports processed=false for the file that already is the primary', async () => {
+    const { oldPrimary } = await createPair()
+    mockRunsInline = true
+
+    const body = await (await post(oldPrimary.id)).json()
+
+    expect(body.processed).toBe(false)
+  })
+
+  it('holds the import lock across an inline job, with the importers’ longer TTL', async () => {
+    const { chosen } = await createPair()
+    mockRunsInline = true
+    const lockKey = `fitness-import:${ACTOR1_ID}`
+    const acquire = vi.spyOn(database, 'acquireImportLock')
+    let heldDuringJob = false
+    mockPublish.mockImplementation(async () => {
+      heldDuringJob =
+        (await database.acquireImportLock({ lockKey, ttlMs: 1000 })) === null
+    })
+
+    await post(chosen.id)
+
+    expect(acquire.mock.calls[0][0]).toEqual({
+      lockKey,
+      ttlMs: 5 * 60 * 1000
+    })
+    expect(heldDuringJob).toBe(true)
+    // And it is released afterwards, so the next import is not blocked.
+    const after = await database.acquireImportLock({ lockKey, ttlMs: 1000 })
+    expect(after).not.toBeNull()
+    await database.releaseImportLock({ lockKey, token: after!.token })
+  })
+
+  it('answers 409, changing nothing, when an import holds the lock for the whole wait', async () => {
+    const { oldPrimary, chosen } = await createPair()
+    const lockKey = `fitness-import:${ACTOR1_ID}`
+    const held = await database.acquireImportLock({
+      lockKey,
+      ttlMs: 10 * 60 * 1000
+    })
+    expect(held).not.toBeNull()
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
+
+    try {
+      const pending = post(chosen.id)
+      await vi.advanceTimersByTimeAsync(16_000)
+      const response = await pending
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error:
+          'Another import is updating this activity. Try again in a moment.'
+      })
+      expect(await flags(oldPrimary.id, chosen.id)).toEqual([true, false])
+      expect(mockPublish).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+      await database.releaseImportLock({ lockKey, token: held!.token })
+    }
+  })
+
+  it('succeeds once the lock frees up within the wait', async () => {
+    const { oldPrimary, chosen } = await createPair()
+    const lockKey = `fitness-import:${ACTOR1_ID}`
+    const held = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
+
+    try {
+      const pending = post(chosen.id)
+      await vi.advanceTimersByTimeAsync(1_000)
+      await database.releaseImportLock({ lockKey, token: held!.token })
+      await vi.advanceTimersByTimeAsync(1_000)
+      const response = await pending
+
+      expect(response.status).toBe(200)
+      expect(await flags(oldPrimary.id, chosen.id)).toEqual([false, true])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('answers 200 for the file that already is the primary and queues nothing', async () => {
     const { oldPrimary, chosen } = await createPair()
 
@@ -284,6 +389,32 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
       expect.objectContaining({
         message: 'Failed to queue processing for the new primary file',
         err: expect.any(Object)
+      })
+    )
+  })
+
+  it('still answers 200, and logs, when recording the map failure also fails', async () => {
+    const { oldPrimary, chosen } = await createPair()
+    mockPublish.mockRejectedValue(new Error('queue down'))
+    vi.spyOn(database, 'updateFitnessFileActivityData').mockRejectedValue(
+      new Error('database went away')
+    )
+    const errorSpy = vi.spyOn(logger, 'error')
+
+    const response = await post(chosen.id)
+
+    // The swap is committed, so telling the owner it failed would be a lie.
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      id: chosen.id,
+      isPrimary: true
+    })
+    expect(await flags(oldPrimary.id, chosen.id)).toEqual([false, true])
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to record the route map reason',
+        fitnessFileId: chosen.id,
+        err: expect.objectContaining({ message: 'database went away' })
       })
     )
   })
@@ -351,6 +482,10 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
       const response = await post(chosen.id)
 
       expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error:
+          "This recording isn't ready yet. Wait for it to finish processing."
+      })
       expect(await flags(primary.id, chosen.id)).toEqual([true, false])
       expect(mockPublish).not.toHaveBeenCalled()
     }
@@ -370,7 +505,15 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
       isPrimary: false
     })
 
-    expect((await post(chosen.id)).status).toBe(422)
+    const response = await post(chosen.id)
+
+    expect(response.status).toBe(422)
+    // A different sentence from the recording itself not being ready: waiting
+    // on the OTHER file is a different thing to do.
+    expect(await response.json()).toEqual({
+      error:
+        'The current primary recording is still processing. Try again once it has finished.'
+    })
     expect(await flags(primary.id, chosen.id)).toEqual([true, false])
   })
 

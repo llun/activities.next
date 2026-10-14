@@ -180,32 +180,76 @@ describe('fitnessFiles client module', () => {
   describe('makeFitnessFilePrimary', () => {
     it('posts to the primary endpoint and returns the new primary', async () => {
       fetchMock.mockResponseOnce(
-        JSON.stringify({ id: 'file/1', isPrimary: true, gearName: 'Moots' }),
+        JSON.stringify({
+          id: 'file/1',
+          isPrimary: true,
+          gearName: 'Moots',
+          processed: true
+        }),
         { status: 200 }
       )
 
       const result = await makeFitnessFilePrimary('file/1')
 
-      expect(result).toMatchObject({ id: 'file/1', isPrimary: true })
+      expect(result.file).toMatchObject({ id: 'file/1', isPrimary: true })
+      expect(result.processed).toBe(true)
+      expect(result.file).not.toHaveProperty('processed')
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/v1/fitness-files/file%2F1/primary',
         expect.objectContaining({ method: 'POST' })
       )
     })
 
+    it('treats a missing processed flag as not processed yet', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ id: 'file-1' }), {
+        status: 200
+      })
+
+      expect((await makeFitnessFilePrimary('file-1')).processed).toBe(false)
+    })
+
     it.each([
-      [404, 'This recording could not be found.'],
+      [404, 'Whatever', 'This recording could not be found.'],
+      [500, 'Whatever', 'Failed to make this the primary recording.'],
+      [
+        409,
+        'Another import is updating this activity. Try again in a moment.',
+        'Another import is updating this activity. Try again in a moment.'
+      ],
+      [
+        422,
+        "This recording isn't ready yet. Wait for it to finish processing.",
+        "This recording isn't ready yet. Wait for it to finish processing."
+      ],
+      [
+        422,
+        'The current primary recording is still processing. Try again once it has finished.',
+        'The current primary recording is still processing. Try again once it has finished.'
+      ]
+    ])(
+      'explains a %s in words an owner can act on',
+      async (status, serverMessage, message) => {
+        fetchMock.mockResponseOnce(JSON.stringify({ error: serverMessage }), {
+          status
+        })
+
+        await expect(makeFitnessFilePrimary('file-1')).rejects.toMatchObject({
+          message,
+          status
+        })
+      }
+    )
+
+    it.each([
+      [409, 'Another import is updating this activity. Try again in a moment.'],
       [
         422,
         'This recording cannot be made primary until its processing has finished.'
-      ],
-      [500, 'Failed to make this the primary recording.']
+      ]
     ])(
-      'explains a %s in words an owner can act on',
+      'falls back to fixed text for a %s without a readable message',
       async (status, message) => {
-        fetchMock.mockResponseOnce(JSON.stringify({ error: 'Whatever' }), {
-          status
-        })
+        fetchMock.mockResponseOnce('not json', { status })
 
         await expect(makeFitnessFilePrimary('file-1')).rejects.toMatchObject({
           message,

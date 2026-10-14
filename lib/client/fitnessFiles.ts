@@ -171,15 +171,18 @@ export const getFitnessFilesByStatus = async (
 /**
  * Makes one of an activity's recordings its primary one, the file the post, its
  * route map and the totals follow. Resolves to that file as the activity page
- * holds it (gear names resolved), so the caller can update its own list.
+ * holds it (gear names resolved), so the caller can update its own list, and to
+ * whether the server has already redrawn the map (`processed`): only then does
+ * a re-read of the page show the new map.
  *
- * The error text is chosen here rather than read from the response: the server
- * answers a bare "Not Found" or "Unprocessable entity", neither of which tells
- * an owner what to do.
+ * The error text is chosen here for the statuses that have nothing better to
+ * say. A 409 (another import holds the activity) and a 422 (which of the two
+ * not-ready cases) carry a specific sentence in the response, which is used as
+ * it is; the fixed text is the fallback when the body cannot be read.
  */
 export const makeFitnessFilePrimary = async (
   fitnessFileId: string
-): Promise<StatusFitnessFileItem> => {
+): Promise<{ file: StatusFitnessFileItem; processed: boolean }> => {
   const response = await fetch(
     `/api/v1/fitness-files/${encodeURIComponent(fitnessFileId)}/primary`,
     {
@@ -192,9 +195,17 @@ export const makeFitnessFilePrimary = async (
     if (response.status === 404) {
       throw new ApiRequestError('This recording could not be found.', 404)
     }
+    if (response.status === 409) {
+      throw new ApiRequestError(
+        (await readErrorMessage(response)) ??
+          'Another import is updating this activity. Try again in a moment.',
+        409
+      )
+    }
     if (response.status === 422) {
       throw new ApiRequestError(
-        'This recording cannot be made primary until its processing has finished.',
+        (await readErrorMessage(response)) ??
+          'This recording cannot be made primary until its processing has finished.',
         422
       )
     }
@@ -204,7 +215,22 @@ export const makeFitnessFilePrimary = async (
     )
   }
 
-  return response.json()
+  const { processed, ...file } =
+    (await response.json()) as StatusFitnessFileItem & {
+      processed?: boolean
+    }
+  return { file, processed: processed === true }
+}
+
+const readErrorMessage = async (response: Response): Promise<string | null> => {
+  try {
+    const body = (await response.json()) as { error?: unknown }
+    return typeof body.error === 'string' && body.error.length > 0
+      ? body.error
+      : null
+  } catch {
+    return null
+  }
 }
 
 /**

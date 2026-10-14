@@ -351,7 +351,8 @@ export const assignFitnessFilesToImportedStatus = async (
  * its map:
  *
  * - The flag itself: every other file of the status is demoted, the target is
- *   promoted.
+ *   promoted. A demoted file's `mapError` is cleared with it: a secondary owns
+ *   no map, so a reason recorded against one would read as a map failure.
  * - Gear the target does not have yet, copied from the file it replaces with
  *   `assignFitnessFileGearIfUnset` (the guarded write the importer uses when it
  *   promotes a richer file), so a manual attribution on the target wins and the
@@ -394,7 +395,7 @@ export const makeFitnessFilePrimary = (
       target.processingStatus !== 'completed' ||
       target.importStatus === 'failed'
     ) {
-      return { result: 'unusable' }
+      return { result: 'not_ready' }
     }
 
     if (target.isPrimary === null || Boolean(target.isPrimary)) {
@@ -422,13 +423,16 @@ export const makeFitnessFilePrimary = (
       (previous.processingStatus === 'pending' ||
         previous.processingStatus === 'processing')
     ) {
-      return { result: 'unusable' }
+      return { result: 'primary_busy' }
     }
 
     const now = new Date()
     await trx
       .updateTable('fitness_files')
-      .set({ isPrimary: false, updatedAt: now })
+      // `mapError` is cleared with the flag: a secondary owns no map, so a
+      // reason recorded against one (the retry route already ignores it there)
+      // would otherwise keep reading as a map failure on the file.
+      .set({ isPrimary: false, mapError: null, updatedAt: now })
       .where('statusId', '=', target.statusId)
       .where('actorId', '=', actorId)
       .where('deletedAt', 'is', null)
@@ -465,9 +469,6 @@ export const makeFitnessFilePrimary = (
           hasMapData: false,
           mapImagePath: null,
           mapImageEmailPath: null,
-          // A reason recorded against a map this file no longer owns would
-          // keep reading as a map failure on a secondary.
-          mapError: null,
           updatedAt: now
         })
         .where('id', '=', previous.id)

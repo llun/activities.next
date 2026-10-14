@@ -71,16 +71,18 @@ export interface MakeFitnessFilePrimaryParams {
  *
  * - `not_found`: no such file, it is deleted, belongs to someone else, or is
  *   not attached to a status (a lone upload has nothing to be primary of).
- * - `unusable`: the file itself is not a finished import, or the status's
- *   current primary is still being processed, so swapping now would leave two
- *   processing jobs fighting over one route map.
+ * - `not_ready`: the file itself is not a finished import (still processing,
+ *   failed, or its import failed).
+ * - `primary_busy`: the status's current primary is still being processed, so
+ *   swapping now would leave two processing jobs fighting over one route map.
  * - `already_primary`: nothing was written.
  * - `promoted`: the swap happened. `previousPrimaryId` is the file that lost
  *   the flag, when there was one.
  */
 export type MakeFitnessFilePrimaryResult =
   | { result: 'not_found' }
-  | { result: 'unusable' }
+  | { result: 'not_ready' }
+  | { result: 'primary_busy' }
   | { result: 'already_primary'; fitnessFile: FitnessFile }
   | {
       result: 'promoted'

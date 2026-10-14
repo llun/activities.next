@@ -107,14 +107,20 @@ const RecordingPicker: FC<{
   onSelect: (fileId: string) => void
   /** Owner only: the "Make primary" action on each other recording. */
   onMakePrimary?: (fileId: string) => void
-  /** The recording being made primary, which disables the action everywhere. */
+  /**
+   * The recording being made primary, which disables the action everywhere. The
+   * activity card says so in one place, so the row itself keeps its label.
+   */
   makingPrimaryId: string | null
 }> = ({ files, selected, onSelect, onMakePrimary, makingPrimaryId }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button
         variant="outline"
-        className="h-[30px] min-w-0 max-w-[min(100%,18rem)] gap-1.5 rounded-lg px-2.5 text-sm font-medium"
+        // `shrink` over the button's own `shrink-0`: next to the download
+        // button the trigger is what gives, truncating its label, so the two
+        // stay on one line on a phone.
+        className="h-[30px] min-w-0 max-w-[min(100%,18rem)] shrink gap-1.5 rounded-lg px-2.5 text-sm font-medium"
       >
         <Watch className="size-3.5 text-primary" aria-hidden="true" />
         <span className="truncate">{getRecordingLabel(selected)}</span>
@@ -131,6 +137,8 @@ const RecordingPicker: FC<{
     <DropdownMenuContent
       align="start"
       sideOffset={6}
+      // Keeps the menu off the screen edge on a phone instead of flush to it.
+      collisionPadding={16}
       className="w-80 max-w-[calc(100vw-2rem)] rounded-xl shadow-lg"
     >
       <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -140,7 +148,6 @@ const RecordingPicker: FC<{
         const isCurrent = file.id === selected.id
         const label = getRecordingLabel(file)
         const summary = getRecordingSummary(file)
-        const isMaking = makingPrimaryId === file.id
         return (
           // `role="none"` wrapper: two sibling menu items, so the row and its
           // action are both reached with the arrow keys. A bare `<button>` in a
@@ -191,14 +198,19 @@ const RecordingPicker: FC<{
                 ) : null}
               </span>
             </DropdownMenuItem>
-            {onMakePrimary && !file.isPrimary ? (
+            {/* Only a finished recording: the server refuses one still being
+                processed (or failed), and an action that can only fail is
+                better not offered. */}
+            {onMakePrimary &&
+            !file.isPrimary &&
+            file.processingStatus === 'completed' ? (
               <DropdownMenuItem
                 disabled={makingPrimaryId !== null}
                 onSelect={() => onMakePrimary(file.id)}
                 aria-label={`Make primary: ${label}`}
                 className="mr-2 shrink-0 rounded-md border px-2 py-1 text-xs font-medium"
               >
-                {isMaking ? 'Making primary…' : 'Make primary'}
+                Make primary
               </DropdownMenuItem>
             ) : null}
           </div>
@@ -252,11 +264,13 @@ export const RecordingLine: FC<{
 
   if (!isPicker && !deviceLabel && !download) return null
 
-  return (
-    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-      {isPicker ? (
-        <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-          Recorded with{' '}
+  if (isPicker) {
+    return (
+      // Only the words may wrap: the picker and the download button stay one
+      // unit on one line, the picker truncating when the row is narrow.
+      <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
+        <span>Recorded with</span>
+        <div className="flex min-w-0 max-w-full items-center gap-2">
           <RecordingPicker
             files={files}
             selected={selected}
@@ -264,8 +278,15 @@ export const RecordingLine: FC<{
             onMakePrimary={isOwner ? onMakePrimary : undefined}
             makingPrimaryId={makingPrimaryId}
           />
+          {download}
         </div>
-      ) : deviceLabel ? (
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+      {deviceLabel ? (
         <div className="text-sm text-muted-foreground">
           Recorded with{' '}
           <BrandedDeviceLink

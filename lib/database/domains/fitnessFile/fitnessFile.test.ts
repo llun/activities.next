@@ -1172,12 +1172,11 @@ describe('FitnessFileDatabase', () => {
         expect(released?.hasMapData).toBe(false)
         expect(released?.mapImagePath).toBeUndefined()
         expect(released?.mapImageEmailPath).toBeUndefined()
-        // A reason recorded against a map the file no longer owns would keep
-        // reading as a map failure on a secondary.
+        // Cleared with the flag; see the next test for the case with no map.
         expect(released?.mapError).toBeUndefined()
       })
 
-      it('writes no map pointers when the old primary had no map', async () => {
+      it('writes no map pointers when the old primary had no map, and still clears its map reason', async () => {
         const statusId = await createStatusId()
         const oldPrimary = await createRecording({
           statusId,
@@ -1201,10 +1200,12 @@ describe('FitnessFileDatabase', () => {
         const moved = await database.getFitnessFile({ id: chosen.id })
         expect(moved?.hasMapData).toBe(false)
         expect(moved?.mapImagePath).toBeUndefined()
-        // Nothing moved, so the old primary's own record is left alone.
+        // Cleared with the flag even though no map moved: a secondary owns no
+        // map, so a reason recorded against it would read as a failure of a
+        // map it was never meant to have.
         expect(
           (await database.getFitnessFile({ id: oldPrimary.id }))?.mapError
-        ).toBe('Generated map image buffer is empty')
+        ).toBeUndefined()
       })
 
       it('changes nothing for a recording that already is the primary', async () => {
@@ -1358,7 +1359,7 @@ describe('FitnessFileDatabase', () => {
                 fitnessFileId: chosen.id,
                 actorId: actors.primary.id
               })
-            ).toEqual({ result: 'unusable' })
+            ).toEqual({ result: 'not_ready' })
             await expectUntouched(statusId, [
               [primary.id, true],
               [chosen.id, false]
@@ -1389,7 +1390,7 @@ describe('FitnessFileDatabase', () => {
               fitnessFileId: chosen.id,
               actorId: actors.primary.id
             })
-          ).toEqual({ result: 'unusable' })
+          ).toEqual({ result: 'not_ready' })
           await expectUntouched(statusId, [
             [primary.id, true],
             [chosen.id, false]
@@ -1417,7 +1418,7 @@ describe('FitnessFileDatabase', () => {
                 fitnessFileId: chosen.id,
                 actorId: actors.primary.id
               })
-            ).toEqual({ result: 'unusable' })
+            ).toEqual({ result: 'primary_busy' })
             await expectUntouched(statusId, [
               [primary.id, true],
               [chosen.id, false]

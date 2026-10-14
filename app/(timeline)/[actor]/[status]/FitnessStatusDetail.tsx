@@ -698,7 +698,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   // whichever recording is on screen.
   const [makingPrimaryId, setMakingPrimaryId] = useState<string | null>(null)
   const [primaryNotice, setPrimaryNotice] = useState<string | null>(null)
-  const [primaryError, setPrimaryError] = useState<string | null>(null)
+  // The file the failed attempt was for, so Retry tries the same one even if
+  // the owner has since looked at another recording.
+  const [primaryError, setPrimaryError] = useState<{
+    message: string
+    fileId: string
+  } | null>(null)
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [powerSeries, setPowerSeries] = useState<number[]>([])
@@ -915,8 +920,10 @@ export const FitnessStatusDetail: FC<Props> = ({
   // Owner only (the recording picker offers it to no one else, and the endpoint
   // answers 404 to anyone but the owner). The server moves the flag, the gear
   // and the route map's pointers, then reprocesses the new primary so the post's
-  // map is redrawn from it — which is why the message says the map follows
-  // shortly rather than that it already has.
+  // map is redrawn from it. With a real queue that happens after the response,
+  // so the message says the map follows shortly and the page is re-read only
+  // when the server reports the job already ran (a refresh before that would
+  // just show the old map again).
   const handleMakePrimary = async (fitnessFileId: string) => {
     if (makingPrimaryId) return
     const target = fitnessFiles.find((file) => file.id === fitnessFileId)
@@ -927,7 +934,8 @@ export const FitnessStatusDetail: FC<Props> = ({
     setPrimaryError(null)
 
     try {
-      const updated = await makeFitnessFilePrimary(fitnessFileId)
+      const { file: updated, processed } =
+        await makeFitnessFilePrimary(fitnessFileId)
       // The response is the new primary as the server now holds it (it may have
       // inherited the old primary's gear); every other file just lost the flag.
       setFitnessFiles((files) =>
@@ -939,15 +947,19 @@ export const FitnessStatusDetail: FC<Props> = ({
       )
       setSelectedFitnessFileId(fitnessFileId)
       setPrimaryNotice(
-        `${getRecordingLabel(target)} is now the primary recording. The post and its map update shortly.`
+        processed
+          ? `${getRecordingLabel(target)} is now the primary recording.`
+          : `${getRecordingLabel(target)} is now the primary recording. The route map updates shortly.`
       )
-      router.refresh()
+      if (processed) router.refresh()
     } catch (error) {
-      setPrimaryError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to make this the primary recording.'
-      )
+      setPrimaryError({
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to make this the primary recording.',
+        fileId: fitnessFileId
+      })
     } finally {
       setMakingPrimaryId(null)
     }
@@ -1550,20 +1562,30 @@ export const FitnessStatusDetail: FC<Props> = ({
             makingPrimaryId={makingPrimaryId}
           />
 
-          {/* One slot for pending, done and failed, in the same place the gear
-              error uses. The failure is an alert; the other two are status
-              updates a screen reader should hear without being interrupted. */}
+          {/* The failure is an Alert with a Retry for the same file. Pending and
+              done share one live region that is always mounted (empty when
+              idle): a region added to the page together with its text is not
+              reliably announced, one that already exists and then changes is. */}
           {primaryError ? (
-            <p className="mt-1 text-xs text-destructive" role="alert">
-              {primaryError}
-            </p>
-          ) : makingPrimaryId || primaryNotice ? (
-            <p className="mt-1 text-xs text-muted-foreground" role="status">
-              {makingPrimaryId
-                ? 'Making this the primary recording…'
-                : primaryNotice}
-            </p>
+            <Alert
+              className="mt-2"
+              title={primaryError.message}
+              onRetry={() => void handleMakePrimary(primaryError.fileId)}
+            />
           ) : null}
+          <p
+            role="status"
+            className={cn(
+              'text-xs text-muted-foreground',
+              (makingPrimaryId || primaryNotice) && !primaryError && 'mt-1'
+            )}
+          >
+            {primaryError
+              ? ''
+              : makingPrimaryId
+                ? 'Making this the primary recording…'
+                : (primaryNotice ?? '')}
+          </p>
 
           {fitnessSourceUrl ? (
             <div className="mt-1 text-sm">
