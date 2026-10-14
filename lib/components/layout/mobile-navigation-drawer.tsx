@@ -20,9 +20,13 @@ export interface MobileNavigationDrawerProps {
    * The drawer's body. It receives `onNavigate`, which every destination link
    * calls so the drawer closes on selection and does not hand focus back to
    * the (possibly unmounted) menu button. `onStay` closes it for a tap that
-   * stays on the open page, so focus returns to the menu button.
+   * stays on the open page, so focus returns to the menu button, and runs
+   * `afterClose` once the drawer has let go of the page's scroll lock.
    */
-  children: (onNavigate: () => void, onStay: () => void) => ReactNode
+  children: (
+    onNavigate: () => void,
+    onStay: (afterClose?: () => void) => void
+  ) => ReactNode
 }
 
 /**
@@ -39,6 +43,7 @@ export function MobileNavigationDrawer({
   const nav = useMobileNavigation()
   const pathname = usePathname()
   const navigatedRef = useRef(false)
+  const afterCloseRef = useRef<(() => void) | null>(null)
   const initialPathnameRef = useRef(pathname)
   const wasOpenRef = useRef(false)
 
@@ -64,7 +69,8 @@ export function MobileNavigationDrawer({
     setOpen?.(false)
   }
 
-  const handleStay = () => {
+  const handleStay = (afterClose?: () => void) => {
+    afterCloseRef.current = afterClose ?? null
     setOpen?.(false)
   }
 
@@ -83,6 +89,10 @@ export function MobileNavigationDrawer({
           if (isDesktop || hasNavigated) {
             event.preventDefault()
           }
+          // The page is scrollable again only once the drawer has closed.
+          const afterClose = afterCloseRef.current
+          afterCloseRef.current = null
+          if (afterClose) window.requestAnimationFrame(afterClose)
         }}
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh flex-col bg-background shadow-xl outline-none duration-200',

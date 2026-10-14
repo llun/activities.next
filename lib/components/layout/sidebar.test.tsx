@@ -621,10 +621,24 @@ describe('Sidebar', () => {
       fireEvent(timeline, click)
 
       expect(click.defaultPrevented).toBe(true)
-      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
-      // The drawer closes without treating it as a page change.
-      expect(onStay).toHaveBeenCalled()
+      // The drawer closes without treating it as a page change, and scrolls
+      // once it has released the page.
       expect(onNavigate).not.toHaveBeenCalled()
+      expect(onStay).toHaveBeenCalledTimes(1)
+      expect(scrollTo).not.toHaveBeenCalled()
+      onStay.mock.calls[0][0]()
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    })
+
+    it('scrolls straight away outside the drawer', () => {
+      mockPathname.mockReturnValue('/')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      fireEvent.click(timeline, { button: 0 })
+
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
     })
 
     it('follows the link to another page', () => {

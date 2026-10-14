@@ -58,11 +58,12 @@ export interface SidebarProps {
   variant?: 'responsive' | 'drawer'
   onNavigate?: () => void
   /**
-   * Called instead of `onNavigate` when a tap stays on the page already open
-   * (it scrolls back to the top), so the drawer closes and hands focus back
-   * to its menu button.
+   * Called instead of `onNavigate` when a tap stays on the page already open,
+   * so the drawer closes and hands focus back to its menu button. It runs
+   * `afterClose` (the scroll back to the top) once the drawer has released
+   * the page's scroll lock.
    */
-  onStay?: () => void
+  onStay?: (afterClose: () => void) => void
   user?: User | null
   currentActor?: ActorInfo | null
   actors?: ActorInfo[]
@@ -240,8 +241,8 @@ export function Sidebar({
         !event.altKey
       ) {
         event.preventDefault()
-        scrollPageToTop()
-        onStay?.()
+        if (onStay) onStay(scrollPageToTop)
+        else scrollPageToTop()
         return
       }
       onNavigate?.()
