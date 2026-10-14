@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260709120000_add_actor_last_status_at'
+import * as migration from '@/migrations/legacy/20260709120000_add_actor_last_status_at'
 
 // Exercises the migration's one-shot backfill against pre-existing rows — the
 // runtime suite builds test databases from the schema dumps and never runs this

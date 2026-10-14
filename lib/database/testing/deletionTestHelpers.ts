@@ -10,6 +10,10 @@ import type { CapturedQuery } from '@/lib/database/testing/queryCapture'
 
 export type TableDump = Record<string, Record<string, unknown>[]>
 
+// The migration runners' bookkeeping: Kysely's, in the schema dumps since the
+// Knex handover, and Knex's.
+const MIGRATION_BOOKKEEPING = /^(kysely_migration|knex_migrations)/
+
 const tableNames = async (testDb: TestDatabase): Promise<string[]> => {
   if (testDb.backend === 'pg') {
     const { rows } = await sql<{ name: string }>`
@@ -43,7 +47,7 @@ export const dumpDatabase = async (
 ): Promise<TableDump> => {
   const dump: TableDump = {}
   for (const name of await tableNames(testDb)) {
-    if (name.startsWith('knex_migrations') || skipped.includes(name)) continue
+    if (MIGRATION_BOOKKEEPING.test(name) || skipped.includes(name)) continue
     const { rows } = await sql<Record<string, unknown>>`
       select * from ${sql.table(name)}
     `.execute(testDb.db)

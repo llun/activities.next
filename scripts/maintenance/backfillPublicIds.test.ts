@@ -2,7 +2,7 @@ import knex from 'knex'
 
 import { createKnexQueryCapture } from '@/lib/database/testing/queryCapture'
 import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
-import * as migration from '@/migrations/20260808000000_add_public_ids'
+import * as migration from '@/migrations/legacy/20260808000000_add_public_ids'
 
 import { backfillTable, mintPublicId, parseArgs } from './backfillPublicIds'
 

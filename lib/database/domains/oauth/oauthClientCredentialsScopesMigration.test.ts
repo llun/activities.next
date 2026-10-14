@@ -6,7 +6,7 @@ import {
   createKnexQueryCapture
 } from '@/lib/database/testing/queryCapture'
 import { toClientCredentialsScopes } from '@/lib/services/oauth/clientCredentialsScopes'
-import * as migration from '@/migrations/20260828000000_backfill_oauth_client_credentials_scopes'
+import * as migration from '@/migrations/legacy/20260828000000_backfill_oauth_client_credentials_scopes'
 
 // The table is created with only the columns the migration reads and writes,
 // like the other `oauthClient` migration tests. That the column NAMES match the

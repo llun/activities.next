@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260512230000_require_pkce_for_oauth_clients'
+import * as migration from '@/migrations/legacy/20260512230000_require_pkce_for_oauth_clients'
 
 describe('require PKCE for OAuth clients migration', () => {
   const database = knex({

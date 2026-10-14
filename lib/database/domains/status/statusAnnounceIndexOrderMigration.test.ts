@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260822000000_reorder_status_announce_index'
+import * as migration from '@/migrations/legacy/20260822000000_reorder_status_announce_index'
 
 // Pins the COLUMN ORDER of the announce lookup index, not merely its existence.
 //

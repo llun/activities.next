@@ -3,7 +3,7 @@
  * Rewrites notification ids that are not time-ordered (random UUIDv4s) into
  * UUIDv7s minted from each row's `createdAt`, and repoints the `notifications`
  * read marker at the new id — the same rewrite, through the same code, as
- * `migrations/20261009163215_time_ordered_notification_ids.js`.
+ * `migrations/legacy/20261009163215_time_ordered_notification_ids.js`.
  *
  * WHY THIS EXISTS. `yarn migrate` runs from a checkout against the live
  * database while the PREVIOUS image keeps serving traffic, and that image still

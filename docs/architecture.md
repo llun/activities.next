@@ -26,7 +26,7 @@ Domain and service boundary: Core library (lib/)
         │
         ▼
 Infrastructure boundary
-  ├─ Database layer: Kysely with SQLite/PostgreSQL (Knex for migrations)
+  ├─ Database layer: Kysely with SQLite/PostgreSQL (and its migrator)
   ├─ File storage: local filesystem, S3, or S3-compatible object storage
   └─ External services: QStash, SMTP/Resend/SES, OpenTelemetry
 ```
@@ -105,7 +105,7 @@ The frontend and API layer, organized using Next.js route groups:
 | `lib/activities/`      | ActivityPub protocol — building and processing Activity objects             |
 | `lib/services/`        | Business logic services (auth, media, notifications, email, etc.)           |
 | `lib/services/guards/` | Request authentication guards (session, OAuth token, ActivityPub signature) |
-| `lib/database/`        | Database abstraction layer: Kysely domains, Knex for migrations             |
+| `lib/database/`        | Database abstraction layer: Kysely domains, the migration runner            |
 | `lib/jobs/`            | Background job handlers (sending activities, processing uploads)            |
 | `lib/components/`      | Shared React components (posts, post-box, settings, UI primitives)          |
 | `lib/config/`          | Configuration loading and validation (Zod schemas)                          |
@@ -114,7 +114,7 @@ The frontend and API layer, organized using Next.js route groups:
 
 ### `migrations/` — Database Schema
 
-Knex migration files that define the database schema. Migrations are designed to work with SQLite and PostgreSQL.
+TypeScript migrations that `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts` (their names in `migrations/names.ts`). The first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database, or records it on one the Knex migrations built; `migrations/legacy/` keeps those Knex migrations read-only. Migrations are designed to work with SQLite and PostgreSQL.
 
 ## Key Design Decisions
 
@@ -658,7 +658,7 @@ Other tables: sessions, notifications, medias, gallery_gears,
 | **UI Library**       | React 19                                                                                                                              |
 | **Styling**          | Tailwind CSS                                                                                                                          |
 | **UI Components**    | Radix UI primitives                                                                                                                   |
-| **Database**         | Kysely (SQLite / PostgreSQL), Knex.js for migrations                                                                                  |
+| **Database**         | Kysely (SQLite / PostgreSQL), Kysely's migrator for migrations                                                                        |
 | **Authentication**   | better-auth                                                                                                                           |
 | **Logging**          | Pino                                                                                                                                  |
 | **Testing**          | Vitest (native ESM)                                                                                                                   |
@@ -1580,7 +1580,7 @@ legacy shape left to copy.
 
 ### Better-auth Plugin Guidelines
 
-- **Do not register a better-auth plugin unless its required database tables exist** in the Knex migrations. The custom `kyselyAdapter` (`lib/services/auth/kyselyAdapter.ts`) does not auto-create tables; missing tables will cause runtime errors.
+- **Do not register a better-auth plugin unless its required database tables exist** in the migrations. The custom `kyselyAdapter` (`lib/services/auth/kyselyAdapter.ts`) does not auto-create tables; missing tables will cause runtime errors.
 - **On any better-auth upgrade, diff the schema better-auth declares against ours — do not reason about which new fields are "reachable".** `kyselyAdapter.create` inserts whatever a plugin put in the record: it creates no tables and filters no columns, so a field a plugin writes and the schema lacks is a failed INSERT, not a degraded feature — and better-auth swallows the driver error into a 500. The better-auth 1.7 upgrade shipped a green suite while **every OAuth sign-in 500'd**, because the oauth-provider plugin had started writing `oauthConsent.requestedUserInfoClaims` (`[]`, not `undefined`, so the factory's `transformInput` does not drop it) and only the core `account`/`jwks` changes had been noticed. `lib/services/auth/schemaCompleteness.test.ts` now asks `getAuthTables(auth.options)` — the real plugin set, with our `modelName`/`fieldName` overrides applied — and diffs it against the committed schema dump of the backend it runs on (`migrations/schema.sqlite.sql`, or `migrations/schema.sql` in the PostgreSQL CI job), so the next upgrade fails a test instead of an OAuth login. Take that list as the migration's contents. **The CI "Schema Dump Sync" job cannot catch this**: it regenerates the dumps FROM the migrations, so a migration that omits a column still produces a perfectly matching dump.
 - **`lib/services/auth/oauthProviderFlow.test.ts` is the only thing that drives better-auth's real OAuth endpoints** (sign-in → authorize → consent → token exchange, against a database built from the committed dump). `app/(nosidebar)/oauth/token/route.test.ts` mocks `getAuth`, so it asserts our proxying and nothing about better-auth. Keep the flow test running all the way to an access token — each step is there for the rows it writes, and stopping at the first 200 skips exactly the INSERTs that break.
 - When adding a new plugin (e.g. `sso()`, `dash()`), first create the necessary migration with `yarn migrate:make <name>`, then register the plugin.

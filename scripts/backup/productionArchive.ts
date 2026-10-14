@@ -31,9 +31,11 @@ import {
 import { type DB, inTransaction } from '@/lib/database/kysely'
 import {
   MIGRATION_LOCK_TABLES,
+  MIGRATION_TABLES,
   getAppliedMigrationNames,
   getKnownMigrationNames,
-  migrateToLatest
+  migrateToLatest,
+  normalizeMigrationNames
 } from '@/lib/database/migrate'
 import { openScriptDatabase } from '@/lib/database/scriptDatabase'
 
@@ -696,6 +698,14 @@ const assertRelativeFilePath = (filePath: string) => {
 const getClientName = (database: ArchiveDatabase) =>
   String(database.config.client)
 
+// The migration runners' bookkeeping and lock tables (lib/database/migrate).
+// The manifest's migration list says which migrations the source had applied;
+// a restored database keeps the history its own migrations wrote.
+const NOT_ARCHIVED_TABLES: readonly string[] = [
+  ...MIGRATION_TABLES,
+  ...MIGRATION_LOCK_TABLES
+]
+
 export const getDatabaseTableNames = async (database: ArchiveDatabase) => {
   const client = getClientName(database)
 
@@ -705,7 +715,7 @@ export const getDatabaseTableNames = async (database: ArchiveDatabase) => {
       from information_schema.tables
       where table_schema = 'public'
         and table_type = 'BASE TABLE'
-        and table_name not in (${sql.join(MIGRATION_LOCK_TABLES)})
+        and table_name not in (${sql.join(NOT_ARCHIVED_TABLES)})
       order by table_name asc
     `.execute(database.db)
     return rows.map((row) => row.name)
@@ -717,7 +727,7 @@ export const getDatabaseTableNames = async (database: ArchiveDatabase) => {
       from sqlite_master
       where type = 'table'
         and name <> 'sqlite_sequence'
-        and name not in (${sql.join(MIGRATION_LOCK_TABLES)})
+        and name not in (${sql.join(NOT_ARCHIVED_TABLES)})
       order by name asc
     `.execute(database.db)
     return rows.map((row) => row.name)
@@ -1967,11 +1977,14 @@ export const assertMatchingMigrations = (
 
 // The archive's migration list (what its database had applied) must be what
 // this checkout ships and, once migrated, what the local database has
-// applied. A database with no migrations applied is migrated first.
+// applied. A database with no migrations applied is migrated first. An
+// archive made before the Knex handover lists the Knex migrations; when that
+// is all of them, it is at the baseline (lib/database/migrate).
 const ensureArchiveSchemaMatchesLocal = async (
   database: ArchiveDatabase,
-  archiveMigrations: string[]
+  archivedMigrations: string[]
 ) => {
+  const archiveMigrations = normalizeMigrationNames(archivedMigrations)
   assertMatchingMigrations(archiveMigrations, await getKnownMigrationNames())
 
   const migrationsBeforeLatest = await getAppliedMigrationNames(database)
@@ -2391,7 +2404,19 @@ export const restoreDatabase = async (
 
   await ensureArchiveSchemaMatchesLocal(database, manifest.database.migrations)
 
-  const tableNames = manifest.database.tables.map((table) => table.name)
+  // An archive made before the bookkeeping tables were left out of exports
+  // has `knex_migrations`: the local database keeps its own history instead.
+  const tableNames: string[] = []
+  for (const { name } of manifest.database.tables) {
+    if (NOT_ARCHIVED_TABLES.includes(name)) {
+      console.log(
+        `Database: skipped ${name}; the local database keeps its own ` +
+          'migration history'
+      )
+      continue
+    }
+    tableNames.push(name)
+  }
   const localTables = new Set(await getDatabaseTableNames(database))
   const missingTables = tableNames.filter((table) => !localTables.has(table))
   if (missingTables.length > 0) {

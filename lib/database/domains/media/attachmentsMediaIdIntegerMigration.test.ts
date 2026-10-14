@@ -2,7 +2,7 @@ import knex, { Knex } from 'knex'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createLegacyKnex } from '@/lib/database/testing/legacyKnex'
-import * as migration from '@/migrations/20261012100000_attachments_media_id_integer_sqlite'
+import * as migration from '@/migrations/legacy/20261012100000_attachments_media_id_integer_sqlite'
 
 type TableInfoRow = {
   cid: number

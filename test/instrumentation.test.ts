@@ -1,6 +1,7 @@
 import { register } from '@/instrumentation'
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
+import { warnAboutPendingMigrations } from '@/lib/database/migrate/startupCheck'
 import { startActorDeletionSweep } from '@/lib/services/actors/actorDeletion'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
 
@@ -9,7 +10,12 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: vi.fn()
+  getDatabase: vi.fn(),
+  getKysely: vi.fn()
+}))
+
+vi.mock('@/lib/database/migrate/startupCheck', () => ({
+  warnAboutPendingMigrations: vi.fn()
 }))
 
 vi.mock('@/lib/services/actors/actorDeletion', () => ({
@@ -23,6 +29,8 @@ vi.mock('@/lib/services/queue/databaseRunner', () => ({
 const mockGetConfig = vi.mocked(getConfig)
 const mockGetDatabase = vi.mocked(getDatabase)
 const database = { id: 'database' } as unknown as ReturnType<typeof getDatabase>
+const db = { id: 'kysely' } as unknown as ReturnType<typeof getKysely>
+const databaseConfig = { client: 'better-sqlite3' }
 
 describe('register', () => {
   const originalRuntime = process.env.NEXT_RUNTIME
@@ -31,6 +39,7 @@ describe('register', () => {
     vi.clearAllMocks()
     process.env.NEXT_RUNTIME = 'nodejs'
     mockGetDatabase.mockReturnValue(database)
+    vi.mocked(getKysely).mockReturnValue(db)
   })
 
   afterAll(() => {
@@ -65,6 +74,22 @@ describe('register', () => {
     expect(startActorDeletionSweep).toHaveBeenCalledWith(database)
   })
 
+  it('checks the database for pending migrations without waiting for it', async () => {
+    mockGetConfig.mockReturnValue({
+      database: databaseConfig
+    } as unknown as ReturnType<typeof getConfig>)
+    // A check that never settles must not hold up the start.
+    vi.mocked(warnAboutPendingMigrations).mockReturnValue(new Promise(() => {}))
+
+    await register()
+
+    expect(warnAboutPendingMigrations).toHaveBeenCalledWith({
+      db,
+      config: databaseConfig
+    })
+    expect(startActorDeletionSweep).toHaveBeenCalledWith(database)
+  })
+
   it('starts nothing without a database', async () => {
     mockGetConfig.mockReturnValue({
       queue: { type: 'database', pollIntervalMs: 1234 }
@@ -75,6 +100,7 @@ describe('register', () => {
 
     expect(startDatabaseQueueRunner).not.toHaveBeenCalled()
     expect(startActorDeletionSweep).not.toHaveBeenCalled()
+    expect(warnAboutPendingMigrations).not.toHaveBeenCalled()
   })
 
   it('starts nothing outside the Node.js runtime', async () => {

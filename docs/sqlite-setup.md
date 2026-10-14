@@ -36,7 +36,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 yarn migrate
 ```
 
-This will execute all migration scripts in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations).
+On an empty database the first migration loads the baseline schema (`migrations/baseline/sqlite.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs. `yarn migrate` prints the database it resolved before it does anything, and `yarn migrate:status` lists the applied and pending migrations without writing to the database.
 
 ## Development Setup
 
@@ -110,4 +110,4 @@ Notes:
 - The image is published with the `main` tag — there is no `latest` tag on the registry.
 - The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters, so use a sufficiently long random secret.
 - The `-v` option mounts a local directory at `/opt/activities.next/data` so the SQLite database and the local uploads directory persist between container restarts. Create the host directory with appropriate permissions beforehand. Do **not** bind-mount `/opt/activities.next` itself — that directory contains the application (the standalone `server.js`, static assets, etc.), and a host-path mount would shadow it so the container cannot start.
-- The mounted data directory starts empty, and the runtime image does not run migrations. Before the first start, either run the Knex migrations against the mounted file from a checkout (`ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=/path/to/local/storage/data.sqlite yarn migrate` — the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in a checkout's `.env.local` from taking precedence) or copy the image's pre-migrated database as a starting point (`docker run --rm -v /path/to/local/storage:/data ghcr.io/llun/activities.next:main cp /opt/activities.next/data.sqlite /data/data.sqlite`).
+- The mounted data directory starts empty, and the runtime image does not run migrations. Before the first start, either run `yarn migrate` against the mounted file from a checkout (`ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=/path/to/local/storage/data.sqlite yarn migrate` — the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in a checkout's `.env.local` from taking precedence) or copy the image's pre-migrated database as a starting point (`docker run --rm -v /path/to/local/storage:/data ghcr.io/llun/activities.next:main cp /opt/activities.next/data.sqlite /data/data.sqlite`).

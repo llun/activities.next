@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260517000000_add_status_original_status_id'
+import * as migration from '@/migrations/legacy/20260517000000_add_status_original_status_id'
 
 describe('status original status id migration', () => {
   let database: knex.Knex

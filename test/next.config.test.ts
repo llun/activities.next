@@ -177,6 +177,16 @@ describe('next config runtime isolation', () => {
     )
   })
 
+  // The server never runs a migration (`yarn migrate` does, before the build),
+  // so the migrations and their baseline SQL stay out of the standalone output.
+  it('excludes the migrations from the standalone trace', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
+
+    expect(loadedNextConfig.outputFileTracingExcludes?.['/**/*']).toEqual([
+      './migrations/**/*'
+    ])
+  })
+
   // The database connection loads `pg` through dynamicImport, which the
   // standalone tracer cannot follow, so pg and everything it requires have to
   // be listed: its dependencies and the optional ones that are installed

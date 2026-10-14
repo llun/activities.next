@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260826120000_add_actors_lower_username_index'
+import * as migration from '@/migrations/legacy/20260826120000_add_actors_lower_username_index'
 
 // Pins the EXPRESSION the index is built on, not merely that an index exists.
 //

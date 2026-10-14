@@ -30,6 +30,8 @@ scripts/pixelfed/
 # Committed reference schema dumps (regenerated from migrations)
 !migrations/schema.sql
 !migrations/schema.sqlite.sql
+# The frozen baseline schema the first migration loads (never regenerated)
+!migrations/baseline/*.sql
 docker-compose.yml
 .cursorrules
 plans/

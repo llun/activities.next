@@ -1,6 +1,6 @@
 import knex, { Knex } from 'knex'
 
-import * as migration from '@/migrations/20261010134810_add_media_edits'
+import * as migration from '@/migrations/legacy/20261010134810_add_media_edits'
 
 describe('add media edits migration', () => {
   let database: Knex

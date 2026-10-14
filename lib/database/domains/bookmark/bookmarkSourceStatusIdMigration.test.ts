@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260517001000_add_bookmark_source_status_id'
+import * as migration from '@/migrations/legacy/20260517001000_add_bookmark_source_status_id'
 
 describe('bookmark source status id migration', () => {
   let database: knex.Knex

@@ -1,4 +1,4 @@
-import { rewriteNotificationIds } from '../lib/database/domains/notification/notificationIdRewrite.js'
+import { rewriteNotificationIds } from '../../lib/database/domains/notification/notificationIdRewrite.js'
 
 /**
  * Rewrites every notification id that is not already a UUIDv7 into a UUIDv7

@@ -1,6 +1,6 @@
 import knex, { Knex } from 'knex'
 
-import * as migration from '@/migrations/20260725000000_snap_fitness_privacy_radius'
+import * as migration from '@/migrations/legacy/20260725000000_snap_fitness_privacy_radius'
 
 interface SettingsRow {
   id: string

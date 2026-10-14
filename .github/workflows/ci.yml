@@ -461,6 +461,7 @@ jobs:
             scripts/backup/actorArchive.mediaEdits.test.ts \
             scripts/backup/productionArchive.database.test.ts \
             lib/database/migrate/index.test.ts \
+            scripts/database/migrate.test.ts \
             lib/database/domains/status/status.test.ts \
             lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTile.test.ts \
             lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaim.test.ts \
@@ -711,9 +712,10 @@ jobs:
 
   # Drift gate for the committed SQLite reference schema dump. The Vitest
   # suite builds every test database from migrations/schema.sqlite.sql (via
-  # lib/database/testing/schema.ts) instead of running the Knex migration chain, so
+  # lib/database/testing/schema.ts) instead of running the migrations, so
   # a dump that lags the migrations makes the whole suite test a stale schema.
-  # This job replays all migrations against a fresh SQLite database, applies
+  # This job runs `yarn migrate` against a fresh SQLite database (the baseline,
+  # then every migration after it), applies
   # the documented dump-and-strip pipeline (CONTRIBUTING.md → "SQLite —
   # migrations/schema.sqlite.sql"), and fails if the result differs from the
   # committed file.
@@ -737,13 +739,15 @@ jobs:
           ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
           ACTIVITIES_DATABASE_SQLITE_FILENAME=/tmp/schema-check.sqlite3 \
             yarn migrate
+      # One kysely_migration row per migration file: the baseline plus every
+      # migration after it (migrations/<timestamp>_<name>.ts).
       - name: Verify every migration file ran
         run: |
-          applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM knex_migrations;')
-          files=$(ls migrations/*.js | wc -l)
+          applied=$(sqlite3 /tmp/schema-check.sqlite3 'SELECT count(*) FROM kysely_migration;')
+          files=$(ls migrations/[0-9]*_*.ts | wc -l)
           echo "applied=$applied files=$files"
           if [ "$applied" -ne "$files" ]; then
-            echo "::error::knex_migrations has $applied rows but migrations/ has $files files"
+            echo "::error::kysely_migration has $applied rows but migrations/ has $files migration files"
             exit 1
           fi
       - name: Diff regenerated dump against migrations/schema.sqlite.sql
@@ -758,19 +762,34 @@ jobs:
           fi
 
   # Drift gate for the committed PostgreSQL reference schema dump. This job
-  # starts a PostgreSQL 17 service container, waits for readiness, replays all
-  # migrations against a fresh database, verifies that every migration file ran,
+  # starts a PostgreSQL 17 service container, waits for readiness, runs
+  # `yarn migrate` against a fresh database, verifies that every migration file ran,
   # generates a schema-only dump using PostgreSQL 17 tooling, applies the
   # documented normalization (CONTRIBUTING.md → "PostgreSQL —
   # migrations/schema.sql"), and fails if the result differs from the committed file.
   # It then regenerates the Kysely DB types (lib/database/kysely/db.ts) from the
-  # same database and fails if they differ from the committed file too.
+  # same database and fails if they differ from the committed file too. Last,
+  # it runs `yarn migrate` on PostgreSQL 14, the oldest version the docs
+  # support, where the baseline schema must load and dump the same.
   schema-dump-check-pg:
     name: PostgreSQL Schema Dump Sync
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:17
+        env:
+          POSTGRES_USER: activities
+          POSTGRES_PASSWORD: activities
+          POSTGRES_DB: activities
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres14:
+        image: postgres:14
         env:
           POSTGRES_USER: activities
           POSTGRES_PASSWORD: activities
@@ -799,6 +818,9 @@ jobs:
           until docker exec ${{ job.services.postgres.id }} pg_isready -U activities -d activities -q; do
             sleep 1
           done
+          until docker exec ${{ job.services.postgres14.id }} pg_isready -U activities -d activities -q; do
+            sleep 1
+          done
       - name: Run migrations against a fresh PostgreSQL database
         run: |
           ACTIVITIES_DATABASE_CLIENT=pg \
@@ -808,13 +830,15 @@ jobs:
           ACTIVITIES_DATABASE_PG_PASSWORD=activities \
           ACTIVITIES_DATABASE_PG_DATABASE=activities \
             yarn migrate
+      # One kysely_migration row per migration file: the baseline plus every
+      # migration after it (migrations/<timestamp>_<name>.ts).
       - name: Verify every migration file ran
         run: |
-          applied=$(docker exec ${{ job.services.postgres.id }} psql -U activities -d activities -tAc 'SELECT count(*) FROM knex_migrations;')
-          files=$(ls migrations/*.js | wc -l)
+          applied=$(docker exec ${{ job.services.postgres.id }} psql -U activities -d activities -tAc 'SELECT count(*) FROM kysely_migration;')
+          files=$(ls migrations/[0-9]*_*.ts | wc -l)
           echo "applied=$applied files=$files"
           if [ "$applied" -ne "$files" ]; then
-            echo "::error::knex_migrations has $applied rows but migrations/ has $files files"
+            echo "::error::kysely_migration has $applied rows but migrations/ has $files migration files"
             exit 1
           fi
       - name: Diff regenerated dump against migrations/schema.sql
@@ -850,6 +874,37 @@ jobs:
               --output /tmp/db-regenerated.ts
           if ! diff -u lib/database/kysely/db.ts /tmp/db-regenerated.ts; then
             echo "::error::lib/database/kysely/db.ts is out of sync with the schema. Regenerate it in this PR — see docs/setup.md → 'Regenerating the Kysely DB types'."
+            exit 1
+          fi
+      # The baseline (migrations/baseline/postgres.sql) has no PostgreSQL 17-only
+      # settings, so a fresh install on PostgreSQL 14 gets the same schema. The
+      # dump is taken with the PostgreSQL 17 pg_dump, as above; only its
+      # `SET transaction_timeout` preamble line is left out of the comparison.
+      - name: Load the baseline on PostgreSQL 14 and diff its dump
+        run: |
+          ACTIVITIES_DATABASE_CLIENT=pg \
+          ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+          ACTIVITIES_DATABASE_PG_PORT=${{ job.services.postgres14.ports['5432'] }} \
+          ACTIVITIES_DATABASE_PG_USER=activities \
+          ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+          ACTIVITIES_DATABASE_PG_DATABASE=activities \
+            yarn migrate
+          docker run --rm --network host -e PGPASSWORD=activities postgres:17 \
+            pg_dump -h 127.0.0.1 -p ${{ job.services.postgres14.ports['5432'] }} \
+              -U activities -d activities --schema-only --no-owner --no-privileges \
+            > /tmp/schema14_raw.sql
+          awk '
+            /^SET statement_timeout/ { started = 1 }
+            !started { next }
+            /^--/ { next }
+            /^\\(un)?restrict/ { next }
+            /^SET default_tablespace/ { next }
+            /^SET default_table_access_method/ { next }
+            /^SET transaction_timeout/ { next }
+            { print }
+          ' /tmp/schema14_raw.sql | cat -s > /tmp/schema14.sql
+          if ! grep -v '^SET transaction_timeout' migrations/schema.sql | diff -u - /tmp/schema14.sql; then
+            echo "::error::The baseline does not load on PostgreSQL 14 as the schema in migrations/schema.sql."
             exit 1
           fi
 

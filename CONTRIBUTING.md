@@ -459,7 +459,7 @@ activities.next/
 │   ├── services/              # Business logic services
 │   ├── types/                 # TypeScript type definitions
 │   └── utils/                 # Utility functions
-├── migrations/                # Database migrations (Knex)
+├── migrations/                # Database migrations (Kysely; legacy/ keeps the Knex ones)
 ├── packages/                  # Modular optional workspace packages
 │   ├── cloudtasks/            #   Google Cloud Tasks queue adapter (@activities/cloudtasks)
 │   ├── pg/                    #   PostgreSQL database driver (@activities/pg)
@@ -481,7 +481,7 @@ activities.next/
 - `package.json` → `prettier` — Code formatting rules
 - `vitest.config.ts` — Test configuration
 - `next.config.ts` — Next.js configuration
-- `knexfile.js` — Database migration configuration
+- `migrations/index.ts` — the migrations `yarn migrate` runs (`scripts/database/migrate.ts`), with their names in `migrations/names.ts`
 - `Dockerfile` — Docker container build
 
 ## Common Tasks
@@ -507,13 +507,17 @@ activities.next/
 yarn migrate:make descriptive_migration_name
 ```
 
-Edit the generated file in `migrations/`, then run:
+Edit the generated `migrations/<timestamp>_descriptive_migration_name.ts`, register it in `migrations/index.ts` and its name in `migrations/names.ts`, then run:
 
 ```bash
 yarn migrate
 ```
 
-> **Important:** All migrations must work with SQLite and PostgreSQL. Use Knex query builder and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic.
+`yarn migrate:status` lists the applied and pending migrations without writing
+anything, `yarn migrate:down` rolls back the last one (never the baseline), and
+`yarn migrate:unlock` releases the SQLite migration lock a killed run left held.
+
+> **Important:** All migrations must work with SQLite and PostgreSQL. A migration exports `up(db)` and `down(db)` taking a `Kysely<any>`: use Kysely's schema and query builders and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic. Each migration runs in its own transaction on both backends; export `config = { transaction: false }` only for a step that cannot run in one, and make it safe to run again. The first migration, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/`; never edit those files or anything in `migrations/legacy/` (the Knex migrations before it, which never run again).
 
 #### Updating the reference schema dumps
 
@@ -530,19 +534,20 @@ or vice versa. Both files are gitignored by the blanket `*.sql` rule and
 re-included by explicit `!` negations in `.gitignore`.
 
 Any pull request that adds, edits, or removes a migration **must regenerate BOTH
-files in the same PR**, keeping them in lockstep. The app runs Knex migrations,
+files in the same PR**, keeping them in lockstep. The app runs the migrations,
 but the Vitest suite loads its database schema directly from these dumps
 (`lib/database/testing/schema.ts`), so a drifted dump makes the whole test suite run
 against a stale schema — regeneration is mandatory, not just hygiene.
 
 Regenerate them canonically rather than hand-editing. In both cases, run every
-migration against a fresh database first and confirm the `knex_migrations` row
-count equals the number of `migrations/*.js` files.
+migration against a fresh database first and confirm the `kysely_migration` row
+count equals the number of `migrations/[0-9]*_*.ts` files (the baseline is one
+of them).
 
 > **Heads up on environment isolation.** The commands below pass the database
 > settings **inline** on the `yarn migrate` line rather than writing a
 > `.env.local` — this avoids clobbering an existing `.env.local` (the file the
-> setup docs have you create). `knexfile.js` uses `dotenv-flow`, which never
+> setup docs have you create). `yarn migrate` loads `.env*` files with `dotenv-flow`, which never
 > overrides a variable already in the environment, so each inline value wins
 > over the same variable in `.env.local` — but **only that variable**. Anything
 > `.env.local` sets that the line does not is still loaded, and an
@@ -590,13 +595,13 @@ count equals the number of `migrations/*.js` files.
      yarn migrate
    ```
 
-   Sanity check that every migration ran: the row count in `knex_migrations`
-   should equal the number of `migrations/*.js` files.
+   Sanity check that every migration ran: the row count in `kysely_migration`
+   should equal the number of `migrations/[0-9]*_*.ts` files.
 
    ```bash
    docker exec anext-schema-pg \
-     psql -U activities -d activities -tAc 'SELECT count(*) FROM knex_migrations;'
-   ls migrations/*.js | wc -l
+     psql -U activities -d activities -tAc 'SELECT count(*) FROM kysely_migration;'
+   ls migrations/[0-9]*_*.ts | wc -l
    ```
 
 3. Dump schema only, without ownership/grants, from the PG 17 server:
@@ -647,7 +652,7 @@ by hand.
    ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
    ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 \
      yarn migrate
-   sqlite3 schema-dump.sqlite3 'SELECT count(*) FROM knex_migrations;'  # == number of migrations
+   sqlite3 schema-dump.sqlite3 'SELECT count(*) FROM kysely_migration;'  # == ls migrations/[0-9]*_*.ts | wc -l
    ```
 
 2. Dump the schema and strip SQLite's auto-managed internal tables — it recreates
@@ -687,7 +692,7 @@ commit, use the `none:` prefix since these files ship nothing.
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - [Vitest Documentation](https://vitest.dev/guide/)
 - [better-auth Documentation](https://www.better-auth.com/)
-- [Knex.js Documentation](https://knexjs.org/)
+- [Kysely Documentation](https://kysely.dev/)
 
 ## Getting Help
 
@@ -1039,8 +1044,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   nothing a user can observe.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
-  via `lib/database/testing/schema.ts` rather than by running the Knex migration
-  chain, so the dumps MUST stay in lockstep with the migrations.
+  via `lib/database/testing/schema.ts` rather than by running the migrations,
+  so the dumps MUST stay in lockstep with the migrations.
 - **`describe` / `it` names use plain descriptive text — do not prefix them.**
   Name the function or method under test directly (`describe('getVisibility', …)`,
   not `describe('#getVisibility', …)`), and do not use a leading `#` or `.`
@@ -1091,7 +1096,7 @@ These exact steps are verified to work; the gotchas below are load-bearing.
 
    ```bash
    yarn install          # Node.js 24
-   yarn migrate          # knexfile uses dotenv-flow → auto-loads .env.local
+   yarn migrate          # dotenv-flow → auto-loads .env.local; prints the database first
 
    # The mock scripts do NOT auto-load .env.local.
    # Export the vars into the shell first, then run them:
@@ -1146,8 +1151,8 @@ each ends with the Definition of Done gate.
 
 ### Adding a database migration
 
-1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migrations/migration.stub`).
-2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines**).
+1. `yarn migrate:make <name>` — never hand-write the file (migrations are TypeScript with named `up`/`down` taking a `Kysely<any>`, from `migrations/migration.stub`) — then register it in `migrations/index.ts` and its name in `migrations/names.ts`.
+2. Use Kysely's schema and query builders; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines**). It runs in its own transaction unless it exports `config = { transaction: false }`.
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
 4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump or type drift.
 5. Update the affected `lib/database/` code and types, plus tests.
@@ -1200,7 +1205,7 @@ When a change alters what users see, update the design in the same task:
   - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build/Test and Commit sections) and `CONTRIBUTING.md`
   - Environment variables added/removed/renamed, or defaults/validation changed → `docs/environment-variables.md` and `.env.example` (plus any setup guide that shows the variable)
   - API routes added/moved, or HTTP methods changed → `docs/architecture.md` and the relevant feature guide (e.g. `docs/fitness-file-storage.md`)
-  - Knex migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup)
+  - Migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup)
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
   - New or changed coding conventions and patterns → the matching `AGENTS.md` section and the `REVIEW.md` checklist

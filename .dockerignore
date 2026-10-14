@@ -14,7 +14,12 @@ coverage
 .playwright-mcp
 .idea
 uploads
+# The scripts stay out of the image, except the migration CLI the build stage
+# runs (`yarn migrate`) and the loader it runs through.
 scripts
+!scripts/run.cjs
+!scripts/database/migrate.ts
+!scripts/fitness/describeConnection.ts
 wallaby.js
 .github
 .git

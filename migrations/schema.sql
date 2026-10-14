@@ -718,37 +718,15 @@ CREATE TABLE public.jwks (
     crv character varying(255)
 );
 
-CREATE TABLE public.knex_migrations (
-    id integer NOT NULL,
-    name character varying(255),
-    batch integer,
-    migration_time timestamp with time zone
+CREATE TABLE public.kysely_migration (
+    name character varying(255) NOT NULL,
+    "timestamp" character varying(255) NOT NULL
 );
 
-CREATE SEQUENCE public.knex_migrations_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE public.knex_migrations_id_seq OWNED BY public.knex_migrations.id;
-
-CREATE TABLE public.knex_migrations_lock (
-    index integer NOT NULL,
-    is_locked integer
+CREATE TABLE public.kysely_migration_lock (
+    id character varying(255) NOT NULL,
+    is_locked integer DEFAULT 0 NOT NULL
 );
-
-CREATE SEQUENCE public.knex_migrations_lock_index_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE public.knex_migrations_lock_index_seq OWNED BY public.knex_migrations_lock.index;
 
 CREATE TABLE public.legacy_fitness_heatmap_media_cleanup (
     "actorId" character varying(255) NOT NULL,
@@ -1473,10 +1451,6 @@ ALTER TABLE ONLY public.direct_conversation_memberships ALTER COLUMN id SET DEFA
 
 ALTER TABLE ONLY public.endorsements ALTER COLUMN id SET DEFAULT nextval('public.endorsements_id_seq'::regclass);
 
-ALTER TABLE ONLY public.knex_migrations ALTER COLUMN id SET DEFAULT nextval('public.knex_migrations_id_seq'::regclass);
-
-ALTER TABLE ONLY public.knex_migrations_lock ALTER COLUMN index SET DEFAULT nextval('public.knex_migrations_lock_index_seq'::regclass);
-
 ALTER TABLE ONLY public.medias ALTER COLUMN id SET DEFAULT nextval('public.medias_id_seq'::regclass);
 
 ALTER TABLE ONLY public.poll_answers ALTER COLUMN "answerId" SET DEFAULT nextval('public."poll_answers_answerId_seq"'::regclass);
@@ -1726,11 +1700,11 @@ ALTER TABLE ONLY public.instance_rules
 ALTER TABLE ONLY public.jwks
     ADD CONSTRAINT jwks_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY public.knex_migrations_lock
-    ADD CONSTRAINT knex_migrations_lock_pkey PRIMARY KEY (index);
+ALTER TABLE ONLY public.kysely_migration_lock
+    ADD CONSTRAINT kysely_migration_lock_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY public.knex_migrations
-    ADD CONSTRAINT knex_migrations_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.kysely_migration
+    ADD CONSTRAINT kysely_migration_pkey PRIMARY KEY (name);
 
 ALTER TABLE ONLY public.legacy_fitness_heatmap_media_cleanup
     ADD CONSTRAINT legacy_fitness_heatmap_media_cleanup_pkey PRIMARY KEY ("actorId", "imagePath");

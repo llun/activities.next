@@ -5,7 +5,7 @@ import {
   createKnexQueryCapture
 } from '@/lib/database/testing/queryCapture'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
-import * as migration from '@/migrations/20260526112702_backfill_instance_activity_counters'
+import * as migration from '@/migrations/legacy/20260526112702_backfill_instance_activity_counters'
 
 const sumCounterRows = (rows: { value: number | string | null }[]) =>
   rows.reduce((total, row) => total + Number(row.value ?? 0), 0)
