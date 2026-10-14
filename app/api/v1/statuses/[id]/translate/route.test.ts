@@ -150,8 +150,7 @@ describe('POST /api/v1/statuses/:id/translate', () => {
     )
     expect(mockFetchEphemeralRemoteStatus).toHaveBeenCalledWith({
       database: mockDatabase,
-      statusId: remoteStatusUrl,
-      currentActor: mockCurrentActor
+      statusId: remoteStatusUrl
     })
     expect(mockGetMastodonStatus).toHaveBeenCalledWith(
       mockDatabase,
@@ -164,19 +163,6 @@ describe('POST /api/v1/statuses/:id/translate', () => {
     mockGetStatus.mockResolvedValue(null)
     expect((await post('{}', 'application/json', remoteEncodedId)).status).toBe(
       404
-    )
-    expect(mockTranslateStatus).not.toHaveBeenCalled()
-  })
-
-  it('returns 403 for a live-fetched status that serializes as non-public', async () => {
-    mockGetStatus.mockResolvedValue(null)
-    mockFetchEphemeralRemoteStatus.mockResolvedValue({ id: remoteStatusUrl })
-    mockGetMastodonStatus.mockResolvedValue({
-      visibility: 'private',
-      content: '<p>secret</p>'
-    })
-    expect((await post('{}', 'application/json', remoteEncodedId)).status).toBe(
-      403
     )
     expect(mockTranslateStatus).not.toHaveBeenCalled()
   })

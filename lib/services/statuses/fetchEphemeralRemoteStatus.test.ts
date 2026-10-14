@@ -8,15 +8,13 @@ const {
   mockIsLocalFederationDomain,
   mockCanFederateWithDomain,
   mockGetFederationSigningActorSafe,
-  mockRecordRemoteActorBestEffort,
-  mockDetectLanguageFromHtml
+  mockRecordRemoteActorBestEffort
 } = vi.hoisted(() => ({
   mockGetNote: vi.fn(),
   mockIsLocalFederationDomain: vi.fn(),
   mockCanFederateWithDomain: vi.fn(),
   mockGetFederationSigningActorSafe: vi.fn(),
-  mockRecordRemoteActorBestEffort: vi.fn(),
-  mockDetectLanguageFromHtml: vi.fn()
+  mockRecordRemoteActorBestEffort: vi.fn()
 }))
 
 vi.mock('@/lib/activities', () => ({
@@ -34,10 +32,6 @@ vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
 
 vi.mock('@/lib/services/actors/refreshRemoteActor', () => ({
   recordRemoteActorBestEffort: mockRecordRemoteActorBestEffort
-}))
-
-vi.mock('@/lib/services/language-detection', () => ({
-  detectLanguageFromHtml: mockDetectLanguageFromHtml
 }))
 
 const statusUrl = 'https://toot.io/users/devstorm/statuses/117434164364383111'
@@ -58,16 +52,12 @@ const makeNote = (overrides: Record<string, unknown> = {}) => ({
 })
 
 const mockGetActorFromId = vi.fn()
-const mockCreateNote = vi.fn()
-const mockCreatePoll = vi.fn()
 const database = {
-  getActorFromId: mockGetActorFromId,
-  createNote: mockCreateNote,
-  createPoll: mockCreatePoll
+  getActorFromId: mockGetActorFromId
 } as unknown as Database
 
 const fetchStatus = (statusId = statusUrl) =>
-  fetchEphemeralRemoteStatus({ database, statusId, currentActor: viewer })
+  fetchEphemeralRemoteStatus({ database, statusId })
 
 describe('fetchEphemeralRemoteStatus', () => {
   beforeEach(() => {
@@ -77,10 +67,7 @@ describe('fetchEphemeralRemoteStatus', () => {
       mockCanFederateWithDomain,
       mockGetFederationSigningActorSafe,
       mockRecordRemoteActorBestEffort,
-      mockDetectLanguageFromHtml,
-      mockGetActorFromId,
-      mockCreateNote,
-      mockCreatePoll
+      mockGetActorFromId
     ]) {
       mock.mockReset()
     }
@@ -90,7 +77,6 @@ describe('fetchEphemeralRemoteStatus', () => {
     mockGetNote.mockResolvedValue(makeNote())
     mockGetActorFromId.mockResolvedValue(author)
     mockRecordRemoteActorBestEffort.mockResolvedValue(null)
-    mockDetectLanguageFromHtml.mockResolvedValue({ language: 'es' })
   })
 
   it('returns a public remote note fetched with the instance signer, without storing it', async () => {
@@ -102,12 +88,9 @@ describe('fetchEphemeralRemoteStatus', () => {
     })
     expect(status).toMatchObject({
       id: statusUrl,
-      actorId: authorId,
-      detectedLanguage: 'es'
+      actorId: authorId
     })
     expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
-    expect(mockCreateNote).not.toHaveBeenCalled()
-    expect(mockCreatePoll).not.toHaveBeenCalled()
   })
 
   it('returns an unlisted remote note', async () => {

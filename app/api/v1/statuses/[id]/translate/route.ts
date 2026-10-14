@@ -54,7 +54,7 @@ const getTranslatableStatus = async ({
     withReplies: false
   })
   if (!storedStatus) {
-    return fetchEphemeralRemoteStatus({ database, statusId, currentActor })
+    return fetchEphemeralRemoteStatus({ database, statusId })
   }
 
   const canRead = await canActorReadStatus({

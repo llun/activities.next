@@ -7,12 +7,7 @@ import {
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
-import { detectLanguageFromHtml } from '@/lib/services/language-detection'
-import {
-  canActorReadStatus,
-  isPublicOrUnlisted
-} from '@/lib/services/statusAccess'
-import { Actor } from '@/lib/types/domain/actor'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { StatusNote, fromNote } from '@/lib/types/domain/status'
 import {
   isSameActivityPubOrigin,
@@ -33,7 +28,6 @@ const isUrl = (value: string): boolean => {
 export type FetchEphemeralRemoteStatusParams = {
   database: Database
   statusId: string
-  currentActor: Actor | null
 }
 
 /**
@@ -48,7 +42,7 @@ export type FetchEphemeralRemoteStatusParams = {
  * - federation domain policy gates the request URL and the author;
  * - the fetched note's id must share the requested URL's origin, and its
  *   author must share the note id's origin;
- * - only public or unlisted notes the viewer may read are returned.
+ * - only public or unlisted notes are returned.
  *
  * The note is fetched with `getNote` rather than `getRemoteStatus` so the
  * author's server is not contacted before the attribution check passes. The
@@ -58,8 +52,7 @@ export type FetchEphemeralRemoteStatusParams = {
  */
 export const fetchEphemeralRemoteStatus = async ({
   database,
-  statusId,
-  currentActor
+  statusId
 }: FetchEphemeralRemoteStatusParams): Promise<StatusNote | null> => {
   if (!isUrl(statusId)) return null
 
@@ -135,13 +128,6 @@ export const fetchEphemeralRemoteStatus = async ({
       signingActor
     }))
   if (!actor) return null
-
-  if (!(await canActorReadStatus({ database, status, currentActor }))) {
-    return null
-  }
-
-  status.detectedLanguage =
-    (await detectLanguageFromHtml(status.text))?.language ?? null
 
   return status
 }
