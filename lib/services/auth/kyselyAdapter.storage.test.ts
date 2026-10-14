@@ -10,12 +10,12 @@ import {
 // What the adapter stores for better-auth's dates and booleans, read back from
 // the database without the driver's normalisation, for every date and boolean
 // column of every better-auth table. These are the representations the rest of
-// the application reads and orders by, and the ones the Knex adapter stored
-// before this one: SQLite holds dates as INTEGER epoch milliseconds (never ISO
-// text, which SQLite orders after every integer) and booleans as INTEGER 0/1;
-// PostgreSQL holds them as `timestamp with time zone` and `boolean`. Reading
-// back through the adapter gives better-auth a `Date` for every column it
-// declares as a date, whatever its name — `oauthRefreshToken.revoked` included.
+// the application reads and orders by: SQLite holds dates as INTEGER epoch
+// milliseconds (never ISO text, which SQLite orders after every integer) and
+// booleans as INTEGER 0/1; PostgreSQL holds them as `timestamp with time zone`
+// and `boolean`. Reading back through the adapter gives better-auth a `Date`
+// for every column it declares as a date, whatever its name —
+// `oauthRefreshToken.revoked` included.
 const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 

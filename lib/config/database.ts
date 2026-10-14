@@ -4,31 +4,29 @@ import { logger } from '@/lib/utils/logger'
 
 import { matcher } from './utils'
 
-// The database the application connects to (lib/database/connection.ts). It
-// is still the subset of a Knex configuration the app has always accepted, so
-// `ACTIVITIES_DATABASE` JSON written for Knex keeps working:
+// The database the application connects to (lib/database/connection.ts),
+// read from the `ACTIVITIES_DATABASE` JSON or the `ACTIVITIES_DATABASE_*`
+// variables:
 //
 // - better-sqlite3: `connection.filename` (a bare string is the filename).
-//   `useNullAsDefault` is always set, as Knex required.
+//   `useNullAsDefault` is accepted and always set.
 // - pg: `connection` is a node-postgres client configuration (`host`, `port`,
 //   `user`, `password`, `database`, `ssl`, `application_name`, …) or a
 //   connection string (absent in the JSON: `{}`, so node-postgres reads the
 //   `PG*` environment variables, under `yarn migrate` too); `pool.min` /
-//   `pool.max` size the pool (Knex's defaults, 2 and 10, when `pool` is
-//   absent);
+//   `pool.max` size the pool (2 and 10 when `pool` is absent);
 //   `acquireConnectionTimeout` is how long a query waits for a free pooled
 //   connection, in milliseconds (60 000 when unset).
 //
-// Other keys in the JSON (Knex's `searchPath`, `debug`, pool hooks and timers,
-// …) are ignored with a warning naming them.
+// Other keys in the JSON (`searchPath`, `debug`, pool hooks and timers, …)
+// are ignored with a warning naming them.
 
-// Knex's pool size when the configuration has no `pool`.
+// The pool size when the JSON configuration has no `pool`.
 export const DEFAULT_POSTGRES_POOL = { min: 2, max: 10 }
 
-// The pool sizes Knex could use: tarn refused a `min` that is not a whole
-// number >= 0, a `max` that is not a whole number > 0 (except 0, for which
-// Knex built no pool, so every query failed) and a `min` above the `max`.
-// All of them are refused here, when the configuration is read.
+// A pool needs a `min` that is a whole number >= 0, a `max` that is a whole
+// number > 0 and a `min` no larger than the `max`. Anything else is refused
+// when the configuration is read.
 const getPoolSizeProblem = (min: number, max: number) => {
   if (!Number.isInteger(min) || min < 0) return 'min must be an integer >= 0'
   if (!Number.isInteger(max) || max <= 0) return 'max must be an integer > 0'
@@ -52,9 +50,8 @@ const PostgresDatabaseConfig = z
         max: z.number().optional()
       })
       .optional(),
-    // Knex took the smallest of its timeouts with Math.min, which turned a
-    // numeric string such as "30000" into a number; tarn then refused anything
-    // that is not a whole number > 0 ("abc" became NaN), as it is here.
+    // A numeric string such as "30000" is read as a number; anything that is
+    // not a whole number > 0 ("abc", "1.5", 0) is refused.
     acquireConnectionTimeout: z.coerce.number().int().positive().optional()
   })
   .superRefine(({ pool }, context) => {
@@ -85,7 +82,7 @@ const unsupportedClientError = (client: string) =>
       'set ACTIVITIES_DATABASE_CLIENT accordingly (see docs/setup.md).'
   )
 
-// Knex's names for its PostgreSQL client; all of them use node-postgres.
+// The client names accepted for PostgreSQL; all of them use node-postgres.
 const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
 const TOP_LEVEL_KEYS = new Set([
   'client',
@@ -108,11 +105,11 @@ const warnIgnoredKeys = (keys: string[]) => {
 }
 
 /**
- * Reads the Knex-shaped `ACTIVITIES_DATABASE` JSON into a `DatabaseConfig`.
+ * Reads the `ACTIVITIES_DATABASE` JSON into a `DatabaseConfig`.
  * Throws for a client other than better-sqlite3 or pg, or a value of the wrong
  * type; warns about keys it does not use.
  */
-export const parseKnexDatabaseConfig = (value: unknown): DatabaseConfig => {
+export const parseDatabaseJsonConfig = (value: unknown): DatabaseConfig => {
   if (!isObject(value)) {
     throw new Error('ACTIVITIES_DATABASE must be a JSON object')
   }
@@ -158,10 +155,8 @@ export const parseKnexDatabaseConfig = (value: unknown): DatabaseConfig => {
     warnIgnoredKeys(ignored)
     return PostgresDatabaseConfig.parse({
       client: 'pg',
-      // Knex built no pool without a connection (every query failed with
-      // "Unable to acquire a connection"); here it is `{}`, and node-postgres
-      // takes the host, user, password and database from the PG* environment
-      // variables.
+      // No connection is `{}`: node-postgres then takes the host, user,
+      // password and database from the PG* environment variables.
       connection: value.connection || {},
       ...(isObject(pool)
         ? {
@@ -178,6 +173,22 @@ export const parseKnexDatabaseConfig = (value: unknown): DatabaseConfig => {
   }
 
   throw unsupportedClientError(client)
+}
+
+/**
+ * `ACTIVITIES_DATABASE_PG_SSL_MODE` as node-postgres `ssl` settings, for the
+ * app (getDatabaseConfig below) and `yarn migrate` (migrationDatabase.ts):
+ * `null` (no TLS) when unset or `disable`; otherwise TLS, verifying the
+ * certificate for `verify-ca` and `verify-full`, and skipping the host name
+ * check for `verify-ca`.
+ */
+export const getPostgresSslSettings = (sslMode: string | undefined) => {
+  if (!sslMode || sslMode === 'disable') return null
+
+  return {
+    rejectUnauthorized: sslMode === 'verify-ca' || sslMode === 'verify-full',
+    ...(sslMode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {})
+  }
 }
 
 const getEnvironmentPool = () => {
@@ -200,7 +211,7 @@ const getEnvironmentPool = () => {
 export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
   if (process.env.ACTIVITIES_DATABASE) {
     return {
-      database: parseKnexDatabaseConfig(
+      database: parseDatabaseJsonConfig(
         JSON.parse(process.env.ACTIVITIES_DATABASE)
       )
     }
@@ -223,6 +234,9 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
       }
     }
     case 'pg': {
+      const ssl = getPostgresSslSettings(
+        process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
+      )
       return {
         database: {
           client: process.env.ACTIVITIES_DATABASE_CLIENT,
@@ -243,22 +257,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             ...(process.env.ACTIVITIES_DATABASE_PG_DATABASE
               ? { database: process.env.ACTIVITIES_DATABASE_PG_DATABASE }
               : {}),
-            ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE &&
-            process.env.ACTIVITIES_DATABASE_PG_SSL_MODE !== 'disable'
-              ? {
-                  ssl: {
-                    rejectUnauthorized:
-                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                        'verify-ca' ||
-                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                        'verify-full',
-                    ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                    'verify-ca'
-                      ? { checkServerIdentity: () => undefined }
-                      : {})
-                  }
-                }
-              : {})
+            ...(ssl ? { ssl } : {})
           },
           pool: getEnvironmentPool()
         }

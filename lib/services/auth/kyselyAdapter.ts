@@ -173,8 +173,8 @@ const TRUE = sql<SqlBool>`1 = 1`
 const FALSE = sql<SqlBool>`1 = 0`
 
 // Bound values may not be `undefined`: what the database would make of one
-// differs by driver, and a comparison against it never means anything. Knex
-// refused these ("Undefined binding(s) detected"); so does this.
+// differs by driver, and a comparison against it never means anything, so they
+// are refused.
 const assertDefined = (tableName: string, field: string, value: unknown) => {
   const values = Array.isArray(value) ? value : [value]
   if (values.some((entry) => entry === undefined)) {
@@ -225,8 +225,8 @@ const toCondition = (
     case 'lte':
       assertDefined(tableName, field, value)
       return eb(column, '<=', value)
-    // An empty list matches nothing (`in`) or everything (`not in`), as it did
-    // under Knex; `in ()` itself is a syntax error on PostgreSQL.
+    // An empty list matches nothing (`in`) or everything (`not in`); `in ()`
+    // itself is a syntax error on PostgreSQL.
     case 'in': {
       const values = Array.isArray(value) ? value : [value]
       assertDefined(tableName, field, values)
@@ -250,12 +250,11 @@ const toCondition = (
 
 // The caller's predicate as one expression. better-auth connects each clause to
 // the previous one with its `connector`, read left to right with SQL's usual
-// precedence (AND binds tighter than OR), which is how Knex's where/orWhere
-// chain rendered it: `a AND b OR c AND d` is `(a AND b) OR (c AND d)`. So a
-// clause connected with OR starts a new AND group; the first clause's
-// connector is ignored. The result is parenthesised wherever it is combined
-// with another condition, so an OR in it can never re-associate against a
-// clause of the adapter's own.
+// precedence (AND binds tighter than OR): `a AND b OR c AND d` is
+// `(a AND b) OR (c AND d)`. So a clause connected with OR starts a new AND
+// group; the first clause's connector is ignored. The result is parenthesised
+// wherever it is combined with another condition, so an OR in it can never
+// re-associate against a clause of the adapter's own.
 const buildWhere = (
   eb: AuthExpressionBuilder,
   tableName: string,
@@ -551,8 +550,7 @@ export const kyselyAdapter = (
           .limit(1)
           .executeTakeFirst() as Promise<Row | undefined>
 
-      // The id of the first row the predicate matches, the way Knex's
-      // `.first('id')` read it.
+      // The id of the first row the predicate matches (`limit 1`).
       const findFirstId = async (
         executor: AuthDb,
         tableName: string,
@@ -655,8 +653,7 @@ export const kyselyAdapter = (
           // and `offset` still count base rows.
           if (limit !== undefined) query = query.limit(limit)
           if (offset !== undefined) {
-            // SQLite only accepts OFFSET after a LIMIT; -1 is "no limit" there,
-            // which is what Knex rendered for an offset on its own.
+            // SQLite only accepts OFFSET after a LIMIT; -1 is "no limit" there.
             if (limit === undefined && getDialectName(asDb(db)) === 'sqlite') {
               query = query.limit(-1)
             }

@@ -73,8 +73,8 @@ const parseJsonValue = <T>(
  * already read the timestamps as epoch milliseconds and `isPartial` as a
  * boolean, on both backends.
  *
- * `periodStart`, `periodEnd` and `deletedAt` keep the Knex mixin's truthiness
- * check, so an epoch-0 value reads as unset, as it always did on SQLite.
+ * `periodStart`, `periodEnd` and `deletedAt` are checked for truthiness, so an
+ * epoch-0 value reads as unset.
  */
 export const toFitnessRouteHeatmapSummary = (
   row: FitnessRouteHeatmapSummaryRow

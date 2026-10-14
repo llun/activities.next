@@ -1,8 +1,8 @@
 -- FROZEN baseline schema (SQLite), loaded by the first Kysely migration
 -- (migrations/20261014000000_baseline.ts) into an empty database. Derived once
--- from migrations/schema.sqlite.sql as the last Knex migration (in
--- migrations/legacy/) left it, with the knex_migrations / knex_migrations_lock
--- tables removed. Never edit it: schema changes are new migrations.
+-- from migrations/schema.sqlite.sql as the Knex migrations of v1.192.34 left
+-- it, with the knex_migrations / knex_migrations_lock tables removed. Never
+-- edit it: schema changes are new migrations.
 CREATE TABLE `follows` (`id` varchar(255), `actorId` varchar(255), `actorHost` varchar(255), `targetActorId` varchar(255), `targetActorHost` varchar(255), `status` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `inbox` varchar(255), `sharedInbox` varchar(255), `reblogs` boolean not null default '1', `notify` boolean not null default '0', `languages` text null, primary key (`id`));
 CREATE INDEX `followsIndex` on `follows` (`actorId`, `actorHost`, `targetActorId`, `targetActorHost`, `status`, `createdAt`, `updatedAt`);
 CREATE TABLE `recipients` (`id` varchar(255), `statusId` varchar(255), `actorId` varchar(255), `type` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));

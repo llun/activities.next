@@ -16,7 +16,7 @@ ACTIVITIES_DATABASE_CLIENT=better-sqlite3
 ACTIVITIES_DATABASE_SQLITE_FILENAME=./dev.sqlite3
 ```
 
-Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is in the shape of a [Knex configuration object](https://knexjs.org/guide/#configuration-options). The app reads only `client`, `connection`, `pool.min`/`pool.max` and `acquireConnectionTimeout` from it and logs a warning naming any other key it ignores (see [Environment Variables](environment-variables.md#full-json-configuration)):
+Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE`. The app reads only `client`, `connection`, `pool.min`/`pool.max` and `acquireConnectionTimeout` from it and logs a warning naming any other key it ignores (see [Environment Variables](environment-variables.md#full-json-configuration)):
 
 ```json
 {

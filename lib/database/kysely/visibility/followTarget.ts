@@ -16,8 +16,7 @@ export const selectFollowTargetActorIds = async (
   { forShare: lockRows = false }: { forShare?: boolean } = {}
 ): Promise<string[]> => {
   const uniqueTargetActorIds = [...new Set(targetActorIds)]
-  // Knex compiled an empty `whereIn` to a false condition; `in ()` is a syntax
-  // error on PostgreSQL.
+  // An empty list selects nothing; `in ()` is a syntax error on PostgreSQL.
   if (uniqueTargetActorIds.length === 0 || statuses.length === 0) return []
 
   const query = db

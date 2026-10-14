@@ -1577,7 +1577,7 @@ describe('rollback', () => {
     const before = await dumpDatabase(testDb)
     try {
       await expect(deleteStatus(db(), { statusId: t.root })).rejects.toThrow(
-        // The driver's own message, without Knex's statement prefix.
+        // The driver's own message, without the statement in front.
         /^forced failure$/
       )
     } finally {
@@ -1767,9 +1767,9 @@ describe('deleteStatusEditHistory', () => {
   })
 })
 
-// Each was reproduced against the Knex mixin this replaces.
-describe('behaviour changes', () => {
-  it('treats an undefined status id as no status, where Knex threw', async () => {
+// Keys the types forbid.
+describe('undefined and null keys', () => {
+  it('treats an undefined status id as no status', async () => {
     await seedThread()
     const refresh = refreshSpy()
     const before = await dumpDatabase(testDb)
@@ -1796,7 +1796,7 @@ describe('behaviour changes', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
-  it('deletes no revision for a null status id, where Knex deleted those with no status', async () => {
+  it('deletes no revision for a null status id, not even one with no status', async () => {
     await db()
       .insertInto('status_history')
       .values({

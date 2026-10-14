@@ -320,7 +320,7 @@ describe('getStatus', () => {
     expect(statements[0].bindings).toEqual([target, 1])
   })
 
-  it('reads an undefined or null id as no status (Knex threw on undefined)', async () => {
+  it('reads an undefined or null id as no status', async () => {
     await expect(
       getStatus(db, { statusId: undefined as unknown as string })
     ).resolves.toBeNull()
@@ -1188,8 +1188,7 @@ describe('hydrateStatusRow', () => {
         mapError: 'no points',
         // A map image no attachment matches leaves their order alone.
         mapImagePath: `/medias/${prefix}-none.webp`,
-        // An epoch-0 start reads as unset on both backends, as it always did
-        // on SQLite (on PostgreSQL Knex's Date was truthy and gave 0).
+        // An epoch-0 start reads as unset on both backends.
         activityStartTime: new Date(0),
         createdAt: new Date(BASE),
         // Long enough ago that the worker must have died.
@@ -1763,7 +1762,7 @@ describe('getStatusEditHistory', () => {
     ])
   })
 
-  it('reads an undefined status id as no revisions (Knex threw)', async () => {
+  it('reads an undefined status id as no revisions', async () => {
     await expect(
       getStatusEditHistory(db, { statusId: undefined as unknown as string })
     ).resolves.toEqual([])
@@ -1779,9 +1778,8 @@ describe('getStatusEditHistory', () => {
         actorId: author
       })
       // The text the column holds is itself a JSON string. The driver parses
-      // the json column to that string and getCompatibleJSON parses it again;
-      // Knex handed over the text, so the one parse left a string and the
-      // revision read as empty, with every field unavailable.
+      // the json column to that string and getCompatibleJSON parses it again,
+      // so the revision reads with its fields, not as an empty one.
       await db
         .insertInto('status_history')
         .values({
@@ -1896,7 +1894,7 @@ describe('getStatusReplies', () => {
     ])
   })
 
-  it('limits the page as Knex did: parsed, and none at all for 0 or a value that does not parse', async () => {
+  it('limits the page through parseInt, and not at all for 0 or a value that does not parse', async () => {
     const prefix = nextPrefix()
     const seed = await seedReplies(prefix)
     const replyId = (name: string) => `${seed.replier}/statuses/${name}`
@@ -1988,7 +1986,7 @@ describe('getStatusReplies', () => {
     ])
   })
 
-  it('reads an undefined parent id as no replies (Knex threw)', async () => {
+  it('reads an undefined parent id as no replies', async () => {
     await expect(
       getStatusReplies(db, { statusId: undefined as unknown as string })
     ).resolves.toEqual([])
@@ -2523,7 +2521,7 @@ describe('getStatusesByIds', () => {
       getStatusesByIds(db, { statusIds: [statusId('c'), statusId('c')] })
     )
     expect(statements[0].bindings).toEqual([statusId('c')])
-    // An undefined element is skipped (Knex threw).
+    // An undefined element is skipped.
     await expect(
       getStatusesByIds(db, {
         statusIds: [statusId('c'), undefined as unknown as string]
@@ -2729,8 +2727,8 @@ describe('status counts', () => {
       ).rejects.toThrow(RangeError)
       // Hydration reads a status's like and boost totals. Each is large on a
       // status whose author's own counters are in range (the author above has
-      // an out-of-range total, which fails hydration in the old code too);
-      // Knex read it as 9,007,199,254,740,991 and hydrated the status.
+      // an out-of-range total, which fails hydration on its own); hydration
+      // throws rather than read it as 9,007,199,254,740,991.
       for (const [name, counterKey] of [
         ['like', CounterKey.totalLike],
         ['boost', CounterKey.totalReblog]
@@ -2780,8 +2778,8 @@ describe('status counts', () => {
         .insertInto('fitness_files')
         .values([
           file('neighbour', neighbourId, 2048),
-          // 9,007,199,254,740,993: Knex read it as a string and Number()
-          // rounded it to 9,007,199,254,740,992.
+          // 9,007,199,254,740,993, which Number() would round to
+          // 9,007,199,254,740,992.
           file('large', statusId, '9007199254740993')
         ])
         .execute()
@@ -2796,12 +2794,12 @@ describe('status counts', () => {
   )
 
   it.runIf(testDb.backend === 'pg')(
-    'throws the driver’s own message for a database error, without the statement Knex put before it',
+    'throws the driver’s own message for a database error, without the statement in front',
     async () => {
       const prefix = nextPrefix()
       const author = await seedActor(actorIn(prefix, 'author'))
-      // Knex's message began with the statement: select * from "statuses"
-      // where "actorId" = $1 order by ... limit $2 - LIMIT must not be negative
+      // Not prefixed with the statement (select * from "statuses" where
+      // "actorId" = $1 order by ... limit $2 - LIMIT must not be negative).
       await expect(
         getActorStatuses(db, { actorId: author, limit: -1 })
       ).rejects.toMatchObject({ message: 'LIMIT must not be negative' })
@@ -2810,7 +2808,7 @@ describe('status counts', () => {
 })
 
 describe('null and undefined keys', () => {
-  it('reads an undefined key as NULL, matching no row, where Knex threw', async () => {
+  it('reads an undefined key as NULL, matching no row', async () => {
     const prefix = nextPrefix()
     const author = await seedActor(actorIn(prefix, 'author'))
     const replier = await seedActor(actorIn(prefix, 'replier'))
@@ -2844,11 +2842,11 @@ describe('null and undefined keys', () => {
     ).resolves.toBe(0)
   })
 
-  it('reads a null key as matching no row, where Knex matched the rows with NULL there', async () => {
+  it('reads a null key as matching no row, not even the rows with NULL there', async () => {
     const prefix = nextPrefix()
     const author = await seedActor(actorIn(prefix, 'author'))
-    // Rows with NULL in the keys these reads filter on, which Knex's
-    // two-argument where read as IS NULL.
+    // Rows with NULL in the keys these reads filter on, which a null key must
+    // not match.
     const noReply = await seedStatus({
       id: `${author}/statuses/no-reply`,
       actorId: author,

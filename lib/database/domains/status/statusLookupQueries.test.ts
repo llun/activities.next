@@ -1519,7 +1519,7 @@ describe('pins', () => {
       })
     )
     expect(result).toBe(true)
-    // SQLite has no row locks: Knex's forUpdate() wrote nothing there either.
+    // SQLite has no row locks, so nothing is written there.
     const lock =
       testDb.backend === 'pg'
         ? 'select "id" from "actors" where "id" = $1 for update'
@@ -1975,9 +1975,9 @@ describe('getRebloggedBy', () => {
     }
   })
 
-  // Knex's tie arm was the two-argument where('createdAt', null), which
-  // compiles to IS NULL: a cursor boost with no createdAt pages through the
-  // other undated boosts by id, and a dated boost is never past it.
+  // The tie arm compares `createdAt IS NULL`: a cursor boost with no
+  // createdAt pages through the other undated boosts by id, and a dated boost
+  // is never past it.
   it('pages an undated cursor boost through the other undated boosts, by id', async () => {
     const { target, booster, boosts } = await setupReblogs()
     const { a1, a2, a3, a4, a5dup2, a6 } = boosts
@@ -2032,14 +2032,14 @@ describe('getRebloggedBy', () => {
     }
   })
 
-  it('reads nothing for a null status id, where Knex matched the legacy boosts', async () => {
+  it('reads nothing for a null status id, not even the legacy boosts', async () => {
     const { booster } = await setupReblogs()
     const viewer = await seedActor(actorIn('c.test', `${nextPrefix()}-v`))
     const nullKey = null as unknown as string
 
     // a6 boosted the status through a legacy row: no originalStatusId, the
-    // id in `content`. Knex's two-argument where read a null key as IS NULL,
-    // so it listed (and hydrated) that row; a null key now matches nothing.
+    // id in `content`. A null key matches nothing, so that row is not listed
+    // (or hydrated).
     await expect(
       getRebloggedBy(db, { statusId: nullKey, limit: 40 })
     ).resolves.toEqual([])
@@ -2138,8 +2138,7 @@ describe('driver edge cases', () => {
 
   type KeyedRows = Awaited<ReturnType<typeof setupKeyedRows>>
 
-  // An `undefined` key reaches the database, which matches no row with it,
-  // where Knex threw "Undefined binding(s) detected".
+  // An `undefined` key reaches the database, which matches no row with it.
   it.each<[string, (rows: KeyedRows) => Promise<unknown>, unknown]>([
     [
       'unpinStatus without an actorId',

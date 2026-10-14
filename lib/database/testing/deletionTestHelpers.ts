@@ -10,9 +10,9 @@ import type { CapturedQuery } from '@/lib/database/testing/queryCapture'
 
 export type TableDump = Record<string, Record<string, unknown>[]>
 
-// The migration runners' bookkeeping: Kysely's, in the schema dumps since the
-// Knex handover, and Knex's.
-const MIGRATION_BOOKKEEPING = /^(kysely_migration|knex_migrations)/
+// The migration runner's bookkeeping (`kysely_migration`,
+// `kysely_migration_lock`), which the schema dumps include.
+const MIGRATION_BOOKKEEPING = /^kysely_migration/
 
 const tableNames = async (testDb: TestDatabase): Promise<string[]> => {
   if (testDb.backend === 'pg') {

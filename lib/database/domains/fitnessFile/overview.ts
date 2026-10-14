@@ -1,4 +1,4 @@
-import { withKnexPaging } from '@/lib/database/domains/fitnessFile/rows'
+import { withLenientPaging } from '@/lib/database/domains/fitnessFile/rows'
 import type {
   GetActorHasFitnessDataParams,
   GetFitnessActivitiesInWindowParams,
@@ -214,7 +214,7 @@ export const getFitnessActivitiesInWindow = async (
     ])
     .orderBy('fitness_files.activityStartTime', 'asc')
     .orderBy('fitness_files.id', 'asc')
-  const rows = await withKnexPaging(db, query, {
+  const rows = await withLenientPaging(db, query, {
     limit: pageSize + 1,
     offset: skip
   }).execute()

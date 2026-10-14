@@ -138,11 +138,11 @@ export const getRebloggedBy = async (
             // status. The final result set is unaffected; only the work to
             // reach it.
             //
-            // Measured on the production-shaped PostgreSQL 18 seed (with the
-            // Knex form of this query): 49,474 buffers / 33ms set-based
-            // against 11,383 / 415ms correlated — four times fewer buffers and
-            // twelve times the wall clock. Shipped correlated once and caught
-            // in review; `publiclyReadableStatusQueryShape.test.ts` pins it.
+            // Measured on the production-shaped PostgreSQL 18 seed: 49,474
+            // buffers / 33ms set-based against 11,383 / 415ms correlated — four
+            // times fewer buffers and twelve times the wall clock. Shipped
+            // correlated once and caught in review;
+            // `publiclyReadableStatusQueryShape.test.ts` pins it.
             eb(
               'statuses.id',
               'in',
@@ -214,8 +214,8 @@ export const getRebloggedBy = async (
     .orderBy('visible_reblogs.id', direction)
 
   // Rows strictly past each cursor in (createdAt, id) order. A cursor boost
-  // with no createdAt reads the other undated boosts past its id: Knex's tie
-  // arm was the two-argument where('createdAt', null), so IS NULL.
+  // with no createdAt reads the other undated boosts past its id: the tie arm
+  // compares `createdAt IS NULL`.
   for (const [cursor, operator] of cursors) {
     if (!cursor) continue
     if (cursor.createdAt === null) {

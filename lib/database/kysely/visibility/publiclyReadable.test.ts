@@ -20,8 +20,6 @@ import {
 //
 // Each named case says which shape of row decides the answer; the sweep at the
 // bottom runs both forms over every fixture and checks the whole readable set.
-// The set is the one the Knex forms (a set form and a correlated form, removed
-// with their last caller) selected over the same rows.
 describe('publicly readable status predicates', () => {
   const { database, db, prepare } = getTestDatabaseWithInstance()
 
@@ -167,9 +165,9 @@ describe('publicly readable status predicates', () => {
       { isPublic: true }
     )
 
-    // Legacy shape: before `20260517000000_add_status_original_status_id.js`
-    // the boosted id lived only in `content`. `COALESCE` is what still reads
-    // it, and no writer produces this row today.
+    // Legacy shape: before the `20260517000000_add_status_original_status_id`
+    // migration the boosted id lived only in `content`. `COALESCE` is what
+    // still reads it, and no writer produces this row today.
     ids.legacyBoost = await announce('legacy-boost', ids.publicNote, {
       isPublic: true
     })

@@ -119,10 +119,10 @@ export type DatabaseHandle = {
   executeScript: (script: string) => Promise<void>
 }
 
-// How long a query waits for a free pooled connection before it fails, as
-// Knex's acquireConnectionTimeout did. node-postgres waits forever by default.
+// How long a query waits for a free pooled connection before it fails
+// (`acquireConnectionTimeout`). node-postgres waits forever by default.
 export const DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS = 60_000
-// How long an idle pooled connection is kept above `min` (Knex's pool: 30 s).
+// How long an idle pooled connection is kept above `min`.
 export const POOL_IDLE_TIMEOUT_MS = 30_000
 const APPLICATION_NAME = 'Activities.next'
 
@@ -149,7 +149,7 @@ type BetterSqliteConstructor = new (filename: string) => BetterSqliteDatabase
 type PgModule = typeof import('pg')
 
 // Kysely's SQLite driver runs statements through this interface. Bindings are
-// encoded the way Knex encoded them (Date -> epoch ms, boolean -> 0/1) and,
+// encoded by `toSqliteBinding` (Date -> epoch ms, boolean -> 0/1) and,
 // unless `normalize` is off, rows are normalised by their declared column
 // types.
 const wrapBetterSqlite = (

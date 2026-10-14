@@ -107,7 +107,7 @@ const openSqliteArchiveDatabase = () => {
   }
 }
 
-// Inserts `rows` in batches of 200, as the tests' Knex `batchInsert` did.
+// Inserts `rows` in batches of 200.
 const insertRows = async (
   // oxlint-disable-next-line typescript/no-explicit-any
   tableDb: Kysely<any>,

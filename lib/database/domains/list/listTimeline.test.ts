@@ -916,10 +916,10 @@ describe('ListDatabase timeline', () => {
         targetActorIds: [member.id]
       })
 
-      // The cursor resolves from `statuses` (not the partition), so it has no row
-      // id — pagination must fall back to a strict createdAt compare without
-      // emitting an invalid empty Knex group, returning only strictly-older
-      // member posts.
+      // The cursor resolves from `statuses` (not the partition), so it has no
+      // row id — pagination must fall back to a strict createdAt compare
+      // without emitting an invalid empty condition group, returning only
+      // strictly-older member posts.
       const page = await database.getListTimeline({
         listId: list.id,
         actorId: owner.id,

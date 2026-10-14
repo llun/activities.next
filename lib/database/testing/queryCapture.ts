@@ -1,5 +1,3 @@
-import type { Knex } from 'knex'
-
 import type { QueryEvent as ConnectionQueryEvent } from '@/lib/database/connection'
 
 /** One statement the database driver sent. */
@@ -63,54 +61,4 @@ export const createQueryCapture = (
     return captured
   }
   return { onQuery: subscribe, captureQueries }
-}
-
-type KnexQueryEvent = {
-  sql: string
-  bindings?: unknown[]
-  __knexUid?: string
-}
-
-/**
- * LEGACY: statement capture over a Knex instance's `query` events, for the
- * legacy migration tests, which run a migration module on a Knex instance they
- * build themselves (see `createLegacyKnex`). It goes away with the Knex
- * migrations. Every other test captures through `createTestDatabase`.
- */
-export const createKnexQueryCapture = (
-  knex: Knex
-): {
-  onQuery: OnQuery
-  captureQueries: CaptureQueries
-  /**
-   * Like `onQuery`, but called when a statement has finished: the listener
-   * gets no statement text, only the signal. Pairs a statement's start with
-   * its end to measure concurrency.
-   */
-  onQuerySettled: (listener: () => void) => () => void
-} => {
-  const onQuery: OnQuery = (listener) => {
-    const handler = ({ sql, bindings, __knexUid }: KnexQueryEvent) => {
-      listener({
-        sql,
-        bindings: [...(bindings ?? [])],
-        connection: __knexUid as string
-      })
-    }
-    knex.on('query', handler)
-    return () => {
-      knex.removeListener('query', handler)
-    }
-  }
-
-  const onQuerySettled = (listener: () => void) => {
-    knex.on('query-response', listener)
-    knex.on('query-error', listener)
-    return () => {
-      knex.removeListener('query-response', listener)
-      knex.removeListener('query-error', listener)
-    }
-  }
-
-  return { ...createQueryCapture(onQuery), onQuerySettled }
 }

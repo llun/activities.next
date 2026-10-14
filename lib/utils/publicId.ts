@@ -43,3 +43,19 @@ export const getClientStatusId = (status: ClientIdSource): string =>
 
 export const getClientActorId = (actor: ClientIdSource): string =>
   actor.publicId ?? urlToId(actor.id)
+
+/**
+ * The highest-sorting UUIDv7 for one millisecond: the 48-bit timestamp, then
+ * every remaining bit set (version 7, variant `b`). As a notifications marker
+ * it reads as "everything created up to and including this millisecond is
+ * read", because every notification id minted in that millisecond or earlier
+ * (generatePublicId) sorts at or below it, and every later one above it.
+ */
+export const getMaxTimeOrderedIdForMs = (msecs: number): string => {
+  const clamped =
+    Number.isFinite(msecs) && msecs >= 0
+      ? Math.min(Math.floor(msecs), 0xffffffffffff)
+      : 0
+  const hex = clamped.toString(16).padStart(12, '0')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-7fff-bfff-ffffffffffff`
+}

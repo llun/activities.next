@@ -43,7 +43,7 @@ export type SessionWithAccount = SessionRow & {
 
 export type TestAdapter = ReturnType<ReturnType<typeof kyselyAdapter>>
 
-/** The column type Knex's `table.timestamp()` created on each backend. */
+/** The column type of the timestamp columns on each backend. */
 export const timestampType = (backend: TestDatabaseBackend) =>
   backend === 'pg' ? 'timestamptz' : 'datetime'
 

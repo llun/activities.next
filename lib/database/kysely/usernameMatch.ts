@@ -21,9 +21,9 @@ import type { Db } from '@/lib/database/kysely'
  *     yield first, and "exact wins" says that without a tiebreak clause.
  *
  * The exact arm uses `actors_username_domain_unique`; the folded arm uses the
- * functional `actors_lower_username_domain_idx` from
- * `20260826120000_add_actors_lower_username_index.js`. The folded arm runs only
- * on a miss, so the hot path is exactly the query this replaced.
+ * functional `actors_lower_username_domain_idx` from the
+ * `20260826120000_add_actors_lower_username_index` migration. The folded arm
+ * runs only on a miss, so the hot path is exactly the query this replaced.
  *
  * Ordering on the folded arm is `createdAt` then `id`: with the exact row
  * already ruled out, more than one case-variant is possible, and the account
@@ -64,8 +64,7 @@ import type { Db } from '@/lib/database/kysely'
  * `parseAccountHandle` and `getWebFingerResponse` already do.
  *
  * There is no MySQL branch: the Kysely layer runs on SQLite and PostgreSQL
- * only. (The Knex helper this replaced took the exact arm alone on MySQL,
- * whose default collations already fold case.)
+ * only.
  */
 export const findActorRowByUsername = async (
   db: Db,

@@ -395,7 +395,7 @@ export const updatePoll = async (
     actorId: existingStatus.actorId as string,
     type: existingStatus.type as string,
     content: statusContent,
-    // new Date(null), Knex's read of a NULL createdAt, was epoch 0 too.
+    // A NULL createdAt is indexed as epoch 0.
     createdAt: existingStatus.createdAt ?? 0
   }
 

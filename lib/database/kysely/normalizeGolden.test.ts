@@ -4,9 +4,8 @@ import type { Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 // What every column category reads back as, on SQLite and, under
-// TEST_DATABASE_TYPE=pg, PostgreSQL. The expected values are what the reads
-// returned when Kysely still borrowed Knex's connections (before the
-// connection swap), so a change here is a change in what the app serialises.
+// TEST_DATABASE_TYPE=pg, PostgreSQL. The expected values are pinned, so a
+// change here is a change in what the app serialises.
 //
 // Every value is pinned with its JavaScript type: `toStrictEqual` tells 42
 // from '42', 1 from true, and a parsed object from its JSON text.

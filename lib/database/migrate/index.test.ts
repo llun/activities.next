@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import fs from 'fs/promises'
 import { type Kysely, sql } from 'kysely'
 import { Migrator } from 'kysely/migration'
@@ -229,15 +230,23 @@ describe('lib/database/migrate', () => {
       expect([...MIGRATION_NAMES].sort()).toEqual(known)
     })
 
-    it('freezes every legacy Knex migration file', async () => {
-      const files = (
-        await fs.readdir(path.join(process.cwd(), 'migrations', 'legacy'))
-      )
-        .filter((file) => file.endsWith('.js'))
-        .sort()
-
-      expect(LEGACY_KNEX_MIGRATIONS).toEqual(files)
+    it('keeps the frozen list of Knex migration names', () => {
+      // The list is what `knex_migrations` holds on every database v1.192.34
+      // (or a later release before the handover) migrated, so it never
+      // changes: the count, the order, the first and last names and a hash of
+      // the whole list pin it.
       expect(LEGACY_KNEX_MIGRATIONS).toHaveLength(181)
+      expect(LEGACY_KNEX_MIGRATIONS).toEqual([...LEGACY_KNEX_MIGRATIONS].sort())
+      expect(new Set(LEGACY_KNEX_MIGRATIONS).size).toBe(181)
+      expect(LEGACY_KNEX_MIGRATIONS[0]).toBe('20221110192701_init.js')
+      expect(LEGACY_KNEX_MIGRATIONS.at(-1)).toBe(
+        '20261012100000_attachments_media_id_integer_sqlite.js'
+      )
+      expect(
+        createHash('sha256')
+          .update(LEGACY_KNEX_MIGRATIONS.join('\n'))
+          .digest('hex')
+      ).toBe('fce723a94c7e37e05fdf89fc5149f497cd37628ded192803a86114761a841197')
       // The baseline sorts after every one of them.
       expect(
         LEGACY_KNEX_MIGRATIONS.every((name) => name < BASELINE_MIGRATION)
@@ -308,9 +317,8 @@ describe('lib/database/migrate', () => {
 
     it('reports zero nodeinfo and servicestat counters on a fresh install', async () => {
       await migrateToLatest(target)
-      // The Knex chain seeded zero-valued nodeinfo:* and servicestat:*
-      // counters on an empty database; the baseline does not, and both read
-      // as zero.
+      // The baseline seeds no nodeinfo:* or servicestat:* counters on an
+      // empty database, and both read as zero.
       const { rows } = await sql<{ id: string }>`
         select id from counters
       `.execute(connection.db)
@@ -673,8 +681,8 @@ describe('lib/database/migrate', () => {
     it.runIf(backend === 'sqlite')(
       'migrates an in-memory SQLite database on the connection it is given',
       async () => {
-        // Knex ran migrations on a connection of its own, so this used to be
-        // refused: that connection would have opened another, empty database.
+        // The migrations run on the connection they are given, not on one
+        // of their own that would open another, empty database.
         const memoryConfig = getTestDatabaseConfig('sqlite')
         const memory = createDatabaseConnection(memoryConfig)
         try {

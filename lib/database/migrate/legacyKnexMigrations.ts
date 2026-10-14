@@ -1,6 +1,7 @@
 // FROZEN. The Knex migrations a database had to have applied, exactly the rows
-// `knex_migrations` holds once `knex migrate:latest` ran every file in
-// migrations/legacy/ (v1.192.34 and every later release before the handover have exactly these). The
+// `knex_migrations` holds once `knex migrate:latest` ran every Knex migration
+// of v1.192.34 (every later release before the handover has exactly these;
+// the files are in the history of those releases, not in this checkout). The
 // baseline (migrations/baseline/*.sql) is the schema these migrations built, so
 // a database whose `knex_migrations` holds exactly these names is at the
 // baseline already, and the handover records it there without running any DDL

@@ -65,7 +65,7 @@ export interface ConnectionInfo {
 
 /**
  * Describes `database`: the app's configured database unless the caller
- * resolved one itself (the migration CLI resolves it as the Knex CLI did).
+ * resolved one itself (the migration CLI resolves its own).
  */
 export const describeConnection = (
   database: DatabaseConfig | null = getDatabaseConfig()?.database ?? null

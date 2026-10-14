@@ -57,14 +57,12 @@ export type StoredKeysetCursor = {
 }
 
 /**
- * pastKeyset for a cursor read back from a row, compared the way the Knex
- * mixins compared one:
+ * pastKeyset for a cursor read back from a row:
  * - with both values, pastKeyset;
  * - with no tie-breaker, createdAt alone;
- * - with a NULL createdAt, Knex bound `createdAt op NULL` (never true) and
- *   compiled the tie arm's two-argument `where('createdAt', null)` to
- *   `createdAt IS NULL`, so only NULL-createdAt rows past the tie-breaker
- *   follow it, and nothing follows a cursor with neither value.
+ * - with a NULL createdAt, `createdAt op NULL` is never true and the tie arm
+ *   compares `createdAt IS NULL`, so only NULL-createdAt rows past the
+ *   tie-breaker follow it, and nothing follows a cursor with neither value.
  */
 export const pastStoredKeyset = <TB extends KeysetTable>(
   eb: ExpressionBuilder<DB, TB>,

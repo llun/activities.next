@@ -1041,7 +1041,8 @@ export const exportDatabase = async (
   })
 }
 
-// What Knex's `schema.hasTable` asked.
+// Whether the table exists in the connection's current schema (PostgreSQL)
+// or database (SQLite).
 const tableExists = async (database: ArchiveDatabase, tableName: string) => {
   const { rows } =
     getClientName(database) === 'pg'
@@ -2117,9 +2118,9 @@ const getJsonColumnNames = async (
   return new Set(rows.map((row) => row.name))
 }
 
-// Each batch is one transaction of inserts of up to `chunkSize` rows, as
-// Knex's `batchInsert` did. A row without one of the batch's columns gets the
-// column's default on PostgreSQL and NULL on SQLite, as with Knex.
+// Each batch is one transaction of inserts of up to `chunkSize` rows. A row
+// without one of the batch's columns gets the column's default on PostgreSQL
+// and NULL on SQLite.
 const insertBatch = async (
   database: ArchiveDatabase,
   tableName: string,

@@ -121,11 +121,10 @@ export const getKnownMigrationNames = async (
 ): Promise<string[]> => Object.keys(registry).sort()
 
 // Kysely's SQLite adapter takes no lock: its migration lock is a no-op, and the
-// database's single connection serialises runs in one process only. Knex's
-// lock row made a second `yarn migrate` on the same file fail with `Migration
-// table is already locked`; this restores that with the Migrator's own lock
-// row, so a second run cannot re-run a migration the first has just applied.
-// Like Knex's, it stays held when a run is killed (`yarn migrate:unlock`).
+// database's single connection serialises runs in one process only. So a
+// second `yarn migrate` on the same file is refused through the Migrator's own
+// lock row, and cannot re-run a migration the first has just applied. The row
+// stays held when a run is killed (`yarn migrate:unlock`).
 // PostgreSQL keeps the Migrator's advisory lock, which its connection
 // releases, and never touches the row.
 const MIGRATION_LOCK_TABLE = 'kysely_migration_lock'

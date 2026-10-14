@@ -1,9 +1,8 @@
 // Pure, synchronous mappers from an `actors` row (and its account) to the
 // domain Actor and to the Mastodon Account entity. No database access, so a
 // caller inside a transaction can use them directly, as the follow queries'
-// getLocalActorsFromFollowerUrl does. They accept both Knex and Kysely row
-// shapes (a timestamp as epoch ms, a Date or SQLite text; `settings` as JSON
-// text or parsed).
+// getLocalActorsFromFollowerUrl does. They accept a timestamp as epoch ms, a
+// Date or SQLite text, and `settings` as JSON text or parsed.
 import { getConfig } from '@/lib/config'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
@@ -113,8 +112,8 @@ const getDomainAccount = (sqlAccount: SQLAccount) =>
       sqlAccount.twoFactorEnabled != null
         ? Boolean(sqlAccount.twoFactorEnabled)
         : false,
-    // Coerced for the same reason `twoFactorEnabled` is: SQLite hands back
-    // 0/1 through Knex, which `z.boolean()` rejects.
+    // Coerced like `twoFactorEnabled`: SQLite stores booleans as 0/1, which
+    // `z.boolean()` rejects.
     emailVerified:
       sqlAccount.emailVerified != null
         ? Boolean(sqlAccount.emailVerified)

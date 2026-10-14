@@ -1,4 +1,3 @@
-import type { Knex } from 'knex'
 import { sql } from 'kysely'
 
 import {
@@ -493,22 +492,5 @@ describe('SearchDatabase document filtering', () => {
         expect.arrayContaining(['runner', 'runner%'])
       )
     })
-  })
-
-  it('matches database clients by exact supported names', async () => {
-    const migration =
-      await import('@/migrations/legacy/20260523000000_add_search_documents.js')
-
-    const raw = vi.fn().mockResolvedValue(undefined)
-    const schema = {
-      createTable: vi.fn().mockResolvedValue(undefined)
-    }
-    await migration.up({
-      client: { config: { client: 'pgcluster' } },
-      schema,
-      raw,
-      fn: { now: vi.fn() }
-    } as unknown as Knex)
-    expect(raw).not.toHaveBeenCalled()
   })
 })

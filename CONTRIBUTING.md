@@ -459,7 +459,7 @@ activities.next/
 │   ├── services/              # Business logic services
 │   ├── types/                 # TypeScript type definitions
 │   └── utils/                 # Utility functions
-├── migrations/                # Database migrations (Kysely; legacy/ keeps the Knex ones)
+├── migrations/                # Database migrations (Kysely) and the schema dumps
 ├── packages/                  # Modular optional workspace packages
 │   ├── cloudtasks/            #   Google Cloud Tasks queue adapter (@activities/cloudtasks)
 │   ├── pg/                    #   PostgreSQL database driver (@activities/pg)
@@ -517,7 +517,7 @@ yarn migrate
 anything, `yarn migrate:down` rolls back the last one (never the baseline), and
 `yarn migrate:unlock` releases the SQLite migration lock a killed run left held.
 
-> **Important:** All migrations must work with SQLite and PostgreSQL. A migration exports `up(db)` and `down(db)` taking a `Kysely<any>`: use Kysely's schema and query builders and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic. Each migration runs in its own transaction on both backends; export `config = { transaction: false }` only for a step that cannot run in one, and make it safe to run again. The first migration, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/`; never edit those files or anything in `migrations/legacy/` (the Knex migrations before it, which never run again).
+> **Important:** All migrations must work with SQLite and PostgreSQL. A migration exports `up(db)` and `down(db)` taking a `Kysely<any>`: use Kysely's schema and query builders and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic. Each migration runs in its own transaction on both backends; export `config = { transaction: false }` only for a step that cannot run in one, and make it safe to run again. The first migration, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/`; never edit those files (they are the schema the Knex migrations of v1.192.34 left).
 
 #### Updating the reference schema dumps
 
@@ -848,12 +848,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `pendingAcquires`). Seed or inspect state the public `Database` methods
   cannot reach with `db` and the helpers in `lib/database/testing/fixtures.ts`
   (`(db, params)` functions over Kysely); use a public method instead when one
-  already does the job. Nothing in it uses Knex. The legacy migration tests,
-  which run a Knex migration module (`up(knex)`), build a Knex instance with
-  `createLegacyKnex(backend)` (`lib/database/testing/legacyKnex.ts`): on
-  PostgreSQL it opens the same per-worker database, on SQLite a separate
-  in-memory one. It goes away with the Knex migrations; do not use it to seed
-  or read. A test that needs a connection of its own (the connection and
+  already does the job. A test that needs a connection of its own (the connection and
   sqlcommenter tests) opens it with `createDatabaseConnection` and
   `getTestDatabaseConfig(backend)`, and destroys it. The helpers below are
   one-line aliases over `createTestDatabase`.
@@ -867,9 +862,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   one's statements), and if `work` throws, the error is rethrown and the
   statements are lost. Match the placeholder, not the identifier quoting: the
   statements are Kysely's, which double-quotes identifiers on both backends, so
-  the same statement differs only in `?` (SQLite) against `$1` (PostgreSQL). SQL
-  a test sends through its own Knex instance, as the legacy migration tests do,
-  is quoted by Knex: backticks on SQLite. `testDb.onQuery(listener)` is the lower
+  the same statement differs only in `?` (SQLite) against `$1` (PostgreSQL).
+  `testDb.onQuery(listener)` is the lower
   level hook: it calls `listener({ sql, bindings, connection })` for every
   statement and returns the function that unsubscribes. Use it when a test
   needs the `connection` (two statements ran on the same connection when the
@@ -880,10 +874,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `testDb.pendingAcquires()` is how many callers are queued for a pooled
   connection, for a race test that has to know another caller is stuck (on
   SQLite, one waiting for the single connection; on PostgreSQL, one waiting
-  for a free pooled client). A test that builds its own
-  Knex instance, as the legacy migration tests do to run a migration module
-  against hand-made tables, gets the same `captureQueries` and `onQuery` from
-  `createKnexQueryCapture(knex)` (`lib/database/testing/queryCapture.ts`).
+  for a free pooled client).
 - **`getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` are SQLite-ONLY
   and ignore `TEST_DATABASE_TYPE` entirely.** A suite built on either reports a
   clean pass under the pg environment variables having never opened a PostgreSQL
@@ -1225,7 +1216,7 @@ When a change alters what users see, update the design in the same task:
   - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
 - Screenshots or clips for UI changes are optional and not required.
-- **Never put production or operational SQL in PR descriptions** (or anywhere committed in the repo). One-off database mutations for a deployment — hotfix `UPDATE`/`INSERT`/`DELETE` statements, data backfills, or any copy-pasteable production runbook — must not live in the PR body. Describe **what** operational change is needed and **why** in prose, and deliver the actual SQL through the deployment runbook or a private ops channel instead. This targets operational/runbook SQL — it does **not** restrict application query code: Knex query-builder calls and `knex.raw`/`whereRaw` in `lib/` are normal application code and unaffected. The database files that legitimately live in the repo, all under `migrations/`, are the Knex migrations (JavaScript/TypeScript that define schema changes — not raw `.sql`) and the reference schema dumps (`migrations/schema.sql`, `migrations/schema.sqlite.sql`); illustrative SQL in the `docs/` setup and maintenance guides (e.g. `docs/postgresql-setup.md` and the schema-dump steps) is also fine. This keeps environment-specific identifiers, hostnames, and runbooks out of the public Git history.
+- **Never put production or operational SQL in PR descriptions** (or anywhere committed in the repo). One-off database mutations for a deployment — hotfix `UPDATE`/`INSERT`/`DELETE` statements, data backfills, or any copy-pasteable production runbook — must not live in the PR body. Describe **what** operational change is needed and **why** in prose, and deliver the actual SQL through the deployment runbook or a private ops channel instead. This targets operational/runbook SQL — it does **not** restrict application query code: Kysely query-builder calls and its `sql` tag in `lib/` are normal application code and unaffected. The database files that legitimately live in the repo, all under `migrations/`, are the migrations (TypeScript that define schema changes — not raw `.sql`), the frozen baseline schema (`migrations/baseline/`) and the reference schema dumps (`migrations/schema.sql`, `migrations/schema.sqlite.sql`); illustrative SQL in the `docs/` setup and maintenance guides (e.g. `docs/postgresql-setup.md` and the schema-dump steps) is also fine. This keeps environment-specific identifiers, hostnames, and runbooks out of the public Git history.
 
 ### Version Bump Prefixes
 

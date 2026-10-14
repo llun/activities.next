@@ -1315,14 +1315,13 @@ describe('claimFitnessRouteHeatmapPyramidBuild', () => {
   })
 })
 
-// Behaviour that changed with the move off Knex, pinned on the backend it
-// applies to.
-describe('what changed with the move off Knex', () => {
+// How the driver treats values the types forbid and how it reports errors,
+// pinned on the backend each applies to.
+describe('driver edge cases', () => {
   const gone = undefined as unknown as string
   const goneNumber = undefined as unknown as number
 
-  // Knex refused a query with an undefined binding before running it; Kysely
-  // binds it as NULL, which matches nothing.
+  // An undefined binding is bound as NULL, which matches nothing.
   describe('an undefined argument matches nothing instead of throwing', () => {
     it('in the reads', async () => {
       const actorId = await newActor()
@@ -1466,8 +1465,7 @@ describe('what changed with the move off Knex', () => {
   })
 
   // Kysely leaves an undefined value out of a multi-row insert, so the column
-  // takes its default. PostgreSQL did that under Knex too; on SQLite Knex wrote
-  // NULL and the NOT NULL constraint failed the flush.
+  // takes its default on both backends.
   it('writes the column default for a version or point count left undefined', async () => {
     const build = await seedBuild(await newActor())
 
@@ -1495,8 +1493,7 @@ describe('what changed with the move off Knex', () => {
   })
 
   // The pyramid id is nullable on SQLite only. No code path writes a NULL id,
-  // but Knex compiled the fence's `id = null` to `IS NULL` and matched such a
-  // row; Kysely compares with `=`, which matches nothing.
+  // and the fence compares with `=`, which matches no such row.
   describe.runIf(testDb.backend === 'sqlite')(
     'a NULL pyramid id on SQLite',
     () => {
@@ -1554,8 +1551,7 @@ describe('what changed with the move off Knex', () => {
     }
   )
 
-  // Knex prefixed a driver error with the statement it ran; the errors now
-  // carry the driver's message alone.
+  // The errors carry the driver's message alone, without the statement.
   describe('driver errors without the statement in front', () => {
     it('for a NOT NULL column', async () => {
       const build = await seedBuild(await newActor())
@@ -1606,8 +1602,8 @@ describe('what changed with the move off Knex', () => {
 })
 
 // A sum or a count PostgreSQL returns as int8 is read through the driver's
-// int8 parser, which refuses a value past Number.MAX_SAFE_INTEGER; Knex read
-// it as a rounded number. The table is swapped for a view in this worker's
+// int8 parser, which refuses a value past Number.MAX_SAFE_INTEGER rather than
+// round it. The table is swapped for a view in this worker's
 // separate database, as four million real rows would take minutes to write.
 describe.runIf(testDb.backend === 'pg')('an int8 total past 2^53 - 1', () => {
   // Created in `beforeAll`: `describe.runIf` still runs this body when the

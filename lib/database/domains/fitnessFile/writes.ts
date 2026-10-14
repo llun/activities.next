@@ -304,8 +304,8 @@ export const assignFitnessFilesToImportedStatus = async (
   if (fitnessFileIds.length === 0) {
     return 0
   }
-  // Knex refused an undefined binding in the CASE below and wrote nothing.
-  // Bound as NULL it would match no file, so every listed file would be
+  // An undefined primary id is refused: bound as NULL in the CASE below it
+  // would match no file, so every listed file would be
   // written as a completed secondary with no primary left.
   if (primaryFitnessFileId === undefined) {
     throw new Error(

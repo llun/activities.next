@@ -26,8 +26,8 @@ import type {
 //   transaction commits, so a crash in between runs it again next time: keep
 //   `up` safe to re-run.
 // - Unordered migrations are allowed: one merged with an older name than a
-//   migration already applied still runs, as Knex ran it, instead of the
-//   Migrator's "corrupted migrations" error.
+//   migration already applied still runs, instead of the Migrator's
+//   "corrupted migrations" error.
 // - The Migrator's lock serialises concurrent runs on PostgreSQL: a session
 //   advisory lock held on the migrating connection. On SQLite it is a no-op,
 //   so lib/database/migrate takes the lock row in `kysely_migration_lock`

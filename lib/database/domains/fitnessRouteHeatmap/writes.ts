@@ -54,7 +54,7 @@ export const createFitnessRouteHeatmap = async (
 
   // The values as written, not re-read: the same answer the insert gives. A
   // period bound given as a Date is truthy whatever its time, so an epoch-0
-  // one reads back as 0 here, as it did from the Knex mixin.
+  // one reads back as 0 here.
   const time = currentTime.getTime()
   return {
     id,

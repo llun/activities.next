@@ -422,7 +422,7 @@ describe('media reads', () => {
       expect(idsOf(attachments)).toEqual(all.slice(0, 3))
     })
 
-    it('reads a fractional limit as its integer part, as Knex did', async () => {
+    it('reads a fractional limit as its integer part', async () => {
       const attachments = await database.getAttachmentsForActor({
         actorId,
         limit: 2.9
@@ -430,7 +430,7 @@ describe('media reads', () => {
       expect(idsOf(attachments)).toEqual(all.slice(0, 2))
     })
 
-    it('drops a NaN limit, as Knex did', async () => {
+    it('drops a NaN limit', async () => {
       const attachments = await database.getAttachmentsForActor({
         actorId,
         limit: Number.NaN
@@ -682,7 +682,7 @@ describe('media reads', () => {
       expect(idsOf(items)).toEqual(all)
     })
 
-    it('reads the paging values as Knex did', async () => {
+    it('reads the paging values through parseInt', async () => {
       const ids = (limit: number, page: number) =>
         database
           .getMediasWithStatusForAccount({ accountId: ACCOUNT_A, limit, page })
@@ -695,7 +695,7 @@ describe('media reads', () => {
       await expect(ids(Number.NaN, 2)).resolves.toEqual(all)
     })
 
-    it('rejects a page before the first, as Knex did', async () => {
+    it('rejects a page before the first', async () => {
       await expect(
         database.getMediasWithStatusForAccount({
           accountId: ACCOUNT_A,

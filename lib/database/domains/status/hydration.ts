@@ -382,8 +382,7 @@ const getPollChoices = async (db: Db, statusId: string) => {
   return rows.map((data) =>
     PollChoice.parse({
       ...data,
-      // A NULL timestamp throws here, as getCompatibleTime(null) did under
-      // Knex.
+      // A NULL timestamp throws here (getCompatibleTime(null)).
       createdAt: getCompatibleTime(data.createdAt as number),
       updatedAt: getCompatibleTime(data.updatedAt as number)
     })

@@ -31,8 +31,8 @@ import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
-// A status as the search index reads it. Callers inside a Knex transaction
-// hand over the row they just wrote, with `createdAt` a Date.
+// A status as the search index reads it. Callers inside a transaction hand
+// over the row they just wrote, with `createdAt` a Date.
 export type StatusSearchRow = {
   id: string
   actorId: string

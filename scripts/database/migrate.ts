@@ -30,22 +30,20 @@
  *   migrations/migration.stub. Register it in migrations/index.ts and its
  *   name in migrations/names.ts.
  *
- * The database is the one the Knex CLI used: the `ACTIVITIES_DATABASE` JSON,
- * or the `ACTIVITIES_DATABASE_*` variables (a bare
+ * The database is the `ACTIVITIES_DATABASE` JSON, or the
+ * `ACTIVITIES_DATABASE_*` variables (a bare
  * `ACTIVITIES_DATABASE_SQLITE_FILENAME` means SQLite), or
  * `./activities.sqlite` when nothing is set, with `.env*` files loaded by
- * dotenv-flow (lib/config/knexfile.js). It is printed before anything runs.
+ * dotenv-flow (`getMigrationDatabaseConfig` in
+ * lib/config/migrationDatabase.ts). It is printed before anything runs.
  */
 import dotenvFlow from 'dotenv-flow'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import {
-  type DatabaseConfig,
-  parseKnexDatabaseConfig
-} from '@/lib/config/database'
-import { getKnexfileDatabaseConfig } from '@/lib/config/knexfile.js'
+import type { DatabaseConfig } from '@/lib/config/database'
+import { getMigrationDatabaseConfig } from '@/lib/config/migrationDatabase'
 import { createDatabaseConnection } from '@/lib/database/connection'
 import { inTransaction } from '@/lib/database/kysely'
 import {
@@ -64,36 +62,9 @@ import { describeConnection } from '../fitness/describeConnection'
 const MIGRATIONS_DIRECTORY = 'migrations'
 const STUB = path.join(MIGRATIONS_DIRECTORY, 'migration.stub')
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-// The Knex CLI's configuration leaves every ACTIVITIES_DATABASE_* setting
-// that is not set as an undefined (or, for `ssl`, null) key; those are not
-// settings, so they are dropped rather than reported as ignored.
-const withoutUnsetValues = (config: Record<string, unknown>) =>
-  Object.fromEntries(
-    Object.entries(config)
-      .filter(([, value]) => value !== undefined)
-      .map(([key, value]) => [
-        key,
-        key === 'connection' && isObject(value)
-          ? Object.fromEntries(
-              Object.entries(value).filter(
-                ([, setting]) => setting !== undefined && setting !== null
-              )
-            )
-          : value
-      ])
-  )
-
-/**
- * The database `yarn migrate` runs on, resolved as the Knex CLI resolved it
- * (see the top of this file). Call after the `.env*` files are loaded.
- */
-export const getMigrationDatabaseConfig = (): DatabaseConfig =>
-  parseKnexDatabaseConfig(
-    withoutUnsetValues(getKnexfileDatabaseConfig() as Record<string, unknown>)
-  )
+// The database configuration lives in lib/config/ with the rest of the
+// runtime configuration; scripts/database/migrate.test.ts tests it here.
+export { getMigrationDatabaseConfig }
 
 const describeHandover = (handover: MigrationStatus['handover']) => {
   switch (handover.kind) {

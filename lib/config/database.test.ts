@@ -1,6 +1,6 @@
 import { logger } from '@/lib/utils/logger'
 
-import { getDatabaseConfig, parseKnexDatabaseConfig } from './database'
+import { getDatabaseConfig, parseDatabaseJsonConfig } from './database'
 
 const poolOf = (config: ReturnType<typeof getDatabaseConfig>) =>
   config?.database.client === 'pg' ? config.database.pool : undefined
@@ -90,9 +90,8 @@ describe('Database config', () => {
       expect(poolOf(config)).toEqual({ min: 2, max: 20 })
     })
 
-    // Knex could not use these: tarn refused them when it was built, and with
-    // a max of 0 Knex built no pool. They now fail when the configuration is
-    // read.
+    // A pool cannot be built with these, so they fail when the configuration
+    // is read.
     it.each([
       ['MAX', 'abc', 'the pool max must be an integer > 0'],
       ['MAX', '0', 'the pool max must be an integer > 0'],
@@ -209,9 +208,9 @@ describe('Database config', () => {
     })
   })
 
-  // ACTIVITIES_DATABASE is JSON written for Knex. The keys the connection uses
-  // are kept, the rest are ignored with a warning.
-  describe('parseKnexDatabaseConfig', () => {
+  // The ACTIVITIES_DATABASE JSON. The keys the connection uses are kept, the
+  // rest are ignored with a warning.
+  describe('parseDatabaseJsonConfig', () => {
     afterEach(() => {
       vi.restoreAllMocks()
     })
@@ -224,7 +223,7 @@ describe('Database config', () => {
     it('keeps a better-sqlite3 filename and always sets useNullAsDefault', () => {
       const warned = warnings()
       expect(
-        parseKnexDatabaseConfig({
+        parseDatabaseJsonConfig({
           client: 'better-sqlite3',
           connection: { filename: 'data.sqlite' }
         })
@@ -238,7 +237,7 @@ describe('Database config', () => {
 
     it('reads a bare better-sqlite3 connection string as the filename', () => {
       expect(
-        parseKnexDatabaseConfig({
+        parseDatabaseJsonConfig({
           client: 'better-sqlite3',
           connection: ':memory:',
           useNullAsDefault: true
@@ -252,7 +251,7 @@ describe('Database config', () => {
 
     it('refuses better-sqlite3 without a filename', () => {
       expect(() =>
-        parseKnexDatabaseConfig({ client: 'better-sqlite3', connection: {} })
+        parseDatabaseJsonConfig({ client: 'better-sqlite3', connection: {} })
       ).toThrow()
     })
 
@@ -268,7 +267,7 @@ describe('Database config', () => {
         application_name: 'custom'
       }
       expect(
-        parseKnexDatabaseConfig({
+        parseDatabaseJsonConfig({
           client: 'pg',
           connection,
           pool: { min: 0, max: 7 },
@@ -283,8 +282,8 @@ describe('Database config', () => {
       expect(warned()).toEqual([])
     })
 
-    // Knex took Math.min of its timeouts, so a numeric string worked as a
-    // number; tarn refused what was not a whole number > 0 ("abc" was NaN).
+    // A numeric string is read as a number; anything that is not a whole
+    // number > 0 is refused ("abc" is NaN).
     it.each([
       ['30000', 30000],
       [' 5000 ', 5000]
@@ -292,7 +291,7 @@ describe('Database config', () => {
       'reads an acquireConnectionTimeout of %j as the number %j',
       (acquireConnectionTimeout, expected) => {
         expect(
-          parseKnexDatabaseConfig({
+          parseDatabaseJsonConfig({
             client: 'pg',
             connection: { host: 'db' },
             acquireConnectionTimeout
@@ -302,10 +301,10 @@ describe('Database config', () => {
     )
 
     it.each(['abc', '', '0', '-5', '1.5', 0, -1, null])(
-      'refuses an acquireConnectionTimeout of %j, which Knex could not use',
+      'refuses an acquireConnectionTimeout of %j',
       (acquireConnectionTimeout) => {
         expect(() =>
-          parseKnexDatabaseConfig({
+          parseDatabaseJsonConfig({
             client: 'pg',
             connection: { host: 'db' },
             acquireConnectionTimeout
@@ -316,7 +315,7 @@ describe('Database config', () => {
 
     it('keeps a pg connection string', () => {
       expect(
-        parseKnexDatabaseConfig({
+        parseDatabaseJsonConfig({
           client: 'pg',
           connection: 'postgres://app:secret@db.internal:5432/activities'
         })
@@ -327,16 +326,16 @@ describe('Database config', () => {
     })
 
     it.each(['postgres', 'postgresql'])(
-      "reads Knex's %s alias as pg",
+      'reads the %s alias as pg',
       (client) => {
         expect(
-          parseKnexDatabaseConfig({ client, connection: { host: 'db' } })
+          parseDatabaseJsonConfig({ client, connection: { host: 'db' } })
         ).toEqual({ client: 'pg', connection: { host: 'db' } })
       }
     )
 
     it('leaves the pool unset when the JSON has none', () => {
-      const config = parseKnexDatabaseConfig({
+      const config = parseDatabaseJsonConfig({
         client: 'pg',
         connection: { host: 'db' }
       })
@@ -346,7 +345,7 @@ describe('Database config', () => {
     it('ignores the settings it does not use, and names them in a warning', () => {
       const warned = warnings()
       expect(
-        parseKnexDatabaseConfig({
+        parseDatabaseJsonConfig({
           client: 'pg',
           connection: { host: 'db' },
           searchPath: ['public'],
@@ -374,7 +373,7 @@ describe('Database config', () => {
 
     it('names the SQLite settings it does not use', () => {
       const warned = warnings()
-      parseKnexDatabaseConfig({
+      parseDatabaseJsonConfig({
         client: 'better-sqlite3',
         connection: { filename: ':memory:', options: { readonly: true } },
         pool: { max: 1 }
@@ -386,13 +385,13 @@ describe('Database config', () => {
       'throws for the unsupported client "%s"',
       (client) => {
         expect(() =>
-          parseKnexDatabaseConfig({ client, connection: {} })
+          parseDatabaseJsonConfig({ client, connection: {} })
         ).toThrow(`Unsupported database client "${client}"`)
       }
     )
 
     it('refuses a value that is not an object', () => {
-      expect(() => parseKnexDatabaseConfig([])).toThrow(
+      expect(() => parseDatabaseJsonConfig([])).toThrow(
         'ACTIVITIES_DATABASE must be a JSON object'
       )
     })
@@ -401,30 +400,26 @@ describe('Database config', () => {
       [{ max: 0 }, 'pool.max must be an integer > 0'],
       [{ max: 2.5 }, 'pool.max must be an integer > 0'],
       [{ min: -1 }, 'pool.min must be an integer >= 0'],
-      // Knex's default min of 2 applies when only max is given.
+      // The default min of 2 applies when only max is given.
       [{ max: 1 }, 'pool.max is smaller than min'],
       [{ min: 4, max: 3 }, 'pool.max is smaller than min']
-    ])(
-      'refuses the pool size %j, which Knex could not use',
-      (pool, message) => {
-        expect(() =>
-          parseKnexDatabaseConfig({
-            client: 'pg',
-            connection: { host: 'db' },
-            pool
-          })
-        ).toThrow(message)
-      }
-    )
+    ])('refuses the pool size %j', (pool, message) => {
+      expect(() =>
+        parseDatabaseJsonConfig({
+          client: 'pg',
+          connection: { host: 'db' },
+          pool
+        })
+      ).toThrow(message)
+    })
 
-    // Knex built no pool without a connection; the app reads it as {}, and
-    // node-postgres then reads PGHOST, PGUSER, PGPASSWORD, PGDATABASE and the
-    // other PG* variables.
+    // No connection is read as {}, and node-postgres then reads PGHOST,
+    // PGUSER, PGPASSWORD, PGDATABASE and the other PG* variables.
     it.each([undefined, null, ''])(
       'reads a pg connection of %j as {}, for the PG* variables',
       (connection) => {
         expect(
-          parseKnexDatabaseConfig({
+          parseDatabaseJsonConfig({
             client: 'pg',
             ...(connection === undefined ? {} : { connection })
           })
@@ -434,7 +429,7 @@ describe('Database config', () => {
 
     it('refuses a pool size of the wrong type', () => {
       expect(() =>
-        parseKnexDatabaseConfig({
+        parseDatabaseJsonConfig({
           client: 'pg',
           connection: { host: 'db' },
           pool: { max: 'ten' }

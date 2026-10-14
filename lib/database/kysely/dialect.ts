@@ -16,10 +16,9 @@ type Lockable<QB, Of> = { forUpdate(of?: Of): QB }
 
 // Row lock for a SELECT inside a transaction. SQLite has no row locks (a
 // write transaction locks the whole database) and rejects `for update`, which
-// Kysely's SQLite compiler emits anyway; Knex compiles it to nothing there, so
-// this does the same. `of` names the tables of a join whose rows are locked
-// (`for update of ...`, Knex's `forUpdate(table)`); without it every joined
-// table's rows are.
+// Kysely's SQLite compiler emits anyway, so this leaves it off there. `of`
+// names the tables of a join whose rows are locked (`for update of ...`);
+// without it every joined table's rows are.
 export const forUpdate = <
   QB extends Lockable<QB, Of>,
   Of extends string | readonly string[] = never
@@ -35,7 +34,7 @@ type ShareLockable<QB> = { forShare(): QB }
 // still read the rows, but an update or delete of them waits until this
 // transaction ends. SQLite has no row locks and rejects `for share`; it runs
 // one connection, so a read inside a transaction is already atomic with the
-// writes after it. Knex's forShare() was gated on PostgreSQL the same way.
+// writes after it.
 export const forShare = <QB extends ShareLockable<QB>>(
   db: Db,
   query: QB
@@ -46,8 +45,7 @@ export const forShare = <QB extends ShareLockable<QB>>(
 // and still type-checks, so pass it through timestampValue() too. Timestamp
 // columns read back as epoch milliseconds, but each backend has to be sent a
 // Date: node-postgres serialises it as a timestamptz literal (a bare number
-// would be rejected), and the SQLite driver binds it as epoch milliseconds,
-// the same as Knex.
+// would be rejected), and the SQLite driver binds it as epoch milliseconds.
 export const timestampValue = (value: number | Date) =>
   sql<EpochMs>`${value instanceof Date ? value : new Date(value)}`
 

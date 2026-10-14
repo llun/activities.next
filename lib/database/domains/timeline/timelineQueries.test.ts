@@ -341,12 +341,12 @@ describe('the home and direct feeds', () => {
     expect(statusCalls).toEqual([])
   })
 
-  // Knex compared a cursor row's NULL createdAt with operators
-  // (`createdAt < NULL`), so the page was empty. pastStoredKeyset's NULL arm
+  // A cursor row with a NULL createdAt reads an empty page (`createdAt < NULL`
+  // is never true). pastStoredKeyset's NULL arm
   // (`createdAt IS NULL AND id < x`) would find the other NULL rows instead,
-  // so these feeds stop before it. Two NULL rows, n1 below n2 by id, so that
-  // without that stop max_id = n2 would read n1, and since_id or min_id = n1
-  // would read n2.
+  // so these feeds stop before it.
+  // Two NULL rows, n1 below n2 by id, so that without that stop max_id = n2
+  // would read n1, and since_id or min_id = n1 would read n2.
   it.each([Timeline.MAIN, Timeline.DIRECT])(
     'ends the %s page at a feed row without createdAt',
     async (timeline) => {
@@ -438,9 +438,9 @@ describe('createTimelineStatus', () => {
     )
   })
 
-  // An undefined binding threw in the Knex code. Without the check the
-  // existence count compares `actorId = NULL`, which never matches, and every
-  // call inserts another row with a NULL actorId.
+  // A missing actor throws before any query. Without the check the existence
+  // count compares `actorId = NULL`, which never matches, and every call
+  // inserts another row with a NULL actorId.
   it('throws without an actor and writes no timelines row', async () => {
     const prefix = nextPrefix()
     const author = actorIn('remote.test', `${prefix}-author`)
@@ -791,15 +791,15 @@ describe('the public feeds', () => {
     expect(statusCalls).toEqual([])
   })
 
-  // Knex compared a cursor status's NULL createdAt with operators
-  // (`createdAt < NULL`), so the page was empty. lookupStatusCursor returns
-  // the status id as the tie-breaker, so pastStoredKeyset's NULL arm
+  // A cursor status with a NULL createdAt reads an empty page
+  // (`createdAt < NULL` is never true). lookupStatusCursor returns the status
+  // id as the tie-breaker, so pastStoredKeyset's NULL arm
   // (`createdAt IS NULL AND id < x`) would find the other NULL statuses
-  // instead; the feeds stop before it. Two NULL statuses that are in the
-  // feed, n1 below n2 by id, so that without that stop max_id = n2 would
-  // read n1, and min_id = n1 would read n2. The tests above use a NULL status
-  // outside the feed, which a missing stop changes only in whether an empty
-  // page is hydrated.
+  // instead; the feeds stop before it. Two NULL statuses that are in the feed,
+  // n1 below n2 by id, so that without that stop max_id = n2 would read n1, and
+  // min_id = n1 would read n2. The tests above use a NULL status outside the
+  // feed, which a missing stop changes only in whether an empty page is
+  // hydrated.
   it.each([Timeline.LOCAL_PUBLIC, Timeline.FEDERATED_PUBLIC])(
     'ends the %s feed at a feed status without createdAt',
     async (timeline) => {

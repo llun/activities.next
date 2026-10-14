@@ -782,7 +782,7 @@ describe('kyselyAdapter', () => {
         expectedIds: ['u1', 'u2', 'u3']
       },
       // `in ()` is a syntax error on PostgreSQL; an empty list matches no row
-      // and an empty exclusion list every row, as they did under Knex.
+      // and an empty exclusion list every row.
       {
         description: 'matches nothing for an empty in list',
         where: { field: 'id', value: [], operator: 'in' as const },
@@ -890,8 +890,7 @@ describe('kyselyAdapter', () => {
       expect(results).toHaveLength(2)
     })
 
-    // AND binds tighter than OR, as in the Knex where/orWhere chain this
-    // replaced: `a AND b OR c` is `(a AND b) OR c`.
+    // AND binds tighter than OR: `a AND b OR c` is `(a AND b) OR c`.
     it('groups AND clauses on either side of an OR', async () => {
       const results = await adapter.findMany({
         model: 'users',

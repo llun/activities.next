@@ -1,12 +1,11 @@
 import { NextRequest } from 'next/server'
 
-import { getMaxTimeOrderedIdForMs } from '@/lib/database/domains/notification/notificationIdRewrite.js'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { NotificationType } from '@/lib/types/database/operations'
-import { isPublicId } from '@/lib/utils/publicId'
+import { getMaxTimeOrderedIdForMs, isPublicId } from '@/lib/utils/publicId'
 
 import { GET, POST } from './route'
 

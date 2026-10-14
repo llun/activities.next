@@ -48,11 +48,9 @@ import { Attachment } from '@/lib/types/domain/attachment'
 // lookup compare-and-sets, deletes and the attachment writes) are in
 // ./writes.ts; `mediaQueries` at the end holds both.
 
-// Knex read the arguments of limit() and offset() through parseInt and
-// dropped a NaN one (with a warning), and refused a negative offset; Kysely
-// binds whatever it is given. The settings page still hands a NaN page over
-// for `?page=abc`, which Knex answered with the first page, so the paging
-// values are read the same way here.
+// The paging values are read through parseInt, a NaN one is dropped and a
+// negative offset refused; Kysely binds whatever it is given. The settings
+// page hands a NaN page over for `?page=abc`, which reads as the first page.
 const pagingInteger = (value: number): number | null => {
   const parsed = Number.parseInt(String(value), 10)
   return Number.isNaN(parsed) ? null : parsed

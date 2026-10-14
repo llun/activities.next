@@ -240,8 +240,7 @@ export const getLocalFollowersForActorId = async (
       .where(isLocalActor)
       .execute()
   ).map((item) => item.domain)
-  // Knex compiled an empty `whereIn` to a false condition; `in ()` is a syntax
-  // error on PostgreSQL.
+  // An empty list selects nothing; `in ()` is a syntax error on PostgreSQL.
   if (domains.length === 0) return []
   const rows = await db
     .selectFrom('follows')

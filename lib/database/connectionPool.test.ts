@@ -4,7 +4,7 @@ import pg from 'pg'
 
 import {
   getDatabaseConfig,
-  parseKnexDatabaseConfig
+  parseDatabaseJsonConfig
 } from '@/lib/config/database'
 import { createDatabaseConnection } from '@/lib/database/connection'
 import { dynamicImport } from '@/lib/utils/dynamicImport'
@@ -66,7 +66,7 @@ describe('the PostgreSQL pool options', () => {
     process.env = originalEnv
   })
 
-  it('keeps Knex pool timings and the env defaults for ACTIVITIES_DATABASE_PG_*', async () => {
+  it('keeps the pool timings and the env defaults for ACTIVITIES_DATABASE_PG_*', async () => {
     process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
     process.env.ACTIVITIES_DATABASE_PG_HOST = 'db.internal'
     const config = getDatabaseConfig()
@@ -86,9 +86,9 @@ describe('the PostgreSQL pool options', () => {
     expect(options.types).not.toBe(pg.types)
   })
 
-  it("uses Knex's pool size when the ACTIVITIES_DATABASE JSON has no pool", async () => {
+  it('uses the default pool size when the ACTIVITIES_DATABASE JSON has no pool', async () => {
     const options = await poolOptionsFor(
-      parseKnexDatabaseConfig({ client: 'pg', connection: { host: 'db' } })
+      parseDatabaseJsonConfig({ client: 'pg', connection: { host: 'db' } })
     )
     expect(options).toEqual({
       application_name: 'Activities.next',
@@ -103,7 +103,7 @@ describe('the PostgreSQL pool options', () => {
 
   it('passes a configured pool size and acquire timeout through', async () => {
     const options = await poolOptionsFor(
-      parseKnexDatabaseConfig({
+      parseDatabaseJsonConfig({
         client: 'pg',
         connection: { host: 'db', application_name: 'custom' },
         pool: { min: 3, max: 7 },

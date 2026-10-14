@@ -205,10 +205,10 @@ export const incrementPollChoiceVotes = async (
   db: Db,
   { statusId, choiceIndex }: IncrementPollChoiceVotesParams
 ): Promise<void> => {
-  // Knex read the index through parseInt, ignored a NaN one (the first choice)
-  // and refused a negative one before any query; the same rules here, so the
-  // database never sees an index Knex would not have sent (SQLite reads a
-  // negative offset as none, which would tally the first choice).
+  // The index is read through parseInt; a NaN one is ignored (the first
+  // choice) and a negative one refused before any query, so the database
+  // never sees a negative offset (SQLite reads one as none, which would tally
+  // the first choice).
   const offset = Number.parseInt(String(choiceIndex), 10)
   if (offset < 0) {
     throw new Error('A non-negative integer must be provided to offset.')

@@ -2,11 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { holdTransaction } from '@/lib/database/testing/heldTransaction'
-import { createLegacyKnex } from '@/lib/database/testing/legacyKnex'
-import {
-  type CapturedQuery,
-  createKnexQueryCapture
-} from '@/lib/database/testing/queryCapture'
+import { type CapturedQuery } from '@/lib/database/testing/queryCapture'
 
 // The statement capture every query-shape test relies on, checked on SQLite
 // and, under TEST_DATABASE_TYPE=pg, PostgreSQL. This is the contract callers
@@ -334,53 +330,5 @@ describe('statement capture on the test database', () => {
         expect(testDb.pendingAcquires()).toBe(0)
       }
     )
-  })
-})
-
-// Statement capture on a Knex instance the test builds itself, which is how
-// the legacy migration tests run their migration module against its own
-// tables. The same contract, on SQLite only: these tests never use another
-// backend.
-describe('statement capture on a standalone Knex instance', () => {
-  const instance = createLegacyKnex('sqlite')
-  const { captureQueries, onQuery, onQuerySettled } =
-    createKnexQueryCapture(instance)
-
-  afterAll(async () => {
-    await instance.destroy()
-  })
-
-  it('captures Knex statements with their bindings', async () => {
-    const statements = await captureQueries(async () => {
-      await instance.raw('select ? as one', [1])
-    })
-
-    expect(statements).toEqual([{ sql: 'select ? as one', bindings: [1] }])
-  })
-
-  it('reports when a statement has finished, on success and on failure', async () => {
-    const events: string[] = []
-    const stopStarted = onQuery(({ sql }) => {
-      events.push(`start ${sql}`)
-    })
-    const stopSettled = onQuerySettled(() => {
-      events.push('settled')
-    })
-    try {
-      await instance.raw('select 1')
-      await expect(instance.raw('select * from missing_table')).rejects.toThrow(
-        'missing_table'
-      )
-    } finally {
-      stopStarted()
-      stopSettled()
-    }
-
-    expect(events).toEqual([
-      'start select 1',
-      'settled',
-      'start select * from missing_table',
-      'settled'
-    ])
   })
 })

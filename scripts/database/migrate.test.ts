@@ -3,6 +3,7 @@ import { sql } from 'kysely'
 import os from 'os'
 import path from 'path'
 
+import { type DatabaseConfig, getDatabaseConfig } from '@/lib/config/database'
 import { createDatabaseConnection } from '@/lib/database/connection'
 import {
   BASELINE_MIGRATION,
@@ -228,9 +229,75 @@ describe('scripts/database/migrate', () => {
 
       vi.stubEnv('ACTIVITIES_DATABASE', 'activities')
       expect(() => getMigrationDatabaseConfig()).toThrow(
-        'ACTIVITIES_DATABASE must be a JSON Knex configuration'
+        'ACTIVITIES_DATABASE must be a JSON database configuration'
+      )
+      // JSON that is not a configuration object is refused the same way.
+      vi.stubEnv('ACTIVITIES_DATABASE', '["pg"]')
+      expect(() => getMigrationDatabaseConfig()).toThrow(
+        'ACTIVITIES_DATABASE must be a JSON database configuration'
       )
     })
+
+    it('uses ACTIVITIES_DEFAULT_DATABASE_SQLITE_FILENAME when nothing else is configured', () => {
+      vi.stubEnv('ACTIVITIES_DEFAULT_DATABASE_SQLITE_FILENAME', './dev.sqlite')
+
+      expect(getMigrationDatabaseConfig()).toEqual({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename: './dev.sqlite' }
+      })
+    })
+
+    it('reads the generic connection variables, and ignores the removed MySQL ones', () => {
+      vi.stubEnv('ACTIVITIES_DATABASE_CLIENT', 'pg')
+      vi.stubEnv('ACTIVITIES_DATABASE_HOST', 'db.internal')
+      vi.stubEnv('ACTIVITIES_DATABASE_USER', 'activities')
+      vi.stubEnv('ACTIVITIES_DATABASE_MYSQL_HOST', 'mysql.internal')
+      vi.stubEnv('ACTIVITIES_DATABASE_MYSQL_DATABASE', 'other')
+
+      expect(getMigrationDatabaseConfig()).toEqual({
+        client: 'pg',
+        connection: { host: 'db.internal', user: 'activities' }
+      })
+    })
+
+    it.each([
+      ['unset', undefined, undefined],
+      ['disable', 'disable', undefined],
+      ['require', 'require', { rejectUnauthorized: false }],
+      [
+        'verify-ca',
+        'verify-ca',
+        { rejectUnauthorized: true, checkServerIdentity: expect.any(Function) }
+      ],
+      ['verify-full', 'verify-full', { rejectUnauthorized: true }]
+    ])(
+      'reads ACTIVITIES_DATABASE_PG_SSL_MODE %s as the app does',
+      (_label, sslMode, expected) => {
+        vi.stubEnv('ACTIVITIES_DATABASE_CLIENT', 'pg')
+        vi.stubEnv('ACTIVITIES_DATABASE_PG_SSL_MODE', sslMode)
+        const sslOf = (config: DatabaseConfig | undefined) =>
+          config?.client === 'pg' && typeof config.connection === 'object'
+            ? config.connection.ssl
+            : 'not a PostgreSQL connection object'
+
+        const migrationSsl = sslOf(getMigrationDatabaseConfig())
+        const appSsl = sslOf(getDatabaseConfig()?.database)
+        expect(migrationSsl).toEqual(expected)
+        expect(appSsl).toEqual(expected)
+        if (sslMode === 'verify-ca') {
+          // Both skip the host name check: the certificate is verified
+          // against the CA only.
+          for (const ssl of [migrationSsl, appSsl]) {
+            expect(
+              (
+                ssl as { checkServerIdentity: () => unknown }
+              ).checkServerIdentity()
+            ).toBeUndefined()
+          }
+        }
+      }
+    )
   })
 
   describe('makeMigration', () => {
