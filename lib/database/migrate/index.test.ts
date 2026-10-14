@@ -542,6 +542,41 @@ describe('lib/database/migrate', () => {
       ])
     })
 
+    it('names the failed migration when it throws an object String cannot print', async () => {
+      // String(Object.create(null)) throws a TypeError, which would replace
+      // the migration's name, its results and what it threw.
+      const thrown = Object.create(null)
+      const registry: MigrationRegistry = {
+        '20300101000000_first': { up: createTable('first_table') },
+        '20300102000000_throw_object': {
+          up: async () => {
+            throw thrown
+          }
+        }
+      }
+
+      const failure = await migrateToLatest(target, registry).catch(
+        (error: unknown) => error
+      )
+      expect(failure).toBeInstanceOf(MigrationRunError)
+      expect((failure as Error).message).toBe(
+        'Migration 20300102000000_throw_object failed: [object Object]'
+      )
+      expect((failure as Error).cause).toBe(thrown)
+      expect(
+        (failure as MigrationRunError).results.map((result) => [
+          result.migrationName,
+          result.status
+        ])
+      ).toEqual([
+        ['20300101000000_first', 'Success'],
+        ['20300102000000_throw_object', 'Error']
+      ])
+      expect(await getAppliedMigrationNames(target)).toEqual([
+        '20300101000000_first'
+      ])
+    })
+
     it('opens a transaction per migration, and none for config.transaction = false', async () => {
       const registry: MigrationRegistry = {
         '20300101000000_in_transaction': { up: createTable('in_transaction') },

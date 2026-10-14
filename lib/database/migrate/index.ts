@@ -7,7 +7,11 @@ import {
   isCompleteKnexMigrationList,
   tableExists
 } from '@/lib/database/migrate/baseline'
-import { createMigrator, unwrapResultSet } from '@/lib/database/migrate/runner'
+import {
+  createMigrator,
+  describeThrown,
+  unwrapResultSet
+} from '@/lib/database/migrate/runner'
 import {
   type MigrationTarget,
   getMigrationStatus,
@@ -155,22 +159,6 @@ const releaseSqliteLock = async (db: Kysely<any>) => {
     .set({ is_locked: 0 })
     .where('id', '=', MIGRATION_LOCK_ROW)
     .execute()
-}
-
-/**
- * A thrown value as text. `String` itself throws for an object with no
- * prototype (`Object.create(null)`), which would replace the value it reports.
- */
-const describeThrown = (thrown: unknown): string => {
-  try {
-    return String(thrown)
-  } catch {
-    try {
-      return Object.prototype.toString.call(thrown)
-    } catch {
-      return '(a value that cannot be printed)'
-    }
-  }
 }
 
 const lockReleaseHint = (releaseError: unknown) =>

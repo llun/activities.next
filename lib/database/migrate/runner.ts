@@ -79,13 +79,30 @@ export const createMigrator = (
     allowUnorderedMigrations: true
   })
 
+/**
+ * A thrown value as text. `String` itself throws for an object with no
+ * prototype (`Object.create(null)`), which would replace the value it reports.
+ */
+export const describeThrown = (thrown: unknown): string => {
+  try {
+    return String(thrown)
+  } catch {
+    try {
+      return Object.prototype.toString.call(thrown)
+    } catch {
+      return '(a value that cannot be printed)'
+    }
+  }
+}
+
 /** Thrown when a run fails; `results` says what ran before the failure. */
 export class MigrationRunError extends Error {
   readonly results: readonly MigrationResult[]
 
   constructor(error: unknown, results: readonly MigrationResult[]) {
     const failed = results.find((result) => result.status === 'Error')
-    const reason = error instanceof Error ? error.message : String(error)
+    const reason =
+      error instanceof Error ? error.message : describeThrown(error)
     super(
       failed
         ? `Migration ${failed.migrationName} failed: ${reason}`
