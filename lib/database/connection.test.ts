@@ -733,6 +733,82 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
     }
   })
 
+  // The archive's connection sets `DateStyle` and `TimeZone` on each new
+  // connection before handing it out. If that statement fails (here an
+  // invalid zone; in production, say, the server dropping the connection
+  // first), the query fails with the server's error and the client is
+  // destroyed, so the pool recovers and destroy() does not wait for it.
+  it('fails the query and keeps destroy() working when the session settings fail', async () => {
+    const { default: pg } = await import('pg')
+    const query = pg.Client.prototype.query
+    let failing = true
+    const sabotaged = vi
+      .spyOn(pg.Client.prototype, 'query')
+      .mockImplementation(function (
+        this: InstanceType<typeof pg.Client>,
+        text: unknown,
+        ...rest: unknown[]
+      ) {
+        const sent =
+          failing &&
+          typeof text === 'string' &&
+          text.includes("set_config('TimeZone', 'UTC', false)")
+            ? text.replace("'UTC'", "'Not/A_Zone'")
+            : text
+        return (query as (...args: unknown[]) => unknown).call(
+          this,
+          sent,
+          ...rest
+        )
+      } as typeof query)
+    const config = getTestDatabaseConfig('pg', true)
+    if (config.client !== 'pg' || typeof config.connection === 'string') {
+      throw new Error('expected a pg configuration object')
+    }
+    const handle = createDatabaseConnection(
+      {
+        ...config,
+        connection: { ...config.connection, application_name: APPLICATION },
+        pool: { min: 0, max: 1 },
+        acquireConnectionTimeout: 2_000
+      },
+      { normalizeResults: false }
+    )
+    const settings = sql<{ zone: string }>`
+      select current_setting('TimeZone') as zone
+    `
+    let destroyed = false
+    try {
+      await expect(settings.execute(handle.db)).rejects.toThrow(
+        'invalid value for parameter "TimeZone": "Not/A_Zone"'
+      )
+      // The failed client was destroyed; the next query gets a new one.
+      failing = false
+      expect((await settings.execute(handle.db)).rows).toEqual([
+        { zone: 'UTC' }
+      ])
+      const outcome = await Promise.race([
+        handle.destroy().then(() => 'destroyed'),
+        new Promise((resolve) => setTimeout(resolve, 5_000, 'still pending'))
+      ])
+      expect(outcome).toBe('destroyed')
+      destroyed = true
+      await expect.poll(backendPids).toEqual([])
+    } finally {
+      sabotaged.mockRestore()
+      if (!destroyed) {
+        // A client the pool never got back keeps its backend open; end it so
+        // the cases after this one start from no connections.
+        void handle.destroy()
+        await sql`
+          select pg_terminate_backend(pid) from pg_stat_activity
+          where application_name = ${APPLICATION}
+            and datname = current_database()
+        `.execute(observer.db)
+      }
+    }
+  })
+
   it('closes every connection on destroy', async () => {
     const handle = open({ min: 1, max: 3 })
     await Promise.all(

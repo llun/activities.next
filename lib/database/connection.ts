@@ -1,5 +1,5 @@
 import {
-  CompiledQuery,
+  type CompiledQuery,
   type DatabaseConnection,
   type Dialect,
   type Driver,
@@ -51,7 +51,7 @@ import { logger } from '@/lib/utils/logger'
 // is created with. `normalizeResults: false` turns both off for the production
 // archive, which reads and writes rows as the drivers read them, except that
 // PostgreSQL dates and timestamps stay the text the server sends, in ISO
-// style and UTC (`setCanonicalDateOutput`).
+// style and UTC (`CANONICAL_DATE_OUTPUT`).
 
 export type DatabaseBackend = 'sqlite' | 'pg'
 
@@ -541,13 +541,41 @@ const describeError = (error: Error) => {
   }
 }
 
+// A connection that does not normalise results (the production archive's)
+// reads dates and timestamps as the text the server sends, which depends on
+// the session's `DateStyle` and `TimeZone`. Each new connection sets both
+// (ISO, UTC), so the text is the same whatever the server, database or role
+// defaults are: `2026-01-02`, `2026-02-03 04:05:06.789123+00`. A statement
+// rather than the `options` startup parameter, so it works with any
+// connection configuration (a connection string, a socket, a connector's
+// stream) and through poolers that reject startup options. It runs in the
+// pool below, before Kysely's driver gets the client, so `onQuery` listeners
+// do not see it. The app's normalising connection keeps the server's
+// settings.
+const CANONICAL_DATE_OUTPUT =
+  "select set_config('DateStyle', 'ISO', false), " +
+  "set_config('TimeZone', 'UTC', false)"
+
+// The pool Kysely's driver gets.
+//
 // node-postgres still hands a client to a `connect()` that was already waiting
 // for a new connection when `end()` was called. Kysely's driver drops its pool
 // before calling `end()`, so it fails on that client without releasing it,
-// and `end()` then waits for the client forever. The driver gets this pool
-// instead, which releases such a client itself and fails that `connect()`.
-const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
+// and `end()` then waits for the client forever. This pool releases such a
+// client itself and fails that `connect()`.
+//
+// With `canonicalDates`, it also runs `CANONICAL_DATE_OUTPUT` once on each new
+// physical connection (node-postgres creates a new `Client` for each). Kysely's
+// own `onCreateConnection` hook would not release a client whose statement
+// fails, so `end()` would wait for it forever; here the failed client is
+// released with the error, which destroys it, and the `connect()` fails.
+const releaseLateClients = (
+  pool: Pool,
+  pg: PgModule,
+  canonicalDates: boolean
+): PostgresPool => {
   let ending = false
+  const prepared = new WeakSet<object>()
   return {
     // What Kysely's driver reads off a pg Pool besides these two methods.
     Client: pg.Client as PostgresPool['Client'],
@@ -558,6 +586,15 @@ const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
         client.release()
         throw new Error('driver has already been destroyed')
       }
+      if (canonicalDates && !prepared.has(client)) {
+        try {
+          await client.query(CANONICAL_DATE_OUTPUT)
+        } catch (error) {
+          client.release(error as Error)
+          throw error
+        }
+        prepared.add(client)
+      }
       return client
     },
     async end() {
@@ -565,26 +602,6 @@ const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
       await pool.end()
     }
   }
-}
-
-// A connection that does not normalise results (the production archive's)
-// reads dates and timestamps as the text the server sends, which depends on
-// the session's `DateStyle` and `TimeZone`. Each new connection sets both
-// (ISO, UTC), so the text is the same whatever the server, database or role
-// defaults are: `2026-01-02`, `2026-02-03 04:05:06.789123+00`. A statement
-// rather than the `options` startup parameter, so it works with any
-// connection configuration (a connection string, a socket, a connector's
-// stream) and through poolers that reject startup options. It runs on the
-// driver's own connection, before the instrumented driver hands it out, so
-// `onQuery` listeners do not see it. The app's normalising connection keeps
-// the server's settings.
-const setCanonicalDateOutput = async (connection: DatabaseConnection) => {
-  await connection.executeQuery(
-    CompiledQuery.raw(
-      "select set_config('DateStyle', 'ISO', false), " +
-        "set_config('TimeZone', 'UTC', false)"
-    )
-  )
 }
 
 /**
@@ -632,11 +649,8 @@ export const createDatabaseConnection = (
           pool: async () => {
             pg = await loadPg()
             pool = createPool(pg, config, normalizeResults)
-            return releaseLateClients(pool, pg)
-          },
-          ...(normalizeResults
-            ? {}
-            : { onCreateConnection: setCanonicalDateOutput })
+            return releaseLateClients(pool, pg, !normalizeResults)
+          }
         })
 
   const adapter =
