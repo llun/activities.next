@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   label: string
-  icon: LucideIcon
+  /** Beside the value when the strip is four across; none for a bare figure. */
+  icon?: LucideIcon
   /**
    * The formatted value. `null` when there is nothing to show: with `loading`
    * it is a skeleton, otherwise a dash, never a zero, because no data is not
@@ -90,12 +91,12 @@ export const StatCell: FC<Props> = ({
   ) : (
     value
   )
-  const icon = (
+  const icon = Icon ? (
     <Icon
       className="text-muted-foreground hidden size-5 shrink-0 @min-[43.75rem]:block"
       aria-hidden="true"
     />
-  )
+  ) : null
 
   if (!onSelect && href) {
     // Like the button, a link holds phrasing content only, so the label and

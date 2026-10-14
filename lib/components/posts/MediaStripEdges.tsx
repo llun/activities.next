@@ -15,11 +15,24 @@ const STRIP_ARROW_FACE_CLASS =
 // takes no pointer input; aria-disabled tells assistive tech it is unavailable.
 const STRIP_ARROW_EDGE_CLASS = 'pointer-events-none opacity-0'
 
+// A smaller face for a short strip (the activity page's lap band), whose
+// buttons are ~40px tall: the 40px media arrow would cover a whole lap.
+const SMALL_ARROW_CLASS = 'size-9'
+const SMALL_ARROW_FACE_CLASS = 'size-8'
+
 interface Props {
   canScrollLeft: boolean
   canScrollRight: boolean
   /** `useMediaStripScroll().scrollByPage`. */
   onScrollByPage: (direction: 1 | -1) => void
+  /** What the arrows scroll through, for their labels ("media", "laps"). */
+  itemsLabel?: string
+  size?: 'default' | 'small'
+  /**
+   * The fades' colour: the strip's own background, so the fade reads as the
+   * content running out under it. `from-background/70` by default.
+   */
+  fadeClassName?: string
 }
 
 /**
@@ -33,8 +46,18 @@ interface Props {
 export const MediaStripEdges: FC<Props> = ({
   canScrollLeft,
   canScrollRight,
-  onScrollByPage
+  onScrollByPage,
+  itemsLabel = 'media',
+  size = 'default',
+  fadeClassName = 'from-background/70'
 }) => {
+  const isSmall = size === 'small'
+  const arrowClass = cn(STRIP_ARROW_CLASS, isSmall && SMALL_ARROW_CLASS)
+  const faceClass = cn(
+    STRIP_ARROW_FACE_CLASS,
+    isSmall && SMALL_ARROW_FACE_CLASS
+  )
+  const iconClass = isSmall ? 'size-4' : 'size-5'
   // If the arrow that holds focus reaches its edge, focus moves to the opposite
   // arrow, which is the one with somewhere to go.
   const previousArrow = useRef<HTMLButtonElement | null>(null)
@@ -57,38 +80,43 @@ export const MediaStripEdges: FC<Props> = ({
       {canScrollLeft ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-linear-to-r from-background/70 to-transparent"
+          className={cn(
+            'pointer-events-none absolute inset-y-0 left-0 bg-linear-to-r to-transparent',
+            isSmall ? 'w-12' : 'w-16',
+            fadeClassName
+          )}
         />
       ) : null}
       {canScrollRight ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-linear-to-l from-background/70 to-transparent"
+          className={cn(
+            'pointer-events-none absolute inset-y-0 right-0 bg-linear-to-l to-transparent',
+            isSmall ? 'w-12' : 'w-16',
+            fadeClassName
+          )}
         />
       ) : null}
       <button
         ref={previousArrow}
         type="button"
-        aria-label="Previous media"
+        aria-label={`Previous ${itemsLabel}`}
         aria-disabled={!canScrollLeft}
         tabIndex={canScrollLeft ? undefined : -1}
         onClick={(event) => {
           event.stopPropagation()
           if (canScrollLeft) onScrollByPage(-1)
         }}
-        className={cn(
-          STRIP_ARROW_CLASS,
-          !canScrollLeft && STRIP_ARROW_EDGE_CLASS
-        )}
+        className={cn(arrowClass, !canScrollLeft && STRIP_ARROW_EDGE_CLASS)}
       >
-        <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
-          <ChevronLeft className="size-5" />
+        <span aria-hidden="true" className={faceClass}>
+          <ChevronLeft className={iconClass} />
         </span>
       </button>
       <button
         ref={nextArrow}
         type="button"
-        aria-label="Next media"
+        aria-label={`Next ${itemsLabel}`}
         aria-disabled={!canScrollRight}
         tabIndex={canScrollRight ? undefined : -1}
         onClick={(event) => {
@@ -96,13 +124,13 @@ export const MediaStripEdges: FC<Props> = ({
           if (canScrollRight) onScrollByPage(1)
         }}
         className={cn(
-          STRIP_ARROW_CLASS,
+          arrowClass,
           'right-1.5 left-auto',
           !canScrollRight && STRIP_ARROW_EDGE_CLASS
         )}
       >
-        <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
-          <ChevronRight className="size-5" />
+        <span aria-hidden="true" className={faceClass}>
+          <ChevronRight className={iconClass} />
         </span>
       </button>
     </>

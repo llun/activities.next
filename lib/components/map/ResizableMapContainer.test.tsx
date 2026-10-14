@@ -144,4 +144,36 @@ describe('ResizableMapContainer', () => {
     fireEvent.doubleClick(handle)
     expect(mapArea).toHaveStyle({ height: '288px' })
   })
+
+  it('sizes by the aspect class until resized, and resets back to it', () => {
+    const { container } = render(
+      <ResizableMapContainer
+        defaultHeight={288}
+        expandedHeight={560}
+        aspectClassName="aspect-video"
+      >
+        <div>Map Content</div>
+      </ResizableMapContainer>
+    )
+
+    const mapArea = container.querySelector(
+      '.relative.w-full.shrink-0'
+    ) as HTMLElement
+    const handle = screen.getByRole('separator', { name: 'Resize map height' })
+    expect(mapArea).toHaveClass('aspect-video', 'min-h-0')
+    expect(mapArea.style.height).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    expect(mapArea).not.toHaveClass('aspect-video')
+    expect(mapArea).toHaveStyle({ height: '560px' })
+
+    fireEvent.doubleClick(handle)
+    expect(mapArea).toHaveClass('aspect-video')
+    expect(mapArea.style.height).toBe('')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+    expect(mapArea).toHaveStyle({ height: '200px' })
+    fireEvent.keyDown(handle, { key: 'Enter' })
+    expect(mapArea).toHaveClass('aspect-video')
+  })
 })

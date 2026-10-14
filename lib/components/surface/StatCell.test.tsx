@@ -117,4 +117,10 @@ describe('StatCell', () => {
     expect(screen.getByRole('button', { name: /Distance/ })).toBeInTheDocument()
     expect(screen.queryByRole('link')).toBeNull()
   })
+
+  it('draws no icon when none is given', () => {
+    const { container } = render(<StatCell label="5 s" value="612 W" />)
+    expect(screen.getByText('612 W')).toBeInTheDocument()
+    expect(container.querySelector('svg')).toBeNull()
+  })
 })

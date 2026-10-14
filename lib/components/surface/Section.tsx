@@ -20,6 +20,8 @@ interface Props {
    * section nested in another one. The look is the same at every level.
    */
   headingLevel?: HeadingLevel
+  /** An anchor for the section, so a link can point at it (`#laps`). */
+  id?: string
   className?: string
   children: ReactNode
 }
@@ -38,6 +40,7 @@ export const Section: FC<Props> = ({
   actions,
   description,
   headingLevel = 2,
+  id,
   className,
   children
 }) => {
@@ -45,9 +48,10 @@ export const Section: FC<Props> = ({
   const Heading = `h${headingLevel}` as const
   return (
     <section
+      id={id}
       data-slot="section"
       aria-labelledby={headingId}
-      className={cn('space-y-3', className)}
+      className={cn('space-y-3', id && 'scroll-mt-4', className)}
     >
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
