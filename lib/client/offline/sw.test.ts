@@ -589,6 +589,20 @@ return {
       expect(svgText).toContain('<svg')
     })
 
+    it('leaves cross-origin images to the browser instead of re-fetching them', async () => {
+      // A worker fetch() is checked against the worker's connect-src, which
+      // does not allow remote hosts, so intercepting would turn every remote
+      // avatar and attachment into the placeholder.
+      const req = new Request(
+        'https://files.mastodon.social/accounts/avatars/1/original/a.png'
+      )
+      Object.defineProperty(req, 'destination', { value: 'image' })
+
+      const { response } = await triggerFetch(req)
+      expect(response).toBeNull()
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
     it('enforces LRU max 150 entries on media cache', async () => {
       const mediaCache = await caches.open('activities-media-v1')
       // Fill with 155 entries
