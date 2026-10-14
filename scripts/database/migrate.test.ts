@@ -123,6 +123,97 @@ describe('scripts/database/migrate', () => {
       )
     })
 
+    it('shows what node-postgres uses for settings neither configured nor in PG*', () => {
+      for (const variable of ['PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER']) {
+        vi.stubEnv(variable, undefined)
+      }
+      vi.stubEnv('USER', 'alice')
+      vi.stubEnv('USERNAME', 'alice')
+      vi.stubEnv('ACTIVITIES_DATABASE', JSON.stringify({ client: 'pg' }))
+      // localhost, 5432 and the OS user; the database is the user's name.
+      expect(describeConnection(getMigrationDatabaseConfig())).toEqual({
+        client: 'pg',
+        target:
+          'host localhost:5432 / db alice / user alice ' +
+          '(node-postgres default host, port, user; db defaults to the user)',
+        isLocal: true
+      })
+
+      // A configured host with the database from PGDATABASE, and a
+      // configured user that is also the database when PGDATABASE is unset.
+      vi.stubEnv(
+        'ACTIVITIES_DATABASE',
+        JSON.stringify({
+          client: 'pg',
+          connection: { host: 'db.internal', user: 'activities' }
+        })
+      )
+      vi.stubEnv('PGDATABASE', 'legacy')
+      expect(describeConnection(getMigrationDatabaseConfig())).toEqual({
+        client: 'pg',
+        target:
+          'host db.internal:5432 / db legacy / user activities ' +
+          '(from PGDATABASE; node-postgres default port)',
+        isLocal: false
+      })
+      vi.stubEnv('PGDATABASE', undefined)
+      expect(describeConnection(getMigrationDatabaseConfig()).target).toBe(
+        'host db.internal:5432 / db activities / user activities ' +
+          '(node-postgres default port; db defaults to the user)'
+      )
+
+      // A unix socket directory is local.
+      vi.stubEnv('PGHOST', '/var/run/postgresql')
+      vi.stubEnv(
+        'ACTIVITIES_DATABASE',
+        JSON.stringify({ client: 'pg', connection: { database: 'app' } })
+      )
+      expect(describeConnection(getMigrationDatabaseConfig())).toEqual({
+        client: 'pg',
+        target:
+          'host /var/run/postgresql:5432 / db app / user alice ' +
+          '(from PGHOST; node-postgres default port, user)',
+        isLocal: true
+      })
+    })
+
+    it('hides a connectionString in the connection object, without the PG* variables it overrides', () => {
+      vi.stubEnv('PGHOST', 'localhost')
+      vi.stubEnv('PGPORT', '5596')
+      vi.stubEnv('PGDATABASE', 'postgres')
+      vi.stubEnv('PGUSER', 'postgres')
+      vi.stubEnv(
+        'ACTIVITIES_DATABASE',
+        JSON.stringify({
+          client: 'pg',
+          connection: {
+            connectionString: 'postgresql://u@db.internal/x',
+            ssl: true
+          }
+        })
+      )
+      const info = describeConnection(getMigrationDatabaseConfig())
+      expect(info).toEqual({
+        client: 'pg',
+        target: '(connection string — hidden)',
+        isLocal: false
+      })
+      expect(info.target).not.toContain('PGHOST')
+
+      // An empty one is ignored, as node-postgres ignores it.
+      vi.stubEnv(
+        'ACTIVITIES_DATABASE',
+        JSON.stringify({
+          client: 'pg',
+          connection: { connectionString: '', database: 'app' }
+        })
+      )
+      expect(describeConnection(getMigrationDatabaseConfig()).target).toBe(
+        'host localhost:5596 / db app / user postgres ' +
+          '(from PGHOST, PGPORT, PGUSER)'
+      )
+    })
+
     it('lets the ACTIVITIES_DATABASE JSON win, and refuses one that is not JSON', () => {
       vi.stubEnv(
         'ACTIVITIES_DATABASE',

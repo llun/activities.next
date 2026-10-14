@@ -43,6 +43,7 @@ export const describeConnection = (
         database?: string
         user?: string
         filename?: string
+        connectionString?: unknown
       }
     | string
     | undefined
@@ -55,49 +56,92 @@ export const describeConnection = (
     return { client, target: `file ${filename}`, isLocal: true }
   }
 
-  if (typeof conn === 'string') {
+  // node-postgres takes a `connectionString` key over the object's other
+  // settings (pg/lib/connection-parameters.js), so it is a connection string
+  // here too. An empty one is ignored, as node-postgres ignores it.
+  const connectionString =
+    typeof conn === 'string'
+      ? conn
+      : conn &&
+          typeof conn === 'object' &&
+          typeof conn.connectionString === 'string' &&
+          conn.connectionString !== ''
+        ? conn.connectionString
+        : undefined
+  if (connectionString !== undefined) {
     // A connection URI may embed the password — never print it. Best-effort
     // local detection: a bare local host, a unix socket path, or a URL whose
     // host is local. `new URL` throws on a plain hostname, so guard it.
-    let isLocal = LOCAL_HOSTS.has(conn) || conn.startsWith('/')
+    let isLocal =
+      LOCAL_HOSTS.has(connectionString) || connectionString.startsWith('/')
     if (!isLocal) {
       try {
-        isLocal = LOCAL_HOSTS.has(new URL(conn).hostname)
+        isLocal = LOCAL_HOSTS.has(new URL(connectionString).hostname)
       } catch {
-        isLocal = [...LOCAL_HOSTS].some((host) => conn.includes(host))
+        isLocal = [...LOCAL_HOSTS].some((host) =>
+          connectionString.includes(host)
+        )
       }
     }
     return { client, target: '(connection string — hidden)', isLocal }
   }
 
-  const isPostgres = POSTGRES_CLIENTS.has(client)
-  if (
-    (conn && typeof conn === 'object') ||
-    (isPostgres && conn === undefined)
-  ) {
+  if (POSTGRES_CLIENTS.has(client) && typeof conn !== 'string') {
+    // What node-postgres connects to (pg/lib/connection-parameters.js): each
+    // setting from the configuration, else its PG* environment variable, else
+    // node-postgres's default (localhost, 5432, the OS user); the database
+    // defaults to the user name. Say where each one not configured came from.
     const settings = conn ?? {}
-    // node-postgres reads the PG* environment variables for whatever the
-    // configuration leaves out, so show those, and say where they came from.
     const fromEnvironment: string[] = []
+    const defaulted: string[] = []
     const setting = (
       value: string | number | undefined,
-      variable: string
+      variable: string,
+      name: string,
+      fallback?: string
     ): string | undefined => {
-      if (value !== undefined && value !== '') return String(value)
-      const fallback = isPostgres ? process.env[variable] : undefined
-      if (!fallback) return undefined
-      fromEnvironment.push(variable)
-      return fallback
+      // node-postgres takes a configured value only when it is truthy.
+      if (value) return String(value)
+      const fromVariable = process.env[variable]
+      if (fromVariable) {
+        fromEnvironment.push(variable)
+        return fromVariable
+      }
+      if (fallback) defaulted.push(name)
+      return fallback || undefined
     }
-    const host = setting(settings.host, 'PGHOST') ?? '(unset)'
-    const port = setting(settings.port, 'PGPORT')
-    const db = setting(settings.database, 'PGDATABASE') ?? '(unset)'
-    const user = setting(settings.user, 'PGUSER') ?? '(unset)'
-    const source =
-      fromEnvironment.length > 0 ? ` (from ${fromEnvironment.join(', ')})` : ''
+    const osUser =
+      process.platform === 'win32' ? process.env.USERNAME : process.env.USER
+    const host = setting(settings.host, 'PGHOST', 'host', 'localhost')
+    const port = setting(settings.port, 'PGPORT', 'port', '5432')
+    let db = setting(settings.database, 'PGDATABASE', 'db')
+    const user = setting(settings.user, 'PGUSER', 'user', osUser)
+    const dbIsUser = db === undefined && user !== undefined
+    if (dbIsUser) db = user
+    const sources = [
+      ...(fromEnvironment.length > 0
+        ? [`from ${fromEnvironment.join(', ')}`]
+        : []),
+      ...(defaulted.length > 0
+        ? [`node-postgres default ${defaulted.join(', ')}`]
+        : []),
+      ...(dbIsUser ? ['db defaults to the user'] : [])
+    ]
+    const source = sources.length > 0 ? ` (${sources.join('; ')})` : ''
     return {
       client,
-      target: `host ${host}${port ? `:${port}` : ''} / db ${db} / user ${user}${source}`,
+      target: `host ${host}:${port} / db ${db ?? '(unset)'} / user ${user ?? '(unset)'}${source}`,
+      // A unix socket directory is on this machine, as in a connection string.
+      isLocal: LOCAL_HOSTS.has(host ?? '') || Boolean(host?.startsWith('/'))
+    }
+  }
+
+  if (conn && typeof conn === 'object') {
+    const host = conn.host ?? '(unset)'
+    const db = conn.database ?? '(unset)'
+    return {
+      client,
+      target: `host ${host}${conn.port ? `:${conn.port}` : ''} / db ${db} / user ${conn.user ?? '(unset)'}`,
       isLocal: LOCAL_HOSTS.has(host)
     }
   }
