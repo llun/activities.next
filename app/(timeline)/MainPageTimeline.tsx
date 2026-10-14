@@ -134,6 +134,18 @@ const isUnauthorizedError = (error: unknown): boolean => {
   return false
 }
 
+const findStatusElement = (statusId: string): HTMLElement | null => {
+  if (typeof document === 'undefined') return null
+  const elements = document.querySelectorAll<HTMLElement>('[data-status-id]')
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i]
+    if (el.getAttribute('data-status-id') === statusId) {
+      return el
+    }
+  }
+  return null
+}
+
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   host,
   profile,
@@ -366,8 +378,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     if (!pendingScrollAnchor || !pendingScrollAnchor.statusId) return
     if (restoredAnchorRef.current === pendingScrollAnchor.statusId) return
 
-    const escapedId = pendingScrollAnchor.statusId.replace(/"/g, '\\"')
-    const el = document.querySelector(`[data-status-id="${escapedId}"]`)
+    const el = findStatusElement(pendingScrollAnchor.statusId)
     if (el) {
       const rect = el.getBoundingClientRect()
       const diff = rect.top - pendingScrollAnchor.offsetTop
