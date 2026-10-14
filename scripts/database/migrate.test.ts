@@ -163,7 +163,7 @@ describe('scripts/database/migrate', () => {
           '(node-postgres default port; db defaults to the user)'
       )
 
-      // A unix socket directory is local.
+      // A unix socket is not counted as local (Cloud SQL's is one).
       vi.stubEnv('PGHOST', '/var/run/postgresql')
       vi.stubEnv(
         'ACTIVITIES_DATABASE',
@@ -174,7 +174,7 @@ describe('scripts/database/migrate', () => {
         target:
           'host /var/run/postgresql:5432 / db app / user alice ' +
           '(from PGHOST; node-postgres default port, user)',
-        isLocal: true
+        isLocal: false
       })
     })
 
