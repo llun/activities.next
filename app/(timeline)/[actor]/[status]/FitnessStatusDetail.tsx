@@ -22,6 +22,7 @@ import {
   Mail,
   MessageCircle,
   Mountain,
+  RefreshCw,
   Repeat2,
   Route,
   Unlock,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useEffect, useMemo, useState } from 'react'
+import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { formatGearDistanceKm } from '@/app/(timeline)/fitness/gear/gearUi'
 import {
@@ -67,6 +68,7 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
+import { Button } from '@/lib/components/ui/button'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
@@ -696,6 +698,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   // per file, so a single slot of state is enough: the action is disabled while
   // it is in flight, and the message belongs to the activity rather than to
   // whichever recording is on screen.
+  const recordingTriggerRef = useRef<HTMLButtonElement>(null)
   const [makingPrimaryId, setMakingPrimaryId] = useState<string | null>(null)
   const [primaryNotice, setPrimaryNotice] = useState<string | null>(null)
   // The file the failed attempt was for, so Retry tries the same one even if
@@ -924,18 +927,26 @@ export const FitnessStatusDetail: FC<Props> = ({
   // so the message says the map follows shortly and the page is re-read only
   // when the server reports the job already ran (a refresh before that would
   // just show the old map again).
-  const handleMakePrimary = async (fitnessFileId: string) => {
+  const handleMakePrimary = async (
+    fitnessFileId: string,
+    { isRetry = false }: { isRetry?: boolean } = {}
+  ) => {
     if (makingPrimaryId) return
     const target = fitnessFiles.find((file) => file.id === fitnessFileId)
     if (!target || target.isPrimary) return
 
     setMakingPrimaryId(fitnessFileId)
     setPrimaryNotice(null)
-    setPrimaryError(null)
+    // A retry keeps the Alert (and the Retry button focus sits on) mounted
+    // until it settles; unmounting it first would drop focus to the page body.
+    if (!isRetry) setPrimaryError(null)
 
     try {
-      const { file: updated, processed } =
-        await makeFitnessFilePrimary(fitnessFileId)
+      const {
+        file: updated,
+        processed,
+        alreadyPrimary
+      } = await makeFitnessFilePrimary(fitnessFileId)
       // The response is the new primary as the server now holds it (it may have
       // inherited the old primary's gear); every other file just lost the flag.
       setFitnessFiles((files) =>
@@ -946,12 +957,21 @@ export const FitnessStatusDetail: FC<Props> = ({
         )
       )
       setSelectedFitnessFileId(fitnessFileId)
+      const label = getRecordingLabel(target)
       setPrimaryNotice(
-        processed
-          ? `${getRecordingLabel(target)} is now the primary recording.`
-          : `${getRecordingLabel(target)} is now the primary recording. The route map updates shortly.`
+        alreadyPrimary
+          ? `${label} is already the primary recording.`
+          : processed
+            ? `${label} is now the primary recording.`
+            : `${label} is now the primary recording. The route map updates shortly.`
       )
-      if (processed) router.refresh()
+      if (processed && !alreadyPrimary) router.refresh()
+      if (isRetry) {
+        // The Alert the focus was on goes with the success: hand focus to the
+        // control the owner started from rather than to the body.
+        setPrimaryError(null)
+        recordingTriggerRef.current?.focus()
+      }
     } catch (error) {
       setPrimaryError({
         message:
@@ -1557,6 +1577,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             selected={fitness}
             isOwner={isOwner}
             downloadHref={sourceHref}
+            triggerRef={recordingTriggerRef}
             onSelect={setSelectedFitnessFileId}
             onMakePrimary={(fileId) => void handleMakePrimary(fileId)}
             makingPrimaryId={makingPrimaryId}
@@ -1570,20 +1591,38 @@ export const FitnessStatusDetail: FC<Props> = ({
             <Alert
               className="mt-2"
               title={primaryError.message}
-              onRetry={() => void handleMakePrimary(primaryError.fileId)}
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  // `aria-disabled`, not `disabled`: a button that is disabled
+                  // while focused is the one that loses focus.
+                  aria-disabled={makingPrimaryId !== null}
+                  onClick={() => {
+                    if (makingPrimaryId) return
+                    void handleMakePrimary(primaryError.fileId, {
+                      isRetry: true
+                    })
+                  }}
+                >
+                  <RefreshCw aria-hidden="true" />
+                  Retry
+                </Button>
+              }
             />
           ) : null}
           <p
             role="status"
             className={cn(
               'text-xs text-muted-foreground',
-              (makingPrimaryId || primaryNotice) && !primaryError && 'mt-1'
+              (makingPrimaryId || primaryNotice) && 'mt-1'
             )}
           >
-            {primaryError
-              ? ''
-              : makingPrimaryId
-                ? 'Making this the primary recording…'
+            {makingPrimaryId
+              ? 'Making this the primary recording…'
+              : primaryError
+                ? ''
                 : (primaryNotice ?? '')}
           </p>
 

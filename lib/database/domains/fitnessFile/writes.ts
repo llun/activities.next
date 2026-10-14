@@ -398,7 +398,7 @@ export const makeFitnessFilePrimary = (
       return { result: 'not_ready' }
     }
 
-    if (target.isPrimary === null || Boolean(target.isPrimary)) {
+    if (target.isPrimary) {
       return { result: 'already_primary', fitnessFile: toFitnessFile(target) }
     }
 
@@ -416,8 +416,10 @@ export const makeFitnessFilePrimary = (
 
     // A primary that is still being processed owns a route map that is about to
     // be attached (or replaced). Moving the pointer under it would have its job
-    // write the map for the wrong file. `failed` is fine, and is the case a
-    // swap is most useful for.
+    // write the map for the wrong file. `failed` is allowed, but it is a corner
+    // case: a status whose primary failed is hidden from nearly every surface
+    // (they gate on `completed`), so the page does not normally let anyone get
+    // here, and it is reachable chiefly by calling the API directly.
     if (
       previous &&
       (previous.processingStatus === 'pending' ||

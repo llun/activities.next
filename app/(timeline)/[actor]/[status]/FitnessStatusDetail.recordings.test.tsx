@@ -4,7 +4,10 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 
-import type { StatusFitnessFileItem } from '@/lib/client'
+import type {
+  MakeFitnessFilePrimaryResult,
+  StatusFitnessFileItem
+} from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import { mockRefresh } from './FitnessStatusDetail.mocks'
@@ -16,6 +19,7 @@ import {
   mockMakeFitnessFilePrimary,
   notMe,
   openRecordingPicker,
+  recordingTriggerName,
   renderDetail,
   resetFitnessStatusDetailMocks
 } from './FitnessStatusDetail.testUtils'
@@ -230,6 +234,17 @@ describe('FitnessStatusDetail recordings', () => {
       expect(getRecordingRow(menu, 'two.fit')).toBeInTheDocument()
     })
 
+    it('names the trigger by what it does, not just by the device', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
+      renderDetail()
+
+      expect(
+        await screen.findByRole('button', {
+          name: 'Recorded with Forerunner 965, choose recording'
+        })
+      ).toHaveAttribute('aria-haspopup', 'menu')
+    })
+
     it('does not make a recording primary just by viewing it', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
       renderDetail()
@@ -237,9 +252,94 @@ describe('FitnessStatusDetail recordings', () => {
       await chooseRecording('Forerunner 965', 'Edge 840')
 
       expect(
-        await screen.findByRole('button', { name: 'Edge 840' })
+        await screen.findByRole('button', {
+          name: recordingTriggerName('Edge 840')
+        })
       ).toBeInTheDocument()
       expect(mockMakeFitnessFilePrimary).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('device link', () => {
+    it('gives the owner a link to the selected recording’s device page', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        watch({ deviceGearId: 'device/watch' }),
+        headUnit({ deviceGearId: 'device-edge' })
+      ])
+      renderDetail()
+
+      const menu = await openRecordingPicker('Forerunner 965')
+
+      const link = within(menu).getByRole('menuitem', {
+        name: 'Device page for Forerunner 965'
+      })
+      expect(link).toHaveAttribute('href', '/fitness/gear/device%2Fwatch')
+      expect(link).not.toHaveAttribute('target')
+      expect(within(menu).getByRole('separator')).toBeInTheDocument()
+    })
+
+    it('follows the recording the page is showing', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        watch({ deviceGearId: 'device-watch' }),
+        headUnit({ deviceGearId: 'device-edge' })
+      ])
+      renderDetail()
+      await chooseRecording('Forerunner 965', 'Edge 840')
+
+      const menu = await openRecordingPicker('Edge 840')
+
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Device page for Edge 840' })
+      ).toHaveAttribute('href', '/fitness/gear/device-edge')
+    })
+
+    it('gives a visitor the manufacturer, in a new tab, never the owner-only page', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        watch({ deviceGearId: 'device-watch' }),
+        headUnit()
+      ])
+      renderDetail({ currentActor: notMe })
+
+      const menu = await openRecordingPicker('Forerunner 965')
+
+      const link = within(menu).getByRole('menuitem', {
+        name: /Garmin website/
+      })
+      expect(link).toHaveAttribute('href', expect.stringContaining('garmin'))
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+      expect(
+        within(menu).queryByRole('menuitem', { name: /Device page/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('gives the owner the manufacturer when the device has no gear row', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
+      renderDetail()
+
+      const menu = await openRecordingPicker('Forerunner 965')
+
+      expect(
+        within(menu).getByRole('menuitem', { name: /Garmin website/ })
+      ).toBeInTheDocument()
+    })
+
+    it('adds nothing, not even a separator, where the device would be plain text', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        watch({ deviceName: 'Some Unbranded Gizmo', deviceManufacturer: null }),
+        headUnit({ deviceName: null, deviceManufacturer: null })
+      ])
+      renderDetail({ currentActor: notMe })
+
+      const menu = await openRecordingPicker('Some Unbranded Gizmo')
+
+      expect(within(menu).queryByRole('separator')).not.toBeInTheDocument()
+      expect(within(menu).queryByRole('link')).not.toBeInTheDocument()
+      expect(
+        within(menu).queryByRole('menuitem', {
+          name: /website|Device page/
+        })
+      ).not.toBeInTheDocument()
     })
   })
 
@@ -324,10 +424,12 @@ describe('FitnessStatusDetail recordings', () => {
   describe('make primary', () => {
     const promoted = (
       file: StatusFitnessFileItem,
-      processed = false
-    ): { file: StatusFitnessFileItem; processed: boolean } => ({
+      processed = false,
+      alreadyPrimary = false
+    ): MakeFitnessFilePrimaryResult => ({
       file,
-      processed
+      processed,
+      alreadyPrimary
     })
 
     it('offers it to the owner on every finished recording but the primary', async () => {
@@ -388,7 +490,9 @@ describe('FitnessStatusDetail recordings', () => {
       expect(mockRefresh).not.toHaveBeenCalled()
       // The page now shows the new primary (and the gear it inherited)...
       expect(
-        await screen.findByRole('button', { name: 'Edge 840' })
+        await screen.findByRole('button', {
+          name: recordingTriggerName('Edge 840')
+        })
       ).toBeInTheDocument()
       expect(
         await screen.findByRole('link', { name: /^Gear:/ })
@@ -442,10 +546,7 @@ describe('FitnessStatusDetail recordings', () => {
           deviceName: 'Wahoo'
         })
       ])
-      const request = createDeferred<{
-        file: StatusFitnessFileItem
-        processed: boolean
-      }>()
+      const request = createDeferred<MakeFitnessFilePrimaryResult>()
       mockMakeFitnessFilePrimary.mockReturnValue(request.promise)
       renderDetail()
 
@@ -572,6 +673,122 @@ describe('FitnessStatusDetail recordings', () => {
       )
       expect(await screen.findByRole('status')).toHaveTextContent(
         'Edge 840 is now the primary recording'
+      )
+    })
+
+    it('says it already was the primary, and promises no map update', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
+      mockMakeFitnessFilePrimary.mockResolvedValue(
+        promoted(headUnit({ isPrimary: true }), false, true)
+      )
+      renderDetail()
+
+      fireEvent.click(
+        within(await openRecordingPicker('Forerunner 965')).getByRole(
+          'menuitem',
+          { name: 'Make primary: Edge 840' }
+        )
+      )
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        /^Edge 840 is already the primary recording\.$/
+      )
+      expect(mockRefresh).not.toHaveBeenCalled()
+    })
+
+    it('copes with a body that is only the id and the flag', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        watch({ gearId: 'gear-1', gearName: 'Moots' }),
+        headUnit()
+      ])
+      mockMakeFitnessFilePrimary.mockResolvedValue(
+        promoted({ id: 'fit-edge', isPrimary: true } as StatusFitnessFileItem)
+      )
+      renderDetail()
+
+      fireEvent.click(
+        within(await openRecordingPicker('Forerunner 965')).getByRole(
+          'menuitem',
+          { name: 'Make primary: Edge 840' }
+        )
+      )
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Edge 840 is now the primary recording'
+      )
+      // The rest of the file is what the page already held.
+      const reopened = await openRecordingPicker('Edge 840')
+      expect(
+        within(getRecordingRow(reopened, 'Edge 840')).getByText('Primary')
+      ).toBeInTheDocument()
+      expect(
+        within(getRecordingRow(reopened, 'Edge 840')).getByText(
+          /5\.1 km|5\.10 km/
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('keeps the Alert, with Retry inert, while a retry runs, then hands focus to the picker', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
+      mockMakeFitnessFilePrimary.mockRejectedValueOnce(new Error('Try later.'))
+      const retry = createDeferred<MakeFitnessFilePrimaryResult>()
+      mockMakeFitnessFilePrimary.mockReturnValueOnce(retry.promise)
+      renderDetail()
+
+      fireEvent.click(
+        within(await openRecordingPicker('Forerunner 965')).getByRole(
+          'menuitem',
+          { name: 'Make primary: Edge 840' }
+        )
+      )
+      const alert = await screen.findByRole('alert')
+      const retryButton = within(alert).getByRole('button', { name: /retry/i })
+      retryButton.focus()
+
+      fireEvent.click(retryButton)
+      await waitFor(() =>
+        expect(mockMakeFitnessFilePrimary).toHaveBeenCalledTimes(2)
+      )
+
+      // Still there and still focused, so focus has not fallen to the body.
+      expect(screen.getByRole('alert')).toBe(alert)
+      expect(retryButton).toHaveAttribute('aria-disabled', 'true')
+      expect(retryButton).toHaveFocus()
+      // A second press while it runs does nothing.
+      fireEvent.click(retryButton)
+      expect(mockMakeFitnessFilePrimary).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        retry.resolve(promoted(headUnit({ isPrimary: true })))
+      })
+
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      )
+      expect(
+        screen.getByRole('button', {
+          name: recordingTriggerName('Edge 840')
+        })
+      ).toHaveFocus()
+    })
+
+    it('keeps the Alert, with the new reason, when the retry fails too', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
+      mockMakeFitnessFilePrimary.mockRejectedValueOnce(new Error('Try later.'))
+      mockMakeFitnessFilePrimary.mockRejectedValueOnce(new Error('Still no.'))
+      renderDetail()
+
+      fireEvent.click(
+        within(await openRecordingPicker('Forerunner 965')).getByRole(
+          'menuitem',
+          { name: 'Make primary: Edge 840' }
+        )
+      )
+      const alert = await screen.findByRole('alert')
+      fireEvent.click(within(alert).getByRole('button', { name: /retry/i }))
+
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent('Still no.')
       )
     })
 

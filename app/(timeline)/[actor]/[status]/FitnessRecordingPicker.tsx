@@ -1,7 +1,8 @@
 'use client'
 
-import { ChevronDown, Download, Watch } from 'lucide-react'
-import { FC } from 'react'
+import { ChevronDown, Download, ExternalLink, Watch } from 'lucide-react'
+import Link from 'next/link'
+import { FC, Ref } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
@@ -11,6 +12,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
@@ -18,7 +20,10 @@ import {
   formatFitnessDistance,
   formatFitnessDuration
 } from '@/lib/utils/fitness'
-import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
+import {
+  getDeviceDisplayLabel,
+  getDeviceLinkTarget
+} from '@/lib/utils/fitnessDeviceBrands'
 
 type RecordingFile = Pick<
   StatusFitnessFileItem,
@@ -101,9 +106,58 @@ const DownloadRecordingButton: FC<{
 const PRIMARY_PILL =
   'shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground'
 
+/**
+ * The selected recording's device page (the owner) or its manufacturer (a
+ * visitor): what `BrandedDeviceLink` linked to before the picker replaced it,
+ * decided by the same `getDeviceLinkTarget`. Nothing when that would be plain
+ * text, so no separator is drawn either.
+ */
+const DeviceLinkItem: FC<{
+  selected: StatusFitnessFileItem
+  isOwner: boolean
+}> = ({ selected, isOwner }) => {
+  const target = getDeviceLinkTarget({
+    deviceName: selected.deviceName,
+    deviceManufacturer: selected.deviceManufacturer,
+    deviceGearId: selected.deviceGearId,
+    deviceGearName: selected.deviceGearName,
+    isOwner
+  })
+  if (!target) return null
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem asChild className="rounded-lg px-3 py-2 text-sm">
+        {target.kind === 'owner' ? (
+          <Link
+            // Same reason as `BrandedDeviceLink`: no prefetch on a feed-weight
+            // link.
+            prefetch={false}
+            href={target.href}
+            aria-label={`Device page for ${target.label}`}
+          >
+            <Watch className="size-4" aria-hidden="true" />
+            Device page
+          </Link>
+        ) : (
+          <a href={target.href} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="size-4" aria-hidden="true" />
+            {target.brandName} website
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
+      </DropdownMenuItem>
+    </>
+  )
+}
+
 const RecordingPicker: FC<{
   files: StatusFitnessFileItem[]
   selected: StatusFitnessFileItem
+  isOwner: boolean
+  /** The trigger, so focus can come back to it when the alert it follows goes. */
+  triggerRef?: Ref<HTMLButtonElement>
   onSelect: (fileId: string) => void
   /** Owner only: the "Make primary" action on each other recording. */
   onMakePrimary?: (fileId: string) => void
@@ -112,11 +166,23 @@ const RecordingPicker: FC<{
    * activity card says so in one place, so the row itself keeps its label.
    */
   makingPrimaryId: string | null
-}> = ({ files, selected, onSelect, onMakePrimary, makingPrimaryId }) => (
+}> = ({
+  files,
+  selected,
+  isOwner,
+  triggerRef,
+  onSelect,
+  onMakePrimary,
+  makingPrimaryId
+}) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button
+        ref={triggerRef}
         variant="outline"
+        // The visible text is only the device, which says nothing about what the
+        // button does.
+        aria-label={`Recorded with ${getRecordingLabel(selected)}, choose recording`}
         // `shrink` over the button's own `shrink-0`: next to the download
         // button the trigger is what gives, truncating its label, so the two
         // stay on one line on a phone.
@@ -216,6 +282,7 @@ const RecordingPicker: FC<{
           </div>
         )
       })}
+      <DeviceLinkItem selected={selected} isOwner={isOwner} />
     </DropdownMenuContent>
   </DropdownMenu>
 )
@@ -238,6 +305,8 @@ export const RecordingLine: FC<{
   isOwner: boolean
   /** Set for the owner only; see `DownloadRecordingButton`. */
   downloadHref?: string
+  /** The picker's trigger (several recordings only). */
+  triggerRef?: Ref<HTMLButtonElement>
   onSelect: (fileId: string) => void
   onMakePrimary?: (fileId: string) => void
   makingPrimaryId: string | null
@@ -246,6 +315,7 @@ export const RecordingLine: FC<{
   selected,
   isOwner,
   downloadHref,
+  triggerRef,
   onSelect,
   onMakePrimary,
   makingPrimaryId
@@ -274,6 +344,8 @@ export const RecordingLine: FC<{
           <RecordingPicker
             files={files}
             selected={selected}
+            isOwner={isOwner}
+            triggerRef={triggerRef}
             onSelect={onSelect}
             onMakePrimary={isOwner ? onMakePrimary : undefined}
             makingPrimaryId={makingPrimaryId}

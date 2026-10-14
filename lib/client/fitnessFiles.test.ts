@@ -193,11 +193,37 @@ describe('fitnessFiles client module', () => {
 
       expect(result.file).toMatchObject({ id: 'file/1', isPrimary: true })
       expect(result.processed).toBe(true)
+      expect(result.alreadyPrimary).toBe(false)
       expect(result.file).not.toHaveProperty('processed')
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/v1/fitness-files/file%2F1/primary',
         expect.objectContaining({ method: 'POST' })
       )
+    })
+
+    it('passes alreadyPrimary on', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ id: 'file-1', alreadyPrimary: true }),
+        { status: 200 }
+      )
+
+      const result = await makeFitnessFilePrimary('file-1')
+
+      expect(result.alreadyPrimary).toBe(true)
+      expect(result.file).not.toHaveProperty('alreadyPrimary')
+    })
+
+    it('accepts a body that is only the id and the flag', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ id: 'file-1', isPrimary: true, processed: true }),
+        { status: 200 }
+      )
+
+      expect(await makeFitnessFilePrimary('file-1')).toEqual({
+        file: { id: 'file-1', isPrimary: true },
+        processed: true,
+        alreadyPrimary: false
+      })
     })
 
     it('treats a missing processed flag as not processed yet', async () => {

@@ -168,6 +168,14 @@ export const getFitnessFilesByStatus = async (
   return data && Array.isArray(data.files) ? data.files : null
 }
 
+export interface MakeFitnessFilePrimaryResult {
+  file: StatusFitnessFileItem
+  /** The map was already redrawn, so a re-read of the page shows it. */
+  processed: boolean
+  /** Nothing changed: the recording already was the primary. */
+  alreadyPrimary: boolean
+}
+
 /**
  * Makes one of an activity's recordings its primary one, the file the post, its
  * route map and the totals follow. Resolves to that file as the activity page
@@ -182,7 +190,7 @@ export const getFitnessFilesByStatus = async (
  */
 export const makeFitnessFilePrimary = async (
   fitnessFileId: string
-): Promise<{ file: StatusFitnessFileItem; processed: boolean }> => {
+): Promise<MakeFitnessFilePrimaryResult> => {
   const response = await fetch(
     `/api/v1/fitness-files/${encodeURIComponent(fitnessFileId)}/primary`,
     {
@@ -215,11 +223,19 @@ export const makeFitnessFilePrimary = async (
     )
   }
 
-  const { processed, ...file } =
-    (await response.json()) as StatusFitnessFileItem & {
+  const { processed, alreadyPrimary, ...file } =
+    (await response.json()) as Partial<StatusFitnessFileItem> & {
       processed?: boolean
+      alreadyPrimary?: boolean
     }
-  return { file, processed: processed === true }
+  return {
+    // Everything but `id` can be missing: after a swap the server falls back
+    // to the bare id and flag when it cannot read the file back, and the page
+    // merges whatever arrives into the file it already holds.
+    file: { ...file, id: fitnessFileId } as StatusFitnessFileItem,
+    processed: processed === true,
+    alreadyPrimary: alreadyPrimary === true
+  }
 }
 
 const readErrorMessage = async (response: Response): Promise<string | null> => {

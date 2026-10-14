@@ -188,10 +188,19 @@ export const openSectionMenu = async () => {
 // The "Recorded with" picker's trigger is named after the recording it shows, so
 // the caller says which one is current. Opened with the keyboard, as the
 // section menu is: Radix opens a trigger on pointer-down, which `click` is not.
+export const recordingTriggerName = (current: string) =>
+  `Recorded with ${current}, choose recording`
+
 export const openRecordingPicker = async (current: string | RegExp) => {
-  fireEvent.keyDown(await screen.findByRole('button', { name: current }), {
-    key: 'ArrowDown'
-  })
+  fireEvent.keyDown(
+    await screen.findByRole('button', {
+      name:
+        typeof current === 'string' ? recordingTriggerName(current) : current
+    }),
+    {
+      key: 'ArrowDown'
+    }
+  )
   return screen.findByRole('menu')
 }
 

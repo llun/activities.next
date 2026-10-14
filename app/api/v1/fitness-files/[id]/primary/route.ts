@@ -63,9 +63,11 @@ const IMPORT_BUSY_MESSAGE =
  *   finished import yet, or the current primary is still being processed.
  * - `409` with an `{ error }` text when another import held the actor's import
  *   lock for the whole wait. Nothing was changed; the caller can retry.
- * - `200` with the file and `processed`, also when it already is the primary
- *   (nothing is re-queued then, so a double click does not rebuild the map
- *   twice). `processed` is true when the processing job has already run by the
+ * - `200` with the file, `processed` and `alreadyPrimary`, also when it
+ *   already is the primary (nothing is re-queued then, so a double click does
+ *   not rebuild the map twice). Once the swap has committed it is always a 200:
+ *   if the file cannot be read back, the body is just `{ id, isPrimary: true }`
+ *   plus the two flags. `processed` is true when the processing job has already run by the
  *   time the response goes out (an inline queue), so the file's map is final
  *   and the page can re-read it; false when the job is only queued, in which
  *   case a refresh now would just show the old map.
@@ -182,20 +184,34 @@ export const POST = traceApiRoute(
         )
       }
 
+      const alreadyPrimary = outcome.result === 'already_primary'
+
       // The shape the activity page already holds for each file (gear names
       // resolved, the stuck flag), rather than the raw row with its storage
-      // paths.
-      const files = await getStatusFitnessFiles(
-        database,
-        outcome.fitnessFile.statusId as string
-      )
-      const file = files.find((item) => item.id === id)
-      if (!file) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
+      // paths. The swap is committed and the job queued by now, so a failed
+      // read, or a file deleted since, must not turn into an error that makes
+      // the owner retry something that happened: the page gets the minimum it
+      // needs to move its own flags instead.
+      let file: object = { id, isPrimary: true }
+      try {
+        const files = await getStatusFitnessFiles(
+          database,
+          outcome.fitnessFile.statusId as string
+        )
+        file = files.find((item) => item.id === id) ?? file
+      } catch (readError) {
+        logger.error({
+          message: 'Failed to read the fitness files after making one primary',
+          fitnessFileId: id,
+          actorId: currentActor.id,
+          err: toLoggableError(readError)
+        })
+      }
 
       return apiResponse({
         req,
         allowedMethods: [],
-        data: { ...file, processed },
+        data: { ...file, processed, alreadyPrimary },
         responseStatusCode: 200
       })
     } catch (error) {

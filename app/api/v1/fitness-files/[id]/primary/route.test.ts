@@ -419,6 +419,52 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
     )
   })
 
+  it('reports alreadyPrimary only when nothing changed', async () => {
+    const { oldPrimary, chosen } = await createPair()
+
+    const unchanged = await (await post(oldPrimary.id)).json()
+    const swapped = await (await post(chosen.id)).json()
+
+    expect(unchanged.alreadyPrimary).toBe(true)
+    expect(swapped.alreadyPrimary).toBe(false)
+  })
+
+  it.each([
+    {
+      description: 'the read-back fails',
+      arrange: () =>
+        vi
+          .spyOn(database, 'getFitnessFilesByStatus')
+          .mockRejectedValue(new Error('database went away'))
+    },
+    {
+      description: 'the file was deleted in the meantime',
+      arrange: () =>
+        vi.spyOn(database, 'getFitnessFilesByStatus').mockResolvedValue([])
+    }
+  ])(
+    'still answers 200 with the id and the flag once the swap is committed and $description',
+    async ({ arrange }) => {
+      const { oldPrimary, chosen } = await createPair()
+      mockRunsInline = true
+      arrange()
+
+      const response = await post(chosen.id)
+
+      // Neither a 500 nor a 404: the swap happened and the job is queued, so an
+      // error would only invite a retry of something that is done.
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        id: chosen.id,
+        isPrimary: true,
+        processed: true,
+        alreadyPrimary: false
+      })
+      expect(await flags(oldPrimary.id, chosen.id)).toEqual([false, true])
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it('answers 404 for someone else’s recording and changes nothing', async () => {
     const { oldPrimary, chosen } = await createPair()
     mockGetServerSession.mockResolvedValue({

@@ -18,6 +18,7 @@ import {
   mockGetFitnessRouteData,
   openRecordingPicker,
   openSectionMenu,
+  recordingTriggerName,
   renderDetail,
   resetFitnessStatusDetailMocks
 } from './FitnessStatusDetail.testUtils'
@@ -572,7 +573,7 @@ describe('FitnessStatusDetail', () => {
       renderAggregatedFiles()
 
       const trigger = await screen.findByRole('button', {
-        name: 'ride-morning.fit'
+        name: recordingTriggerName('ride-morning.fit')
       })
       // The picker is part of the activity card's own "Recorded with" line,
       // not a card of its own between it and the section navigation.
@@ -610,7 +611,9 @@ describe('FitnessStatusDetail', () => {
       await chooseRecording('ride-morning.fit', 'ride-evening.fit')
 
       expect(
-        await screen.findByRole('button', { name: 'ride-evening.fit' })
+        await screen.findByRole('button', {
+          name: recordingTriggerName('ride-evening.fit')
+        })
       ).toBeInTheDocument()
       // The stat grid follows the selected recording.
       expect(await screen.findByText('12.5')).toBeInTheDocument()
@@ -628,7 +631,9 @@ describe('FitnessStatusDetail', () => {
     // the absences below are not just "the files have not arrived yet".
     expect(await screen.findByText('Sunset loop')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'ride-morning.fit' })
+      screen.queryByRole('button', {
+        name: recordingTriggerName('ride-morning.fit')
+      })
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
     expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()

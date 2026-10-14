@@ -22,6 +22,7 @@ import {
   mockGetFitnessGearList,
   mockUpdateFitnessFileGear,
   notMe,
+  recordingTriggerName,
   renderDetail,
   resetFitnessStatusDetailMocks
 } from './FitnessStatusDetail.testUtils'
@@ -554,7 +555,9 @@ describe('FitnessStatusDetail', () => {
         ])
       })
       expect(
-        await screen.findByRole('button', { name: 'ride.fit' })
+        await screen.findByRole('button', {
+          name: recordingTriggerName('ride.fit')
+        })
       ).toBeInTheDocument()
 
       await act(async () => {
@@ -569,7 +572,7 @@ describe('FitnessStatusDetail', () => {
       await expectNoGearOnMetaLine()
       // Still two recordings, and still on the first.
       expect(
-        screen.getByRole('button', { name: 'ride.fit' })
+        screen.getByRole('button', { name: recordingTriggerName('ride.fit') })
       ).toBeInTheDocument()
     })
 

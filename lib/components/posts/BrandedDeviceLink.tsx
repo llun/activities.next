@@ -4,9 +4,8 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import {
-  getBrandFromDeviceName,
-  getBrandFromManufacturer,
-  getDeviceDisplayLabel
+  getDeviceDisplayLabel,
+  getDeviceLinkTarget
 } from '@/lib/utils/fitnessDeviceBrands'
 
 interface BrandedDeviceLinkProps {
@@ -41,22 +40,27 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
   deviceGearName,
   isOwner
 }) => {
-  const brand =
-    getBrandFromManufacturer(deviceManufacturer) ??
-    getBrandFromDeviceName(deviceName)
   const label =
     deviceGearName?.trim() ||
     getDeviceDisplayLabel(deviceName, deviceManufacturer)
 
   if (!label) return null
 
-  if (isOwner && deviceGearId) {
+  const target = getDeviceLinkTarget({
+    deviceName,
+    deviceManufacturer,
+    deviceGearId,
+    deviceGearName,
+    isOwner
+  })
+
+  if (target?.kind === 'owner') {
     return (
       <Link
         // Rendered once per post in a feed, so it must not prefetch: the App
         // Router otherwise fires one RSC request per row on scroll.
         prefetch={false}
-        href={`/fitness/gear/${encodeURIComponent(deviceGearId)}`}
+        href={target.href}
         className="font-medium hover:underline underline-offset-2"
         onClick={(e) => e.stopPropagation()}
       >
@@ -65,13 +69,13 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
     )
   }
 
-  if (brand) {
+  if (target?.kind === 'brand') {
     return (
       <a
-        href={brand.url}
+        href={target.href}
         target="_blank"
         rel="noopener noreferrer"
-        style={brand.brandColor ? { color: brand.brandColor } : undefined}
+        style={target.brandColor ? { color: target.brandColor } : undefined}
         className="font-medium hover:underline underline-offset-2"
         onClick={(e) => e.stopPropagation()}
       >
