@@ -84,10 +84,9 @@ export type CreateDatabaseConnectionOptions = {
    * are the text the server sends, with each connection's `DateStyle` set to
    * ISO and `TimeZone` to UTC (`2026-01-02`, `2026-02-03 04:05:06.789123+00`),
    * rather than a `Date`, which would lose microseconds and read a `date` as
-   * local midnight; on SQLite the stored
-   * values (0/1, epoch ms or text, JSON text). For the production archive,
-   * which exports and restores rows in these forms. Bindings are encoded the
-   * same way either way.
+   * local midnight; on SQLite the stored values (0/1, epoch ms or text, JSON
+   * text). For the production archive, which exports and restores rows in
+   * these forms. Bindings are encoded the same way either way.
    */
   normalizeResults?: boolean
 }
