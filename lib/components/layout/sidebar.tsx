@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ActorInfo,
@@ -21,6 +21,7 @@ import { Logo } from '@/lib/components/layout/logo'
 import { type NavItem, buildNavLayout } from '@/lib/components/layout/nav-items'
 import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
+import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPageToTop'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   DropdownMenu,
@@ -56,6 +57,13 @@ export interface UserList {
 export interface SidebarProps {
   variant?: 'responsive' | 'drawer'
   onNavigate?: () => void
+  /**
+   * Called instead of `onNavigate` when a tap stays on the page already open,
+   * so the drawer closes and hands focus back to its menu button. It runs
+   * `afterClose` (the scroll back to the top) once the drawer has released
+   * the page's scroll lock.
+   */
+  onStay?: (afterClose: () => void) => void
   user?: User | null
   currentActor?: ActorInfo | null
   actors?: ActorInfo[]
@@ -173,6 +181,7 @@ const NavRowMenu = ({
 export function Sidebar({
   variant = 'responsive',
   onNavigate,
+  onStay,
   user,
   currentActor,
   actors = [],
@@ -210,6 +219,34 @@ export function Sidebar({
     }
     return pathname === href || pathname.startsWith(href + '/')
   }
+
+  // Tapping the item of the page already open goes back to its top, as
+  // tapping a column header does in Mastodon, instead of re-opening the same
+  // route at the same scroll position. A page with a query (a search, a
+  // filter) still resets to its plain form, and modified clicks keep their
+  // link behaviour (new tab, new window).
+  const handleNavClick =
+    (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+      const isCurrentPage =
+        (href === '/'
+          ? pathname === '/' || pathname === '/app'
+          : pathname === href) && window.location.search === ''
+      if (
+        isCurrentPage &&
+        !event.defaultPrevented &&
+        event.button === 0 &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey
+      ) {
+        event.preventDefault()
+        if (onStay) onStay(scrollPageToTop)
+        else scrollPageToTop()
+        return
+      }
+      onNavigate?.()
+    }
 
   const isListsSectionActive =
     pathname === '/lists' || pathname.startsWith('/lists/')
@@ -426,7 +463,7 @@ export function Sidebar({
                 <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
-                    onClick={onNavigate}
+                    onClick={handleNavClick(item.href)}
                     ref={registerRow(`nav:${item.id}`)}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
@@ -517,7 +554,7 @@ export function Sidebar({
                         <li key={item.id} className="group relative">
                           <Link
                             href={item.href}
-                            onClick={onNavigate}
+                            onClick={handleNavClick(item.href)}
                             ref={registerRow(`more:${item.id}`)}
                             aria-current={isActive ? 'page' : undefined}
                             className={cn(
@@ -618,6 +655,7 @@ export function Sidebar({
                       <TooltipTrigger asChild>
                         <Link
                           href={item.href}
+                          onClick={handleNavClick(item.href)}
                           ref={registerRow(`rail:${item.id}`)}
                           // The row is an icon, and the tooltip beside it only
                           // describes: without this the rail reads out as a list

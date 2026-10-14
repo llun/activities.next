@@ -19,9 +19,14 @@ export interface MobileNavigationDrawerProps {
   /**
    * The drawer's body. It receives `onNavigate`, which every destination link
    * calls so the drawer closes on selection and does not hand focus back to
-   * the (possibly unmounted) menu button.
+   * the (possibly unmounted) menu button. `onStay` closes it for a tap that
+   * stays on the open page, so focus returns to the menu button, and runs
+   * `afterClose` once the drawer has let go of the page's scroll lock.
    */
-  children: (onNavigate: () => void) => ReactNode
+  children: (
+    onNavigate: () => void,
+    onStay: (afterClose?: () => void) => void
+  ) => ReactNode
 }
 
 /**
@@ -38,6 +43,7 @@ export function MobileNavigationDrawer({
   const nav = useMobileNavigation()
   const pathname = usePathname()
   const navigatedRef = useRef(false)
+  const afterCloseRef = useRef<(() => void) | null>(null)
   const initialPathnameRef = useRef(pathname)
   const wasOpenRef = useRef(false)
 
@@ -51,6 +57,9 @@ export function MobileNavigationDrawer({
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       navigatedRef.current = false
+      // A stay tap whose drawer reopened before it finished closing never
+      // ran its scroll; it must not run on a later close.
+      afterCloseRef.current = null
       initialPathnameRef.current = pathname
     }
     wasOpenRef.current = isOpen
@@ -60,6 +69,12 @@ export function MobileNavigationDrawer({
 
   const handleNavigate = () => {
     navigatedRef.current = true
+    afterCloseRef.current = null
+    setOpen?.(false)
+  }
+
+  const handleStay = (afterClose?: () => void) => {
+    afterCloseRef.current = afterClose ?? null
     setOpen?.(false)
   }
 
@@ -78,6 +93,10 @@ export function MobileNavigationDrawer({
           if (isDesktop || hasNavigated) {
             event.preventDefault()
           }
+          // The page is scrollable again only once the drawer has closed.
+          const afterClose = afterCloseRef.current
+          afterCloseRef.current = null
+          if (afterClose) window.requestAnimationFrame(afterClose)
         }}
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh flex-col bg-background shadow-xl outline-none duration-200',
@@ -95,7 +114,7 @@ export function MobileNavigationDrawer({
         >
           <X className="h-5 w-5" />
         </DialogClose>
-        {children(handleNavigate)}
+        {children(handleNavigate, handleStay)}
       </DialogPrimitive.Content>
     </DialogPortal>
   )

@@ -258,6 +258,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               <div
                 key={row.key}
                 data-status-id={status.id}
+                data-row-status-ids={rowStatusIds.join(' ')}
                 className={cn(
                   'min-h-0 min-w-0',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
@@ -284,6 +285,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               <div
                 key={row.key}
                 data-status-id={threadStatuses[0]?.id}
+                data-row-status-ids={rowStatusIds.join(' ')}
                 aria-label="Thread"
                 className={cn(
                   'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
@@ -366,6 +368,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
               <div
                 key={row.key}
                 data-status-id={convStatuses[0]?.id}
+                data-row-status-ids={rowStatusIds.join(' ')}
                 aria-label="Conversation"
                 className={cn(
                   'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
@@ -399,7 +402,11 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
             rowStatusIds = boostStatuses.map((s) => s.id)
 
             rowContent = (
-              <div key={row.key} data-status-id={boostStatuses[0]?.id}>
+              <div
+                key={row.key}
+                data-status-id={boostStatuses[0]?.id}
+                data-row-status-ids={rowStatusIds.join(' ')}
+              >
                 <BoostCarousel
                   statuses={boostStatuses}
                   currentActor={currentActor}

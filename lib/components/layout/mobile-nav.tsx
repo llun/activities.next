@@ -41,7 +41,7 @@ export function MobileNav({
 }: MobileNavProps) {
   return (
     <MobileNavigationDrawer>
-      {(onNavigate) => (
+      {(onNavigate, onStay) => (
         <Sidebar
           variant="drawer"
           user={user}
@@ -54,6 +54,7 @@ export function MobileNav({
           lists={lists}
           features={features}
           onNavigate={onNavigate}
+          onStay={onStay}
         />
       )}
     </MobileNavigationDrawer>

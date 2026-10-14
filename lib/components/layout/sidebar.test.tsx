@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -589,6 +590,94 @@ describe('Sidebar', () => {
       expect(
         screen.getAllByRole('link', { name: 'Timeline' })[0]
       ).toHaveAttribute('aria-current', 'page')
+    })
+  })
+
+  describe('tapping the page already open', () => {
+    const scrollTo = vi.fn()
+    // Runs after React's root listener, so it records what the sidebar's
+    // handler decided, then stops jsdom from following the href.
+    let preventedBySidebar: boolean | undefined
+    const stopDocumentNavigation = (event: Event) => {
+      preventedBySidebar = event.defaultPrevented
+      event.preventDefault()
+    }
+    let originalScrollTo: typeof window.scrollTo
+
+    beforeEach(() => {
+      originalScrollTo = window.scrollTo
+      preventedBySidebar = undefined
+      scrollTo.mockClear()
+      window.scrollTo = scrollTo
+    })
+
+    afterEach(() => {
+      window.scrollTo = originalScrollTo
+      window.history.replaceState(null, '', '/')
+      document.removeEventListener('click', stopDocumentNavigation)
+    })
+
+    it('scrolls the open page back to the top instead of following the link', () => {
+      mockPathname.mockReturnValue('/')
+      const onNavigate = vi.fn()
+      const onStay = vi.fn()
+      renderSidebar(
+        <Sidebar lists={[]} onNavigate={onNavigate} onStay={onStay} />
+      )
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      const click = createEvent.click(timeline, { button: 0 })
+      fireEvent(timeline, click)
+
+      expect(click.defaultPrevented).toBe(true)
+      // The drawer closes without treating it as a page change, and scrolls
+      // once it has released the page.
+      expect(onNavigate).not.toHaveBeenCalled()
+      expect(onStay).toHaveBeenCalledTimes(1)
+      expect(scrollTo).not.toHaveBeenCalled()
+      onStay.mock.calls[0][0]()
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    })
+
+    it('scrolls straight away outside the drawer', () => {
+      mockPathname.mockReturnValue('/')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      fireEvent.click(timeline, { button: 0 })
+
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    })
+
+    it.each([
+      { case: 'another page', pathname: '/search', search: '', metaKey: false },
+      {
+        case: 'the open page with a query, which resets it',
+        pathname: '/',
+        search: '?type=mentions',
+        metaKey: false
+      },
+      {
+        case: 'a modified click, for a new tab',
+        pathname: '/',
+        search: '',
+        metaKey: true
+      }
+    ])('follows the link for $case', ({ pathname, search, metaKey }) => {
+      mockPathname.mockReturnValue(pathname)
+      window.history.replaceState(null, '', `${pathname}${search}`)
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
+      const click = createEvent.click(timeline, { button: 0, metaKey })
+      document.addEventListener('click', stopDocumentNavigation)
+      fireEvent(timeline, click)
+
+      expect(preventedBySidebar).toBe(false)
+      expect(scrollTo).not.toHaveBeenCalled()
     })
   })
 })
