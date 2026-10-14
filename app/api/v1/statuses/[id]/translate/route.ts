@@ -1,8 +1,10 @@
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { fetchEphemeralRemoteStatus } from '@/lib/services/statuses/fetchEphemeralRemoteStatus'
 import { getTranslationProvider } from '@/lib/services/translation'
 import { translateStatus } from '@/lib/services/translation/translateStatus'
 import {
@@ -10,6 +12,8 @@ import {
   UnsupportedTargetLanguageError
 } from '@/lib/services/translation/types'
 import { Scope } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -30,6 +34,35 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
   id: string
+}
+
+// A stored row decides on its own; only an id with no row falls back to a
+// live fetch. Remote profile pages render the actor's live outbox, whose
+// statuses are never persisted, so their ids miss the database.
+const getTranslatableStatus = async ({
+  database,
+  statusId,
+  currentActor
+}: {
+  database: Database
+  statusId: string
+  currentActor: Actor
+}): Promise<Status | null> => {
+  const storedStatus = await database.getStatus({
+    statusId,
+    currentActorId: currentActor.id,
+    withReplies: false
+  })
+  if (!storedStatus) {
+    return fetchEphemeralRemoteStatus({ database, statusId })
+  }
+
+  const canRead = await canActorReadStatus({
+    database,
+    status: storedStatus,
+    currentActor
+  })
+  return canRead ? storedStatus : null
 }
 
 // https://docs.joinmastodon.org/methods/statuses/#translate
@@ -71,11 +104,10 @@ export const POST = traceApiRoute(
             (getConfig().languages[0] ?? 'en')
 
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
-      const status = await getReadableStatus({
+      const status = await getTranslatableStatus({
         database,
         statusId,
-        currentActor,
-        withReplies: false
+        currentActor
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
