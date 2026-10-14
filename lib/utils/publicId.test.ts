@@ -2,6 +2,7 @@ import {
   generatePublicId,
   getClientActorId,
   getClientStatusId,
+  getMaxTimeOrderedIdForMs,
   getPublicIdTimestamp,
   isPublicId
 } from '@/lib/utils/publicId'
@@ -33,6 +34,33 @@ describe('generatePublicId', () => {
     const id = generatePublicId(value)
     expect(isPublicId(id)).toBe(true)
     expect(getPublicIdTimestamp(id)).toBe(0)
+  })
+})
+
+describe('getMaxTimeOrderedIdForMs', () => {
+  it('is a public id carrying the millisecond it was given', () => {
+    const msecs = Date.UTC(2026, 9, 1, 8, 9, 10)
+    const marker = getMaxTimeOrderedIdForMs(msecs)
+    expect(isPublicId(marker)).toBe(true)
+    expect(getPublicIdTimestamp(marker)).toBe(msecs)
+    expect(marker.endsWith('-7fff-bfff-ffffffffffff')).toBe(true)
+  })
+
+  it('sorts above every id minted in its millisecond and below later ones', () => {
+    const msecs = Date.UTC(2026, 9, 1, 8, 9, 10, 5)
+    const marker = getMaxTimeOrderedIdForMs(msecs)
+    const sameMs = Array.from({ length: 50 }, () => generatePublicId(msecs))
+    expect(sameMs.every((id) => id <= marker)).toBe(true)
+    expect(generatePublicId(msecs + 1) > marker).toBe(true)
+  })
+
+  it('clamps a negative or non-finite time to the epoch', () => {
+    expect(getMaxTimeOrderedIdForMs(-1)).toBe(
+      '00000000-0000-7fff-bfff-ffffffffffff'
+    )
+    expect(getMaxTimeOrderedIdForMs(Number.NaN)).toBe(
+      '00000000-0000-7fff-bfff-ffffffffffff'
+    )
   })
 })
 

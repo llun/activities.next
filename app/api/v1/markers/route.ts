@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-import { getMaxTimeOrderedIdForMs } from '@/lib/database/domains/notification/notificationIdRewrite.js'
 import { Database } from '@/lib/database/types'
 import {
   OAuthGuardAnyScope,
@@ -14,7 +13,11 @@ import {
   readRequestBodyWithLimit
 } from '@/lib/utils/boundedRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { isPublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
+import {
+  getMaxTimeOrderedIdForMs,
+  isPublicId,
+  toPublicIdLookupKey
+} from '@/lib/utils/publicId'
 import { ERROR_413, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
