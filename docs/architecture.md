@@ -891,6 +891,7 @@ section-navigation patterns; pick by section type.
 #### Section sub-nav in local state (`SectionNavSelect`)
 
 - **`SectionNavSelect` is the state-driven twin of `SectionNavDropdown`**, and there is one implementation of each — do not re-inline either. Both render the same chrome: an outline trigger carrying the active tab's Lucide icon in `text-primary`, a sentence-case label and a muted `ChevronDown`, over a `rounded-xl` menu sized with `w-(--radix-dropdown-menu-trigger-width)`. They differ only in what a row does. `SectionNavDropdown`'s rows are `<Link>`s, its active row is resolved from `usePathname()` and marked `aria-current="page"`; `SectionNavSelect` takes `{ tabs, active, onChange }`, its rows are `DropdownMenuItem`s calling `onChange`, and the current one is marked with the **boolean** `aria-current` — nothing here is a page.
+- The fitness activity page's recording picker (`FitnessRecordingPicker`) is not a third consumer but wears the same chrome — an outline trigger with a muted `ChevronDown`, a `rounded-xl` menu, `rounded-lg` rows and the current row on `bg-primary/10 text-primary-text` with the same focus ring, marked with the boolean `aria-current` — because the two menus sit within a screen of each other. Keep them in step.
 - Its three consumers are the fitness activity detail (Overview / Analysis / Heart rate zones / …), a bike's gear page (Components / Activities) and the profile's Gallery tab (`ProfileGalleryTab`: Subjects / Recent / Albums / Map / Life list, limited to the subviews the viewer may open). With five profile tabs the tab list scrolls sideways below `sm` (`overflow-x-auto`, `justify-start`, `flex-none` triggers); with four or fewer it is unchanged. A third copy of that markup is exactly what extracting it removed.
 - **Both** active rows take `text-primary-text`, not `text-primary` — see the orange-text rule under **Fitness Gear**. That is the one place the pairing is load-bearing rather than cosmetic: the two dropdowns now appear on one screen (a bike's page carries the fitness section's nav above its own view switcher), so a mismatch reads as a mistake, and `--primary` as a foreground is under the AA floor either way. Each keeps its wash on `focus:` and therefore also carries `focus:ring-2`, or a keyboard user watching the highlight move down the list would see it vanish on precisely the current row.
 
@@ -2072,11 +2073,11 @@ legacy shape left to copy.
   fails on one. The post line limit, the admin statistic type, the report
   category, the Wahoo environment, the notification actor and the privacy hide
   radius are all `Select`; the hide radius alone passes `h-10`, because the
-  design's Hide Radius board draws that one select at 40 px. The activity-file
-  switcher in `FitnessStatusDetail` is the one exception: it overlays its own
-  foreground-coloured `ChevronDown`, as the design draws it, and sits in a card
-  of its own beside the activity card (only for a status with more than one
-  fitness file), not nested inside it.
+  design's Hide Radius board draws that one select at 40 px. There is no raw
+  `<select>` left in the app outside the primitive (`formControlUsage.test.ts`
+  pins it): the fitness activity page's recording switcher is a menu, not a
+  select (see **Several recordings of one activity** in
+  [Fitness file storage](fitness-file-storage.md)).
 - A checkbox is the shared `Checkbox` (`@/lib/components/ui/checkbox`): 16 px,
   radius 4, an orange fill and a white tick when checked, instead of the
   browser's blue control. It is still a real `<input type="checkbox">`, so a

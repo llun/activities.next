@@ -40,9 +40,9 @@ import {
   getFitnessFilesByStatus,
   getFitnessGearList,
   getFitnessRouteData,
+  makeFitnessFilePrimary,
   updateFitnessFileGear
 } from '@/lib/client'
-import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { Actions } from '@/lib/components/posts/actions/actions'
 import type { PostMenuExtraItem } from '@/lib/components/posts/actions/post-menu'
 import { ActorAvatar } from '@/lib/components/posts/actor'
@@ -85,7 +85,6 @@ import {
   normalizeFitnessSourceUrl,
   sortStatusFitnessFiles
 } from '@/lib/utils/fitness'
-import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import {
   type MastodonVisibility,
@@ -106,6 +105,7 @@ import {
   type GraphDisplayMode,
   HeartRateZonesPanel
 } from './FitnessAnalysisCharts'
+import { RecordingLine, getRecordingLabel } from './FitnessRecordingPicker'
 import {
   GRAPH_VIEW_HEIGHT,
   computeHeartRateStats,
@@ -379,59 +379,6 @@ const ActivityGallery: FC<{
         </button>
       ))}
     </div>
-  )
-}
-
-/**
- * The source-file row in the card footer. `href` is set only for the owner:
- * `GET /api/v1/fitness-files/:id` serves the original upload, which still holds
- * the ends a privacy location trims off the map and the route data, so it is
- * owner-only and a link shown to anyone else would only 404.
- *
- * The row itself is not gated — the file name is the label saying which file the
- * panel is describing, and with several attached it is what the selector
- * switches between. Only the download goes.
- */
-const SourceFileRow: FC<{
-  href?: string
-  fileName: string
-  fileType: string
-  position: string | null
-}> = ({ href, fileName, fileType, position }) => {
-  const content = (
-    <>
-      <Activity className="size-3.5 shrink-0" />
-      <span
-        className={cn(
-          'truncate',
-          href && 'underline decoration-border underline-offset-2'
-        )}
-      >
-        {fileName}
-      </span>
-      <span className="shrink-0 uppercase">{fileType}</span>
-      {position ? (
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-          {position}
-        </span>
-      ) : null}
-    </>
-  )
-  const className =
-    'inline-flex min-w-0 max-w-full items-center gap-2 self-start text-xs text-muted-foreground'
-
-  if (!href) {
-    return (
-      <div className={className} title={fileName}>
-        {content}
-      </div>
-    )
-  }
-
-  return (
-    <a href={href} className={className} title={fileName}>
-      {content}
-    </a>
   )
 }
 
@@ -745,6 +692,13 @@ export const FitnessStatusDetail: FC<Props> = ({
     Record<string, string>
   >({})
   const [isSavingGear, setIsSavingGear] = useState(false)
+  // Making a recording primary is one request for the whole activity, not one
+  // per file, so a single slot of state is enough: the action is disabled while
+  // it is in flight, and the message belongs to the activity rather than to
+  // whichever recording is on screen.
+  const [makingPrimaryId, setMakingPrimaryId] = useState<string | null>(null)
+  const [primaryNotice, setPrimaryNotice] = useState<string | null>(null)
+  const [primaryError, setPrimaryError] = useState<string | null>(null)
   const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
   const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
   const [powerSeries, setPowerSeries] = useState<number[]>([])
@@ -834,10 +788,6 @@ export const FitnessStatusDetail: FC<Props> = ({
       fitnessFiles.find((item) => item.id === selectedFitnessFileId) ??
       fitnessFiles[0],
     [fitnessFiles, selectedFitnessFileId]
-  )
-  const selectedFileIndex = useMemo(
-    () => fitnessFiles.findIndex((item) => item.id === fitness?.id),
-    [fitnessFiles, fitness?.id]
   )
   const selectedGearId = fitness?.gearId ?? null
   // Options for the owner's gear picker. Retired gear is out (it is still
@@ -962,6 +912,47 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }
 
+  // Owner only (the recording picker offers it to no one else, and the endpoint
+  // answers 404 to anyone but the owner). The server moves the flag, the gear
+  // and the route map's pointers, then reprocesses the new primary so the post's
+  // map is redrawn from it — which is why the message says the map follows
+  // shortly rather than that it already has.
+  const handleMakePrimary = async (fitnessFileId: string) => {
+    if (makingPrimaryId) return
+    const target = fitnessFiles.find((file) => file.id === fitnessFileId)
+    if (!target || target.isPrimary) return
+
+    setMakingPrimaryId(fitnessFileId)
+    setPrimaryNotice(null)
+    setPrimaryError(null)
+
+    try {
+      const updated = await makeFitnessFilePrimary(fitnessFileId)
+      // The response is the new primary as the server now holds it (it may have
+      // inherited the old primary's gear); every other file just lost the flag.
+      setFitnessFiles((files) =>
+        files.map((file) =>
+          file.id === fitnessFileId
+            ? { ...file, ...updated, isPrimary: true }
+            : { ...file, isPrimary: false }
+        )
+      )
+      setSelectedFitnessFileId(fitnessFileId)
+      setPrimaryNotice(
+        `${getRecordingLabel(target)} is now the primary recording. The post and its map update shortly.`
+      )
+      router.refresh()
+    } catch (error) {
+      setPrimaryError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to make this the primary recording.'
+      )
+    } finally {
+      setMakingPrimaryId(null)
+    }
+  }
+
   // Changing the assignment is an item in the post's own ⋯ menu, the way the
   // design system's `FAMoreMenu` has it — the metadata line's gear is a link to
   // the gear page, not a control. Absent entirely when there is nothing to pick
@@ -1036,13 +1027,6 @@ export const FitnessStatusDetail: FC<Props> = ({
     VISIBILITY_META[getVisibility(status.to, status.cc)] ??
     VISIBILITY_META.public
   const VisibilityIcon = visibilityMeta.icon
-  // The gear row's name overrides the recorded one, so this renders whenever
-  // EITHER is present — a device renamed to something the brand map cannot
-  // resolve would otherwise vanish from the page.
-  const deviceLabel =
-    fitness?.deviceGearName?.trim() ||
-    getDeviceDisplayLabel(fitness?.deviceName, fitness?.deviceManufacturer)
-
   const paceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitness?.totalDistanceMeters ?? undefined,
     durationSeconds: fitness?.totalDurationSeconds ?? undefined,
@@ -1402,12 +1386,9 @@ export const FitnessStatusDetail: FC<Props> = ({
 
   // Owner only, matching the endpoint: the raw upload carries the whole track,
   // including the ends a privacy location trims off the map and the route data,
-  // so `GET /api/v1/fitness-files/:id` now 404s for everyone else and a link
-  // offered to them would only ever 404.
-  //
-  // The file NAME still shows: it is the label identifying which file this panel
-  // is describing, the same one `Post` puts at the head of its fitness card, and
-  // it is what the multi-file selector switches between. Only the download goes.
+  // so `GET /api/v1/fitness-files/:id` 404s for everyone else and a link offered
+  // to them would only ever 404. It follows the selected recording, so the
+  // download beside the picker is always the file the page is describing.
   const sourceHref =
     isOwner && fitness?.id
       ? `/api/v1/fitness-files/${encodeURIComponent(fitness.id)}`
@@ -1559,17 +1540,29 @@ export const FitnessStatusDetail: FC<Props> = ({
             </p>
           ) : null}
 
-          {deviceLabel ? (
-            <div className="mt-1 text-sm text-muted-foreground">
-              Recorded with{' '}
-              <BrandedDeviceLink
-                deviceName={fitness?.deviceName}
-                deviceManufacturer={fitness?.deviceManufacturer}
-                deviceGearId={fitness?.deviceGearId}
-                deviceGearName={fitness?.deviceGearName}
-                isOwner={isOwner}
-              />
-            </div>
+          <RecordingLine
+            files={fitnessFiles}
+            selected={fitness}
+            isOwner={isOwner}
+            downloadHref={sourceHref}
+            onSelect={setSelectedFitnessFileId}
+            onMakePrimary={(fileId) => void handleMakePrimary(fileId)}
+            makingPrimaryId={makingPrimaryId}
+          />
+
+          {/* One slot for pending, done and failed, in the same place the gear
+              error uses. The failure is an alert; the other two are status
+              updates a screen reader should hear without being interrupted. */}
+          {primaryError ? (
+            <p className="mt-1 text-xs text-destructive" role="alert">
+              {primaryError}
+            </p>
+          ) : makingPrimaryId || primaryNotice ? (
+            <p className="mt-1 text-xs text-muted-foreground" role="status">
+              {makingPrimaryId
+                ? 'Making this the primary recording…'
+                : primaryNotice}
+            </p>
           ) : null}
 
           {fitnessSourceUrl ? (
@@ -1652,27 +1645,11 @@ export const FitnessStatusDetail: FC<Props> = ({
         </div>
 
         {/* Deliberately keyed on the file EXISTING, not on the owner-gated
-            `sourceHref`: this strip also carries the action row, and on a
-            fitness post `fitness?.id` is always set, so the old
-            `sourceHref || currentActor` was always true. Gating it on ownership
-            instead would take the actions away from every logged-out viewer. */}
+            `sourceHref`: this strip carries the action row, and on a fitness
+            post `fitness?.id` is always set. Gating it on ownership instead
+            would take the actions away from every logged-out viewer. */}
         {(fitness?.id || currentActor) && (
-          <div className="flex flex-col gap-2 border-t px-4 py-2.5">
-            {/* Same row either way — only the owner gets it as a download. The
-                underline is the affordance, so it goes with the href rather than
-                leaving a non-owner something that looks clickable. */}
-            {fitness?.id ? (
-              <SourceFileRow
-                href={sourceHref}
-                fileName={fitness.fileName}
-                fileType={fitness.fileType}
-                position={
-                  fitnessFiles.length > 1 && selectedFileIndex >= 0
-                    ? `file ${selectedFileIndex + 1} of ${fitnessFiles.length}`
-                    : null
-                }
-              />
-            ) : null}
+          <div className="border-t px-4 py-2.5">
             {/* The shared action row, not a local copy of it: a post offers the
                 same actions with the same spacing on every surface — packed at
                 the left edge with ⋯ pushed to the right — and a hand-rolled row
@@ -1733,45 +1710,6 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         ) : null}
       </div>
-
-      {/* The file switcher is a card of its own, as the design's "File switcher"
-          board draws it — a sibling of the activity card above, not a
-          bordered box nested inside it, which stacked two borders. It sits
-          between that card and the section sub-navigation because it scopes
-          what follows: the file it selects drives the stat grid above and every
-          section below. Only a status with more than one fitness file shows it.
-          Same card and 16px inset as the page's other `padded={false}` cards. */}
-      {fitnessFiles.length > 1 && (
-        <Card padded={false} className="p-4">
-          <label
-            htmlFor="activity-file-select"
-            className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
-          >
-            Activity file
-          </label>
-          <div className="relative mt-1.5">
-            <select
-              id="activity-file-select"
-              value={selectedFitnessFileId ?? ''}
-              // No need to clear the gear error here — it is keyed to its
-              // own file, so switching hides it and switching back brings it
-              // back, which is what actually happened.
-              onChange={(event) => setSelectedFitnessFileId(event.target.value)}
-              className="h-9 w-full max-w-full appearance-none rounded-lg border bg-background px-3 py-1.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
-            >
-              {fitnessFiles.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.fileName}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              aria-hidden="true"
-              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground"
-            />
-          </div>
-        </Card>
-      )}
 
       {/* Section sub-navigation */}
       <SectionNavSelect

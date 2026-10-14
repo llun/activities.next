@@ -12,8 +12,11 @@ import {
   actor,
   buildFitnessFile,
   buildStatus,
+  chooseRecording,
+  getRecordingRow,
   mockGetFitnessFilesByStatus,
   mockGetFitnessRouteData,
+  openRecordingPicker,
   openSectionMenu,
   renderDetail,
   resetFitnessStatusDetailMocks
@@ -23,6 +26,7 @@ vi.mock('@/lib/client', () => ({
   getFitnessFilesByStatus: vi.fn(),
   getFitnessGearList: vi.fn(),
   getFitnessRouteData: vi.fn(),
+  makeFitnessFilePrimary: vi.fn(),
   updateFitnessFileGear: vi.fn()
 }))
 
@@ -544,14 +548,19 @@ describe('FitnessStatusDetail', () => {
     })
   })
 
-  describe('multi-file activity switcher', () => {
+  describe('multi-file recording picker', () => {
     const renderAggregatedFiles = () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
-        buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.fit' }),
+        buildFitnessFile({
+          id: 'fit-1',
+          fileName: 'ride-morning.fit',
+          totalDistanceMeters: 5000
+        }),
         buildFitnessFile({
           id: 'fit-2',
           fileName: 'ride-evening.fit',
           isPrimary: false,
+          totalDistanceMeters: 12_500,
           activityStartTime: Date.parse('2026-05-27T18:00:00Z')
         })
       ])
@@ -559,56 +568,73 @@ describe('FitnessStatusDetail', () => {
       renderDetail()
     }
 
-    it('offers an Activity file select with one option per file, in a card beside the activity card', async () => {
+    it('replaces the Activity file card with a picker in the "Recorded with" line', async () => {
       renderAggregatedFiles()
 
-      const select = (await screen.findByLabelText(
-        'Activity file'
-      )) as HTMLSelectElement
-      // The switcher is its own card, beside the activity card.
-      const switcherCard = select.closest(
+      const trigger = await screen.findByRole('button', {
+        name: 'ride-morning.fit'
+      })
+      // The picker is part of the activity card's own "Recorded with" line,
+      // not a card of its own between it and the section navigation.
+      const activityCard = trigger.closest(
         '[data-slot="fitness-card"]'
       ) as HTMLElement
-      expect(switcherCard).toContainElement(screen.getByText('Activity file'))
-      // A card of its own, beside the activity card rather than inside it: the
-      // activity card is the one holding the file position in its footer, and the
-      // two share the page's column.
-      const activityCard = switcherCard.previousElementSibling as HTMLElement
-      expect(activityCard).toContainElement(screen.getByText('file 1 of 2'))
-      expect(activityCard).not.toContainElement(select)
-      expect(activityCard).not.toContainElement(switcherCard)
-      expect(switcherCard.parentElement).toBe(activityCard.parentElement)
-      expect(within(select).getAllByRole('option')).toHaveLength(2)
-      expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
+      expect(activityCard).toContainElement(screen.getByText('Recorded with'))
+      expect(activityCard.nextElementSibling).toBe(
+        screen.getByRole('navigation', { name: 'Activity sections' })
+      )
+      expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Activity file')).not.toBeInTheDocument()
+      expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()
     })
 
-    it('switches the shown file when another option is picked', async () => {
+    it('lists one row per recording under a "Recordings" header, current one marked', async () => {
       renderAggregatedFiles()
 
-      const select = (await screen.findByLabelText(
-        'Activity file'
-      )) as HTMLSelectElement
+      const menu = await openRecordingPicker('ride-morning.fit')
 
-      fireEvent.change(select, { target: { value: 'fit-2' } })
-      await waitFor(() =>
-        expect(screen.getByText('file 2 of 2')).toBeInTheDocument()
+      expect(within(menu).getByText('Recordings')).toBeInTheDocument()
+      expect(getRecordingRow(menu, 'ride-morning.fit')).toHaveAttribute(
+        'aria-current',
+        'true'
       )
+      expect(getRecordingRow(menu, 'ride-evening.fit')).not.toHaveAttribute(
+        'aria-current'
+      )
+    })
+
+    it('switches the shown recording when another row is picked', async () => {
+      renderAggregatedFiles()
+      expect(await screen.findByText('5.00')).toBeInTheDocument()
+
+      await chooseRecording('ride-morning.fit', 'ride-evening.fit')
+
+      expect(
+        await screen.findByRole('button', { name: 'ride-evening.fit' })
+      ).toBeInTheDocument()
+      // The stat grid follows the selected recording.
+      expect(await screen.findByText('12.5')).toBeInTheDocument()
     })
   })
 
-  it('shows no activity-file switcher card for a status with a single fitness file', async () => {
+  it('shows no recording picker for a status with a single fitness file', async () => {
     mockGetFitnessFilesByStatus.mockResolvedValue([
       buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.fit' })
     ])
 
     renderDetail()
 
-    // Positive anchor first: the file row is what the loaded file renders, so
+    // Positive anchor first: the caption is what the loaded status renders, so
     // the absences below are not just "the files have not arrived yet".
-    expect(await screen.findByText('ride-morning.fit')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Activity file')).not.toBeInTheDocument()
+    expect(await screen.findByText('Sunset loop')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'ride-morning.fit' })
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
     expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()
+    // Nor a source-file row in the footer: the download is the owner's button
+    // beside the device line, and a visitor gets nothing at all.
+    expect(screen.queryByText('ride-morning.fit')).not.toBeInTheDocument()
   })
 
   describe('overview elevation profile', () => {

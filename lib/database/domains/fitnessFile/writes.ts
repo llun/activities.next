@@ -9,8 +9,11 @@ import {
 import type {
   CreateFitnessFileParams,
   DeleteFitnessFileParams,
+  MakeFitnessFilePrimaryParams,
+  MakeFitnessFilePrimaryResult,
   UpdateFitnessFileActivityData
 } from '@/lib/database/domains/fitnessFile/types'
+import { assignFitnessFileGearIfUnset } from '@/lib/database/domains/fitnessGear/queries'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import {
   decreaseCounterValue,
@@ -340,6 +343,151 @@ export const assignFitnessFilesToImportedStatus = async (
   return Number(result.numUpdatedRows)
 }
 
+/**
+ * Moves a status's primary flag to another of its recordings.
+ *
+ * Everything that has to agree with the flag moves in the one transaction, so a
+ * reader never sees two primaries, none, or a primary that has lost its gear or
+ * its map:
+ *
+ * - The flag itself: every other file of the status is demoted, the target is
+ *   promoted.
+ * - Gear the target does not have yet, copied from the file it replaces with
+ *   `assignFitnessFileGearIfUnset` (the guarded write the importer uses when it
+ *   promotes a richer file), so a manual attribution on the target wins and the
+ *   activity does not silently drop off its bike.
+ * - The generated route map's pointers (`hasMapData`, `mapImagePath`,
+ *   `mapImageEmailPath`). The processing job replaces only the map the file it
+ *   is given points at, so the pointer has to follow the flag: a failed render
+ *   then preserves the old map, and a successful one removes it. This mirrors
+ *   the `promoteTarget` block of `importFitnessFiles`.
+ *
+ * It does not touch `processingStatus`. A finished recording is already
+ * `completed`, and the processing job marks the file `processing` itself the
+ * moment it starts, so writing `pending` here would only take a good activity
+ * out of the stats rollups for as long as the message waits in the queue (and
+ * strand it there if the publish failed).
+ *
+ * Re-running the processing job is up to the caller, after this commits.
+ */
+export const makeFitnessFilePrimary = (
+  db: Db,
+  { fitnessFileId, actorId }: MakeFitnessFilePrimaryParams
+): Promise<MakeFitnessFilePrimaryResult> =>
+  inTransaction(db, async (trx): Promise<MakeFitnessFilePrimaryResult> => {
+    const target = await trx
+      .selectFrom('fitness_files')
+      .selectAll()
+      .where('id', '=', fitnessFileId)
+      .where('actorId', '=', actorId)
+      .where('deletedAt', 'is', null)
+      .limit(1)
+      .executeTakeFirst()
+    // A file with no status is a lone upload: there is no post for it to be the
+    // primary recording of.
+    if (!target || !target.statusId) return { result: 'not_found' }
+
+    // A recording that did not import cleanly is not something a post can be
+    // rebuilt from. `importStatus` is null for a plain upload, which has no
+    // batch to fail.
+    if (
+      target.processingStatus !== 'completed' ||
+      target.importStatus === 'failed'
+    ) {
+      return { result: 'unusable' }
+    }
+
+    if (target.isPrimary === null || Boolean(target.isPrimary)) {
+      return { result: 'already_primary', fitnessFile: toFitnessFile(target) }
+    }
+
+    const previous = await trx
+      .selectFrom('fitness_files')
+      .selectAll()
+      .where('statusId', '=', target.statusId)
+      .where('actorId', '=', actorId)
+      .where('deletedAt', 'is', null)
+      .where('id', '<>', target.id)
+      .where('isPrimary', '=', true)
+      .orderBy('createdAt', 'asc')
+      .limit(1)
+      .executeTakeFirst()
+
+    // A primary that is still being processed owns a route map that is about to
+    // be attached (or replaced). Moving the pointer under it would have its job
+    // write the map for the wrong file. `failed` is fine, and is the case a
+    // swap is most useful for.
+    if (
+      previous &&
+      (previous.processingStatus === 'pending' ||
+        previous.processingStatus === 'processing')
+    ) {
+      return { result: 'unusable' }
+    }
+
+    const now = new Date()
+    await trx
+      .updateTable('fitness_files')
+      .set({ isPrimary: false, updatedAt: now })
+      .where('statusId', '=', target.statusId)
+      .where('actorId', '=', actorId)
+      .where('deletedAt', 'is', null)
+      .where('id', '<>', target.id)
+      .execute()
+    await trx
+      .updateTable('fitness_files')
+      .set({ isPrimary: true, updatedAt: now })
+      .where('id', '=', target.id)
+      .execute()
+
+    if (previous?.gearId && !target.gearId) {
+      await assignFitnessFileGearIfUnset(trx, {
+        fitnessFileId: target.id,
+        actorId,
+        gearId: previous.gearId
+      })
+    }
+
+    if (previous && (previous.mapImagePath || previous.mapImageEmailPath)) {
+      await trx
+        .updateTable('fitness_files')
+        .set({
+          hasMapData: previous.hasMapData ?? false,
+          mapImagePath: previous.mapImagePath,
+          mapImageEmailPath: previous.mapImageEmailPath,
+          updatedAt: now
+        })
+        .where('id', '=', target.id)
+        .execute()
+      await trx
+        .updateTable('fitness_files')
+        .set({
+          hasMapData: false,
+          mapImagePath: null,
+          mapImageEmailPath: null,
+          // A reason recorded against a map this file no longer owns would
+          // keep reading as a map failure on a secondary.
+          mapError: null,
+          updatedAt: now
+        })
+        .where('id', '=', previous.id)
+        .execute()
+    }
+
+    const updated = await trx
+      .selectFrom('fitness_files')
+      .selectAll()
+      .where('id', '=', target.id)
+      .limit(1)
+      .executeTakeFirstOrThrow()
+
+    return {
+      result: 'promoted',
+      fitnessFile: toFitnessFile(updated),
+      previousPrimaryId: previous?.id ?? null
+    }
+  })
+
 const NUMBER_FIELDS = [
   'totalDistanceMeters',
   'totalDurationSeconds',
@@ -430,5 +578,6 @@ export const fitnessFileWrites = {
   updateFitnessFilesImportStatus,
   updateFitnessFilePrimary,
   assignFitnessFilesToImportedStatus,
+  makeFitnessFilePrimary,
   updateFitnessFileActivityData
 }

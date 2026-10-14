@@ -19,6 +19,7 @@ vi.mock('@/lib/client', () => ({
   getFitnessFilesByStatus: vi.fn(),
   getFitnessGearList: vi.fn(),
   getFitnessRouteData: vi.fn(),
+  makeFitnessFilePrimary: vi.fn(),
   updateFitnessFileGear: vi.fn()
 }))
 

@@ -5,6 +5,7 @@ import {
   getFitnessFilesByStatus,
   getFitnessImportBatch,
   getFitnessProcessingState,
+  makeFitnessFilePrimary,
   retryFitnessImportBatch
 } from '@/lib/client/fitnessFiles'
 
@@ -175,5 +176,42 @@ describe('fitnessFiles client module', () => {
       const token = await getAppleMapsToken()
       expect(token).toBeNull()
     })
+  })
+  describe('makeFitnessFilePrimary', () => {
+    it('posts to the primary endpoint and returns the new primary', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ id: 'file/1', isPrimary: true, gearName: 'Moots' }),
+        { status: 200 }
+      )
+
+      const result = await makeFitnessFilePrimary('file/1')
+
+      expect(result).toMatchObject({ id: 'file/1', isPrimary: true })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/fitness-files/file%2F1/primary',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it.each([
+      [404, 'This recording could not be found.'],
+      [
+        422,
+        'This recording cannot be made primary until its processing has finished.'
+      ],
+      [500, 'Failed to make this the primary recording.']
+    ])(
+      'explains a %s in words an owner can act on',
+      async (status, message) => {
+        fetchMock.mockResponseOnce(JSON.stringify({ error: 'Whatever' }), {
+          status
+        })
+
+        await expect(makeFitnessFilePrimary('file-1')).rejects.toMatchObject({
+          message,
+          status
+        })
+      }
+    )
   })
 })

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
@@ -12,6 +12,7 @@ import {
   buildFitnessFile,
   buildGear,
   chooseGear,
+  chooseRecording,
   expectGearLinkText,
   expectNoGearOnMetaLine,
   getGearItem,
@@ -29,6 +30,7 @@ vi.mock('@/lib/client', () => ({
   getFitnessFilesByStatus: vi.fn(),
   getFitnessGearList: vi.fn(),
   getFitnessRouteData: vi.fn(),
+  makeFitnessFilePrimary: vi.fn(),
   updateFitnessFileGear: vi.fn()
 }))
 
@@ -367,9 +369,12 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail({ currentActor: notMe })
 
+      // The file list has been asked for and the page is rendered, so the
+      // absence below is not just "nothing has loaded yet".
       await waitFor(() =>
-        expect(screen.getByText('ride.fit')).toBeInTheDocument()
+        expect(mockGetFitnessFilesByStatus).toHaveBeenCalled()
       )
+      expect(await screen.findByText('Sunset loop')).toBeInTheDocument()
       expect(screen.queryByText(/^Gear/)).not.toBeInTheDocument()
     })
 
@@ -501,9 +506,11 @@ describe('FitnessStatusDetail', () => {
 
       renderDetail()
 
-      await waitFor(() =>
-        expect(screen.getByText('ride.fit')).toBeInTheDocument()
-      )
+      // The owner's download is what the loaded file renders on a page with no
+      // device to name, so it anchors "the files have arrived".
+      expect(
+        await screen.findByRole('link', { name: /original file/i })
+      ).toBeInTheDocument()
       // A submenu whose only entry is "No gear" is dead UI, so the whole item
       // is absent rather than empty — the same rule that keeps the metadata
       // line clear when nothing is attributed.
@@ -546,7 +553,9 @@ describe('FitnessStatusDetail', () => {
           })
         ])
       })
-      expect(await screen.findByLabelText('Activity file')).toBeInTheDocument()
+      expect(
+        await screen.findByRole('button', { name: 'ride.fit' })
+      ).toBeInTheDocument()
 
       await act(async () => {
         rejectUpdate(new Error('Failed to update gear.'))
@@ -558,8 +567,10 @@ describe('FitnessStatusDetail', () => {
       // Only this file's assignment went back. Restoring the array captured
       // before the PATCH would have dropped the second file with it.
       await expectNoGearOnMetaLine()
-      expect(screen.getByLabelText('Activity file')).toBeInTheDocument()
-      expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
+      // Still two recordings, and still on the first.
+      expect(
+        screen.getByRole('button', { name: 'ride.fit' })
+      ).toBeInTheDocument()
     })
 
     it('keeps a failed change with its own file when the reader switches', async () => {
@@ -590,9 +601,7 @@ describe('FitnessStatusDetail', () => {
       // move on before it fails. The error belongs to the file it happened to —
       // rendering it here would describe the wrong activity, and
       // `aria-describedby` would wire this file's picker to it.
-      fireEvent.change(await screen.findByLabelText('Activity file'), {
-        target: { value: 'fit-2' }
-      })
+      await chooseRecording('ride.fit', 'second.fit')
       await act(async () => {
         rejectUpdate(new Error('Failed to update gear.'))
       })
@@ -600,9 +609,7 @@ describe('FitnessStatusDetail', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
       // Switching back brings it with the file, because that is what happened.
-      fireEvent.change(screen.getByLabelText('Activity file'), {
-        target: { value: 'fit-1' }
-      })
+      await chooseRecording('second.fit', 'ride.fit')
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Failed to update gear.'
       )
@@ -632,9 +639,7 @@ describe('FitnessStatusDetail', () => {
       renderDetail()
 
       await chooseGear(/Moots/)
-      fireEvent.change(await screen.findByLabelText('Activity file'), {
-        target: { value: 'fit-2' }
-      })
+      await chooseRecording('ride.fit', 'second.fit')
       await act(async () => {
         rejectUpdate(new Error('Failed to update gear.'))
       })
@@ -654,9 +659,7 @@ describe('FitnessStatusDetail', () => {
         )
       )
 
-      fireEvent.change(screen.getByLabelText('Activity file'), {
-        target: { value: 'fit-1' }
-      })
+      await chooseRecording('second.fit', 'ride.fit')
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Failed to update gear.'
       )
@@ -686,9 +689,7 @@ describe('FitnessStatusDetail', () => {
       renderDetail()
 
       await chooseGear(/Moots/)
-      fireEvent.change(await screen.findByLabelText('Activity file'), {
-        target: { value: 'fit-2' }
-      })
+      await chooseRecording('ride.fit', 'second.fit')
       await act(async () => {
         rejectUpdate(new Error('Failed to update gear.'))
       })
@@ -704,9 +705,7 @@ describe('FitnessStatusDetail', () => {
         'Gear is retired.'
       )
 
-      fireEvent.change(screen.getByLabelText('Activity file'), {
-        target: { value: 'fit-1' }
-      })
+      await chooseRecording('second.fit', 'ride.fit')
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Failed to update gear.'
       )
