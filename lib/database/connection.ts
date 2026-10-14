@@ -28,6 +28,7 @@ import {
 } from '@/lib/database/kysely/guard'
 import {
   createPostgresTypeParsers,
+  createRawPostgresTypeParsers,
   normalizeSqliteRows,
   toSqliteBinding
 } from '@/lib/database/kysely/normalize'
@@ -47,8 +48,9 @@ import { logger } from '@/lib/utils/logger'
 // Results come back normalised (lib/database/kysely/normalize.ts) on both
 // backends: on SQLite by the statement wrapper below, from each statement's
 // declared column types; on PostgreSQL by the type parsers every pooled client
-// is created with. `normalizeResults: false` turns both off (the production
-// archive reads and writes rows as they are stored).
+// is created with. `normalizeResults: false` turns both off for the production
+// archive, which reads and writes rows as the drivers read them, except that
+// PostgreSQL dates and timestamps stay the text the server sends.
 
 export type DatabaseBackend = 'sqlite' | 'pg'
 
@@ -75,12 +77,15 @@ export type CreateDatabaseConnectionOptions = {
   sqlcommenter?: boolean
   /**
    * Normalise results (lib/database/kysely/normalize.ts); on by default.
-   * Off, rows come back as the driver reads them, as Knex returned them:
-   * node-postgres's default types on PostgreSQL (timestamps as `Date`, int8
-   * and numeric as strings, `date` as a local-midnight `Date`), and SQLite's
-   * stored values (0/1, epoch ms or text, JSON text). For the production
-   * archive, which exports and restores rows as they are stored. Bindings are
-   * encoded the same way either way.
+   * Off, rows come back close to how the driver reads them: on PostgreSQL
+   * node-postgres's default types (int8 and numeric as strings, booleans,
+   * JSON parsed), except that `date`, `timestamp` and `timestamptz` values
+   * are the text the server sends (`2026-01-02`,
+   * `2026-02-03 04:05:06.789123+00`) rather than a `Date`, which would lose
+   * microseconds and read a `date` as local midnight; on SQLite the stored
+   * values (0/1, epoch ms or text, JSON text). For the production archive,
+   * which exports and restores rows in these forms. Bindings are encoded the
+   * same way either way.
    */
   normalizeResults?: boolean
 }
@@ -489,8 +494,11 @@ const createPool = (
     connectionTimeoutMillis:
       config.acquireConnectionTimeout ?? DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
-    // Without `types` node-postgres uses its defaults (the global `pg.types`).
-    ...(normalize ? { types: createPostgresTypeParsers(pg.types) } : {})
+    // Not normalising, node-postgres's defaults (the global `pg.types`),
+    // except for dates and timestamps, which stay text.
+    types: normalize
+      ? createPostgresTypeParsers(pg.types)
+      : createRawPostgresTypeParsers(pg.types)
   })
   // A client's connection can fail (a server restart, pg_terminate_backend, a
   // network drop) while it is idle in the pool or while it is checked out

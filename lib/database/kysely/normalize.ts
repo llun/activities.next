@@ -116,6 +116,10 @@ const PG_DATE = 1082
 const PG_TIMESTAMP = 1114
 const PG_TIMESTAMPTZ = 1184
 const PG_NUMERIC = 1700
+// Their array types.
+const PG_DATE_ARRAY = 1182
+const PG_TIMESTAMP_ARRAY = 1115
+const PG_TIMESTAMPTZ_ARRAY = 1185
 
 // Knex returns int8 as an exact string; Number() would round anything above
 // 2^53 - 1 silently, which would surface as wrong cursors or lookups.
@@ -145,6 +149,33 @@ export const createPostgresTypeParsers = (
       case PG_NUMERIC:
         return (value) => Number(value)
       case PG_DATE:
+        return (value) => value
+      default:
+        return defaults.getTypeParser(oid, format)
+    }
+  }
+})
+
+// The parsers of a connection that does not normalise results (the production
+// archive's): node-postgres's own, except that `date`, `timestamp` and
+// `timestamptz` values, and arrays of them, stay the text PostgreSQL sends
+// (`2026-01-02`, `2026-02-03 04:05:06.789123`,
+// `2026-02-03 04:05:06.789123+00`). node-postgres's `Date` would read a `date`
+// as the process's local midnight, which JSON writes as the previous day in
+// UTC when the process runs east of UTC, and it would drop a timestamp's
+// microseconds. The text says exactly what is stored, whatever the process's
+// zone, and PostgreSQL reads it back as the same value.
+export const createRawPostgresTypeParsers = (
+  defaults: PostgresTypes
+): PostgresTypes => ({
+  getTypeParser(oid, format) {
+    switch (oid) {
+      case PG_DATE:
+      case PG_TIMESTAMP:
+      case PG_TIMESTAMPTZ:
+      case PG_DATE_ARRAY:
+      case PG_TIMESTAMP_ARRAY:
+      case PG_TIMESTAMPTZ_ARRAY:
         return (value) => value
       default:
         return defaults.getTypeParser(oid, format)

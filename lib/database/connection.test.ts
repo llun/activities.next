@@ -124,36 +124,51 @@ describe('createDatabaseConnection', () => {
         create table connection_raw_values (
           flag boolean,
           at ${sql.raw(backend === 'pg' ? 'timestamptz' : 'datetime')},
+          stamp ${sql.raw(backend === 'pg' ? 'timestamp' : 'datetime')},
           big bigint,
           doc ${sql.raw(backend === 'pg' ? 'jsonb' : 'json')},
           day date
         )
       `.execute(raw.db)
       await sql`
-        insert into connection_raw_values (flag, at, big, doc, day)
-        values (${true}, ${at},
+        insert into connection_raw_values (flag, at, stamp, big, doc, day)
+        values (${true},
+          ${backend === 'pg' ? '2026-02-03T04:05:06.789123Z' : at},
+          '2026-02-03 04:05:06.789123',
           ${backend === 'pg' ? '9007199254740993' : 4102444800123},
           ${JSON.stringify(document)}, '2026-02-03')
       `.execute(raw.db)
 
       const { rows } = await sql`
-        select flag, at, big, doc, day from connection_raw_values
+        select flag, ${sql.raw(
+          backend === 'pg'
+            ? `(at at time zone 'UTC')::text as "atUtc"`
+            : `null as "atUtc"`
+        )}, at, stamp, big, doc, day from connection_raw_values
       `.execute(raw.db)
       expect(rows).toEqual([
         backend === 'pg'
           ? {
-              // node-postgres's own types.
+              // node-postgres's own types, except dates and timestamps,
+              // which stay the server's text: a timestamptz in the server's
+              // zone, with its microseconds.
               flag: true,
-              at,
+              atUtc: '2026-02-03 04:05:06.789123',
+              at: expect.stringMatching(
+                /^2026-02-0[34] \d\d:\d\d:06\.789123[+-]\d\d(:\d\d)?$/
+              ),
+              stamp: '2026-02-03 04:05:06.789123',
               big: '9007199254740993',
               doc: document,
-              day: new Date(2026, 1, 3)
+              day: '2026-02-03'
             }
           : {
               // SQLite's stored values; bindings are still encoded the way
               // Knex encoded them (Date -> epoch ms, boolean -> 0/1).
               flag: 1,
+              atUtc: null,
               at: at.getTime(),
+              stamp: '2026-02-03 04:05:06.789123',
               big: 4102444800123,
               doc: JSON.stringify(document),
               day: '2026-02-03'

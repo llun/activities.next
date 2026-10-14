@@ -29,8 +29,8 @@ export interface ScriptDatabase {
  * either.
  *
  * Results are normalised like the app's (lib/database/kysely/normalize.ts)
- * unless `normalizeResults` is false: the production archive reads and writes
- * rows as they are stored.
+ * unless `normalizeResults` is false, for the production archive (see
+ * `CreateDatabaseConnectionOptions.normalizeResults`).
  */
 export const openScriptDatabase = (
   config: DatabaseConfig,
