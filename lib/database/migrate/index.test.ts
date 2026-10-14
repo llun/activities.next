@@ -936,6 +936,85 @@ describe('lib/database/migrate', () => {
     )
 
     it.runIf(backend === 'sqlite')(
+      'keeps the release failure when the run throws an object nothing can print',
+      async () => {
+        // Neither String nor Object.prototype.toString can print this one:
+        // it has no prototype, and reading its Symbol.toStringTag throws.
+        const thrown = Object.create(null, {
+          [Symbol.toStringTag]: {
+            get() {
+              throw new Error('no tag')
+            }
+          }
+        })
+        const migrateSpy = vi
+          .spyOn(Migrator.prototype, 'migrateToLatest')
+          .mockImplementation(async () => {
+            await sql`drop table kysely_migration_lock`.execute(connection.db)
+            throw thrown
+          })
+        try {
+          const failure = await migrateToLatest(target).catch(
+            (error: unknown) => error
+          )
+          expect(failure).toBeInstanceOf(AggregateError)
+          expect((failure as Error).message).toBe(
+            '(a value that cannot be printed)\nThe migration lock ' +
+              '(kysely_migration_lock) could not be released: no such table: ' +
+              'kysely_migration_lock. If no run is going on, run ' +
+              '`yarn migrate:unlock`.'
+          )
+          expect((failure as AggregateError).errors[0]).toBe(thrown)
+        } finally {
+          migrateSpy.mockRestore()
+        }
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
+      'reports a release failure that is not an Error, even one String cannot print',
+      async () => {
+        // String(Object.create(null)) throws a TypeError, which would replace
+        // the release failure.
+        const thrown = Object.create(null)
+        const db = connection.db
+        const updateTable = db.updateTable.bind(db)
+        let lockUpdates = 0
+        const updateSpy = vi.spyOn(db, 'updateTable').mockImplementation(((
+          table: string
+        ) => {
+          if (table === 'kysely_migration_lock') {
+            lockUpdates += 1
+            // The first update takes the lock; the second releases it.
+            if (lockUpdates === 2) throw thrown
+          }
+          return updateTable(table as never)
+        }) as typeof db.updateTable)
+        const registry: MigrationRegistry = {
+          '20300101000000_first': { up: createTable('first_table') }
+        }
+        try {
+          const failure = await migrateToLatest(target, registry).catch(
+            (error: unknown) => error
+          )
+          expect(lockUpdates).toBe(2)
+          expect(failure).toBeInstanceOf(Error)
+          expect((failure as Error).message).toBe(
+            'The migrations ran, but the lock stays held. The migration lock ' +
+              '(kysely_migration_lock) could not be released: [object Object]. ' +
+              'If no run is going on, run `yarn migrate:unlock`.'
+          )
+          expect((failure as Error).cause).toBe(thrown)
+        } finally {
+          updateSpy.mockRestore()
+        }
+        expect(await getAppliedMigrationNames(target)).toEqual([
+          '20300101000000_first'
+        ])
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
       'fails a run whose lock cannot be released after it applied, and says to unlock',
       async () => {
         const registry: MigrationRegistry = {
