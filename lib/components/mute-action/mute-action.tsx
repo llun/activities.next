@@ -2,7 +2,7 @@
 
 import { Loader2, VolumeX } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useId, useState } from 'react'
 
 import { mute as muteAccount, unmute as unmuteAccount } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
@@ -37,6 +37,7 @@ export const MuteAction: FC<MuteActionProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isMuteDialogOpen, setIsMuteDialogOpen] = useState(false)
   const [muteNotifications, setMuteNotifications] = useState(true)
+  const hideNotificationsId = useId()
   const [error, setError] = useState('')
 
   if (!isLoggedIn || relationship === null) return null
@@ -132,14 +133,11 @@ export const MuteAction: FC<MuteActionProps> = ({
           </DialogHeader>
           <div className="flex items-center gap-2">
             <Checkbox
-              id="mute-action-hide-notifications"
+              id={hideNotificationsId}
               checked={muteNotifications}
               onChange={(event) => setMuteNotifications(event.target.checked)}
             />
-            <Label
-              htmlFor="mute-action-hide-notifications"
-              className="font-normal"
-            >
+            <Label htmlFor={hideNotificationsId} className="font-normal">
               Also hide notifications from this actor
             </Label>
           </div>

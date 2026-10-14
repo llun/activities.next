@@ -447,7 +447,7 @@ export const RulesPanel: FC = () => {
                       aria-label={`Delete rule ${index + 1}`}
                       disabled={busy || editing}
                       onClick={() => handleDelete(rule)}
-                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive-text"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive-text dark:hover:bg-destructive/10"
                     >
                       <Trash2 />
                     </Button>
