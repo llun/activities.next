@@ -215,9 +215,16 @@ const withSqliteRunLock = async <T>(
     try {
       await releaseSqliteLock(anyDb)
     } catch (releaseError) {
-      if (error instanceof Error) {
-        error.message = `${error.message}\n${lockReleaseHint(releaseError)}`
+      if (!(error instanceof Error)) {
+        // Something that is not an Error has no message to add to: throw
+        // both, so the release failure is not lost.
+        throw new AggregateError(
+          [error, releaseError],
+          `${String(error)}\n${lockReleaseHint(releaseError)}`,
+          { cause: releaseError }
+        )
       }
+      error.message = `${error.message}\n${lockReleaseHint(releaseError)}`
     }
     throw error
   }

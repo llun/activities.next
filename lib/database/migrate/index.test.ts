@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import { type Kysely, sql } from 'kysely'
+import { Migrator } from 'kysely/migration'
 import os from 'os'
 import path from 'path'
 
@@ -839,6 +840,34 @@ describe('lib/database/migrate', () => {
             'no such table: kysely_migration_lock.'
         )
         expect(message).toContain('run `yarn migrate:unlock`')
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
+      'keeps the release failure when the run throws something that is not an Error',
+      async () => {
+        // The Migrator returns its errors, so only a throw from the run
+        // itself gets here; what is thrown is wrapped, not lost.
+        const migrateSpy = vi
+          .spyOn(Migrator.prototype, 'migrateToLatest')
+          .mockImplementation(async () => {
+            await sql`drop table kysely_migration_lock`.execute(connection.db)
+            throw 'not an Error'
+          })
+        try {
+          const failure = await migrateToLatest(target).catch(
+            (error: unknown) => error
+          )
+          expect(failure).toBeInstanceOf(AggregateError)
+          expect((failure as Error).message).toBe(
+            'not an Error\nThe migration lock (kysely_migration_lock) could ' +
+              'not be released: no such table: kysely_migration_lock. If no ' +
+              'run is going on, run `yarn migrate:unlock`.'
+          )
+          expect((failure as AggregateError).errors[0]).toBe('not an Error')
+        } finally {
+          migrateSpy.mockRestore()
+        }
       }
     )
 
