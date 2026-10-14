@@ -46,7 +46,8 @@ export type EditorTab = 'adjust' | 'crop' | 'masks' | 'ai'
 export type RendererStatus = 'idle' | 'ready' | 'lost' | 'error'
 
 export const HISTOGRAM_DEBOUNCE_MS = 120
-export const HISTOGRAM_MAX_EDGE = 160
+export const HISTOGRAM_MAX_EDGE = 256
+export const HISTOGRAM_BINS = 128
 const AUTO_EDGE = 512
 
 interface Args {
@@ -146,7 +147,14 @@ export const useRenderer = ({
     const renderer = rendererRef.current
     const pixels = renderer?.readPreview(HISTOGRAM_MAX_EDGE)
     if (pixels) {
-      setHistogram(computeHistogram(pixels.data, pixels.width, pixels.height))
+      setHistogram(
+        computeHistogram(
+          pixels.data,
+          pixels.width,
+          pixels.height,
+          HISTOGRAM_BINS
+        )
+      )
     }
   }, [])
 
