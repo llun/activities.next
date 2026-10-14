@@ -157,9 +157,25 @@ const releaseSqliteLock = async (db: Kysely<any>) => {
     .execute()
 }
 
+/**
+ * A thrown value as text. `String` itself throws for an object with no
+ * prototype (`Object.create(null)`), which would replace the value it reports.
+ */
+const describeThrown = (thrown: unknown): string => {
+  try {
+    return String(thrown)
+  } catch {
+    try {
+      return Object.prototype.toString.call(thrown)
+    } catch {
+      return '(a value that cannot be printed)'
+    }
+  }
+}
+
 const lockReleaseHint = (releaseError: unknown) =>
   'The migration lock (kysely_migration_lock) could not be released: ' +
-  `${releaseError instanceof Error ? releaseError.message : String(releaseError)}. ` +
+  `${releaseError instanceof Error ? releaseError.message : describeThrown(releaseError)}. ` +
   'If no run is going on, run `yarn migrate:unlock`.'
 
 const withSqliteRunLock = async <T>(
@@ -220,7 +236,7 @@ const withSqliteRunLock = async <T>(
         // both, so the release failure is not lost.
         throw new AggregateError(
           [error, releaseError],
-          `${String(error)}\n${lockReleaseHint(releaseError)}`,
+          `${describeThrown(error)}\n${lockReleaseHint(releaseError)}`,
           { cause: releaseError }
         )
       }

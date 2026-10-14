@@ -872,6 +872,35 @@ describe('lib/database/migrate', () => {
     )
 
     it.runIf(backend === 'sqlite')(
+      'keeps the release failure when the run throws an object String cannot print',
+      async () => {
+        // String(Object.create(null)) throws a TypeError, which would replace
+        // both the thrown value and the release failure.
+        const thrown = Object.create(null)
+        const migrateSpy = vi
+          .spyOn(Migrator.prototype, 'migrateToLatest')
+          .mockImplementation(async () => {
+            await sql`drop table kysely_migration_lock`.execute(connection.db)
+            throw thrown
+          })
+        try {
+          const failure = await migrateToLatest(target).catch(
+            (error: unknown) => error
+          )
+          expect(failure).toBeInstanceOf(AggregateError)
+          expect((failure as Error).message).toBe(
+            '[object Object]\nThe migration lock (kysely_migration_lock) ' +
+              'could not be released: no such table: kysely_migration_lock. ' +
+              'If no run is going on, run `yarn migrate:unlock`.'
+          )
+          expect((failure as AggregateError).errors[0]).toBe(thrown)
+        } finally {
+          migrateSpy.mockRestore()
+        }
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
       'fails a run whose lock cannot be released after it applied, and says to unlock',
       async () => {
         const registry: MigrationRegistry = {
