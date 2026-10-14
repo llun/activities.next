@@ -774,23 +774,36 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
   // new connection before handing it out, not on every query.
   it('runs the session settings once on each new connection', async () => {
     const settings = await watchSessionSettings()
-    const handle = open({ min: 0, max: 2 }, undefined, false)
+    const handle = open({ min: 0, max: 4 }, undefined, false)
     const connections = new Set<string>()
     handle.onQuery(({ connection }) => connections.add(connection))
+    const zone = sql<{ zone: string }>`
+      select current_setting('TimeZone') as zone
+    `
     try {
+      // One connection, then a second one opened after the first is ready.
+      await sql`select 1`.execute(handle.db)
+      const held = await holdTransaction(handle.db)
+      try {
+        expect((await zone.execute(handle.db)).rows).toEqual([{ zone: 'UTC' }])
+      } finally {
+        await held.commit()
+      }
+      expect(settings.clients).toHaveLength(2)
+      // Two more opened at the same time.
       await Promise.all(
         Array.from({ length: 8 }, () =>
           sql`select pg_sleep(0.05)`.execute(handle.db)
         )
       )
-      expect(connections.size).toBe(2)
-      expect(settings.clients).toHaveLength(2)
-      expect(new Set(settings.clients).size).toBe(2)
+      expect(connections.size).toBe(4)
+      expect(settings.clients).toHaveLength(4)
+      expect(new Set(settings.clients).size).toBe(4)
       await handle.db.transaction().execute(async (trx) => {
         await sql`select 1`.execute(trx)
       })
       await sql`select 1`.execute(handle.db)
-      expect(settings.clients).toHaveLength(2)
+      expect(settings.clients).toHaveLength(4)
     } finally {
       settings.restore()
       await handle.destroy()
