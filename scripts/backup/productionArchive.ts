@@ -1981,7 +1981,14 @@ const ensureArchiveSchemaMatchesLocal = async (
     return
   }
 
-  await migrateToLatest(database)
+  // The migrations run on a connection that normalises results, as under
+  // `yarn migrate`, not on the archive's own (lib/database/migrate).
+  const migration = openScriptDatabase(database.config)
+  try {
+    await migrateToLatest({ db: migration.db, config: database.config })
+  } finally {
+    await migration.destroy()
+  }
   assertMatchingMigrations(
     archiveMigrations,
     await getAppliedMigrationNames(database)

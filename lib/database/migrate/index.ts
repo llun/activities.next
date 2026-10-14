@@ -22,12 +22,26 @@ import type { DB } from '@/lib/database/kysely'
 // that list in its manifest and compares it on restore, so whatever replaces
 // Knex here has to keep restoring an archive whose list is the full set of
 // Knex migrations.
+//
+// `migrateToLatest` takes the caller's Kysely so the runner that replaces
+// Knex can migrate on it (Knex ignores it and opens its own connection from
+// `config`). Callers keep two rules that runner relies on:
+//
+// - `db` is the root instance of a connection that normalises results (the
+//   app's, `openScriptDatabase(config)`, `createDatabaseConnection(config)`),
+//   so a migration reads rows the same way under `yarn migrate`, the facade's
+//   `migrate()` and the archive's restore. The production archive's own
+//   connection (`normalizeResults: false`) is never passed: its restore opens
+//   a normalising one for the migrations.
+// - `db` is not a transaction: the runner opens its own transactions, which
+//   Kysely cannot do on a `Transaction`. `migrateToLatest` refuses one.
 
 /** The database to migrate or inspect, as the caller already has it. */
 export type MigrationTarget = {
   /**
    * Kysely on that database. Reads accept a transaction (the production
-   * archive asks inside its export snapshot).
+   * archive asks inside its export snapshot); `migrateToLatest` needs the
+   * root instance of a normalising connection (see the rules above).
    */
   db: Kysely<DB>
   /** The configuration `db` was opened with. */
@@ -94,11 +108,19 @@ export const getKnownMigrationNames = async (): Promise<string[]> => {
 /**
  * Applies every pending migration, as `yarn migrate` does. The migrations run
  * on a connection of their own, so a SQLite database must be a file:
- * `:memory:` would be a different, empty database there, and is refused.
+ * `:memory:` would be a different, empty database there, and is refused. So
+ * is a `db` that is a transaction (see the rules above).
  */
 export const migrateToLatest = async ({
+  db,
   config
 }: MigrationTarget): Promise<void> => {
+  if (db.isTransaction) {
+    throw new Error(
+      'Cannot migrate inside a transaction: the migrations open transactions ' +
+        'of their own. Pass the root Kysely instance.'
+    )
+  }
   if (
     config.client === 'better-sqlite3' &&
     config.connection.filename === ':memory:'

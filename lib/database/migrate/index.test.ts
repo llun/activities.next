@@ -107,6 +107,19 @@ describe('lib/database/migrate', () => {
     MIGRATION_TIMEOUT_MS
   )
 
+  it('refuses to migrate inside a transaction', async () => {
+    const connection = createDatabaseConnection(config)
+    try {
+      await expect(
+        inTransaction(connection.db, (trx) =>
+          migrateToLatest({ db: trx, config })
+        )
+      ).rejects.toThrow('Cannot migrate inside a transaction')
+    } finally {
+      await connection.destroy()
+    }
+  })
+
   it.runIf(backend === 'sqlite')(
     'refuses an in-memory SQLite database, which the migrations could not reach',
     async () => {
