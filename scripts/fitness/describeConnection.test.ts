@@ -64,7 +64,12 @@ describe('describeConnection', () => {
     for (const connectionString of [
       'postgresql://u:p@localhost/db?host=/cloudsql/proj:r:i',
       'postgresql://u:p@localhost/db?host=prod.example.com',
-      'postgresql://u@localhost/db?host=db.internal'
+      'postgresql://u@localhost/db?host=db.internal',
+      // node-postgres connects to the last of a repeated host parameter, and
+      // to the URL's host when that last one is empty.
+      'postgresql://u@prod.example.com/db?host=localhost&host=',
+      'postgresql://u@prod.example.com/db?host=localhost&host=prod.example.com',
+      'postgresql://u@/db?host=localhost&host=/cloudsql/proj:r:i'
     ]) {
       withConnectionString(connectionString)
       expect({

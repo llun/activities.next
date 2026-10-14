@@ -20,11 +20,12 @@ const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
 
 /**
  * The host a connection string names, as node-postgres's parser
- * (pg-connection-string) reads it: a `host` query parameter wins over the
- * URL's host; `''` when it names none (node-postgres then takes PGHOST, else
- * localhost). A unix socket comes back as its path (a string starting with
- * `/`, a `socket:` URL, or a `host` parameter such as Cloud SQL's
- * `/cloudsql/…`). `undefined` when the string cannot be parsed.
+ * (pg-connection-string) reads it: a `host` query parameter (the last one,
+ * when repeated) wins over the URL's host; `''` when it names none
+ * (node-postgres then takes PGHOST, else localhost). A unix socket comes back
+ * as its path (a string starting with `/`, a `socket:` URL, or a `host`
+ * parameter such as Cloud SQL's `/cloudsql/…`). `undefined` when the string
+ * cannot be parsed.
  */
 const getConnectionStringHost = (
   connectionString: string
@@ -44,7 +45,9 @@ const getConnectionStringHost = (
       dummyHost = true
     }
     if (url.protocol === 'socket:') return decodeURI(url.pathname)
-    const queryHost = url.searchParams.get('host')
+    // pg-connection-string keeps the last of a repeated parameter.
+    const hosts = url.searchParams.getAll('host')
+    const queryHost = hosts[hosts.length - 1]
     if (queryHost) return queryHost
     return decodeURIComponent(
       (dummyHost ? '' : url.hostname).replace(/^\[(.+)\]$/, '$1')
