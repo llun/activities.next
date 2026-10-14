@@ -565,10 +565,11 @@ const CANONICAL_DATE_OUTPUT =
 // client itself and fails that `connect()`.
 //
 // With `canonicalDates`, it also runs `CANONICAL_DATE_OUTPUT` once on each new
-// physical connection (node-postgres creates a new `Client` for each). Kysely's
-// own `onCreateConnection` hook would not release a client whose statement
-// fails, so `end()` would wait for it forever; here the failed client is
-// released with the error, which destroys it, and the `connect()` fails.
+// physical connection (node-postgres creates a new `Client` for each), and
+// checks for `end()` again afterwards. Kysely's own `onCreateConnection` hook
+// would not release a client whose statement fails, so `end()` would wait for
+// it forever; here the failed client is released with the error, which
+// destroys it, and the `connect()` fails.
 const releaseLateClients = (
   pool: Pool,
   pg: PgModule,
@@ -594,6 +595,11 @@ const releaseLateClients = (
           throw error
         }
         prepared.add(client)
+        // end() may have been called while the statement ran.
+        if (ending) {
+          client.release()
+          throw new Error('driver has already been destroyed')
+        }
       }
       return client
     },

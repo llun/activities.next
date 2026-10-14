@@ -478,18 +478,55 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
 
   const open = (
     pool: { min?: number; max?: number },
-    acquireConnectionTimeout?: number
+    acquireConnectionTimeout?: number,
+    normalizeResults = true
   ) => {
     const config = getTestDatabaseConfig('pg', true)
     if (config.client !== 'pg' || typeof config.connection === 'string') {
       throw new Error('expected a pg configuration object')
     }
-    return createDatabaseConnection({
-      ...config,
-      connection: { ...config.connection, application_name: APPLICATION },
-      pool,
-      ...(acquireConnectionTimeout ? { acquireConnectionTimeout } : {})
-    })
+    return createDatabaseConnection(
+      {
+        ...config,
+        connection: { ...config.connection, application_name: APPLICATION },
+        pool,
+        ...(acquireConnectionTimeout ? { acquireConnectionTimeout } : {})
+      },
+      { normalizeResults }
+    )
+  }
+
+  // Watches the statement the archive's connection (normalizeResults off)
+  // runs on each new connection to set `DateStyle` and `TimeZone`: records
+  // the client it runs on and sends `rewrite(text)` in its place.
+  const watchSessionSettings = async (
+    rewrite: (text: string) => string = (text) => text
+  ) => {
+    const { default: pg } = await import('pg')
+    const query = pg.Client.prototype.query
+    const clients: object[] = []
+    const spy = vi
+      .spyOn(pg.Client.prototype, 'query')
+      .mockImplementation(function (
+        this: InstanceType<typeof pg.Client>,
+        text: unknown,
+        ...rest: unknown[]
+      ) {
+        let sent = text
+        if (
+          typeof text === 'string' &&
+          text.includes("set_config('TimeZone', 'UTC', false)")
+        ) {
+          clients.push(this)
+          sent = rewrite(text)
+        }
+        return (query as (...args: unknown[]) => unknown).call(
+          this,
+          sent,
+          ...rest
+        )
+      } as typeof query)
+    return { clients, restore: () => spy.mockRestore() }
   }
 
   // Backends of the pool under test, as the server sees them.
@@ -739,54 +776,22 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
   // first), the query fails with the server's error and the client is
   // destroyed, so the pool recovers and destroy() does not wait for it.
   it('fails the query and keeps destroy() working when the session settings fail', async () => {
-    const { default: pg } = await import('pg')
-    const query = pg.Client.prototype.query
     let failing = true
-    const sabotaged = vi
-      .spyOn(pg.Client.prototype, 'query')
-      .mockImplementation(function (
-        this: InstanceType<typeof pg.Client>,
-        text: unknown,
-        ...rest: unknown[]
-      ) {
-        const sent =
-          failing &&
-          typeof text === 'string' &&
-          text.includes("set_config('TimeZone', 'UTC', false)")
-            ? text.replace("'UTC'", "'Not/A_Zone'")
-            : text
-        return (query as (...args: unknown[]) => unknown).call(
-          this,
-          sent,
-          ...rest
-        )
-      } as typeof query)
-    const config = getTestDatabaseConfig('pg', true)
-    if (config.client !== 'pg' || typeof config.connection === 'string') {
-      throw new Error('expected a pg configuration object')
-    }
-    const handle = createDatabaseConnection(
-      {
-        ...config,
-        connection: { ...config.connection, application_name: APPLICATION },
-        pool: { min: 0, max: 1 },
-        acquireConnectionTimeout: 2_000
-      },
-      { normalizeResults: false }
+    const settings = await watchSessionSettings((text) =>
+      failing ? text.replace("'UTC'", "'Not/A_Zone'") : text
     )
-    const settings = sql<{ zone: string }>`
+    const handle = open({ min: 0, max: 1 }, 2_000, false)
+    const zone = sql<{ zone: string }>`
       select current_setting('TimeZone') as zone
     `
     let destroyed = false
     try {
-      await expect(settings.execute(handle.db)).rejects.toThrow(
+      await expect(zone.execute(handle.db)).rejects.toThrow(
         'invalid value for parameter "TimeZone": "Not/A_Zone"'
       )
       // The failed client was destroyed; the next query gets a new one.
       failing = false
-      expect((await settings.execute(handle.db)).rows).toEqual([
-        { zone: 'UTC' }
-      ])
+      expect((await zone.execute(handle.db)).rows).toEqual([{ zone: 'UTC' }])
       const outcome = await Promise.race([
         handle.destroy().then(() => 'destroyed'),
         new Promise((resolve) => setTimeout(resolve, 5_000, 'still pending'))
@@ -795,7 +800,7 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
       destroyed = true
       await expect.poll(backendPids).toEqual([])
     } finally {
-      sabotaged.mockRestore()
+      settings.restore()
       if (!destroyed) {
         // A client the pool never got back keeps its backend open; end it so
         // the cases after this one start from no connections.
@@ -806,6 +811,42 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
             and datname = current_database()
         `.execute(observer.db)
       }
+    }
+  })
+
+  // Kysely's driver drops its pool before ending it, so a client whose
+  // session settings were still running when destroy() was called must not
+  // reach the driver; unreleased, it would keep destroy() waiting forever.
+  it('does not hang when destroyed while the session settings run', async () => {
+    let running = () => {}
+    const started = new Promise<void>((resolve) => {
+      running = resolve
+    })
+    const settings = await watchSessionSettings((text) => {
+      running()
+      return text.replace('select ', 'select pg_sleep(0.3), ')
+    })
+    const handle = open({ min: 0, max: 1 }, undefined, false)
+    try {
+      const query = sql`select 1`.execute(handle.db).then(
+        () => 'resolved',
+        (error: Error) => error.message
+      )
+      await started
+      const outcome = await Promise.race([
+        handle.destroy().then(() => 'destroyed'),
+        new Promise((resolve) => setTimeout(resolve, 5_000, 'still pending'))
+      ])
+      expect(outcome).toBe('destroyed')
+      await expect(query).resolves.toBe('driver has already been destroyed')
+      await expect.poll(backendPids).toEqual([])
+    } finally {
+      settings.restore()
+      await sql`
+        select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name = ${APPLICATION}
+          and datname = current_database()
+      `.execute(observer.db)
     }
   })
 
