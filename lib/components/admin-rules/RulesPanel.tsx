@@ -429,24 +429,28 @@ export const RulesPanel: FC = () => {
                 )}
                 {!isEditing && (
                   <div className="flex shrink-0 gap-1">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label={`Edit rule ${index + 1}`}
                       disabled={busy || editing}
                       onClick={() => beginEdit(rule)}
-                      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                      className="text-muted-foreground"
                     >
-                      <Pencil className="size-4" />
-                    </button>
-                    <button
+                      <Pencil />
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label={`Delete rule ${index + 1}`}
                       disabled={busy || editing}
                       onClick={() => handleDelete(rule)}
-                      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive-text disabled:pointer-events-none disabled:opacity-50"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive-text"
                     >
-                      <Trash2 className="size-4" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   </div>
                 )}
               </div>
@@ -459,6 +463,7 @@ export const RulesPanel: FC = () => {
         <form onSubmit={handleCreate} className="space-y-3">
           <Frame
             form
+            className="overflow-hidden"
             footer={
               <div className="flex justify-end">
                 <Button
@@ -482,8 +487,8 @@ export const RulesPanel: FC = () => {
                 onChange={(event) => setNewText(event.target.value)}
               />
             </FormRow>
+            {formError && <Alert flush title={formError} />}
           </Frame>
-          {formError && <Alert title={formError} />}
         </form>
       </Section>
     </div>
