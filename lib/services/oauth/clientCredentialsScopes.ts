@@ -34,14 +34,6 @@
 // `offline_access` is not part of this server's scope vocabulary; it is listed
 // because better-auth reserves it, so adding it to `Scope` later cannot quietly
 // reintroduce the problem.
-//
-// Kept in sync with the identical list in
-// `migrations/legacy/20260828000000_backfill_oauth_client_credentials_scopes.js`, which
-// cannot import this module: migrations run through the plain `knex` CLI with no
-// TypeScript loader and no path aliases. The test that pins the two against each
-// other is `lib/database/domains/oauth/oauthClientCredentialsScopesMigration.test.ts`
-// ("agrees with the helper the registration path uses") — this module's own test
-// exercises only this copy and would stay green while the migration's drifted.
 const USER_DELEGATED_SCOPES = new Set([
   'openid',
   'profile',

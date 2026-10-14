@@ -202,8 +202,8 @@ jobs:
   # tokens, the JWKS, the error URL and the schema completeness check), the
   # direct conversation domain (conversation listings and their
   # cursors, read and hidden state, syncing statuses into conversations with
-  # their participants and blocks, the read-marker row lock, the legacy
-  # conversation backfill), the actor domain (actor rows with their search
+  # their participants and blocks, the read-marker row lock), the actor domain
+  # (actor rows with their search
   # documents, profile settings and the accepted-senders row lock, counters
   # and NodeInfo statistics, the Mastodon account view and the profile
   # directory, the federation signing actor, publicId and case-insensitive
@@ -276,7 +276,7 @@ jobs:
   # with the actor deletion job over them, the fitness file domain (uploads with their
   # storage and file counters and hourly buckets, deletes, processing and
   # import status, primary assignment, the actor listing with its cursor and
-  # Knex paging, the account listing with its counter total, the overview
+  # lenient paging, the account listing with its counter total, the overview
   # summary, calendar, window and earliest activity, whether an actor has
   # fitness data for a viewer) with the fitness routes, the import, processing,
   # map regeneration and heatmap jobs, the actor archive export and the
@@ -305,7 +305,9 @@ jobs:
   # predicates checked against the rows each selects, and the database
   # connection (its pool, sqlcommenter tags, result normalisation pinned to
   # golden values, the transaction guard, counters, bucket counters, chunked IN
-  # lists, savepoints).
+  # lists, savepoints), and the schema facts the reference dumps must keep
+  # (index columns, unique indexes, foreign keys and their delete rules, the
+  # full-text search index and triggers).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -351,7 +353,6 @@ jobs:
             lib/database/domains/media/mediaDetails.test.ts \
             lib/database/domains/media/mediaQueries.test.ts \
             lib/database/domains/media/mediaWrites.test.ts \
-            lib/database/domains/media/attachmentsMediaIdIntegerMigration.test.ts \
             lib/database/domains/media/attachmentVisibility.test.ts \
             lib/database/kysely/visibility/actorVisible.test.ts \
             app/api/v1/media/route.test.ts \
@@ -676,7 +677,6 @@ jobs:
             lib/jobs/deleteActorJob.test.ts \
             lib/database/domains/conversation/conversation.test.ts \
             lib/database/domains/conversation/conversationQueries.test.ts \
-            lib/database/domains/conversation/directConversationsMigration.test.ts \
             lib/database/connection.test.ts \
             lib/database/sqlcommenter.test.ts \
             lib/database/kysely/normalizeGolden.test.ts \
@@ -702,7 +702,8 @@ jobs:
             lib/database/testing/createTestDatabase.test.ts \
             lib/database/testing/queryCapture.test.ts \
             lib/database/testing/fixtures.test.ts \
-            lib/database/testing/heldTransaction.test.ts
+            lib/database/testing/heldTransaction.test.ts \
+            lib/database/testing/schemaInvariants.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1

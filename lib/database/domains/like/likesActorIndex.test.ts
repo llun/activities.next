@@ -1,20 +1,13 @@
-import knex from 'knex'
 import { sql } from 'kysely'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { type Db } from '@/lib/database/kysely'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
-import * as migration from '@/migrations/legacy/20261005073054_add_likes_actor_created_at_index'
 
 const INDEX = 'likes_actor_created_at_status_idx'
 
 const INDEX_COLUMNS = `select name from pragma_index_info('${INDEX}') order by seqno`
-
-const indexColumns = async (instance: ReturnType<typeof knex>) => {
-  const rows = (await instance.raw(INDEX_COLUMNS)) as { name: string }[]
-  return rows.map((row) => row.name)
-}
 
 const schemaIndexColumns = async (db: Db) => {
   const { rows } = await sql<{
@@ -27,34 +20,6 @@ const schemaIndexColumns = async (db: Db) => {
 // (statusId, actorId) cannot serve that, so without an
 // (actorId, createdAt, statusId) index every page scans and sorts the table.
 describe('likes (actorId, createdAt, statusId) index', () => {
-  it('migration creates the actor-first index and down removes it', async () => {
-    const instance = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    try {
-      await instance.schema.createTable('likes', (table) => {
-        table.string('statusId')
-        table.string('actorId')
-        table.timestamp('createdAt')
-        table.primary(['statusId', 'actorId'])
-      })
-
-      await migration.up(instance)
-      expect(await indexColumns(instance)).toEqual([
-        'actorId',
-        'createdAt',
-        'statusId'
-      ])
-
-      await migration.down(instance)
-      expect(await indexColumns(instance)).toEqual([])
-    } finally {
-      await instance.destroy()
-    }
-  })
-
   it('serves the favourites page query without a table scan or sort', async () => {
     const { database, db } = getTestSQLDatabaseWithInstance()
     try {

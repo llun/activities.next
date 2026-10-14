@@ -1,7 +1,7 @@
 -- FROZEN baseline schema (PostgreSQL), loaded by the first Kysely migration
 -- (migrations/20261014000000_baseline.ts) into an empty database. Derived once
--- from migrations/schema.sql as the last Knex migration (in migrations/legacy/)
--- left it: the knex_migrations / knex_migrations_lock tables and sequences, the
+-- from migrations/schema.sql as the Knex migrations of v1.192.34 left it:
+-- the knex_migrations / knex_migrations_lock tables and sequences, the
 -- pg_dump session preamble (SET ... / set_config('search_path' ...), which
 -- includes the PostgreSQL 17-only transaction_timeout) and every `public.`
 -- qualifier removed, so it loads on PostgreSQL 14+ into the connection's
