@@ -18,12 +18,12 @@ import {
   getEnhanceSubject
 } from './presets'
 
-export const ENHANCE_STRENGTH_KEY = 'ai:strength'
+export const ENHANCE_STRENGTH_KEY = 'presets:strength'
 
 export type EnhanceStyle = PresetId
 export type EnhanceStatus = 'idle' | 'ready'
 
-/** What the Look Presets (AI) tab reads and changes. */
+/** What the Presets tab reads and changes. */
 export interface AiTools {
   /** Presets are available when a photo is loaded. */
   available: boolean

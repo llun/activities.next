@@ -20,10 +20,10 @@ const STYLE_ITEMS = PRESETS.map((preset) => ({
 }))
 
 /**
- * The Look Presets (AI) tab: instant client-side look presets (Natural, Vivid,
+ * The Presets tab: instant client-side look presets (Natural, Vivid,
  * Dramatic, Warm, Cool, B&W), with a Strength slider and a Reset button.
  */
-export const AiPanel = ({
+export const PresetsPanel = ({
   controls,
   compact = false
 }: {

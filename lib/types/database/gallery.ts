@@ -276,7 +276,7 @@ export interface GallerySettings {
   subjectSuggestionMode: SubjectSuggestionMode
   // Percent; below it the composer offers only the group ("Bird?").
   subjectConfidenceThreshold: number
-  // The photo editor's AI tab may send a small preview of a photo to the
+  // The photo editor's Presets tab may send a small preview of a photo to the
   // instance's vision model for a suggested edit. Needs a model on the server.
   photoEnhance: boolean
 }

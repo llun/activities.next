@@ -195,11 +195,11 @@ describe('PhotoEditorDialog', () => {
     expect(createRenderer).toHaveBeenCalled()
     expect(renderer.setPreviewFrame).toHaveBeenCalled()
     expect(saveButton()).toBeDisabled()
-    // Look Presets (AI) tab is available locally in the browser.
+    // Presets tab is available locally in the browser.
     expect(screen.getByRole('tab', { name: 'Adjust' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Crop' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Masks' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'AI' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Presets' })).toBeInTheDocument()
   })
 
   // Touch browsers ring a control focused programmatically after a tap, so
@@ -991,9 +991,9 @@ describe('PhotoEditorDialog', () => {
     })
   })
 
-  describe('ai tab', () => {
-    const openAi = () =>
-      fireEvent.mouseDown(screen.getByRole('tab', { name: 'AI' }), {
+  describe('presets tab', () => {
+    const openPresets = () =>
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Presets' }), {
         button: 0,
         ctrlKey: false
       })
@@ -1004,8 +1004,8 @@ describe('PhotoEditorDialog', () => {
 
     it('is the fourth tab with nothing generative beside it', async () => {
       await setup()
-      expect(tabNames()).toEqual(['Adjust', 'Crop', 'Masks', 'AI'])
-      openAi()
+      expect(tabNames()).toEqual(['Adjust', 'Crop', 'Masks', 'Presets'])
+      openPresets()
       expect(
         await screen.findByRole('button', { name: 'Enhance' })
       ).toBeInTheDocument()
@@ -1016,7 +1016,7 @@ describe('PhotoEditorDialog', () => {
 
     it('enhances, changes the sliders in one undo step, and saves the recipe', async () => {
       const { onSaved } = await setup()
-      openAi()
+      openPresets()
       fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
       await screen.findByRole('slider', { name: 'Strength' })
       expect(saveButton()).toBeEnabled()
@@ -1049,7 +1049,7 @@ describe('PhotoEditorDialog', () => {
 
     it('changes style and Strength, each a step that undo reverts', async () => {
       await setup()
-      openAi()
+      openPresets()
       fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
       await screen.findByRole('slider', { name: 'Strength' })
 
@@ -1074,7 +1074,7 @@ describe('PhotoEditorDialog', () => {
 
     it('follows undo: the panel says not applied and a style applies it again', async () => {
       await setup()
-      openAi()
+      openPresets()
       fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
       await screen.findByRole('slider', { name: 'Strength' })
       expect(screen.getByRole('radio', { name: 'Natural' })).toBeChecked()
@@ -1095,7 +1095,7 @@ describe('PhotoEditorDialog', () => {
 
     it('announces the suggestion and each style in the live region', async () => {
       await setup()
-      openAi()
+      openPresets()
       fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
       await screen.findByRole('slider', { name: 'Strength' })
       expect(screen.getByText('Natural suggestion applied')).toBeInTheDocument()
@@ -1112,7 +1112,7 @@ describe('PhotoEditorDialog', () => {
         new MediaEditError(409, 'stale', { version: 9, saveId: 'other' })
       )
       await setup()
-      openAi()
+      openPresets()
       fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
       await screen.findByRole('slider', { name: 'Strength' })
       fireEvent.click(saveButton())
@@ -1120,7 +1120,7 @@ describe('PhotoEditorDialog', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Discard' }))
       await waitFor(() => expect(mockGetMediaEdit).toHaveBeenCalledTimes(2))
 
-      // The AI tab stays selected through the reload, but starts over.
+      // The Presets tab stays selected through the reload, but starts over.
       expect(
         await screen.findByRole('button', { name: 'Enhance' })
       ).toBeInTheDocument()
@@ -1139,8 +1139,8 @@ describe('PhotoEditorDialog', () => {
       })
       fireEvent.click(await screen.findByRole('button', { name: 'Rotate 90°' }))
 
-      // Then go to AI tab and apply preset
-      openAi()
+      // Then go to Presets tab and apply preset
+      openPresets()
       fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
       await screen.findByRole('slider', { name: 'Strength' })
 
