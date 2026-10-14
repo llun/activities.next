@@ -95,6 +95,7 @@ describe('MobileNavigationDrawer', () => {
 
     beforeEach(() => {
       mockPathname = '/'
+      afterStayClose.mockClear()
     })
 
     afterEach(() => {
@@ -147,7 +148,6 @@ describe('MobileNavigationDrawer', () => {
     // A tap that stays on the open page closes the drawer like Escape does,
     // then runs its scroll once the drawer has let go of the page.
     it('returns focus and runs afterClose when a tap stays on the page', async () => {
-      afterStayClose.mockClear()
       renderDrawer()
       const trigger = openWithFocusedTrigger()
 

@@ -595,16 +595,26 @@ describe('Sidebar', () => {
 
   describe('tapping the page already open', () => {
     const scrollTo = vi.fn()
+    // Runs after React's root listener, so it records what the sidebar's
+    // handler decided, then stops jsdom from following the href.
+    let preventedBySidebar: boolean | undefined
+    const stopDocumentNavigation = (event: Event) => {
+      preventedBySidebar = event.defaultPrevented
+      event.preventDefault()
+    }
     let originalScrollTo: typeof window.scrollTo
 
     beforeEach(() => {
       originalScrollTo = window.scrollTo
+      preventedBySidebar = undefined
       scrollTo.mockClear()
       window.scrollTo = scrollTo
     })
 
     afterEach(() => {
       window.scrollTo = originalScrollTo
+      window.history.replaceState(null, '', '/')
+      document.removeEventListener('click', stopDocumentNavigation)
     })
 
     it('scrolls the open page back to the top instead of following the link', () => {
@@ -662,15 +672,12 @@ describe('Sidebar', () => {
 
       const nav = screen.getAllByRole('navigation')[0]
       const timeline = within(nav).getByRole('link', { name: 'Timeline' })
-      // Stop jsdom from following the href; the handler must not.
-      timeline.addEventListener('click', (event) => {
-        expect(event.defaultPrevented).toBe(false)
-        event.preventDefault()
-      })
-      fireEvent.click(timeline, { button: 0, metaKey })
+      const click = createEvent.click(timeline, { button: 0, metaKey })
+      document.addEventListener('click', stopDocumentNavigation)
+      fireEvent(timeline, click)
 
+      expect(preventedBySidebar).toBe(false)
       expect(scrollTo).not.toHaveBeenCalled()
-      window.history.replaceState(null, '', '/')
     })
   })
 })
