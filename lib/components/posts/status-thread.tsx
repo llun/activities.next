@@ -1,11 +1,6 @@
 'use client'
 
-import {
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  MessageCircle
-} from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -14,6 +9,7 @@ import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-media
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { ReplyToast } from '@/lib/components/posts/reply-toast'
+import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   ThreadNode,
   buildThreadTree,
@@ -253,130 +249,30 @@ export const StatusThread: FC<StatusThreadProps> = ({
     })
   }
 
-  const renderThreadNode = (node: ThreadNode): ReactNode => {
-    const isExpanded = isBranchExpanded(node)
-    const hasReplies = node.replies.length > 0
-    const actualStatus =
-      node.status.type === StatusType.enum.Announce
-        ? getOriginalStatus(node.status)
-        : node.status
-    const canCompose = Boolean(currentActor)
-
-    return (
-      <div
-        key={node.status.id}
-        data-testid="thread-node"
-        data-node-id={node.status.id}
-        data-depth={node.depth}
-        className="transition-colors"
-      >
-        {node.parentUnavailable ? (
-          <div
-            data-testid="parent-unavailable-boundary"
-            className="my-1.5 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border/80 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground"
-          >
-            <AlertCircle className="size-3.5" />
-            <span>Prior reply is unavailable</span>
-          </div>
-        ) : null}
-
-        <article className="py-3">
-          <div data-testid={`status-${node.status.id}`}>
-            <Post
-              host={host}
-              currentActor={currentActor ?? undefined}
-              currentTime={currentTime}
-              status={node.status}
-              showActions={canCompose}
-              showReadOnlyStats={!canCompose}
-              editable={canCompose && currentActor?.id === actualStatus.actorId}
-              collapsible
-              onReply={
-                canCompose
-                  ? (target) => composer.openReply(target, node.status.id)
-                  : undefined
-              }
-              onEdit={
-                canCompose
-                  ? (target) => composer.openEdit(target, node.status.id)
-                  : undefined
-              }
-              onQuote={
-                canCompose
-                  ? (target) => composer.openQuote(target, node.status.id)
-                  : undefined
-              }
-              onOpenStatus={openStatus}
-              onShowAttachment={(allMedias, index) => {
-                setModalMedias({
-                  medias: allMedias,
-                  tags: actualStatus.tags,
-                  initialSelection: index,
-                  albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
-                })
-              }}
-            />
-          </div>
-
-          {composer.active?.anchorId === node.status.id && currentActor ? (
-            <div className="mt-3">
-              <InlineStatusComposer
-                key={`${composer.active.mode}-${composer.active.anchorId}`}
-                host={host}
-                profile={currentActor}
-                mode={composer.active.mode}
-                status={composer.active.status}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                onCancel={composer.close}
-                onReplyCreated={handleReplyCreated}
-                onCreated={() => {
-                  composer.close()
-                  router.refresh()
-                }}
-                onUpdated={() => {
-                  composer.close()
-                  router.refresh()
-                }}
-              />
-            </div>
-          ) : null}
-
-          {hasReplies ? (
-            <div className="mt-1">
-              <button
-                type="button"
-                data-testid={`toggle-replies-${node.status.id}`}
-                onClick={() => toggleBranch(node.status.id)}
-                aria-expanded={isExpanded}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline focus:outline-none"
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="size-3.5 text-primary" />
-                    <span>Hide replies</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="size-3.5 text-primary" />
-                    <span>
-                      Show {node.totalDescendantCount} more{' '}
-                      {node.totalDescendantCount === 1 ? 'reply' : 'replies'}
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
-          ) : null}
-        </article>
-
-        {hasReplies && isExpanded ? (
-          <div className="divide-y divide-border/40 border-t border-border/40">
-            {node.replies.map((reply) => renderThreadNode(reply))}
-          </div>
-        ) : null}
-      </div>
-    )
-  }
+  const renderThreadNode = (node: ThreadNode): ReactNode => (
+    <ThreadReplyNode
+      key={node.status.id}
+      node={node}
+      host={host}
+      currentActor={currentActor}
+      currentTime={currentTime}
+      isMediaUploadEnabled={isMediaUploadEnabled}
+      composer={composer}
+      isExpanded={isBranchExpanded}
+      onToggle={toggleBranch}
+      onOpenStatus={openStatus}
+      onShowAttachment={(allMedias, index, actualStatus) => {
+        setModalMedias({
+          medias: allMedias,
+          tags: actualStatus.tags,
+          initialSelection: index,
+          albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
+        })
+      }}
+      onReplyCreated={handleReplyCreated}
+      onComposerDone={() => router.refresh()}
+    />
+  )
 
   const actualFocusedStatus =
     status.type === StatusType.enum.Announce
