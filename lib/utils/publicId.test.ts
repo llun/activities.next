@@ -62,6 +62,15 @@ describe('getMaxTimeOrderedIdForMs', () => {
       '00000000-0000-7fff-bfff-ffffffffffff'
     )
   })
+
+  it('clamps a time past the 48-bit timestamp to its last millisecond', () => {
+    expect(getMaxTimeOrderedIdForMs(2 ** 50)).toBe(
+      'ffffffff-ffff-7fff-bfff-ffffffffffff'
+    )
+    expect(getMaxTimeOrderedIdForMs(0xffffffffffff)).toBe(
+      'ffffffff-ffff-7fff-bfff-ffffffffffff'
+    )
+  })
 })
 
 describe('isPublicId', () => {
