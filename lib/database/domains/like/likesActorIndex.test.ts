@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { type Db } from '@/lib/database/kysely'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
-import * as migration from '@/migrations/20261005073054_add_likes_actor_created_at_index'
+import * as migration from '@/migrations/legacy/20261005073054_add_likes_actor_created_at_index'
 
 const INDEX = 'likes_actor_created_at_status_idx'
 

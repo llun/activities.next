@@ -1,6 +1,6 @@
 import knex, { Knex } from 'knex'
 
-import * as migration from '@/migrations/20260821120000_normalize_empty_actor_private_key'
+import * as migration from '@/migrations/legacy/20260821120000_normalize_empty_actor_private_key'
 
 describe('normalize empty actor private key migration', () => {
   let database: Knex

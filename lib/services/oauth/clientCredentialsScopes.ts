@@ -36,7 +36,7 @@
 // reintroduce the problem.
 //
 // Kept in sync with the identical list in
-// `migrations/20260828000000_backfill_oauth_client_credentials_scopes.js`, which
+// `migrations/legacy/20260828000000_backfill_oauth_client_credentials_scopes.js`, which
 // cannot import this module: migrations run through the plain `knex` CLI with no
 // TypeScript loader and no path aliases. The test that pins the two against each
 // other is `lib/database/domains/oauth/oauthClientCredentialsScopesMigration.test.ts`

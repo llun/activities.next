@@ -497,7 +497,7 @@ describe('SearchDatabase document filtering', () => {
 
   it('matches database clients by exact supported names', async () => {
     const migration =
-      await import('@/migrations/20260523000000_add_search_documents.js')
+      await import('@/migrations/legacy/20260523000000_add_search_documents.js')
 
     const raw = vi.fn().mockResolvedValue(undefined)
     const schema = {

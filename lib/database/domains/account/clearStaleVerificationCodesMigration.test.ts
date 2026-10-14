@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260828140000_clear_stale_verification_codes'
+import * as migration from '@/migrations/legacy/20260828140000_clear_stale_verification_codes'
 
 // Only the columns the migration reads and writes, matching the other
 // `accounts` migration tests. `verifiedAt` carries the same

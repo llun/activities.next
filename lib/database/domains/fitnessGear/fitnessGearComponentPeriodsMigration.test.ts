@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260826120000_add_fitness_gear_component_periods'
+import * as migration from '@/migrations/legacy/20260826120000_add_fitness_gear_component_periods'
 
 /**
  * The backfill is the whole risk of this migration: the windows only exist on

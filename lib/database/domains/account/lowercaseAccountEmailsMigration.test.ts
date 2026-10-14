@@ -1,6 +1,6 @@
 import knex, { Knex } from 'knex'
 
-import * as migration from '@/migrations/20260611090000_lowercase_account_emails'
+import * as migration from '@/migrations/legacy/20260611090000_lowercase_account_emails'
 
 describe('lowercase account emails migration', () => {
   let database: Knex

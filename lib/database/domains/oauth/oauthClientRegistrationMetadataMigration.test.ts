@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260513000000_add_oauth_client_registration_metadata'
+import * as migration from '@/migrations/legacy/20260513000000_add_oauth_client_registration_metadata'
 
 describe('OAuth client registration metadata migration', () => {
   let database: knex.Knex

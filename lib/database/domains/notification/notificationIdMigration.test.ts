@@ -9,7 +9,7 @@ import {
   getPublicIdTimestamp,
   isPublicId
 } from '@/lib/utils/publicId'
-import * as migration from '@/migrations/20261009163215_time_ordered_notification_ids'
+import * as migration from '@/migrations/legacy/20261009163215_time_ordered_notification_ids'
 
 describe('time-ordered notification ids migration', () => {
   let database: knex.Knex

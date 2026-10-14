@@ -2,7 +2,7 @@
 /**
  * Backfills `publicId` for `statuses` and `actors` rows that still have NULL,
  * minting a UUIDv7 from each row's `createdAt` so ids stay time-ordered exactly
- * as `migrations/20260808000000_add_public_ids.js` produced them.
+ * as `migrations/legacy/20260808000000_add_public_ids.js` produced them.
  *
  * WHY THIS EXISTS. The migration cannot finish the job on its own. `yarn
  * migrate` runs from a checkout against the live database while the PREVIOUS
@@ -81,7 +81,7 @@ export const toDate = (value: unknown): Date => {
   return new Date(value as number)
 }
 
-// Mirrors mintPublicId() in migrations/20260808000000_add_public_ids.js so a row
+// Mirrors mintPublicId() in migrations/legacy/20260808000000_add_public_ids.js so a row
 // repaired here is indistinguishable from one the migration filled. That
 // migration is plain ESM JavaScript executed by the knex CLI, which resolves no
 // `@/` aliases and compiles no TypeScript, so it cannot import this — the two
@@ -174,7 +174,7 @@ interface PublicIdUpdate {
 // drain inside a single 60s acquireConnectionTimeout. That is the same failure
 // that killed the migration mid-backfill ("Timeout acquiring a connection. The
 // pool is probably full."), only on a tighter pool; see the matching
-// bulkUpdatePublicIds() in migrations/20260808000000_add_public_ids.js.
+// bulkUpdatePublicIds() in migrations/legacy/20260808000000_add_public_ids.js.
 //
 // Awaiting sequentially means the backfill holds exactly ONE pooled connection
 // at any moment: it cannot starve its own pool, and it leaves the rest of the

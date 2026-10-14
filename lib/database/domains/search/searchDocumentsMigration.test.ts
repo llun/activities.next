@@ -23,7 +23,7 @@ describe('SearchDatabase document migration', () => {
 
   it('generates portable PostgreSQL and MySQL search table DDL', async () => {
     const migration =
-      await import('@/migrations/20260523000000_add_search_documents.js')
+      await import('@/migrations/legacy/20260523000000_add_search_documents.js')
 
     const pgRaw = vi.fn().mockResolvedValue(undefined)
     const pgSchema = {

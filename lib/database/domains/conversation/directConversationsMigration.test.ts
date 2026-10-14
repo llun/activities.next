@@ -6,9 +6,9 @@ import {
 } from '@/lib/database/testing/createTestDatabase'
 import { createLegacyKnex } from '@/lib/database/testing/legacyKnex'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import * as migration from '@/migrations/20260517002000_add_direct_conversations'
-import * as replyHashMigration from '@/migrations/20260519000000_add_status_reply_hash'
-import * as recipientlessReplyMigration from '@/migrations/20260520000000_backfill_recipientless_direct_reply_conversations'
+import * as migration from '@/migrations/legacy/20260517002000_add_direct_conversations'
+import * as replyHashMigration from '@/migrations/legacy/20260519000000_add_status_reply_hash'
+import * as recipientlessReplyMigration from '@/migrations/legacy/20260520000000_backfill_recipientless_direct_reply_conversations'
 
 describe('direct conversations migration', () => {
   let testDb: TestDatabase

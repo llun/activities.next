@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260828200538_drop_accounts_verifiedat_default'
+import * as migration from '@/migrations/legacy/20260828200538_drop_accounts_verifiedat_default'
 
 type SqliteMasterRow = { sql: string | null }
 type PragmaForeignKeyRow = {

@@ -1,6 +1,6 @@
 import knex from 'knex'
 
-import * as migration from '@/migrations/20260821120000_better_auth_17_columns'
+import * as migration from '@/migrations/legacy/20260821120000_better_auth_17_columns'
 
 // The migration predates Better Auth 1.7.3 removing issuer from its account
 // identity key. Keep these historical values fixed: this test protects the
