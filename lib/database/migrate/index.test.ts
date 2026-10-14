@@ -399,7 +399,7 @@ describe('lib/database/migrate', () => {
       expect(await tableNames(connection.db)).not.toContain('kysely_migration')
     }
 
-    it('refuses one missing Knex migration, naming the last Knex release', async () => {
+    it('refuses one missing Knex migration, naming a release with every Knex migration', async () => {
       const missing = LEGACY_KNEX_MIGRATIONS[100]
       await buildKnexDatabase(
         LEGACY_KNEX_MIGRATIONS.filter((name) => name !== missing)
@@ -428,9 +428,9 @@ describe('lib/database/migrate', () => {
         reason: 'knex-unknown'
       })
       await expectRefusedWithoutWrites(
-        'has applied 1 Knex migration(s) that v1.192.34, the last release ' +
-          'with Knex migrations, does not have (the first is ' +
-          '29990101000000_branch_only)'
+        'has applied 1 Knex migration(s) that no release has (v1.192.34 and ' +
+          'the releases after it up to this one have the same 181; the first ' +
+          'unknown one is 29990101000000_branch_only)'
       )
     })
 

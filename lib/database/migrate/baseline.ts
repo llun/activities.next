@@ -14,7 +14,7 @@ import { LEGACY_KNEX_MIGRATIONS } from '@/lib/database/migrate/legacyKnexMigrati
 //   schema is the baseline already, so the baseline is recorded and no DDL
 //   runs.
 // - `knex_migrations` is missing some of them, has others, or Knex's lock is
-//   held: refused, naming the last release with Knex migrations.
+//   held: refused, naming a release that ran every Knex migration.
 // - No `knex_migrations` and no application tables: the baseline schema
 //   (migrations/baseline/<backend>.sql) is loaded.
 // - No `knex_migrations` but application tables: refused, the schema is
@@ -23,7 +23,7 @@ import { LEGACY_KNEX_MIGRATIONS } from '@/lib/database/migrate/legacyKnexMigrati
 // `knex_migrations` and `knex_migrations_lock` are never changed or dropped,
 // so a pre-handover image still finds every Knex migration applied.
 
-/** The last release that ran Knex migrations (and has all of them). */
+/** A release that ran every Knex migration (v1.192.34; every later release before this one has the same 181). */
 export const LAST_KNEX_RELEASE = 'v1.192.34'
 
 /** The name of the first migration, which holds the handover. */
@@ -147,7 +147,8 @@ export const readHandoverState = async (
         `This database has not applied ${missing.length} of the ` +
           `${frozen.size} Knex migrations this release starts from (the ` +
           `first missing one is ${missing[0]}). Upgrade to ` +
-          `${LAST_KNEX_RELEASE} (the last release with Knex migrations), ` +
+          `${LAST_KNEX_RELEASE} or any later release before this one (they ` +
+          'have every Knex migration), ' +
           'run `yarn migrate` there, then upgrade to this release and run ' +
           `\`yarn migrate\` again (${HANDOVER_DOCS}).` +
           (unknown.length > 0
@@ -160,8 +161,9 @@ export const readHandoverState = async (
       return refused(
         'knex-unknown',
         `This database has applied ${unknown.length} Knex migration(s) ` +
-          `that ${LAST_KNEX_RELEASE}, the last release with Knex ` +
-          `migrations, does not have (the first is ${unknown[0]}), so its ` +
+          `that no release has (${LAST_KNEX_RELEASE} and the releases after it ` +
+          `up to this one have the same 181; the first unknown one is ` +
+          `${unknown[0]}), so its ` +
           'schema may not be the baseline. It was migrated by another ' +
           'build; the baseline is not recorded over it ' +
           `(${HANDOVER_DOCS}).`
