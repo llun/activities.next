@@ -641,28 +641,36 @@ describe('Sidebar', () => {
       expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
     })
 
-    it('follows the link to another page', () => {
-      mockPathname.mockReturnValue('/search')
+    it.each([
+      { case: 'another page', pathname: '/search', search: '', metaKey: false },
+      {
+        case: 'the open page with a query, which resets it',
+        pathname: '/',
+        search: '?type=mentions',
+        metaKey: false
+      },
+      {
+        case: 'a modified click, for a new tab',
+        pathname: '/',
+        search: '',
+        metaKey: true
+      }
+    ])('follows the link for $case', ({ pathname, search, metaKey }) => {
+      mockPathname.mockReturnValue(pathname)
+      window.history.replaceState(null, '', `${pathname}${search}`)
       renderSidebar(<Sidebar lists={[]} />)
 
       const nav = screen.getAllByRole('navigation')[0]
       const timeline = within(nav).getByRole('link', { name: 'Timeline' })
-      const click = createEvent.click(timeline, { button: 0 })
-      fireEvent(timeline, click)
+      // Stop jsdom from following the href; the handler must not.
+      timeline.addEventListener('click', (event) => {
+        expect(event.defaultPrevented).toBe(false)
+        event.preventDefault()
+      })
+      fireEvent.click(timeline, { button: 0, metaKey })
 
       expect(scrollTo).not.toHaveBeenCalled()
-    })
-
-    it('keeps a modified click as a link, for a new tab', () => {
-      mockPathname.mockReturnValue('/')
-      renderSidebar(<Sidebar lists={[]} />)
-
-      const nav = screen.getAllByRole('navigation')[0]
-      const timeline = within(nav).getByRole('link', { name: 'Timeline' })
-      const click = createEvent.click(timeline, { button: 0, metaKey: true })
-      fireEvent(timeline, click)
-
-      expect(scrollTo).not.toHaveBeenCalled()
+      window.history.replaceState(null, '', '/')
     })
   })
 })

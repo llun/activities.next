@@ -57,6 +57,9 @@ export function MobileNavigationDrawer({
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       navigatedRef.current = false
+      // A stay tap whose drawer reopened before it finished closing never
+      // ran its scroll; it must not run on a later close.
+      afterCloseRef.current = null
       initialPathnameRef.current = pathname
     }
     wasOpenRef.current = isOpen
@@ -66,6 +69,7 @@ export function MobileNavigationDrawer({
 
   const handleNavigate = () => {
     navigatedRef.current = true
+    afterCloseRef.current = null
     setOpen?.(false)
   }
 

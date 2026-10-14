@@ -778,6 +778,58 @@ describe('MainPageTimeline', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('does not count posts again when the pill reloads and jumps to the top', async () => {
+      vi.useFakeTimers()
+      try {
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const newA = createStatus('https://activities.local/users/llun/s/new-a')
+        rowTops = { [post1.id]: 120 }
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1]}
+          />
+        )
+
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newA],
+          nextMaxStatusId: null,
+          prevMinStatusId: newA.id
+        })
+        await act(async () => {
+          vi.advanceTimersByTime(15000)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+        const pill = screen.getByRole('button', { name: '1 new post' })
+
+        // The reload lands while the smooth scroll is still on its way up,
+        // with the new post above the screen.
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newA, post1],
+          nextMaxStatusId: null,
+          prevMinStatusId: newA.id
+        })
+        rowTops = { [newA.id]: -300, [post1.id]: 120 }
+        await act(async () => {
+          fireEvent.click(pill)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        expect(screen.getByTestId(`post-${newA.id}`)).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: /new post/ })
+        ).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('jumps to the newest post without reloading when every new post is loaded', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const newA = createStatus('https://activities.local/users/llun/s/new-a')

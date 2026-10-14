@@ -9,6 +9,7 @@ import { MobileNavigationDrawer } from './mobile-navigation-drawer'
 import { MobileNavigationTrigger } from './mobile-navigation-trigger'
 
 let mockPathname = '/'
+const afterStayClose = vi.fn()
 
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname
@@ -18,10 +19,15 @@ const drawerTree = () => (
   <MobileNavigationProvider>
     <MobileNavigationTrigger />
     <MobileNavigationDrawer>
-      {(onNavigate) => (
-        <a href="/somewhere" onClick={onNavigate}>
-          Somewhere
-        </a>
+      {(onNavigate, onStay) => (
+        <>
+          <a href="/somewhere" onClick={onNavigate}>
+            Somewhere
+          </a>
+          <button type="button" onClick={() => onStay(afterStayClose)}>
+            Stay here
+          </button>
+        </>
       )}
     </MobileNavigationDrawer>
   </MobileNavigationProvider>
@@ -136,6 +142,20 @@ describe('MobileNavigationDrawer', () => {
 
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(trigger).not.toHaveFocus()
+    })
+
+    // A tap that stays on the open page closes the drawer like Escape does,
+    // then runs its scroll once the drawer has let go of the page.
+    it('returns focus and runs afterClose when a tap stays on the page', async () => {
+      afterStayClose.mockClear()
+      renderDrawer()
+      const trigger = openWithFocusedTrigger()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Stay here' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      await waitFor(() => expect(trigger).toHaveFocus())
+      await waitFor(() => expect(afterStayClose).toHaveBeenCalledTimes(1))
     })
 
     // A destination closes the drawer without focus return; the next opening
