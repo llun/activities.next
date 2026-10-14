@@ -1,0 +1,14 @@
+lib/components/photo-editor/histogramShape.ts
+  h_580a04e334fef4 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d39284a454b5bc35cd793f4674e3a73261c4e12",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
