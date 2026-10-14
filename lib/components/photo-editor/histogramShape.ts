@@ -1,4 +1,5 @@
-import type { Histogram } from './engine/histogram'
+import type { Histogram } from '@/lib/components/photo-editor/engine/histogram'
+
 import {
   CLIP_DIM_LEVEL,
   CLIP_OFF_COLOUR,
