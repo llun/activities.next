@@ -13,13 +13,15 @@ import { type DB, inTransaction } from '@/lib/database/kysely'
 import {
   BASELINE_MIGRATION,
   LAST_KNEX_RELEASE,
+  MIGRATION_LOCKED_MESSAGE,
   MigrationRunError,
   getAppliedMigrationNames,
   getKnownMigrationNames,
   getMigrationStatus,
   migrateDown,
   migrateToLatest,
-  normalizeMigrationNames
+  normalizeMigrationNames,
+  unlockMigrations
 } from '@/lib/database/migrate'
 import { splitSqliteScript } from '@/lib/database/migrate/baseline'
 import { LEGACY_KNEX_MIGRATIONS } from '@/lib/database/migrate/legacyKnexMigrations'
@@ -156,6 +158,13 @@ const countRows = async (db: Kysely<DB>, table: string) => {
     select count(*) as count from ${sql.table(table)}
   `.execute(db)
   return Number(rows[0].count)
+}
+
+const readLockRows = async (db: Kysely<DB>) => {
+  const { rows } = await sql<{ id: string; is_locked: number }>`
+    select id, is_locked from kysely_migration_lock
+  `.execute(db)
+  return rows.map((row) => ({ id: row.id, is_locked: Number(row.is_locked) }))
 }
 
 describe('lib/database/migrate', () => {
@@ -516,6 +525,10 @@ describe('lib/database/migrate', () => {
       expect(await getAppliedMigrationNames(target)).toEqual([
         '20300101000000_first'
       ])
+      // The SQLite lock row is released after a failed run too.
+      expect(await readLockRows(connection.db)).toEqual([
+        { id: 'migration_lock', is_locked: 0 }
+      ])
     })
 
     it('opens a transaction per migration, and none for config.transaction = false', async () => {
@@ -649,6 +662,12 @@ describe('lib/database/migrate', () => {
       'serialises two concurrent runs on the advisory lock',
       async () => {
         const other = createDatabaseConnection(config)
+        const statements: string[] = []
+        const stops = [connection, other].map((handle) =>
+          handle.onQuery(({ sql: statement }) => {
+            statements.push(statement)
+          })
+        )
         try {
           const results = await Promise.all([
             migrateToLatest(target),
@@ -656,9 +675,103 @@ describe('lib/database/migrate', () => {
           ])
           expect(results.flat()).toEqual([BASELINE_MIGRATION])
           expect(await countRows(connection.db, 'kysely_migration')).toBe(1)
+          // The SQLite lock row is not used here: the advisory lock is.
+          expect(
+            statements.filter((statement) =>
+              /^\s*update\s+"kysely_migration_lock"/i.test(statement)
+            )
+          ).toEqual([])
+          expect(await readLockRows(connection.db)).toEqual([
+            { id: 'migration_lock', is_locked: 0 }
+          ])
+          expect(await unlockMigrations(target)).toBe('advisory')
         } finally {
+          for (const stop of stops) stop()
           await other.destroy()
         }
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
+      'refuses a second run on the same SQLite file while the first holds the lock',
+      async () => {
+        const other = createDatabaseConnection(config)
+        let release!: () => void
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        let entered!: () => void
+        const inside = new Promise<void>((resolve) => (entered = resolve))
+        let calls = 0
+        const registry: MigrationRegistry = {
+          ...migrations,
+          '20300101000000_slow': {
+            // Only the first run waits: without the lock the second would run
+            // it again, and finish, instead of being refused.
+            up: async () => {
+              calls += 1
+              if (calls > 1) return
+              entered()
+              await gate
+            }
+          }
+        }
+        let first: Promise<string[]> | undefined
+        try {
+          first = migrateToLatest(target, registry)
+          await inside
+          await expect(
+            migrateToLatest({ db: other.db, config }, registry)
+          ).rejects.toThrow(MIGRATION_LOCKED_MESSAGE)
+          release()
+          expect(await first).toEqual([
+            BASELINE_MIGRATION,
+            '20300101000000_slow'
+          ])
+          expect(calls).toBe(1)
+
+          // Released: the second connection runs now, with nothing to do.
+          expect(await readLockRows(other.db)).toEqual([
+            { id: 'migration_lock', is_locked: 0 }
+          ])
+          expect(
+            await migrateToLatest({ db: other.db, config }, registry)
+          ).toEqual([])
+          // The Migrator's tables, in the order it creates them, so the
+          // schema dump is unchanged.
+          const { rows } = await sql<{ name: string }>`
+            select name from sqlite_master
+            where name like 'kysely%' and type = 'table' order by rowid
+          `.execute(other.db)
+          expect(rows.map((row) => row.name)).toEqual([
+            'kysely_migration',
+            'kysely_migration_lock'
+          ])
+        } finally {
+          release()
+          await first?.catch(() => {})
+          await other.destroy()
+        }
+      }
+    )
+
+    it.runIf(backend === 'sqlite')(
+      'keeps the lock a killed run left until it is unlocked',
+      async () => {
+        expect(await unlockMigrations(target)).toBe('not-held')
+        await migrateToLatest(target)
+        // What a run killed while it held the lock leaves behind.
+        await sql`
+          update kysely_migration_lock set is_locked = 1
+        `.execute(connection.db)
+
+        await expect(migrateToLatest(target)).rejects.toThrow(
+          MIGRATION_LOCKED_MESSAGE
+        )
+        expect(await unlockMigrations(target)).toBe('released')
+        expect(await readLockRows(connection.db)).toEqual([
+          { id: 'migration_lock', is_locked: 0 }
+        ])
+        expect(await unlockMigrations(target)).toBe('not-held')
+        expect(await migrateToLatest(target)).toEqual([])
       }
     )
   })

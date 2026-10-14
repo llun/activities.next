@@ -1,23 +1,28 @@
 #!/usr/bin/env -S node scripts/run.cjs
 /**
  * The migration CLI behind `yarn migrate`, `yarn migrate:status`,
- * `yarn migrate:down` and `yarn migrate:make` (lib/database/migrate).
+ * `yarn migrate:down`, `yarn migrate:unlock` and `yarn migrate:make`
+ * (lib/database/migrate).
  *
  * Usage:
  *   node scripts/run.cjs scripts/database/migrate.ts latest
  *   node scripts/run.cjs scripts/database/migrate.ts status
  *   node scripts/run.cjs scripts/database/migrate.ts down
+ *   node scripts/run.cjs scripts/database/migrate.ts unlock
  *   node scripts/run.cjs scripts/database/migrate.ts make <name>
  *
  * - `latest` applies every pending migration. On a database the Knex
  *   migrations built, the first run records the baseline without changing
  *   the schema; an empty database gets the baseline schema; a database behind
- *   the last Knex release is refused before anything is written.
+ *   v1.192.34 is refused before anything is written. On SQLite a second run
+ *   is refused while one holds the lock row in `kysely_migration_lock`.
  * - `status` lists the applied and pending migrations and the handover state.
  *   It only reads: it creates no table (and no SQLite file), so it can run
  *   against production before a deploy. Exits 1 when `latest` would refuse
  *   the database or it has migrations this checkout does not know.
  * - `down` rolls back the last migration applied; never the baseline.
+ * - `unlock` releases the SQLite lock row a killed run left held. PostgreSQL's
+ *   lock is an advisory lock its connection releases: nothing to unlock.
  * - `make <name>` writes `migrations/<yyyymmddhhmmss>_<name>.ts` from
  *   migrations/migration.stub. Register it in migrations/index.ts and its
  *   name in migrations/names.ts.
@@ -46,7 +51,8 @@ import {
   type MigrationTarget,
   getMigrationStatus,
   migrateDown,
-  migrateToLatest
+  migrateToLatest,
+  unlockMigrations
 } from '@/lib/database/migrate'
 
 import { describeConnection } from '../fitness/describeConnection'
@@ -182,13 +188,14 @@ const withDatabase = async <T>(
   }
 }
 
-const COMMANDS = ['latest', 'status', 'down', 'make'] as const
+const COMMANDS = ['latest', 'status', 'down', 'unlock', 'make'] as const
 
 export const runMigrateCommand = async (args: string[]): Promise<number> => {
   const [command, ...rest] = args
   if (!COMMANDS.includes(command as (typeof COMMANDS)[number])) {
     console.error(
-      'Usage: scripts/database/migrate.ts latest | status | down | make <name>'
+      'Usage: scripts/database/migrate.ts latest | status | down | unlock | ' +
+        'make <name>'
     )
     return 1
   }
@@ -226,6 +233,19 @@ export const runMigrateCommand = async (args: string[]): Promise<number> => {
     const status = await withDatabase(config, readStatus)
     console.log(formatStatus(status))
     return isBlockingStatus(status) ? 1 : 0
+  }
+
+  if (command === 'unlock') {
+    const result = await withDatabase(config, unlockMigrations)
+    console.log(
+      result === 'released'
+        ? 'Released the migration lock (kysely_migration_lock).'
+        : result === 'not-held'
+          ? 'The migration lock was not held; nothing to release.'
+          : 'PostgreSQL: the migration lock is an advisory lock that ends ' +
+            'with the connection holding it; nothing to release.'
+    )
+    return 0
   }
 
   if (command === 'down') {

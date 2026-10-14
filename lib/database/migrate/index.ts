@@ -3,6 +3,7 @@ import { type Kysely, sql } from 'kysely'
 import type { DB } from '@/lib/database/kysely'
 import {
   BASELINE_MIGRATION,
+  getMigrationBackend,
   isCompleteKnexMigrationList,
   tableExists
 } from '@/lib/database/migrate/baseline'
@@ -115,6 +116,89 @@ export const getKnownMigrationNames = async (
   registry: MigrationRegistry = registeredMigrations
 ): Promise<string[]> => Object.keys(registry).sort()
 
+// Kysely's SQLite adapter takes no lock: its migration lock is a no-op, and the
+// database's single connection serialises runs in one process only. Knex's
+// lock row made a second `yarn migrate` on the same file fail with `Migration
+// table is already locked`; this restores that with the Migrator's own lock
+// row, so a second run cannot re-run a migration the first has just applied.
+// Like Knex's, it stays held when a run is killed (`yarn migrate:unlock`).
+// PostgreSQL keeps the Migrator's advisory lock, which its connection
+// releases, and never touches the row.
+const MIGRATION_LOCK_TABLE = 'kysely_migration_lock'
+const MIGRATION_LOCK_ROW = 'migration_lock'
+
+export const MIGRATION_LOCKED_MESSAGE =
+  'kysely_migration_lock is already locked: another `yarn migrate` or ' +
+  '`yarn migrate:down` is running on this database, or one was interrupted. ' +
+  'If none is running, run `yarn migrate:unlock`, then run this again.'
+
+const withSqliteRunLock = async <T>(
+  db: Kysely<DB>,
+  run: () => Promise<T>
+): Promise<T> => {
+  if (getMigrationBackend(db) !== 'sqlite') return run()
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const anyDb = db as unknown as Kysely<any>
+  // The Migrator's two tables with its own DDL, in its order, so the schema
+  // (and the dumps) are what it would have created; it then finds them.
+  await anyDb.schema
+    .createTable('kysely_migration')
+    .ifNotExists()
+    .addColumn('name', 'varchar(255)', (col) => col.notNull().primaryKey())
+    .addColumn('timestamp', 'varchar(255)', (col) => col.notNull())
+    .execute()
+  await anyDb.schema
+    .createTable(MIGRATION_LOCK_TABLE)
+    .ifNotExists()
+    .addColumn('id', 'varchar(255)', (col) => col.notNull().primaryKey())
+    .addColumn('is_locked', 'integer', (col) => col.notNull().defaultTo(0))
+    .execute()
+  await anyDb
+    .insertInto(MIGRATION_LOCK_TABLE)
+    .values({ id: MIGRATION_LOCK_ROW, is_locked: 0 })
+    .onConflict((conflict) => conflict.column('id').doNothing())
+    .execute()
+  // One statement, so SQLite's write lock makes it atomic across processes.
+  const { numUpdatedRows } = await anyDb
+    .updateTable(MIGRATION_LOCK_TABLE)
+    .set({ is_locked: 1 })
+    .where('id', '=', MIGRATION_LOCK_ROW)
+    .where('is_locked', '=', 0)
+    .executeTakeFirst()
+  if (Number(numUpdatedRows) !== 1) throw new Error(MIGRATION_LOCKED_MESSAGE)
+  try {
+    return await run()
+  } finally {
+    await anyDb
+      .updateTable(MIGRATION_LOCK_TABLE)
+      .set({ is_locked: 0 })
+      .where('id', '=', MIGRATION_LOCK_ROW)
+      .execute()
+  }
+}
+
+/**
+ * Releases the SQLite migration lock a killed `yarn migrate` left held, as
+ * `yarn migrate:unlock` does: `released` when it was held, `not-held`
+ * otherwise. On PostgreSQL the lock is the Migrator's advisory lock, which
+ * ends with the connection holding it, so there is nothing to release
+ * (`advisory`) and nothing is written.
+ */
+export const unlockMigrations = async ({
+  db
+}: MigrationTarget): Promise<'released' | 'not-held' | 'advisory'> => {
+  if (getMigrationBackend(db) !== 'sqlite') return 'advisory'
+  if (!(await tableExists(db, MIGRATION_LOCK_TABLE))) return 'not-held'
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const { numUpdatedRows } = await (db as unknown as Kysely<any>)
+    .updateTable(MIGRATION_LOCK_TABLE)
+    .set({ is_locked: 0 })
+    .where('id', '=', MIGRATION_LOCK_ROW)
+    .where('is_locked', '<>', 0)
+    .executeTakeFirst()
+  return Number(numUpdatedRows) > 0 ? 'released' : 'not-held'
+}
+
 const assertRootInstance = (db: Kysely<DB>) => {
   if (db.isTransaction) {
     throw new Error(
@@ -139,8 +223,8 @@ export const migrateToLatest = async (
     const { handover } = await getMigrationStatus(target, Object.keys(registry))
     if (handover.kind === 'refused') throw new Error(handover.message)
   }
-  return unwrapResultSet(
-    await createMigrator(target.db, registry).migrateToLatest()
+  return withSqliteRunLock(target.db, async () =>
+    unwrapResultSet(await createMigrator(target.db, registry).migrateToLatest())
   )
 }
 
@@ -173,8 +257,8 @@ export const migrateDown = async (
   if (!module.down) {
     throw new Error(`Cannot roll back ${last.name}: it has no down().`)
   }
-  const [rolledBack] = unwrapResultSet(
-    await createMigrator(target.db, registry).migrateDown()
+  const [rolledBack] = await withSqliteRunLock(target.db, async () =>
+    unwrapResultSet(await createMigrator(target.db, registry).migrateDown())
   )
   if (rolledBack !== last.name) {
     throw new Error(

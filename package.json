@@ -21,6 +21,7 @@
     "migrate:make": "node scripts/run.cjs scripts/database/migrate.ts make",
     "migrate:status": "node scripts/run.cjs scripts/database/migrate.ts status",
     "migrate:down": "node scripts/run.cjs scripts/database/migrate.ts down",
+    "migrate:unlock": "node scripts/run.cjs scripts/database/migrate.ts unlock",
     "prepare": "husky"
   },
   "lint-staged": {

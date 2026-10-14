@@ -16,6 +16,8 @@ const LOCAL_HOSTS = new Set([
   'postgres'
 ])
 
+const POSTGRES_CLIENTS = new Set(['pg', 'postgres', 'postgresql'])
+
 export interface ConnectionInfo {
   client: string
   target: string
@@ -68,12 +70,34 @@ export const describeConnection = (
     return { client, target: '(connection string — hidden)', isLocal }
   }
 
-  if (conn && typeof conn === 'object') {
-    const host = conn.host ?? '(unset)'
-    const db = conn.database ?? '(unset)'
+  const isPostgres = POSTGRES_CLIENTS.has(client)
+  if (
+    (conn && typeof conn === 'object') ||
+    (isPostgres && conn === undefined)
+  ) {
+    const settings = conn ?? {}
+    // node-postgres reads the PG* environment variables for whatever the
+    // configuration leaves out, so show those, and say where they came from.
+    const fromEnvironment: string[] = []
+    const setting = (
+      value: string | number | undefined,
+      variable: string
+    ): string | undefined => {
+      if (value !== undefined && value !== '') return String(value)
+      const fallback = isPostgres ? process.env[variable] : undefined
+      if (!fallback) return undefined
+      fromEnvironment.push(variable)
+      return fallback
+    }
+    const host = setting(settings.host, 'PGHOST') ?? '(unset)'
+    const port = setting(settings.port, 'PGPORT')
+    const db = setting(settings.database, 'PGDATABASE') ?? '(unset)'
+    const user = setting(settings.user, 'PGUSER') ?? '(unset)'
+    const source =
+      fromEnvironment.length > 0 ? ` (from ${fromEnvironment.join(', ')})` : ''
     return {
       client,
-      target: `host ${host}${conn.port ? `:${conn.port}` : ''} / db ${db} / user ${conn.user ?? '(unset)'}`,
+      target: `host ${host}${port ? `:${port}` : ''} / db ${db} / user ${user}${source}`,
       isLocal: LOCAL_HOSTS.has(host)
     }
   }

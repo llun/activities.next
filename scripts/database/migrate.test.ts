@@ -4,18 +4,34 @@ import os from 'os'
 import path from 'path'
 
 import { createDatabaseConnection } from '@/lib/database/connection'
-import { BASELINE_MIGRATION } from '@/lib/database/migrate'
+import {
+  BASELINE_MIGRATION,
+  MIGRATION_LOCKED_MESSAGE
+} from '@/lib/database/migrate'
+import {
+  getTestDatabaseConfig,
+  getTestPgDatabaseName
+} from '@/lib/database/testing/createTestDatabase'
+import {
+  getTestPgConnection,
+  recreatePgDatabase
+} from '@/lib/database/testing/postgres'
 import { logger } from '@/lib/utils/logger'
 
+import { describeConnection } from '../fitness/describeConnection'
 import {
   getMigrationDatabaseConfig,
   makeMigration,
+  readStatus,
   runMigrateCommand
 } from './migrate'
 
-// The CLI behind `yarn migrate`, `yarn migrate:status`, `yarn migrate:down`
-// and `yarn migrate:make`, on SQLite files (the runner itself is tested on
-// both backends in lib/database/migrate/index.test.ts).
+// The CLI behind `yarn migrate`, `yarn migrate:status`, `yarn migrate:down`,
+// `yarn migrate:unlock` and `yarn migrate:make`, on SQLite files (the runner
+// itself is tested on both backends in lib/database/migrate/index.test.ts).
+// Under TEST_DATABASE_TYPE=pg it also checks that `migrate:status` reads
+// PostgreSQL in a read-only transaction.
+const backend = process.env.TEST_DATABASE_TYPE === 'pg' ? 'pg' : 'sqlite'
 
 const clearDatabaseEnvironment = () => {
   for (const key of Object.keys(process.env)) {
@@ -80,6 +96,31 @@ describe('scripts/database/migrate', () => {
           database: 'activities'
         }
       })
+    })
+
+    it('shows the PG* variables a PostgreSQL configuration without connection settings falls back to', () => {
+      vi.stubEnv('ACTIVITIES_DATABASE', JSON.stringify({ client: 'pg' }))
+      vi.stubEnv('PGHOST', '/tmp')
+      vi.stubEnv('PGPORT', '5596')
+      vi.stubEnv('PGDATABASE', 'legacy')
+      vi.stubEnv('PGUSER', 'operator')
+      expect(describeConnection(getMigrationDatabaseConfig()).target).toBe(
+        'host /tmp:5596 / db legacy / user operator ' +
+          '(from PGHOST, PGPORT, PGDATABASE, PGUSER)'
+      )
+
+      // A configured value wins; only the ones taken from PG* are marked.
+      vi.stubEnv(
+        'ACTIVITIES_DATABASE',
+        JSON.stringify({
+          client: 'pg',
+          connection: { host: 'db.internal', database: 'activities' }
+        })
+      )
+      expect(describeConnection(getMigrationDatabaseConfig()).target).toBe(
+        'host db.internal:5596 / db activities / user operator ' +
+          '(from PGPORT, PGUSER)'
+      )
     })
 
     it('lets the ACTIVITIES_DATABASE JSON win, and refuses one that is not JSON', () => {
@@ -241,10 +282,94 @@ describe('scripts/database/migrate', () => {
       }
     })
 
+    it('prints the PG* fallbacks in the banner before it connects', async () => {
+      vi.stubEnv('ACTIVITIES_DATABASE', JSON.stringify({ client: 'pg' }))
+      // A directory with no server socket in it: the connection fails.
+      vi.stubEnv('PGHOST', tempDir)
+      vi.stubEnv('PGPORT', '5596')
+      vi.stubEnv('PGDATABASE', 'legacy')
+      vi.stubEnv('PGUSER', 'operator')
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await expect(runMigrateCommand(['status'])).rejects.toThrow()
+      expect(log).toHaveBeenCalledWith(
+        `Database: pg — host ${tempDir}:5596 / db legacy / user operator ` +
+          '(from PGHOST, PGPORT, PGDATABASE, PGUSER)'
+      )
+    })
+
+    it('releases the SQLite lock a killed run left held', async () => {
+      const filename = path.join(tempDir, 'locked.sqlite')
+      vi.stubEnv('ACTIVITIES_DATABASE_SQLITE_FILENAME', filename)
+      expect((await run(['latest'])).exitCode).toBe(0)
+      const connection = createDatabaseConnection({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename }
+      })
+      try {
+        // What a run killed while it held the lock leaves behind.
+        await sql`
+          update kysely_migration_lock set is_locked = 1
+        `.execute(connection.db)
+      } finally {
+        await connection.destroy()
+      }
+
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      await expect(runMigrateCommand(['latest'])).rejects.toThrow(
+        MIGRATION_LOCKED_MESSAGE
+      )
+      vi.mocked(console.log).mockRestore()
+
+      const unlocked = await run(['unlock'])
+      expect(unlocked.exitCode).toBe(0)
+      expect(unlocked.output).toContain(
+        'Released the migration lock (kysely_migration_lock).'
+      )
+      expect((await run(['latest'])).output).toContain('Already up to date.')
+      expect((await run(['unlock'])).output).toContain(
+        'The migration lock was not held; nothing to release.'
+      )
+    })
+
     it('refuses an unknown command', async () => {
       const { exitCode, output } = await run(['rollback'])
       expect(exitCode).toBe(1)
       expect(output).toContain('Usage: scripts/database/migrate.ts')
     })
+  })
+
+  describe('readStatus', () => {
+    it.runIf(backend === 'pg')(
+      'reads PostgreSQL in a read-only transaction',
+      async () => {
+        await recreatePgDatabase(
+          getTestPgConnection(),
+          getTestPgDatabaseName(true)
+        )
+        const config = getTestDatabaseConfig('pg', true)
+        const connection = createDatabaseConnection(config)
+        const statements: string[] = []
+        const stop = connection.onQuery(({ sql: statement }) => {
+          statements.push(statement.trim().toLowerCase())
+        })
+        try {
+          const status = await readStatus({ db: connection.db, config })
+          expect(status.handover).toEqual({ kind: 'empty' })
+          // Every read inside one transaction the server keeps read-only.
+          expect(statements[0]).toBe('start transaction read only')
+          expect(statements.at(-1)).toBe('commit')
+          expect(
+            statements.filter((statement) =>
+              /^(begin|start transaction)/.test(statement)
+            )
+          ).toHaveLength(1)
+        } finally {
+          stop()
+          await connection.destroy()
+        }
+      }
+    )
   })
 })

@@ -28,11 +28,10 @@ import type {
 // - Unordered migrations are allowed: one merged with an older name than a
 //   migration already applied still runs, as Knex ran it, instead of the
 //   Migrator's "corrupted migrations" error.
-// - The Migrator's lock serialises concurrent runs: a session advisory lock
-//   held on the migrating connection on PostgreSQL; on SQLite it only
-//   serialises runs in one process (the database's single connection), and a
-//   second process migrating the same file at the same time fails on SQLite's
-//   write lock or on the migration it finds already applied.
+// - The Migrator's lock serialises concurrent runs on PostgreSQL: a session
+//   advisory lock held on the migrating connection. On SQLite it is a no-op,
+//   so lib/database/migrate takes the lock row in `kysely_migration_lock`
+//   around the run instead, and a second process is refused while it is held.
 
 const wrapStep =
   (

@@ -461,6 +461,7 @@ jobs:
             scripts/backup/actorArchive.mediaEdits.test.ts \
             scripts/backup/productionArchive.database.test.ts \
             lib/database/migrate/index.test.ts \
+            scripts/database/migrate.test.ts \
             lib/database/domains/status/status.test.ts \
             lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTile.test.ts \
             lib/database/domains/fitnessRouteHeatmapTile/fitnessRouteHeatmapTileClaim.test.ts \
