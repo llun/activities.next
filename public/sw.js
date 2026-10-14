@@ -276,6 +276,16 @@ sw.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
+  // Leave cross-origin requests (remote avatars, federated media, link preview
+  // images) to the browser. A fetch() made here is checked against this
+  // worker's own CSP `connect-src`, which names only our own and storage
+  // origins, so re-fetching a remote image would be blocked and every one of
+  // them would turn into the placeholder below. The page's `img-src` is what
+  // allows them, and that only applies when the browser loads them itself.
+  if (url.origin !== sw.location.origin) {
+    return
+  }
+
   // 1. Navigation handling
   if (request.mode === 'navigate') {
     // NEVER intercept Next.js RSC requests
