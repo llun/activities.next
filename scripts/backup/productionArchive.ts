@@ -2221,19 +2221,92 @@ type SqliteFullTextTables = {
   indexes: { name: string; contentTable: string }[]
 }
 
-// The `content` option of a `create virtual table … using fts5(…)`, unquoted;
-// null when it has none (a self-contained table) and '' when it is contentless.
-const getFts5ContentTable = (createSql: string) => {
-  const option =
-    /[(,]\s*content\s*=\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|[^\s,)]+)/i.exec(
-      createSql
-    )?.[1]
-  if (option === undefined) return null
-  if (option.startsWith("'") || option.startsWith('"')) {
-    const quote = option[0]
-    return option.slice(1, -1).replaceAll(`${quote}${quote}`, quote)
+const SQL_QUOTE_CLOSERS: Record<string, string> = {
+  "'": "'",
+  '"': '"',
+  '`': '`',
+  '[': ']'
+}
+
+// The arguments of a `create virtual table … using fts5(…)` statement, as
+// SQLite's tokenizer splits them: at the commas outside quotes ('…', "…", `…`,
+// […]), parentheses and comments, each trimmed and still quoted. Null for any
+// other statement, or when the argument list is not closed.
+export const getFts5Arguments = (createSql: string): string[] | null => {
+  const start = /\busing\s+fts5\s*\(/i.exec(createSql)
+  if (!start) return null
+  const args: string[] = []
+  let current = ''
+  let depth = 0
+  let index = start.index + start[0].length
+  while (index < createSql.length) {
+    const char = createSql[index]
+    const close = SQL_QUOTE_CLOSERS[char]
+    if (close) {
+      // Up to the closing quote; a doubled quote ('', "", ``) stays inside.
+      let end = index + 1
+      while (end < createSql.length) {
+        if (createSql[end] !== close) {
+          end += 1
+        } else if (close !== ']' && createSql[end + 1] === close) {
+          end += 2
+        } else {
+          break
+        }
+      }
+      current += createSql.slice(index, end + 1)
+      index = end + 1
+      continue
+    }
+    if (createSql.startsWith('--', index)) {
+      const end = createSql.indexOf('\n', index)
+      index = end === -1 ? createSql.length : end + 1
+      current += ' '
+      continue
+    }
+    if (createSql.startsWith('/*', index)) {
+      const end = createSql.indexOf('*/', index + 2)
+      index = end === -1 ? createSql.length : end + 2
+      current += ' '
+      continue
+    }
+    if (char === ')' && depth === 0) {
+      args.push(current.trim())
+      return args
+    }
+    if (char === ',' && depth === 0) {
+      args.push(current.trim())
+      current = ''
+    } else {
+      if (char === '(') depth += 1
+      if (char === ')') depth -= 1
+      current += char
+    }
+    index += 1
   }
-  return option
+  return null
+}
+
+const unquoteSqlToken = (token: string) => {
+  const close = SQL_QUOTE_CLOSERS[token[0]]
+  if (!close || token.length < 2 || !token.endsWith(close)) return token
+  const inner = token.slice(1, -1)
+  return close === ']' ? inner : inner.replaceAll(`${close}${close}`, close)
+}
+
+// The `content` option of a `create virtual table … using fts5(…)`, unquoted:
+// the table an external-content FTS5 table indexes. Null when it has none (a
+// self-contained table, or not an FTS5 table) and '' when it is contentless.
+// The option name is matched case-insensitively, as FTS5 does; a `content=`
+// inside another argument's quoted value (`tokenize = "porter, content=x"`)
+// is not an option.
+export const getFts5ContentTable = (createSql: string) => {
+  let contentTable: string | null = null
+  for (const argument of getFts5Arguments(createSql) ?? []) {
+    const value = /^content\s*=\s*([\s\S]*)$/i.exec(argument)?.[1]
+    if (value !== undefined) contentTable = unquoteSqlToken(value.trim())
+  }
+  return contentTable
 }
 
 const getSqliteFullTextTables = async (
@@ -2253,7 +2326,6 @@ const getSqliteFullTextTables = async (
   `.execute(database.db)
 
   for (const table of virtualTables) {
-    if (!/\busing\s+fts5\s*\(/i.test(table.sql)) continue
     const contentTable = getFts5ContentTable(table.sql)
     if (!contentTable) continue
     result.indexes.push({ name: table.name, contentTable })
@@ -2291,9 +2363,11 @@ const rebuildSqliteFullTextIndexes = async (
   fullText: SqliteFullTextTables,
   restoredTables: string[]
 ) => {
-  const restored = new Set(restoredTables)
+  // SQLite matches table names case-insensitively, and so does FTS5's
+  // `content=` option.
+  const restored = new Set(restoredTables.map((table) => table.toLowerCase()))
   for (const { name, contentTable } of fullText.indexes) {
-    if (!restored.has(contentTable)) continue
+    if (!restored.has(contentTable.toLowerCase())) continue
     await sql`
       insert into ${sql.id(name)} (${sql.id(name)}) values ('rebuild')
     `.execute(database.db)
@@ -2542,8 +2616,9 @@ const restoreStorage = async (
  * Opens the connection the archive runs on: the app's connection code, with
  * results not normalised (`normalizeResults: false`): SQLite's stored values,
  * and on PostgreSQL node-postgres's own types with dates and timestamps as
- * the server's text, so rows are exported and restored without losing a
- * timestamp's microseconds or moving a `date` with the process's zone.
+ * the server's text, in ISO style and UTC, so rows are exported and restored
+ * without losing a timestamp's microseconds or moving a `date` with the
+ * process's zone.
  */
 export const openArchiveDatabase = (config: DatabaseConfig) => {
   const { db, destroy } = openScriptDatabase(config, {
