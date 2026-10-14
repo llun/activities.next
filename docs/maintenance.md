@@ -336,8 +336,10 @@ Two one-off repair scripts went with the Knex migrations whose rollouts they
 finished, and are not in this checkout. Both ship with v1.192.34 (and every
 later release before the handover), are idempotent, and exit `0` when there is
 nothing left to repair. If a database may still need one, run it from a
-v1.192.34 checkout, against the database, **before** upgrading past the
-handover; their runbooks are in that release's `docs/maintenance.md`.
+v1.192.34 checkout against the database, preferably before upgrading past the
+handover; it also works on a database the handover has already recorded, as
+long as no later migration has changed `statuses`, `actors`, `notifications`
+or `markers`. Their runbooks are in that release's `docs/maintenance.md`.
 
 ### Public ID Backfill
 
@@ -1114,7 +1116,7 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 
 ### Composite Index Column Order on `statuses` (PostgreSQL 18)
 
-- **Order a composite index so the columns EVERY caller constrains come first.** `statuses_announce_original_actor_idx` is `(type, "originalStatusId", "actorId")` and `20260822000000_reorder_status_announce_index.js` put it that way round deliberately. `20260517000000` had created it as `(type, "actorId", "originalStatusId")`, which serves `getActorAnnounceStatus`, `getActorAnnouncedStatusId` and the batched announce hydration in `getStatusesHydrationContext` — all three pin all three columns, so the order is invisible to them and to every result-based test. It does **not** serve `getRebloggedBy` (`GET /api/v1/statuses/:id/reblogged_by`), which pins `type` and `originalStatusId` and leaves `actorId` free: with `actorId` in the middle, `originalStatusId` cannot become an index condition, so that endpoint bitmap-scanned every Announce row and filtered. Production's plan on 2026-08-22: **8,973 buffers / 18.4 ms, 19,892 rows scanned to return 1**, growing linearly with the Announce count forever. `statusAnnounceIndexOrderMigration.test.ts` reads the index definition rather than asserting the index merely exists, because a revert is functionally identical.
+- **Order a composite index so the columns EVERY caller constrains come first.** `statuses_announce_original_actor_idx` is `(type, "originalStatusId", "actorId")` and `20260822000000_reorder_status_announce_index.js` put it that way round deliberately. `20260517000000` had created it as `(type, "actorId", "originalStatusId")`, which serves `getActorAnnounceStatus`, `getActorAnnouncedStatusId` and the batched announce hydration in `getStatusesHydrationContext` — all three pin all three columns, so the order is invisible to them and to every result-based test. It does **not** serve `getRebloggedBy` (`GET /api/v1/statuses/:id/reblogged_by`), which pins `type` and `originalStatusId` and leaves `actorId` free: with `actorId` in the middle, `originalStatusId` cannot become an index condition, so that endpoint bitmap-scanned every Announce row and filtered. Production's plan on 2026-08-22: **8,973 buffers / 18.4 ms, 19,892 rows scanned to return 1**, growing linearly with the Announce count forever. `lib/database/testing/schemaInvariants.test.ts` reads the index definition rather than asserting the index merely exists, because a revert is functionally identical.
 - **Do not rewrite `getRebloggedBy`'s predicate to use `announceOriginalPointer`.** #1493 introduced that helper for the outbox CTE, where the pointer is a **projection** — `case when type = 'Announce' then coalesce("originalStatusId", content) end` — and collapsing the two-branch `OR` there was the whole win. `getRebloggedBy` uses the same two forms as a **predicate**, and `WHERE coalesce("originalStatusId", content) = ?` is an expression over two columns that no plain column index can serve: it would undo this change and put the endpoint straight back to scanning every Announce row. The `OR` form is what lets PostgreSQL build a `BitmapOr` of two index conditions — `(type, "originalStatusId") = ('Announce', $1)` and `(type, "originalStatusId" IS NULL)` — against the reordered index. Unifying the two call sites looks like tidying and is a regression.
 - **PostgreSQL 18 will pick an index whose leading column your query does not constrain, and that is usually fine — do not chase it.** This was investigated twice (PR #1468, then again after #1484) before anyone measured the alternative. PG 18's B-tree skip scan makes `(type, …)` a candidate for an `actorId`-only lookup by skipping the three `type` values, and `cost_index` prices the heap I/O from the **leading** column's `correlation`, which a low-cardinality column scores high on for no real reason — production reads `type` at 0.787 against `actorId` at -0.181. So the planner believed the announce index was ~30% cheaper than `statuses_actorId_idx` while it actually read ~5% **more** buffers. That is the whole effect: an `actorId`-only lookup is dominated by heap fetches, which are the same set either way (production: 1,955 of ~2,000 buffers are heap). On a local PostgreSQL 18.6 seeded to production's shape the two came out at 1,911 and 1,902 buffers. Reordering the announce index takes it out of the running as a side effect; it was never the reason to reorder.
 - **There is no `enable_indexskipscan` GUC.** PostgreSQL 18.6 exposes no toggle for skip scan (the diagnostics script dumps every `enable_*` setting, and it is not among them), so there is no read-only way to A/B it on a live server. Do not A/B by dropping an index on production either, even inside a transaction you mean to roll back: `DROP INDEX` takes an ACCESS EXCLUSIVE lock and blocks every query on the table until the rollback. Measure it on a local seed instead.
@@ -1274,7 +1276,7 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
 "actorId")` for exactly that reason — `getRebloggedBy` leaves `actorId` free.
   Because the callers that pin all three columns behave identically under either
   order, a functional test cannot see the difference; assert the index
-  definition itself (`statusAnnounceIndexOrderMigration.test.ts`).
+  definition itself, as `lib/database/testing/schemaInvariants.test.ts` does.
 - PostgreSQL 18 naming an index whose leading column the query does not
   constrain is not by itself a finding. Skip scan makes it a candidate and
   `cost_index` prices heap I/O off the leading column's correlation, which
@@ -1308,20 +1310,23 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   row only when its id resolved to a row the author's account owns.
 - A per-column type difference between the two schema dumps is not automatically
   drift — a backend-conditional migration makes them legitimately differ (none
-  does now: `20260207223000_fix_attachments_media_id_type.js` converted
-  `attachments.mediaId` on PostgreSQL only, and
-  `20261012100000_attachments_media_id_integer_sqlite.js` did the same on
-  SQLite). Read the migration before asking for a regeneration.
+  does now: the `20260207223000_fix_attachments_media_id_type` migration
+  converted `attachments.mediaId` on PostgreSQL only, and the
+  `20261012100000_attachments_media_id_integer_sqlite` migration did the same
+  on SQLite). Read the migration before asking for a regeneration.
 - SQLite cannot change a column's type in place, so a migration that does
-  rebuilds the table in one transaction (`20261012100000_attachments_media_id_integer_sqlite.js`
-  is the pattern): rename the old table, create the new one with the original
-  definition (backtick-quoted, so the schema dump keeps its style) and the new
-  type, copy the rows through an explicit conversion, drop the old table and
-  re-create its indexes from their stored definitions. It first checks that no
-  table references the one it drops, because dropping a referenced table runs
-  the foreign key actions of its children, and it fails, rolling back, if the
-  row count changes. Its test (`attachmentsMediaIdIntegerMigration.test.ts`)
-  pins the column type, the copied values, the indexes and `down`.
+  rebuilds the table in one transaction (the
+  `20261012100000_attachments_media_id_integer_sqlite` migration, in
+  v1.192.34's `migrations/`, is the pattern): rename the old table, create the
+  new one with the original definition (backtick-quoted, so the schema dump
+  keeps its style) and the new type, copy the rows through an explicit
+  conversion, drop the old table and re-create its indexes from their stored
+  definitions. It first checks that no table references the one it drops,
+  because dropping a referenced table runs the foreign key actions of its
+  children, and it fails, rolling back, if the row count changes. Its test
+  (`attachmentsMediaIdIntegerMigration.test.ts`, in v1.192.34) pinned the
+  column type, the copied values, the indexes and `down`; a new rebuild needs
+  the same test.
   It re-creates indexes only: the rename moves the table's triggers to the old
   table and repoints views that name it, so the drop deletes those triggers and
   breaks those views. A rebuild of a table that has either must re-create them

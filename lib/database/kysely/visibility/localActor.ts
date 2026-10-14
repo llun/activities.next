@@ -11,10 +11,10 @@ import type { DB } from '@/lib/database/kysely'
 // (`getActorFromRow` drops a falsy `privateKey`, so such an `Actor` reads as
 // remote); only the SQL predicates disagreed.
 //
-// `20260821120000_normalize_empty_actor_private_key.js` rewrites the stored
-// empty strings to NULL. The `<> ''` half stays regardless, for a database
-// restored from an older dump. `<> ''` alone would already exclude NULL
-// (`NULL <> ''` is unknown, not true); both halves are spelled out so the
+// The `20260821120000_normalize_empty_actor_private_key` migration rewrote the
+// stored empty strings to NULL. The `<> ''` half stays regardless, for a
+// database restored from an older dump. `<> ''` alone would already exclude
+// NULL (`NULL <> ''` is unknown, not true); both halves are spelled out so the
 // predicate reads as its intent, and so PostgreSQL can match it against the
 // partial `actors_local_idx`, whose own predicate is the `IS NOT NULL` half.
 export const isLocalActor = (eb: ExpressionBuilder<DB, 'actors'>) =>
