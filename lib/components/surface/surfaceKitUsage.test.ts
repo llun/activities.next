@@ -25,7 +25,9 @@ import path from 'path'
 // this list for a colour that means one of those.
 const DATA_PALETTE_FILES: Record<string, string> = {
   'lib/components/fitness/palette.ts':
-    'Fitness chart series colours (elevation, speed, power, heart rate): each series keeps its own fixed colour in both themes so the line, crosshair dot and legend chip match.'
+    'Fitness chart series colours (elevation, speed, power, heart rate): each series keeps its own fixed colour in both themes so the line, crosshair dot and legend chip match.',
+  'lib/components/photo-editor/histogramPalette.ts':
+    'Photo editor histogram colours (true red, green and blue channels on a dark frame): the channels must stay R/G/B in both themes and the frame must stay dark for the additive screen blending to read correctly.'
 }
 
 // The one other fixed colour: a badge fill the design gives as a hex in dark

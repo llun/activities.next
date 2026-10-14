@@ -27,6 +27,12 @@ export interface Histogram {
   g: number[]
   b: number[]
   luma: number[]
+  /** Pixels whose channel is exactly 0 (shadow clipping). */
+  clipLow: { r: number; g: number; b: number }
+  /** Pixels whose channel is exactly 255 (highlight clipping). */
+  clipHigh: { r: number; g: number; b: number }
+  /** Pixel count the histogram was computed over. */
+  total: number
 }
 
 const LINEAR_LUT = (() => {
@@ -150,19 +156,25 @@ export const computeStats = (
   }
 }
 
-/** Per channel and luma counts over `bins` buckets (default 64). */
+/**
+ * Per channel and luma counts over `bins` buckets (default 128), plus the
+ * exact number of pixels at 0 and 255 on each channel.
+ */
 export const computeHistogram = (
   rgba: Uint8ClampedArray | Uint8Array,
   width: number,
   height: number,
-  bins = 64
+  bins = 128
 ): Histogram => {
   const result: Histogram = {
     bins,
     r: new Array<number>(bins).fill(0),
     g: new Array<number>(bins).fill(0),
     b: new Array<number>(bins).fill(0),
-    luma: new Array<number>(bins).fill(0)
+    luma: new Array<number>(bins).fill(0),
+    clipLow: { r: 0, g: 0, b: 0 },
+    clipHigh: { r: 0, g: 0, b: 0 },
+    total: width * height
   }
   const scale = bins / 256
   const count = width * height
@@ -173,6 +185,12 @@ export const computeHistogram = (
     result.r[Math.floor(r * scale)] += 1
     result.g[Math.floor(g * scale)] += 1
     result.b[Math.floor(b * scale)] += 1
+    if (r === 0) result.clipLow.r += 1
+    if (g === 0) result.clipLow.g += 1
+    if (b === 0) result.clipLow.b += 1
+    if (r === 255) result.clipHigh.r += 1
+    if (g === 255) result.clipHigh.g += 1
+    if (b === 255) result.clipHigh.b += 1
     const y = perceptual(r, g, b)
     result.luma[Math.min(bins - 1, Math.floor(y * bins))] += 1
   }
