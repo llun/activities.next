@@ -23,6 +23,7 @@ import {
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 import { seedDatabase } from '@/lib/stub/database'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import {
   type ArchiveDatabase,
@@ -42,7 +43,7 @@ import {
 
 const sqliteMemoryConfig = getTestDatabaseConfig('sqlite')
 
-// The archive's own kind of connection (results as stored) on an in-memory
+// The archive's own kind of connection (results not normalised) on an in-memory
 // SQLite database, with the statements it sends.
 const openSqliteArchiveDatabase = () => {
   const connection = createDatabaseConnection(sqliteMemoryConfig, {
@@ -498,6 +499,9 @@ describe('production archive scripts', () => {
   })
 
   describe('truncateTables', () => {
+    // The restore order puts `children` first, so the delete order removes
+    // `parents` while a child still references it: only the foreign keys being
+    // off lets that through.
     it('uses one SQLite connection while foreign keys are disabled', async () => {
       const { database, statements, destroy } = openSqliteArchiveDatabase()
 
@@ -515,6 +519,12 @@ describe('production archive scripts', () => {
         await sql`
           insert into children (id, "parentId") values (1, 1)
         `.execute(database.db)
+        await expect(
+          sql`PRAGMA foreign_keys`.execute(database.db)
+        ).resolves.toMatchObject({ rows: [{ foreign_keys: 1 }] })
+        await expect(
+          sql`delete from parents`.execute(database.db)
+        ).rejects.toThrow('FOREIGN KEY constraint failed')
         statements.length = 0
 
         await truncateTables(
@@ -568,9 +578,10 @@ describe('production archive scripts', () => {
       connection: { filename }
     })
 
-    // Every table's rows, as stored, each as its JSON line, sorted. SQLite's
-    // full-text search tables are left out: the restore rebuilds that index
-    // from search_documents instead of copying it (see searchMatches).
+    // Every table's rows as the archive's connection reads them, each as its
+    // JSON line, sorted. SQLite's full-text search tables are left out: the
+    // restore rebuilds that index from search_documents instead of copying it
+    // (see searchMatches).
     const dumpTables = async (config: DatabaseConfig) => {
       const { database, destroy } = openArchiveDatabase(config)
       try {
@@ -596,28 +607,28 @@ describe('production archive scripts', () => {
       }
     }
 
-    // What a full-text search for a word of the seeded posts finds, after
-    // SQLite checks the index against search_documents.
-    const searchMatches = async (config: DatabaseConfig) => {
+    // The search documents a full-text search for `word` finds, after SQLite
+    // checks the index against search_documents.
+    const searchMatches = async (config: DatabaseConfig, word = 'actor1') => {
       const { database, destroy } = openArchiveDatabase(config)
       try {
         if (backend === 'pg') {
-          const { rows } = await sql<{ count: string }>`
-            select count(*) as count from search_documents
+          const { rows } = await sql<{ id: string }>`
+            select id from search_documents
             where to_tsvector('simple', "documentText")
-              @@ to_tsquery('simple', 'actor1')
+              @@ to_tsquery('simple', ${word})
           `.execute(database.db)
-          return Number(rows[0].count)
+          return rows.map((row) => row.id).sort()
         }
         await sql`
           insert into search_documents_fts (search_documents_fts)
           values ('integrity-check')
         `.execute(database.db)
-        const { rows } = await sql<{ count: number }>`
-          select count(*) as count from search_documents_fts
-          where search_documents_fts match 'actor1'
+        const { rows } = await sql<{ id: string | null }>`
+          select id from search_documents_fts
+          where search_documents_fts match ${word}
         `.execute(database.db)
-        return rows[0].count
+        return rows.map((row) => String(row.id)).sort()
       } finally {
         await destroy()
       }
@@ -668,7 +679,8 @@ describe('production archive scripts', () => {
             values
               ('round-trip:big', '9007199254740993',
                '2026-02-03T04:05:06.789Z', '2026-02-03T04:05:06.789Z'),
-              ('round-trip:default-time', 42, default, default)
+              ('round-trip:micro', 1, '2026-02-03T04:05:06.789123Z',
+               '2026-02-03T04:05:06.789123Z')
           `.execute(database.db)
           await sql`
             insert into status_history ("statusId", data, "createdAt")
@@ -685,9 +697,7 @@ describe('production archive scripts', () => {
             insert into counters (id, value, "createdAt", "updatedAt")
             values
               ('round-trip:big', 4102444800123, ${SQLITE_STORED_TIME},
-               ${SQLITE_STORED_TIME}),
-              ('round-trip:default-time', 42, '2026-02-03 04:05:06',
-               '2026-02-03 04:05:06')
+               ${SQLITE_STORED_TIME})
           `.execute(database.db)
           await sql`
             insert into status_history ("statusId", data, "createdAt")
@@ -700,6 +710,22 @@ describe('production archive scripts', () => {
                     ${SQLITE_STORED_TIME})
           `.execute(database.db)
         }
+        // Timestamps from the column default: CURRENT_TIMESTAMP text on
+        // SQLite, microseconds on PostgreSQL.
+        await sql`
+          insert into counters (id, value) values ('round-trip:default-time', 42)
+        `.execute(database.db)
+        // `date` columns, which an export east of UTC used to move a day.
+        const { rows: actors } = await sql<{ id: string }>`
+          select id from actors order by id limit 1
+        `.execute(database.db)
+        await sql`
+          insert into wahoo_history_imports
+            (id, "actorId", "providerUserId", "fromDate", "toDate")
+          values
+            ('round-trip-wahoo', ${actors[0].id}, 'wahoo-user', '2026-01-02',
+             '2026-03-04')
+        `.execute(database.db)
         await sql`
           insert into "customEmojis"
             (id, shortcode, url, "staticUrl", "visibleInPicker", disabled,
@@ -713,7 +739,9 @@ describe('production archive scripts', () => {
         await destroy()
       }
 
-      // The export, and the statements it sent.
+      // The export, and the statements it sent. It runs east of UTC, where a
+      // `date` read as a local-midnight `Date` would be written as the
+      // previous day.
       const archive = createDatabaseConnection(sourceConfig, {
         normalizeResults: false
       })
@@ -723,10 +751,10 @@ describe('production archive scripts', () => {
       })
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
       try {
-        const result = await exportDatabase(
-          { config: sourceConfig, db: archive.db },
-          archiveDir,
-          { includeReferencedStoragePaths: true }
+        const result = await withTimeZone('Asia/Bangkok', () =>
+          exportDatabase({ config: sourceConfig, db: archive.db }, archiveDir, {
+            includeReferencedStoragePaths: true
+          })
         )
         manifest = {
           createdAt: new Date().toISOString(),
@@ -774,6 +802,33 @@ describe('production archive scripts', () => {
       ).toBeGreaterThan(0)
     })
 
+    it('writes dates and timestamps as the database holds them', async () => {
+      const readTable = async (table: string) =>
+        Array.fromAsync(
+          readJsonLines(path.join(archiveDir, 'database', `${table}.jsonl`))
+        )
+      expect(
+        (await readTable('wahoo_history_imports')).map(
+          ({ fromDate, toDate }) => ({ fromDate, toDate })
+        )
+      ).toEqual([{ fromDate: '2026-01-02', toDate: '2026-03-04' }])
+
+      const counters = new Map(
+        (await readTable('counters')).map((row) => [row.id, row.createdAt])
+      )
+      if (backend === 'pg') {
+        // The server's text, in its zone, with the microseconds.
+        expect(counters.get('round-trip:micro')).toMatch(
+          /^2026-02-0[34] \d\d:\d\d:06\.789123[+-]\d\d(:\d\d)?$/
+        )
+      } else {
+        expect(counters.get('round-trip:big')).toBe(SQLITE_STORED_TIME)
+        expect(counters.get('round-trip:default-time')).toMatch(
+          /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/
+        )
+      }
+    })
+
     it(
       'restores into an empty database, running the migrations first',
       async () => {
@@ -799,9 +854,10 @@ describe('production archive scripts', () => {
         expect(source.statuses.length).toBeGreaterThan(0)
         expect(source.search_documents.length).toBeGreaterThan(0)
 
+        // A search on the restored database finds the restored documents.
         const sourceMatches = await searchMatches(sourceConfig)
-        expect(sourceMatches).toBeGreaterThan(0)
-        expect(await searchMatches(targetConfig)).toBe(sourceMatches)
+        expect(sourceMatches.length).toBeGreaterThan(0)
+        expect(await searchMatches(targetConfig)).toEqual(sourceMatches)
       },
       ROUND_TRIP_TIMEOUT_MS
     )
@@ -809,18 +865,31 @@ describe('production archive scripts', () => {
     it('keeps every value as it was stored', async () => {
       const { database, destroy } = openArchiveDatabase(targetConfig)
       try {
+        // On PostgreSQL each timestamp also in UTC, to compare it exactly
+        // whatever the server's zone.
+        const utc = (column: string) =>
+          backend === 'pg'
+            ? sql`, (${sql.ref(column)} at time zone 'UTC')::text as "utc"`
+            : sql``
         const { rows: counters } = await sql<Record<string, unknown>>`
-          select id, value, "createdAt" from counters
+          select id, value, "createdAt" ${utc('createdAt')} from counters
           where id like 'round-trip:%' order by id
         `.execute(database.db)
         const { rows: emojis } = await sql<Record<string, unknown>>`
-          select disabled, "visibleInPicker", "createdAt" from "customEmojis"
-          where id = 'round-trip-emoji'
+          select disabled, "visibleInPicker", "createdAt" ${utc('createdAt')}
+          from "customEmojis" where id = 'round-trip-emoji'
         `.execute(database.db)
         const { rows: history } = await sql<Record<string, unknown>>`
-          select data, "createdAt" from status_history
+          select data, "createdAt" ${utc('createdAt')} from status_history
           where "statusId" = 'round-trip-status'
         `.execute(database.db)
+        const { rows: imports } = await sql<Record<string, unknown>>`
+          select "fromDate", "toDate" from wahoo_history_imports
+          where id = 'round-trip-wahoo'
+        `.execute(database.db)
+        expect(imports).toEqual([
+          { fromDate: '2026-01-02', toDate: '2026-03-04' }
+        ])
         const data = {
           text: 'line\u2028separator ✓',
           tags: [1, 2],
@@ -828,33 +897,46 @@ describe('production archive scripts', () => {
         }
 
         if (backend === 'pg') {
-          // node-postgres's own types: int8 as an exact string, timestamps
-          // as Date, jsonb parsed.
+          // node-postgres's own types (int8 as an exact string, jsonb
+          // parsed), with timestamps as the server's text, microseconds
+          // included.
+          const stored = '2026-02-03 04:05:06.789'
           expect(counters).toEqual([
             {
               id: 'round-trip:big',
               value: '9007199254740993',
-              createdAt: new Date(SQLITE_STORED_TIME)
+              createdAt: expect.any(String),
+              utc: stored
             },
             {
               id: 'round-trip:default-time',
               value: '42',
-              createdAt: expect.any(Date)
+              createdAt: expect.any(String),
+              utc: expect.stringMatching(
+                /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(\.\d{1,6})?$/
+              )
+            },
+            {
+              id: 'round-trip:micro',
+              value: '1',
+              createdAt: expect.any(String),
+              utc: '2026-02-03 04:05:06.789123'
             }
           ])
           expect(emojis).toEqual([
             {
               disabled: true,
               visibleInPicker: false,
-              createdAt: new Date(SQLITE_STORED_TIME)
+              createdAt: expect.any(String),
+              utc: stored
             }
           ])
           expect(history).toEqual([
-            { data, createdAt: new Date(SQLITE_STORED_TIME) }
+            { data, createdAt: expect.any(String), utc: stored }
           ])
         } else {
-          // SQLite's stored values: epoch ms and CURRENT_TIMESTAMP-style
-          // text side by side, 0/1, JSON text.
+          // SQLite's stored values: epoch ms and the column default's
+          // CURRENT_TIMESTAMP text side by side, 0/1, JSON text.
           expect(counters).toEqual([
             {
               id: 'round-trip:big',
@@ -864,7 +946,9 @@ describe('production archive scripts', () => {
             {
               id: 'round-trip:default-time',
               value: 42,
-              createdAt: '2026-02-03 04:05:06'
+              createdAt: expect.stringMatching(
+                /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/
+              )
             }
           ])
           expect(emojis).toEqual([
@@ -894,6 +978,14 @@ describe('production archive scripts', () => {
           await sql`
             update counters set value = 7 where id = 'round-trip:default-time'
           `.execute(database.db)
+          if (backend === 'sqlite') {
+            // An index entry with no search document behind it (a drifted
+            // index), which only rebuilding the index removes.
+            await sql`
+              insert into search_documents_fts (rowid, id, "documentText")
+              values (999999999, 'drifted', 'driftword')
+            `.execute(database.db)
+          }
         } finally {
           await destroy()
         }
@@ -903,9 +995,10 @@ describe('production archive scripts', () => {
         expect(await dumpTables(targetConfig)).toEqual(
           await dumpTables(sourceConfig)
         )
-        expect(await searchMatches(targetConfig)).toBe(
+        expect(await searchMatches(targetConfig)).toEqual(
           await searchMatches(sourceConfig)
         )
+        expect(await searchMatches(targetConfig, 'driftword')).toEqual([])
 
         if (backend === 'pg') {
           // Serial columns continue after the restored rows.
@@ -950,5 +1043,46 @@ describe('production archive scripts', () => {
         await destroy()
       }
     })
+
+    // Only an external-content FTS5 table can be rebuilt from the table it
+    // indexes; a contentless one holds what the restore would have to write.
+    it.runIf(backend === 'sqlite')(
+      'refuses a SQLite virtual table it could not rebuild',
+      async () => {
+        const otherArchiveDir = path.join(tempDir, 'contentless-archive')
+        await fs.mkdir(path.join(otherArchiveDir, 'database'), {
+          recursive: true
+        })
+        await fs.writeFile(
+          path.join(otherArchiveDir, 'database', 'notes_fts.jsonl'),
+          ''
+        )
+        const { database, destroy } = openArchiveDatabase(targetConfig)
+        try {
+          await sql`
+            create virtual table notes_fts using fts5(body, content='')
+          `.execute(database.db)
+          await expect(
+            restoreDatabase(database, otherArchiveDir, {
+              ...manifest,
+              database: {
+                ...manifest.database!,
+                tables: [{ name: 'notes_fts', rowCount: 0 }]
+              }
+            })
+          ).rejects.toThrow(
+            'Cannot restore SQLite virtual or shadow table(s) notes_fts'
+          )
+          // Nothing was deleted.
+          const { rows } = await sql<{ count: number }>`
+            select count(*) as count from actors
+          `.execute(database.db)
+          expect(rows[0].count).toBeGreaterThan(0)
+        } finally {
+          await sql`drop table if exists notes_fts`.execute(database.db)
+          await destroy()
+        }
+      }
+    )
   })
 })
