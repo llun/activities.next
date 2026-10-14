@@ -76,4 +76,41 @@ describe('warnAboutPendingMigrations', () => {
     )
     connection = createDatabaseConnection(config)
   })
+
+  // instrumentation.ts loads the check at every boot: it reads the status
+  // without loading Kysely's Migrator (runner.ts), the migration modules or
+  // the migration entry point (lib/database/migrate).
+  it('loads neither the runner nor the migrations', async () => {
+    vi.resetModules()
+    const loaded: string[] = []
+    const refuse = (name: string) => () => {
+      loaded.push(name)
+      throw new Error(`${name} was loaded`)
+    }
+    vi.doMock('@/lib/database/migrate/runner', refuse('runner'))
+    vi.doMock('@/lib/database/migrate', refuse('lib/database/migrate'))
+    vi.doMock('@/migrations/index', refuse('migrations/index'))
+    vi.doMock('@/migrations/20261014000000_baseline', refuse('baseline'))
+    vi.doMock('kysely/migration', refuse('kysely/migration'))
+    try {
+      const { warnAboutPendingMigrations: check } =
+        await import('@/lib/database/migrate/startupCheck')
+      // The freshly loaded modules have a logger of their own.
+      const { logger: freshLogger } = await import('@/lib/utils/logger')
+      const error = vi.spyOn(freshLogger, 'error').mockImplementation(() => {})
+      await check({ db: connection.db, config })
+      expect(loaded).toEqual([])
+      expect(error).toHaveBeenCalledWith(
+        { pending: [BASELINE_MIGRATION] },
+        expect.stringContaining('The database has migrations pending')
+      )
+    } finally {
+      vi.doUnmock('@/lib/database/migrate/runner')
+      vi.doUnmock('@/lib/database/migrate')
+      vi.doUnmock('@/migrations/index')
+      vi.doUnmock('@/migrations/20261014000000_baseline')
+      vi.doUnmock('kysely/migration')
+      vi.resetModules()
+    }
+  })
 })

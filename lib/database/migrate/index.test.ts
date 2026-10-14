@@ -33,6 +33,7 @@ import {
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 import { migrations } from '@/migrations/index'
+import { MIGRATION_NAMES } from '@/migrations/names'
 
 // Runs on SQLite by default and on PostgreSQL under TEST_DATABASE_TYPE=pg.
 // Every test starts from an empty database (a new SQLite file, or the
@@ -208,6 +209,8 @@ describe('lib/database/migrate', () => {
       expect(known).toEqual(files)
       expect(known[0]).toBe(BASELINE_MIGRATION)
       expect(Object.keys(migrations).sort()).toEqual(known)
+      // The names the startup check reads without loading the modules.
+      expect([...MIGRATION_NAMES].sort()).toEqual(known)
     })
 
     it('freezes every legacy Knex migration file', async () => {

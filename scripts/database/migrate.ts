@@ -19,7 +19,8 @@
  *   the database or it has migrations this checkout does not know.
  * - `down` rolls back the last migration applied; never the baseline.
  * - `make <name>` writes `migrations/<yyyymmddhhmmss>_<name>.ts` from
- *   migrations/migration.stub. Register it in migrations/index.ts.
+ *   migrations/migration.stub. Register it in migrations/index.ts and its
+ *   name in migrations/names.ts.
  *
  * The database is the one the Knex CLI used: the `ACTIVITIES_DATABASE` JSON,
  * or the `ACTIVITIES_DATABASE_*` variables (a bare
@@ -194,7 +195,10 @@ export const runMigrateCommand = async (args: string[]): Promise<number> => {
 
   if (command === 'make') {
     const file = await makeMigration(rest[0])
-    console.log(`Created ${file}. Register it in migrations/index.ts.`)
+    console.log(
+      `Created ${file}. Register it in migrations/index.ts and its name in ` +
+        'migrations/names.ts.'
+    )
     return 0
   }
 

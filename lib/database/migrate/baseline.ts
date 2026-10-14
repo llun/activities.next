@@ -6,7 +6,7 @@ import { LEGACY_KNEX_MIGRATIONS } from '@/lib/database/migrate/legacyKnexMigrati
 
 // The handover from Knex to the Kysely migrations, run by the first migration
 // (migrations/20261014000000_baseline.ts) under the migrator's lock, and read
-// without writing anything by `getMigrationStatus` (lib/database/migrate) so
+// without writing anything by `getMigrationStatus` (status.ts) so
 // `yarn migrate` can refuse before it creates its own tables.
 //
 // - `knex_migrations` holds exactly the frozen Knex migrations

@@ -1,20 +1,28 @@
 import { type Kysely, sql } from 'kysely'
 
-import type { DatabaseConfig } from '@/lib/config/database'
 import type { DB } from '@/lib/database/kysely'
 import {
   BASELINE_MIGRATION,
-  type HandoverState,
   isCompleteKnexMigrationList,
-  readHandoverState,
   tableExists
 } from '@/lib/database/migrate/baseline'
 import { createMigrator, unwrapResultSet } from '@/lib/database/migrate/runner'
+import {
+  type MigrationTarget,
+  getMigrationStatus,
+  readExecutedMigrations
+} from '@/lib/database/migrate/status'
 import type { MigrationRegistry } from '@/lib/database/migrate/types'
 import { migrations as registeredMigrations } from '@/migrations/index'
 
 export { BASELINE_MIGRATION, LAST_KNEX_RELEASE } from './baseline'
 export { MigrationRunError } from './runner'
+export {
+  type ExecutedMigration,
+  type MigrationStatus,
+  type MigrationTarget,
+  getMigrationStatus
+} from './status'
 
 // The one place that runs migrations or asks which ones a database has:
 // `yarn migrate` (scripts/database/migrate.ts), the facade's `migrate()` and
@@ -25,8 +33,9 @@ export { MigrationRunError } from './runner'
 // (baseline.ts): it records the baseline on a database Knex fully migrated,
 // loads it into an empty one, and refuses anything else.
 //
-// The facade imports this module on first use, so neither the runner nor the
-// migrations are part of the app's request path.
+// The startup check (instrumentation.ts) loads status.ts at boot to read the
+// status, not this module; nothing in the app runs a migration. The facade's
+// `migrate()` imports this module on first use, and only tests call it.
 //
 // The names this module reports are migration names (`kysely_migration`'s
 // rows). The production archive stores that list in its manifest and compares
@@ -46,21 +55,6 @@ export { MigrationRunError } from './runner'
 // - `db` is not a transaction: each migration runs in a transaction the
 //   runner opens, which Kysely cannot do on a `Transaction`.
 //   `migrateToLatest` and `migrateDown` refuse one.
-
-/** The database to migrate or inspect, as the caller already has it. */
-export type MigrationTarget = {
-  /**
-   * Kysely on that database. Reads accept a transaction (the production
-   * archive asks inside its export snapshot); `migrateToLatest` needs the
-   * root instance of a normalising connection (see the rules above).
-   */
-  db: Kysely<DB>
-  /** The configuration `db` was opened with. */
-  config: DatabaseConfig
-}
-
-// Where the Migrator records which migrations ran, and its lock.
-const MIGRATION_TABLE = 'kysely_migration'
 
 /**
  * The migration runners' bookkeeping: which migrations ran, Kysely's and
@@ -90,24 +84,6 @@ export const normalizeMigrationNames = (names: readonly string[]): string[] =>
   names.length > 0 && isCompleteKnexMigrationList(names)
     ? [BASELINE_MIGRATION]
     : [...names]
-
-type ExecutedMigration = { name: string; executedAt: string }
-
-const readExecutedMigrations = async (
-  db: Kysely<DB>
-): Promise<ExecutedMigration[]> => {
-  if (!(await tableExists(db, MIGRATION_TABLE))) return []
-  // In the order they ran, as the Migrator orders them.
-  const { rows } = await sql<{ name: unknown; timestamp: unknown }>`
-    select name, timestamp from ${sql.table(MIGRATION_TABLE)}
-    order by timestamp asc, name asc
-  `.execute(db)
-  return rows.flatMap((row) =>
-    typeof row.name === 'string'
-      ? [{ name: row.name, executedAt: String(row.timestamp) }]
-      : []
-  )
-}
 
 const readKnexMigrationNames = async (db: Kysely<DB>): Promise<string[]> => {
   if (!(await tableExists(db, 'knex_migrations'))) return []
@@ -139,45 +115,6 @@ export const getKnownMigrationNames = async (
   registry: MigrationRegistry = registeredMigrations
 ): Promise<string[]> => Object.keys(registry).sort()
 
-export type MigrationStatus = {
-  /** The migrations `kysely_migration` records, in the order they ran. */
-  executed: ExecutedMigration[]
-  /** Known migrations not applied yet, in the order they would run. */
-  pending: string[]
-  /** Recorded migrations this checkout does not have (a newer build's). */
-  unknown: string[]
-  /**
-   * The handover: `recorded` once the baseline is in `kysely_migration`,
-   * otherwise what its migration would do (see baseline.ts).
-   */
-  handover: { kind: 'recorded' } | HandoverState
-}
-
-/**
- * Where the database stands, read without writing anything: it creates no
- * table, so it is safe on a database the new code has never migrated
- * (`yarn migrate:status`, the startup check, the pre-check below).
- */
-export const getMigrationStatus = async (
-  { db }: MigrationTarget,
-  registry: MigrationRegistry = registeredMigrations
-): Promise<MigrationStatus> => {
-  const executed = await readExecutedMigrations(db)
-  const executedNames = new Set(executed.map((migration) => migration.name))
-  const known = await getKnownMigrationNames(registry)
-  const knownNames = new Set(known)
-  return {
-    executed,
-    pending: known.filter((name) => !executedNames.has(name)),
-    unknown: executed
-      .map((migration) => migration.name)
-      .filter((name) => !knownNames.has(name)),
-    handover: executedNames.has(BASELINE_MIGRATION)
-      ? { kind: 'recorded' }
-      : await readHandoverState(db)
-  }
-}
-
 const assertRootInstance = (db: Kysely<DB>) => {
   if (db.isTransaction) {
     throw new Error(
@@ -199,7 +136,7 @@ export const migrateToLatest = async (
 ): Promise<string[]> => {
   assertRootInstance(target.db)
   if (registry[BASELINE_MIGRATION]) {
-    const { handover } = await getMigrationStatus(target, registry)
+    const { handover } = await getMigrationStatus(target, Object.keys(registry))
     if (handover.kind === 'refused') throw new Error(handover.message)
   }
   return unwrapResultSet(
@@ -216,7 +153,7 @@ export const migrateDown = async (
   registry: MigrationRegistry = registeredMigrations
 ): Promise<string> => {
   assertRootInstance(target.db)
-  const { executed } = await getMigrationStatus(target, registry)
+  const { executed } = await getMigrationStatus(target, Object.keys(registry))
   const last = executed.at(-1)
   if (!last) {
     throw new Error('Nothing to roll back: no migration has been applied.')

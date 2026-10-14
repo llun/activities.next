@@ -1,7 +1,7 @@
 import {
   type MigrationTarget,
   getMigrationStatus
-} from '@/lib/database/migrate'
+} from '@/lib/database/migrate/status'
 import { logger } from '@/lib/utils/logger'
 
 /**
@@ -9,7 +9,9 @@ import { logger } from '@/lib/utils/logger'
  * one `yarn migrate` refuses. It only warns: the app still starts, because
  * the documented deploy runs `yarn migrate` while the previous image keeps
  * serving, and a deploy must not wedge on the order the two happen in. It
- * reads without writing (`getMigrationStatus`) and never throws.
+ * reads without writing (`getMigrationStatus`) and never throws. It imports
+ * status.ts, not lib/database/migrate, so the boot loads neither the runner
+ * nor the migrations.
  */
 export const warnAboutPendingMigrations = async (target: MigrationTarget) => {
   try {

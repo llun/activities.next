@@ -105,6 +105,14 @@ const nextConfig: NextConfig = {
       './node_modules/xtend/**/*'
     ]
   },
+  // The migrations, their baseline SQL and the schema dumps stay out of the
+  // standalone output: the server never runs a migration (`yarn migrate` does,
+  // from a checkout or the Docker build stage, before `yarn build`), and its
+  // startup check only reads the status through lib/database/migrate/status.ts,
+  // which reads no file.
+  outputFileTracingExcludes: {
+    '/**/*': ['./migrations/**/*']
+  },
   assetPrefix: '/activities',
   allowedDevOrigins:
     process.env.NODE_ENV === 'development' ? ['activities.local'] : undefined,
