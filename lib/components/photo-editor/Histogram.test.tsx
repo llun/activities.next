@@ -17,6 +17,9 @@ const image = (rgb: [number, number, number], count = 1000) => {
   return computeHistogram(data, count, 1)
 }
 
+const fillOf = (testId: string) =>
+  screen.getByTestId(testId).querySelector('polygon')?.getAttribute('fill')
+
 describe('Histogram', () => {
   it('draws R, G and B areas with screen blending and a luma outline', () => {
     render(<Histogram data={image([128, 128, 128])} />)
@@ -44,12 +47,8 @@ describe('Histogram', () => {
   it('leaves both indicators off for a mid-grey image', () => {
     render(<Histogram data={image([128, 128, 128])} />)
     expect(screen.getByRole('img', { name: 'Histogram' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('img', { name: 'No shadow clipping' })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('img', { name: 'No highlight clipping' })
-    ).toBeInTheDocument()
+    expect(fillOf('histogram-clip-shadows')).toBe(CLIP_OFF_COLOUR)
+    expect(fillOf('histogram-clip-highlights')).toBe(CLIP_OFF_COLOUR)
   })
 
   it.each([
@@ -82,24 +81,33 @@ describe('Histogram', () => {
       label: 'Histogram, shadows clipped'
     }
   ])('lights indicators: $description', ({ rgb, highlight, shadow, label }) => {
-    const { container } = render(<Histogram data={image(rgb)} />)
+    render(<Histogram data={image(rgb)} />)
     expect(screen.getByRole('img', { name: label })).toBeInTheDocument()
-    const fills = Array.from(container.querySelectorAll('polygon')).map(
-      (polygon) => polygon.getAttribute('fill')
+    expect(fillOf('histogram-clip-shadows')).toBe(
+      shadow === 'off' ? CLIP_OFF_COLOUR : shadow
     )
-    const [left, right] = fills
-    expect(left).toBe(shadow === 'off' ? CLIP_OFF_COLOUR : shadow)
-    expect(right).toBe(highlight === 'off' ? CLIP_OFF_COLOUR : highlight)
+    expect(fillOf('histogram-clip-highlights')).toBe(
+      highlight === 'off' ? CLIP_OFF_COLOUR : highlight
+    )
   })
 
-  it('titles the indicators when clipping', () => {
+  it('hides the corner indicators from assistive technology', () => {
     render(<Histogram data={image([255, 255, 255])} />)
-    expect(
-      screen.getByRole('img', { name: 'Highlights clipped' })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('img', { name: 'No shadow clipping' })
-    ).toBeInTheDocument()
+    for (const id of ['histogram-clip-shadows', 'histogram-clip-highlights']) {
+      expect(screen.getByTestId(id)).toHaveAttribute('aria-hidden', 'true')
+      expect(screen.getByTestId(id)).not.toHaveAttribute('role')
+    }
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+  })
+
+  it('titles the indicators for hover', () => {
+    render(<Histogram data={image([255, 255, 255])} />)
+    expect(screen.getByTestId('histogram-clip-highlights')).toHaveTextContent(
+      'Highlights clipped'
+    )
+    expect(screen.getByTestId('histogram-clip-shadows')).toHaveTextContent(
+      'No shadow clipping'
+    )
   })
 
   it('renders only the frame and guides without data', () => {
@@ -108,11 +116,7 @@ describe('Histogram', () => {
     expect(screen.queryByTestId('histogram-r')).not.toBeInTheDocument()
     expect(screen.queryByTestId('histogram-luma')).not.toBeInTheDocument()
     expect(screen.getAllByTestId('histogram-guide')).toHaveLength(3)
-    expect(
-      screen.getByRole('img', { name: 'No shadow clipping' })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('img', { name: 'No highlight clipping' })
-    ).toBeInTheDocument()
+    expect(fillOf('histogram-clip-shadows')).toBe(CLIP_OFF_COLOUR)
+    expect(fillOf('histogram-clip-highlights')).toBe(CLIP_OFF_COLOUR)
   })
 })

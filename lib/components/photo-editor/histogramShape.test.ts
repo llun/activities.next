@@ -14,7 +14,12 @@ import {
 
 describe('smoothBins', () => {
   it('applies [1,2,1] to inner bins and leaves the ends raw', () => {
-    expect(smoothBins([100, 0, 4, 0, 100])).toEqual([100, 26, 2, 26, 100])
+    expect(smoothBins([100, 0, 4, 0, 100])).toEqual([100, 1, 2, 1, 100])
+    expect(smoothBins([0, 0, 4, 0, 0])).toEqual([0, 1, 2, 1, 0])
+  })
+
+  it('does not let an end spike leak into its neighbours', () => {
+    expect(smoothBins([5000, 8, 8, 8, 5000])).toEqual([5000, 8, 8, 8, 5000])
   })
 
   it('keeps flat series flat', () => {
@@ -40,6 +45,20 @@ describe('innerPeak', () => {
 
   it('is at least 1', () => {
     expect(innerPeak([[5, 0, 0, 5]])).toBe(1)
+  })
+})
+
+describe('end spikes and the peak', () => {
+  it('keeps the inner peak when the end bins hold a huge spike', () => {
+    const quiet = [0, 100, 140, 100, 0]
+    const spiky = [3000, 100, 140, 100, 3000]
+    expect(innerPeak([smoothBins(spiky)])).toBe(innerPeak([smoothBins(quiet)]))
+  })
+
+  it('keeps the peak at the raw inner peak, not the end spike', () => {
+    expect(innerPeak([smoothBins([3000, 100, 140, 100, 3000])])).toBeLessThan(
+      200
+    )
   })
 })
 

@@ -30,8 +30,8 @@ const ClipIndicator = ({
   label: string
 }) => (
   <svg
-    role="img"
-    aria-label={label}
+    aria-hidden="true"
+    data-testid={`histogram-clip-${side === 'left' ? 'shadows' : 'highlights'}`}
     viewBox="0 0 10 10"
     className={`absolute top-1 size-2.5 ${side === 'left' ? 'left-1' : 'right-1'}`}
   >

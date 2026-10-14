@@ -13,13 +13,21 @@ export const CLIP_THRESHOLD = 0.001
 
 export type ClipChannels = { r: boolean; g: boolean; b: boolean }
 
-/** Light [1,2,1] smoothing; the first and last bin stay raw so clipping is not smeared. */
-export const smoothBins = (bins: number[]): number[] =>
-  bins.map((value, index) =>
-    index === 0 || index === bins.length - 1
+/**
+ * Light [1,2,1] smoothing of the inner bins. The first and last bin stay raw,
+ * and they do not feed their neighbours either (an end bin is replaced by the
+ * bin's own value), so a clipping spike cannot leak into the scale peak.
+ */
+export const smoothBins = (bins: number[]): number[] => {
+  const last = bins.length - 1
+  const inner = (index: number, fallback: number) =>
+    index <= 0 || index >= last ? fallback : bins[index]
+  return bins.map((value, index) =>
+    index === 0 || index === last
       ? value
-      : (bins[index - 1] + 2 * value + bins[index + 1]) / 4
+      : (inner(index - 1, value) + 2 * value + inner(index + 1, value)) / 4
   )
+}
 
 /** Tallest inner (non end) bin across the series, at least 1. */
 export const innerPeak = (series: number[][]): number =>
