@@ -31,8 +31,6 @@ export interface EnvTemplateField {
   optional?: boolean
   // Masked in the preview, included verbatim when copied.
   secret?: boolean
-  // Spans both columns of the two-column field grid.
-  wide?: boolean
 }
 
 export interface EnvTemplateChoice {
@@ -73,8 +71,7 @@ const MEDIA_STORAGE_FILESYSTEM_FIELDS: EnvTemplateField[] = [
     // that belongs in the block untyped: `ACTIVITIES_MEDIA_STORAGE_PATH=` is
     // rejected by both storage resolvers, which would leave the filesystem
     // block — the block an operator can otherwise paste and run — inert.
-    defaultValue: './uploads',
-    wide: true
+    defaultValue: './uploads'
   }
 ]
 
@@ -95,15 +92,13 @@ const MEDIA_STORAGE_S3_FIELDS: EnvTemplateField[] = [
     // A non-AWS example on purpose: leaving this unset is what selects AWS, so
     // an AWS URL here would illustrate the one value nobody should set.
     placeholder: 'https://<account>.r2.cloudflarestorage.com',
-    optional: true,
-    wide: true
+    optional: true
   },
   {
     name: 'ACTIVITIES_MEDIA_STORAGE_HOSTNAME',
     label: 'Public hostname or CDN — optional',
     placeholder: 'media.example.social',
-    optional: true,
-    wide: true
+    optional: true
   },
   // Credentials are not ACTIVITIES_* variables: the AWS SDK resolves them from
   // its standard chain, so these are the plain AWS names.
@@ -127,8 +122,7 @@ const FITNESS_MAPBOX_FIELDS: EnvTemplateField[] = [
     name: 'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN',
     label: 'Access token',
     placeholder: 'pk.eyJ1Ijoi…',
-    secret: true,
-    wide: true
+    secret: true
   }
 ]
 
@@ -149,8 +143,7 @@ const FITNESS_APPLE_MAPS_FIELDS: EnvTemplateField[] = [
     // The resolver expands a single-line, \n-escaped PEM back into a real key,
     // which is the only form that survives a one-line .env value.
     placeholder: '-----BEGIN PRIVATE KEY-----\\nMIGTAgEAMBMGByqGSM49…',
-    secret: true,
-    wide: true
+    secret: true
   }
 ]
 

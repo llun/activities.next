@@ -248,18 +248,14 @@ const Page = async ({ searchParams }: Props) => {
                 <option value="noop">Noop</option>
               </Select>
             </FormRow>
-            <FormRow label="Public comment" htmlFor="block-public-comment" wide>
+            <FormRow label="Public comment" htmlFor="block-public-comment">
               <Textarea
                 id="block-public-comment"
                 name="publicComment"
                 rows={2}
               />
             </FormRow>
-            <FormRow
-              label="Private comment"
-              htmlFor="block-private-comment"
-              wide
-            >
+            <FormRow label="Private comment" htmlFor="block-private-comment">
               <Textarea
                 id="block-private-comment"
                 name="privateComment"

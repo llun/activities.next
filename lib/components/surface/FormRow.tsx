@@ -26,8 +26,6 @@ interface Props {
    * `formRowHintId(htmlFor)` / `formRowLabelId(htmlFor)` yourself.
    */
   children: ReactNode | ((props: FormRowControlProps) => ReactNode)
-  /** Give the control the rest of the row instead of a ~20rem column. */
-  wide?: boolean
   /**
    * A short control (switch, checkbox): it stays at the end of the label's row
    * on a phone too, instead of dropping below it full width.
@@ -52,16 +50,16 @@ export const formRowHintId = (htmlFor: string) => `${htmlFor}-hint`
  * One row of a settings form, to be set inside a `Frame form` (rows are
  * `px-4 py-2.5`, so two rows sit about 20px apart with no rule): the label
  * and its hint on the left and the control on the right from `sm` up, stacked
- * (label and hint above, control full width below) on a phone. `inline` keeps
- * the control on the label's row everywhere; `wide` gives it the row's
- * remaining width.
+ * (label and hint above, control full width below) on a phone. From `sm` up the
+ * label takes a third of the row and the control the other two thirds, so every
+ * form's fields line up in one column. `inline` keeps the control on the
+ * label's row everywhere.
  */
 export const FormRow: FC<Props> = ({
   label,
   htmlFor,
   hint,
   children,
-  wide = false,
   inline = false,
   stacked = false,
   className
@@ -79,12 +77,7 @@ export const FormRow: FC<Props> = ({
           ? 'flex items-center justify-between gap-4'
           : stacked
             ? 'flex flex-col gap-2'
-            : cn(
-                'flex flex-col gap-3 sm:grid sm:items-center sm:gap-6',
-                wide
-                  ? 'sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]'
-                  : 'sm:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]'
-              ),
+            : 'flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:items-center sm:gap-6',
         className
       )}
     >

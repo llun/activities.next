@@ -471,7 +471,7 @@ export const RulesPanel: FC = () => {
               </div>
             }
           >
-            <FormRow label="New rule" htmlFor="new-rule-text" wide>
+            <FormRow label="New rule" htmlFor="new-rule-text">
               <Input
                 id="new-rule-text"
                 placeholder="Add a rule…"

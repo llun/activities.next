@@ -81,7 +81,6 @@ export const FederationPolicyForm: FC<FederationPolicyFormProps> = ({
             label="Allowed servers"
             htmlFor="federation-actor-domains"
             help="One domain per line. Actors elsewhere are ignored."
-            wide
             locked={lock('federation.allowActorDomains').locked}
             envVar={lock('federation.allowActorDomains').envVar}
           >
@@ -99,7 +98,6 @@ export const FederationPolicyForm: FC<FederationPolicyFormProps> = ({
         <SettingsField
           label="Trusted media domains"
           htmlFor="federation-media-domains"
-          wide
           locked
           help="Configured in the environment; the ACTIVITIES_ALLOW_MEDIA_DOMAINS variable feeds the Content-Security-Policy and cannot be managed here."
         >
