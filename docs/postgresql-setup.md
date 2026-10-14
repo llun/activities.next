@@ -6,7 +6,7 @@ This guide will help you set up Activity.next using PostgreSQL as your database 
 
 - Node.js 24 and Yarn 4 via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - Git (to clone the repository)
-- PostgreSQL server (version 12+)
+- PostgreSQL server (version 14+; CI loads the baseline schema on PostgreSQL 14)
 
 ## PostgreSQL Database Setup
 
@@ -60,7 +60,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 yarn migrate
 ```
 
-This will execute all migration scripts in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations).
+On an empty database the first migration loads the baseline schema (`migrations/baseline/postgres.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs. `yarn migrate` prints the database it resolved before it does anything, and `yarn migrate:status` lists the applied and pending migrations without writing to the database. An existing database that ran the old Knex migrations needs one check first: see [Upgrading past the Knex handover](maintenance.md#upgrading-past-the-knex-handover).
 
 ## Development Setup
 
@@ -164,7 +164,7 @@ docker run -p 3000:3000 \
   activities.next:pg
 ```
 
-> **Notes:** The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not include the Knex CLI, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables or the `ACTIVITIES_DATABASE` JSON) before the first start.
+> **Notes:** The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not run migrations, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables or the `ACTIVITIES_DATABASE` JSON) before the first start.
 
 For a complete setup with both PostgreSQL and Activity.next in Docker, you can use Docker Compose with a local build:
 
