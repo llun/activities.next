@@ -64,7 +64,7 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
         className="font-medium hover:underline underline-offset-2"
         onClick={(e) => e.stopPropagation()}
       >
-        {label}
+        {target.label}
       </Link>
     )
   }
@@ -79,7 +79,7 @@ export const BrandedDeviceLink: FC<BrandedDeviceLinkProps> = ({
         className="font-medium hover:underline underline-offset-2"
         onClick={(e) => e.stopPropagation()}
       >
-        {label}
+        {target.label}
       </a>
     )
   }

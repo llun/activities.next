@@ -181,8 +181,9 @@ const RecordingPicker: FC<{
         ref={triggerRef}
         variant="outline"
         // The visible text is only the device, which says nothing about what the
-        // button does.
-        aria-label={`Recorded with ${getRecordingLabel(selected)}, choose recording`}
+        // button does. "Recorded with" is the text just before it, so it is not
+        // repeated in the name.
+        aria-label={`${getRecordingLabel(selected)}, choose recording`}
         // `shrink` over the button's own `shrink-0`: next to the download
         // button the trigger is what gives, truncating its label, so the two
         // stay on one line on a phone.

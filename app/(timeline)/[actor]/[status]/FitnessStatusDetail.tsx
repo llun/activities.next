@@ -22,7 +22,6 @@ import {
   Mail,
   MessageCircle,
   Mountain,
-  RefreshCw,
   Repeat2,
   Route,
   Unlock,
@@ -68,7 +67,6 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
-import { Button } from '@/lib/components/ui/button'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
@@ -927,19 +925,21 @@ export const FitnessStatusDetail: FC<Props> = ({
   // so the message says the map follows shortly and the page is re-read only
   // when the server reports the job already ran (a refresh before that would
   // just show the old map again).
-  const handleMakePrimary = async (
-    fitnessFileId: string,
-    { isRetry = false }: { isRetry?: boolean } = {}
-  ) => {
+  const handleMakePrimary = async (fitnessFileId: string) => {
     if (makingPrimaryId) return
     const target = fitnessFiles.find((file) => file.id === fitnessFileId)
-    if (!target || target.isPrimary) return
+    if (!target || target.isPrimary) {
+      // Nothing left to do for this file (it already is the primary, or is
+      // gone), so a failure shown for it has no action to offer.
+      setPrimaryError((current) =>
+        current?.fileId === fitnessFileId ? null : current
+      )
+      return
+    }
 
     setMakingPrimaryId(fitnessFileId)
     setPrimaryNotice(null)
-    // A retry keeps the Alert (and the Retry button focus sits on) mounted
-    // until it settles; unmounting it first would drop focus to the page body.
-    if (!isRetry) setPrimaryError(null)
+    setPrimaryError(null)
 
     try {
       const {
@@ -966,12 +966,6 @@ export const FitnessStatusDetail: FC<Props> = ({
             : `${label} is now the primary recording. The route map updates shortly.`
       )
       if (processed && !alreadyPrimary) router.refresh()
-      if (isRetry) {
-        // The Alert the focus was on goes with the success: hand focus to the
-        // control the owner started from rather than to the body.
-        setPrimaryError(null)
-        recordingTriggerRef.current?.focus()
-      }
     } catch (error) {
       setPrimaryError({
         message:
@@ -983,6 +977,18 @@ export const FitnessStatusDetail: FC<Props> = ({
     } finally {
       setMakingPrimaryId(null)
     }
+  }
+
+  // Retry is a first attempt again, except for where focus goes. Focus moves to
+  // the picker trigger BEFORE the Alert unmounts (the Alert holds it until
+  // then, so it is never dropped to the page body); after that nothing touches
+  // focus, so a slow request cannot pull it back from wherever the owner went.
+  // A repeat failure mounts a fresh Alert, which a screen reader announces even
+  // when the message is the same as before.
+  const retryMakePrimary = () => {
+    if (!primaryError) return
+    recordingTriggerRef.current?.focus()
+    void handleMakePrimary(primaryError.fileId)
   }
 
   // Changing the assignment is an item in the post's own ⋯ menu, the way the
@@ -1591,25 +1597,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             <Alert
               className="mt-2"
               title={primaryError.message}
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  // `aria-disabled`, not `disabled`: a button that is disabled
-                  // while focused is the one that loses focus.
-                  aria-disabled={makingPrimaryId !== null}
-                  onClick={() => {
-                    if (makingPrimaryId) return
-                    void handleMakePrimary(primaryError.fileId, {
-                      isRetry: true
-                    })
-                  }}
-                >
-                  <RefreshCw aria-hidden="true" />
-                  Retry
-                </Button>
-              }
+              onRetry={retryMakePrimary}
             />
           ) : null}
           <p
@@ -1621,9 +1609,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           >
             {makingPrimaryId
               ? 'Making this the primary recording…'
-              : primaryError
-                ? ''
-                : (primaryNotice ?? '')}
+              : (primaryNotice ?? '')}
           </p>
 
           {fitnessSourceUrl ? (

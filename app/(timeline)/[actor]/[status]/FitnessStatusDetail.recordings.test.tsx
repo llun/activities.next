@@ -240,7 +240,7 @@ describe('FitnessStatusDetail recordings', () => {
 
       expect(
         await screen.findByRole('button', {
-          name: 'Recorded with Forerunner 965, choose recording'
+          name: 'Forerunner 965, choose recording'
         })
       ).toHaveAttribute('aria-haspopup', 'menu')
     })
@@ -728,7 +728,7 @@ describe('FitnessStatusDetail recordings', () => {
       ).toBeInTheDocument()
     })
 
-    it('keeps the Alert, with Retry inert, while a retry runs, then hands focus to the picker', async () => {
+    it('moves focus to the picker trigger when Retry is pressed, then sends the request like a first attempt', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
       mockMakeFitnessFilePrimary.mockRejectedValueOnce(new Error('Try later.'))
       const retry = createDeferred<MakeFitnessFilePrimaryResult>()
@@ -746,33 +746,61 @@ describe('FitnessStatusDetail recordings', () => {
       retryButton.focus()
 
       fireEvent.click(retryButton)
+
+      // Focus is on the control that stays, not on a body the Alert left behind.
+      expect(
+        screen.getByRole('button', {
+          name: recordingTriggerName('Forerunner 965')
+        })
+      ).toHaveFocus()
       await waitFor(() =>
         expect(mockMakeFitnessFilePrimary).toHaveBeenCalledTimes(2)
       )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-      // Still there and still focused, so focus has not fallen to the body.
-      expect(screen.getByRole('alert')).toBe(alert)
-      expect(retryButton).toHaveAttribute('aria-disabled', 'true')
-      expect(retryButton).toHaveFocus()
-      // A second press while it runs does nothing.
-      fireEvent.click(retryButton)
-      expect(mockMakeFitnessFilePrimary).toHaveBeenCalledTimes(2)
-
+      // Nothing moves focus once the response lands.
+      const elsewhere = screen.getByRole('link', { name: /Download FIT file/ })
+      elsewhere.focus()
       await act(async () => {
         retry.resolve(promoted(headUnit({ isPrimary: true })))
       })
-
-      await waitFor(() =>
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Edge 840 is now the primary recording'
       )
-      expect(
-        screen.getByRole('button', {
-          name: recordingTriggerName('Edge 840')
-        })
-      ).toHaveFocus()
+      expect(elsewhere).toHaveFocus()
     })
 
-    it('keeps the Alert, with the new reason, when the retry fails too', async () => {
+    it('mounts a fresh Alert when the retry fails with the same message', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
+      mockMakeFitnessFilePrimary.mockRejectedValue(new Error('Try later.'))
+      renderDetail()
+
+      fireEvent.click(
+        within(await openRecordingPicker('Forerunner 965')).getByRole(
+          'menuitem',
+          { name: 'Make primary: Edge 840' }
+        )
+      )
+      const first = await screen.findByRole('alert')
+      expect(first).toHaveTextContent('Try later.')
+
+      fireEvent.click(within(first).getByRole('button', { name: /retry/i }))
+
+      await waitFor(() =>
+        expect(mockMakeFitnessFilePrimary).toHaveBeenCalledTimes(2)
+      )
+      // A different node: the old one unmounted and a new one mounted, which is
+      // what a screen reader announces. Updating one in place with the same
+      // text would say nothing.
+      await waitFor(() => {
+        const second = screen.getByRole('alert')
+        expect(second).toHaveTextContent('Try later.')
+        expect(second).not.toBe(first)
+      })
+      expect(first).not.toBeInTheDocument()
+    })
+
+    it('shows the new reason when the retry fails differently', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([watch(), headUnit()])
       mockMakeFitnessFilePrimary.mockRejectedValueOnce(new Error('Try later.'))
       mockMakeFitnessFilePrimary.mockRejectedValueOnce(new Error('Still no.'))
