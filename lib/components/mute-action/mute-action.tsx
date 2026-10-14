@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
+import { Label } from '@/lib/components/ui/label'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
 interface MuteActionProps {
@@ -129,15 +130,21 @@ export const MuteAction: FC<MuteActionProps> = ({
               still see and reply to your posts.
             </DialogDescription>
           </DialogHeader>
-          <label className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2">
             <Checkbox
+              id="mute-action-hide-notifications"
               checked={muteNotifications}
               onChange={(event) => setMuteNotifications(event.target.checked)}
             />
-            Also hide notifications from this actor
-          </label>
+            <Label
+              htmlFor="mute-action-hide-notifications"
+              className="font-normal"
+            >
+              Also hide notifications from this actor
+            </Label>
+          </div>
           {error ? <Alert title={error} /> : null}
-          <DialogFooter>
+          <DialogFooter separated>
             <Button
               type="button"
               variant="outline"
