@@ -71,7 +71,7 @@ describe('computeHistogram', () => {
       ],
       10
     )
-    const histogram = computeHistogram(data, 30, 1)
+    const histogram = computeHistogram(data, 30, 1, 64)
     expect(histogram.bins).toBe(64)
     for (const channel of [
       histogram.r,
@@ -89,5 +89,49 @@ describe('computeHistogram', () => {
   it('supports other bin counts', () => {
     const histogram = computeHistogram(pixels([[255, 255, 255]]), 1, 1, 8)
     expect(histogram.luma[7]).toBe(1)
+  })
+
+  it('defaults to 128 bins', () => {
+    const histogram = computeHistogram(pixels([[0, 128, 255]], 4), 4, 1)
+    expect(histogram.bins).toBe(128)
+    expect(histogram.r).toHaveLength(128)
+    expect(histogram.g[64]).toBe(4)
+    expect(histogram.b[127]).toBe(4)
+  })
+
+  it.each([
+    {
+      description: 'pure black clips every channel in the shadows',
+      rgb: [0, 0, 0],
+      low: { r: 3, g: 3, b: 3 },
+      high: { r: 0, g: 0, b: 0 }
+    },
+    {
+      description: 'pure white clips every channel in the highlights',
+      rgb: [255, 255, 255],
+      low: { r: 0, g: 0, b: 0 },
+      high: { r: 3, g: 3, b: 3 }
+    },
+    {
+      description: 'pure red clips red high and green/blue low',
+      rgb: [255, 0, 0],
+      low: { r: 0, g: 3, b: 3 },
+      high: { r: 3, g: 0, b: 0 }
+    },
+    {
+      description: 'near-extreme values are not clipped',
+      rgb: [1, 254, 128],
+      low: { r: 0, g: 0, b: 0 },
+      high: { r: 0, g: 0, b: 0 }
+    }
+  ])('counts exact clipping: $description', ({ rgb, low, high }) => {
+    const histogram = computeHistogram(
+      pixels([rgb as [number, number, number]], 3),
+      3,
+      1
+    )
+    expect(histogram.total).toBe(3)
+    expect(histogram.clipLow).toEqual(low)
+    expect(histogram.clipHigh).toEqual(high)
   })
 })

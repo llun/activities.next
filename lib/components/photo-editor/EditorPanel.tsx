@@ -12,9 +12,9 @@ import { TabsContent, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 
 import { AdjustPanel } from './AdjustPanel'
-import { AiPanel } from './AiPanel'
 import { CropPanel } from './CropPanel'
 import { Histogram } from './Histogram'
+import { PresetsPanel } from './PresetsPanel'
 import type { EditorControls } from './editorControls'
 import type { Histogram as HistogramData } from './engine/histogram'
 import { MasksPanel } from './masks/MasksPanel'
@@ -65,7 +65,7 @@ export const EditorPanel = ({
       </div>
       <div className="px-4 pt-3">
         {/* Four tabs do not fit this 292 px panel with their icons, so the
-            labels carry them alone once the AI tab is there. */}
+            labels carry them alone once the Presets tab is there. */}
         <TabsList
           className={controls.ai.available ? 'w-full [&_svg]:hidden' : 'w-full'}
         >
@@ -82,9 +82,9 @@ export const EditorPanel = ({
             Masks
           </TabsTrigger>
           {controls.ai.available ? (
-            <TabsTrigger value="ai" className="px-2">
+            <TabsTrigger value="presets" className="px-2">
               <Sparkles aria-hidden="true" />
-              AI
+              Presets
             </TabsTrigger>
           ) : null}
         </TabsList>
@@ -105,8 +105,8 @@ export const EditorPanel = ({
         />
       </TabsContent>
       {controls.ai.available ? (
-        <TabsContent value="ai">
-          <AiPanel controls={controls} />
+        <TabsContent value="presets">
+          <PresetsPanel controls={controls} />
         </TabsContent>
       ) : null}
     </aside>

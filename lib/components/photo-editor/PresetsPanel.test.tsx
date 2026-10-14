@@ -10,7 +10,7 @@ import {
   type Recipe
 } from '@/lib/services/medias/edit/recipe'
 
-import { AiPanel } from './AiPanel'
+import { PresetsPanel } from './PresetsPanel'
 import type { EditorControls } from './editorControls'
 import { PRESETS } from './presets'
 import { useAiEnhance } from './useAiEnhance'
@@ -79,7 +79,7 @@ const Harness = ({
   } as unknown as EditorControls
   return (
     <>
-      <AiPanel controls={controls} />
+      <PresetsPanel controls={controls} />
       <button type="button" onClick={history.undo}>
         Undo
       </button>
@@ -169,7 +169,7 @@ const runEnhance = () => {
   fireEvent.click(enhanceButton())
 }
 
-describe('AiPanel', () => {
+describe('PresetsPanel', () => {
   beforeAll(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub)
   })

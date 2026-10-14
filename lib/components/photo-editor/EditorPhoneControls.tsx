@@ -13,10 +13,10 @@ import { Button } from '@/lib/components/ui/button'
 import { TabsContent, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import type { AdjustmentKey } from '@/lib/services/medias/edit/recipe'
 
-import { AiPanel } from './AiPanel'
 import { CropPanel } from './CropPanel'
 import { PhoneSliderPanel } from './PhoneSliderPanel'
 import { PillGroup } from './PillGroup'
+import { PresetsPanel } from './PresetsPanel'
 import {
   CONTROLS_BY_KEY,
   type ControlGroup,
@@ -45,8 +45,8 @@ const TAB_CLASS =
 /**
  * The phone controls: a category control with Auto, a row of 58 px chips
  * (a dot marks a changed value), one large slider for the chosen chip, and
- * the Adjust / Crop / Masks tab bar, plus AI when enhance is available. The
- * Crop, Masks and AI tabs replace the chip area.
+ * the Adjust / Crop / Masks tab bar, plus Presets when enhance is available. The
+ * Crop, Masks and Presets tabs replace the chip area.
  */
 export const EditorPhoneControls = ({
   controls,
@@ -124,8 +124,8 @@ export const EditorPhoneControls = ({
         />
       </TabsContent>
       {controls.ai.available ? (
-        <TabsContent value="ai">
-          <AiPanel controls={controls} compact />
+        <TabsContent value="presets">
+          <PresetsPanel controls={controls} compact />
         </TabsContent>
       ) : null}
       <TabsList className="h-[58px] w-full rounded-none border-t bg-background p-0">
@@ -142,9 +142,9 @@ export const EditorPhoneControls = ({
           Masks
         </TabsTrigger>
         {controls.ai.available ? (
-          <TabsTrigger value="ai" className={TAB_CLASS}>
+          <TabsTrigger value="presets" className={TAB_CLASS}>
             <Sparkles aria-hidden="true" />
-            AI
+            Presets
           </TabsTrigger>
         ) : null}
       </TabsList>
