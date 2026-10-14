@@ -2,7 +2,15 @@ import fs from 'fs'
 import path from 'path'
 
 const SOURCE_ROOTS = ['app', 'lib']
-const ROOT_SOURCE_FILES = ['next.config.ts', 'proxy.ts', 'instrumentation.ts']
+// Entry points outside app/ and lib/ that read the runtime configuration
+// (through lib/config): the Next.js and instrumentation entry points, and the
+// `yarn migrate` CLI (lib/config/migrationDatabase.ts).
+const ROOT_SOURCE_FILES = [
+  'next.config.ts',
+  'proxy.ts',
+  'instrumentation.ts',
+  path.join('scripts', 'database', 'migrate.ts')
+]
 
 const RUNTIME_CONFIG_PATTERN =
   /process\.env(?:\.(?:ACTIVITIES|OTEL_EXPORTER)_|\[['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]\])|=\s*['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]/

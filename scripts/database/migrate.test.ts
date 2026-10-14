@@ -3,6 +3,7 @@ import { sql } from 'kysely'
 import os from 'os'
 import path from 'path'
 
+import { type DatabaseConfig, getDatabaseConfig } from '@/lib/config/database'
 import { createDatabaseConnection } from '@/lib/database/connection'
 import {
   BASELINE_MIGRATION,
@@ -259,6 +260,44 @@ describe('scripts/database/migrate', () => {
         connection: { host: 'db.internal', user: 'activities' }
       })
     })
+
+    it.each([
+      ['unset', undefined, undefined],
+      ['disable', 'disable', undefined],
+      ['require', 'require', { rejectUnauthorized: false }],
+      [
+        'verify-ca',
+        'verify-ca',
+        { rejectUnauthorized: true, checkServerIdentity: expect.any(Function) }
+      ],
+      ['verify-full', 'verify-full', { rejectUnauthorized: true }]
+    ])(
+      'reads ACTIVITIES_DATABASE_PG_SSL_MODE %s as the app does',
+      (_label, sslMode, expected) => {
+        vi.stubEnv('ACTIVITIES_DATABASE_CLIENT', 'pg')
+        vi.stubEnv('ACTIVITIES_DATABASE_PG_SSL_MODE', sslMode)
+        const sslOf = (config: DatabaseConfig | undefined) =>
+          config?.client === 'pg' && typeof config.connection === 'object'
+            ? config.connection.ssl
+            : 'not a PostgreSQL connection object'
+
+        const migrationSsl = sslOf(getMigrationDatabaseConfig())
+        const appSsl = sslOf(getDatabaseConfig()?.database)
+        expect(migrationSsl).toEqual(expected)
+        expect(appSsl).toEqual(expected)
+        if (sslMode === 'verify-ca') {
+          // Both skip the host name check: the certificate is verified
+          // against the CA only.
+          for (const ssl of [migrationSsl, appSsl]) {
+            expect(
+              (
+                ssl as { checkServerIdentity: () => unknown }
+              ).checkServerIdentity()
+            ).toBeUndefined()
+          }
+        }
+      }
+    )
   })
 
   describe('makeMigration', () => {

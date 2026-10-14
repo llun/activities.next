@@ -34,18 +34,16 @@
  * `ACTIVITIES_DATABASE_*` variables (a bare
  * `ACTIVITIES_DATABASE_SQLITE_FILENAME` means SQLite), or
  * `./activities.sqlite` when nothing is set, with `.env*` files loaded by
- * dotenv-flow (`getMigrationDatabaseConfig` below). It is printed before
- * anything runs.
+ * dotenv-flow (`getMigrationDatabaseConfig` in
+ * lib/config/migrationDatabase.ts). It is printed before anything runs.
  */
 import dotenvFlow from 'dotenv-flow'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import {
-  type DatabaseConfig,
-  parseDatabaseJsonConfig
-} from '@/lib/config/database'
+import type { DatabaseConfig } from '@/lib/config/database'
+import { getMigrationDatabaseConfig } from '@/lib/config/migrationDatabase'
 import { createDatabaseConnection } from '@/lib/database/connection'
 import { inTransaction } from '@/lib/database/kysely'
 import {
@@ -64,123 +62,9 @@ import { describeConnection } from '../fitness/describeConnection'
 const MIGRATIONS_DIRECTORY = 'migrations'
 const STUB = path.join(MIGRATIONS_DIRECTORY, 'migration.stub')
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-// ACTIVITIES_DATABASE_PG_SSL_MODE as node-postgres `ssl` settings, read the
-// way the app reads it (lib/config/database.ts).
-const getPostgresSslConfig = () => {
-  const sslMode = process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
-  if (!sslMode || sslMode === 'disable') return null
-
-  return {
-    rejectUnauthorized: sslMode === 'verify-ca' || sslMode === 'verify-full',
-    ...(sslMode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {})
-  }
-}
-
-// ACTIVITIES_DATABASE holds the whole configuration as a JSON object and wins
-// over the individual ACTIVITIES_DATABASE_* variables, as it does for the app
-// (getDatabaseConfig in lib/config/database.ts). Failing loudly on bad JSON
-// matters: falling through would silently migrate the default local SQLite
-// file instead of the database the operator configured.
-const getJsonDatabaseConfig = (): Record<string, unknown> | null => {
-  const raw = process.env.ACTIVITIES_DATABASE
-  if (!raw) return null
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    throw new Error('ACTIVITIES_DATABASE must be a JSON database configuration')
-  }
-  if (!isObject(parsed)) {
-    throw new Error('ACTIVITIES_DATABASE must be a JSON database configuration')
-  }
-  return parsed
-}
-
-/**
- * The configuration `yarn migrate` reads from the environment, before it is
- * checked: the `ACTIVITIES_DATABASE` JSON; else the `ACTIVITIES_DATABASE_*`
- * variables, where a bare `ACTIVITIES_DATABASE_SQLITE_FILENAME` implies
- * SQLite and the generic `ACTIVITIES_DATABASE_HOST` / `_PORT` / `_USER` /
- * `_PASSWORD` stand in for the `_PG_` ones; else
- * `ACTIVITIES_DEFAULT_DATABASE_SQLITE_FILENAME` or `./activities.sqlite`.
- * Settings that are not set are left `undefined` (`ssl`: `null`).
- */
-const getMigrationEnvironmentConfig = (): Record<string, unknown> => {
-  const jsonConfig = getJsonDatabaseConfig()
-  if (jsonConfig) return jsonConfig
-
-  const client =
-    process.env.ACTIVITIES_DATABASE_CLIENT ||
-    (process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME
-      ? 'better-sqlite3'
-      : undefined)
-
-  if (
-    Object.keys(process.env).some((key) =>
-      key.startsWith('ACTIVITIES_DATABASE_')
-    )
-  ) {
-    return {
-      client,
-      connection: {
-        host:
-          process.env.ACTIVITIES_DATABASE_PG_HOST ||
-          process.env.ACTIVITIES_DATABASE_HOST,
-        port:
-          process.env.ACTIVITIES_DATABASE_PG_PORT ||
-          process.env.ACTIVITIES_DATABASE_PORT,
-        user:
-          process.env.ACTIVITIES_DATABASE_PG_USER ||
-          process.env.ACTIVITIES_DATABASE_USER,
-        password:
-          process.env.ACTIVITIES_DATABASE_PG_PASSWORD ||
-          process.env.ACTIVITIES_DATABASE_PASSWORD,
-        database: process.env.ACTIVITIES_DATABASE_PG_DATABASE,
-        filename: process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME,
-        ssl: getPostgresSslConfig()
-      }
-    }
-  }
-
-  return {
-    client: 'better-sqlite3',
-    connection: {
-      filename:
-        process.env.ACTIVITIES_DEFAULT_DATABASE_SQLITE_FILENAME ||
-        './activities.sqlite'
-    }
-  }
-}
-
-// The environment configuration leaves every ACTIVITIES_DATABASE_* setting
-// that is not set as an undefined (or, for `ssl`, null) key; those are not
-// settings, so they are dropped rather than reported as ignored.
-const withoutUnsetValues = (config: Record<string, unknown>) =>
-  Object.fromEntries(
-    Object.entries(config)
-      .filter(([, value]) => value !== undefined)
-      .map(([key, value]) => [
-        key,
-        key === 'connection' && isObject(value)
-          ? Object.fromEntries(
-              Object.entries(value).filter(
-                ([, setting]) => setting !== undefined && setting !== null
-              )
-            )
-          : value
-      ])
-  )
-
-/**
- * The database `yarn migrate` runs on (see the top of this file). Call after
- * the `.env*` files are loaded.
- */
-export const getMigrationDatabaseConfig = (): DatabaseConfig =>
-  parseDatabaseJsonConfig(withoutUnsetValues(getMigrationEnvironmentConfig()))
+// The database configuration lives in lib/config/ with the rest of the
+// runtime configuration; scripts/database/migrate.test.ts tests it here.
+export { getMigrationDatabaseConfig }
 
 const describeHandover = (handover: MigrationStatus['handover']) => {
   switch (handover.kind) {

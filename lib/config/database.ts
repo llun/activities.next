@@ -175,6 +175,22 @@ export const parseDatabaseJsonConfig = (value: unknown): DatabaseConfig => {
   throw unsupportedClientError(client)
 }
 
+/**
+ * `ACTIVITIES_DATABASE_PG_SSL_MODE` as node-postgres `ssl` settings, for the
+ * app (getDatabaseConfig below) and `yarn migrate` (migrationDatabase.ts):
+ * `null` (no TLS) when unset or `disable`; otherwise TLS, verifying the
+ * certificate for `verify-ca` and `verify-full`, and skipping the host name
+ * check for `verify-ca`.
+ */
+export const getPostgresSslSettings = (sslMode: string | undefined) => {
+  if (!sslMode || sslMode === 'disable') return null
+
+  return {
+    rejectUnauthorized: sslMode === 'verify-ca' || sslMode === 'verify-full',
+    ...(sslMode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {})
+  }
+}
+
 const getEnvironmentPool = () => {
   const min = process.env.ACTIVITIES_DATABASE_PG_POOL_MIN
     ? parseInt(process.env.ACTIVITIES_DATABASE_PG_POOL_MIN, 10)
@@ -218,6 +234,9 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
       }
     }
     case 'pg': {
+      const ssl = getPostgresSslSettings(
+        process.env.ACTIVITIES_DATABASE_PG_SSL_MODE
+      )
       return {
         database: {
           client: process.env.ACTIVITIES_DATABASE_CLIENT,
@@ -238,22 +257,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
             ...(process.env.ACTIVITIES_DATABASE_PG_DATABASE
               ? { database: process.env.ACTIVITIES_DATABASE_PG_DATABASE }
               : {}),
-            ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE &&
-            process.env.ACTIVITIES_DATABASE_PG_SSL_MODE !== 'disable'
-              ? {
-                  ssl: {
-                    rejectUnauthorized:
-                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                        'verify-ca' ||
-                      process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                        'verify-full',
-                    ...(process.env.ACTIVITIES_DATABASE_PG_SSL_MODE ===
-                    'verify-ca'
-                      ? { checkServerIdentity: () => undefined }
-                      : {})
-                  }
-                }
-              : {})
+            ...(ssl ? { ssl } : {})
           },
           pool: getEnvironmentPool()
         }
