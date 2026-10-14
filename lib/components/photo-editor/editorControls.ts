@@ -26,6 +26,6 @@ export interface EditorControls {
   onGeometryChange: (geometry: Geometry, coalesceKey?: string) => void
   /** The Masks tab's state and actions. */
   masks: MaskTools
-  /** The AI tab's state and actions; the tab exists only when available. */
+  /** The Presets tab's state and actions; the tab exists only when available. */
   ai: AiTools
 }

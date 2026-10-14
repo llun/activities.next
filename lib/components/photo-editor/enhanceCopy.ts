@@ -1,8 +1,8 @@
 import type { PresetId } from './presets'
 
-/** The strings of the AI tab, in one place so the panels and tests agree. */
+/** The strings of the Presets tab, in one place so the panels and tests agree. */
 export const ENHANCE_COPY = {
-  tab: 'AI',
+  tab: 'Presets',
   intro: 'Choose a look preset to enhance this photo.',
   enhance: 'Enhance',
   again: 'Enhance again',

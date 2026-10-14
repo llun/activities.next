@@ -42,7 +42,7 @@ import type { MaskRasters } from './masks/maskRaster'
 import { useThemeVersion } from './masks/useThemeVersion'
 import { useElementSize } from './useElementSize'
 
-export type EditorTab = 'adjust' | 'crop' | 'masks' | 'ai'
+export type EditorTab = 'adjust' | 'crop' | 'masks' | 'presets'
 export type RendererStatus = 'idle' | 'ready' | 'lost' | 'error'
 
 export const HISTOGRAM_DEBOUNCE_MS = 120
