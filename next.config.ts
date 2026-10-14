@@ -123,7 +123,6 @@ const nextConfig: NextConfig = {
     '@google-cloud/tasks',
     '@keyv/redis',
     '@upstash/qstash',
-    'knex',
     'bcrypt',
     'better-sqlite3',
     'fluent-ffmpeg',

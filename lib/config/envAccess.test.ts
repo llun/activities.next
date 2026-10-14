@@ -2,12 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 const SOURCE_ROOTS = ['app', 'lib']
-const ROOT_SOURCE_FILES = [
-  'next.config.ts',
-  'proxy.ts',
-  'instrumentation.ts',
-  'knexfile.js'
-]
+const ROOT_SOURCE_FILES = ['next.config.ts', 'proxy.ts', 'instrumentation.ts']
 
 const RUNTIME_CONFIG_PATTERN =
   /process\.env(?:\.(?:ACTIVITIES|OTEL_EXPORTER)_|\[['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]\])|=\s*['"](?:ACTIVITIES|OTEL_EXPORTER)_\w+['"]/

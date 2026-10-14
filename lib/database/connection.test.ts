@@ -2,7 +2,7 @@ import { sql } from 'kysely'
 
 import {
   type DatabaseConfig,
-  parseKnexDatabaseConfig
+  parseDatabaseJsonConfig
 } from '@/lib/config/database'
 import {
   DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS,
@@ -64,7 +64,7 @@ describe('createDatabaseConnection', () => {
     }
   )
 
-  it('keeps the timeouts Knex used', () => {
+  it('waits 60 s for a pooled connection and keeps an idle one 30 s', () => {
     expect(DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS).toBe(60_000)
     expect(POOL_IDLE_TIMEOUT_MS).toBe(30_000)
   })
@@ -96,9 +96,9 @@ describe('createDatabaseConnection', () => {
       createdAt: createdAt.getTime()
     })
 
-    // Stored the way Knex stored them: epoch ms and 0/1 on SQLite. Read as
-    // expressions, which the SQLite normalisation leaves as they are (it
-    // converts a column by its declared type).
+    // Stored as epoch ms and 0/1 on SQLite. Read as expressions, which the
+    // SQLite normalisation leaves as they are (it converts a column by its
+    // declared type).
     const { rows } = await sql<{ storedFlag: unknown; storedTime: unknown }>`
       select ${sql.raw(
         backend === 'pg'
@@ -161,8 +161,8 @@ describe('createDatabaseConnection', () => {
               day: '2026-02-03'
             }
           : {
-              // SQLite's stored values; bindings are still encoded the way
-              // Knex encoded them (Date -> epoch ms, boolean -> 0/1).
+              // SQLite's stored values; bindings are encoded as
+              // Date -> epoch ms and boolean -> 0/1.
               flag: 1,
               atUtc: null,
               at: at.getTime(),
@@ -468,9 +468,9 @@ describe('createDatabaseConnection', () => {
   )
 })
 
-// The pool keeps Knex's effective behaviour: `max` connections at most, a
-// query that cannot get one fails after the acquire timeout instead of
-// waiting forever, and a connection the server drops is replaced.
+// The pool opens `max` connections at most, a query that cannot get one fails
+// after the acquire timeout instead of waiting forever, and a connection the
+// server drops is replaced.
 describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
   const testDb = createTestDatabase({ isolated: true })
   const APPLICATION = 'activities-pool-test'
@@ -556,7 +556,7 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
     expect(rows).toEqual([{ name: 'Activities.next' }])
   })
 
-  // A Knex-shaped ACTIVITIES_DATABASE without `connection` leaves the
+  // An ACTIVITIES_DATABASE JSON without `connection` leaves the
   // connection settings to node-postgres' PG* environment variables.
   it('connects through the PG* variables when the JSON has no connection', async () => {
     const config = getTestDatabaseConfig('pg', true)
@@ -579,7 +579,7 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
       else process.env[name] = String(value)
     }
     const handle = createDatabaseConnection(
-      parseKnexDatabaseConfig({ client: 'pg' })
+      parseDatabaseJsonConfig({ client: 'pg' })
     )
     try {
       const { rows } = await sql<{

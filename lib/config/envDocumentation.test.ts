@@ -13,18 +13,11 @@ const UNDOCUMENTED_ALLOWLIST = new Set([
   'ACTIVITIES_AUTH_GITHUB_SECRET'
 ])
 
-// knexfile.js is the migration-CLI helper; its generic connection fallbacks
-// (ACTIVITIES_DATABASE_HOST/PORT/USER/PASSWORD and the dev-only
-// ACTIVITIES_DEFAULT_DATABASE_SQLITE_FILENAME) are internal, so the file is
-// skipped below.
-const SKIPPED_FILES = new Set(['knexfile.js'])
-
 describe('environment variable documentation', () => {
   it('documents every ACTIVITIES_*/OTEL_* variable read in lib/config', () => {
     const sources = readdirSync(configDir)
       .filter((name) => /\.(ts|js)$/.test(name))
       .filter((name) => !/\.test\.ts$/.test(name))
-      .filter((name) => !SKIPPED_FILES.has(name))
       .map((name) => readFileSync(join(configDir, name), 'utf8'))
       .join('\n')
     const docs = readFileSync(

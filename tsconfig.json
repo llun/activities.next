@@ -8,8 +8,7 @@
       "@/package.json": ["./package.json"],
       "@/instrumentation": ["./instrumentation.ts"],
       "@/next.config": ["./next.config.ts"],
-      "@/proxy": ["./proxy.ts"],
-      "knex": ["./node_modules/knex"]
+      "@/proxy": ["./proxy.ts"]
     },
     "target": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],
