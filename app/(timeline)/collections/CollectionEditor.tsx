@@ -377,17 +377,20 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
             hint="One discovery hashtag (optional)."
           >
             {({ describedBy }) => (
-              <div className="flex items-center rounded-md border bg-background focus-within:ring-1 focus-within:ring-ring">
-                <span className="pl-3 pr-1 text-sm text-muted-foreground">
+              <div className="relative">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground"
+                >
                   #
                 </span>
-                <input
+                <Input
                   id="collection-topic"
                   aria-describedby={describedBy}
                   value={topic}
                   maxLength={255}
                   placeholder="fediverse"
-                  className="h-9 w-full rounded-md bg-transparent pr-3 text-sm outline-none"
+                  className="pl-6"
                   onChange={(event) =>
                     setTopic(sanitizeTopic(event.target.value))
                   }

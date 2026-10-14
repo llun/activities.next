@@ -306,7 +306,6 @@ export const FilterEditor: FC<FilterEditorProps> = ({
                 <Checkbox
                   id={`filterContext-${option.id}`}
                   aria-describedby={describedBy}
-                  className="size-[18px]"
                   checked={context.includes(option.id)}
                   onChange={() => toggleContext(option.id)}
                 />
@@ -430,14 +429,16 @@ export const FilterEditor: FC<FilterEditorProps> = ({
                         aria-label={`Whole word for ${keyword.keyword || 'keyword'}`}
                       />
                     </div>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label={`Remove keyword ${keyword.keyword}`}
                       onClick={() => removeKeyword(keyword.key)}
-                      className="text-muted-foreground hover:bg-muted inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
+                      className="shrink-0 text-muted-foreground"
                     >
-                      <X className="size-[15px]" />
-                    </button>
+                      <X />
+                    </Button>
                   </div>
                 ))}
               </div>

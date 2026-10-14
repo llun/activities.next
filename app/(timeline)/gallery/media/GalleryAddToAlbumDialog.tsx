@@ -248,7 +248,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
 
         {error ? <Alert title={error} /> : null}
 
-        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+        <DialogFooter>
           <Button
             type="button"
             variant="outline"
