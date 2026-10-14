@@ -1,37 +1,7 @@
 import { formatFitnessDuration } from '@/lib/utils/fitness'
 
-/**
- * How densely a chart series is plotted, as samples-per-drawn-point.
- * Matches Strava's 8:1 ratio (e.g. 5,913 samples -> 740 drawn; 5,272 -> 659).
- */
-export const ANALYSIS_SAMPLES_PER_POINT = 8
-
-/**
- * Floors and ceilings on drawn point count.
- * The floor keeps a short activity at least as detailed as it was before (120 points).
- * The ceiling bounds the path strings for long recordings (1,200 points).
- */
-export const ANALYSIS_SERIES_MIN_POINTS = 120
-export const ANALYSIS_SERIES_MAX_POINTS = 1_200
-
-/**
- * Default tick counts for time axes across charts.
- * 6 ticks for full analysis panels; 4 ticks for the narrower overview elevation card.
- */
+/** Default tick count for a time axis. */
 export const DEFAULT_TICK_COUNT = 6
-export const OVERVIEW_TICK_COUNT = 4
-
-/**
- * Common graph view heights.
- */
-export const GRAPH_VIEW_HEIGHT = 250
-export const OVERVIEW_GRAPH_VIEW_HEIGHT = 130
-
-/**
- * Fraction of plot width beyond which the hover value chip flips to the left
- * of the cursor to avoid overflowing container padding.
- */
-export const CHART_READOUT_FLIP_THRESHOLD = 0.62
 
 export const clampNumber = (
   value: number,
@@ -62,22 +32,6 @@ export const downsampleSeries = (
   return result
 }
 
-/**
- * Reduce one raw series to the point count Strava would draw it at.
- * An empty series stays empty.
- */
-export const plotAtStravaDensity = (series: number[]): number[] => {
-  if (series.length === 0) return []
-  return downsampleSeries(
-    series,
-    clampNumber(
-      Math.round(series.length / ANALYSIS_SAMPLES_PER_POINT),
-      ANALYSIS_SERIES_MIN_POINTS,
-      ANALYSIS_SERIES_MAX_POINTS
-    )
-  )
-}
-
 export interface SeriesMinMax {
   minValue: number
   maxValue: number
@@ -104,68 +58,6 @@ export const getSeriesMinMax = (values: number[]): SeriesMinMax => {
   }
 
   return { minValue, maxValue }
-}
-
-/**
- * Projects sample index to SVG coordinate x.
- */
-export const getChartXPosition = (
-  index: number,
-  count: number,
-  width: number
-): number => {
-  return (index / Math.max(1, count - 1)) * width
-}
-
-/**
- * Projects sample value to SVG coordinate y.
- * Clamps flat ranges (maxValue === minValue) to avoid division by zero.
- */
-export const getChartYPosition = (
-  value: number,
-  height: number,
-  minValue: number,
-  maxValue: number
-): number => {
-  const range = Math.max(1, maxValue - minValue)
-  return height - ((value - minValue) / range) * height
-}
-
-/**
- * Builds SVG line path (`M x y L x y ...`) for a series of values.
- */
-export const buildChartPath = (
-  values: number[],
-  width: number,
-  height: number,
-  minValue?: number,
-  maxValue?: number
-): string => {
-  if (values.length === 0) return ''
-
-  const defaultMinMax = getSeriesMinMax(values)
-  const min = typeof minValue === 'number' ? minValue : defaultMinMax.minValue
-  const max = typeof maxValue === 'number' ? maxValue : defaultMinMax.maxValue
-
-  return values
-    .map((value, index) => {
-      const x = getChartXPosition(index, values.length, width)
-      const y = getChartYPosition(value, height, min, max)
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
-    })
-    .join(' ')
-}
-
-/**
- * Closes an SVG line path into an area path spanning down to the bottom (height).
- */
-export const buildChartAreaPath = (
-  linePath: string,
-  width: number,
-  height: number
-): string => {
-  if (!linePath) return ''
-  return `${linePath} L ${width.toFixed(2)} ${height} L 0 ${height} Z`
 }
 
 /**
@@ -202,164 +94,6 @@ export const buildXAxisLabels = (
     labels.push(formatDuration(seconds))
   }
   return labels
-}
-
-export interface ScaledSeriesInput<TKey extends string = string> {
-  key: TKey
-  label?: string
-  unit?: string
-  values: number[]
-  fractionDigits?: number
-}
-
-export interface PlottedCombinedSeries<TKey extends string = string> {
-  key: TKey
-  label: string
-  unit: string
-  values: number[]
-  fractionDigits: number
-  minValue: number
-  maxValue: number
-  path: string
-}
-
-/**
- * Scales multiple series independently to their own min and max values,
- * generating SVG path data for each.
- */
-export const scaleCombinedChartSeries = <T extends { values: number[] }>(
-  seriesList: T[],
-  width: number,
-  height: number
-): Array<T & { minValue: number; maxValue: number; path: string }> => {
-  return seriesList.map((entry) => {
-    const { minValue, maxValue } = getSeriesMinMax(entry.values)
-    return {
-      ...entry,
-      minValue,
-      maxValue,
-      path: buildChartPath(entry.values, width, height, minValue, maxValue)
-    }
-  })
-}
-
-export interface CombinedChartHighlight<TKey extends string = string> {
-  key: TKey
-  unit: string
-  fractionDigits: number
-  value: number
-  x: number
-  y: number
-}
-
-/**
- * Computes hover coordinates and values across multiple combined series for a given scrub ratio.
- */
-export const computeCombinedChartHighlights = <TKey extends string = string>(
-  plottedSeries: Array<{
-    key: TKey
-    unit: string
-    fractionDigits: number
-    values: number[]
-    minValue: number
-    maxValue: number
-  }>,
-  ratio: number | null,
-  width: number,
-  height: number
-): Array<CombinedChartHighlight<TKey>> => {
-  if (ratio === null) return []
-  return plottedSeries
-    .map((entry) => {
-      if (entry.values.length === 0) return null
-      const index = clampNumber(
-        Math.round(ratio * (entry.values.length - 1)),
-        0,
-        entry.values.length - 1
-      )
-      return {
-        key: entry.key,
-        unit: entry.unit,
-        fractionDigits: entry.fractionDigits,
-        value: entry.values[index],
-        x: getChartXPosition(index, entry.values.length, width),
-        y: getChartYPosition(
-          entry.values[index],
-          height,
-          entry.minValue,
-          entry.maxValue
-        )
-      }
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-}
-
-export interface ChartHighlight {
-  value: number
-  x: number
-  y: number
-}
-
-/**
- * Computes sample index from highlighted elapsed seconds and total duration.
- */
-export const computeHighlightedIndex = (
-  highlightedElapsedSeconds: number | null | undefined,
-  durationSeconds: number | undefined,
-  pointCount: number
-): number | null => {
-  if (
-    typeof highlightedElapsedSeconds !== 'number' ||
-    typeof durationSeconds !== 'number' ||
-    durationSeconds <= 0 ||
-    pointCount <= 0
-  ) {
-    return null
-  }
-  return clampNumber(
-    Math.round(
-      (highlightedElapsedSeconds / durationSeconds) * (pointCount - 1)
-    ),
-    0,
-    pointCount - 1
-  )
-}
-
-/**
- * Computes plot highlight coordinates (x, y, value) for a single series.
- */
-export const computeChartHighlight = (
-  values: number[],
-  highlightedIndex: number | null,
-  width: number,
-  height: number,
-  minValue: number,
-  maxValue: number
-): ChartHighlight | null => {
-  if (
-    highlightedIndex === null ||
-    highlightedIndex < 0 ||
-    highlightedIndex >= values.length
-  ) {
-    return null
-  }
-  return {
-    value: values[highlightedIndex],
-    x: getChartXPosition(highlightedIndex, values.length, width),
-    y: getChartYPosition(values[highlightedIndex], height, minValue, maxValue)
-  }
-}
-
-/**
- * Checks whether the hover readout chip should flip to the left of the cursor.
- */
-export const shouldFlipChartReadout = (
-  x: number,
-  width: number,
-  threshold = CHART_READOUT_FLIP_THRESHOLD
-): boolean => {
-  if (width <= 0) return false
-  return x / width > threshold
 }
 
 export interface HeartRateZoneDefinition {
@@ -485,28 +219,81 @@ export const computePowerHistogramMinutes = (
 }
 
 /**
- * Share of the power-distribution plot, counted back from its right edge, that
- * is kept free of tick labels because the end label (the right-aligned range
- * maximum) is printed there. Two "NNN W" labels at 11px are ~35px each, so 15%
- * holds both with a gap once the plot is ~465px wide or more (the detail column
- * gives it ~530px at 768px and ~776px from 1024px); a tick closer to the end
- * than that is the one that overlapped it. On a narrower plot the last tick can
- * still touch the end label — a fixed share cannot follow a pixel-sized label.
+ * Projects sample index to SVG coordinate x.
  */
-export const POWER_AXIS_END_CLEARANCE = 0.15
+export const getChartXPosition = (
+  index: number,
+  count: number,
+  width: number
+): number => {
+  return (index / Math.max(1, count - 1)) * width
+}
 
 /**
- * Which 25 W buckets get a tick label on the power-distribution x axis: every
- * other one (a label every 50 W), minus any that sits inside the end label's
- * clearance. The old `index % 2 === 0` rule alone printed the last even index
- * for an odd bucket count right under the end label — 25 buckets put "600 W"
- * at 96% of the plot and "625 W" at its right edge.
+ * Projects sample value to SVG coordinate y.
+ * Clamps flat ranges (maxValue === minValue) to avoid division by zero.
  */
-export const getPowerAxisTickIndices = (barCount: number): number[] => {
-  const indices: number[] = []
-  for (let index = 0; index < barCount; index += 2) {
-    if ((barCount - index) / barCount < POWER_AXIS_END_CLEARANCE) continue
-    indices.push(index)
+export const getChartYPosition = (
+  value: number,
+  height: number,
+  minValue: number,
+  maxValue: number
+): number => {
+  const range = Math.max(1, maxValue - minValue)
+  return height - ((value - minValue) / range) * height
+}
+
+export interface ChartPaths {
+  line: string
+  area: string
+}
+
+/**
+ * The line and the filled area of a series that may have gaps (null values):
+ * each unbroken run is its own subpath, and each closes down to the plot's
+ * bottom on its own, so a pause in the recording is a gap in the chart rather
+ * than a straight line drawn across it. Points sit at `index / (count - 1)`
+ * of the width, the first on the left edge and the last on the right.
+ */
+export const buildGappedChartPaths = (
+  values: Array<number | null>,
+  minValue: number,
+  maxValue: number,
+  width: number,
+  height: number
+): ChartPaths => {
+  const line: string[] = []
+  const area: string[] = []
+  let run: Array<[number, number]> = []
+  const flush = () => {
+    if (run.length === 0) return
+    const points = run.length === 1 ? [run[0], run[0]] : run
+    const subpath = points
+      .map(
+        ([x, y], index) =>
+          `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`
+      )
+      .join('')
+    line.push(subpath)
+    const first = points[0][0].toFixed(1)
+    const last = points[points.length - 1][0].toFixed(1)
+    area.push(`${subpath}L${last} ${height}L${first} ${height}Z`)
+    run = []
   }
-  return indices
+  values.forEach((value, index) => {
+    if (value === null || !Number.isFinite(value)) {
+      flush()
+      return
+    }
+    run.push([
+      getChartXPosition(index, values.length, width),
+      clampNumber(
+        getChartYPosition(value, height, minValue, maxValue),
+        0,
+        height
+      )
+    ])
+  })
+  flush()
+  return { line: line.join(''), area: area.join('') }
 }

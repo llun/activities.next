@@ -11,15 +11,22 @@ export const mockRefresh = vi.fn()
 // imperative GL handle, so it is where a test can read back the instant the
 // page is asking the map to highlight.
 export const MockActivityRouteMapKit = ({
-  highlightedElapsedSeconds
+  highlightedElapsedSeconds,
+  highlightedRange
 }: {
   highlightedElapsedSeconds?: number | null
+  highlightedRange?: { startSeconds: number; endSeconds: number } | null
 }) => (
   <div
     data-testid="route-map"
     data-highlighted-elapsed-seconds={
       typeof highlightedElapsedSeconds === 'number'
         ? String(highlightedElapsedSeconds)
+        : ''
+    }
+    data-highlighted-range={
+      highlightedRange
+        ? `${highlightedRange.startSeconds}-${highlightedRange.endSeconds}`
         : ''
     }
   />

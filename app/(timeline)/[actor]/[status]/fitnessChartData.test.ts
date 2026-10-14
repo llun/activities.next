@@ -3,16 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_TICK_COUNT,
   HEART_RATE_ZONES,
-  OVERVIEW_TICK_COUNT,
-  buildChartAreaPath,
-  buildChartPath,
+  buildGappedChartPaths,
   buildXAxisLabels,
   clampNumber,
-  computeChartHighlight,
-  computeCombinedChartHighlights,
   computeHeartRateStats,
   computeHeartRateZones,
-  computeHighlightedIndex,
   computePowerHistogramMinutes,
   downsampleSeries,
   fillHeartRateDropouts,
@@ -21,11 +16,7 @@ import {
   formatDuration,
   getChartXPosition,
   getChartYPosition,
-  getPowerAxisTickIndices,
-  getSeriesMinMax,
-  plotAtStravaDensity,
-  scaleCombinedChartSeries,
-  shouldFlipChartReadout
+  getSeriesMinMax
 } from './fitnessChartData'
 
 describe('fitnessChartData', () => {
@@ -54,37 +45,6 @@ describe('fitnessChartData', () => {
       const series = [10, 20, 30, 40]
       expect(downsampleSeries(series, 2)).toEqual([15, 35])
     })
-
-    it('plots at Strava density for empty and single-point series', () => {
-      expect(plotAtStravaDensity([])).toEqual([])
-      expect(plotAtStravaDensity([100])).toEqual([100])
-    })
-
-    it('plots at Strava density with 8:1 ratio', () => {
-      // 1000 samples / 8 = 125 points
-      const ramp = Array.from({ length: 1000 }, (_, i) => i)
-      const plotted = plotAtStravaDensity(ramp)
-      expect(plotted).toHaveLength(125)
-    })
-
-    it('enforces floor of 120 points on short recordings', () => {
-      // 600 samples / 8 = 75 points -> floored to 120
-      const ramp = Array.from({ length: 600 }, (_, i) => i)
-      const plotted = plotAtStravaDensity(ramp)
-      expect(plotted).toHaveLength(120)
-    })
-
-    it('enforces ceiling of 1200 points on very long recordings (large datasets)', () => {
-      // 40,000 samples / 8 = 5,000 -> capped at 1200
-      const ramp = Array.from({ length: 40_000 }, (_, i) => i)
-      const plotted = plotAtStravaDensity(ramp)
-      expect(plotted).toHaveLength(1200)
-    })
-
-    it('leaves series shorter than the 120-point floor at its own resolution', () => {
-      const short = [10, 20, 30, 40, 50]
-      expect(plotAtStravaDensity(short)).toHaveLength(5)
-    })
   })
 
   describe('getSeriesMinMax', () => {
@@ -106,51 +66,6 @@ describe('fitnessChartData', () => {
       const { minValue, maxValue } = getSeriesMinMax(large)
       expect(minValue).toBe(-25_000)
       expect(maxValue).toBe(24_999)
-    })
-  })
-
-  describe('coordinate projection', () => {
-    it('projects X position across count and width', () => {
-      expect(getChartXPosition(0, 1, 800)).toBe(0)
-      expect(getChartXPosition(0, 5, 800)).toBe(0)
-      expect(getChartXPosition(2, 5, 800)).toBe(400)
-      expect(getChartXPosition(4, 5, 800)).toBe(800)
-    })
-
-    it('projects Y position safely on flat ranges', () => {
-      // Range is max(1, 50 - 50) = 1, so y = height - (0/1)*height = height
-      expect(getChartYPosition(50, 200, 50, 50)).toBe(200)
-      expect(getChartYPosition(100, 200, 0, 100)).toBe(0)
-      expect(getChartYPosition(0, 200, 0, 100)).toBe(200)
-      expect(getChartYPosition(50, 200, 0, 100)).toBe(100)
-    })
-  })
-
-  describe('buildChartPath and buildChartAreaPath', () => {
-    it('handles empty series', () => {
-      expect(buildChartPath([], 800, 200)).toBe('')
-      expect(buildChartAreaPath('', 800, 200)).toBe('')
-    })
-
-    it('handles single-point series', () => {
-      const path = buildChartPath([50], 800, 200)
-      expect(path).toBe('M 0.00 200.00')
-      const area = buildChartAreaPath(path, 800, 200)
-      expect(area).toBe('M 0.00 200.00 L 800.00 200 L 0 200 Z')
-    })
-
-    it('handles flat ranges without NaN or Infinity', () => {
-      const path = buildChartPath([50, 50, 50], 800, 200)
-      expect(path).toBe('M 0.00 200.00 L 400.00 200.00 L 800.00 200.00')
-      const area = buildChartAreaPath(path, 800, 200)
-      expect(area).toBe(
-        'M 0.00 200.00 L 400.00 200.00 L 800.00 200.00 L 800.00 200 L 0 200 Z'
-      )
-    })
-
-    it('builds valid SVG path for varying series with custom min/max', () => {
-      const path = buildChartPath([0, 50, 100], 800, 200, 0, 100)
-      expect(path).toBe('M 0.00 200.00 L 400.00 100.00 L 800.00 0.00')
     })
   })
 
@@ -192,8 +107,8 @@ describe('fitnessChartData', () => {
       expect(buildXAxisLabels(0, 4)).toEqual(['0:00', '0:00', '0:00', '0:00'])
     })
 
-    it('generates four ticks for overview cards', () => {
-      expect(buildXAxisLabels(1800, OVERVIEW_TICK_COUNT)).toEqual([
+    it('generates four ticks when asked for four', () => {
+      expect(buildXAxisLabels(1800, 4)).toEqual([
         '0:00',
         '10:00',
         '20:00',
@@ -210,118 +125,6 @@ describe('fitnessChartData', () => {
         '24:00',
         '30:00'
       ])
-    })
-  })
-
-  describe('combined-chart scaling', () => {
-    it('scales each series independently to its own range', () => {
-      const elevation = { key: 'elevation', values: [0, 25, 50] }
-      const heartRate = { key: 'heart-rate', values: [100, 150, 200] }
-      const width = 800
-      const height = 200
-
-      const [scaledElevation, scaledHeartRate] = scaleCombinedChartSeries(
-        [elevation, heartRate],
-        width,
-        height
-      )
-
-      expect(scaledElevation.minValue).toBe(0)
-      expect(scaledElevation.maxValue).toBe(50)
-      // Both highest values map to SVG y = 0
-      expect(scaledElevation.path).toBe(
-        'M 0.00 200.00 L 400.00 100.00 L 800.00 0.00'
-      )
-
-      expect(scaledHeartRate.minValue).toBe(100)
-      expect(scaledHeartRate.maxValue).toBe(200)
-      expect(scaledHeartRate.path).toBe(
-        'M 0.00 200.00 L 400.00 100.00 L 800.00 0.00'
-      )
-    })
-
-    it('computes combined chart highlights at given ratio', () => {
-      const width = 800
-      const height = 200
-      const plotted = [
-        {
-          key: 'elevation' as const,
-          label: 'Elevation',
-          unit: 'm',
-          fractionDigits: 0,
-          values: [10, 20, 30],
-          minValue: 10,
-          maxValue: 30,
-          path: ''
-        },
-        {
-          key: 'speed' as const,
-          label: 'Speed',
-          unit: 'km/h',
-          fractionDigits: 1,
-          values: [20, 25, 30],
-          minValue: 20,
-          maxValue: 30,
-          path: ''
-        }
-      ]
-
-      expect(
-        computeCombinedChartHighlights(plotted, null, width, height)
-      ).toEqual([])
-
-      const highlights = computeCombinedChartHighlights(
-        plotted,
-        0.5,
-        width,
-        height
-      )
-      expect(highlights).toEqual([
-        {
-          key: 'elevation',
-          unit: 'm',
-          fractionDigits: 0,
-          value: 20,
-          x: 400,
-          y: 100
-        },
-        {
-          key: 'speed',
-          unit: 'km/h',
-          fractionDigits: 1,
-          value: 25,
-          x: 400,
-          y: 100
-        }
-      ])
-    })
-  })
-
-  describe('scrub highlight helpers', () => {
-    it('computes highlighted index from elapsed time and duration', () => {
-      expect(computeHighlightedIndex(null, 1800, 100)).toBeNull()
-      expect(computeHighlightedIndex(0, 1800, 100)).toBe(0)
-      expect(computeHighlightedIndex(900, 1800, 100)).toBe(50)
-      expect(computeHighlightedIndex(1800, 1800, 100)).toBe(99)
-      expect(computeHighlightedIndex(-50, 1800, 100)).toBe(0)
-      expect(computeHighlightedIndex(2500, 1800, 100)).toBe(99)
-      expect(computeHighlightedIndex(100, 0, 100)).toBeNull()
-    })
-
-    it('computes single chart highlight', () => {
-      const values = [10, 20, 30]
-      expect(computeChartHighlight(values, null, 800, 200, 10, 30)).toBeNull()
-      expect(computeChartHighlight(values, 1, 800, 200, 10, 30)).toEqual({
-        value: 20,
-        x: 400,
-        y: 100
-      })
-    })
-
-    it('determines when hover readout should flip', () => {
-      expect(shouldFlipChartReadout(400, 800)).toBe(false)
-      expect(shouldFlipChartReadout(500, 800)).toBe(true) // 500 / 800 = 0.625 > 0.62
-      expect(shouldFlipChartReadout(100, 0)).toBe(false)
     })
   })
 
@@ -408,22 +211,52 @@ describe('fitnessChartData', () => {
     })
   })
 
-  describe('getPowerAxisTickIndices', () => {
-    it.each([
-      // Odd count (576 W max): the last even index, 24, would sit at 96% of the
-      // plot under the "625 W" end label, and 22 at 88% still touches it.
-      [25, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]],
-      // Even count: the last even index, 22 at 92%, is the one that clashed.
-      [24, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]],
-      [13, [0, 2, 4, 6, 8, 10]],
-      [10, [0, 2, 4, 6, 8]],
-      [1, [0]],
-      [0, []]
-    ])(
-      'labels every 50 W of %i buckets except next to the end label',
-      (barCount, expected) => {
-        expect(getPowerAxisTickIndices(barCount)).toEqual(expected)
-      }
-    )
+  describe('coordinate projection', () => {
+    it('projects X position across count and width', () => {
+      expect(getChartXPosition(0, 1, 800)).toBe(0)
+      expect(getChartXPosition(0, 5, 800)).toBe(0)
+      expect(getChartXPosition(2, 5, 800)).toBe(400)
+      expect(getChartXPosition(4, 5, 800)).toBe(800)
+    })
+
+    it('projects Y position safely on flat ranges', () => {
+      // Range is max(1, 50 - 50) = 1, so y = height - (0/1)*height = height
+      expect(getChartYPosition(50, 200, 50, 50)).toBe(200)
+      expect(getChartYPosition(100, 200, 0, 100)).toBe(0)
+      expect(getChartYPosition(0, 200, 0, 100)).toBe(200)
+      expect(getChartYPosition(50, 200, 0, 100)).toBe(100)
+    })
+  })
+
+  describe('buildGappedChartPaths', () => {
+    it('draws one subpath per unbroken run, each closed to the bottom', () => {
+      const { line, area } = buildGappedChartPaths(
+        [0, 10, null, 10, 0],
+        0,
+        10,
+        100,
+        50
+      )
+      expect(line).toBe('M0.0 50.0L25.0 0.0M75.0 0.0L100.0 50.0')
+      expect(area).toBe(
+        'M0.0 50.0L25.0 0.0L25.0 50L0.0 50ZM75.0 0.0L100.0 50.0L100.0 50L75.0 50Z'
+      )
+    })
+
+    it('draws nothing for an empty or all-missing series', () => {
+      expect(buildGappedChartPaths([], 0, 1, 100, 50)).toEqual({
+        line: '',
+        area: ''
+      })
+      expect(buildGappedChartPaths([null, null], 0, 1, 100, 50)).toEqual({
+        line: '',
+        area: ''
+      })
+    })
+
+    it('draws a flat series without dividing by zero', () => {
+      const { line } = buildGappedChartPaths([5, 5], 5, 5, 100, 50)
+      expect(line).not.toContain('NaN')
+    })
   })
 })

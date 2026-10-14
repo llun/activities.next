@@ -124,6 +124,7 @@ interface GlMockHarness {
     getCanvas: ReturnType<typeof vi.fn>
     getSource: ReturnType<typeof vi.fn>
     getZoom: ReturnType<typeof vi.fn>
+    getBounds: ReturnType<typeof vi.fn>
     fitBounds: ReturnType<typeof vi.fn>
     setMinZoom: ReturnType<typeof vi.fn>
     setMaxBounds: ReturnType<typeof vi.fn>
@@ -172,6 +173,13 @@ const setupGlMock = (autoFireLoad = true): GlMockHarness => {
     getCanvas: vi.fn(() => canvas),
     getSource: vi.fn((id: string) => sources.get(id)),
     getZoom: vi.fn(() => 14),
+    // The view fitBounds left, wider than the route (a 16:9 frame).
+    getBounds: vi.fn(() => ({
+      getWest: () => -122.45,
+      getSouth: () => 37.76,
+      getEast: () => -122.39,
+      getNorth: () => 37.79
+    })),
     fitBounds: vi.fn(),
     setMinZoom: vi.fn(),
     setMaxBounds: vi.fn(),
@@ -188,10 +196,12 @@ const setupGlMock = (autoFireLoad = true): GlMockHarness => {
     sw: [number, number]
     ne: [number, number]
     constructor(sw: [number, number], ne: [number, number]) {
-      this.sw = sw
-      this.ne = ne
+      this.sw = [...sw]
+      this.ne = [...ne]
     }
-    extend() {
+    extend([lng, lat]: [number, number]) {
+      this.sw = [Math.min(this.sw[0], lng), Math.min(this.sw[1], lat)]
+      this.ne = [Math.max(this.ne[0], lng), Math.max(this.ne[1], lat)]
       return this
     }
   }
@@ -430,7 +440,14 @@ describe('ActivityMapPanel', () => {
         })
       )
       expect(map.setMinZoom).toHaveBeenCalled()
-      expect(map.setMaxBounds).toHaveBeenCalled()
+      // Panning is limited to the route's vicinity, but never to less than
+      // the fitted view, or the map would zoom in past the route to fit.
+      expect(map.setMaxBounds).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sw: [-122.45, 37.76],
+          ne: [-122.39, 37.79]
+        })
+      )
 
       // Zoom controls
       const zoomInBtn = screen.getByLabelText('Zoom in map')
