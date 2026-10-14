@@ -4,7 +4,7 @@ This guide covers maintenance and administrative scripts available in Activity.n
 
 ## Upgrading past the Knex handover
 
-From this release on, migrations run with Kysely instead of Knex. Its first migration, `20261014000000_baseline`, stands for the 181 Knex migrations that v1.192.34 and every later release before this one ran (kept read-only in `migrations/legacy/`): on a database the Knex migrations built it records the baseline without changing the schema, and on an empty database it loads the frozen baseline schema (`migrations/baseline/`). It never changes or drops `knex_migrations` or `knex_migrations_lock`, so the previous image, and `yarn knex migrate:latest` from a v1.192.34 checkout, still find every Knex migration applied.
+From this release on, migrations run with Kysely instead of Knex. Its first migration, `20261014000000_baseline`, stands for the 181 Knex migrations that v1.192.34 and every later release before this one ran (their files are in those releases, not in this checkout): on a database the Knex migrations built it records the baseline without changing the schema, and on an empty database it loads the frozen baseline schema (`migrations/baseline/`). It never changes or drops `knex_migrations` or `knex_migrations_lock`, so the previous image, and `yarn knex migrate:latest` from a v1.192.34 checkout, still find every Knex migration applied.
 
 Before deploying, check the production database from a checkout of the new release, with the same database settings `yarn migrate` uses (pass them inline and start with an empty `ACTIVITIES_DATABASE=`, as for any `yarn migrate` run):
 
@@ -17,7 +17,7 @@ It prints the database it resolved (check that it is the one you mean), then the
 - **`Handover: ready`** — `knex_migrations` holds exactly the 181 Knex migrations of v1.192.34 and Knex's lock is free; `20261014000000_baseline` is pending. `yarn migrate` creates `kysely_migration` and `kysely_migration_lock`, records the baseline, runs any later migrations, and changes nothing else.
 - **`Handover: recorded`** — the baseline is already recorded; `yarn migrate` runs only the migrations listed as pending.
 - **`Handover: empty database`** — no `knex_migrations` and no application tables: `yarn migrate` loads the baseline schema, then the later migrations. (A SQLite file that does not exist yet is reported as `The database file does not exist yet`, and is not created.)
-- **`Handover: REFUSED (knex-missing)`** — the database is behind v1.192.34. Upgrade to v1.192.34 (or any later release before this one) first and run `yarn migrate` there (the Knex migrations), then come back to this release. The message names how many Knex migrations are missing and the first one.
+- **`Handover: REFUSED (knex-missing)`** — the database is behind v1.192.34. Upgrade to v1.192.34 first (or any later release without `migrations/20261014000000_baseline.ts`, the last ones whose `yarn migrate` runs the Knex migrations) and run `yarn migrate` there, then come back to this release. The message names how many Knex migrations are missing and the first one.
 - **`Handover: REFUSED (knex-unknown)`** — `knex_migrations` lists migrations no release has, so the database was migrated by another build and its schema may not be the baseline. Nothing is recorded over it; find out which build migrated it before going further.
 - **`Handover: REFUSED (knex-locked)`** — `knex_migrations_lock` is held: a Knex migration run is in progress, or one was interrupted. Let it finish; if none is running, unlock it from a v1.192.34 checkout with `yarn knex migrate:unlock`, run `yarn migrate` there, and check again.
 - **`Handover: REFUSED (unknown-schema)`** — the database has application tables (`accounts`, `actors`) but no migration history at all, so its schema is unknown. `yarn migrate` neither loads nor records the baseline over it.
@@ -26,7 +26,7 @@ It prints the database it resolved (check that it is the one you mean), then the
 
 When the state is `ready`, `recorded` or `empty database`, deploy as usual: run `yarn migrate` against the production database (it prints the database first, then, on the handover run, `Applied 1 migration(s):` followed by `  20261014000000_baseline` on the next line), check `yarn migrate:status` again (`Handover: recorded`, `Pending (0):`), then roll out the new image. The previous image keeps working against the migrated database, since only the two new tables were added. After the handover, take archives with this release's scripts: an older release's `downloadProductionArchive.ts` also exports `kysely_migration` and `kysely_migration_lock`, and that release's restore refuses such an archive into an empty database.
 
-A refused database is refused before anything is written: `yarn migrate` creates none of its tables on it. On PostgreSQL concurrent `yarn migrate` runs wait for each other (the migrator's advisory lock, which ends with the connection holding it). On SQLite a run takes the lock row in `kysely_migration_lock`, as Knex's `knex_migrations_lock` was taken, and a second run on the same file fails with `kysely_migration_lock is already locked` while it is held, without writing to the file. If two runs start at the same moment, one of them can instead fail with `database is locked`; run `yarn migrate` again. A run killed while it holds the lock leaves it held (`yarn migrate:status` shows `Lock: held`); when no run is going on, release it with `yarn migrate:unlock`. It does not create a missing SQLite file (it exits 1 instead), and on PostgreSQL it only connects (`select 1`) and says there is nothing to release; a configuration that does not reach the database fails instead (exit 1). If a run fails and the lock cannot be released either, the run's error says so and asks for `yarn migrate:unlock`. Concurrent `yarn migrate:down` runs are not supported: each checks which migration is last before it takes the lock. Each migration commits in its own transaction and is recorded right after, so a run killed between the two leaves that one migration applied but unrecorded. For the handover on a Knex database that is harmless (it wrote nothing; the next run records it). For a fresh install killed after the baseline schema committed but before it was recorded, the next run reports `unknown-schema`: the database holds no data yet, so drop it, create it empty, and run `yarn migrate` again.
+A refused database is refused before anything is written: `yarn migrate` creates none of its tables on it. On PostgreSQL concurrent `yarn migrate` runs wait for each other (the migrator's advisory lock, which ends with the connection holding it). On SQLite a run takes the lock row in `kysely_migration_lock`, and a second run on the same file fails with `kysely_migration_lock is already locked` while it is held, without writing to the file. If two runs start at the same moment, one of them can instead fail with `database is locked`; run `yarn migrate` again. A run killed while it holds the lock leaves it held (`yarn migrate:status` shows `Lock: held`); when no run is going on, release it with `yarn migrate:unlock`. It does not create a missing SQLite file (it exits 1 instead), and on PostgreSQL it only connects (`select 1`) and says there is nothing to release; a configuration that does not reach the database fails instead (exit 1). If a run fails and the lock cannot be released either, the run's error says so and asks for `yarn migrate:unlock`. Concurrent `yarn migrate:down` runs are not supported: each checks which migration is last before it takes the lock. Each migration commits in its own transaction and is recorded right after, so a run killed between the two leaves that one migration applied but unrecorded. For the handover on a Knex database that is harmless (it wrote nothing; the next run records it). For a fresh install killed after the baseline schema committed but before it was recorded, the next run reports `unknown-schema`: the database holds no data yet, so drop it, create it empty, and run `yarn migrate` again.
 
 ## Database Queue Worker
 
@@ -330,189 +330,33 @@ higher precedence than `.env.production` even under `NODE_ENV=production` —
 verify the printed banner shows the database you intend before trusting the
 output.
 
-## Public ID Backfill
+## Repairs that stay with v1.192.34
 
-The `backfillPublicIds.ts` script fills `publicId` for `statuses` and `actors`
-rows that still have `NULL` after the `20260808000000_add_public_ids` migration,
-minting a UUIDv7 from each row's `createdAt` so the ids stay time-ordered
-exactly as the migration produced them.
+Two one-off repair scripts went with the Knex migrations whose rollouts they
+finished, and are not in this checkout. Both ship with v1.192.34 (and every
+later release before the handover), are idempotent, and exit `0` when there is
+nothing left to repair. If a database may still need one, run it from a
+v1.192.34 checkout, against the database, **before** upgrading past the
+handover; their runbooks are in that release's `docs/maintenance.md`.
 
-### Why it is needed
+### Public ID Backfill
 
-The migration cannot finish the job by itself, and this is inherent to the
-deploy order rather than a gap in it:
+`scripts/maintenance/backfillPublicIds.ts` fills `publicId` for `statuses` and
+`actors` rows that a pre-publicId build inserted while the
+`20260808000000_add_public_ids` migration was rolling out (`publicId` is only
+minted on insert, so nothing else fills them). A row left without one keeps
+emitting its legacy colon-encoded id. Run it with `--dry-run` first; exit `0`
+means no `NULL` `publicId` remains.
 
-- `yarn migrate` runs **first**, from a checkout against the live database,
-  while the **previous** image keeps serving traffic — the runtime image runs
-  no migrations (see [PostgreSQL Setup](postgresql-setup.md)).
-- The new build cannot start any earlier: its `INSERT`s write a `publicId`
-  value, so it needs the column the migration adds.
-- That concurrent writer is therefore the **pre-publicId** build, and every row
-  it inserts leaves `publicId` `NULL`. Rows written after the migration's sweep
-  converges — right through to the end of the rollout — are beyond anything the
-  migration could catch, which is why it logs them instead of failing.
-- Nothing repairs them later on its own: `publicId` is only ever minted on
-  insert, there is no lazy mint, and `yarn migrate` is a **no-op** once knex has
-  recorded the migration.
+### Notification ID Rewrite
 
-### When to Use
-
-Run this once **after the new build is fully rolled out** — when no pre-publicId
-pod is still serving — and **before deploying the emitting build**: the change
-that makes the Mastodon API return `publicId`s as `Status.id` / `Account.id`
-(and as pagination cursors) and moves web status pages to
-`/@username@domain/<publicId>`. This script must exit `0` ("No NULL publicId
-rows remain") **before** that build ships, not after — that exit code is the
-deploy gate.
-
-Missing the gate is degrading, not fatal, which is exactly why it is easy to
-miss. Every legacy id form stays resolvable on input forever, and a row with no
-`publicId` simply keeps emitting the legacy colon-encoded id — so the instance
-serves two id shapes for the same kind of entity instead of failing loudly. It
-does not heal on its own either: `publicId` is only minted on insert, so those
-rows keep the old shape until this script is run. If the emitting build is
-already live and rows are still `NULL`, run it now — it is safe at any point.
-
-Also run it any time the migration's final output reported rows inserted after
-the sweep converged, or after restoring a backup taken mid-rollout.
-
-### Usage
-
-```bash
-# Preview what would be backfilled (recommended first step)
-NODE_ENV=production ./scripts/maintenance/backfillPublicIds.ts --dry-run
-
-# Backfill
-NODE_ENV=production ./scripts/maintenance/backfillPublicIds.ts
-
-# Smaller passes on a busy database
-NODE_ENV=production ./scripts/maintenance/backfillPublicIds.ts --batch-size 100
-
-# Show help
-./scripts/maintenance/backfillPublicIds.ts --help
-```
-
-### Options
-
-- `--dry-run [true|false]` - Report what would be backfilled without writing anything
-- `--batch-size <n>` - Rows per pass (default 500)
-- `--help` - Display help message
-
-### Output
-
-Each table reports how many rows were backfilled, how many were skipped, and how
-many still have a `NULL` publicId, followed by a total:
-
-```
-Summary
-  statuses: 2 backfilled, 0 skipped (NULL id), 0 still NULL
-  actors: 1 backfilled, 0 skipped (NULL id), 0 still NULL
-  total: 3 backfilled, 0 skipped (NULL id), 0 still NULL
-
-No NULL publicId rows remain. The publicId deploy gate is satisfied.
-```
-
-**Exit code `0` means no `NULL` publicId remains anywhere** — read it as the
-gate. `1` means some remain, including in `--dry-run`, where nothing was written
-so the gate is unmet by definition. If a live run still exits `1`, a
-pre-publicId pod is probably still serving: finish the rollout and run it again.
-
-Rows counted as **skipped (NULL id)** have a `NULL` `id` and cannot be addressed
-by a per-row `UPDATE` at all (`actors.id` is nullable in both schema dumps).
-They keep a `NULL` publicId until their `id` is repaired, and they hold the exit
-code at `1`.
-
-### Safety
-
-- Idempotent and safe to run repeatedly against a live production database.
-- Every `UPDATE` keeps a `publicId IS NULL` guard, so a value written
-  concurrently by the app is never clobbered.
-- A row that already has a `publicId` is never rewritten, so ids stay stable.
-- Prints the resolved database target before doing anything — verify it is
-  production, since `.env.local` shadows `.env.production` even under
-  `NODE_ENV=production`.
-- Stops instead of looping when a pass selects rows but changes none of them
-  (its `UPDATE`s are not taking effect), and says so.
-
-## Notification ID Rewrite
-
-The `rewriteNotificationIds.ts` script rewrites every notification id that is
-not time-ordered (a random UUIDv4, from before notifications got UUIDv7 ids)
-into a UUIDv7 minted from the row's `createdAt`, and repoints the
-`notifications` read marker that named it. A `notifications` marker left on a
-non-v7 id that names no notification (dismissed or cleared before the rewrite)
-is reset to the highest UUIDv7 for the millisecond the marker was last
-written, so it does not sort above every new notification. It runs the same
-code as the
-`20261009163215_time_ordered_notification_ids` migration
-(`lib/database/domains/notification/notificationIdRewrite.js`).
-
-### Why it is needed
-
-Clients such as Ivory sort notifications, and compare the notifications read
-marker, by id (see
-[Mastodon API compatibility](mastodon-api-compatibility.md)). The migration
-rewrites every v4 id it finds, but `yarn migrate` runs **first**, while the
-**previous** image keeps serving traffic and keeps minting v4 ids — right up to
-the end of the rollout. Those rows do not age out: a v4 id almost always sorts
-above every v7 id, so an id-ordering client keeps them at the top of the list
-for good and may set its read marker to one, making newer notifications look
-read. `yarn migrate` is a no-op once knex has recorded the migration, so this
-script is how they get rewritten.
-
-### When to Use
-
-Run it once **after the new build is fully rolled out** — when no pod of the
-previous build is still serving. It is safe at any later point too, for example
-after restoring a backup taken before or during the rollout.
-
-### Usage
-
-```bash
-# Preview how many ids would be rewritten (recommended first step)
-NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts --dry-run
-
-# Rewrite
-NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts
-
-# Smaller passes on a busy database
-NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts --batch-size 100
-
-# Show help
-./scripts/maintenance/rewriteNotificationIds.ts --help
-```
-
-### Options
-
-- `--dry-run [true|false]` - Count the ids and orphan markers that would be rewritten without writing anything
-- `--batch-size <n>` - Rows read per pass (default 500)
-- `--help` - Display help message
-
-### Output and exit code
-
-The script reports how many notifications it scanned, how many ids it
-rewrote, how many markers it repointed or reset, and how many ids and orphan
-markers are left. **Exit code `0` means every notification id is time-ordered
-and no `notifications` marker is left on a non-v7 id that names no
-notification.** `1` means something is left, including in `--dry-run`, where
-nothing was written. If
-a live run still exits `1`, a pod of the previous build is probably still
-serving: finish the rollout and run it again.
-
-### Safety
-
-- Idempotent and safe to run repeatedly against a live production database:
-  rows that already have a UUIDv7 id are never touched.
-- Each chunk of up to 200 rows, and the marker pointing into it, is rewritten in
-  its own short transaction, one at a time, so the script holds a single pooled
-  connection and an interrupted run leaves nothing half-done; re-running
-  resumes.
-- Prints the resolved database target before doing anything — verify it is
-  production, since `.env.local` shadows `.env.production` even under
-  `NODE_ENV=production`.
-- Ids clients cached before a rewrite stop resolving; see
-  [Mastodon API compatibility](mastodon-api-compatibility.md) for what clients
-  see and how they recover.
+`scripts/maintenance/rewriteNotificationIds.ts` rewrites notification ids that
+are not time-ordered (UUIDv4 ids, which the previous build kept minting while
+the `20261009163215_time_ordered_notification_ids` migration rolled out) into
+UUIDv7 ids minted from `createdAt`, and repoints or resets the `notifications`
+read markers that named them. Exit `0` means every notification id is
+time-ordered. See [Mastodon API compatibility](mastodon-api-compatibility.md)
+for what clients see.
 
 ## Gallery Lookup Backfill
 
@@ -1282,7 +1126,7 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 ### Database Compatibility Guidelines
 
 - **All database operations must work with SQLite and PostgreSQL. Only the `better-sqlite3` and `pg` clients are supported; any other client fails at startup.**
-- Use a query builder for all database operations (Kysely in the domains, the better-auth adapter and the operator scripts; two scripts still use Knex; see **Kysely** below)—avoid raw SQL unless absolutely necessary.
+- Use a query builder for all database operations (Kysely in the domains, the better-auth adapter and the operator scripts; see **Kysely** below)—avoid raw SQL unless absolutely necessary.
 - When writing raw SQL, ensure syntax is compatible across all supported databases.
 - Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
 - Test migrations and queries against SQLite (used in tests) to catch compatibility issues early.
@@ -1291,16 +1135,16 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 
 #### Kysely
 
-Every query the app runs goes through Kysely, on a connection Kysely owns (`createDatabaseConnection` in `lib/database/connection.ts`). Migrations run on Kysely too. Everything that runs migrations or asks which ones a database has goes through `lib/database/migrate` (`migrateToLatest`, `migrateDown`, `getMigrationStatus`, `getAppliedMigrationNames`, `getKnownMigrationNames`): `yarn migrate` (`scripts/database/migrate.ts`), the facade's `migrate()` and the production archive's restore. It runs Kysely's `Migrator` on the caller's Kysely (the root instance of a normalising connection; it refuses a transaction) over the static map in `migrations/index.ts`, records them in `kysely_migration`, and runs each migration in its own `inTransaction` unless the module exports `config = { transaction: false }`, so a migration takes the `trx` it is given and the root instance is refused inside it like anywhere else. On PostgreSQL the lock is the migrator's advisory lock; on SQLite, where the migrator's lock is a no-op, `lib/database/migrate` takes the lock row in `kysely_migration_lock` around the run, refuses a second run (another process, or a concurrent call in the same one) while it is held, and `yarn migrate:unlock` releases it after a killed run. Unordered migrations are allowed: one merged with an older timestamp than one already applied still runs. The first migration, `20261014000000_baseline`, is the Knex handover (`lib/database/migrate/baseline.ts`; see [Upgrading past the Knex handover](#upgrading-past-the-knex-handover)); the Knex migrations before it are kept in `migrations/legacy/` and never run. The app logs an error at startup when migrations are pending or the database would be refused (`lib/database/migrate/startupCheck.ts`), and starts anyway. The check reads through `lib/database/migrate/status.ts`, which compares the database against the names in `migrations/names.ts` and loads neither the migrator nor a migration module, and `next.config.ts` keeps `migrations/` out of the standalone output (`outputFileTracingExcludes`): the server never runs a migration. Outside the facade, the better-auth adapter (`lib/services/auth/kyselyAdapter.ts`) runs on Kysely through `getKysely()` (`lib/database/index.ts`, the facade's own Kysely instance), and so do the operator scripts under `scripts/` except two: `maintenance/backfillPublicIds.ts` and `maintenance/rewriteNotificationIds.ts`, which go with the legacy migrations, still build Knex queries of their own, on a Knex instance they create (see the **Operator scripts run on Kysely too** bullet below). `backup/productionArchive.ts` runs on Kysely through `openScriptDatabase` with results not normalised (see [How the database travels](#how-the-database-travels)). Routes and guards never do: `OAuthGuard` reads the bearer token with `getOAuthAccessTokenByHash`, the token endpoint's PKCE preflight asks `isOAuthClientPKCERequired`, `POST /api/v1/apps` throttles with `countRecentAppRegistrations` and inserts with `createOAuthClientRegistration` (`lib/database/domains/oauth/queries.ts`), `POST /api/v1/actors/switch` calls `setSessionActorIdByToken` and `GET /api/v1/passkeys` calls `getAccountPasskeys` (`lib/database/domains/account/`). A new route or guard that needs a query adds a named query to its domain and calls it on the `Database` it is given (or `getDatabase()`), the way these do.
+Every query the app runs goes through Kysely, on a connection Kysely owns (`createDatabaseConnection` in `lib/database/connection.ts`). Migrations run on Kysely too. Everything that runs migrations or asks which ones a database has goes through `lib/database/migrate` (`migrateToLatest`, `migrateDown`, `getMigrationStatus`, `getAppliedMigrationNames`, `getKnownMigrationNames`): `yarn migrate` (`scripts/database/migrate.ts`), the facade's `migrate()` and the production archive's restore. It runs Kysely's `Migrator` on the caller's Kysely (the root instance of a normalising connection; it refuses a transaction) over the static map in `migrations/index.ts`, records them in `kysely_migration`, and runs each migration in its own `inTransaction` unless the module exports `config = { transaction: false }`, so a migration takes the `trx` it is given and the root instance is refused inside it like anywhere else. On PostgreSQL the lock is the migrator's advisory lock; on SQLite, where the migrator's lock is a no-op, `lib/database/migrate` takes the lock row in `kysely_migration_lock` around the run, refuses a second run (another process, or a concurrent call in the same one) while it is held, and `yarn migrate:unlock` releases it after a killed run. Unordered migrations are allowed: one merged with an older timestamp than one already applied still runs. The first migration, `20261014000000_baseline`, is the Knex handover (`lib/database/migrate/baseline.ts`; see [Upgrading past the Knex handover](#upgrading-past-the-knex-handover)); the Knex migrations before it ran in v1.192.34 and earlier releases, and this checkout does not have them. The app logs an error at startup when migrations are pending or the database would be refused (`lib/database/migrate/startupCheck.ts`), and starts anyway. The check reads through `lib/database/migrate/status.ts`, which compares the database against the names in `migrations/names.ts` and loads neither the migrator nor a migration module, and `next.config.ts` keeps `migrations/` out of the standalone output (`outputFileTracingExcludes`): the server never runs a migration. Outside the facade, the better-auth adapter (`lib/services/auth/kyselyAdapter.ts`) runs on Kysely through `getKysely()` (`lib/database/index.ts`, the facade's own Kysely instance), and so do the operator scripts under `scripts/` (see the **Operator scripts run on Kysely too** bullet below). `backup/productionArchive.ts` runs on Kysely through `openScriptDatabase` with results not normalised (see [How the database travels](#how-the-database-travels)). Routes and guards never do: `OAuthGuard` reads the bearer token with `getOAuthAccessTokenByHash`, the token endpoint's PKCE preflight asks `isOAuthClientPKCERequired`, `POST /api/v1/apps` throttles with `countRecentAppRegistrations` and inserts with `createOAuthClientRegistration` (`lib/database/domains/oauth/queries.ts`), `POST /api/v1/actors/switch` calls `setSessionActorIdByToken` and `GET /api/v1/passkeys` calls `getAccountPasskeys` (`lib/database/domains/account/`). A new route or guard that needs a query adds a named query to its domain and calls it on the `Database` it is given (or `getDatabase()`), the way these do.
 
 - **Domain code is Kysely.** A domain lives in `lib/database/domains/<name>/` as plain query functions `(db: Db, params) => …` (`Db` is the root Kysely instance or a transaction), with its parameter types in `types.ts` and its query object (`likeQueries`, …) in `queries.ts`. `getSQLDatabase(db, { migrate, destroy })` (`lib/database/getSQLDatabase.ts`) binds each query object to the root Kysely instance with `bindDb(() => db, queries)` and spreads them into the facade under the `Database` method names; besides that it only provides `migrate()` and `destroy()`, which run the options it is given (`migrate()` throws without one). A new domain adds its query object there and its interface to `Database` (`lib/database/types.ts`). `lib/database/domains/like/` is the worked example. A domain's tests sit beside its code (`lib/database/domains/<name>/*.test.ts`, with the helpers only that domain uses next to them); tests of the facade or of several domains sit in `lib/database/`, test helpers several domains share in `lib/database/testing/`, and utilities several domains share (`getCompatibleTime`, `isUniqueConstraintError`, the counter keys, …) in `lib/database/utils/`.
 - **Transactions go through `inTransaction(db, fn)`** (`lib/database/kysely/`), which reuses the transaction it is given or opens one; `isInTransaction(db)` tells the two apart. Pass the `trx` it hands you to every query inside it. A query that turns its own failure into a return value (for example `replayQueueJob` returning `false`) rethrows instead when it runs inside a caller's transaction, so that transaction does not commit half the change.
-- **The connection is `createDatabaseConnection(config, { sqlcommenter })`** (`lib/database/connection.ts`), on Kysely's own SQLite and PostgreSQL dialects. It returns `{ backend, db, destroy, onQuery, onQueryEnd, pendingAcquires, executeScript }`, and nothing connects until the first query. The app opens one (`lib/database/index.ts`, with `sqlcommenter` on), and so do `openScriptDatabase()` (`lib/database/scriptDatabase.ts`), `scripts/maintenance/generateDatabaseTypes.ts` and `createTestDatabase`. On SQLite it opens better-sqlite3 and serialises every statement on its one connection, binding a `Date` as epoch milliseconds and a boolean as 0/1, the way Knex stored them. On PostgreSQL it opens a node-postgres pool: `pool.min`/`pool.max` from the configuration (2 and 10 when `pool` is absent; the `ACTIVITIES_DATABASE_PG_POOL_*` variables default to 1 and 5), a query waits up to `acquireConnectionTimeout` milliseconds (60 000 unless set) for a free connection and then fails with `timeout exceeded when trying to connect`, an idle connection is closed after 30 seconds, `application_name` defaults to `Activities.next`, and a connection the server drops (a restart, `pg_terminate_backend`) is logged and replaced on the next query instead of crashing the process. With `sqlcommenter` on, every statement, `begin` and `commit` included, ends with the active span's `/* traceparent='…' */` comment (`lib/database/sqlcommenter.ts`) for Cloud SQL Insights. `onQuery` and `onQueryEnd` report each statement `{ sql, bindings, connection }` before it runs and again with `durationMs` (and `error`) after; a throwing `onQuery` listener fails the statement, which is how the tests refuse one. `destroy()` closes the pool or the SQLite file, and later queries fail with `driver has already been destroyed`, even when nothing had connected yet. `executeScript(sql)` runs a multi-statement script (the schema dumps): the stock PostgreSQL driver returns no rows for a multi-statement query, so run one statement per query everywhere else.
+- **The connection is `createDatabaseConnection(config, { sqlcommenter })`** (`lib/database/connection.ts`), on Kysely's own SQLite and PostgreSQL dialects. It returns `{ backend, db, destroy, onQuery, onQueryEnd, pendingAcquires, executeScript }`, and nothing connects until the first query. The app opens one (`lib/database/index.ts`, with `sqlcommenter` on), and so do `openScriptDatabase()` (`lib/database/scriptDatabase.ts`), `scripts/maintenance/generateDatabaseTypes.ts` and `createTestDatabase`. On SQLite it opens better-sqlite3 and serialises every statement on its one connection, binding a `Date` as epoch milliseconds and a boolean as 0/1, the form the stored rows already have. On PostgreSQL it opens a node-postgres pool: `pool.min`/`pool.max` from the configuration (2 and 10 when `pool` is absent; the `ACTIVITIES_DATABASE_PG_POOL_*` variables default to 1 and 5), a query waits up to `acquireConnectionTimeout` milliseconds (60 000 unless set) for a free connection and then fails with `timeout exceeded when trying to connect`, an idle connection is closed after 30 seconds, `application_name` defaults to `Activities.next`, and a connection the server drops (a restart, `pg_terminate_backend`) is logged and replaced on the next query instead of crashing the process. With `sqlcommenter` on, every statement, `begin` and `commit` included, ends with the active span's `/* traceparent='…' */` comment (`lib/database/sqlcommenter.ts`) for Cloud SQL Insights. `onQuery` and `onQueryEnd` report each statement `{ sql, bindings, connection }` before it runs and again with `durationMs` (and `error`) after; a throwing `onQuery` listener fails the statement, which is how the tests refuse one. `destroy()` closes the pool or the SQLite file, and later queries fail with `driver has already been destroyed`, even when nothing had connected yet. `executeScript(sql)` runs a multi-statement script (the schema dumps): the stock PostgreSQL driver returns no rows for a multi-statement query, so run one statement per query everywhere else.
 - **Operator scripts run on Kysely too.** A script that uses the app's connection (`getDatabase()`) gets its Kysely instance from `getKysely()` in `lib/database/index.ts`: the facade's own pool, which `database.destroy()` closes. A script that opens a connection of its own calls `openScriptDatabase(getConfig().database)` from `lib/database/scriptDatabase.ts` and closes the pool with the `destroy` it returns on every way out (`fixAttachmentUrls.ts` and `cleanupMediaStorage.ts` in a `finally`; `repairStravaActivityFiles.ts` in the `catch` of its select and after its loop). Both return plain Kysely, so a script's query is written like a domain's (timestamps read as epoch milliseconds and written as `Date`, booleans as booleans). Give a script function that needs the database a `db: Db` parameter instead of reaching for the accessor, so its test passes `createTestDatabase().db` and seeds the real schema (`backfillMissingLikeActors.ts`, `backfillGifvMetadata.ts`). Prefer a facade method or a domain query when one already does the job; write the query in the script when it is only the script's.
 - **Never use the root instance inside a transaction of the same database.** A root query inside `inTransaction`'s callback would need a second pooled connection (a deadlock on SQLite's single connection) and would run outside the transaction on PostgreSQL; it throws `TransactionScopeError` (`lib/database/kysely/guard.ts`) at once instead, on both backends. The guard follows async context, so it also refuses work started without `await` inside the callback (for example `void getDatabase().isActorLikedStatus(…)`), and an instance derived from the root one (`withPlugin`, …) is refused too; another database, and other requests running while the transaction is open, are not. Don't start detached (un-awaited) database work inside a transaction; run it after the transaction resolves. The guard only knows the transactions `inTransaction` opens, so application code opens transactions with `inTransaction` only: `db.transaction()`, `db.startTransaction()` and `db.connection()` are allowed only in `lib/database/kysely/`, the connection and the `holdTransaction` test helper, which `lib/database/kysely/transactionCallSites.test.ts` checks. `inTransaction` takes the isolation level and access mode of the transaction it opens (`{ isolationLevel: 'repeatable read', accessMode: 'read only' }` for the production archive's export snapshot), and refuses them when `db` already is a transaction.
 - **Results are normalised by the connection** (`lib/database/kysely/normalize.ts`, pinned value by value on both backends by `normalizeGolden.test.ts`): timestamps read as epoch milliseconds, int8/numeric as numbers, booleans as booleans and JSON parsed, on both backends, so domain code needs no `getCompatibleTime`/`getCompatibleJSON` shims. SQLite expression columns (`count(*)`, `max(…)`) have no declared type and are converted in the domain mapper. Write timestamps as `Date`, compare timestamp columns only through `timestampValue()` (the branded `EpochMs` stops bare numbers, which PostgreSQL rejects, but not read-back values, which must also go through `timestampValue()`), and write JSON as a `JSON.stringify`'d string. The one connection that skips this is the production archive's (`normalizeResults: false` on `createDatabaseConnection` / `openScriptDatabase`), which reads and writes rows as the drivers read them, with PostgreSQL dates and timestamps as the server's text in ISO style and UTC (see [How the database travels](#how-the-database-travels)).
 - **A SQLite timestamp column can hold epoch milliseconds or zone-less UTC text, and the query reads both as the same instant.** A `Date` written through the driver (what better-auth's adapter writes, for example `passkey.createdAt` and `oauthAccessToken.expiresAt`) is stored as epoch milliseconds, while a column default (`CURRENT_TIMESTAMP`) stores `YYYY-MM-DD HH:MM:SS` UTC text. A route or guard therefore takes a timestamp from a domain query (`getOAuthAccessTokenByHash`, `getAccountPasskeys`: epoch milliseconds) and never parses the stored value itself; `oauthRouteQueries.test.ts` and `accountRouteQueries.test.ts` pin both storage forms. (`GET /api/v1/passkeys` used to treat a SQLite value as text and threw on the epoch milliseconds better-auth writes.)
-- **Put dialect-specific SQL in `lib/database/kysely/dialect.ts`** and use Kysely's `sql` tag for it there, rather than branching in a domain (for example `forUpdate()` and `forShare()`, which are no-ops on SQLite where Kysely would emit `for update` / `for share`). On a join, pass `forUpdate(db, query, 'medias')` to lock only that table's rows (`for update of "medias"`, Knex's `forUpdate('medias')`); without it PostgreSQL locks the rows of every joined table.
+- **Put dialect-specific SQL in `lib/database/kysely/dialect.ts`** and use Kysely's `sql` tag for it there, rather than branching in a domain (for example `forUpdate()` and `forShare()`, which are no-ops on SQLite where Kysely would emit `for update` / `for share`). On a join, pass `forUpdate(db, query, 'medias')` to lock only that table's rows (`for update of "medias"`); without it PostgreSQL locks the rows of every joined table.
 - `jsonText(db, column, ...path)` in `dialect.ts` reads a string property of a JSON column (`json_extract` on SQLite, `::jsonb ->> key` on PostgreSQL), NULL when the column or the property is missing; more than one key reads a nested property (`jsonText(db, 'medias.originalMetaData', 'upload', 'state')` is `$.upload.state` on SQLite and `::jsonb -> 'upload' ->> 'state'` on PostgreSQL). The keys are spliced in as literals, so they must be fixed property names.
 - `fullTextMatch(db, query, tokens)` in `dialect.ts` keeps the `search_documents` rows whose text contains every token as a word prefix: SQLite joins the FTS5 table `search_documents_fts` on `rowid` and matches `token*`, PostgreSQL matches the `to_tsvector('simple', "documentText")` expression the GIN index is built on, so keep the two spellings in step with the index migration.
 - `normalizedHashtagName(db, column)` in `dialect.ts` is a stored hashtag name without its leading `#`s, lowercased (`ltrim` on SQLite, `trim(leading '#' from …)` on PostgreSQL), so `#name` rows and legacy bare `name` rows group as one name.
@@ -1308,13 +1152,13 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
 - `hashtagsOnPublicStatuses(db)` (`lib/database/domains/search/hashtags.ts`) selects the hashtag rows of publicly addressed Notes and Polls joined to their status; hashtag search, featured tags and trends all build on it so they count the same rows.
 - `potentiallyReadableStatus(db, eb, viewerId)` (`lib/database/kysely/visibility/potentiallyReadable.ts`) is the statuses a viewer may be able to read; `visibility.test.ts` pins what it selects for each viewer over one seeded set of statuses.
 - `isLocalActor` (`lib/database/kysely/visibility/localActor.ts`) is "this actor is local": a non-null, non-empty `privateKey`.
-- `countableActivity(eb, { forDeviceLink })` (`lib/database/kysely/countableActivity.ts`) is the activities every fitness rollup counts: the gear rollups, the fitness overview reads and the cached route aggregates (`countFitnessFileRoutesIntersecting`, `getFitnessFileRouteBounds`) all filter with it. Its Knex original, `applyCountableActivityFilter`, is gone with its last caller; `countableActivity.test.ts` checks the predicate against the rule written out in JavaScript, so change both together.
+- `countableActivity(eb, { forDeviceLink })` (`lib/database/kysely/countableActivity.ts`) is the activities every fitness rollup counts: the gear rollups, the fitness overview reads and the cached route aggregates (`countFitnessFileRoutesIntersecting`, `getFitnessFileRouteBounds`) all filter with it. `countableActivity.test.ts` checks the predicate against the rule written out in JavaScript, so change both together.
 - `actorVisibleStatusIds(db, actorId, audience)` (`lib/database/kysely/visibility/actorVisible.ts`) is the ids of an actor's statuses an audience may see, or `null` for the owner's unfiltered view. `getActorStatuses`, `getAttachmentsForActor`, `getActorHasFitnessData` and the gallery scope `galleryMediaScope` use it. `actorVisible.test.ts` pins what it selects for every audience.
-- `galleryMediaScope(db, actorId, audience, options)` (`lib/database/kysely/visibility/galleryMedia.ts`) has no Knex twin any more. Every gallery read in `lib/database/domains/gallery/` goes through it, the album reads (`albums.ts`) on their `gallery_album_items` join with the default options only; `galleryMediaEquivalence.test.ts` checks that join selects the same media as a plain read of `medias` for the owner, other and unknown actors and every combination of the viewer flags.
+- `galleryMediaScope(db, actorId, audience, options)` (`lib/database/kysely/visibility/galleryMedia.ts`) is the gallery's visibility rule. Every gallery read in `lib/database/domains/gallery/` goes through it, the album reads (`albums.ts`) on their `gallery_album_items` join with the default options only; `galleryMediaEquivalence.test.ts` checks that join selects the same media as a plain read of `medias` for the owner, other and unknown actors and every combination of the viewer flags.
 - The list timeline's predicates are in `lib/database/kysely/visibility/` too: `listEligibleStatus` and `listRepliesPolicyAllows` (`listEligible.ts`), `withoutBlockedOrMutedAuthors` (`blockMute.ts`; the collection timeline's owner projection uses it too) and `selectFollowTargetActorIds` (`followTarget.ts`, whose `forShare` option locks the follow rows on PostgreSQL through `forShare()`), and the home feed's `notFromExclusiveListMember` (`exclusiveLists.ts`). `visibility.test.ts` pins what each selects for each viewer, owner and replies policy over the same seeded statuses.
 - `publiclyReadableStatus(db, eb)` (`lib/database/kysely/visibility/publiclyReadable.ts`) is "this status is publicly readable", correlated to the outer `statuses` row; the local public timeline, the public collection projection, the reply feed and count (`getStatusReplies`, `getStatusRepliesCount`) and the actor feed (`getActorStatuses`) read through it. Its comment records when to use it rather than the set form below.
 - `publiclyReadableStatusIds(db, targetStatusIds)` (same file) is the set form: the publicly readable ids among a target set (a query selecting one `id` column), from one recursive CTE (`publicly_readable_statuses`) seeded with the whole set. `getRebloggedBy` and `getActorStatusesCount` use it, for the reasons recorded there. `publiclyReadable.test.ts` runs both forms over the same rows, including a target set of Announces, and `statusReadableSql.test.ts` pins their compiled SQL (the inlined `'Announce'` in the chain pointer, one pointer equality per hop, `UNION` rather than `UNION ALL`).
-- Keyset cursors go through `pastKeyset(eb, cursor, op, tieBreakerColumn)` (`lib/database/kysely/keyset.ts`). A cursor read back from a row whose `createdAt` may be NULL, or one with no tie-breaker (the list timeline's fallback to a purged row's status), goes through `pastStoredKeyset`, which compares the way the Knex list timeline did: a NULL `createdAt` only reaches the NULL rows past its tie-breaker, and a cursor with neither value matches nothing. The home and direct feeds (and the local public and federated ones) compared the cursor with operators in the Knex code (`createdAt < NULL`, never true), so a cursor row with a NULL `createdAt` read an empty page there; `pastStoredKeyset` alone would instead return the other NULL rows past its tie-breaker. A feed ported from operator comparisons therefore also needs the `hasNullCreatedAt` guard in front of it (`lib/database/domains/timeline/queries.ts`), which returns an empty page for such a cursor before `pastStoredKeyset` runs.
+- Keyset cursors go through `pastKeyset(eb, cursor, op, tieBreakerColumn)` (`lib/database/kysely/keyset.ts`). A cursor read back from a row whose `createdAt` may be NULL, or one with no tie-breaker (the list timeline's fallback to a purged row's status), goes through `pastStoredKeyset`: a NULL `createdAt` only reaches the NULL rows past its tie-breaker, and a cursor with neither value matches nothing. The home and direct feeds (and the local public and federated ones) return an empty page for a cursor row with a NULL `createdAt` (`createdAt < NULL` is never true), while `pastStoredKeyset` alone would return the other NULL rows past its tie-breaker. Such a feed therefore also needs the `hasNullCreatedAt` guard in front of it (`lib/database/domains/timeline/queries.ts`), which returns an empty page for such a cursor before `pastStoredKeyset` runs.
 - **The conversation, list, collection and timeline domains take their status hydration injected, and call it only outside their own transactions.** The direct conversation domain hydrates statuses through the status facade: `getSQLDatabase` binds `createConversationQueries(statusDatabase)` (`lib/database/domains/conversation/queries.ts`), and only the reads call `getStatusesByIds`, after their queries, never inside `syncDirectConversationForStatus` or `markDirectConversationRead`'s transaction (a call on the root instance there would trip the transaction guard). The list, collection and timeline domains take `getStatusesByIds` the same way (`createListQueries`, `createCollectionQueries`, `createTimelineQueries`), called after the feed rows are read and never inside `addCollectionMembers`, `removeCollectionMembers`, `deleteCollection`, `removeCollectionItemById`, `createCollection` or `createTimelineStatus`'s transaction. The status reads run on the root instance, through `bindDb(kysely, statusQueries)`. Any other domain that needs another domain's queries imports its functions instead: the follow domain calls the actor domain's `getActorFromId` and its pure `getActor` row mapper, and the list and collection domains its `getMastodonActors`.
 - **The status domain is Kysely.** Its lookups, poll reads, hashtag reads, pins, the favourited-by and reblogged-by pages, its writes (the note, poll and announce creates in `writes.ts`, the edits in `edits.ts`, the tag writes and hashtag counters in `hashtags.ts`, and the poll votes in `polls.ts`), its reads and hydration (the reply and actor feeds, `getStatusesByIds` and the counts in `reads.ts`, `getStatus` and row hydration in `hydration.ts`, the edit history in `history.ts`) and its deletions (`deleteStatus`, `deleteStatusWithQueueJob` and `deleteStatusEditHistory` in `deletion.ts`) are in `lib/database/domains/status/`, and `getSQLDatabase` binds them with `bindDb(…, statusQueries)`. A status deletion runs in one `inTransaction`: the reply tree (at most 100 reply levels, else it throws before writing), the counters it moved, every row keyed on the deleted statuses, the `lastStatusAt` recompute behind the actor row lock, the search documents and the status counters, and for `deleteStatusWithQueueJob` the queue job, only when something was deleted; the affected hashtags' search documents are refreshed after it commits, best effort. The actor purge `deleteActorData` (`lib/database/domains/actor/deletion.ts`) is one `inTransaction` the same way, ending with the actor row and its search document. The lookups, hashtag reads and writes take their hydration as an argument: `statusHydrationFor(db)` binds this domain's `getStatus`, `getStatusesByIds` and `hydrateStatusRow` (kept off the facade) to the same `db`, so their tests can record what they hydrate. They call it after their own queries, never inside a transaction: `updateNote` and `updateNoteVisibility` read the status they rewrite before their transaction, every edit returns its status hydrated after its transaction commits, `createAnnounce` reads the boosted status before and after its transaction, and a create that lost a race on the status id hydrates the winner's row after its failed transaction (the other creates build the status they return from what they wrote). Hydration bound to the root instance and called inside a transaction is refused by the transaction guard (`TransactionScopeError`, `lib/database/kysely/guard.ts`), since it would need a second pooled connection and run outside the transaction, so a transaction that ever needs a hydrated status has to hydrate through its `trx` or after it commits.
 - **Regenerate `lib/database/kysely/db.ts` whenever a migration changes the schema** (see [Regenerating the Kysely DB types](setup.md#regenerating-the-kysely-db-types)).
@@ -1323,8 +1167,8 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
 - Hour-bucket counters (`bucket:<type>:<YYYYMMDDHH>` rows with a `bucketHour`) go through `incrementBucket` and `getBucketStats` in `lib/database/kysely/counterBucket.ts`.
 - **Big `IN` lists and multi-row inserts go through `lib/database/kysely/inList.ts`** (`selectInChunks`, `insertInChunks`, and `getWhereInBatchSize`, `getInsertBatchSize` and `chunkArray` for a loop of your own), so one statement stays under SQLite's 999 bound values (`SQLITE_MAX_BINDINGS`).
 - **A statement whose failure the code catches inside a transaction (a unique violation to skip) runs in `inSavepoint(trx, fn)`** (`lib/database/kysely/savepoint.ts`). PostgreSQL aborts the whole transaction when any statement fails, SQLite does not, so a bare `try`/`catch` passes the SQLite run and breaks every later statement on PostgreSQL.
-- **Delete sessions through `deleteSessionsWithTokenDetach(db, scope)`** (`lib/database/domains/account/sessions.ts`) rather than a bare `deleteFrom('sessions')`. It nulls `sessionId` on the OAuth access and refresh tokens of the doomed sessions first (the columns reference `sessions.id` with no `ON DELETE` action, so PostgreSQL refuses the delete otherwise) and keeps both steps in one transaction. The better-auth adapter's `delete`, `deleteMany` and `consumeOne` on sessions go through it too (sign-out, session revocation and expired-session cleanup); it works in `SESSION_ID_CHUNK_SIZE` chunks, and `sessionTokenDetach.test.ts` pins the rows it leaves behind across a chunk boundary. `deleteAllAccountSessions` and `rejectPendingAccount` (moderation domain) still delete sessions directly, as the Knex code did, so they fail while a session of the account still carries tokens.
-- **Username lookups go through `findActorRowByUsername` in `lib/database/kysely/usernameMatch.ts`**: the exact `(username, domain)` row first, then the `lower(username)` arm (backed by the functional index) ordered by `createdAt, id`. It has no MySQL branch, since Kysely runs on better-sqlite3 and pg only. It serves both `getActorFromUsername` and `isUsernameExists`; the Knex helper it was a twin of is gone.
+- **Delete sessions through `deleteSessionsWithTokenDetach(db, scope)`** (`lib/database/domains/account/sessions.ts`) rather than a bare `deleteFrom('sessions')`. It nulls `sessionId` on the OAuth access and refresh tokens of the doomed sessions first (the columns reference `sessions.id` with no `ON DELETE` action, so PostgreSQL refuses the delete otherwise) and keeps both steps in one transaction. The better-auth adapter's `delete`, `deleteMany` and `consumeOne` on sessions go through it too (sign-out, session revocation and expired-session cleanup); it works in `SESSION_ID_CHUNK_SIZE` chunks, and `sessionTokenDetach.test.ts` pins the rows it leaves behind across a chunk boundary. `deleteAllAccountSessions` and `rejectPendingAccount` (moderation domain) still delete sessions directly, so they fail while a session of the account still carries tokens.
+- **Username lookups go through `findActorRowByUsername` in `lib/database/kysely/usernameMatch.ts`**: the exact `(username, domain)` row first, then the `lower(username)` arm (backed by the functional index) ordered by `createdAt, id`. It has no MySQL branch, since Kysely runs on better-sqlite3 and pg only. It serves both `getActorFromUsername` and `isUsernameExists`.
 
 <a id="review-uploaded-file-names"></a>
 
@@ -1379,7 +1223,7 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
 ### Review: Database & migrations
 
 - Queries use a query builder (Kysely in the domains, the better-auth
-  adapter and the operator scripts, Knex only where two scripts still use it), not raw SQL,
+  adapter and the operator scripts), not raw SQL,
   unless unavoidable. Operations must work on SQLite
   (tests + local dev) and PostgreSQL (the only supported clients). Use standard SQL types (e.g. `text`, not `varchar[]`). Application code
   opens transactions with `inTransaction` only and never uses the root
@@ -1397,8 +1241,8 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   takes the `Kysely<any>` it is given — a transaction unless it exports
   `config = { transaction: false }` — never the root instance (refused inside
   the transaction; under `transaction: false` on SQLite it would deadlock), and it works on
-  both backends. `migrations/baseline/*.sql` and `migrations/legacy/` are frozen:
-  a schema change is a new migration on top, never an edit to them.
+  both backends. `migrations/baseline/*.sql` is frozen:
+  a schema change is a new migration on top, never an edit to it.
 - The viewer's own follow row is read with `getViewerFollow`
   (`lib/services/getViewerFollow.ts`) on **read** paths — it is
   `cache()`d, so a profile render resolves it once instead of once per call site
