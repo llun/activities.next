@@ -1,0 +1,22 @@
+app/api/v1/statuses/[id]/translate/route.test.ts
+  h_580a04e334fef4 11-12,17-18,54-60,70-79,81-86,102-111,113-115,120,123-124,128-129,131-181
+app/api/v1/statuses/[id]/translate/route.ts
+  h_580a04e334fef4 2,6-7,15-16,39-67,107,110
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 1235
+lib/services/statuses/fetchEphemeralRemoteStatus.test.ts
+  h_580a04e334fef4 1-213
+lib/services/statuses/fetchEphemeralRemoteStatus.ts
+  h_580a04e334fef4 1-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "20a534be22c99275276caa922e4024f607cf32d2",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
