@@ -750,12 +750,12 @@ describe('addListAccounts', () => {
     ).toEqual({ unrelatedActorIds: [] })
     expect(await membersOf(listId)).toEqual([`${owner}>${member}`])
 
-    // The backfill cursor follows what Knex compiled. SQLite sorts NULL last
+    // The backfill cursor compares the NULL createdAt. SQLite sorts NULL last
     // under DESC: the first page is the dated post and n3, and the cursor
-    // (NULL, n3) goes on through n2 and n1, so all four are written.
-    // PostgreSQL sorts NULL first: the first page is n3 and n2, and the cursor
-    // (NULL, n2) only continues through NULL rows, so n1 is the last and the
-    // dated post is never reached.
+    // (NULL, n3) goes on through n2 and n1, so all four are written. PostgreSQL
+    // sorts NULL first: the first page is n3 and n2, and the cursor (NULL, n2)
+    // only continues through NULL rows, so n1 is the last and the dated post is
+    // never reached.
     const written = testDb.backend === 'pg' ? undated : [...undated, dated]
     expect(await feedOf(owner)).toEqual(
       written.map((id) => `${listTimelineKey(listId)}>${id}`).sort()

@@ -20,8 +20,6 @@ import {
 //
 // Each named case says which shape of row decides the answer; the sweep at the
 // bottom runs both forms over every fixture and checks the whole readable set.
-// The set is the one the Knex forms (a set form and a correlated form, removed
-// with their last caller) selected over the same rows.
 describe('publicly readable status predicates', () => {
   const { database, db, prepare } = getTestDatabaseWithInstance()
 

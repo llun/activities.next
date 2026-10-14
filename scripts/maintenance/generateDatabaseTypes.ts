@@ -33,9 +33,10 @@ import {
 const DEFAULT_OUTPUT = 'lib/database/kysely/db.ts'
 const SQLITE_SCHEMA = 'migrations/schema.sqlite.sql'
 
-// The migration runners' bookkeeping tables (Kysely's, which its introspection
-// already leaves out by default, and the Knex ones a database migrated before
-// the handover keeps), and the shadow tables SQLite's FTS5 module manages for
+// The migration bookkeeping tables (Kysely's, which its introspection already
+// leaves out by default, and the knex_migrations ones a database migrated
+// before the Knex handover keeps), and the shadow tables SQLite's FTS5 module
+// manages for
 // each full-text index (the virtual table itself is kept).
 const EXCLUDED_TABLE =
   /^(kysely_migration(_lock)?|knex_migrations(_lock)?|.+_fts_(data|idx|docsize|config|content))$/
@@ -192,8 +193,8 @@ const mergeColumn = (
     }
     return {
       categories: [pgCategory, sqliteCategoryValue],
-      // Knex's SQLite DDL drops NOT NULL from primary keys, so SQLite reports
-      // every primary key as nullable. PostgreSQL enforces the constraint the
+      // The SQLite schema declares its primary keys without NOT NULL, so
+      // SQLite reports every primary key as nullable. PostgreSQL enforces the constraint the
       // migrations declare, so it decides nullability.
       nullable: pg.isNullable,
       // A value may be omitted on insert only if BOTH backends fill it in.

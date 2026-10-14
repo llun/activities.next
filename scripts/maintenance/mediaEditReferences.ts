@@ -3,8 +3,8 @@ import { sql } from 'kysely'
 import type { Db } from '@/lib/database/kysely'
 import { getDialectName } from '@/lib/database/kysely/dialect'
 
-// What Knex's `schema.hasTable()` asked: the table in the connection's current
-// schema on PostgreSQL, any `table` entry of sqlite_master on SQLite.
+// Whether the table exists: in the connection's current schema on
+// PostgreSQL, as any `table` entry of sqlite_master on SQLite.
 const hasTable = async (db: Db, name: string): Promise<boolean> => {
   const result =
     getDialectName(db) === 'sqlite'

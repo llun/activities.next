@@ -61,9 +61,8 @@ export const toFitnessRouteHeatmapPyramid = (
   // one of them calls resumable and the other does not is a row whose claim can
   // never match, wedging the actor's pyramid for good. Truthiness disagreed on
   // two counts: an epoch-0 `cursorCreatedAt` is a falsy number (the driver
-  // reads it as 0 on both backends; under Knex it was a truthy Date on
-  // PostgreSQL), and an empty `cursorId` is falsy in JS while `IS NULL` in SQL
-  // is false.
+  // reads it as 0 on both backends), and an empty `cursorId` is falsy in JS
+  // while `IS NULL` in SQL is false.
   cursor:
     row.cursorCreatedAt !== null &&
     row.cursorCreatedAt !== undefined &&

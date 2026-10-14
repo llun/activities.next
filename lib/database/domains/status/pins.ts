@@ -16,10 +16,9 @@ export const pinStatus = async (
   db: Db,
   { actorId, statusId, maxPinnedStatuses }: PinStatusParams
 ): Promise<boolean> => {
-  // Knex refused an undefined key in the capped path's lookups ("Undefined
-  // binding(s) detected"), and the NOT NULL columns refused a missing key at
-  // the insert. Kysely would bind either as NULL, lock nothing and count
-  // nothing on the way there, so a missing key is refused before any query.
+  // The NOT NULL columns refuse a missing key at the insert, but the capped
+  // path's lookups would bind it as NULL, lock nothing and count nothing on
+  // the way there, so a missing key is refused before any query.
   if (actorId === undefined || actorId === null) {
     throw new Error('pinStatus requires an actorId')
   }

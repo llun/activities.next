@@ -1875,12 +1875,10 @@ describe('requests that cannot match', () => {
 })
 
 // The key and actor id parameters are typed `string`. These pin what a value
-// the types forbid does now that the shared driver binds it: Knex threw on an
-// `undefined` binding and compiled a two-argument `where(column, null)` to
-// `IS NULL`, and Kysely binds both as NULL, which equals nothing. SQLite is
-// the one backend where a NULL key can exist at all: its settings `actorId`
-// and gear `id` are primary keys without NOT NULL, which SQLite does not imply
-// for them.
+// the types forbid does: the driver binds `undefined` and `null` as NULL, which
+// equals nothing. SQLite is the one backend where a NULL key can exist at all:
+// its settings `actorId` and gear `id` are primary keys without NOT NULL, which
+// SQLite does not imply for them.
 describe('undefined and null keys', () => {
   const UNDEFINED = undefined as unknown as string
   const NULL = null as unknown as string
@@ -2100,7 +2098,7 @@ describe('undefined and null keys', () => {
     await seedAttachment(mediaId, publicPost, actorId)
     const before = await dumpTables()
 
-    // Knex compiled these to `device key is null` and `cameraGearId is null`.
+    // A NULL key equals nothing, so the NULL-key rows are not matched.
     expect(
       await database.findGalleryGearByDeviceKey({ actorId, deviceKey: NULL })
     ).toBeNull()
@@ -2216,7 +2214,7 @@ describe('undefined and null keys', () => {
     expect(await dumpTables()).toEqual(before)
   })
 
-  // SQLite only: the keys below can be NULL there, and Knex matched them.
+  // SQLite only: the keys below can be NULL there.
   it.skipIf(isPostgres())(
     'a null id or actor id matches no NULL-key row on SQLite',
     async () => {
@@ -2308,8 +2306,8 @@ describe('undefined and null keys', () => {
   )
 })
 
-// What the Kysely driver does differently from Knex, as the gallery reads and
-// writes meet it: the three differences the part 23 description lists.
+// How the driver reads and reports values, as the gallery reads and writes
+// meet it.
 describe('driver differences', () => {
   const EPOCH_0 = new Date(0)
 
@@ -2451,7 +2449,7 @@ describe('driver differences', () => {
     }
   )
 
-  // The driver's own message, without Knex's "insert into ... - " prefix. The
+  // The driver's own message, without the statement in front of it. The
   // patterns are anchored, so a prefixed message does not match.
   const DRIVER_MESSAGE = isPostgres()
     ? /^insert or update on table "gallery_gears" violates foreign key constraint "gallery_gears_actorid_foreign"$/
@@ -2488,7 +2486,7 @@ describe('driver differences', () => {
 
     expect(created).toMatch(DRIVER_MESSAGE)
     expect(createdWithinLimit).toMatch(DRIVER_MESSAGE)
-    // What Knex wrote in front of the driver's message.
+    // No statement text in front of the driver's message.
     for (const message of [created, createdWithinLimit]) {
       expect(message).not.toContain('insert into')
       expect(message).not.toContain(' - ')

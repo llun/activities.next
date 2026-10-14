@@ -1,7 +1,7 @@
 import { fitnessFileOverviewQueries } from '@/lib/database/domains/fitnessFile/overview'
 import {
   toFitnessFile,
-  withKnexPaging
+  withLenientPaging
 } from '@/lib/database/domains/fitnessFile/rows'
 import type {
   CountFitnessFilesByActorParams,
@@ -126,7 +126,7 @@ export const getFitnessFilesByActor = async (
     .orderBy('createdAt', orderDirection)
     .orderBy('id', orderDirection)
 
-  const rows = await withKnexPaging(db, query, { limit, offset }).execute()
+  const rows = await withLenientPaging(db, query, { limit, offset }).execute()
   return rows.map(toFitnessFile)
 }
 
@@ -202,7 +202,7 @@ export const getFitnessFilesWithStatusForAccount = async (
 
   const [total, rows] = await Promise.all([
     getCounterValue(db, CounterKey.totalFitness(accountId)),
-    withKnexPaging(db, query, {
+    withLenientPaging(db, query, {
       limit,
       offset: (page - 1) * limit
     }).execute()

@@ -14,7 +14,7 @@ const DOMAIN = 'fileq.test'
 // each pinned with a neighbouring row the query must not touch (another
 // actor's, account's, status's or batch's file, a deleted, unfinished or
 // non-primary one), every sort pinned with ids that sort against time and with
-// ties inserted both in and against id order, the Knex paging rules, and the
+// ties inserted both in and against id order, the lenient paging rules, and the
 // transactions of createFitnessFile and deleteFitnessFile rolling back as a
 // whole, counters included, when their last write fails. Rows are written
 // straight into the tables where a test needs a timestamp, an id order or a
@@ -498,7 +498,7 @@ describe('file reads', () => {
       ).toHaveLength(7)
     })
 
-    it('pages with limit and offset as Knex read them', async () => {
+    it('pages with limit and offset read through parseInt', async () => {
       const page = (limit: number, offset?: number) =>
         database
           .getFitnessFilesByActor({
@@ -512,7 +512,7 @@ describe('file reads', () => {
       expect(await page(2)).toEqual([order.t1, order.t2])
       expect(await page(2, 2)).toEqual([order.t3, order.t4a])
       expect(await page(0)).toEqual([])
-      // Fractions are truncated, as Knex's parseInt did.
+      // Fractions are truncated, as parseInt does.
       expect(await page(2.9, 1.9)).toEqual([order.t2, order.t3])
       // A NaN limit or offset is dropped.
       expect(await page(Number.NaN)).toHaveLength(7)
@@ -755,7 +755,7 @@ describe('file reads', () => {
       ).toHaveLength(3)
     })
 
-    it('pages by limit and page as Knex read them', async () => {
+    it('pages by limit and page read through parseInt', async () => {
       const page = async (limit: number, pageNumber: number) =>
         idsOf(
           (
@@ -912,10 +912,9 @@ describe('file reads', () => {
     ).toEqual(['batch-3', 'batch-2', 'batch-1'])
   })
 
-  // Knex compiled `where(column, null)` to `column IS NULL`, so a null id used
-  // to be handed every actor's unattached, unbatched or accountless files.
-  // Kysely binds `= NULL`, which matches nothing. The types forbid a null id;
-  // this pins what a caller that slips one in gets.
+  // A null id is bound as `= NULL`, which matches nothing, so it is not handed
+  // every actor's unattached, unbatched or accountless files. The types forbid
+  // a null id; this pins what a caller that slips one in gets.
   it('answers nothing for a null statusId, batchId or accountId', async () => {
     const nullId = null as unknown as string
     const accountId = await newAccount()
@@ -1165,8 +1164,8 @@ describe('the fitness overview reads', () => {
         totalElevationGainMeters: 300
       }
     ])
-    // An empty type is no filter, as it was under Knex (`if (activityType)`),
-    // not a filter on the empty string that matches no activity.
+    // An empty type is no filter (`if (activityType)`), not a filter on the
+    // empty string that matches no activity.
     expect(
       (
         await database.getFitnessActivityCalendarData({

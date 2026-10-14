@@ -19,10 +19,10 @@
 // Expression columns (`count(*)`, `max(...)`) have no declared type on SQLite
 // and come back as SQLite produced them: a domain mapper converts those itself.
 //
-// Bindings on SQLite are encoded exactly like Knex's better-sqlite3
-// `_formatBindings` (Date -> epoch ms, boolean -> 0/1), so rows Knex wrote
-// before compare and sort the same as rows written now. Never bind ISO strings
-// for timestamps: SQLite orders INTEGER before TEXT, so cursors would misorder.
+// Bindings on SQLite are encoded as Date -> epoch ms and boolean -> 0/1
+// (`toSqliteBinding`), the representation the app has always stored, so old and
+// new rows compare and sort the same. Never bind ISO strings for timestamps:
+// SQLite orders INTEGER before TEXT, so cursors would misorder.
 
 // Same rule as getCompatibleTime: SQLite's CURRENT_TIMESTAMP default writes
 // UTC text without a zone designator.
@@ -121,8 +121,8 @@ const PG_DATE_ARRAY = 1182
 const PG_TIMESTAMP_ARRAY = 1115
 const PG_TIMESTAMPTZ_ARRAY = 1185
 
-// Knex returns int8 as an exact string; Number() would round anything above
-// 2^53 - 1 silently, which would surface as wrong cursors or lookups.
+// node-postgres returns int8 as an exact string; Number() would round anything
+// above 2^53 - 1 silently, which would surface as wrong cursors or lookups.
 export const parseInt8 = (value: string): number => {
   const parsed = Number(value)
   if (!Number.isSafeInteger(parsed)) {

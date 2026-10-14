@@ -54,8 +54,7 @@ export const getStatusEditHistory = async (
         typeof content?.sensitive === 'boolean' ? content.sensitive : null,
       attachments: attachments.success ? attachments.data : null,
       pollOptions,
-      // A NULL timestamp throws here, as getCompatibleTime(null) did under
-      // Knex.
+      // A NULL timestamp throws here (getCompatibleTime(null)).
       createdAt: getCompatibleTime(row.createdAt as number),
       available: {
         text: typeof content?.text === 'string',

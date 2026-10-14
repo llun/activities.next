@@ -2324,9 +2324,8 @@ describe('the actor row lock', () => {
 })
 
 // The id and actor id parameters are typed `string`. These pin what a value
-// the types forbid does now that the shared driver binds it: Knex threw
-// "Undefined binding(s) detected" for an `undefined` and compiled a `null` in
-// a two-argument `where` to `IS NULL`.
+// the types forbid does: the driver binds `undefined` and `null` as NULL,
+// which equals nothing.
 describe('values the types forbid', () => {
   const UNDEFINED = undefined as unknown as string
   const NULL = null as unknown as string
@@ -2505,8 +2504,8 @@ describe('driver errors', () => {
     const ghost = `https://${DOMAIN}/users/ghost`
     const before = await dumpTables()
 
-    // Anchored at both ends: a message that starts with Knex's
-    // `insert into ... - ` fails them.
+    // Anchored at both ends: a message that starts with the statement
+    // (`insert into ... - `) fails them.
     const foreignKey = isPostgres()
       ? /^insert or update on table "gallery_albums" violates foreign key constraint "gallery_albums_actorid_foreign"$/
       : /^FOREIGN KEY constraint failed$/

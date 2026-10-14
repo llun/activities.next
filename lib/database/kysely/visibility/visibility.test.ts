@@ -17,9 +17,7 @@ import {
 
 // What each Kysely visibility predicate selects over one set of rows, for
 // every viewer: the full set first, then named cases that say which arm
-// decides a row. The full sets are the ones the Knex originals selected over
-// the same rows when this suite compared the two forms; the Knex forms went
-// with the last of their callers.
+// decides a row.
 describe('Kysely visibility predicates', () => {
   const testDb = createTestDatabase()
   const { database, db } = testDb

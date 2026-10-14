@@ -3,10 +3,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 // The countable-activity predicate, for both of its forms, over every
 // combination of the columns it reads (compared with the rule written out in
-// JavaScript below) and over named cases that say which rule broke. Its Knex
-// original, applyCountableActivityFilter, was checked against it here until
-// its last caller (the cached route aggregates) moved to Kysely and it was
-// deleted.
+// JavaScript below) and over named cases that say which rule broke.
 describe('countableActivity', () => {
   const testDb = createTestDatabase()
   const { database } = testDb

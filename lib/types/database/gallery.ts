@@ -208,8 +208,8 @@ export const EMPTY_MEDIA_DETAILS: MediaDetailsRecord = {
   placeLookupAt: null
 }
 
-// SQL row type for `gallery_gears`. Timestamps are loose because the two
-// backends hand them back differently through Knex.
+// SQL row type for `gallery_gears`. Timestamps are loose: a row read without
+// normalisation holds them differently on each backend.
 export interface SQLGalleryGear {
   id: string
   actorId: string

@@ -64,8 +64,7 @@ import type { Db } from '@/lib/database/kysely'
  * `parseAccountHandle` and `getWebFingerResponse` already do.
  *
  * There is no MySQL branch: the Kysely layer runs on SQLite and PostgreSQL
- * only. (The Knex helper this replaced took the exact arm alone on MySQL,
- * whose default collations already fold case.)
+ * only.
  */
 export const findActorRowByUsername = async (
   db: Db,

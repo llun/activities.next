@@ -723,10 +723,9 @@ describe('FitnessGearDatabase', () => {
           // so the NULL half of this assertion only bites on PostgreSQL — run
           // the suite with TEST_DATABASE_TYPE=pg to exercise it (CI pins
           // sqlite). What makes it hold on both is the portable CASE in
-          // `getFitnessGearActivities`, NOT knex's `nulls: 'last'` option,
-          // which is broken on SQLite: knex emulates it as
-          // `order by (col is null) desc`, dropping the column's own direction.
-          // Do not "simplify" the implementation back to that option.
+          // `getFitnessGearActivities`, NOT a `nulls last` emulated as
+          // `order by (col is null) desc`, which drops the column's own
+          // direction. Do not "simplify" the implementation to that.
           const undated = await createDeviceActivity(database, {
             actorId: actors.pollAuthor.id,
             pathSuffix: 'order-undated',

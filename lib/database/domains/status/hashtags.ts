@@ -98,8 +98,8 @@ export const getStatusesByHashtag = async (
   // `any[]` widens the primary tag match: a status qualifies when it carries
   // the main hashtag OR any of the additional tags (Mastodon semantics).
   const normalizedNames = [hashtag, ...anyTags].flatMap(getHashtagStorageNames)
-  // Knex compiled an empty IN list to a false predicate; PostgreSQL rejects
-  // `in ()`, so the empty case returns the empty page itself.
+  // An empty list selects nothing; PostgreSQL rejects `in ()`, so the empty
+  // case returns the empty page itself.
   if (normalizedNames.length === 0) return []
 
   let query = publicHashtagStatuses(db, normalizedNames)
@@ -178,8 +178,8 @@ export const getStatusesByHashtag = async (
     // An unresolvable cursor yields no page, matching the repo-wide keyset
     // convention (bookmark/block/follow/mute/scheduledStatus) rather than
     // silently falling back to the first page. A cursor with no createdAt is
-    // an empty page too: Knex compared `createdAt < NULL`, which is never
-    // true, on both arms of the keyset.
+    // an empty page too: `createdAt < NULL` is never true, on both arms of
+    // the keyset.
     if (createdAt === undefined || createdAt === null) return []
     query = query.where((eb) =>
       pastKeyset(
@@ -218,7 +218,7 @@ export const getHashtagStatusesPage = async (
   { hashtag, limit, offset }: GetHashtagStatusesPageParams
 ): Promise<GetHashtagStatusesPageResult> => {
   const normalizedNames = getHashtagStorageNames(hashtag)
-  // An empty IN list was a false predicate in Knex: no rows and a zero count.
+  // An empty list selects nothing: no rows and a zero count.
   if (normalizedNames.length === 0) return { statuses: [], total: 0 }
 
   const [rows, countRow] = await Promise.all([
@@ -255,8 +255,7 @@ export const getHashtagCounter = (
 
 // The hashtag tags of `statusIds`, in no particular order. One value of each
 // statement is the tag type. updateNoteVisibility and the status and actor
-// deletions use it. Its Knex twin in lib/database/domains/status/status.ts went
-// with the Knex status and actor deletions.
+// deletions use it.
 export const selectHashtagTagsByStatusIds = (db: Db, statusIds: string[]) =>
   selectInChunks(
     db,

@@ -1,6 +1,6 @@
 // Pure helpers for `fitness_files` rows: the row mapper, the `importError`
-// cap shared by every writer of the column, and the paging rules the Knex
-// mixin had. No database access, except the dialect check behind `limit -1`.
+// cap shared by every writer of the column, and the lenient paging rules. No
+// database access, except the dialect check behind `limit -1`.
 import type { SelectQueryBuilder, Selectable } from 'kysely'
 
 import { normalizeOptionalNumber } from '@/lib/database/domains/fitnessGear/rows'
@@ -94,8 +94,8 @@ export const parseElevationSeries = (
  * read timestamps as epoch milliseconds, `bytes` as a number and the booleans
  * as booleans, on both backends.
  *
- * `activityStartTime` and `deletedAt` keep the Knex mixin's truthiness check,
- * so an epoch-0 value reads as unset, as it always did on SQLite.
+ * `activityStartTime` and `deletedAt` are checked for truthiness, so an
+ * epoch-0 value reads as unset.
  * `createdAt`/`updatedAt` are nullable columns every writer sets; a NULL one
  * reads as 0.
  */
@@ -145,17 +145,16 @@ export const toFitnessFile = (row: FitnessFileRow): FitnessFile => ({
   deletedAt: row.deletedAt || undefined
 })
 
-// Knex read the arguments of limit() and offset() through parseInt and
-// dropped a NaN one (with a warning), refused a negative offset, and on
-// SQLite wrote an offset without a limit as `limit -1 offset n` (SQLite has no
-// bare OFFSET). Kysely binds whatever it is given, so the paged reads apply
-// the same rules here.
+// The paged reads read their limit and offset through parseInt and drop a NaN
+// one, refuse a negative offset, and on SQLite write an offset without a
+// limit as `limit -1 offset n` (SQLite has no bare OFFSET). Kysely binds
+// whatever it is given, so these rules are applied here.
 const pagingInteger = (value: number): number | null => {
   const parsed = Number.parseInt(String(value), 10)
   return Number.isNaN(parsed) ? null : parsed
 }
 
-export const withKnexPaging = <TB extends keyof DB, O>(
+export const withLenientPaging = <TB extends keyof DB, O>(
   db: Db,
   query: SelectQueryBuilder<DB, TB, O>,
   { limit, offset }: { limit: number; offset: number }

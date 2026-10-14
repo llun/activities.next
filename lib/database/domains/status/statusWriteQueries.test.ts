@@ -3014,7 +3014,7 @@ describe('poll votes', () => {
     expect(await pollRows(neighbour)).toEqual(neighbourBefore)
   })
 
-  it('incrementPollChoiceVotes reads the index the way Knex did', async () => {
+  it('incrementPollChoiceVotes reads the index through parseInt', async () => {
     const { id } = await setup()
     // Cut to an integer, and a NaN one read as the first choice.
     await incrementPollChoiceVotes(db, { statusId: id, choiceIndex: 1.7 })
@@ -3278,11 +3278,10 @@ describe('concurrent writes', () => {
   )
 })
 
-// Driver differences: Kysely binds what it is given where Knex's object-form
-// where compiled a null value to IS NULL and threw on an undefined one. No
-// caller passes either.
+// Kysely binds what it is given: a null or undefined key is bound as NULL,
+// which matches nothing. No caller passes either.
 describe('null and undefined keys', () => {
-  it('deleteStatusTagsByType with a null status id deletes nothing (Knex deleted the tags with no status)', async () => {
+  it('deleteStatusTagsByType with a null status id deletes nothing, not even the tags with no status', async () => {
     const p = nextPrefix()
     const tagId = randomUUID()
     await db
@@ -3311,7 +3310,7 @@ describe('null and undefined keys', () => {
   it('recordPollVotes with a null or undefined status id finds no poll and returns false', async () => {
     const p = nextPrefix()
     const voter = await seedActor(`${p}-voter`)
-    // A choice with no status, which Knex's IS NULL read as the poll's.
+    // A choice with no status, which must not be read as the poll's.
     await db
       .insertInto('poll_choices')
       .values({ statusId: null, title: `orphan ${p}`, totalVotes: 0 })
@@ -3329,7 +3328,7 @@ describe('null and undefined keys', () => {
     expect(await dumpTables()).toEqual(before)
   })
 
-  it('updatePoll with an undefined choice title sets no tally, where Knex threw and rolled the edit back', async () => {
+  it('updatePoll with an undefined choice title sets no tally', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
     const id = await seedPoll(`${author}/statuses/poll`, author, ['a'], [2])
@@ -3344,7 +3343,7 @@ describe('null and undefined keys', () => {
 })
 
 describe('null and undefined keys, continued', () => {
-  it('deleteStatusTagsByType with a null or undefined type deletes nothing (Knex deleted the untyped tags, or threw)', async () => {
+  it('deleteStatusTagsByType with a null or undefined type deletes nothing, not even the untyped tags', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
     const id = await seedStatus({ id: `${author}/statuses/1`, actorId: author })
@@ -3374,7 +3373,7 @@ describe('null and undefined keys, continued', () => {
     ).toEqual([{ id: untyped }])
   })
 
-  it('incrementPollChoiceVotes with a null or undefined status id tallies nothing (Knex tallied a choice with no status, or threw)', async () => {
+  it('incrementPollChoiceVotes with a null or undefined status id tallies nothing, not even a choice with no status', async () => {
     const p = nextPrefix()
     await db
       .insertInto('poll_choices')
@@ -3390,7 +3389,7 @@ describe('null and undefined keys, continued', () => {
     expect(await dumpTables()).toEqual(before)
   })
 
-  it('updatePoll with a null choice title sets no tally (Knex set it on the untitled choices)', async () => {
+  it('updatePoll with a null choice title sets no tally, not even on the untitled choices', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
     const id = await seedPoll(`${author}/statuses/poll`, author, ['a'], [2])
@@ -3416,7 +3415,7 @@ describe('null and undefined keys, continued', () => {
     )
   })
 
-  it('recordPollVotes with an undefined actor id fails on the voter insert, writing nothing (Knex threw at the voter read)', async () => {
+  it('recordPollVotes with an undefined actor id fails on the voter insert, writing nothing', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
     const id = await seedPoll(`${author}/statuses/poll`, author, ['a', 'b'])
@@ -3435,7 +3434,7 @@ describe('null and undefined keys, continued', () => {
     expect(await dumpTables()).toEqual(before)
   })
 
-  it('the creates with an undefined author commit the status and its counters, then fail building it (Knex threw and rolled back)', async () => {
+  it('the creates with an undefined author commit the status and its counters, then fail building it', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`)
     const original = await seedStatus({
@@ -3483,7 +3482,7 @@ describe('null and undefined keys, continued', () => {
     expect(await counterValue(undefinedAuthor)).toBe(totalBefore + 3)
   })
 
-  it('updatePoll and updateStatusQuoteApprovalPolicy with an undefined status id return null (Knex threw)', async () => {
+  it('updatePoll and updateStatusQuoteApprovalPolicy with an undefined status id return null', async () => {
     const before = await dumpTables()
     await expect(
       updatePoll(db, hydration, {
@@ -3502,7 +3501,7 @@ describe('null and undefined keys, continued', () => {
   })
 
   it.runIf(testDb.backend === 'sqlite')(
-    'updatePoll and updateStatusQuoteApprovalPolicy with a null status id leave a status stored with no id alone (Knex edited it)',
+    'updatePoll and updateStatusQuoteApprovalPolicy with a null status id leave a status stored with no id alone',
     async () => {
       const p = nextPrefix()
       const author = await seedActor(`${p}-author`)
@@ -3543,7 +3542,7 @@ describe('null and undefined keys, continued', () => {
   )
 
   it.runIf(testDb.backend === 'pg')(
-    'decreaseHashtagCounter leaves a counter stored above 2^53 - 1 at 2^53 - 1 (Knex left one less)',
+    'decreaseHashtagCounter leaves a counter stored above 2^53 - 1 at 2^53 - 1',
     async () => {
       const p = nextPrefix()
       const id = CounterKey.totalHashtag(`huge${p}`)
@@ -3561,7 +3560,7 @@ describe('null and undefined keys, continued', () => {
 
 describe('counters above 2^53 - 1', () => {
   it.runIf(testDb.backend === 'sqlite')(
-    'an increase, a decrease and a create leave a counter stored above 2^53 - 1 at 2^53 - 1 (Knex failed "after concurrent updates" and changed nothing)',
+    'an increase, a decrease and a create leave a counter stored above 2^53 - 1 at 2^53 - 1',
     async () => {
       const p = nextPrefix()
       const author = await seedActor(`${p}-author`)

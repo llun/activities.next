@@ -7,14 +7,14 @@ import { publiclyReadableStatus } from '@/lib/database/kysely/visibility/publicl
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 // Bind parameters localPublicStatusesQuery is assumed to spend on things that
-// are not actor ids. The Knex query reserved 12 for `reply`, the recipient
-// type and actor, three per cursor bound, and `limit`; the publicly-readable
-// predicate added after that binds nine more (the two public recipients three
-// times, the Announce type three times), so with every option on the query
-// binds 19 besides the ids, on both backends and in both the Knex and the
-// Kysely form. The 12 is kept so the same number of local actors selects the
-// same form: SQLITE_MAX_BINDINGS (999) sits far below the 32,766 variables the
-// bundled SQLite accepts, so the 7 it undercounts never reach a real limit.
+// are not actor ids: 12, for `reply`, the recipient type and actor, three per
+// cursor bound, and `limit`. The publicly-readable predicate binds nine more
+// (the two public recipients three times, the Announce type three times), so
+// with every option on the query binds 19 besides the ids, on both backends.
+// The reserve stays 12, so the number of local actors that selects each form
+// does not move: SQLITE_MAX_BINDINGS (999) sits far below the 32,766
+// variables the bundled SQLite accepts, so the 7 it undercounts never reach a
+// real limit.
 const LOCAL_PUBLIC_RESERVED_BINDINGS = 12
 
 // The most actor ids this query carries as literal values; see the note on

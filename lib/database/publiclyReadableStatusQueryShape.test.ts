@@ -100,10 +100,10 @@ describe('publicly readable status query shape', () => {
   })
 
   it('inlines the Announce literal in the chain pointer rather than binding it', async () => {
-    // knex emits a UNION'd CTE term's FROM bindings before its select-list
-    // bindings, so a bound `?` in the chain-pointer CASE can swap with another
-    // value in the same term. `announceOriginalPointer` escapes the literal to
-    // sidestep that, and both readability forms share it. A captured statement
+    // A bound `?` in the chain-pointer CASE of a UNION'd CTE term could be
+    // ordered against another value in the same term, so
+    // `announceOriginalPointer` inlines the literal, and both readability
+    // forms share it. A captured statement
     // shows bound values as placeholders, so seeing the literal here is the
     // proof it was never bound.
     const statements = await capture(() =>

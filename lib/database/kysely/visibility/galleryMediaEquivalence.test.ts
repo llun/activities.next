@@ -12,9 +12,7 @@ import {
 // an item of one album, so the join must select exactly what a plain read of
 // `medias` selects, for the owner, a missing or unknown audience and every
 // combination of the viewer flags; and the named audiences pin both reads
-// against the media each may see, so a failure says which arm broke. Its Knex
-// twin, which this suite compared it with, went when the album reads moved to
-// Kysely.
+// against the media each may see, so a failure says which arm broke.
 describe('galleryMediaScope on the album reads’ join', () => {
   const testDb = createTestDatabase()
   const { database } = testDb

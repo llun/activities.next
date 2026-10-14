@@ -37,9 +37,9 @@ import { type Status, StatusType } from '@/lib/types/domain/status'
 // reblog and reply counts. Each feed reads its rows here and hydrates them
 // (./hydration.ts) with one batched context for the page.
 
-// Knex's limit(): the value through parseInt, and no LIMIT at all for a value
-// that does not parse (Knex logged a warning and left the limit off).
-const knexLimit = <QB extends { limit(limit: number): QB }>(
+// The page size read through parseInt, with no LIMIT at all for a value that
+// does not parse.
+const lenientLimit = <QB extends { limit(limit: number): QB }>(
   query: QB,
   limit: unknown
 ): QB => {
@@ -105,7 +105,7 @@ export const getStatusReplies = async (
   }
 
   if (limit) {
-    query = knexLimit(query, limit)
+    query = lenientLimit(query, limit)
   }
 
   return hydrateRows(db, await query.execute(), currentActorId)
@@ -133,8 +133,8 @@ export const getActorStatusesCount = async (
     // amortise it at all. On a PostgreSQL 18 seed shaped like production (an
     // actor with 1,889 publicly readable statuses, half of them Announces) the
     // correlated form read 40% fewer buffers and still took three times as
-    // long: 15,421 buffers / 54ms against 25,752 / 18ms here (measured with
-    // the Knex forms of both). The two are pinned as equivalent by
+    // long: 15,421 buffers / 54ms against 25,752 / 18ms here. The two are
+    // pinned as equivalent by
     // `lib/database/kysely/visibility/publiclyReadable.test.ts`; only their
     // plans differ.
     const result = await db
@@ -164,7 +164,7 @@ export const getActorStatusesCount = async (
 
 // Rows strictly past the cursor status in (createdAt, id) order. The cursor's
 // own createdAt is compared as read; a NULL one is bound as NULL, which matches
-// nothing, as Knex's three-argument where did.
+// nothing.
 const pastCursor = (
   eb: ExpressionBuilder<DB, 'statuses'>,
   cursor: { createdAt: EpochMs | null; id: string },
@@ -202,7 +202,7 @@ export const getActorStatuses = async (
     pinned = false
   }: GetActorStatusesParams
 ): Promise<Status[]> => {
-  let query = knexLimit(
+  let query = lenientLimit(
     db
       .selectFrom('statuses')
       .selectAll()
@@ -221,8 +221,8 @@ export const getActorStatuses = async (
     // finish it before this query's LIMIT sees a single row. It made the page
     // cost the actor's entire public history: a flat 33,311 buffers at every
     // page size on a production-shaped PostgreSQL 18 seed, against 476
-    // correlated (measured with the Knex forms of both). The two forms select
-    // identical rows (`lib/database/kysely/visibility/publiclyReadable.test.ts`),
+    // correlated. The two forms select identical rows
+    // (`lib/database/kysely/visibility/publiclyReadable.test.ts`),
     // so an attachment is still exactly as readable as the post carrying it —
     // which is the invariant sharing one builder was there to protect.
     query = query.where((eb) => publiclyReadableStatus(db, eb))

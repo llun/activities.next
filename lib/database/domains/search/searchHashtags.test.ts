@@ -7,7 +7,7 @@ import {
 } from '@/lib/utils/activitystream'
 
 // Captured SQL in lower case without identifier quotes, so the assertions read
-// the same for Knex and Kysely statements on SQLite and PostgreSQL.
+// the same on SQLite and PostgreSQL.
 const normalizeSql = (sql: string) => sql.toLowerCase().replace(/[`"]/g, '')
 
 describe('SearchDatabase hashtags', () => {

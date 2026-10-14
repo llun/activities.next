@@ -11,10 +11,9 @@ let savepointCounter = 0
  *
  * PostgreSQL aborts the whole transaction when any statement fails, so catching
  * a failed statement (a unique violation to skip, say) is only safe behind a
- * savepoint; SQLite keeps the transaction usable either way. This is what a
- * nested Knex `trx.transaction(...)` did. `trx` must be the transaction handed
- * to `inTransaction`: on a root instance each statement could run on another
- * pooled connection.
+ * savepoint; SQLite keeps the transaction usable either way. `trx` must be the
+ * transaction handed to `inTransaction`: on a root instance each statement
+ * could run on another pooled connection.
  */
 export const inSavepoint = async <T>(
   trx: Db,

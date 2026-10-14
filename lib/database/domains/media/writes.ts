@@ -289,8 +289,7 @@ const deleteMediaById = async (
     if (!found) return { status: 'not-found' }
 
     // A media row with no actor (a legacy row) binds NULL here, which
-    // matches no actor, as Knex's `IS NULL` matched none: no account to
-    // charge and no album lock to take.
+    // matches no actor: no account to charge and no album lock to take.
     const ownerId = found.actorId as string
     const actor = await trx
       .selectFrom('actors')

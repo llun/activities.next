@@ -8,8 +8,7 @@ import {
 // The status ids actorVisibleStatusIds selects, over one set of rows, for
 // every combination of the audience flags, with each subquery used as the
 // media and fitness file reads use it (`status id in (…)`); the named cases say
-// which arm decides a row. The expected sets are the ones its Knex original
-// selected over the same rows when this suite compared the two.
+// which arm decides a row.
 describe('actorVisibleStatusIds', () => {
   const testDb = createTestDatabase()
   const { database, db } = testDb

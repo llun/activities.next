@@ -34,7 +34,7 @@ import { parseAccountHandle } from '@/lib/utils/accountHandle'
 
 const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${escapeLikePattern(FEDERATION_SIGNING_ACTOR_USERNAME)}%`
 
-// An actor as the search index reads it. Callers inside a Knex transaction hand
+// An actor as the search index reads it. Callers inside a transaction hand
 // over the row they just wrote, so `settings` may still be JSON text and
 // `createdAt` a Date; a row read here has them parsed.
 type AccountSearchActor = {

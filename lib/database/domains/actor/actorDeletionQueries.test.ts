@@ -1503,10 +1503,8 @@ describe('hashtag refresh', () => {
 })
 
 describe('behaviour changes', () => {
-  // A status and a follow with a NULL actor: Knex compiled
-  // `where("actorId", null)` to IS NULL and purged them; Kysely binds NULL,
-  // which matches nothing. An undefined id made Knex throw "Undefined
-  // binding(s)"; Kysely binds it as NULL too.
+  // A status and a follow with a NULL actor: a null or undefined id is bound
+  // as NULL, which matches nothing, so they are left alone.
   it.each([
     ['null', null],
     ['undefined', undefined]
@@ -1531,8 +1529,7 @@ describe('behaviour changes', () => {
     expect(await dumpDatabase(testDb)).toEqual(before)
   })
 
-  // A media of more than 2^53 - 1 bytes: Knex returned the int8 as a string
-  // and parseCounterValue clamped it; Kysely's PostgreSQL reads throw a
+  // A media of more than 2^53 - 1 bytes: the PostgreSQL int8 read throws a
   // RangeError, which rolls the purge back.
   it.runIf(testDb.backend === 'pg')(
     'fails and rolls back on a media size above 2^53 - 1 bytes',

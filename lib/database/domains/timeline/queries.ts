@@ -30,11 +30,11 @@ export type TimelineStatusSource = (
   currentActorId?: string
 ) => Promise<Status[]>
 
-// A cursor whose row has a NULL createdAt. The Knex code compared both arms of
-// the keyset against it with an operator (`createdAt < NULL`,
-// `createdAt = NULL`), which is never true, so such a cursor reads an empty
-// page; pastStoredKeyset's NULL arm (the two-argument `createdAt IS NULL`
-// tie) is a different comparison, so these feeds stop before it.
+// A cursor whose row has a NULL createdAt. Both arms of the keyset compare
+// against it with an operator (`createdAt < NULL`, `createdAt = NULL`), which
+// is never true, so such a cursor reads an empty page; pastStoredKeyset's NULL
+// arm (the two-argument `createdAt IS NULL` tie) is a different comparison, so
+// these feeds stop before it.
 const hasNullCreatedAt = (...cursors: (StoredKeysetCursor | null)[]) =>
   cursors.some((cursor) => cursor !== null && cursor.createdAt === null)
 
@@ -372,10 +372,10 @@ export const getLocalPublicStatusesCount = async (
 
 /**
  * Adds a status to one actor's materialized timeline once: a status already
- * there is left as it is. A missing actorId throws before any query runs, as
- * Knex did for an undefined binding: the existence check below compares
- * `actorId = NULL`, which never matches, so it would insert a `timelines` row
- * with a NULL actorId on every call (the unique key treats NULLs as distinct).
+ * there is left as it is. A missing actorId throws before any query runs:
+ * without that, the existence check below compares `actorId = NULL`, which
+ * never matches, so it would insert a `timelines` row with a NULL actorId on
+ * every call (the unique key treats NULLs as distinct).
  */
 export const createTimelineStatus = async (
   db: Db,
