@@ -28,6 +28,7 @@ import {
 } from '@/lib/database/kysely/guard'
 import {
   createPostgresTypeParsers,
+  createRawPostgresTypeParsers,
   normalizeSqliteRows,
   toSqliteBinding
 } from '@/lib/database/kysely/normalize'
@@ -47,7 +48,10 @@ import { logger } from '@/lib/utils/logger'
 // Results come back normalised (lib/database/kysely/normalize.ts) on both
 // backends: on SQLite by the statement wrapper below, from each statement's
 // declared column types; on PostgreSQL by the type parsers every pooled client
-// is created with.
+// is created with. `normalizeResults: false` turns both off for the production
+// archive, which reads and writes rows as the drivers read them, except that
+// PostgreSQL dates and timestamps stay the text the server sends, in ISO
+// style and UTC (`CANONICAL_DATE_OUTPUT`).
 
 export type DatabaseBackend = 'sqlite' | 'pg'
 
@@ -72,6 +76,19 @@ export type QueryEndEvent = QueryEvent & {
 export type CreateDatabaseConnectionOptions = {
   /** Append the sqlcommenter `traceparent` comment to every statement. */
   sqlcommenter?: boolean
+  /**
+   * Normalise results (lib/database/kysely/normalize.ts); on by default.
+   * Off, rows come back close to how the driver reads them: on PostgreSQL
+   * node-postgres's default types (int8 and numeric as strings, booleans,
+   * JSON parsed), except that `date`, `timestamp` and `timestamptz` values
+   * are the text the server sends, with each connection's `DateStyle` set to
+   * ISO and `TimeZone` to UTC (`2026-01-02`, `2026-02-03 04:05:06.789123+00`),
+   * rather than a `Date`, which would lose microseconds and read a `date` as
+   * local midnight; on SQLite the stored values (0/1, epoch ms or text, JSON
+   * text). For the production archive, which exports and restores rows in
+   * these forms. Bindings are encoded the same way either way.
+   */
+  normalizeResults?: boolean
 }
 
 export type DatabaseHandle = {
@@ -132,9 +149,13 @@ type BetterSqliteConstructor = new (filename: string) => BetterSqliteDatabase
 type PgModule = typeof import('pg')
 
 // Kysely's SQLite driver runs statements through this interface. Bindings are
-// encoded the way Knex encoded them (Date -> epoch ms, boolean -> 0/1) and
-// rows are normalised by their declared column types.
-const wrapBetterSqlite = (database: BetterSqliteDatabase): SqliteDatabase => ({
+// encoded the way Knex encoded them (Date -> epoch ms, boolean -> 0/1) and,
+// unless `normalize` is off, rows are normalised by their declared column
+// types.
+const wrapBetterSqlite = (
+  database: BetterSqliteDatabase,
+  normalize: boolean
+): SqliteDatabase => ({
   close: () => {
     database.close()
   },
@@ -142,6 +163,14 @@ const wrapBetterSqlite = (database: BetterSqliteDatabase): SqliteDatabase => ({
     const statement = database.prepare(sql)
     const bind = (parameters: ReadonlyArray<unknown>) =>
       parameters.map(toSqliteBinding)
+    if (!normalize) {
+      return {
+        reader: statement.reader,
+        all: (parameters) => statement.all(bind(parameters)),
+        run: (parameters) => statement.run(bind(parameters)),
+        iterate: (parameters) => statement.iterate(bind(parameters))
+      }
+    }
     return {
       reader: statement.reader,
       all: (parameters) =>
@@ -454,7 +483,11 @@ const getPostgresClientConfig = (config: PostgresDatabaseConfig) => {
   return { application_name: APPLICATION_NAME, ...connection } as PoolConfig
 }
 
-const createPool = (pg: PgModule, config: PostgresDatabaseConfig): Pool => {
+const createPool = (
+  pg: PgModule,
+  config: PostgresDatabaseConfig,
+  normalize: boolean
+): Pool => {
   const pool = new pg.Pool({
     ...getPostgresClientConfig(config),
     min: config.pool?.min ?? DEFAULT_POSTGRES_POOL.min,
@@ -462,7 +495,11 @@ const createPool = (pg: PgModule, config: PostgresDatabaseConfig): Pool => {
     connectionTimeoutMillis:
       config.acquireConnectionTimeout ?? DEFAULT_ACQUIRE_CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
-    types: createPostgresTypeParsers(pg.types)
+    // Not normalising, node-postgres's defaults (the global `pg.types`),
+    // except for dates and timestamps, which stay text.
+    types: normalize
+      ? createPostgresTypeParsers(pg.types)
+      : createRawPostgresTypeParsers(pg.types)
   })
   // A client's connection can fail (a server restart, pg_terminate_backend, a
   // network drop) while it is idle in the pool or while it is checked out
@@ -504,13 +541,42 @@ const describeError = (error: Error) => {
   }
 }
 
+// A connection that does not normalise results (the production archive's)
+// reads dates and timestamps as the text the server sends, which depends on
+// the session's `DateStyle` and `TimeZone`. Each new connection sets both
+// (ISO, UTC), so the text is the same whatever the server, database or role
+// defaults are: `2026-01-02`, `2026-02-03 04:05:06.789123+00`. A statement
+// rather than the `options` startup parameter, so it works with any
+// connection configuration (a connection string, a socket, a connector's
+// stream) and through poolers that reject startup options. It runs in the
+// pool below, before Kysely's driver gets the client, so `onQuery` listeners
+// do not see it. The app's normalising connection keeps the server's
+// settings.
+const CANONICAL_DATE_OUTPUT =
+  "select set_config('DateStyle', 'ISO', false), " +
+  "set_config('TimeZone', 'UTC', false)"
+
+// The pool Kysely's driver gets.
+//
 // node-postgres still hands a client to a `connect()` that was already waiting
 // for a new connection when `end()` was called. Kysely's driver drops its pool
 // before calling `end()`, so it fails on that client without releasing it,
-// and `end()` then waits for the client forever. The driver gets this pool
-// instead, which releases such a client itself and fails that `connect()`.
-const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
+// and `end()` then waits for the client forever. This pool releases such a
+// client itself and fails that `connect()`.
+//
+// With `canonicalDates`, it also runs `CANONICAL_DATE_OUTPUT` once on each new
+// physical connection (node-postgres creates a new `Client` for each), and
+// checks for `end()` again afterwards. Kysely's own `onCreateConnection` hook
+// would not release a client whose statement fails, so `end()` would wait for
+// it forever; here the failed client is released with the error, which
+// destroys it, and the `connect()` fails.
+const releaseLateClients = (
+  pool: Pool,
+  pg: PgModule,
+  canonicalDates: boolean
+): PostgresPool => {
   let ending = false
+  const prepared = new WeakSet<object>()
   return {
     // What Kysely's driver reads off a pg Pool besides these two methods.
     Client: pg.Client as PostgresPool['Client'],
@@ -520,6 +586,20 @@ const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
       if (ending) {
         client.release()
         throw new Error('driver has already been destroyed')
+      }
+      if (canonicalDates && !prepared.has(client)) {
+        try {
+          await client.query(CANONICAL_DATE_OUTPUT)
+        } catch (error) {
+          client.release(error as Error)
+          throw error
+        }
+        prepared.add(client)
+        // end() may have been called while the statement ran.
+        if (ending) {
+          client.release()
+          throw new Error('driver has already been destroyed')
+        }
       }
       return client
     },
@@ -536,7 +616,10 @@ const releaseLateClients = (pool: Pool, pg: PgModule): PostgresPool => {
  */
 export const createDatabaseConnection = (
   config: DatabaseConfig,
-  { sqlcommenter = false }: CreateDatabaseConnectionOptions = {}
+  {
+    sqlcommenter = false,
+    normalizeResults = true
+  }: CreateDatabaseConnectionOptions = {}
 ): DatabaseHandle => {
   // Typed as a supported client, but it comes from the environment.
   const client: unknown = (config as { client?: unknown } | undefined)?.client
@@ -565,14 +648,14 @@ export const createDatabaseConnection = (
             const Database = (module.default ??
               module) as BetterSqliteConstructor
             sqliteDatabase = new Database(config.connection.filename)
-            return wrapBetterSqlite(sqliteDatabase)
+            return wrapBetterSqlite(sqliteDatabase, normalizeResults)
           }
         })
       : new PostgresDialect({
           pool: async () => {
             pg = await loadPg()
-            pool = createPool(pg, config)
-            return releaseLateClients(pool, pg)
+            pool = createPool(pg, config, normalizeResults)
+            return releaseLateClients(pool, pg, !normalizeResults)
           }
         })
 

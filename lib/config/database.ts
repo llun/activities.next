@@ -6,9 +6,9 @@ import { matcher } from './utils'
 
 // The database the application connects to (lib/database/connection.ts). It
 // is still the subset of a Knex configuration the app has always accepted, so
-// `ACTIVITIES_DATABASE` JSON written for Knex keeps working and the Knex-based
-// tools that remain (the migration CLI and the production archive script) can
-// be handed the same object:
+// `ACTIVITIES_DATABASE` JSON written for Knex keeps working and the Knex that
+// still runs the migrations (`migrateToLatest` in lib/database/migrate) can be
+// built from the same object:
 //
 // - better-sqlite3: `connection.filename` (a bare string is the filename).
 //   `useNullAsDefault` is always set, for those Knex tools.

@@ -33,13 +33,11 @@
 // side effect of this change rather than a reason for it. Skipping over
 // `originalStatusId` instead is hopeless, so the planner stops trying.
 //
-// Ordered create-then-drop rather than drop-then-create. Some paths run
-// migrations with no transaction — `disableTransactions: true` in
-// `lib/database/getSQLDatabase.ts`, and `--disable-transactions` on the Dockerfile's
-// build-time `knex migrate:latest` — so a failure between the two statements
-// must not leave the table with no announce index at all. This way it leaves a
-// redundant one instead, which costs space until the migration is re-run and
-// nothing else.
+// Ordered create-then-drop rather than drop-then-create. The Dockerfile's
+// build-time `knex migrate:latest --disable-transactions` runs migrations with
+// no transaction, so a failure between the two statements must not leave the
+// table with no announce index at all. This way it leaves a redundant one
+// instead, which costs space until the migration is re-run and nothing else.
 //
 // `CREATE INDEX` takes a lock that blocks writes to `statuses` for the duration
 // (about a second at production's row count), matching every other index

@@ -12,10 +12,9 @@
  * type-led index cannot serve at all. The two that do constrain `type` and
  * `actorId` together pin `statusId` in the same predicate.
  *
- * Some paths run migrations with no transaction — `disableTransactions: true`
- * in `lib/database/getSQLDatabase.ts`, and `--disable-transactions` on the
- * Dockerfile's build-time `knex migrate:latest` — so this stays a single
- * statement, leaving nothing half-applied to roll back.
+ * The Dockerfile's build-time `knex migrate:latest --disable-transactions`
+ * runs migrations with no transaction, so this stays a single statement,
+ * leaving nothing half-applied to roll back.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }

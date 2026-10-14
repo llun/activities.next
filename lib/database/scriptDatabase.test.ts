@@ -25,6 +25,30 @@ describe('openScriptDatabase', () => {
     }
   })
 
+  it('names its backend and normalises results unless told not to', async () => {
+    const normalised = openScriptDatabase(sqliteConfig)
+    const stored = openScriptDatabase(sqliteConfig, {
+      normalizeResults: false
+    })
+    try {
+      expect(normalised.backend).toBe('sqlite')
+      expect(stored.backend).toBe('sqlite')
+      for (const { db } of [normalised, stored]) {
+        await sql`create table flags (flag boolean)`.execute(db)
+        await sql`insert into flags (flag) values (${true})`.execute(db)
+      }
+      await expect(
+        sql`select flag from flags`.execute(normalised.db)
+      ).resolves.toMatchObject({ rows: [{ flag: true }] })
+      await expect(
+        sql`select flag from flags`.execute(stored.db)
+      ).resolves.toMatchObject({ rows: [{ flag: 1 }] })
+    } finally {
+      await normalised.destroy()
+      await stored.destroy()
+    }
+  })
+
   it('closes the pool on destroy', async () => {
     const { db, destroy } = openScriptDatabase(sqliteConfig)
     await sql`select 1`.execute(db)

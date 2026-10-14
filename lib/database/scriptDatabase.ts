@@ -1,10 +1,15 @@
 import type { Kysely } from 'kysely'
 
 import type { DatabaseConfig } from '@/lib/config/database'
-import { createDatabaseConnection } from '@/lib/database/connection'
+import {
+  type DatabaseBackend,
+  createDatabaseConnection
+} from '@/lib/database/connection'
 import type { DB } from '@/lib/database/kysely'
 
 export interface ScriptDatabase {
+  /** Which database `db` is on. */
+  backend: DatabaseBackend
   /** Kysely on the connection this call opened. */
   db: Kysely<DB>
   /** Closes the connection pool. Call it in a `finally`. */
@@ -22,8 +27,17 @@ export interface ScriptDatabase {
  * Unlike the app's connection it adds no sqlcommenter trace tag; a script has
  * no request to trace, so the app's connection adds none to a script's queries
  * either.
+ *
+ * Results are normalised like the app's (lib/database/kysely/normalize.ts)
+ * unless `normalizeResults` is false, for the production archive (see
+ * `CreateDatabaseConnectionOptions.normalizeResults`).
  */
-export const openScriptDatabase = (config: DatabaseConfig): ScriptDatabase => {
-  const { db, destroy } = createDatabaseConnection(config)
-  return { db, destroy }
+export const openScriptDatabase = (
+  config: DatabaseConfig,
+  { normalizeResults = true }: { normalizeResults?: boolean } = {}
+): ScriptDatabase => {
+  const { backend, db, destroy } = createDatabaseConnection(config, {
+    normalizeResults
+  })
+  return { backend, db, destroy }
 }

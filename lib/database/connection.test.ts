@@ -114,6 +114,139 @@ describe('createDatabaseConnection', () => {
     ])
   })
 
+  it('hands rows back as the driver reads them when normalizeResults is off', async () => {
+    const config = getTestDatabaseConfig(backend)
+    const raw = createDatabaseConnection(config, { normalizeResults: false })
+    const at = new Date('2026-02-03T04:05:06.789Z')
+    const document = { text: 'raw', tags: [1, 2] }
+    try {
+      await sql`
+        create table connection_raw_values (
+          flag boolean,
+          at ${sql.raw(backend === 'pg' ? 'timestamptz' : 'datetime')},
+          stamp ${sql.raw(backend === 'pg' ? 'timestamp' : 'datetime')},
+          big bigint,
+          doc ${sql.raw(backend === 'pg' ? 'jsonb' : 'json')},
+          day date
+        )
+      `.execute(raw.db)
+      await sql`
+        insert into connection_raw_values (flag, at, stamp, big, doc, day)
+        values (${true},
+          ${backend === 'pg' ? '2026-02-03T04:05:06.789123Z' : at},
+          '2026-02-03 04:05:06.789123',
+          ${backend === 'pg' ? '9007199254740993' : 4102444800123},
+          ${JSON.stringify(document)}, '2026-02-03')
+      `.execute(raw.db)
+
+      const { rows } = await sql`
+        select flag, ${sql.raw(
+          backend === 'pg'
+            ? `(at at time zone 'UTC')::text as "atUtc"`
+            : `null as "atUtc"`
+        )}, at, stamp, big, doc, day from connection_raw_values
+      `.execute(raw.db)
+      expect(rows).toEqual([
+        backend === 'pg'
+          ? {
+              // node-postgres's own types, except dates and timestamps,
+              // which stay the server's text: ISO style, a timestamptz in
+              // UTC, with its microseconds.
+              flag: true,
+              atUtc: '2026-02-03 04:05:06.789123',
+              at: '2026-02-03 04:05:06.789123+00',
+              stamp: '2026-02-03 04:05:06.789123',
+              big: '9007199254740993',
+              doc: document,
+              day: '2026-02-03'
+            }
+          : {
+              // SQLite's stored values; bindings are still encoded the way
+              // Knex encoded them (Date -> epoch ms, boolean -> 0/1).
+              flag: 1,
+              atUtc: null,
+              at: at.getTime(),
+              stamp: '2026-02-03 04:05:06.789123',
+              big: 4102444800123,
+              doc: JSON.stringify(document),
+              day: '2026-02-03'
+            }
+      ])
+
+      if (backend === 'pg') {
+        // Arrays of dates and timestamps stay the server's text too.
+        const { rows: arrays } = await sql`
+          select array['2026-02-03'::date] as days,
+                 array['2026-02-03 04:05:06.789123'::timestamp] as stamps,
+                 array['2026-02-03 04:05:06.789123+00'::timestamptz] as ats
+        `.execute(raw.db)
+        expect(arrays).toEqual([
+          {
+            days: '{2026-02-03}',
+            stamps: '{"2026-02-03 04:05:06.789123"}',
+            ats: '{"2026-02-03 04:05:06.789123+00"}'
+          }
+        ])
+      }
+    } finally {
+      await sql`drop table if exists connection_raw_values`.execute(raw.db)
+      await raw.destroy()
+    }
+  })
+
+  // The text does not depend on the server's settings: each connection that
+  // does not normalise sets ISO and UTC for itself, here over sessions that
+  // default to Asia/Kolkata and the SQL style (as `ALTER DATABASE … SET` or
+  // the server's configuration would make them). The app's connection keeps
+  // what the server gives it.
+  it.runIf(backend === 'pg')(
+    'reads dates and timestamps as ISO text in UTC whatever the server defaults to',
+    async () => {
+      const base = getTestDatabaseConfig('pg')
+      if (base.client !== 'pg' || typeof base.connection === 'string') {
+        throw new Error('expected a pg configuration object')
+      }
+      const config = {
+        ...base,
+        connection: {
+          ...base.connection,
+          options: '-c TimeZone=Asia/Kolkata -c DateStyle=SQL,DMY'
+        }
+      }
+      const settings = sql<{ zone: string; style: string }>`
+        select current_setting('TimeZone') as zone,
+               current_setting('DateStyle') as style
+      `
+      const app = createDatabaseConnection(config)
+      const raw = createDatabaseConnection(config, { normalizeResults: false })
+      try {
+        expect((await settings.execute(app.db)).rows).toEqual([
+          { zone: 'Asia/Kolkata', style: 'SQL, DMY' }
+        ])
+        expect((await settings.execute(raw.db)).rows).toEqual([
+          { zone: 'UTC', style: 'ISO, DMY' }
+        ])
+        const { rows } = await sql`
+          select '2026-02-03 04:05:06.789123+00'::timestamptz as at,
+                 '2026-02-03 04:05:06.789123'::timestamp as stamp,
+                 '2026-01-02'::date as day,
+                 array['2026-01-02'::date] as days
+        `.execute(raw.db)
+        expect(rows).toEqual([
+          {
+            at: '2026-02-03 04:05:06.789123+00',
+            stamp: '2026-02-03 04:05:06.789123',
+            day: '2026-01-02',
+            days: '{2026-01-02}'
+          }
+        ])
+      } finally {
+        await app.destroy()
+        await raw.destroy()
+      }
+    }
+  )
+
   // PostgreSQL streams through a cursor, which the app does not configure.
   // Stored as SQLite holds them (0/1, JSON text, CURRENT_TIMESTAMP's UTC
   // text), the streamed rows come back converted by their declared types.
@@ -345,18 +478,55 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
 
   const open = (
     pool: { min?: number; max?: number },
-    acquireConnectionTimeout?: number
+    acquireConnectionTimeout?: number,
+    normalizeResults = true
   ) => {
     const config = getTestDatabaseConfig('pg', true)
     if (config.client !== 'pg' || typeof config.connection === 'string') {
       throw new Error('expected a pg configuration object')
     }
-    return createDatabaseConnection({
-      ...config,
-      connection: { ...config.connection, application_name: APPLICATION },
-      pool,
-      ...(acquireConnectionTimeout ? { acquireConnectionTimeout } : {})
-    })
+    return createDatabaseConnection(
+      {
+        ...config,
+        connection: { ...config.connection, application_name: APPLICATION },
+        pool,
+        ...(acquireConnectionTimeout ? { acquireConnectionTimeout } : {})
+      },
+      { normalizeResults }
+    )
+  }
+
+  // Watches the statement the archive's connection (normalizeResults off)
+  // runs on each new connection to set `DateStyle` and `TimeZone`: records
+  // the client it runs on and sends `rewrite(text)` in its place.
+  const watchSessionSettings = async (
+    rewrite: (text: string) => string = (text) => text
+  ) => {
+    const { default: pg } = await import('pg')
+    const query = pg.Client.prototype.query
+    const clients: object[] = []
+    const spy = vi
+      .spyOn(pg.Client.prototype, 'query')
+      .mockImplementation(function (
+        this: InstanceType<typeof pg.Client>,
+        text: unknown,
+        ...rest: unknown[]
+      ) {
+        let sent = text
+        if (
+          typeof text === 'string' &&
+          text.includes("set_config('TimeZone', 'UTC', false)")
+        ) {
+          clients.push(this)
+          sent = rewrite(text)
+        }
+        return (query as (...args: unknown[]) => unknown).call(
+          this,
+          sent,
+          ...rest
+        )
+      } as typeof query)
+    return { clients, restore: () => spy.mockRestore() }
   }
 
   // Backends of the pool under test, as the server sees them.
@@ -597,6 +767,127 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
       await expect.poll(backendPids).toEqual([])
     } finally {
       delayed.mockRestore()
+    }
+  })
+
+  // The archive's connection sets `DateStyle` and `TimeZone` once on each
+  // new connection before handing it out, not on every query.
+  it('runs the session settings once on each new connection', async () => {
+    const settings = await watchSessionSettings()
+    const handle = open({ min: 0, max: 4 }, undefined, false)
+    const connections = new Set<string>()
+    handle.onQuery(({ connection }) => connections.add(connection))
+    const zone = sql<{ zone: string }>`
+      select current_setting('TimeZone') as zone
+    `
+    try {
+      // One connection, then a second one opened after the first is ready.
+      await sql`select 1`.execute(handle.db)
+      const held = await holdTransaction(handle.db)
+      try {
+        expect((await zone.execute(handle.db)).rows).toEqual([{ zone: 'UTC' }])
+      } finally {
+        await held.commit()
+      }
+      expect(settings.clients).toHaveLength(2)
+      // Two more opened at the same time.
+      await Promise.all(
+        Array.from({ length: 8 }, () =>
+          sql`select pg_sleep(0.05)`.execute(handle.db)
+        )
+      )
+      expect(connections.size).toBe(4)
+      expect(settings.clients).toHaveLength(4)
+      expect(new Set(settings.clients).size).toBe(4)
+      await handle.db.transaction().execute(async (trx) => {
+        await sql`select 1`.execute(trx)
+      })
+      await sql`select 1`.execute(handle.db)
+      expect(settings.clients).toHaveLength(4)
+    } finally {
+      settings.restore()
+      await handle.destroy()
+    }
+  })
+
+  // If that statement fails (here an invalid zone; in production, say, the
+  // server dropping the connection first), the query fails with the server's
+  // error and the client is destroyed, so the pool recovers and destroy()
+  // does not wait for it.
+  it('fails the query and keeps destroy() working when the session settings fail', async () => {
+    let failing = true
+    const settings = await watchSessionSettings((text) =>
+      failing ? text.replace("'UTC'", "'Not/A_Zone'") : text
+    )
+    const handle = open({ min: 0, max: 1 }, 2_000, false)
+    const zone = sql<{ zone: string }>`
+      select current_setting('TimeZone') as zone
+    `
+    let destroyed = false
+    try {
+      await expect(zone.execute(handle.db)).rejects.toThrow(
+        'invalid value for parameter "TimeZone": "Not/A_Zone"'
+      )
+      // The failed client was destroyed; the next query gets a new one.
+      failing = false
+      expect((await zone.execute(handle.db)).rows).toEqual([{ zone: 'UTC' }])
+      expect(settings.clients).toHaveLength(2)
+      expect(new Set(settings.clients).size).toBe(2)
+      const outcome = await Promise.race([
+        handle.destroy().then(() => 'destroyed'),
+        new Promise((resolve) => setTimeout(resolve, 5_000, 'still pending'))
+      ])
+      expect(outcome).toBe('destroyed')
+      destroyed = true
+      await expect.poll(backendPids).toEqual([])
+    } finally {
+      settings.restore()
+      if (!destroyed) {
+        // A client the pool never got back keeps its backend open; end it so
+        // the cases after this one start from no connections.
+        void handle.destroy()
+        await sql`
+          select pg_terminate_backend(pid) from pg_stat_activity
+          where application_name = ${APPLICATION}
+            and datname = current_database()
+        `.execute(observer.db)
+      }
+    }
+  })
+
+  // Kysely's driver drops its pool before ending it, so a client whose
+  // session settings were still running when destroy() was called must not
+  // reach the driver; unreleased, it would keep destroy() waiting forever.
+  it('does not hang when destroyed while the session settings run', async () => {
+    let running = () => {}
+    const started = new Promise<void>((resolve) => {
+      running = resolve
+    })
+    const settings = await watchSessionSettings((text) => {
+      running()
+      return text.replace('select ', 'select pg_sleep(0.3), ')
+    })
+    const handle = open({ min: 0, max: 1 }, undefined, false)
+    try {
+      const query = sql`select 1`.execute(handle.db).then(
+        () => 'resolved',
+        (error: Error) => error.message
+      )
+      await started
+      const outcome = await Promise.race([
+        handle.destroy().then(() => 'destroyed'),
+        new Promise((resolve) => setTimeout(resolve, 5_000, 'still pending'))
+      ])
+      expect(outcome).toBe('destroyed')
+      await expect(query).resolves.toBe('driver has already been destroyed')
+      await expect.poll(backendPids).toEqual([])
+    } finally {
+      settings.restore()
+      await sql`
+        select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name = ${APPLICATION}
+          and datname = current_database()
+      `.execute(observer.db)
     }
   })
 
