@@ -938,7 +938,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   no avatar column to pull back over ends up with neither — the fitness activity
   detail's card, where each row already sits at its own container's padding
   edge: the chips with the title and the stat grid in the card body, the action
-  row with the source-file link in the footer. (Those two containers are padded
+  row alone in the footer. (Those two containers are padded
   differently, `p-5` against `px-4`, so the two rows are deliberately aligned to
   their own content rather than to each other.)
   Still give the row the **full width** of its container rather than seating it

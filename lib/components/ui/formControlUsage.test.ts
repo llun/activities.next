@@ -12,16 +12,9 @@ import path from 'path'
 //   A bare `<input type="checkbox">` shows the browser's own blue control, which
 //   the mute dialog did until it was converted.
 //
-// One raw `<select>` is deliberate: the activity-file switcher on the fitness
-// status page overlays its own foreground-coloured `ChevronDown`, as the
-// design draws it, so it is not the muted-chevron control.
-//
-// Each file is paired with how many raw `<select>`s it may hold: the status
-// page is 2,200 lines, and a bare file name would let a second one in.
-const RAW_SELECT_ALLOWED = new Map([
-  ['lib/components/ui/select.tsx', 1],
-  ['app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx', 1]
-])
+// Each file is paired with how many raw `<select>`s it may hold, so a bare file
+// name cannot let a second one in. Only the primitive itself may hold one.
+const RAW_SELECT_ALLOWED = new Map([['lib/components/ui/select.tsx', 1]])
 const RAW_CHECKBOX_ALLOWED = new Set(['lib/components/ui/checkbox.tsx'])
 
 const SOURCE_ROOTS = ['app', 'lib']

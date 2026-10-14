@@ -13,6 +13,7 @@ import {
   getFitnessFilesByStatus,
   getFitnessGearList,
   getFitnessRouteData,
+  makeFitnessFilePrimary,
   updateFitnessFileGear
 } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
@@ -27,6 +28,7 @@ export const mockGetFitnessFilesByStatus = vi.mocked(getFitnessFilesByStatus)
 export const mockGetFitnessRouteData = vi.mocked(getFitnessRouteData)
 export const mockGetFitnessGearList = vi.mocked(getFitnessGearList)
 export const mockUpdateFitnessFileGear = vi.mocked(updateFitnessFileGear)
+export const mockMakeFitnessFilePrimary = vi.mocked(makeFitnessFilePrimary)
 
 export const buildGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   id: 'gear-bike',
@@ -183,6 +185,42 @@ export const openSectionMenu = async () => {
   return screen.findByRole('menu')
 }
 
+// The "Recorded with" picker's trigger is named after the recording it shows, so
+// the caller says which one is current. Opened with the keyboard, as the
+// section menu is: Radix opens a trigger on pointer-down, which `click` is not.
+export const recordingTriggerName = (current: string) =>
+  `${current}, choose recording`
+
+export const openRecordingPicker = async (current: string | RegExp) => {
+  fireEvent.keyDown(
+    await screen.findByRole('button', {
+      name:
+        typeof current === 'string' ? recordingTriggerName(current) : current
+    }),
+    {
+      key: 'ArrowDown'
+    }
+  )
+  return screen.findByRole('menu')
+}
+
+// A row is named by its label followed by its "Primary" pill and summary line
+// ("second.fit12.5 km · 30:00 · FIT"), and an owner's non-primary rows have a
+// "Make primary: second.fit" item beside them, so a row is matched by the start
+// of its name.
+export const getRecordingRow = (menu: HTMLElement, label: string) =>
+  within(menu).getByRole('menuitem', {
+    name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+  })
+
+export const chooseRecording = async (
+  current: string | RegExp,
+  next: string
+) => {
+  const menu = await openRecordingPicker(current)
+  fireEvent.click(getRecordingRow(menu, next))
+}
+
 // The metadata line's gear is a LINK to its gear page for the owner, named from
 // its content so the accessible name carries the assignment too ("Gear: Moots");
 // match on the prefix rather than pinning the current value.
@@ -227,6 +265,7 @@ export const resetFitnessStatusDetailMocks = () => {
   mockGetFitnessRouteData.mockReset()
   mockGetFitnessGearList.mockReset()
   mockUpdateFitnessFileGear.mockReset()
+  mockMakeFitnessFilePrimary.mockReset()
   mockGetFitnessFilesByStatus.mockResolvedValue(null)
   mockGetFitnessRouteData.mockResolvedValue(routeData)
   mockGetFitnessGearList.mockResolvedValue([])

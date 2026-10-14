@@ -59,6 +59,37 @@ export interface GetFitnessFileParams {
   id: string
 }
 
+export interface MakeFitnessFilePrimaryParams {
+  fitnessFileId: string
+  /** The caller. A file of anyone else's is reported as `not_found`. */
+  actorId: string
+}
+
+/**
+ * What `makeFitnessFilePrimary` did, so the caller can pick the response
+ * without re-reading the rows.
+ *
+ * - `not_found`: no such file, it is deleted, belongs to someone else, or is
+ *   not attached to a status (a lone upload has nothing to be primary of).
+ * - `not_ready`: the file itself is not a finished import (still processing,
+ *   failed, or its import failed).
+ * - `primary_busy`: the status's current primary is still being processed, so
+ *   swapping now would leave two processing jobs fighting over one route map.
+ * - `already_primary`: nothing was written.
+ * - `promoted`: the swap happened. `previousPrimaryId` is the file that lost
+ *   the flag, when there was one.
+ */
+export type MakeFitnessFilePrimaryResult =
+  | { result: 'not_found' }
+  | { result: 'not_ready' }
+  | { result: 'primary_busy' }
+  | { result: 'already_primary'; fitnessFile: FitnessFile }
+  | {
+      result: 'promoted'
+      fitnessFile: FitnessFile
+      previousPrimaryId: string | null
+    }
+
 /**
  * A keyset pagination position: the `(createdAt, id)` of the last row of the
  * previous page. Only meaningful with `orderDirection: 'asc'`.
@@ -280,6 +311,17 @@ export interface FitnessFileDatabase {
     primaryFitnessFileId: string
     statusId: string
   }): Promise<number>
+  /**
+   * Makes one of a status's recordings its primary, in one transaction: the old
+   * primary loses the flag, the new one gains it, gear the new primary lacks is
+   * copied over from the old one, and the generated route map's pointers move
+   * with the flag (the processing job replaces only the map the file it is
+   * given points at). Idempotent for a file that already is the primary.
+   * Re-running the processing job for the new primary is the caller's job.
+   */
+  makeFitnessFilePrimary(
+    params: MakeFitnessFilePrimaryParams
+  ): Promise<MakeFitnessFilePrimaryResult>
   updateFitnessFileActivityData(
     fitnessFileId: string,
     data: UpdateFitnessFileActivityData

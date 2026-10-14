@@ -13,6 +13,18 @@ export const IMPORT_LOCK_TTL_MS = 120 * 1000
 const DEFAULT_MAX_WAIT_MS = 15 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 250
 
+/**
+ * Thrown by `withImportLock` with `failOnTimeout` when the lock stayed held for
+ * the whole wait. A class rather than a message match, so a caller can answer
+ * "someone else is importing" differently from a real fault.
+ */
+export class ImportLockTimeoutError extends Error {
+  constructor(lockKey: string) {
+    super(`Timed out acquiring import lock: ${lockKey}`)
+    this.name = 'ImportLockTimeoutError'
+  }
+}
+
 export interface WithImportLockOptions {
   ttlMs?: number
   maxWaitMs?: number
@@ -51,7 +63,7 @@ export const withImportLock = async <T>(
 
   if (!lock) {
     if (options.failOnTimeout) {
-      throw new Error(`Timed out acquiring import lock: ${lockKey}`)
+      throw new ImportLockTimeoutError(lockKey)
     }
     logger.warn({
       message: 'Proceeding without import lock after wait timeout',

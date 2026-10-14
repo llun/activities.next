@@ -164,3 +164,68 @@ export const getDeviceDisplayLabel = (
     null
   )
 }
+
+export type DeviceLinkTarget =
+  | { kind: 'owner'; href: string; label: string }
+  | {
+      kind: 'brand'
+      href: string
+      label: string
+      brandName: string
+      brandColor?: string
+    }
+
+/**
+ * Where the device an activity was recorded on links to, for this viewer, or
+ * null when it is plain text. The one place that decides it, for
+ * `BrandedDeviceLink` and the recording picker's device item alike:
+ *
+ * - the owner, with a `kind: 'device'` gear row: that row's own page (owner
+ *   scoped, so nobody else is ever sent there);
+ * - everyone else, and the owner without a row: the manufacturer, when the
+ *   brand resolves;
+ * - otherwise nothing.
+ *
+ * `label` is what `BrandedDeviceLink` shows: the gear row's name over the
+ * recorded one.
+ */
+export const getDeviceLinkTarget = ({
+  deviceName,
+  deviceManufacturer,
+  deviceGearId,
+  deviceGearName,
+  isOwner
+}: {
+  deviceName?: string | null
+  deviceManufacturer?: string | null
+  deviceGearId?: string | null
+  deviceGearName?: string | null
+  isOwner?: boolean
+}): DeviceLinkTarget | null => {
+  const label =
+    deviceGearName?.trim() ||
+    getDeviceDisplayLabel(deviceName, deviceManufacturer)
+  if (!label) return null
+
+  if (isOwner && deviceGearId) {
+    return {
+      kind: 'owner',
+      href: `/fitness/gear/${encodeURIComponent(deviceGearId)}`,
+      label
+    }
+  }
+
+  const brand =
+    getBrandFromManufacturer(deviceManufacturer) ??
+    getBrandFromDeviceName(deviceName)
+  if (brand) {
+    return {
+      kind: 'brand',
+      href: brand.url,
+      label,
+      brandName: brand.displayName,
+      brandColor: brand.brandColor
+    }
+  }
+  return null
+}

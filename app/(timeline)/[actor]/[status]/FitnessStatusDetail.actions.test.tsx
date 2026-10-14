@@ -18,6 +18,7 @@ vi.mock('@/lib/client', () => ({
   getFitnessFilesByStatus: vi.fn(),
   getFitnessGearList: vi.fn(),
   getFitnessRouteData: vi.fn(),
+  makeFitnessFilePrimary: vi.fn(),
   updateFitnessFileGear: vi.fn()
 }))
 
@@ -275,15 +276,20 @@ describe('FitnessStatusDetail', () => {
     })
   })
 
-  describe('source file link', () => {
+  describe('source file download', () => {
     // The raw upload carries the whole track, including the ends a privacy
     // location trims off the map and the route data, so
-    // `GET /api/v1/fitness-files/:id` is owner-only and the link has to match.
-    it('offers the owner a link to the source file', async () => {
+    // `GET /api/v1/fitness-files/:id` is owner-only and the button has to match.
+    it('offers the owner a download of the source file, even with no device to name', async () => {
       renderDetail()
 
-      const link = await screen.findByRole('link', { name: /ride\.fit/ })
+      // Nothing records a device, so the download is the whole "Recorded with"
+      // line and says what it is.
+      const link = await screen.findByRole('link', {
+        name: /download fit file/i
+      })
       expect(link).toHaveAttribute('href', '/api/v1/fitness-files/fit-1')
+      expect(link).toHaveTextContent('Original file')
     })
 
     it.each([
@@ -300,15 +306,15 @@ describe('FitnessStatusDetail', () => {
       async ({ currentActor }: { currentActor: ActorProfile | null }) => {
         renderDetail({ currentActor })
 
-        // The name still shows — it is the label saying which file this panel
-        // describes, and with several attached it is what the selector switches
-        // between. Only the anchor goes, because the endpoint 404s for them.
-        await waitFor(() =>
-          expect(screen.getByText('ride.fit')).toBeInTheDocument()
-        )
+        // Positive anchor first, so the absences below are not just "the page
+        // has not rendered yet". Neither the button nor the file's name is
+        // shown to them: the footer no longer carries a source-file row.
+        expect(await screen.findByText('Sunset loop')).toBeInTheDocument()
         expect(
-          screen.queryByRole('link', { name: /ride\.fit/ })
+          screen.queryByRole('link', { name: /download/i })
         ).not.toBeInTheDocument()
+        expect(screen.queryByText('Original file')).not.toBeInTheDocument()
+        expect(screen.queryByText('ride.fit')).not.toBeInTheDocument()
       }
     )
 

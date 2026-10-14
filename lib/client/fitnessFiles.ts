@@ -168,6 +168,87 @@ export const getFitnessFilesByStatus = async (
   return data && Array.isArray(data.files) ? data.files : null
 }
 
+export interface MakeFitnessFilePrimaryResult {
+  file: StatusFitnessFileItem
+  /** The map was already redrawn, so a re-read of the page shows it. */
+  processed: boolean
+  /** Nothing changed: the recording already was the primary. */
+  alreadyPrimary: boolean
+}
+
+/**
+ * Makes one of an activity's recordings its primary one, the file the post, its
+ * route map and the totals follow. Resolves to that file as the activity page
+ * holds it (gear names resolved), so the caller can update its own list, and to
+ * whether the server has already redrawn the map (`processed`): only then does
+ * a re-read of the page show the new map.
+ *
+ * The error text is chosen here for the statuses that have nothing better to
+ * say. A 409 (another import holds the activity) and a 422 (which of the two
+ * not-ready cases) carry a specific sentence in the response, which is used as
+ * it is; the fixed text is the fallback when the body cannot be read.
+ */
+export const makeFitnessFilePrimary = async (
+  fitnessFileId: string
+): Promise<MakeFitnessFilePrimaryResult> => {
+  const response = await fetch(
+    `/api/v1/fitness-files/${encodeURIComponent(fitnessFileId)}/primary`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json' }
+    }
+  )
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new ApiRequestError('This recording could not be found.', 404)
+    }
+    if (response.status === 409) {
+      throw new ApiRequestError(
+        (await readErrorMessage(response)) ??
+          'Another import is updating this activity. Try again in a moment.',
+        409
+      )
+    }
+    if (response.status === 422) {
+      throw new ApiRequestError(
+        (await readErrorMessage(response)) ??
+          'This recording cannot be made primary until its processing has finished.',
+        422
+      )
+    }
+    throw new ApiRequestError(
+      'Failed to make this the primary recording.',
+      response.status
+    )
+  }
+
+  const { processed, alreadyPrimary, ...file } =
+    (await response.json()) as Partial<StatusFitnessFileItem> & {
+      processed?: boolean
+      alreadyPrimary?: boolean
+    }
+  return {
+    // Everything but `id` can be missing: after a swap the server falls back
+    // to the bare id and flag when it cannot read the file back, and the page
+    // merges whatever arrives into the file it already holds.
+    file: { ...file, id: fitnessFileId } as StatusFitnessFileItem,
+    processed: processed === true,
+    alreadyPrimary: alreadyPrimary === true
+  }
+}
+
+const readErrorMessage = async (response: Response): Promise<string | null> => {
+  try {
+    const body = (await response.json()) as { error?: unknown }
+    return typeof body.error === 'string' && body.error.length > 0
+      ? body.error
+      : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Fetches a short-lived Apple MapKit JS authorization token. Returns `null` when
  * the instance is not configured for the Apple map provider, or on any failure,

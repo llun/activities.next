@@ -945,6 +945,489 @@ describe('FitnessFileDatabase', () => {
       })
     })
 
+    describe('makeFitnessFilePrimary', () => {
+      let slugCounter = 0
+
+      // A status of its own per test: the swap acts on every file of a status,
+      // so tests sharing one would see each other's recordings.
+      const createStatusId = async () => {
+        slugCounter += 1
+        const statusId = `${actors.primary.id}/statuses/make-primary-${slugCounter}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actors.primary.id,
+          text: 'Merged ride',
+          to: [],
+          cc: []
+        })
+        return statusId
+      }
+
+      const createRecording = async ({
+        statusId,
+        slug,
+        isPrimary,
+        processingStatus = 'completed',
+        actorId = actors.primary.id
+      }: {
+        statusId?: string
+        slug: string
+        isPrimary: boolean
+        processingStatus?: FitnessProcessingStatus
+        actorId?: string
+      }) => {
+        const file = await database.createFitnessFile({
+          actorId,
+          statusId,
+          path: `fitness/make-primary-${slug}.fit`,
+          fileName: `make-primary-${slug}.fit`,
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1_024
+        })
+        await database.updateFitnessFileProcessingStatus(
+          file!.id,
+          processingStatus
+        )
+        if (!isPrimary) {
+          await database.updateFitnessFilePrimary(file!.id, false)
+        }
+        return file!
+      }
+
+      const flagsOf = async (...ids: string[]) =>
+        Promise.all(
+          ids.map(
+            async (id) => (await database.getFitnessFile({ id }))?.isPrimary
+          )
+        )
+
+      it('moves the flag to the chosen recording and leaves the rest demoted', async () => {
+        const statusId = await createStatusId()
+        const oldPrimary = await createRecording({
+          statusId,
+          slug: 'swap-old',
+          isPrimary: true
+        })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'swap-chosen',
+          isPrimary: false
+        })
+        const bystander = await createRecording({
+          statusId,
+          slug: 'swap-bystander',
+          isPrimary: false
+        })
+
+        const result = await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        expect(result).toMatchObject({
+          result: 'promoted',
+          previousPrimaryId: oldPrimary.id,
+          fitnessFile: { id: chosen.id, isPrimary: true }
+        })
+        expect(await flagsOf(oldPrimary.id, chosen.id, bystander.id)).toEqual([
+          false,
+          true,
+          false
+        ])
+        const primaries = (
+          await database.getFitnessFilesByStatus({ statusId })
+        ).filter((file) => file.isPrimary)
+        expect(primaries.map((file) => file.id)).toEqual([chosen.id])
+      })
+
+      it('leaves the chosen recording completed, for the processing job to pick up', async () => {
+        const statusId = await createStatusId()
+        await createRecording({ statusId, slug: 'status-old', isPrimary: true })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'status-chosen',
+          isPrimary: false
+        })
+
+        await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        expect(
+          (await database.getFitnessFile({ id: chosen.id }))?.processingStatus
+        ).toBe('completed')
+      })
+
+      it('copies the old primary’s gear to a recording that has none', async () => {
+        const statusId = await createStatusId()
+        const gear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'bike',
+          name: 'Make primary bike'
+        })
+        const oldPrimary = await createRecording({
+          statusId,
+          slug: 'gear-old',
+          isPrimary: true
+        })
+        await database.setFitnessFileGear({
+          fitnessFileId: oldPrimary.id,
+          actorId: actors.primary.id,
+          gearId: gear.id
+        })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'gear-chosen',
+          isPrimary: false
+        })
+
+        const result = await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        expect(result.result).toBe('promoted')
+        expect((await database.getFitnessFile({ id: chosen.id }))?.gearId).toBe(
+          gear.id
+        )
+      })
+
+      it('keeps the gear the chosen recording already has', async () => {
+        const statusId = await createStatusId()
+        const oldGear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'bike',
+          name: 'Old primary bike'
+        })
+        const ownGear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'bike',
+          name: 'Chosen recording bike'
+        })
+        const oldPrimary = await createRecording({
+          statusId,
+          slug: 'own-gear-old',
+          isPrimary: true
+        })
+        await database.setFitnessFileGear({
+          fitnessFileId: oldPrimary.id,
+          actorId: actors.primary.id,
+          gearId: oldGear.id
+        })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'own-gear-chosen',
+          isPrimary: false
+        })
+        await database.setFitnessFileGear({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id,
+          gearId: ownGear.id
+        })
+
+        await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        expect((await database.getFitnessFile({ id: chosen.id }))?.gearId).toBe(
+          ownGear.id
+        )
+      })
+
+      it('moves the generated route map pointers with the flag', async () => {
+        const statusId = await createStatusId()
+        const oldPrimary = await createRecording({
+          statusId,
+          slug: 'map-old',
+          isPrimary: true
+        })
+        await database.updateFitnessFileActivityData(oldPrimary.id, {
+          hasMapData: true,
+          mapImagePath: 'medias/old-map.webp',
+          mapImageEmailPath: 'medias/old-map.jpg',
+          mapError: 'Failed to remove the route map'
+        })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'map-chosen',
+          isPrimary: false
+        })
+
+        await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        const moved = await database.getFitnessFile({ id: chosen.id })
+        expect(moved).toMatchObject({
+          hasMapData: true,
+          mapImagePath: 'medias/old-map.webp',
+          mapImageEmailPath: 'medias/old-map.jpg'
+        })
+        const released = await database.getFitnessFile({ id: oldPrimary.id })
+        expect(released?.hasMapData).toBe(false)
+        expect(released?.mapImagePath).toBeUndefined()
+        expect(released?.mapImageEmailPath).toBeUndefined()
+        // Cleared with the flag; see the next test for the case with no map.
+        expect(released?.mapError).toBeUndefined()
+      })
+
+      it('writes no map pointers when the old primary had no map, and still clears its map reason', async () => {
+        const statusId = await createStatusId()
+        const oldPrimary = await createRecording({
+          statusId,
+          slug: 'nomap-old',
+          isPrimary: true
+        })
+        await database.updateFitnessFileActivityData(oldPrimary.id, {
+          mapError: 'Generated map image buffer is empty'
+        })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'nomap-chosen',
+          isPrimary: false
+        })
+
+        await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        const moved = await database.getFitnessFile({ id: chosen.id })
+        expect(moved?.hasMapData).toBe(false)
+        expect(moved?.mapImagePath).toBeUndefined()
+        // Cleared with the flag even though no map moved: a secondary owns no
+        // map, so a reason recorded against it would read as a failure of a
+        // map it was never meant to have.
+        expect(
+          (await database.getFitnessFile({ id: oldPrimary.id }))?.mapError
+        ).toBeUndefined()
+      })
+
+      it('changes nothing for a recording that already is the primary', async () => {
+        const statusId = await createStatusId()
+        const primary = await createRecording({
+          statusId,
+          slug: 'idem-primary',
+          isPrimary: true
+        })
+        const other = await createRecording({
+          statusId,
+          slug: 'idem-other',
+          isPrimary: false
+        })
+
+        const result = await database.makeFitnessFilePrimary({
+          fitnessFileId: primary.id,
+          actorId: actors.primary.id
+        })
+
+        expect(result).toMatchObject({
+          result: 'already_primary',
+          fitnessFile: { id: primary.id }
+        })
+        expect(await flagsOf(primary.id, other.id)).toEqual([true, false])
+      })
+
+      it('recovers a status whose primary failed', async () => {
+        const statusId = await createStatusId()
+        const failed = await createRecording({
+          statusId,
+          slug: 'failed-old',
+          isPrimary: true,
+          processingStatus: 'failed'
+        })
+        const chosen = await createRecording({
+          statusId,
+          slug: 'failed-chosen',
+          isPrimary: false
+        })
+
+        const result = await database.makeFitnessFilePrimary({
+          fitnessFileId: chosen.id,
+          actorId: actors.primary.id
+        })
+
+        expect(result.result).toBe('promoted')
+        expect(await flagsOf(failed.id, chosen.id)).toEqual([false, true])
+      })
+
+      describe('refusals', () => {
+        const expectUntouched = async (
+          statusId: string,
+          expected: Array<[string, boolean]>
+        ) => {
+          const files = await database.getFitnessFilesByStatus({ statusId })
+          expect(
+            Object.fromEntries(files.map((file) => [file.id, file.isPrimary]))
+          ).toEqual(Object.fromEntries(expected))
+        }
+
+        it('reports a missing recording as not found', async () => {
+          expect(
+            await database.makeFitnessFilePrimary({
+              fitnessFileId: 'no-such-file',
+              actorId: actors.primary.id
+            })
+          ).toEqual({ result: 'not_found' })
+        })
+
+        it('reports a deleted recording as not found', async () => {
+          const statusId = await createStatusId()
+          const primary = await createRecording({
+            statusId,
+            slug: 'deleted-primary',
+            isPrimary: true
+          })
+          const deleted = await createRecording({
+            statusId,
+            slug: 'deleted-chosen',
+            isPrimary: false
+          })
+          await database.deleteFitnessFile({ id: deleted.id })
+
+          expect(
+            await database.makeFitnessFilePrimary({
+              fitnessFileId: deleted.id,
+              actorId: actors.primary.id
+            })
+          ).toEqual({ result: 'not_found' })
+          await expectUntouched(statusId, [[primary.id, true]])
+        })
+
+        it('reports another actor’s recording as not found', async () => {
+          const statusId = await createStatusId()
+          const primary = await createRecording({
+            statusId,
+            slug: 'foreign-primary',
+            isPrimary: true
+          })
+          const chosen = await createRecording({
+            statusId,
+            slug: 'foreign-chosen',
+            isPrimary: false
+          })
+
+          expect(
+            await database.makeFitnessFilePrimary({
+              fitnessFileId: chosen.id,
+              actorId: actors.replyAuthor.id
+            })
+          ).toEqual({ result: 'not_found' })
+          await expectUntouched(statusId, [
+            [primary.id, true],
+            [chosen.id, false]
+          ])
+        })
+
+        it('reports a recording with no status as not found', async () => {
+          const lone = await createRecording({
+            slug: 'lone',
+            isPrimary: true
+          })
+
+          expect(
+            await database.makeFitnessFilePrimary({
+              fitnessFileId: lone.id,
+              actorId: actors.primary.id
+            })
+          ).toEqual({ result: 'not_found' })
+        })
+
+        it.each<FitnessProcessingStatus>(['pending', 'processing', 'failed'])(
+          'refuses a recording that is %s',
+          async (processingStatus) => {
+            const statusId = await createStatusId()
+            const primary = await createRecording({
+              statusId,
+              slug: `unusable-primary-${processingStatus}`,
+              isPrimary: true
+            })
+            const chosen = await createRecording({
+              statusId,
+              slug: `unusable-chosen-${processingStatus}`,
+              isPrimary: false,
+              processingStatus
+            })
+
+            expect(
+              await database.makeFitnessFilePrimary({
+                fitnessFileId: chosen.id,
+                actorId: actors.primary.id
+              })
+            ).toEqual({ result: 'not_ready' })
+            await expectUntouched(statusId, [
+              [primary.id, true],
+              [chosen.id, false]
+            ])
+          }
+        )
+
+        it('refuses a recording whose import failed', async () => {
+          const statusId = await createStatusId()
+          const primary = await createRecording({
+            statusId,
+            slug: 'import-failed-primary',
+            isPrimary: true
+          })
+          const chosen = await createRecording({
+            statusId,
+            slug: 'import-failed-chosen',
+            isPrimary: false
+          })
+          await database.updateFitnessFileImportStatus(
+            chosen.id,
+            'failed',
+            'parse failed'
+          )
+
+          expect(
+            await database.makeFitnessFilePrimary({
+              fitnessFileId: chosen.id,
+              actorId: actors.primary.id
+            })
+          ).toEqual({ result: 'not_ready' })
+          await expectUntouched(statusId, [
+            [primary.id, true],
+            [chosen.id, false]
+          ])
+        })
+
+        it.each<FitnessProcessingStatus>(['pending', 'processing'])(
+          'refuses while the current primary is %s',
+          async (processingStatus) => {
+            const statusId = await createStatusId()
+            const primary = await createRecording({
+              statusId,
+              slug: `busy-primary-${processingStatus}`,
+              isPrimary: true,
+              processingStatus
+            })
+            const chosen = await createRecording({
+              statusId,
+              slug: `busy-chosen-${processingStatus}`,
+              isPrimary: false
+            })
+
+            expect(
+              await database.makeFitnessFilePrimary({
+                fitnessFileId: chosen.id,
+                actorId: actors.primary.id
+              })
+            ).toEqual({ result: 'primary_busy' })
+            await expectUntouched(statusId, [
+              [primary.id, true],
+              [chosen.id, false]
+            ])
+          }
+        )
+      })
+    })
+
     describe('getFitnessFilesWithStatusForAccount', () => {
       it('returns paginated fitness files scoped to account', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
