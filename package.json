@@ -17,8 +17,10 @@
     "prettier": "prettier --write app migrations lib lint test",
     "prettier:check": "prettier --check app migrations lib lint test",
     "search:reindex": "node scripts/run.cjs scripts/maintenance/rebuildSearchIndex.ts",
-    "migrate": "knex migrate:latest",
-    "migrate:make": "knex migrate:make",
+    "migrate": "node scripts/run.cjs scripts/database/migrate.ts latest",
+    "migrate:make": "node scripts/run.cjs scripts/database/migrate.ts make",
+    "migrate:status": "node scripts/run.cjs scripts/database/migrate.ts status",
+    "migrate:down": "node scripts/run.cjs scripts/database/migrate.ts down",
     "prepare": "husky"
   },
   "lint-staged": {

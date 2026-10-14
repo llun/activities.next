@@ -6,18 +6,16 @@ import { matcher } from './utils'
 
 // The database the application connects to (lib/database/connection.ts). It
 // is still the subset of a Knex configuration the app has always accepted, so
-// `ACTIVITIES_DATABASE` JSON written for Knex keeps working and the Knex that
-// still runs the migrations (`migrateToLatest` in lib/database/migrate) can be
-// built from the same object:
+// `ACTIVITIES_DATABASE` JSON written for Knex keeps working:
 //
 // - better-sqlite3: `connection.filename` (a bare string is the filename).
-//   `useNullAsDefault` is always set, for those Knex tools.
+//   `useNullAsDefault` is always set, as Knex required.
 // - pg: `connection` is a node-postgres client configuration (`host`, `port`,
 //   `user`, `password`, `database`, `ssl`, `application_name`, …) or a
 //   connection string (absent in the JSON: `{}`, so node-postgres reads the
-//   `PG*` environment variables; Knex built no pool without `connection`, so
-//   `yarn migrate` still needs it); `pool.min` / `pool.max` size
-//   the pool (Knex's defaults, 2 and 10, when `pool` is absent);
+//   `PG*` environment variables, under `yarn migrate` too); `pool.min` /
+//   `pool.max` size the pool (Knex's defaults, 2 and 10, when `pool` is
+//   absent);
 //   `acquireConnectionTimeout` is how long a query waits for a free pooled
 //   connection, in milliseconds (60 000 when unset).
 //

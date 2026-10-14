@@ -1,4 +1,4 @@
-import { getDatabaseConfig } from '@/lib/config/database'
+import { type DatabaseConfig, getDatabaseConfig } from '@/lib/config/database'
 
 // Standalone so every recovery script can print WHICH database it is about to
 // touch. @next/env loads `.env.local` at higher precedence than `.env.production`
@@ -22,14 +22,19 @@ export interface ConnectionInfo {
   isLocal: boolean
 }
 
-export const describeConnection = (): ConnectionInfo => {
-  const dbConfig = getDatabaseConfig()
-  if (!dbConfig) {
+/**
+ * Describes `database`: the app's configured database unless the caller
+ * resolved one itself (the migration CLI resolves it as the Knex CLI did).
+ */
+export const describeConnection = (
+  database: DatabaseConfig | null = getDatabaseConfig()?.database ?? null
+): ConnectionInfo => {
+  if (!database) {
     return { client: '(unset)', target: '(no database config)', isLocal: true }
   }
 
-  const client = String(dbConfig.database.client ?? '(unknown)')
-  const conn = dbConfig.database.connection as
+  const client = String(database.client ?? '(unknown)')
+  const conn = database.connection as
     | {
         host?: string
         port?: number

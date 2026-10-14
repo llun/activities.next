@@ -33,10 +33,12 @@ import {
 const DEFAULT_OUTPUT = 'lib/database/kysely/db.ts'
 const SQLITE_SCHEMA = 'migrations/schema.sqlite.sql'
 
-// Knex's own bookkeeping tables, and the shadow tables SQLite's FTS5 module
-// manages for each full-text index (the virtual table itself is kept).
+// The migration runners' bookkeeping tables (Kysely's, which its introspection
+// already leaves out by default, and the Knex ones a database migrated before
+// the handover keeps), and the shadow tables SQLite's FTS5 module manages for
+// each full-text index (the virtual table itself is kept).
 const EXCLUDED_TABLE =
-  /^(knex_migrations(_lock)?|.+_fts_(data|idx|docsize|config|content))$/
+  /^(kysely_migration(_lock)?|knex_migrations(_lock)?|.+_fts_(data|idx|docsize|config|content))$/
 
 // What the Kysely driver hands back for a column (see
 // lib/database/kysely/normalize.ts), and what both backends accept when it is

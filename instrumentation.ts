@@ -5,9 +5,17 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { getConfig } = await import('@/lib/config')
     const config = getConfig()
-    const { getDatabase } = await import('@/lib/database')
+    const { getDatabase, getKysely } = await import('@/lib/database')
     const database = getDatabase()
     if (database) {
+      // Logs pending migrations and does not wait for the check: the app
+      // starts either way (docs/maintenance.md).
+      const { warnAboutPendingMigrations } =
+        await import('@/lib/database/migrate/startupCheck')
+      void warnAboutPendingMigrations({
+        db: getKysely(),
+        config: config.database
+      })
       if (config.queue?.type === 'database') {
         const { startDatabaseQueueRunner } =
           await import('@/lib/services/queue/databaseRunner')

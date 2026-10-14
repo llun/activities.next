@@ -44,7 +44,9 @@ RUN yarn config set -H enableGlobalCache true
 RUN yarn config set -H enableImmutableInstalls true
 RUN yarn workspaces focus ${WORKSPACES}
 COPY --chown=app:app . /opt/activities.next/
-RUN mkdir -p .next && yarn knex migrate:latest --disable-transactions
+# Builds data.sqlite for the image: on an empty database the first migration
+# loads the baseline schema (migrations/baseline/), then any later ones run.
+RUN mkdir -p .next && yarn migrate
 # Keep compiler cache outside image layers, isolated by platform and build user.
 RUN --mount=type=cache,id=activities-next-${TARGETPLATFORM}-${UID}-${GID}-${WORKSPACES},target=/opt/activities.next/.next/cache,uid=${UID},gid=${GID},sharing=locked \
   BUILD_STANDALONE=true yarn build

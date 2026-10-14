@@ -1,5 +1,5 @@
-CREATE TABLE `knex_migrations` (`id` integer not null primary key autoincrement, `name` varchar(255), `batch` integer, `migration_time` datetime);
-CREATE TABLE `knex_migrations_lock` (`index` integer not null primary key autoincrement, `is_locked` integer);
+CREATE TABLE IF NOT EXISTS "kysely_migration" ("name" varchar(255) not null primary key, "timestamp" varchar(255) not null);
+CREATE TABLE IF NOT EXISTS "kysely_migration_lock" ("id" varchar(255) not null primary key, "is_locked" integer default 0 not null);
 CREATE TABLE `follows` (`id` varchar(255), `actorId` varchar(255), `actorHost` varchar(255), `targetActorId` varchar(255), `targetActorHost` varchar(255), `status` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `inbox` varchar(255), `sharedInbox` varchar(255), `reblogs` boolean not null default '1', `notify` boolean not null default '0', `languages` text null, primary key (`id`));
 CREATE INDEX `followsIndex` on `follows` (`actorId`, `actorHost`, `targetActorId`, `targetActorHost`, `status`, `createdAt`, `updatedAt`);
 CREATE TABLE `recipients` (`id` varchar(255), `statusId` varchar(255), `actorId` varchar(255), `type` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));

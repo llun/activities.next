@@ -1,0 +1,18 @@
+import type { Kysely } from 'kysely'
+
+// What this migration changes, and why.
+//
+// It must work on SQLite and PostgreSQL. It runs in a transaction of its own;
+// export `const config = { transaction: false }` only for a statement that
+// cannot run in one (lib/database/migrate/types.ts). Keep `up` safe to run
+// twice: the migration is recorded just after its transaction commits.
+//
+// Register it in migrations/index.ts, then regenerate both schema dumps and
+// the Kysely DB types (docs/setup.md, "Keeping the reference schema dumps in
+// sync").
+
+// oxlint-disable-next-line typescript/no-explicit-any
+export const up = async (db: Kysely<any>): Promise<void> => {}
+
+// oxlint-disable-next-line typescript/no-explicit-any
+export const down = async (db: Kysely<any>): Promise<void> => {}

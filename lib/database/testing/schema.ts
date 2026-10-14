@@ -4,10 +4,11 @@ import { fileURLToPath } from 'node:url'
 import type { DatabaseHandle } from '@/lib/database/connection'
 
 // Tests build their schema from the committed reference dumps instead of running
-// the Knex migration chain. This keeps the (ESM) migration files out of the test
-// runtime entirely and makes per-file database setup dramatically faster. The
-// dumps are kept in lockstep with the migrations (see AGENTS.md), so the schema
-// is identical to a fully-migrated database.
+// the migrations. This keeps the migrations out of the test runtime and makes
+// per-file database setup dramatically faster. The dumps are kept in lockstep
+// with the migrations (see AGENTS.md), so the schema is identical to a
+// fully-migrated database; their `kysely_migration` table is empty, so a test
+// database is not one `yarn migrate` would run on.
 const SQLITE_SCHEMA_PATH = fileURLToPath(
   new URL('../../../migrations/schema.sqlite.sql', import.meta.url)
 )

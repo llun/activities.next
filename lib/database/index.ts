@@ -18,7 +18,7 @@ interface DatabaseInstance {
 
 // `yarn migrate` is how migrations run; nothing in the app calls `migrate()`.
 // It runs the same migrations through lib/database/migrate, imported on first
-// use so neither the runner nor the migrations join the server bundle.
+// use, as the startup check in instrumentation.ts imports it.
 const migrateDatabase = async (db: Kysely<DB>, config: DatabaseConfig) => {
   const { migrateToLatest } = await import('@/lib/database/migrate')
   await migrateToLatest({ db, config })
