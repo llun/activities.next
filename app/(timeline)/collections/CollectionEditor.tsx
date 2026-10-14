@@ -355,7 +355,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
             />
           </FormRow>
 
-          <FormRow label="Description" htmlFor="collection-description" wide>
+          <FormRow label="Description" htmlFor="collection-description">
             <div className="space-y-1">
               <Textarea
                 id="collection-description"
@@ -396,7 +396,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
             )}
           </FormRow>
 
-          <FormRow label="Visibility" wide>
+          <FormRow label="Visibility">
             {({ labelledBy }) => (
               <RadioGroup
                 aria-labelledby={labelledBy}
