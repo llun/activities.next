@@ -115,22 +115,16 @@ const Page = async ({
         title="Email address"
         description="Used for sign-in and account notifications."
       >
-        <Frame form className="overflow-hidden">
+        <ChangeEmailForm currentEmail={account.email}>
           <FormRow label="Current email" htmlFor="currentEmail">
             <div className="flex items-center gap-2">
-              <Input
-                id="currentEmail"
-                value={account.email}
-                disabled
-                className="bg-muted"
-              />
+              <Input id="currentEmail" value={account.email} disabled />
               {account.emailVerifiedAt && (
                 <Badge tone="success">Verified</Badge>
               )}
             </div>
           </FormRow>
-          <ChangeEmailForm currentEmail={account.email} />
-        </Frame>
+        </ChangeEmailForm>
       </Section>
     </div>
   )
