@@ -161,6 +161,27 @@ return {
       expect(assets).toContain('/icon-192.png')
       expect(assets).toContain('/icon-512.png')
     })
+
+    it('ignores reserved static subdirectories like chunks when extracting build ID and finds valid segment or deterministic fingerprint', () => {
+      const htmlWithBuild = `
+        <html><head>
+          <script src="/_next/static/chunks/main.js"></script>
+          <script src="/_next/static/css/styles.css"></script>
+          <script src="/_next/static/release-xyz/bundle.js"></script>
+        </head></html>
+      `
+      expect(swModule.extractBuildId(htmlWithBuild)).toBe('release-xyz')
+
+      const htmlChunksOnly = `
+        <html><head>
+          <script src="/_next/static/chunks/main-abc.js"></script>
+          <link rel="stylesheet" href="/_next/static/css/styles-def.css" />
+        </head></html>
+      `
+      const buildId = swModule.extractBuildId(htmlChunksOnly)
+      expect(buildId).toMatch(/^fp-[a-z0-9]+$/)
+      expect(swModule.extractBuildId(htmlChunksOnly)).toBe(buildId)
+    })
   })
 
   describe('stageAppShell', () => {
@@ -234,6 +255,35 @@ return {
       const allKeys = await caches.keys()
       expect(allKeys).toContain('activities-shell-preserved')
       expect(allKeys).not.toContain('activities-shell-build-fail')
+    })
+
+    it('does not delete the target shell cache if it is already the active shell cache when an asset fetch fails', async () => {
+      const activeCacheName = 'activities-shell-active-1'
+      const activeCache = await caches.open(activeCacheName)
+      await activeCache.put('/app', new Response('active app'))
+
+      const html = `
+        <html><head>
+          <script src="/activities/_next/static/active-1/_buildManifest.js"></script>
+          <link rel="stylesheet" href="/activities/_next/static/flaky.css" />
+        </head></html>
+      `
+
+      mockFetch.mockImplementation(async (url: string) => {
+        if (url === '/app') {
+          return new Response(html, { status: 200 })
+        }
+        if (url === '/activities/_next/static/flaky.css') {
+          return new Response('Server Error', { status: 500 })
+        }
+        return new Response('ok', { status: 200 })
+      })
+
+      const result = await swModule.stageAppShell()
+      expect(result).toBeNull()
+
+      const allKeys = await caches.keys()
+      expect(allKeys).toContain(activeCacheName)
     })
   })
 
@@ -454,6 +504,35 @@ return {
       const { response } = await triggerFetch(req)
       expect(response).not.toBeNull()
       expect(await response!.text()).toBe('cached chunk')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('serves /manifest.webmanifest and /icon-192.png from active shell cache while offline', async () => {
+      const shellCache = await caches.open('activities-shell-v1')
+      await shellCache.put(
+        '/manifest.webmanifest',
+        new Response('{"name":"Activities"}', {
+          headers: { 'Content-Type': 'application/manifest+json' }
+        })
+      )
+      await shellCache.put(
+        '/icon-192.png',
+        new Response('fake-icon-bytes', {
+          headers: { 'Content-Type': 'image/png' }
+        })
+      )
+
+      const manifestReq = new Request(
+        'https://llun.social/manifest.webmanifest'
+      )
+      const { response: manifestRes } = await triggerFetch(manifestReq)
+      expect(manifestRes).not.toBeNull()
+      expect(await manifestRes!.text()).toBe('{"name":"Activities"}')
+
+      const iconReq = new Request('https://llun.social/icon-192.png')
+      const { response: iconRes } = await triggerFetch(iconReq)
+      expect(iconRes).not.toBeNull()
+      expect(await iconRes!.text()).toBe('fake-icon-bytes')
       expect(mockFetch).not.toHaveBeenCalled()
     })
 

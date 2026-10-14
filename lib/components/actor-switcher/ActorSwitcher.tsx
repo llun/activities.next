@@ -75,7 +75,7 @@ export function ActorSwitcher({
 
       if (didSwitch) {
         try {
-          await setActiveOfflineSession({ accountId: '', actorId })
+          await setActiveOfflineSession({ actorId })
         } catch {
           // safe ignore
         }

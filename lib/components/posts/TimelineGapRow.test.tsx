@@ -15,6 +15,7 @@ describe('TimelineGapRow', () => {
     const button = screen.getByRole('button', { name: /load missing posts/i })
     expect(button).toBeInTheDocument()
     expect(button).not.toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'false')
 
     fireEvent.click(button)
     expect(onLoadGap).toHaveBeenCalledWith(1)
@@ -28,6 +29,7 @@ describe('TimelineGapRow', () => {
 
     const button = screen.getByRole('button', { name: /load missing posts/i })
     expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
 
     const icon = container.querySelector('svg')
     expect(icon).toHaveClass('animate-spin')

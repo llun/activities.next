@@ -86,6 +86,7 @@ describe('ActorSwitcher', () => {
   beforeEach(() => {
     vi.mocked(switchActor).mockReset()
     vi.mocked(cancelActorDeletion).mockReset()
+    vi.mocked(setActiveOfflineSession).mockReset()
     mockRefresh.mockReset()
     mockAddActorDialog.mockReset()
 
@@ -165,7 +166,6 @@ describe('ActorSwitcher', () => {
       expect(switchActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
       await waitFor(() => {
         expect(setActiveOfflineSession).toHaveBeenCalledWith({
-          accountId: '',
           actorId: 'actor-2'
         })
         expect(window.location.reload).toHaveBeenCalled()

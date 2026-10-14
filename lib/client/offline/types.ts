@@ -82,6 +82,12 @@ export interface ActiveOfflineSessionMeta {
   updatedAt: number
 }
 
+export interface SetActiveOfflineSessionParams {
+  actorId: string
+  accountId?: string
+  updatedAt?: number
+}
+
 export interface ScrollAnchorState {
   statusId: string
   offsetTop: number

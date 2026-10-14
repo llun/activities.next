@@ -16,11 +16,10 @@ export const TimelineGapRow: FC<TimelineGapRowProps> = ({
   isLoading = false,
   onLoadGap
 }) => {
-  const [isOffline, setIsOffline] = useState(() =>
-    typeof navigator !== 'undefined' ? !navigator.onLine : false
-  )
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
+    setIsOffline(!navigator.onLine)
     const handleOnline = () => setIsOffline(false)
     const handleOffline = () => setIsOffline(true)
     window.addEventListener('online', handleOnline)
@@ -42,6 +41,7 @@ export const TimelineGapRow: FC<TimelineGapRowProps> = ({
       <button
         type="button"
         disabled={isDisabled}
+        aria-busy={isLoading}
         onClick={() => onLoadGap(segmentIndex)}
         className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
       >

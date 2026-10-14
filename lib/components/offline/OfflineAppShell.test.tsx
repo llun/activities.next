@@ -125,6 +125,12 @@ describe('OfflineAppShell', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPush.mockReset()
+    mockGetActiveOfflineSession.mockReset()
+    mockGetClientBootstrapSnapshot.mockReset()
+    mockGetOfflineTimeline.mockReset()
+    mockSaveClientBootstrapSnapshot.mockReset().mockResolvedValue(undefined)
+    mockGetAccountBootstrap.mockReset()
   })
 
   it('renders skeleton in loading state while reading IndexedDB', () => {
@@ -290,10 +296,12 @@ describe('OfflineAppShell', () => {
     expect(scrollContainer.scrollTop).toBe(450)
     expect(window.scrollY).toBe(450)
 
-    // Test unmount restores originals
+    // Test unmount restores originals and cleans up window scroll properties
     unmount()
     expect(window.scrollTo).toBe(originalScrollTo)
     expect(window.scrollBy).toBe(originalScrollBy)
+    expect(Object.prototype.hasOwnProperty.call(window, 'scrollY')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(window, 'scrollX')).toBe(false)
   })
 
   it('does not render duplicate Modal in shell', async () => {

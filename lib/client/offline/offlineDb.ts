@@ -14,7 +14,8 @@ import {
   PersistedStatusRecord,
   PersistedTimelineSegment,
   PersistedTimelineState,
-  ScrollAnchorState
+  ScrollAnchorState,
+  SetActiveOfflineSessionParams
 } from './types'
 
 interface InMemoryStorage {
@@ -33,10 +34,12 @@ const memoryStorage: InMemoryStorage = {
 
 let customFactory: IDBFactory | null = null
 let cachedDb: IDBDatabase | null = null
+let openDbPromise: Promise<IDBDatabase | null> | null = null
 let forceMemoryOnly = false
 
 export const setIndexedDBFactory = (factory: IDBFactory | null) => {
   customFactory = factory
+  openDbPromise = null
   if (cachedDb) {
     try {
       cachedDb.close()
@@ -107,76 +110,89 @@ const setupUpgrade = (req: IDBOpenDBRequest) => {
   }
 }
 
+const tryOpenDb = (
+  factory: IDBFactory,
+  isRetry = false
+): Promise<IDBDatabase | null> => {
+  return new Promise((resolve) => {
+    try {
+      const req = factory.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION)
+      setupUpgrade(req)
+
+      req.onsuccess = () => {
+        const db = req.result
+        const hasAllStores = REQUIRED_STORES.every((store) =>
+          db.objectStoreNames.contains(store)
+        )
+
+        if (!hasAllStores) {
+          try {
+            db.close()
+          } catch {
+            // ignore
+          }
+          if (!isRetry && typeof factory.deleteDatabase === 'function') {
+            try {
+              const delReq = factory.deleteDatabase(OFFLINE_DB_NAME)
+              delReq.onsuccess = () => {
+                resolve(tryOpenDb(factory, true))
+              }
+              delReq.onerror = () => {
+                resolve(null)
+              }
+              delReq.onblocked = () => {
+                resolve(null)
+              }
+            } catch {
+              resolve(null)
+            }
+            return
+          }
+          resolve(null)
+          return
+        }
+
+        cachedDb = db
+        cachedDb.onversionchange = () => {
+          try {
+            cachedDb?.close()
+          } catch {
+            // ignore
+          }
+          cachedDb = null
+          openDbPromise = null
+        }
+        resolve(cachedDb)
+      }
+
+      req.onerror = () => {
+        resolve(null)
+      }
+
+      req.onblocked = () => {
+        resolve(null)
+      }
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
 const openDb = async (): Promise<IDBDatabase | null> => {
   const factory = getFactory()
   if (!factory) return null
   if (cachedDb) return cachedDb
+  if (openDbPromise) return openDbPromise
 
-  const tryOpen = (isRetry = false): Promise<IDBDatabase | null> => {
-    return new Promise((resolve) => {
-      try {
-        const req = factory.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION)
-        setupUpgrade(req)
+  openDbPromise = (async () => {
+    try {
+      return await tryOpenDb(factory, false)
+    } finally {
+      openDbPromise = null
+    }
+  })()
 
-        req.onsuccess = () => {
-          const db = req.result
-          const hasAllStores = REQUIRED_STORES.every((store) =>
-            db.objectStoreNames.contains(store)
-          )
-
-          if (!hasAllStores) {
-            try {
-              db.close()
-            } catch {
-              // ignore
-            }
-            if (!isRetry && typeof factory.deleteDatabase === 'function') {
-              try {
-                const delReq = factory.deleteDatabase(OFFLINE_DB_NAME)
-                delReq.onsuccess = () => {
-                  resolve(tryOpen(true))
-                }
-                delReq.onerror = () => {
-                  resolve(null)
-                }
-                delReq.onblocked = () => {
-                  resolve(null)
-                }
-              } catch {
-                resolve(null)
-              }
-              return
-            }
-            resolve(null)
-            return
-          }
-
-          cachedDb = db
-          cachedDb.onversionchange = () => {
-            try {
-              cachedDb?.close()
-            } catch {
-              // ignore
-            }
-            cachedDb = null
-          }
-          resolve(cachedDb)
-        }
-
-        req.onerror = () => {
-          resolve(null)
-        }
-
-        req.onblocked = () => {
-          resolve(null)
-        }
-      } catch {
-        resolve(null)
-      }
-    })
-  }
-
-  return tryOpen(false)
+  return openDbPromise
 }
 
 export const getActiveOfflineSession =
@@ -203,14 +219,17 @@ export const getActiveOfflineSession =
   }
 
 export const setActiveOfflineSession = async (
-  meta: Omit<ActiveOfflineSessionMeta, 'key' | 'updatedAt'> & {
-    updatedAt?: number
-  }
+  meta: SetActiveOfflineSessionParams
 ): Promise<void> => {
   try {
+    let accountId = meta.accountId
+    if (!accountId) {
+      const existing = await getActiveOfflineSession()
+      accountId = existing?.accountId ?? ''
+    }
     const record: ActiveOfflineSessionMeta = {
       key: 'activeSession',
-      accountId: meta.accountId,
+      accountId,
       actorId: meta.actorId,
       updatedAt: meta.updatedAt ?? Date.now()
     }
@@ -522,13 +541,26 @@ export const saveOfflineTimeline = async (params: {
           }
         }
 
-        const idbStatuses = (await promisifyRequest(
-          statusStore.index('byActor').getAll(params.actorId)
-        )) as PersistedStatusRecord[]
+        const statusIndex = statusStore.index('byActor')
+        if (typeof statusIndex.getAllKeys === 'function') {
+          const keys = (await promisifyRequest(
+            statusIndex.getAllKeys(params.actorId)
+          )) as [string, string][]
+          for (const key of keys) {
+            const statusId = Array.isArray(key) ? key[1] : undefined
+            if (statusId && !idbReferencedIds.has(statusId)) {
+              statusStore.delete(key)
+            }
+          }
+        } else {
+          const idbStatuses = (await promisifyRequest(
+            statusIndex.getAll(params.actorId)
+          )) as PersistedStatusRecord[]
 
-        for (const st of idbStatuses) {
-          if (!idbReferencedIds.has(st.statusId)) {
-            statusStore.delete([params.actorId, st.statusId])
+          for (const st of idbStatuses) {
+            if (!idbReferencedIds.has(st.statusId)) {
+              statusStore.delete([params.actorId, st.statusId])
+            }
           }
         }
         await done
@@ -701,6 +733,7 @@ export const resetOfflineDbForTesting = async (): Promise<void> => {
   memoryStorage.bootstrap.clear()
   memoryStorage.statuses.clear()
   memoryStorage.timelines.clear()
+  openDbPromise = null
   if (cachedDb) {
     try {
       cachedDb.close()

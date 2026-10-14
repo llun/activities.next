@@ -137,6 +137,7 @@ const Page = async ({ searchParams }: PageProps = {}) => {
         initialNextMaxStatusId={nextMaxStatusId}
       />
       <MainPageTimeline
+        key={actor.id}
         host={host}
         currentTime={Date.now()}
         statuses={statuses.map((item) => cleanJson(item))}

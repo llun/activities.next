@@ -8,7 +8,8 @@ import {
   getOfflineTimeline,
   requestPersistentOfflineStorage,
   saveClientBootstrapSnapshot,
-  saveOfflineTimeline
+  saveOfflineTimeline,
+  setActiveOfflineSession
 } from '@/lib/client/offline'
 import type { Status } from '@/lib/types/domain/status'
 import type { TimelineContext } from '@/lib/types/domain/timeline'
@@ -23,12 +24,14 @@ export interface OfflineCacheSeederProps {
 
 export function OfflineCacheSeeder({
   actorId,
+  accountId,
   initialStatuses,
   initialTimelineContext,
   initialNextMaxStatusId
 }: OfflineCacheSeederProps) {
   useEffect(() => {
     void requestPersistentOfflineStorage()
+    void setActiveOfflineSession({ actorId, accountId })
 
     void (async () => {
       try {
@@ -67,7 +70,13 @@ export function OfflineCacheSeeder({
         // safe ignore
       }
     })()
-  }, [actorId, initialNextMaxStatusId, initialStatuses, initialTimelineContext])
+  }, [
+    accountId,
+    actorId,
+    initialNextMaxStatusId,
+    initialStatuses,
+    initialTimelineContext
+  ])
 
   return null
 }

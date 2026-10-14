@@ -219,9 +219,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
   const [pendingScrollAnchor, setPendingScrollAnchor] =
     useState<ScrollAnchorState | null>(initialScrollAnchor)
-  const [isOffline, setIsOffline] = useState<boolean>(() =>
-    typeof navigator !== 'undefined' ? !navigator.onLine : false
-  )
+  const [isOffline, setIsOffline] = useState<boolean>(false)
 
   const isLoadingRef = useRef<boolean>(false)
   const isPollingRef = useRef<boolean>(false)
@@ -232,6 +230,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
   const activeProfileIdRef = useRef<string>(profile.id)
   activeProfileIdRef.current = profile.id
+  const segmentsActorIdRef = useRef<string>(profile.id)
   const lastReconciledAtRef = useRef<number>(0)
   const restoredAnchorRef = useRef<string | null>(null)
 
@@ -239,7 +238,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     const map: Record<string, number> = {}
     for (let i = 0; i < segments.length - 1; i++) {
       const seg = segments[i]
-      if (seg.statuses.length > 0) {
+      if (seg.statuses.length > 0 && seg.nextMaxStatusId !== null) {
         const lastStatus = seg.statuses[seg.statuses.length - 1]
         map[lastStatus.id] = i
       }
@@ -316,8 +315,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 incomingNextMaxStatusId: initialNextMaxStatusId ?? null,
                 incomingPrevMinStatusId: statuses[0]?.id ?? null
               })
+              segmentsActorIdRef.current = profile.id
               setSegments(merged.segments)
             } else {
+              segmentsActorIdRef.current = profile.id
               setSegments(cached.segments)
             }
             if (cached.ancestorsById) {
@@ -349,6 +350,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   // Offline persistence whenever segments or context change
   useEffect(() => {
     if (segments.length === 0) return
+    if (segmentsActorIdRef.current !== profile.id) return
     const actorId = profile.id
     void saveOfflineTimeline({
       actorId,
@@ -710,6 +712,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           incomingNextMaxStatusId: result.nextMaxStatusId,
           incomingPrevMinStatusId: result.prevMinStatusId
         })
+        segmentsActorIdRef.current = profile.id
         setSegments(merged.segments)
 
         const lastSeg = merged.segments[merged.segments.length - 1]
@@ -758,7 +761,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           lastReconciledAtRef.current = now
           const fetchedIds = new Set(result.statuses.map((s) => s.id))
           const cachedIdsOutsideTop: string[] = []
-          for (const seg of segmentsRef.current) {
+          for (const seg of merged.segments) {
             for (const st of seg.statuses) {
               if (!fetchedIds.has(st.id)) {
                 cachedIdsOutsideTop.push(st.id)
@@ -879,6 +882,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   // Offline / online listeners and auto-reconnect refresh
   useEffect(() => {
+    setIsOffline(!navigator.onLine)
     const handleOnline = () => {
       setIsOffline(false)
       void refreshTimeline({ preserveScroll: true })

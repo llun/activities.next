@@ -21,17 +21,49 @@ function getSvgPlaceholderResponse() {
   })
 }
 
+const RESERVED_STATIC_DIRS = new Set([
+  'chunks',
+  'css',
+  'media',
+  'development',
+  'webpack'
+])
+
+function hashString(str) {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) + hash + str.charCodeAt(i)
+    hash = hash & hash
+  }
+  return Math.abs(hash).toString(36)
+}
+
 function extractBuildId(html) {
   const manifestMatch = html.match(
     /(?:\/activities)?\/_next\/static\/([a-zA-Z0-9_-]+)\/(?:_buildManifest|_ssgManifest)/
   )
   if (manifestMatch) return manifestMatch[1]
+
   const jsonMatch = html.match(/"buildId":"([^"]+)"/)
   if (jsonMatch) return jsonMatch[1]
-  const chunkMatch = html.match(
-    /(?:\/activities)?\/_next\/static\/([a-zA-Z0-9_-]+)\//
+
+  const segmentMatches = html.matchAll(
+    /(?:\/activities)?\/_next\/static\/([a-zA-Z0-9_-]+)\//g
   )
-  if (chunkMatch) return chunkMatch[1]
+  for (const m of segmentMatches) {
+    if (m[1] && !RESERVED_STATIC_DIRS.has(m[1])) {
+      return m[1]
+    }
+  }
+
+  const staticAssets = Array.from(extractAppShellAssets(html)).filter((url) =>
+    url.includes('/_next/static/')
+  )
+  if (staticAssets.length > 0) {
+    staticAssets.sort()
+    return `fp-${hashString(staticAssets.join('|'))}`
+  }
+
   return 'latest'
 }
 
@@ -65,6 +97,11 @@ function extractAppShellAssets(html) {
   return Array.from(assets)
 }
 
+async function getCurrentShellCacheKey() {
+  const keys = await caches.keys()
+  return keys.find((k) => k.startsWith(SHELL_CACHE_PREFIX)) || null
+}
+
 async function getCachedAppShell() {
   const keys = await caches.keys()
   const shellKeys = keys.filter((k) => k.startsWith(SHELL_CACHE_PREFIX))
@@ -80,6 +117,8 @@ async function getCachedAppShell() {
 
 async function stageAppShell() {
   try {
+    const currentActiveCacheKey = await getCurrentShellCacheKey()
+
     const response = await fetch('/app', { cache: 'no-store' })
     if (!response.ok) return null
     const html = await response.text()
@@ -101,7 +140,9 @@ async function stageAppShell() {
     for (const assetUrl of assets) {
       const assetRes = await fetch(assetUrl)
       if (!assetRes.ok) {
-        await caches.delete(targetCacheName)
+        if (targetCacheName !== currentActiveCacheKey) {
+          await caches.delete(targetCacheName)
+        }
         return null
       }
       await targetCache.put(assetUrl, assetRes)
@@ -289,15 +330,29 @@ sw.addEventListener('fetch', (event) => {
     return
   }
 
-  // 2. Cache-First for static Next.js assets
-  if (
-    request.method === 'GET' &&
-    (url.pathname.startsWith('/activities/_next/static/') ||
-      url.pathname.startsWith('/_next/static/'))
-  ) {
+  // 2. Cache-First for static Next.js assets and staged shell assets
+  const isStaticAsset =
+    url.pathname.startsWith('/activities/_next/static/') ||
+    url.pathname.startsWith('/_next/static/')
+  const isShellAsset =
+    url.pathname === '/manifest.webmanifest' ||
+    url.pathname === '/icon-192.png' ||
+    url.pathname === '/icon-512.png' ||
+    url.pathname === '/apple-touch-icon.png' ||
+    url.pathname === '/favicon.ico' ||
+    url.pathname.endsWith('/manifest.webmanifest') ||
+    url.pathname.endsWith('/icon-192.png') ||
+    url.pathname.endsWith('/icon-512.png') ||
+    url.pathname.endsWith('/apple-touch-icon.png') ||
+    url.pathname.endsWith('/favicon.ico')
+
+  if (request.method === 'GET' && (isStaticAsset || isShellAsset)) {
     event.respondWith(
       (async () => {
-        const cached = await caches.match(request)
+        let cached = await caches.match(request)
+        if (!cached && isShellAsset) {
+          cached = await caches.match(url.pathname)
+        }
         if (cached) {
           return cached
         }

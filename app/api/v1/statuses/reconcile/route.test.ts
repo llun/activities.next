@@ -398,23 +398,24 @@ describe('POST /api/v1/statuses/reconcile', () => {
     ])
   })
 
-  it('rejects with 400 when statusIds is empty or invalid', async () => {
-    const invalidBodies = [
-      {},
-      { statusIds: [] },
-      {
-        statusIds: Array.from(
-          { length: 81 },
-          (_, i) => `https://llun.test/statuses/${i}`
-        )
-      },
-      { statusIds: [''] },
-      { statusIds: ['   '] },
-      { statusIds: [123] },
-      null
-    ]
+  const invalidBodies = [
+    {},
+    { statusIds: [] },
+    {
+      statusIds: Array.from(
+        { length: 81 },
+        (_, i) => `https://llun.test/statuses/${i}`
+      )
+    },
+    { statusIds: [''] },
+    { statusIds: ['   '] },
+    { statusIds: [123] },
+    null
+  ]
 
-    for (const body of invalidBodies) {
+  it.each(invalidBodies)(
+    'rejects with 400 when statusIds body is %j',
+    async (body) => {
       const req = createJsonRequest(body)
 
       const res = await POST(req, { params: Promise.resolve({}) })
@@ -422,7 +423,7 @@ describe('POST /api/v1/statuses/reconcile', () => {
       const data = await res.json()
       expect(data).toEqual({ error: 'Bad Request' })
     }
-  })
+  )
 
   it('returns 500 when database throws', async () => {
     const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})

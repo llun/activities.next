@@ -1,7 +1,7 @@
+import type { ClientBootstrapSnapshot } from '@/lib/client/offline/types'
 import { isAbortError } from '@/lib/utils/isAbortError'
 
 import { parseApiError } from './http'
-import type { ClientBootstrapSnapshot } from './offline/types'
 import { TimelineRequestError } from './timelines'
 
 export interface GetAccountBootstrapParams {

@@ -12,13 +12,15 @@ const mockRequestPersistentOfflineStorage = vi.fn().mockResolvedValue(true)
 const mockGetOfflineTimeline = vi.fn()
 const mockSaveOfflineTimeline = vi.fn().mockResolvedValue(undefined)
 const mockSaveClientBootstrapSnapshot = vi.fn().mockResolvedValue(undefined)
+const mockSetActiveOfflineSession = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@/lib/client/offline', () => ({
   requestPersistentOfflineStorage: () => mockRequestPersistentOfflineStorage(),
   getOfflineTimeline: (args: any) => mockGetOfflineTimeline(args),
   saveOfflineTimeline: (args: any) => mockSaveOfflineTimeline(args),
   saveClientBootstrapSnapshot: (args: any) =>
-    mockSaveClientBootstrapSnapshot(args)
+    mockSaveClientBootstrapSnapshot(args),
+  setActiveOfflineSession: (args: any) => mockSetActiveOfflineSession(args)
 }))
 
 const mockGetAccountBootstrap = vi.fn()
@@ -38,6 +40,12 @@ describe('OfflineCacheSeeder', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRequestPersistentOfflineStorage.mockReset().mockResolvedValue(true)
+    mockGetOfflineTimeline.mockReset()
+    mockSaveOfflineTimeline.mockReset().mockResolvedValue(undefined)
+    mockSaveClientBootstrapSnapshot.mockReset().mockResolvedValue(undefined)
+    mockGetAccountBootstrap.mockReset()
+    mockSetActiveOfflineSession.mockReset().mockResolvedValue(undefined)
   })
 
   it('requests persistent storage, seeds initial timeline when none cached, and saves bootstrap snapshot', async () => {
@@ -62,6 +70,10 @@ describe('OfflineCacheSeeder', () => {
 
     await waitFor(() => {
       expect(mockRequestPersistentOfflineStorage).toHaveBeenCalled()
+      expect(mockSetActiveOfflineSession).toHaveBeenCalledWith({
+        actorId: 'actor-1',
+        accountId: 'account-1'
+      })
       expect(mockGetOfflineTimeline).toHaveBeenCalledWith({
         actorId: 'actor-1',
         timeline: 'home',

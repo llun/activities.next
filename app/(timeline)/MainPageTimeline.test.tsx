@@ -14,6 +14,7 @@ import { TimelineRequestError, getTimeline } from '@/lib/client'
 import {
   clearAllOfflineData,
   getOfflineTimeline,
+  saveOfflineScrollAnchor,
   saveOfflineTimeline
 } from '@/lib/client/offline'
 import { reconcileCachedStatuses } from '@/lib/client/statuses'
@@ -133,8 +134,14 @@ describe('MainPageTimeline', () => {
 
   beforeEach(() => {
     vi.mocked(getTimeline).mockReset()
-    vi.mocked(clearAllOfflineData).mockClear()
-    vi.mocked(reconcileCachedStatuses).mockClear()
+    vi.mocked(clearAllOfflineData).mockReset().mockResolvedValue(undefined)
+    vi.mocked(getOfflineTimeline).mockReset().mockResolvedValue(null)
+    vi.mocked(saveOfflineTimeline).mockReset().mockResolvedValue(undefined)
+    vi.mocked(saveOfflineScrollAnchor).mockReset().mockResolvedValue(undefined)
+    vi.mocked(reconcileCachedStatuses).mockReset().mockResolvedValue({
+      statuses: [],
+      removedStatusIds: []
+    })
     resetIntersectionObserver()
   })
 
@@ -980,6 +987,37 @@ describe('MainPageTimeline', () => {
             timeline: 'home'
           })
         )
+      })
+    })
+
+    it('renders offline status bar with last updated time when offline event fires', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          initialLastRefreshedAt={FIXED_CURRENT_TIME - 2 * 60 * 1000}
+        />
+      )
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+      fireEvent(window, new Event('offline'))
+
+      await waitFor(() => {
+        const statusBar = screen.getByRole('status')
+        expect(statusBar).toBeInTheDocument()
+        expect(statusBar).toHaveTextContent(/Offline · Updated 2m ago/)
+      })
+
+      fireEvent(window, new Event('online'))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
       })
     })
   })

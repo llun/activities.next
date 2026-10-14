@@ -4,8 +4,6 @@ import { UserX, WifiOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  type ComponentProps,
-  type FC,
   type UIEvent,
   useCallback,
   useEffect,
@@ -23,8 +21,6 @@ import { getAccountBootstrap } from '@/lib/client/bootstrap'
 import {
   type ClientBootstrapSnapshot,
   type HydratedOfflineTimeline,
-  type HydratedTimelineSegment,
-  type ScrollAnchorState,
   getActiveOfflineSession,
   getClientBootstrapSnapshot,
   getOfflineTimeline,
@@ -40,21 +36,9 @@ import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { SessionKeepAlive } from '@/lib/components/session-keep-alive'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
-
-interface MainPageTimelineExtendedProps extends ComponentProps<
-  typeof MainPageTimeline
-> {
-  initialSegments?: HydratedTimelineSegment[]
-  initialScrollAnchor?: ScrollAnchorState | null
-  initialLastRefreshedAt?: number | null
-  refreshOnMount?: boolean
-  onUnauthorized?: () => void
-}
-
-const TimelineView =
-  MainPageTimeline as unknown as FC<MainPageTimelineExtendedProps>
 
 type ShellState =
   | { status: 'loading' }
@@ -261,6 +245,12 @@ export function OfflineAppShell() {
     return () => {
       window.scrollTo = originalScrollTo
       window.scrollBy = originalScrollBy
+      try {
+        delete (window as unknown as { scrollY?: number }).scrollY
+        delete (window as unknown as { scrollX?: number }).scrollX
+      } catch {
+        // safe ignore
+      }
     }
   }, [])
 
@@ -312,12 +302,9 @@ export function OfflineAppShell() {
             icon={UserX}
             title="Not signed in"
             action={
-              <Link
-                href="/auth/signin"
-                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                Sign in
-              </Link>
+              <Button asChild size="sm">
+                <Link href="/auth/signin">Sign in</Link>
+              </Button>
             }
           >
             Please sign in to view your timeline.
@@ -410,9 +397,9 @@ export function OfflineAppShell() {
                     )}
                   >
                     <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-                      <TimelineView
+                      <MainPageTimeline
                         host={bootstrap.host}
-                        currentTime={Date.now()}
+                        currentTime={bootstrap.currentTime || bootstrap.savedAt}
                         statuses={timeline?.statuses || []}
                         timelineContext={{
                           ancestorsById: timeline?.ancestorsById || {}

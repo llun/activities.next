@@ -20,6 +20,8 @@ vi.mock('@/lib/client/offline', () => ({
 describe('LogoutButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(authClient.signOut).mockReset()
+    vi.mocked(clearAllOfflineData).mockReset().mockResolvedValue(undefined)
   })
 
   it('is described by the hint of the row it sits in', () => {

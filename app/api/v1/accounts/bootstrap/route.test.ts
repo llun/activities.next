@@ -71,6 +71,8 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
 describe('GET /api/v1/accounts/bootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getConfig).mockReset()
+    vi.mocked(getResolvedServerSettings).mockReset()
     vi.mocked(getConfig).mockReturnValue(
       mockConfig as unknown as ReturnType<typeof getConfig>
     )
