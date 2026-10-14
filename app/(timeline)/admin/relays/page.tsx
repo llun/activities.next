@@ -92,7 +92,6 @@ const Page = async ({ searchParams }: Props) => {
               label="Inbox URL"
               htmlFor="relay-inbox-url"
               hint="The relay's inbox, usually ending in /inbox."
-              wide
             >
               <Input
                 id="relay-inbox-url"

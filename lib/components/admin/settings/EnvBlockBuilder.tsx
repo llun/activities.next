@@ -53,7 +53,6 @@ const EnvFields: FC<EnvFieldsProps> = ({ fields, values, onChange }) => (
         label={field.label}
         htmlFor={`env-${field.name}`}
         help={<EnvVarName name={field.name} />}
-        wide={field.wide}
       >
         <Input
           id={`env-${field.name}`}

@@ -20,8 +20,6 @@ interface SettingsFieldProps {
   help?: ReactNode
   locked?: boolean
   envVar?: string
-  /** Give the control the rest of the row (a textarea, a picker). */
-  wide?: boolean
   children: ReactNode
 }
 
@@ -68,12 +66,11 @@ export const SettingsField: FC<SettingsFieldProps> = ({
   help,
   locked,
   envVar,
-  wide,
   children
 }) => {
   const hint = lockedHint(help, locked, envVar)
   return (
-    <FormRow label={label} htmlFor={htmlFor} hint={hint} wide={wide}>
+    <FormRow label={label} htmlFor={htmlFor} hint={hint}>
       {describedByHint(children, htmlFor, hint)}
     </FormRow>
   )

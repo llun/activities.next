@@ -142,7 +142,6 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
             label="Short description"
             htmlFor="instance-description"
             help="Shown in the instance picker and previews."
-            wide
             locked={lock('instance.description').locked}
             envVar={lock('instance.description').envVar}
           >
@@ -182,7 +181,6 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
           <SettingsField
             label="Languages"
             htmlFor="instance-languages"
-            wide
             help="Primary languages of this instance, advertised for search and trends. The first one is the default."
             locked={lock('instance.languages').locked}
             envVar={lock('instance.languages').envVar}
@@ -243,7 +241,6 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
             label="Allowed email addresses"
             htmlFor="registrations-allow-emails"
             help="One address per line. Leave empty to allow any email."
-            wide
             locked={lock('registrations.allowEmails').locked}
             envVar={lock('registrations.allowEmails').envVar}
           >

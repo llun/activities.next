@@ -255,11 +255,7 @@ const Page = async ({ searchParams }: Props) => {
                 rows={2}
               />
             </FormRow>
-            <FormRow
-              label="Private comment"
-              htmlFor="block-private-comment"
-              wide
-            >
+            <FormRow label="Private comment" htmlFor="block-private-comment">
               <Textarea
                 id="block-private-comment"
                 name="privateComment"

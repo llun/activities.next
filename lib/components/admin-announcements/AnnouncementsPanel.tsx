@@ -270,7 +270,6 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
               label="Text"
               htmlFor="announcement-text"
               hint="Markdown with hashtags and mentions; keep it under a few sentences. No attachments."
-              wide
             >
               {({ describedBy }) => (
                 <Textarea
