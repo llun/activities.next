@@ -485,6 +485,11 @@ describe('production archive scripts', () => {
       // Option names in any case; the table name as written.
       ['body, CONTENT=Docs', 'Docs'],
       ["body, Content = 'Docs'", 'Docs'],
+      // Any prefix of the option name, as FTS5 reads it.
+      ['body, c=docs', 'docs'],
+      ['body, cont=docs', 'docs'],
+      ["body, CONTE='Docs'", 'Docs'],
+      ['body, Con = [docs]', 'docs'],
       // Contentless.
       ["body, content=''", ''],
       ['body, content=""', ''],
@@ -492,6 +497,8 @@ describe('production archive scripts', () => {
       // argument's quoted value or a comment.
       ['body', null],
       ["body, content_rowid='rowid'", null],
+      // A prefix of content_rowid that is not one of content.
+      ['body, content_r=x', null],
       [`body, tokenize = "unicode61 separators ', content=x'"`, null],
       ['body, "x, content=y"', null],
       ['body, [x, content=y]', null],

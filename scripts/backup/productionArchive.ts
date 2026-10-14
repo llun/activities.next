@@ -2297,14 +2297,18 @@ const unquoteSqlToken = (token: string) => {
 // The `content` option of a `create virtual table … using fts5(…)`, unquoted:
 // the table an external-content FTS5 table indexes. Null when it has none (a
 // self-contained table, or not an FTS5 table) and '' when it is contentless.
-// The option name is matched case-insensitively, as FTS5 does; a `content=`
-// inside another argument's quoted value (`tokenize = "porter, content=x"`)
-// is not an option.
+// The option name is matched as FTS5 matches it: in any case, and as any
+// non-empty prefix of `content` (`c=`, `cont=`), which FTS5 checks before the
+// other options starting with `c`, while `content_rowid` and longer names are
+// other options. A `content=` inside another argument's quoted value
+// (`tokenize = "porter, content=x"`) is not an option.
 export const getFts5ContentTable = (createSql: string) => {
   let contentTable: string | null = null
   for (const argument of getFts5Arguments(createSql) ?? []) {
-    const value = /^content\s*=\s*([\s\S]*)$/i.exec(argument)?.[1]
-    if (value !== undefined) contentTable = unquoteSqlToken(value.trim())
+    const option = /^(\w+)\s*=\s*([\s\S]*)$/.exec(argument)
+    if (option && 'content'.startsWith(option[1].toLowerCase())) {
+      contentTable = unquoteSqlToken(option[2].trim())
+    }
   }
   return contentTable
 }
@@ -2347,8 +2351,8 @@ const getSqliteFullTextTables = async (
   if (refused.length > 0) {
     throw new Error(
       `Cannot restore SQLite virtual or shadow table(s) ${refused.join(', ')}: ` +
-        'only external-content FTS5 tables, which are rebuilt from the table ' +
-        'they index, can be restored.'
+        'only external-content FTS5 tables (a `content` option naming a ' +
+        'table), which are rebuilt from the table they index, can be restored.'
     )
   }
   return result
