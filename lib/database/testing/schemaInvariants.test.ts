@@ -278,15 +278,18 @@ describe('schema invariants', () => {
       expect(await getIndex(name)).toEqual(expected)
     })
 
-    // The gallery and the media routes look attachments up by media id; on
-    // SQLite that only uses the index while `mediaId` is an integer column
-    // compared with an integer.
+    // The gallery and the media reads join attachments to medias on
+    // attachments.mediaId = medias.id. On SQLite that join only searches
+    // attachments_mediaId_idx while mediaId is an integer column like
+    // medias.id; against a varchar mediaId it scans attachments.
     it.runIf(testDb.backend === 'sqlite')(
-      'answers attachments.mediaId = ? through attachments_mediaId_idx on SQLite',
+      'joins medias to attachments through attachments_mediaId_idx on SQLite',
       async () => {
         const { rows: plan } = await sql<{ detail: string }>`
           explain query plan
-          select id from attachments where mediaId = ${7}
+          select attachments.id from medias
+          join attachments on attachments.mediaId = medias.id
+          where medias.actorId = ${'https://invariants.test/users/photographer'}
         `.execute(db)
         expect(plan.map(({ detail }) => detail).join('\n')).toContain(
           'USING INDEX attachments_mediaId_idx (mediaId=?)'
