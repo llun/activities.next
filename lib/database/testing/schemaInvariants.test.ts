@@ -230,6 +230,19 @@ describe('schema invariants', () => {
         'oauth_client_reference_id_idx',
         { table: 'oauthClient', unique: false, columns: ['referenceId'] }
       ],
+      // A status's attachments load by statusId, in order.
+      [
+        'attachmentsIndex',
+        {
+          table: 'attachments',
+          unique: false,
+          columns: ['statusId', 'createdAt', 'updatedAt']
+        }
+      ],
+      [
+        'attachments_actorId_idx',
+        { table: 'attachments', unique: false, columns: ['actorId'] }
+      ],
       [
         'attachments_mediaId_idx',
         { table: 'attachments', unique: false, columns: ['mediaId'] }
@@ -241,6 +254,15 @@ describe('schema invariants', () => {
           table: 'media_edit_files',
           unique: true,
           columns: ['mediaId', 'slot']
+        }
+      ],
+      // A status's or actor's search document is found by its entity.
+      [
+        'search_documents_entity_type_entity_id',
+        {
+          table: 'search_documents',
+          unique: false,
+          columns: ['entityType', 'entityId']
         }
       ],
       // Two refits racing for the next install sequence: exactly one wins.
@@ -255,6 +277,22 @@ describe('schema invariants', () => {
     ])('keeps %s', async (name, expected) => {
       expect(await getIndex(name)).toEqual(expected)
     })
+
+    // The gallery and the media routes look attachments up by media id; on
+    // SQLite that only uses the index while `mediaId` is an integer column
+    // compared with an integer.
+    it.runIf(testDb.backend === 'sqlite')(
+      'answers attachments.mediaId = ? through attachments_mediaId_idx on SQLite',
+      async () => {
+        const { rows: plan } = await sql<{ detail: string }>`
+          explain query plan
+          select id from attachments where mediaId = ${7}
+        `.execute(db)
+        expect(plan.map(({ detail }) => detail).join('\n')).toContain(
+          'USING INDEX attachments_mediaId_idx (mediaId=?)'
+        )
+      }
+    )
 
     it('has no actorId-led announce index next to the originalStatusId-led one', async () => {
       expect(
@@ -392,6 +430,34 @@ describe('schema invariants', () => {
         .where('id', '=', 'invariants-account')
         .executeTakeFirstOrThrow()
       expect(row.verifiedAt).toBeNull()
+    })
+
+    // A media row that was never edited is at edit version 0.
+    it('defaults medias.editVersion to 0 when an insert omits it', async () => {
+      const editVersion = await getColumn('medias', 'editVersion')
+      expect(editVersion?.dataType.toLowerCase()).toBe(
+        testDb.backend === 'pg' ? 'int4' : 'integer'
+      )
+      expect(editVersion?.isNullable).toBeFalse()
+      expect(editVersion?.hasDefaultValue).toBeTrue()
+
+      await db
+        .insertInto('medias')
+        .values({
+          id: 990001,
+          actorId: 'https://invariants.test/users/photographer',
+          original: 'medias/invariants.jpg',
+          originalBytes: 1000,
+          originalMimeType: 'image/jpeg',
+          originalMetaData: JSON.stringify({ width: 640, height: 480 })
+        })
+        .execute()
+      const row = await db
+        .selectFrom('medias')
+        .select('editVersion')
+        .where('id', '=', 990001)
+        .executeTakeFirstOrThrow()
+      expect(Number(row.editVersion)).toBe(0)
     })
 
     it('stores attachments.mediaId as a nullable integer', async () => {
