@@ -57,6 +57,12 @@ export interface UserList {
 export interface SidebarProps {
   variant?: 'responsive' | 'drawer'
   onNavigate?: () => void
+  /**
+   * Called instead of `onNavigate` when a tap stays on the page already open
+   * (it scrolls back to the top), so the drawer closes and hands focus back
+   * to its menu button.
+   */
+  onStay?: () => void
   user?: User | null
   currentActor?: ActorInfo | null
   actors?: ActorInfo[]
@@ -174,6 +180,7 @@ const NavRowMenu = ({
 export function Sidebar({
   variant = 'responsive',
   onNavigate,
+  onStay,
   user,
   currentActor,
   actors = [],
@@ -214,14 +221,15 @@ export function Sidebar({
 
   // Tapping the item of the page already open goes back to its top, as
   // tapping a column header does in Mastodon, instead of re-opening the same
-  // route at the same scroll position. Modified clicks keep their link
-  // behaviour (new tab, new window).
+  // route at the same scroll position. A page with a query (a search, a
+  // filter) still resets to its plain form, and modified clicks keep their
+  // link behaviour (new tab, new window).
   const handleNavClick =
     (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
       const isCurrentPage =
-        href === '/'
+        (href === '/'
           ? pathname === '/' || pathname === '/app'
-          : pathname === href
+          : pathname === href) && window.location.search === ''
       if (
         isCurrentPage &&
         !event.defaultPrevented &&
@@ -233,6 +241,8 @@ export function Sidebar({
       ) {
         event.preventDefault()
         scrollPageToTop()
+        onStay?.()
+        return
       }
       onNavigate?.()
     }

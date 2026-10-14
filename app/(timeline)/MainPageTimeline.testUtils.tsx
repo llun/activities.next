@@ -151,6 +151,7 @@ export const MockFeed = ({
           key={status.id}
           data-testid={`post-${status.id}`}
           data-status-id={status.id}
+          data-row-status-ids={status.id}
         >
           <span data-testid={`post-id-${status.id}`}>{status.id}</span>
           <span data-testid={`post-text-${status.id}`}>{target.text}</span>

@@ -610,7 +610,10 @@ describe('Sidebar', () => {
     it('scrolls the open page back to the top instead of following the link', () => {
       mockPathname.mockReturnValue('/')
       const onNavigate = vi.fn()
-      renderSidebar(<Sidebar lists={[]} onNavigate={onNavigate} />)
+      const onStay = vi.fn()
+      renderSidebar(
+        <Sidebar lists={[]} onNavigate={onNavigate} onStay={onStay} />
+      )
 
       const nav = screen.getAllByRole('navigation')[0]
       const timeline = within(nav).getByRole('link', { name: 'Timeline' })
@@ -619,8 +622,9 @@ describe('Sidebar', () => {
 
       expect(click.defaultPrevented).toBe(true)
       expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
-      // The drawer still closes.
-      expect(onNavigate).toHaveBeenCalled()
+      // The drawer closes without treating it as a page change.
+      expect(onStay).toHaveBeenCalled()
+      expect(onNavigate).not.toHaveBeenCalled()
     })
 
     it('follows the link to another page', () => {

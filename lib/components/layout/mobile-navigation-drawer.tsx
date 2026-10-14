@@ -19,9 +19,10 @@ export interface MobileNavigationDrawerProps {
   /**
    * The drawer's body. It receives `onNavigate`, which every destination link
    * calls so the drawer closes on selection and does not hand focus back to
-   * the (possibly unmounted) menu button.
+   * the (possibly unmounted) menu button. `onStay` closes it for a tap that
+   * stays on the open page, so focus returns to the menu button.
    */
-  children: (onNavigate: () => void) => ReactNode
+  children: (onNavigate: () => void, onStay: () => void) => ReactNode
 }
 
 /**
@@ -63,6 +64,10 @@ export function MobileNavigationDrawer({
     setOpen?.(false)
   }
 
+  const handleStay = () => {
+    setOpen?.(false)
+  }
+
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -95,7 +100,7 @@ export function MobileNavigationDrawer({
         >
           <X className="h-5 w-5" />
         </DialogClose>
-        {children(handleNavigate)}
+        {children(handleNavigate, handleStay)}
       </DialogPrimitive.Content>
     </DialogPortal>
   )
