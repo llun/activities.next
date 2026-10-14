@@ -80,6 +80,10 @@ describe('describeConnection', () => {
 
     withConnectionString('postgresql://u@prod.example.com/db?host=localhost')
     expect(describeConnection().isLocal).toBe(true)
+    withConnectionString(
+      'postgresql://u@prod.example.com/db?host=prod.example.com&host=localhost'
+    )
+    expect(describeConnection().isLocal).toBe(true)
 
     // The bare string form is read the same way.
     vi.stubEnv(
