@@ -15,7 +15,6 @@ import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
 import { getAuthErrorMessage } from '@/lib/services/auth/getAuthErrorMessage'
 
@@ -123,19 +122,18 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
             </p>
           )}
         </FormRow>
-        <div className="flex items-center gap-2">
+        <FormRow
+          inline
+          className="p-0"
+          label="Trust this device for 30 days"
+          htmlFor="trustDevice"
+        >
           <Checkbox
             id="trustDevice"
             checked={trustDevice}
             onChange={(event) => setTrustDevice(event.target.checked)}
           />
-          <Label
-            htmlFor="trustDevice"
-            className="text-sm font-normal text-muted-foreground"
-          >
-            Trust this device for 30 days
-          </Label>
-        </div>
+        </FormRow>
 
         {error && <Alert title={error} />}
       </AuthCardBody>
