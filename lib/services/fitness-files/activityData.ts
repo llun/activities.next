@@ -12,6 +12,67 @@ export interface FitnessTrackPoint extends FitnessCoordinate {
   heartRate?: number
   altitude?: number
   speed?: number
+  /**
+   * Raw cadence as the file records it: rpm for cycling. For running, FIT
+   * `cadence` and TCX `RunCadence` are strides per minute (one foot), not steps
+   * per minute; the value is kept unconverted.
+   */
+  cadence?: number
+  /** Ambient temperature in degrees Celsius. */
+  temperature?: number
+  /** Share of power from the LEFT leg, as a percentage from 0 to 100. */
+  leftRightBalance?: number
+  /** Cumulative distance from the file in meters, when the file records it. */
+  distanceMeters?: number
+}
+
+/**
+ * One recorded sample, kept whether or not it has a GPS position, so activities
+ * without a track (indoor trainers, treadmills) can still be charted by time.
+ * Every field is optional; `speed` is km/h like `FitnessTrackPoint.speed`.
+ */
+export interface FitnessMetricPoint {
+  timestamp?: Date
+  distanceMeters?: number
+  power?: number
+  heartRate?: number
+  cadence?: number
+  speed?: number
+  altitude?: number
+  temperature?: number
+  leftRightBalance?: number
+}
+
+export const METRIC_POINT_KEYS = [
+  'distanceMeters',
+  'power',
+  'heartRate',
+  'cadence',
+  'speed',
+  'altitude',
+  'temperature',
+  'leftRightBalance'
+] as const satisfies ReadonlyArray<keyof FitnessMetricPoint>
+
+export interface FitnessLap {
+  /** Seconds from the start of the activity to the start of the lap. */
+  startElapsedSeconds: number
+  /** Absolute lap start (epoch ms) when the file gives one, to align with sample timestamps. */
+  startTimestamp?: number
+  /**
+   * Lap duration in seconds. FIT: elapsed time (`total_elapsed_time`); TCX:
+   * timer time (`TotalTimeSeconds`), which excludes paused time.
+   */
+  durationSeconds: number
+  distanceMeters: number
+  avgPower?: number
+  avgHeartRate?: number
+  maxHeartRate?: number
+  avgCadence?: number
+  /** Average speed in km/h, the unit used for `FitnessTrackPoint.speed`. */
+  avgSpeed?: number
+  elevationGainMeters?: number
+  calories?: number
 }
 
 export interface FitnessActivityData {
@@ -49,6 +110,10 @@ export interface FitnessActivityData {
   maxHeartRate?: number
   totalWorkKj?: number
   elevationSeries?: number[]
+  laps?: FitnessLap[]
+  calories?: number
+  /** Every recorded sample with at least one metric, regardless of GPS. */
+  metricPoints?: FitnessMetricPoint[]
 }
 
 export const DEFAULT_ELEVATION_SERIES_POINTS = 120
@@ -235,6 +300,9 @@ export interface ToActivityDataParams {
   avgHeartRate?: number
   maxHeartRate?: number
   totalWorkKj?: number
+  laps?: FitnessLap[]
+  calories?: number
+  metricPoints?: FitnessMetricPoint[]
 }
 
 export const toActivityData = ({
@@ -252,7 +320,10 @@ export const toActivityData = ({
   maxPower,
   avgHeartRate,
   maxHeartRate,
-  totalWorkKj
+  totalWorkKj,
+  laps,
+  calories,
+  metricPoints
 }: ToActivityDataParams): FitnessActivityData => {
   const coordinates = points.map(({ lat, lng }) => ({ lat, lng }))
   const trackPoints = points.map((point) => ({ ...point }))
@@ -411,6 +482,13 @@ export const toActivityData = ({
     ...(resolvedTotalWorkKj !== undefined
       ? { totalWorkKj: resolvedTotalWorkKj }
       : null),
-    ...(elevationSeries !== undefined ? { elevationSeries } : null)
+    ...(elevationSeries !== undefined ? { elevationSeries } : null),
+    ...(laps && laps.length > 0 ? { laps } : null),
+    ...(metricPoints && metricPoints.length > 0 ? { metricPoints } : null),
+    ...(typeof calories === 'number' &&
+    Number.isFinite(calories) &&
+    calories > 0
+      ? { calories: Math.round(calories) }
+      : null)
   }
 }

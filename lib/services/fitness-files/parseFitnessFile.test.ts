@@ -494,6 +494,569 @@ describe('parseFitnessFile', () => {
     expect(parsed.totalWorkKj).toBe(180) // (200 * 900) / 1000 = 180 kJ
   })
 
+  describe('cadence, temperature, balance, distance, laps and calories', () => {
+    const mockFitOutput = (data: unknown) => {
+      FitParserMock.mockImplementation(function () {
+        return {
+          parse: (
+            _buffer: Buffer,
+            callback: (error: Error | null, data?: unknown) => void
+          ) => callback(null, data)
+        }
+      })
+    }
+
+    it('keeps FIT record metrics and converts balance to a left percentage', async () => {
+      mockFitOutput({
+        sessions: [
+          {
+            total_distance: 10_000,
+            total_elapsed_time: 1_200,
+            total_calories: 480,
+            sport: 'cycling',
+            start_time: '2026-01-03T06:00:00Z'
+          }
+        ],
+        records: [
+          {
+            position_lat: 37.78,
+            position_long: -122.42,
+            timestamp: '2026-01-03T06:00:00Z',
+            cadence: 88,
+            temperature: 21,
+            // fit-file-parser decodes the uint8 bitfield to { value, right }
+            // where `right` flags that value is the RIGHT leg's share.
+            left_right_balance: { value: 52, right: true },
+            distance: 0
+          },
+          {
+            position_lat: 37.79,
+            position_long: -122.41,
+            timestamp: '2026-01-03T06:00:10Z',
+            cadence: 0,
+            temperature: 22,
+            // no right flag: the side is unknown, so there is no balance
+            left_right_balance: { value: 47, right: false },
+            distance: 83.5
+          },
+          {
+            position_lat: 37.8,
+            position_long: -122.4,
+            timestamp: '2026-01-03T06:00:20Z',
+            // raw 8-bit bitfield: 0x80 | 55
+            left_right_balance: 0x80 | 55
+          },
+          {
+            position_lat: 37.81,
+            position_long: -122.39,
+            timestamp: '2026-01-03T06:00:30Z',
+            // raw 16-bit left_right_balance_100: flag 0x8000, 48.00% right
+            left_right_balance: 0x8000 | 4800
+          },
+          {
+            position_lat: 37.82,
+            position_long: -122.38,
+            timestamp: '2026-01-03T06:00:40Z',
+            // 8-bit values above 100 are not a percentage
+            left_right_balance: { value: 120, right: true }
+          }
+        ]
+      })
+
+      const parsed = await parseFitnessFile({
+        fileType: 'fit',
+        buffer: Buffer.from('binary-fit-content')
+      })
+
+      expect(parsed.calories).toBe(480)
+      expect(parsed.trackPoints.map((point) => point.cadence)).toEqual([
+        88,
+        0,
+        undefined,
+        undefined,
+        undefined
+      ])
+      expect(parsed.trackPoints.map((point) => point.temperature)).toEqual([
+        21,
+        22,
+        undefined,
+        undefined,
+        undefined
+      ])
+      // right flag: 100 - right share; no flag: unknown; 16-bit: hundredths;
+      // 8-bit above 100: invalid
+      expect(parsed.trackPoints.map((point) => point.leftRightBalance)).toEqual(
+        [48, undefined, 45, 52, undefined]
+      )
+      expect(parsed.trackPoints.map((point) => point.distanceMeters)).toEqual([
+        0,
+        83.5,
+        undefined,
+        undefined,
+        undefined
+      ])
+    })
+
+    it('maps FIT laps relative to the session start', async () => {
+      mockFitOutput({
+        sessions: [
+          { start_time: '2026-01-03T06:00:00Z', total_elapsed_time: 900 }
+        ],
+        records: [
+          {
+            position_lat: 37.78,
+            position_long: -122.42,
+            timestamp: '2026-01-03T06:00:00Z'
+          }
+        ],
+        laps: [
+          {
+            start_time: '2026-01-03T06:00:00Z',
+            total_elapsed_time: 300,
+            total_distance: 2_000,
+            avg_power: 200,
+            avg_heart_rate: 140,
+            max_heart_rate: 160,
+            avg_cadence: 85,
+            avg_speed: 24,
+            total_ascent: 12,
+            total_calories: 70
+          },
+          {
+            start_time: new Date('2026-01-03T06:05:00Z'),
+            total_elapsed_time: 600,
+            total_distance: 4_000
+          }
+        ]
+      })
+
+      const parsed = await parseFitnessFile({
+        fileType: 'fit',
+        buffer: Buffer.from('binary-fit-content')
+      })
+
+      expect(parsed.laps).toEqual([
+        {
+          startElapsedSeconds: 0,
+          startTimestamp: Date.parse('2026-01-03T06:00:00Z'),
+          durationSeconds: 300,
+          distanceMeters: 2_000,
+          avgPower: 200,
+          avgHeartRate: 140,
+          maxHeartRate: 160,
+          avgCadence: 85,
+          avgSpeed: 24,
+          elevationGainMeters: 12,
+          calories: 70
+        },
+        {
+          startElapsedSeconds: 300,
+          startTimestamp: Date.parse('2026-01-03T06:05:00Z'),
+          durationSeconds: 600,
+          distanceMeters: 4_000
+        }
+      ])
+    })
+
+    it('omits laps and calories when the FIT file has none', async () => {
+      mockFitOutput({
+        sessions: [{ start_time: '2026-01-03T06:00:00Z' }],
+        records: [
+          {
+            position_lat: 37.78,
+            position_long: -122.42,
+            timestamp: '2026-01-03T06:00:00Z'
+          }
+        ],
+        laps: []
+      })
+
+      const parsed = await parseFitnessFile({
+        fileType: 'fit',
+        buffer: Buffer.from('binary-fit-content')
+      })
+
+      expect(parsed).not.toHaveProperty('laps')
+      expect(parsed).not.toHaveProperty('calories')
+    })
+
+    it('reads TCX cadence, distance, laps and summed calories', async () => {
+      const tcx = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>2026-01-02T07:00:00Z</Id>
+      <Lap StartTime="2026-01-02T07:00:00Z">
+        <TotalTimeSeconds>600</TotalTimeSeconds>
+        <DistanceMeters>3000</DistanceMeters>
+        <Calories>90</Calories>
+        <AverageHeartRateBpm><Value>130</Value></AverageHeartRateBpm>
+        <MaximumHeartRateBpm><Value>150</Value></MaximumHeartRateBpm>
+        <Cadence>84</Cadence>
+        <Extensions>
+          <ns3:LX>
+            <ns3:AvgSpeed>5</ns3:AvgSpeed>
+            <ns3:AvgWatts>180</ns3:AvgWatts>
+          </ns3:LX>
+        </Extensions>
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-02T07:00:00Z</Time>
+            <Position><LatitudeDegrees>37.78</LatitudeDegrees><LongitudeDegrees>-122.41</LongitudeDegrees></Position>
+            <DistanceMeters>0</DistanceMeters>
+            <Cadence>80</Cadence>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-02T07:00:10Z</Time>
+            <Position><LatitudeDegrees>37.79</LatitudeDegrees><LongitudeDegrees>-122.4</LongitudeDegrees></Position>
+            <DistanceMeters>52.5</DistanceMeters>
+            <Extensions><ns3:TPX><ns3:RunCadence>90</ns3:RunCadence></ns3:TPX></Extensions>
+          </Trackpoint>
+        </Track>
+      </Lap>
+      <Lap StartTime="2026-01-02T07:10:00Z">
+        <TotalTimeSeconds>300</TotalTimeSeconds>
+        <DistanceMeters>1500</DistanceMeters>
+        <Calories>40</Calories>
+        <Extensions/>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'tcx',
+        buffer: Buffer.from(tcx)
+      })
+
+      expect(parsed.calories).toBe(130)
+      expect(parsed.trackPoints.map((point) => point.cadence)).toEqual([80, 90])
+      expect(parsed.trackPoints.map((point) => point.distanceMeters)).toEqual([
+        0, 52.5
+      ])
+      expect(parsed.laps).toEqual([
+        {
+          startElapsedSeconds: 0,
+          startTimestamp: Date.parse('2026-01-02T07:00:00Z'),
+          durationSeconds: 600,
+          distanceMeters: 3_000,
+          avgPower: 180,
+          avgHeartRate: 130,
+          maxHeartRate: 150,
+          avgCadence: 84,
+          avgSpeed: 18,
+          calories: 90
+        },
+        {
+          startElapsedSeconds: 600,
+          startTimestamp: Date.parse('2026-01-02T07:10:00Z'),
+          durationSeconds: 300,
+          distanceMeters: 1_500,
+          calories: 40
+        }
+      ])
+    })
+
+    it('keeps metric points for FIT records without GPS positions', async () => {
+      mockFitOutput({
+        sessions: [{ start_time: '2026-01-04T08:00:00Z' }],
+        records: [
+          {
+            timestamp: '2026-01-04T08:00:00Z',
+            power: 180,
+            heart_rate: 135,
+            cadence: 80,
+            speed: 30,
+            distance: 0,
+            temperature: 24,
+            left_right_balance: { value: 51, right: true }
+          },
+          { timestamp: '2026-01-04T08:00:05Z', power: 200 },
+          // nothing chartable on this record
+          { timestamp: '2026-01-04T08:00:10Z' }
+        ]
+      })
+
+      const parsed = await parseFitnessFile({
+        fileType: 'fit',
+        buffer: Buffer.from('binary-fit-content')
+      })
+
+      expect(parsed.trackPoints).toHaveLength(0)
+      expect(parsed.coordinates).toHaveLength(0)
+      expect(parsed.metricPoints).toEqual([
+        {
+          timestamp: new Date('2026-01-04T08:00:00Z'),
+          power: 180,
+          heartRate: 135,
+          cadence: 80,
+          speed: 30,
+          distanceMeters: 0,
+          temperature: 24,
+          leftRightBalance: 49
+        },
+        { timestamp: new Date('2026-01-04T08:00:05Z'), power: 200 }
+      ])
+    })
+
+    it('keeps metric points for TCX trackpoints without positions', async () => {
+      const tcx = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>2026-01-04T08:00:00Z</Id>
+      <Lap StartTime="2026-01-04T08:00:00Z">
+        <TotalTimeSeconds>10</TotalTimeSeconds>
+        <DistanceMeters>80</DistanceMeters>
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-04T08:00:00Z</Time>
+            <DistanceMeters>0</DistanceMeters>
+            <HeartRateBpm><Value>120</Value></HeartRateBpm>
+            <Cadence>85</Cadence>
+            <Extensions><ns3:TPX><ns3:Watts>190</ns3:Watts><ns3:Speed>8</ns3:Speed></ns3:TPX></Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-04T08:00:10Z</Time>
+            <DistanceMeters>80</DistanceMeters>
+            <HeartRateBpm><Value>124</Value></HeartRateBpm>
+          </Trackpoint>
+        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'tcx',
+        buffer: Buffer.from(tcx)
+      })
+
+      expect(parsed.trackPoints).toHaveLength(0)
+      expect(parsed.metricPoints).toEqual([
+        {
+          timestamp: new Date('2026-01-04T08:00:00Z'),
+          distanceMeters: 0,
+          heartRate: 120,
+          cadence: 85,
+          power: 190,
+          speed: 28.8
+        },
+        {
+          timestamp: new Date('2026-01-04T08:00:10Z'),
+          distanceMeters: 80,
+          heartRate: 124
+        }
+      ])
+    })
+
+    it('reads GPX cadence, temperature and power extensions', async () => {
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="tests" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+  <trk>
+    <type>cycling</type>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194">
+        <time>2026-01-01T10:00:00Z</time>
+        <extensions>
+          <power>230</power>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>140</gpxtpx:hr>
+            <gpxtpx:cad>91</gpxtpx:cad>
+            <gpxtpx:atemp>19.5</gpxtpx:atemp>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="37.7759" lon="-122.4184">
+        <time>2026-01-01T10:00:10Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'gpx',
+        buffer: Buffer.from(gpx)
+      })
+
+      expect(parsed.trackPoints[0]).toMatchObject({
+        heartRate: 140,
+        cadence: 91,
+        temperature: 19.5,
+        power: 230
+      })
+      expect(parsed.trackPoints[1].cadence).toBeUndefined()
+    })
+
+    it('derives power stats from GPX power extensions', async () => {
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="tests">
+  <trk>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194">
+        <time>2026-01-01T10:00:00Z</time>
+        <extensions><power>200</power></extensions>
+      </trkpt>
+      <trkpt lat="37.7759" lon="-122.4184">
+        <time>2026-01-01T10:00:10Z</time>
+        <extensions>
+          <gpxpx:PowerExtension xmlns:gpxpx="http://www.garmin.com/xmlschemas/PowerExtension/v1">
+            <gpxpx:PowerInWatts>300</gpxpx:PowerInWatts>
+          </gpxpx:PowerExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'gpx',
+        buffer: Buffer.from(gpx)
+      })
+
+      expect(parsed.powerSeries).toEqual([200, 300])
+      expect(parsed.avgPower).toBe(250)
+      expect(parsed.maxPower).toBe(300)
+    })
+
+    it('reads GPX track point extensions bound to another prefix', async () => {
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="tests">
+  <trk>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194">
+        <time>2026-01-01T10:00:00Z</time>
+        <extensions>
+          <ns3:TrackPointExtension xmlns:ns3="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+            <ns3:hr>150</ns3:hr>
+            <ns3:cad>77</ns3:cad>
+            <ns3:atemp>12</ns3:atemp>
+          </ns3:TrackPointExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'gpx',
+        buffer: Buffer.from(gpx)
+      })
+
+      expect(parsed.trackPoints[0]).toMatchObject({
+        heartRate: 150,
+        cadence: 77,
+        temperature: 12
+      })
+    })
+
+    it.each([
+      [
+        'ns2:',
+        'xmlns:ns2="http://www.garmin.com/xmlschemas/ActivityExtension/v2"'
+      ],
+      ['', 'xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2"']
+    ])('reads TCX extensions with prefix "%s"', async (prefix, namespace) => {
+      const tcx = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase>
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>2026-01-02T07:00:00Z</Id>
+      <Lap StartTime="2026-01-02T07:00:00Z">
+        <TotalTimeSeconds>10</TotalTimeSeconds>
+        <DistanceMeters>80</DistanceMeters>
+        <Extensions>
+          <${prefix}LX ${namespace}>
+            <${prefix}AvgWatts>210</${prefix}AvgWatts>
+            <${prefix}AvgSpeed>10</${prefix}AvgSpeed>
+          </${prefix}LX>
+        </Extensions>
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-02T07:00:00Z</Time>
+            <Position><LatitudeDegrees>37.78</LatitudeDegrees><LongitudeDegrees>-122.41</LongitudeDegrees></Position>
+            <Extensions>
+              <${prefix}TPX ${namespace}>
+                <${prefix}Watts>250</${prefix}Watts>
+                <${prefix}RunCadence>88</${prefix}RunCadence>
+              </${prefix}TPX>
+            </Extensions>
+          </Trackpoint>
+        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'tcx',
+        buffer: Buffer.from(tcx)
+      })
+
+      expect(parsed.trackPoints[0]).toMatchObject({
+        power: 250,
+        cadence: 88
+      })
+      expect(parsed.laps?.[0]).toMatchObject({ avgPower: 210, avgSpeed: 36 })
+    })
+
+    it('still parses a TCX trackpoint whose Cadence has child elements', async () => {
+      const tcx = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase>
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>2026-01-02T07:00:00Z</Id>
+      <Lap StartTime="2026-01-02T07:00:00Z">
+        <TotalTimeSeconds>10</TotalTimeSeconds>
+        <DistanceMeters>80</DistanceMeters>
+        <Calories><Value>5</Value></Calories>
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-02T07:00:00Z</Time>
+            <Position><LatitudeDegrees>37.78</LatitudeDegrees><LongitudeDegrees>-122.41</LongitudeDegrees></Position>
+            <Cadence><Value>1</Value></Cadence>
+            <DistanceMeters><Value>2</Value></DistanceMeters>
+          </Trackpoint>
+        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`
+
+      const parsed = await parseFitnessFile({
+        fileType: 'tcx',
+        buffer: Buffer.from(tcx)
+      })
+
+      expect(parsed.coordinates).toHaveLength(1)
+      expect(parsed.trackPoints[0].cadence).toBeUndefined()
+      expect(parsed.trackPoints[0].distanceMeters).toBeUndefined()
+      expect(parsed.calories).toBeUndefined()
+    })
+
+    it('only builds metric points for files without a GPS track', async () => {
+      mockFitOutput({
+        sessions: [{ start_time: '2026-01-03T06:00:00Z' }],
+        records: [
+          {
+            position_lat: 37.78,
+            position_long: -122.42,
+            timestamp: '2026-01-03T06:00:00Z',
+            power: 200
+          }
+        ]
+      })
+
+      const parsed = await parseFitnessFile({
+        fileType: 'fit',
+        buffer: Buffer.from('binary-fit-content')
+      })
+
+      expect(parsed.trackPoints).toHaveLength(1)
+      expect(parsed).not.toHaveProperty('metricPoints')
+    })
+  })
+
   it('throws when FIT parser reports an error', async () => {
     FitParserMock.mockImplementation(function () {
       return {

@@ -800,6 +800,380 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(mockParseFitnessFile).toHaveBeenCalled()
   })
 
+  it('carries power, cadence, temperature, balance, distance, laps and calories', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const laps = [
+      {
+        startElapsedSeconds: 0,
+        durationSeconds: 150,
+        distanceMeters: 700,
+        avgPower: 210,
+        avgCadence: 88
+      }
+    ]
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: [
+        { lat: 37.77, lng: -122.42 },
+        { lat: 37.78, lng: -122.41 }
+      ],
+      trackPoints: [
+        {
+          lat: 37.77,
+          lng: -122.42,
+          timestamp: new Date('2026-01-01T10:00:00.000Z'),
+          power: 200,
+          cadence: 85,
+          temperature: 18,
+          leftRightBalance: 48.5,
+          distanceMeters: 0
+        },
+        {
+          lat: 37.78,
+          lng: -122.41,
+          timestamp: new Date('2026-01-01T10:05:00.000Z')
+        }
+      ],
+      totalDistanceMeters: 1_500,
+      totalDurationSeconds: 300,
+      laps,
+      calories: 120
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/extra-metrics-route-data.fit',
+      fileName: 'extra-metrics-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2_048
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.laps).toEqual(laps)
+    expect(payload.calories).toBe(120)
+    expect(payload.samples[0]).toMatchObject({
+      power: 200,
+      cadence: 85,
+      temperature: 18,
+      leftRightBalance: 48.5,
+      distanceMeters: 0
+    })
+    expect(payload.segments[0].samples[0]).toMatchObject({
+      power: 200,
+      cadence: 85,
+      temperature: 18,
+      leftRightBalance: 48.5,
+      distanceMeters: 0
+    })
+    // Fields the file did not record are omitted, not emitted as null.
+    for (const key of [
+      'power',
+      'cadence',
+      'temperature',
+      'leftRightBalance',
+      'distanceMeters'
+    ]) {
+      expect(payload.samples[1]).not.toHaveProperty(key)
+    }
+  })
+
+  it('omits laps and calories when the file has none', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    // An empty lap list must not be echoed back as `laps: []`.
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: [{ lat: 37.77, lng: -122.42 }],
+      trackPoints: [{ lat: 37.77, lng: -122.42 }],
+      totalDistanceMeters: 0,
+      totalDurationSeconds: 0,
+      laps: []
+    })
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/no-laps-route-data.fit',
+      fileName: 'no-laps-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2_048
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = await response.json()
+
+    expect(payload).not.toHaveProperty('laps')
+    expect(payload).not.toHaveProperty('calories')
+  })
+
+  it('measures distance from the first visible sample for non-owners behind a privacy zone', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    await savePrivacyLocation()
+    const laps = [
+      { startElapsedSeconds: 0, durationSeconds: 240, distanceMeters: 2_800 }
+    ]
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: REENTRY_ROUTE_COORDINATES,
+      trackPoints: REENTRY_ROUTE_COORDINATES.map((coordinate, index) => ({
+        ...coordinate,
+        timestamp: new Date(Date.UTC(2026, 0, 1, 10, index)),
+        distanceMeters: [0, 20, 1_400, 1_450, 1_460, 2_800][index]
+      })),
+      totalDistanceMeters: 2_800,
+      totalDurationSeconds: 300,
+      laps
+    })
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/public-route-data-rebased-distance`,
+      url: `${ACTOR1_ID}/statuses/public-route-data-rebased-distance`,
+      actorId: ACTOR1_ID,
+      text: 'Public route with hidden start',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [ACTOR1_FOLLOWER_URL]
+    })
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/public-route-data-rebased-distance.fit',
+      fileName: 'public-route-data-rebased-distance.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = (await response.json()) as {
+      samples: Array<{ distanceMeters: number }>
+      segments: Array<{ samples: Array<{ distanceMeters: number }> }>
+      laps: unknown
+    }
+
+    expect(response.status).toBe(200)
+    // Index 0 and 1 sit inside the zone and are dropped; the first visible
+    // sample (1,400 m into the file) becomes distance 0.
+    expect(payload.samples.map((sample) => sample.distanceMeters)).toEqual([
+      0, 50, 60, 1_400
+    ])
+    expect(
+      payload.segments[0].samples.map((sample) => sample.distanceMeters)
+    ).toEqual([0, 50, 60, 1_400])
+    expect(payload.laps).toEqual(laps)
+  })
+
+  it('keeps recorded distance for the owner even behind a privacy zone', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    await savePrivacyLocation()
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: REENTRY_ROUTE_COORDINATES,
+      trackPoints: REENTRY_ROUTE_COORDINATES.map((coordinate, index) => ({
+        ...coordinate,
+        timestamp: new Date(Date.UTC(2026, 0, 1, 10, index)),
+        distanceMeters: [0, 20, 1_400, 1_450, 1_460, 2_800][index]
+      })),
+      totalDistanceMeters: 2_800,
+      totalDurationSeconds: 300
+    })
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/owner-recorded-distance.fit',
+      fileName: 'owner-recorded-distance.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = (await response.json()) as {
+      samples: Array<{ distanceMeters: number }>
+    }
+
+    expect(payload.samples.map((sample) => sample.distanceMeters)).toEqual([
+      0, 20, 1_400, 1_450, 1_460, 2_800
+    ])
+  })
+
+  it('keeps the extra metrics on points kept by downsampling', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const start = new Date('2026-01-01T10:00:00.000Z').getTime()
+    const trackPoints = Array.from({ length: 3_000 }, (_, index) => ({
+      lat: 37.77 + index * 0.00001,
+      lng: -122.42 + index * 0.00001,
+      timestamp: new Date(start + index * 1_000),
+      cadence: 80 + (index % 10),
+      distanceMeters: index * 5
+    }))
+    mockParseFitnessFile.mockResolvedValue({
+      coordinates: trackPoints.map(({ lat, lng }) => ({ lat, lng })),
+      trackPoints,
+      totalDistanceMeters: 15_000,
+      totalDurationSeconds: 3_000
+    })
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/downsample-route-data.fit',
+      fileName: 'downsample-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2_048
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+    const payload = (await response.json()) as {
+      samples: Array<{ cadence?: number; distanceMeters?: number }>
+    }
+
+    expect(payload.samples.length).toBeLessThan(3_000)
+    expect(payload.samples.length).toBeGreaterThan(1)
+    expect(
+      payload.samples.every(
+        (sample) =>
+          typeof sample.cadence === 'number' &&
+          typeof sample.distanceMeters === 'number'
+      )
+    ).toBe(true)
+  })
+
+  describe('metricSamples', () => {
+    const createOwnedFile = (name: string) =>
+      database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        path: `fitness/${name}.fit`,
+        fileName: `${name}.fit`,
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 2_048
+      })
+
+    const getAsOwner = async (name: string) => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const fitnessFile = await createOwnedFile(name)
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+      expect(response.status).toBe(200)
+      return response.json()
+    }
+
+    it('returns time-aligned samples for activities with no GPS track', async () => {
+      const start = new Date('2026-01-04T08:00:00.000Z')
+      mockParseFitnessFile.mockResolvedValue({
+        coordinates: [],
+        trackPoints: [],
+        metricPoints: [
+          { timestamp: start, power: 180, heartRate: 135, distanceMeters: 0 },
+          {
+            timestamp: new Date(start.getTime() + 5_000),
+            power: 200,
+            cadence: 82,
+            temperature: 24,
+            leftRightBalance: 49,
+            speed: 30,
+            altitude: 12
+          }
+        ],
+        totalDistanceMeters: 0,
+        totalDurationSeconds: 5
+      })
+
+      const payload = await getAsOwner('indoor-metric-samples')
+
+      expect(payload.samples).toEqual([])
+      expect(payload.metricSamples).toEqual([
+        {
+          elapsedSeconds: 0,
+          timestamp: start.getTime(),
+          power: 180,
+          heartRate: 135,
+          distanceMeters: 0
+        },
+        {
+          elapsedSeconds: 5,
+          timestamp: start.getTime() + 5_000,
+          power: 200,
+          cadence: 82,
+          temperature: 24,
+          leftRightBalance: 49,
+          speed: 30,
+          altitude: 12
+        }
+      ])
+    })
+
+    it('spreads samples over the duration when they carry no timestamps and downsamples long ones', async () => {
+      mockParseFitnessFile.mockResolvedValue({
+        coordinates: [],
+        trackPoints: [],
+        metricPoints: Array.from({ length: 3_001 }, (_, index) => ({
+          power: index
+        })),
+        totalDistanceMeters: 0,
+        totalDurationSeconds: 3_000
+      })
+
+      const payload = (await getAsOwner('indoor-downsampled')) as {
+        metricSamples: Array<{ elapsedSeconds: number; power: number }>
+      }
+
+      expect(payload.metricSamples).toHaveLength(1_500)
+      expect(payload.metricSamples[0]).toEqual({ elapsedSeconds: 0, power: 0 })
+      expect(payload.metricSamples.at(-1)).toEqual({
+        elapsedSeconds: 3_000,
+        power: 3_000
+      })
+    })
+
+    it('does not send metricSamples for activities with a GPS track', async () => {
+      mockParseFitnessFile.mockResolvedValue({
+        coordinates: [
+          { lat: 37.77, lng: -122.42 },
+          { lat: 37.78, lng: -122.41 }
+        ],
+        trackPoints: [
+          {
+            lat: 37.77,
+            lng: -122.42,
+            timestamp: new Date('2026-01-01T10:00:00.000Z')
+          },
+          {
+            lat: 37.78,
+            lng: -122.41,
+            timestamp: new Date('2026-01-01T10:05:00.000Z')
+          }
+        ],
+        metricPoints: [{ power: 200 }, { power: 210 }],
+        totalDistanceMeters: 1_500,
+        totalDurationSeconds: 300
+      })
+
+      const payload = await getAsOwner('outdoor-no-metric-samples')
+
+      expect(payload.samples).toHaveLength(2)
+      expect(payload).not.toHaveProperty('metricSamples')
+    })
+  })
+
   it('uses configured fitness size limit for redirect downloads', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
