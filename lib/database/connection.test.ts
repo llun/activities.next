@@ -770,11 +770,37 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
     }
   })
 
-  // The archive's connection sets `DateStyle` and `TimeZone` on each new
-  // connection before handing it out. If that statement fails (here an
-  // invalid zone; in production, say, the server dropping the connection
-  // first), the query fails with the server's error and the client is
-  // destroyed, so the pool recovers and destroy() does not wait for it.
+  // The archive's connection sets `DateStyle` and `TimeZone` once on each
+  // new connection before handing it out, not on every query.
+  it('runs the session settings once on each new connection', async () => {
+    const settings = await watchSessionSettings()
+    const handle = open({ min: 0, max: 2 }, undefined, false)
+    const connections = new Set<string>()
+    handle.onQuery(({ connection }) => connections.add(connection))
+    try {
+      await Promise.all(
+        Array.from({ length: 8 }, () =>
+          sql`select pg_sleep(0.05)`.execute(handle.db)
+        )
+      )
+      expect(connections.size).toBe(2)
+      expect(settings.clients).toHaveLength(2)
+      expect(new Set(settings.clients).size).toBe(2)
+      await handle.db.transaction().execute(async (trx) => {
+        await sql`select 1`.execute(trx)
+      })
+      await sql`select 1`.execute(handle.db)
+      expect(settings.clients).toHaveLength(2)
+    } finally {
+      settings.restore()
+      await handle.destroy()
+    }
+  })
+
+  // If that statement fails (here an invalid zone; in production, say, the
+  // server dropping the connection first), the query fails with the server's
+  // error and the client is destroyed, so the pool recovers and destroy()
+  // does not wait for it.
   it('fails the query and keeps destroy() working when the session settings fail', async () => {
     let failing = true
     const settings = await watchSessionSettings((text) =>
@@ -792,6 +818,8 @@ describe.runIf(backend === 'pg')('PostgreSQL pool', () => {
       // The failed client was destroyed; the next query gets a new one.
       failing = false
       expect((await zone.execute(handle.db)).rows).toEqual([{ zone: 'UTC' }])
+      expect(settings.clients).toHaveLength(2)
+      expect(new Set(settings.clients).size).toBe(2)
       const outcome = await Promise.race([
         handle.destroy().then(() => 'destroyed'),
         new Promise((resolve) => setTimeout(resolve, 5_000, 'still pending'))
