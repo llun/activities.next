@@ -434,7 +434,6 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                   stacked
                   className="p-0"
                   label="Visibility"
-                  htmlFor="gallery-album-visibility"
                   hint="A photo is only ever as visible as the post it came from."
                 >
                   {({ labelledBy, describedBy }) => (

@@ -93,7 +93,10 @@ interface SaveBarProps {
  * a muted "No unsaved changes" when clean, the error in the alert colour) and
  * the primary Save button on the right, disabled while the form is clean or
  * saving (or while `disabledReason` says why not), with a spinner inside while
- * it saves. The button is always "Save".
+ * it saves. The button is labelled "Save"; `variant="create"` (a form that
+ * makes something new) shows no Unsaved/Saved status, only an error or the
+ * muted `disabledReason`, and uses the form's own `actionLabel` and
+ * `actionIcon`.
  * Dirty wins over Saved, so a fresh edit never claims the form is already
  * saved.
  */
