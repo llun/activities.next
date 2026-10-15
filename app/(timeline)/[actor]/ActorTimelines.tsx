@@ -8,7 +8,15 @@ import {
   MessageCircle
 } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FC,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { getAccountStatusesPage, getActorStatuses } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
@@ -272,26 +280,33 @@ export const ActorTimelines: FC<Props> = ({
     )
   }, [])
 
-  const handlePostDeleted = useCallback(
-    (status: Status) => {
-      const remainingStatuses = removeOriginalStatus(currentStatuses, status.id)
-      setCurrentStatuses((previousStatuses) =>
-        removeOriginalStatus(previousStatuses, status.id)
-      )
-      // The database ignores a `max_id` that matches no row, so a cursor on
-      // the deleted post would restart paging from the newest page. Step back
-      // to the last post still loaded instead.
-      setCurrentStatusPagination((previous) =>
-        previous.nextMaxStatusId === status.id
-          ? {
-              ...previous,
-              nextMaxStatusId: remainingStatuses.at(-1)?.id ?? null
-            }
-          : previous
-      )
-    },
-    [currentStatuses]
-  )
+  // Read through a ref so `handlePostDeleted` keeps one identity (memoized post
+  // rows would otherwise all re-render on every status change).
+  const currentStatusesRef = useRef(currentStatuses)
+  useLayoutEffect(() => {
+    currentStatusesRef.current = currentStatuses
+  }, [currentStatuses])
+
+  const handlePostDeleted = useCallback((status: Status) => {
+    const remainingStatuses = removeOriginalStatus(
+      currentStatusesRef.current,
+      status.id
+    )
+    setCurrentStatuses((previousStatuses) =>
+      removeOriginalStatus(previousStatuses, status.id)
+    )
+    // The database ignores a `max_id` that matches no row, so a cursor on
+    // the deleted post would restart paging from the newest page. Step back
+    // to the last post still loaded instead.
+    setCurrentStatusPagination((previous) =>
+      previous.nextMaxStatusId === status.id
+        ? {
+            ...previous,
+            nextMaxStatusId: remainingStatuses.at(-1)?.id ?? null
+          }
+        : previous
+    )
+  }, [])
 
   const handleLikeChanged = useCallback(
     (status: StatusNote | StatusPoll, isLiked: boolean) => {

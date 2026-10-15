@@ -10,6 +10,10 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 
+/** Every `onPostDeleted` the mocked Posts has been rendered with, in order. */
+export const seenOnPostDeleted: Array<((status: Status) => void) | undefined> =
+  []
+
 export const MockPosts = ({
   statuses,
   currentTime,
@@ -33,69 +37,72 @@ export const MockPosts = ({
     status: StatusNote | StatusPoll,
     isBookmarked: boolean
   ) => void
-}) => (
-  <div>
-    <div data-testid="posts-current-time">{currentTime}</div>
-    <div data-testid="posts-show-actions">{String(Boolean(showActions))}</div>
-    <div data-testid="posts-read-only-stats">
-      {String(Boolean(showReadOnlyStats))}
+}) => {
+  seenOnPostDeleted.push(onPostDeleted)
+  return (
+    <div>
+      <div data-testid="posts-current-time">{currentTime}</div>
+      <div data-testid="posts-show-actions">{String(Boolean(showActions))}</div>
+      <div data-testid="posts-read-only-stats">
+        {String(Boolean(showReadOnlyStats))}
+      </div>
+      {onStatusCreated && (
+        <button
+          data-testid="trigger-reply-created"
+          onClick={() =>
+            onStatusCreated(
+              createReplyStatus('https://local.example/statuses/new-reply')
+            )
+          }
+        >
+          trigger reply created
+        </button>
+      )}
+      {statuses.map((status) => {
+        // For a boost, the action callbacks fire with the unwrapped original
+        // status (mirroring the real Posts/Actions wiring).
+        const target = getOriginalStatus(status)
+        return (
+          <div key={status.id}>
+            <span>{status.id}</span>
+            <span data-testid={`like-flag-${target.id}`}>
+              {String(target.isActorLiked)}:{target.totalLikes}
+            </span>
+            <span data-testid={`bookmark-flag-${target.id}`}>
+              {String(target.isActorBookmarked)}
+            </span>
+            <button
+              data-testid={`trigger-delete-${target.id}`}
+              onClick={() => onPostDeleted?.(target)}
+            >
+              delete
+            </button>
+            <button
+              data-testid={`trigger-like-${target.id}`}
+              onClick={() => onLikeChanged?.(target, !target.isActorLiked)}
+            >
+              like
+            </button>
+            <button
+              data-testid={`trigger-bookmark-${target.id}`}
+              onClick={() =>
+                onBookmarkChanged?.(target, !target.isActorBookmarked)
+              }
+            >
+              bookmark
+            </button>
+            <button
+              data-testid={`trigger-update-${target.id}`}
+              onClick={() => onPostUpdated?.({ ...target, totalLikes: 99 })}
+            >
+              update
+            </button>
+          </div>
+        )
+      })}
     </div>
-    {onStatusCreated && (
-      <button
-        data-testid="trigger-reply-created"
-        onClick={() =>
-          onStatusCreated(
-            createReplyStatus('https://local.example/statuses/new-reply')
-          )
-        }
-      >
-        trigger reply created
-      </button>
-    )}
-    {statuses.map((status) => {
-      // For a boost, the action callbacks fire with the unwrapped original
-      // status (mirroring the real Posts/Actions wiring).
-      const target = getOriginalStatus(status)
-      return (
-        <div key={status.id}>
-          <span>{status.id}</span>
-          <span data-testid={`like-flag-${target.id}`}>
-            {String(target.isActorLiked)}:{target.totalLikes}
-          </span>
-          <span data-testid={`bookmark-flag-${target.id}`}>
-            {String(target.isActorBookmarked)}
-          </span>
-          <button
-            data-testid={`trigger-delete-${target.id}`}
-            onClick={() => onPostDeleted?.(target)}
-          >
-            delete
-          </button>
-          <button
-            data-testid={`trigger-like-${target.id}`}
-            onClick={() => onLikeChanged?.(target, !target.isActorLiked)}
-          >
-            like
-          </button>
-          <button
-            data-testid={`trigger-bookmark-${target.id}`}
-            onClick={() =>
-              onBookmarkChanged?.(target, !target.isActorBookmarked)
-            }
-          >
-            bookmark
-          </button>
-          <button
-            data-testid={`trigger-update-${target.id}`}
-            onClick={() => onPostUpdated?.({ ...target, totalLikes: 99 })}
-          >
-            update
-          </button>
-        </div>
-      )
-    })}
-  </div>
-)
+  )
+}
 
 export const MockProfileGalleryTab = ({
   subviews,

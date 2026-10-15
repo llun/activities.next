@@ -14,7 +14,8 @@ import {
   createReplyStatus,
   createStatus,
   currentActorProfile,
-  sampleAttachment
+  sampleAttachment,
+  seenOnPostDeleted
 } from './ActorTimelines.testUtils'
 
 vi.mock('@/lib/client', () => ({
@@ -352,6 +353,33 @@ describe('ActorTimelines', () => {
     expect(screen.getByTestId(`like-flag-${postId}`)).toHaveTextContent(
       'false:99'
     )
+  })
+
+  it('keeps the post-deleted callback stable across status updates', () => {
+    // Memoized post rows re-render when a callback changes identity, so a like
+    // or an edit must not hand Posts a new onPostDeleted.
+    const postId = 'https://remote.example/statuses/stable-callback'
+    seenOnPostDeleted.length = 0
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[
+          createStatus(postId),
+          createStatus('https://remote.example/statuses/other')
+        ]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId(`trigger-like-${postId}`))
+    fireEvent.click(screen.getByTestId(`trigger-update-${postId}`))
+
+    expect(seenOnPostDeleted.length).toBeGreaterThan(2)
+    expect(new Set(seenOnPostDeleted).size).toBe(1)
   })
 
   it('keeps like state in sync across the feed when a post is liked', () => {

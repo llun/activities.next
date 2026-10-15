@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, Fragment, ReactNode, useMemo, useState } from 'react'
+import { FC, Fragment, ReactNode, useCallback, useMemo, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
@@ -22,8 +22,7 @@ import { getActualStatus } from '@/lib/utils/text/processStatusText'
 import { TimelineGapRow } from './TimelineGapRow'
 import { BoostCarousel } from './boost-carousel'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
-import { InlineStatusComposer } from './inline-status-composer'
-import { Post } from './post'
+import { PostListItem } from './post-list-item'
 import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
 import { useInlineComposer } from './useInlineComposer'
 
@@ -144,14 +143,33 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     })
   }, [statuses, readingGroupBoosts])
 
-  if (statuses.length === 0) return null
+  // Stable so memoized rows don't re-render when this list's state changes.
+  const openStatus = useCallback(
+    (status: Status) => {
+      void (async () => {
+        const detailPath = await getStatusDetailPathClient(status)
+        if (detailPath) router.push(detailPath)
+      })()
+    },
+    [router]
+  )
+  const showMedia = useCallback(
+    (
+      medias: Attachment[],
+      index: number,
+      actualStatus: StatusNote | StatusPoll
+    ) => {
+      setModalMedias({
+        medias,
+        tags: actualStatus.tags,
+        initialSelection: index,
+        albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
+      })
+    },
+    [currentActor]
+  )
 
-  const openStatus = (status: Status) => {
-    void (async () => {
-      const detailPath = await getStatusDetailPathClient(status)
-      if (detailPath) router.push(detailPath)
-    })()
-  }
+  if (statuses.length === 0) return null
 
   const canCompose = Boolean(currentActor) && showActions
 
@@ -161,73 +179,40 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       showReplyContext?: boolean
       parentPreview?: TimelineParentPreview | null
     }
-  ) => {
-    const actualStatus = getActualStatus(status)
-    const activeComposer =
-      currentActor && composer.active?.anchorId === status.id
-        ? composer.active
-        : null
-
-    return (
-      <article key={status.id} className="min-h-0 min-w-0 px-4 py-3">
-        <Post
-          host={host}
-          currentTime={currentTime}
-          currentActor={currentActor}
-          status={status}
-          showActions={showActions}
-          showReadOnlyStats={showReadOnlyStats}
-          editable={currentActor?.id === actualStatus.actorId}
-          collapsible
-          postLineLimit={postLineLimit}
-          showReplyContext={options?.showReplyContext}
-          parentPreview={options?.parentPreview}
-          onReply={
-            canCompose
-              ? (target) => composer.openReply(target, status.id)
-              : undefined
-          }
-          onEdit={
-            canCompose
-              ? (target) => composer.openEdit(target, status.id)
-              : undefined
-          }
-          onQuote={
-            canCompose
-              ? (target) => composer.openQuote(target, status.id)
-              : undefined
-          }
-          onPostDeleted={onPostDeleted}
-          onBookmarkChanged={onBookmarkChanged}
-          onLikeChanged={onLikeChanged}
-          onReactionsChanged={onReactionsChanged}
-          onOpenStatus={openStatus}
-          onShowAttachment={(allMedias, index) => {
-            setModalMedias({
-              medias: allMedias,
-              tags: actualStatus.tags,
-              initialSelection: index,
-              albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
-            })
-          }}
-        />
-        {activeComposer && currentActor ? (
-          <InlineStatusComposer
-            key={`${activeComposer.mode}-${activeComposer.anchorId}`}
-            host={host}
-            profile={currentActor}
-            mode={activeComposer.mode}
-            status={activeComposer.status}
-            isMediaUploadEnabled={isMediaUploadEnabled}
-            onCancel={composer.close}
-            onReplyCreated={onReplyCreated}
-            onCreated={onStatusCreated}
-            onUpdated={onPostUpdated}
-          />
-        ) : null}
-      </article>
-    )
-  }
+  ) => (
+    <PostListItem
+      key={status.id}
+      status={status}
+      host={host}
+      currentTime={currentTime}
+      currentActor={currentActor}
+      showActions={showActions}
+      showReadOnlyStats={showReadOnlyStats}
+      postLineLimit={postLineLimit}
+      showReplyContext={options?.showReplyContext}
+      parentPreview={options?.parentPreview}
+      canCompose={canCompose}
+      activeComposer={
+        currentActor && composer.active?.anchorId === status.id
+          ? composer.active
+          : null
+      }
+      isMediaUploadEnabled={isMediaUploadEnabled}
+      openReply={composer.openReply}
+      openQuote={composer.openQuote}
+      openEdit={composer.openEdit}
+      close={composer.close}
+      onOpenStatus={openStatus}
+      onShowMedia={showMedia}
+      onStatusCreated={onStatusCreated}
+      onReplyCreated={onReplyCreated}
+      onPostUpdated={onPostUpdated}
+      onPostDeleted={onPostDeleted}
+      onBookmarkChanged={onBookmarkChanged}
+      onLikeChanged={onLikeChanged}
+      onReactionsChanged={onReactionsChanged}
+    />
+  )
 
   return (
     <>

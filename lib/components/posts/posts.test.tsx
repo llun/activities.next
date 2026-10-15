@@ -10,6 +10,10 @@ import {
   pollStatusCurrentTime,
   pollStatusFixture
 } from '@/lib/components/posts/__fixtures__/poll-status'
+import {
+  createMockNote,
+  mockAlice
+} from '@/lib/components/posts/__fixtures__/timeline-context'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
@@ -34,16 +38,34 @@ const makeBoost = (announceId: string): Status =>
 
 const mockPush = vi.fn()
 
+// Counts how often each row's <Post> renders, keyed by status id, by wrapping
+// the real component.
+const postRenders = vi.hoisted(() => new Map<string, number>())
+vi.mock('./post', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./post')>()
+  return {
+    ...actual,
+    Post: (props: React.ComponentProps<typeof actual.Post>) => {
+      postRenders.set(
+        props.status.id,
+        (postRenders.get(props.status.id) ?? 0) + 1
+      )
+      return <actual.Post {...props} />
+    }
+  }
+})
+
 vi.mock('./collapsible-content', () => ({
   CollapsibleContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   )
 }))
 
+// A stable router, like Next's: a fresh object per render would defeat the
+// memoized rows.
+const mockRouter = { push: mockPush }
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush
-  })
+  useRouter: () => mockRouter
 }))
 
 vi.mock('@/lib/client', () => ({
@@ -65,16 +87,18 @@ vi.mock('@/lib/utils/getStatusDetailPathClient', () => ({
 vi.mock('./inline-status-composer', () => ({
   InlineStatusComposer: ({
     mode,
-    status
+    status,
+    onCancel
   }: {
     mode: string
     status: { id: string }
+    onCancel?: () => void
   }) => (
-    <div
-      data-testid="inline-composer"
-      data-mode={mode}
-      data-status={status.id}
-    />
+    <div data-testid="inline-composer" data-mode={mode} data-status={status.id}>
+      <button type="button" onClick={onCancel}>
+        Cancel composer
+      </button>
+    </div>
   )
 }))
 
@@ -302,6 +326,90 @@ describe('Posts', () => {
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/@llun/poll-1')
+    })
+  })
+
+  describe('re-rendering rows', () => {
+    const rows = Array.from({ length: 20 }, (_, index) =>
+      createMockNote({
+        id: `https://activities.local/users/alice/statuses/row-${index}`,
+        actor: mockAlice,
+        text: `Row ${index}`
+      })
+    )
+    const renderList = (statuses: Status[] = rows) => {
+      const props = {
+        host: 'activities.local',
+        currentActor: mockAlice,
+        currentTime: pollStatusCurrentTime,
+        showActions: true
+      }
+      const view = render(<Posts {...props} statuses={statuses} />)
+      return {
+        rerender: (next: Status[] = statuses) =>
+          view.rerender(<Posts {...props} statuses={next} />)
+      }
+    }
+    const reply = (index: number) =>
+      fireEvent.click(
+        screen.getAllByRole('button', { name: /Reply to post/ })[index]
+      )
+    const rendered = () => rows.filter((row) => postRenders.get(row.id))
+
+    beforeEach(() => postRenders.clear())
+
+    it('leaves the other rows alone when the composer opens, moves and closes', () => {
+      renderList()
+      expect(rendered()).toHaveLength(20)
+
+      postRenders.clear()
+      reply(3)
+      expect(screen.getByTestId('inline-composer')).toBeInTheDocument()
+      expect(rendered().filter((row) => row !== rows[3])).toHaveLength(0)
+
+      postRenders.clear()
+      reply(5)
+      expect(screen.getAllByTestId('inline-composer')).toHaveLength(1)
+      expect(
+        rendered().filter((row) => row !== rows[3] && row !== rows[5])
+      ).toHaveLength(0)
+
+      postRenders.clear()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel composer' }))
+      expect(screen.queryByTestId('inline-composer')).not.toBeInTheDocument()
+      expect(rendered().filter((row) => row !== rows[5])).toHaveLength(0)
+    })
+
+    it('renders no row again for a rerender with the same props', () => {
+      const view = renderList()
+      postRenders.clear()
+      view.rerender()
+      expect(rendered()).toHaveLength(0)
+    })
+
+    it('re-renders every row when a shared prop such as currentTime changes', () => {
+      const base = {
+        host: 'activities.local',
+        currentActor: mockAlice,
+        showActions: true,
+        statuses: rows
+      }
+      const view = render(
+        <Posts {...base} currentTime={pollStatusCurrentTime} />
+      )
+      postRenders.clear()
+      view.rerender(
+        <Posts {...base} currentTime={pollStatusCurrentTime + 60000} />
+      )
+      expect(rendered()).toHaveLength(rows.length)
+    })
+
+    it('re-renders only the row whose status changed', () => {
+      const view = renderList()
+      postRenders.clear()
+      const liked = { ...rows[7], totalLikes: 1 } as Status
+      view.rerender(rows.map((row, index) => (index === 7 ? liked : row)))
+      expect(rendered().map((row) => row.id)).toEqual([rows[7].id])
     })
   })
 })

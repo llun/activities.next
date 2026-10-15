@@ -132,6 +132,50 @@ describe('ActorTimelines', () => {
     )
   })
 
+  it('steps the cursor back when a post appended by load more is deleted', async () => {
+    // The delete handler reads the loaded list through a ref, which must have
+    // caught up with the page that load more just appended.
+    getAccountStatusesPageMock
+      .mockResolvedValueOnce({
+        statuses: [
+          createStatus('https://local.example/statuses/2'),
+          createStatus('https://local.example/statuses/3')
+        ],
+        nextMaxStatusId: 'https://local.example/statuses/3'
+      })
+      .mockResolvedValue({ statuses: [], nextMaxStatusId: null })
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://local.example/users/actor"
+        statuses={[createStatus('https://local.example/statuses/1')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{
+          nextPageUrl: null,
+          prevPageUrl: null,
+          nextMaxStatusId: 'https://local.example/statuses/1'
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('https://local.example/statuses/3')
+
+    fireEvent.click(
+      screen.getByTestId('trigger-delete-https://local.example/statuses/3')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() =>
+      expect(getAccountStatusesPageMock).toHaveBeenLastCalledWith({
+        actorId: 'https://local.example/users/actor',
+        maxStatusId: 'https://local.example/statuses/2'
+      })
+    )
+  })
+
   it('loads and appends older actor statuses from the next outbox page', async () => {
     getActorStatusesMock.mockResolvedValue({
       statuses: [createStatus('https://remote.example/statuses/older')],

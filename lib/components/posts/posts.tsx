@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useCallback, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
@@ -13,11 +13,9 @@ import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
-import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
-import { InlineStatusComposer } from './inline-status-composer'
-import { Post } from './post'
+import { PostListItem } from './post-list-item'
 import { useInlineComposer } from './useInlineComposer'
 
 interface Props {
@@ -84,14 +82,33 @@ export const Posts: FC<Props> = ({
   // that renders <Posts> offers the identical action set without re-wiring it.
   const composer = useInlineComposer()
 
-  if (statuses.length === 0) return null
+  // Stable so memoized rows don't re-render when this list's state changes.
+  const openStatus = useCallback(
+    (status: Status) => {
+      void (async () => {
+        const detailPath = await getStatusDetailPathClient(status)
+        if (detailPath) router.push(detailPath)
+      })()
+    },
+    [router]
+  )
+  const showMedia = useCallback(
+    (
+      medias: Attachment[],
+      index: number,
+      actualStatus: StatusNote | StatusPoll
+    ) => {
+      setModalMedias({
+        medias,
+        tags: actualStatus.tags,
+        initialSelection: index,
+        albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
+      })
+    },
+    [currentActor]
+  )
 
-  const openStatus = (status: Status) => {
-    void (async () => {
-      const detailPath = await getStatusDetailPathClient(status)
-      if (detailPath) router.push(detailPath)
-    })()
-  }
+  if (statuses.length === 0) return null
 
   // Authoring actions require a signed-in actor and an interactive feed. When
   // either is missing (logged-out landing feed, admin read-only view) the
@@ -111,77 +128,41 @@ export const Posts: FC<Props> = ({
           className
         )}
       >
-        {statuses.map((status) => {
-          const actualStatus = getActualStatus(status)
-          // Anchor on the wrapper row id (unique per row), not the unwrapped
-          // target id, so a boost and its original — or two boosts of the same
-          // post — don't both open a composer.
-          const activeComposer =
-            currentActor && composer.active?.anchorId === status.id
-              ? composer.active
-              : null
-          return (
-            <article
-              key={status.id}
-              // Match the framed box's corners so any child background can't
-              // bleed past the rounded edges now that overflow-hidden is gone.
-              className="min-h-0 min-w-0 px-4 py-3 first:rounded-t-lg last:rounded-b-lg"
-            >
-              <Post
-                host={host}
-                currentTime={currentTime}
-                currentActor={currentActor}
-                status={status}
-                showActions={showActions}
-                showReadOnlyStats={showReadOnlyStats}
-                editable={currentActor?.id === actualStatus.actorId}
-                collapsible
-                postLineLimit={postLineLimit}
-                onReply={
-                  canCompose
-                    ? (target) => composer.openReply(target, status.id)
-                    : undefined
-                }
-                onEdit={
-                  canCompose
-                    ? (target) => composer.openEdit(target, status.id)
-                    : undefined
-                }
-                onQuote={
-                  canCompose
-                    ? (target) => composer.openQuote(target, status.id)
-                    : undefined
-                }
-                onPostDeleted={onPostDeleted}
-                onBookmarkChanged={onBookmarkChanged}
-                onLikeChanged={onLikeChanged}
-                onReactionsChanged={onReactionsChanged}
-                onOpenStatus={openStatus}
-                onShowAttachment={(allMedias, index) => {
-                  setModalMedias({
-                    medias: allMedias,
-                    tags: actualStatus.tags,
-                    initialSelection: index,
-                    albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
-                  })
-                }}
-              />
-              {activeComposer && currentActor ? (
-                <InlineStatusComposer
-                  key={`${activeComposer.mode}-${activeComposer.anchorId}`}
-                  host={host}
-                  profile={currentActor}
-                  mode={activeComposer.mode}
-                  status={activeComposer.status}
-                  isMediaUploadEnabled={isMediaUploadEnabled}
-                  onCancel={composer.close}
-                  onCreated={onStatusCreated}
-                  onUpdated={onPostUpdated}
-                />
-              ) : null}
-            </article>
-          )
-        })}
+        {statuses.map((status) => (
+          <PostListItem
+            key={status.id}
+            className="first:rounded-t-lg last:rounded-b-lg"
+            status={status}
+            host={host}
+            currentTime={currentTime}
+            currentActor={currentActor}
+            showActions={showActions}
+            showReadOnlyStats={showReadOnlyStats}
+            postLineLimit={postLineLimit}
+            canCompose={canCompose}
+            // Anchor on the wrapper row id (unique per row), not the unwrapped
+            // target id, so a boost and its original — or two boosts of the
+            // same post — don't both open a composer.
+            activeComposer={
+              currentActor && composer.active?.anchorId === status.id
+                ? composer.active
+                : null
+            }
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            openReply={composer.openReply}
+            openQuote={composer.openQuote}
+            openEdit={composer.openEdit}
+            close={composer.close}
+            onOpenStatus={openStatus}
+            onShowMedia={showMedia}
+            onStatusCreated={onStatusCreated}
+            onPostUpdated={onPostUpdated}
+            onPostDeleted={onPostDeleted}
+            onBookmarkChanged={onBookmarkChanged}
+            onLikeChanged={onLikeChanged}
+            onReactionsChanged={onReactionsChanged}
+          />
+        ))}
       </section>
       <OwnPostMediasModal
         medias={modalMedias?.medias ?? null}

@@ -513,7 +513,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
-  const onStatusCreated = (status: Status) => {
+  const onStatusCreated = useCallback((status: Status) => {
     setSegments((prev) => {
       if (prev.length === 0) {
         return [
@@ -533,7 +533,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         ...prev.slice(1)
       ]
     })
-  }
+  }, [])
 
   // When a reply is created inline from a feed row, update the parent status's
   // reply count and insert the reply directly next to the replied message in the feed.

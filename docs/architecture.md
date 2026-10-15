@@ -1924,6 +1924,12 @@ legacy shape left to copy.
 - Don't wrap a callback in `useCallback` when its dependencies change on every
   render. The compiler memoizes most components, but not per `.map` iteration,
   so list rows still need `memo` to skip re-rendering with the list.
+- Post list rows (`PostListItem`, shared by `Posts` and `TimelineFeed`) are
+  `memo` because the React Compiler does not memoize per loop iteration: without
+  it, opening the inline composer re-renders every row. Pass a row plain values,
+  its own slice of shared state (`activeComposer` is null for every other row)
+  and stable callbacks (`useCallback` in the page, above any early return), and
+  build per-row closures inside the row.
 - The React Compiler is on (`reactCompiler: true` in `next.config.ts`,
   `babel-plugin-react-compiler` pinned in `package.json`) for client components
   only; server components are not compiled. New components and hooks need no

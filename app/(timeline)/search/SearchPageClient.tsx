@@ -492,13 +492,16 @@ export const SearchPageClient = ({
     </FramedList>
   )
 
-  const handlePostUpdated = (updated: Status) =>
-    setResults((previous) => ({
-      ...previous,
-      statuses: previous.statuses.map((item) =>
-        item.id === updated.id ? updated : item
-      )
-    }))
+  const handlePostUpdated = useCallback(
+    (updated: Status) =>
+      setResults((previous) => ({
+        ...previous,
+        statuses: previous.statuses.map((item) =>
+          item.id === updated.id ? updated : item
+        )
+      })),
+    []
+  )
 
   const renderPosts = (statuses: Status[]) => (
     <Posts

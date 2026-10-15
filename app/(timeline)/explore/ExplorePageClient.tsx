@@ -156,6 +156,17 @@ export const ExplorePageClient = ({
   const reloadActiveTab =
     tab === 'tags' ? loadTags : tab === 'posts' ? loadPosts : loadLinks
 
+  const handlePostUpdated = useCallback(
+    (updated: Status) =>
+      setPostsState((previous) => ({
+        ...previous,
+        items: previous.items.map((item) =>
+          item.id === updated.id ? updated : item
+        )
+      })),
+    []
+  )
+
   const renderBody = () => {
     if (activeState.status === 'loading' || activeState.status === 'idle') {
       return (
@@ -219,14 +230,7 @@ export const ExplorePageClient = ({
           // composer closes itself; /explore just doesn't fold the new status
           // into this trends list, so no onStatusCreated is needed. Edits do
           // reflect in place.
-          onPostUpdated={(updated) =>
-            setPostsState((previous) => ({
-              ...previous,
-              items: previous.items.map((item) =>
-                item.id === updated.id ? updated : item
-              )
-            }))
-          }
+          onPostUpdated={handlePostUpdated}
         />
       )
     }
