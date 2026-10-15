@@ -148,7 +148,9 @@ export function compareRoutes(
 }
 
 const kb = (bytes: number) => (bytes / 1024).toFixed(1)
-const signedKb = (bytes: number) => `${bytes > 0 ? '+' : ''}${kb(bytes)}`
+// A change under 1 KB prints in bytes so a nonzero delta never reads as 0.0.
+const signedKb = (bytes: number) =>
+  `${bytes > 0 ? '+' : ''}${Math.abs(bytes) < 1024 && bytes !== 0 ? `${bytes} B` : kb(bytes)}`
 
 export function formatSummary(summary: BundleSummary, limit?: number): string {
   const rows = limit ? summary.routes.slice(0, limit) : summary.routes
@@ -171,10 +173,10 @@ export function formatSummary(summary: BundleSummary, limit?: number): string {
 
 export function formatComparison(c: BundleComparison): string {
   const lines = [
-    `Compared with the earlier report: total gzip ${signedKb(c.totalDeltaGzipBytes)} KB across ${c.changed.length} changed routes (${c.unchanged} unchanged)`
+    `Compared with the earlier report: total gzip ${signedKb(c.totalDeltaGzipBytes)} across ${c.changed.length} changed routes (${c.unchanged} unchanged)`
   ]
   if (c.changed.length) {
-    lines.push('', `${'delta KB'.padStart(9)} ${'now KB'.padStart(9)}  route`)
+    lines.push('', `${'delta'.padStart(9)} ${'now KB'.padStart(9)}  route`)
     for (const r of c.changed) {
       lines.push(
         `${signedKb(r.deltaGzipBytes).padStart(9)} ${kb(r.afterGzipBytes).padStart(9)}  ${r.route}`
@@ -239,11 +241,12 @@ export function makeChunkSizer(root: string) {
   }
 }
 
-const USAGE = `Usage: yarn bundle:report [--json <file>] [--compare <file>] [--limit <n>]
+const USAGE = `Usage: yarn bundle:report [--json <file>] [--compare <file>] [--limit <n>] [--root <dir>]
 
 Prints first-load JavaScript per route (largest gzip first) from the last
 \`yarn build\`. --json writes the per-route results; --compare reads such a
-file from an earlier build and prints the gzip change per route.`
+file from an earlier build and prints the gzip change per route. --root sets
+the project directory that holds .next (default: the current directory).`
 
 export function main(args: string[]): number {
   const options = parseArgs(args)
@@ -251,16 +254,18 @@ export function main(args: string[]): number {
     console.log(USAGE)
     return 0
   }
+  // Read the earlier report first so a bad --compare fails before any output
+  // and before --json is written.
+  const earlier = options.compare
+    ? loadEarlierRoutes(options.compare)
+    : undefined
   const summary = summarize(
     loadStats(options.root),
     makeChunkSizer(options.root)
   )
   console.log(formatSummary(summary, options.limit))
-  if (options.compare) {
-    const comparison = compareRoutes(
-      loadEarlierRoutes(options.compare),
-      summary.routes
-    )
+  if (earlier) {
+    const comparison = compareRoutes(earlier, summary.routes)
     console.log(`\n${formatComparison(comparison)}`)
   }
   if (options.json) {
