@@ -28,7 +28,7 @@ export const generateMetadata = async ({
   const { id } = await params
   const list = await database.getList({ id, actorId: actor.id })
   return {
-    title: list ? `${list.title}` : 'Lists'
+    title: list ? list.title : 'Lists'
   }
 }
 

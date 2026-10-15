@@ -51,7 +51,7 @@ export const generateMetadata = async ({
   const isOwner = viewer?.id === collection.ownerActorId
   const visible = isOwner || hasPublicProjection(collection)
   return {
-    title: visible ? `${collection.title}` : GENERIC_TITLE
+    title: visible ? collection.title : GENERIC_TITLE
   }
 }
 
