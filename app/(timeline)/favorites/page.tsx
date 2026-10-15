@@ -13,7 +13,7 @@ import { FavoritesTimeline } from './FavoritesTimeline'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Favorites'
+  title: 'Favorites'
 }
 
 const Page = async () => {

@@ -14,7 +14,7 @@ import { GalleryGearDetailView } from './GalleryGearDetailView'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery Gear'
+  title: 'Gallery Gear'
 }
 
 // The first page of the grid; "Load more" fetches the rest.

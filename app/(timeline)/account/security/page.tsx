@@ -21,7 +21,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Account security'
+  title: 'Account security'
 }
 
 const Page = async () => {

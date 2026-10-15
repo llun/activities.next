@@ -14,7 +14,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Fitness Files'
+  title: 'Fitness Files'
 }
 
 type PageSearchParams = {

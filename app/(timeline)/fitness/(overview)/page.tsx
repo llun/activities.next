@@ -25,7 +25,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Fitness'
+  title: 'Fitness'
 }
 
 const RECENT_LIMIT = 5

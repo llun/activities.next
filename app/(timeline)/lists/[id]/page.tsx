@@ -23,12 +23,12 @@ export const generateMetadata = async ({
   const database = getDatabase()
   const session = await getServerAuthSession()
   const actor = database ? await getActorFromSession(database, session) : null
-  if (!database || !actor) return { title: 'Activities.next: Lists' }
+  if (!database || !actor) return { title: 'Lists' }
 
   const { id } = await params
   const list = await database.getList({ id, actorId: actor.id })
   return {
-    title: list ? `Activities.next: ${list.title}` : 'Activities.next: Lists'
+    title: list ? `${list.title}` : 'Lists'
   }
 }
 

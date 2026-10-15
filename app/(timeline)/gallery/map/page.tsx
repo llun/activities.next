@@ -13,7 +13,7 @@ import { GalleryMapView } from './GalleryMapView'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery Map'
+  title: 'Gallery Map'
 }
 
 const Page = async () => {

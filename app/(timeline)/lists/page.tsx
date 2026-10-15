@@ -11,7 +11,7 @@ import { CollectionSummary, ListSummary, ListsIndex } from './ListsIndex'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Lists'
+  title: 'Lists'
 }
 
 // How many member avatars to preview per list row in the index. The design

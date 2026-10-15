@@ -92,7 +92,7 @@ export const generateMetadata = async ({
       // resolve the actor locally (see getNonLocalActorRedirectTarget).
       if (!isLoggedIn && targetUrl) {
         return {
-          title: `Activities.next: ${decodedActorHandle}`,
+          title: `${decodedActorHandle}`,
           robots: { index: false, follow: false },
           alternates: {
             canonical: targetUrl
@@ -103,7 +103,7 @@ export const generateMetadata = async ({
   }
 
   return {
-    title: `Activities.next: ${decodedActorHandle}`
+    title: `${decodedActorHandle}`
   }
 }
 

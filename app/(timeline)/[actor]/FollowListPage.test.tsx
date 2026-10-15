@@ -298,7 +298,7 @@ describe('FollowListPage', () => {
         direction: 'followers'
       })
       expect(meta).toEqual({
-        title: 'Activities.next: @user@remote.social Followers',
+        title: '@user@remote.social Followers',
         robots: { index: false, follow: false },
         alternates: {
           canonical: 'https://remote.social/@user/followers'
@@ -313,7 +313,7 @@ describe('FollowListPage', () => {
         direction: 'following'
       })
       expect(meta).toEqual({
-        title: 'Activities.next: @user@llun.social Following'
+        title: '@user@llun.social Following'
       })
     })
   })

@@ -5,7 +5,7 @@ import { OfflineAppShell } from '@/lib/components/offline/OfflineAppShell'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: App'
+  title: 'Timeline'
 }
 
 export default function AppPage() {

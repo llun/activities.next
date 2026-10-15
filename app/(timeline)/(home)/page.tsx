@@ -35,7 +35,7 @@ const LANDING_FEED_MIN_POSTS = 100
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Timeline'
+  title: 'Timeline'
 }
 
 interface PageProps {

@@ -22,8 +22,15 @@ export const viewport: Viewport = {
   viewportFit: 'cover'
 }
 
+// Pages set only their own name ("Timeline", "Notifications") and the
+// template appends the app name, so a narrow tab leads with the page. Safari
+// trims a leading site name from tab titles, so the old "Activities.next: App"
+// on the home shell showed as a bare "App".
 export const metadata: Metadata = {
-  title: 'Activities.next',
+  title: {
+    default: 'Activities.next',
+    template: '%s · Activities.next'
+  },
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [

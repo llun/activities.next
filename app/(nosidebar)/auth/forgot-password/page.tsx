@@ -12,7 +12,7 @@ import { RequestPasswordResetForm } from './RequestPasswordResetForm'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Forgot Password'
+  title: 'Forgot Password'
 }
 
 const Page: FC = async () => {

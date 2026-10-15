@@ -11,7 +11,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Media'
+  title: 'Media'
 }
 
 const Page = async ({

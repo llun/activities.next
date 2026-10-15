@@ -175,7 +175,7 @@ describe('[actor] page redirects and non-local handles', () => {
       })
 
       expect(metadata).toEqual({
-        title: 'Activities.next: @clairenony@pouet.chapril.org',
+        title: '@clairenony@pouet.chapril.org',
         robots: { index: false, follow: false },
         alternates: {
           canonical: 'https://pouet.chapril.org/@clairenony'
@@ -192,7 +192,7 @@ describe('[actor] page redirects and non-local handles', () => {
       })
 
       expect(metadata).toEqual({
-        title: 'Activities.next: @localuser@llun.social'
+        title: '@localuser@llun.social'
       })
     })
 
@@ -210,7 +210,7 @@ describe('[actor] page redirects and non-local handles', () => {
       })
 
       expect(metadata).toEqual({
-        title: 'Activities.next: @clairenony@pouet.chapril.org'
+        title: '@clairenony@pouet.chapril.org'
       })
     })
   })

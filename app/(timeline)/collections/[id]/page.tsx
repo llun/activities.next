@@ -21,7 +21,7 @@ const FEED_PAGE_LIMIT = 20
 // editor. Bounded so the detail render stays cheap.
 const ROSTER_LIMIT = 80
 
-const GENERIC_TITLE = 'Activities.next: Collections'
+const GENERIC_TITLE = 'Collections'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -51,7 +51,7 @@ export const generateMetadata = async ({
   const isOwner = viewer?.id === collection.ownerActorId
   const visible = isOwner || hasPublicProjection(collection)
   return {
-    title: visible ? `Activities.next: ${collection.title}` : GENERIC_TITLE
+    title: visible ? `${collection.title}` : GENERIC_TITLE
   }
 }
 

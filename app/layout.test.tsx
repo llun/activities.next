@@ -31,6 +31,15 @@ describe('RootLayout', () => {
 })
 
 describe('metadata', () => {
+  // Pages name only themselves; the app name follows, so a narrow tab still
+  // leads with the page ("Timeline · Activities.next").
+  it('appends the app name to every page title', () => {
+    expect(metadata.title).toEqual({
+      default: 'Activities.next',
+      template: '%s · Activities.next'
+    })
+  })
+
   it('exports versioned favicon and app icons to invalidate caches', () => {
     const v = encodeURIComponent(VERSION)
     expect(metadata.icons).toEqual({

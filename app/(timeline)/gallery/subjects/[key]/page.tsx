@@ -17,7 +17,7 @@ import { GallerySubjectDetailView } from './GallerySubjectDetailView'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery Subject'
+  title: 'Gallery Subject'
 }
 
 interface PageProps {

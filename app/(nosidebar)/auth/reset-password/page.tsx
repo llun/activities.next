@@ -9,7 +9,7 @@ import { ResetPasswordForm } from './ResetPasswordForm'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Reset Password'
+  title: 'Reset Password'
 }
 
 interface Props {

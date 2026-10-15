@@ -12,7 +12,7 @@ import { GalleryPrivacySettings } from './GalleryPrivacySettings'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery Privacy'
+  title: 'Gallery Privacy'
 }
 
 const Page = async () => {

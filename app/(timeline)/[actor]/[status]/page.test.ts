@@ -43,7 +43,7 @@ describe('generateMetadata', () => {
     })
 
     const pageUrl = 'https://llun.test/%40test1%40llun.test/status-1'
-    expect(metadata.title).toBe('Activities.next: @test1@llun.test status')
+    expect(metadata.title).toBe('@test1@llun.test status')
     expect(metadata.alternates?.types).toEqual({
       'application/json+oembed': `https://llun.test/api/oembed?url=${encodeURIComponent(pageUrl)}`
     })
@@ -57,7 +57,7 @@ describe('generateMetadata', () => {
       })
     })
 
-    expect(metadata.title).toBe('Activities.next: %E0%A4%A status')
+    expect(metadata.title).toBe('%E0%A4%A status')
     // Malformed escapes fall back to the raw segment, re-encoded.
     const pageUrl = 'https://llun.test/%25E0%25A4%25A/status-id'
     expect(metadata.alternates?.types).toEqual({

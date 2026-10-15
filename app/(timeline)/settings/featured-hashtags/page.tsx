@@ -10,7 +10,7 @@ import { FeaturedTagsEditor } from './FeaturedTagsEditor'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Featured hashtags'
+  title: 'Featured hashtags'
 }
 
 const Page = async () => {

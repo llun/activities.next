@@ -17,7 +17,7 @@ import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Messages'
+  title: 'Messages'
 }
 const INITIAL_STATUS_LIMIT = 40
 

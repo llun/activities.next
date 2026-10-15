@@ -27,7 +27,7 @@ import { resolveFollowRequestStatus } from './followRequestStatus'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Notifications'
+  title: 'Notifications'
 }
 
 const ITEMS_PER_PAGE = 25
