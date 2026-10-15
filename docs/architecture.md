@@ -2115,7 +2115,8 @@ legacy shape left to copy.
   with the `--border` hairline in dark. The `pill` Button variant likewise stays
   translucent except the floating pill that sits over posts ("N new posts"),
   which is solid `bg-popover` with `shadow-lg` in both themes so post text
-  never shows through it.
+  never shows through it. Its up arrow is `text-muted-foreground`, not
+  `primary`: an orange arrow over the feed pulls the eye too hard.
 - When pairing a visible count with `sr-only` text, put only the noun (e.g.
   "boosts") in the `sr-only` span, not the number — the visible digit is already
   announced, so including it double-reads (see `posts/read-only-stats.tsx`).
