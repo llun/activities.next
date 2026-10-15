@@ -103,7 +103,9 @@ describe('MediasModal media details', () => {
 
     const image = document.querySelectorAll('img')[1]
     const before = image.className
-    expect(image).toHaveClass('max-h-[calc(100dvh-6rem)]')
+    expect(image).toHaveClass(
+      'max-h-[calc(100dvh-6rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]'
+    )
     await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
     await act(async () => {
       await Promise.resolve()
@@ -171,7 +173,9 @@ describe('MediasModal media details', () => {
         await Promise.resolve()
       })
       const image = document.querySelector('img')
-      expect(image).toHaveClass('max-h-[calc(100dvh-6rem)]')
+      expect(image).toHaveClass(
+        'max-h-[calc(100dvh-6rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]'
+      )
       // Nothing to show: no region and the Details button keeps its space.
       expect(screen.getByText('Details').closest('button')).toHaveClass(
         'invisible'

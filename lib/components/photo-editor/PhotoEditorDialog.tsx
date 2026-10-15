@@ -697,7 +697,7 @@ export const PhotoEditorDialog = ({
             contentRef.current?.focus({ preventScroll: true })
           }}
           ref={contentRef}
-          className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-0 sm:max-w-none dark:bg-background motion-reduce:animate-none"
+          className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-[env(safe-area-inset-top,0px)_env(safe-area-inset-right,0px)_env(safe-area-inset-bottom,0px)_env(safe-area-inset-left,0px)] sm:max-w-none dark:bg-background motion-reduce:animate-none"
         >
           <Tabs
             value={tab}

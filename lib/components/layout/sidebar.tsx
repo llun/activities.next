@@ -334,12 +334,15 @@ export function Sidebar({
     <TooltipProvider delayDuration={0}>
       {/* Full sidebar - Desktop / Drawer. h-dvh, not h-screen: iOS Safari's
           100vh is the height with its toolbars hidden, so while they show, the
-          bottom of a 100vh rail (the account) sits behind them. */}
+          bottom of a 100vh rail (the account) sits behind them. The fixed
+          rail grows by the left safe area (the notch in landscape) instead of
+          sliding under it, padding its content clear, and the body's matching
+          padding moves the page over by the same. */}
       <aside
         className={cn(
           isDrawer
             ? 'flex h-full w-full min-h-0 flex-col bg-background'
-            : 'fixed left-0 top-0 z-40 h-dvh w-[280px] border-r bg-surface-chrome backdrop-blur hidden xl:flex flex-col'
+            : 'fixed left-0 top-0 z-40 h-dvh w-[calc(280px+env(safe-area-inset-left,0px))] border-r bg-surface-chrome safe-area-pl backdrop-blur hidden xl:flex flex-col'
         )}
       >
         {/* flex, not block: the Logo link is inline-flex, and as an inline
@@ -649,9 +652,10 @@ export function Sidebar({
         ) : null}
       </aside>
 
-      {/* Collapsed sidebar - Tablet. Same h-dvh reason as the full sidebar. */}
+      {/* Collapsed sidebar - Tablet. Same h-dvh and safe-area reasons as the
+          full sidebar. */}
       {variant === 'responsive' && (
-        <aside className="fixed left-0 top-0 z-40 h-dvh w-[72px] border-r bg-surface-chrome backdrop-blur hidden md:flex xl:hidden flex-col items-center">
+        <aside className="fixed left-0 top-0 z-40 h-dvh w-[calc(72px+env(safe-area-inset-left,0px))] border-r bg-surface-chrome safe-area-pl backdrop-blur hidden md:flex xl:hidden flex-col items-center">
           {/* flex for the same reason as the full sidebar's logo wrapper. The
               rail draws the logo at y 20 and its first item at y 64, so the
               extra 4px on top comes off the bottom (20 + 32 + 12 = 64). */}

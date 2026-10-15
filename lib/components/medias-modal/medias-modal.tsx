@@ -397,17 +397,18 @@ export const MediasModal: FC<Props> = ({
     new Set(visibleIndices).size !== visibleIndices.length
   // The same cap for every photo, whatever it carries: the stage between the
   // header (4.25rem) and the thumbnail strip (~5.5rem, 6.5rem from md) with a
-  // little room to spare.
+  // little room to spare, less the safe area the viewer pads at top and
+  // bottom (the notch, the home indicator and the browser bars on iOS).
   const photoMaxHeight = shouldShowNavigation
-    ? 'max-h-[calc(100dvh-11rem)] md:max-h-[calc(100dvh-12rem)]'
-    : 'max-h-[calc(100dvh-6rem)]'
+    ? 'max-h-[calc(100dvh-11rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] md:max-h-[calc(100dvh-12rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]'
+    : 'max-h-[calc(100dvh-6rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]'
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Media viewer"
-      className="fixed inset-0 z-50 flex flex-col bg-black"
+      className="fixed inset-0 z-50 flex flex-col bg-black safe-area-p"
       onPointerDownCapture={() => {
         // A press that starts while the albums menu is open never closes the
         // viewer: outside the menu it only closes the menu, and inside it

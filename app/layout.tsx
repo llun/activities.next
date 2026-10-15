@@ -9,10 +9,17 @@ import { withVersion } from '@/lib/utils/version'
 
 import './globals.css'
 
+// `viewportFit: 'cover'` lets the page run edge to edge. Without it iOS
+// Safari stops the layout viewport at the safe area, so from iOS 26 its
+// floating address bar sits on a solid band below the page, and every
+// `env(safe-area-inset-*)` in the app reads 0. With it the insets are real,
+// so whatever must stay clear of the notch, the home indicator or the bar
+// pads by them (see `.safe-area-*` in globals.css).
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 2
+  maximumScale: 2,
+  viewportFit: 'cover'
 }
 
 export const metadata: Metadata = {

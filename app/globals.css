@@ -442,8 +442,14 @@
     }
   }
 
+  /* The viewport covers the whole screen (`viewportFit: 'cover'`), so in
+     landscape the notch and the rounded corners sit over the left and right
+     edges. Keep the page's flow content clear of them; fixed chrome pads
+     itself (the sidebars, the drawer, full-screen viewers). */
   body {
     @apply min-h-screen text-foreground font-sans antialiased;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
   }
 
   /* The app backdrop. Shared with `.app-backdrop` surfaces that paint over the
@@ -507,6 +513,18 @@
 
   .safe-area-pl {
     padding-left: env(safe-area-inset-left, 0);
+  }
+
+  .safe-area-px {
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  /* Every edge, for a full-screen layer whose background should run under
+     the notch and the browser bars while its controls stay clear of them. */
+  .safe-area-p {
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+      env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
   }
 
   /* Hides the scrollbar on a strip that carries its OWN affordances — today
