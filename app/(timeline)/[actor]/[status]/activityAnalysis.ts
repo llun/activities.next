@@ -216,15 +216,22 @@ export const deriveActivityAnalysis = ({
     }))
 
   // The full-resolution series hold only recorded values, so their timing is
-  // measured against running time, not elapsed time: an auto-paused ride has
-  // no samples for its stops. The file's moving time when it has one, else
-  // the timeline's own gaps with the pauses taken out.
-  const recordingSeconds =
+  // measured against how long the recorder was running, not elapsed time: an
+  // auto-paused ride has no samples for its stops. That is the larger of the
+  // file's moving time and the timeline's own gaps with the pauses taken out,
+  // because a recorder that keeps writing through stops (smart recording,
+  // about one record every 2 s) runs for longer than the moving time, and
+  // reading its records against moving time alone would take them for 1 Hz.
+  const movingSeconds =
     typeof movingTimeSeconds === 'number' && movingTimeSeconds > 0
       ? durationSeconds > 0
         ? Math.min(movingTimeSeconds, durationSeconds)
         : movingTimeSeconds
-      : estimateRecordingSeconds(timeline, durationSeconds)
+      : 0
+  const recordingSeconds = Math.max(
+    movingSeconds,
+    estimateRecordingSeconds(timeline, durationSeconds)
+  )
   const sampleSeconds = estimateSampleSeconds(
     powerSeries.length,
     recordingSeconds

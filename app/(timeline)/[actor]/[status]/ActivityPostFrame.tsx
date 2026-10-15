@@ -349,7 +349,7 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
         {currentActor ? (
           <Actions
             host={host}
-            currentActor={currentActor ?? undefined}
+            currentActor={currentActor}
             currentTime={currentTime}
             status={status}
             showActions
@@ -358,21 +358,9 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
             editable={isOwner}
             extraMenuItems={gear.gearMenuItems}
             // Always a reply to this post: the page is the post itself.
-            onReply={
-              currentActor
-                ? () => composer.openReply(status, status.id)
-                : undefined
-            }
-            onEdit={
-              currentActor
-                ? (target) => composer.openEdit(target, status.id)
-                : undefined
-            }
-            onQuote={
-              currentActor
-                ? (target) => composer.openQuote(target, status.id)
-                : undefined
-            }
+            onReply={() => composer.openReply(status, status.id)}
+            onEdit={(target) => composer.openEdit(target, status.id)}
+            onQuote={(target) => composer.openQuote(target, status.id)}
             onShowAttachment={onShowAttachment}
           />
         ) : (

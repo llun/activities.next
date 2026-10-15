@@ -290,6 +290,58 @@ describe('deriveActivityAnalysis with an auto-paused recording', () => {
   )
 })
 
+describe('deriveActivityAnalysis with smart recording through a stop', () => {
+  // 3 h 15 min with one record every 2 s that keeps recording through a
+  // 1 h 15 min café stop: 5850 records, and 2 h of moving time.
+  const ELAPSED = 11700
+  const STOP_START = 1200
+  const STOP = 4500
+  const MOVING = ELAPSED - STOP
+  // 20 min at 300 W, the stop at 0 W, then 150 W.
+  const wattsAt = (second: number) =>
+    second < STOP_START ? 300 : second < STOP_START + STOP ? 0 : 150
+  const power = Array.from({ length: ELAPSED / 2 }, (_, index) =>
+    wattsAt(index * 2)
+  )
+
+  it('reads the records as 2 s apart, not as 1 Hz from the moving time', () => {
+    const analysis = deriveActivityAnalysis({
+      data: {
+        // One route sample a minute, through the stop as well.
+        samples: Array.from({ length: ELAPSED / 60 }, (_, index) => ({
+          lat: 52 + index * 0.0005,
+          lng: 5,
+          elapsedSeconds: index * 60,
+          power: wattsAt(index * 60),
+          heartRate: 130
+        })),
+        totalDurationSeconds: ELAPSED,
+        powerSeries: power,
+        heartRateSeries: power.map(() => 130)
+      },
+      activityType: 'ride',
+      movingTimeSeconds: MOVING
+    })
+
+    expect(analysis.recordingSeconds).toBe(ELAPSED)
+    expect(analysis.sampleSeconds).toBe(2)
+    // Read as 1 Hz, the 20 min window would be 1200 records (40 min) and
+    // take in 20 min of the stop.
+    expect(
+      analysis.bestEfforts.find((effort) => effort.durationSeconds === 1200)
+        ?.watts
+    ).toBe(300)
+    expect(analysis.timeAtZeroPowerSeconds).toBe(STOP)
+    expect(analysis.heartRateZones.map((zone) => zone.seconds)).toEqual([
+      0,
+      ELAPSED,
+      0,
+      0,
+      0
+    ])
+  })
+})
+
 describe('deriveActivityAnalysis running cadence', () => {
   const buildRun = (cadence: number): FitnessRouteDataResponse => ({
     samples: Array.from({ length: 61 }, (_, index) => ({

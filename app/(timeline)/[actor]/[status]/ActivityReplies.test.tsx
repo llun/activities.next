@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 import '@testing-library/jest-dom'
 import { act, render, screen } from '@testing-library/react'
-import { renderToString } from 'react-dom/server'
 
 import type { InlineComposerControls } from '@/lib/components/posts/useInlineComposer'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import type { Status } from '@/lib/types/domain/status'
 
 import {
@@ -62,30 +62,27 @@ describe('ActivityReplies', () => {
   it('renders open on the server and applies a stored "hide" after hydrating', async () => {
     window.localStorage.setItem(REPLIES_EXPANDED_STORAGE_KEY, '0')
 
-    // The server has no storage, so its markup is always the open list…
-    const container = document.createElement('div')
-    container.innerHTML = renderToString(<ActivityReplies {...props} />)
-    document.body.appendChild(container)
-    expect(
-      container
-        .querySelector('button[aria-expanded]')
-        ?.getAttribute('aria-expanded')
-    ).toBe('true')
+    const { serverHtml, container, onRecoverableError, unmount } =
+      await hydrateServerHtml(<ActivityReplies {...props} />)
+    try {
+      // The server has no storage, so its markup is always the open list…
+      const server = document.createElement('template')
+      server.innerHTML = serverHtml
+      expect(
+        server.content
+          .querySelector('button[aria-expanded]')
+          ?.getAttribute('aria-expanded')
+      ).toBe('true')
 
-    // …which hydrates without a mismatch, then follows the stored choice.
-    const onRecoverableError = vi.fn()
-    await act(async () => {
-      render(<ActivityReplies {...props} />, {
-        container,
-        hydrate: true,
-        onRecoverableError
-      })
-    })
-    expect(onRecoverableError).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole('button', { name: /Replies \(1\)/ })
-    ).toHaveAttribute('aria-expanded', 'false')
-    container.remove()
+      // …which hydrates without a mismatch, then follows the stored choice.
+      expect(onRecoverableError).not.toHaveBeenCalled()
+      expect(container.querySelector('button[aria-expanded]')).toHaveAttribute(
+        'aria-expanded',
+        'false'
+      )
+    } finally {
+      unmount()
+    }
   })
 
   it.each([
