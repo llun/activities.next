@@ -1,8 +1,9 @@
 'use client'
 
-import { Check } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { ReadOnlyUrlRow } from '@/app/(timeline)/fitness/connections/ReadOnlyUrlRow'
 import {
   type WahooEnvironment,
   type WahooSettingsResponse,
@@ -26,8 +27,8 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
-import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import type { Visibility } from '@/lib/types/mastodon/visibility'
+import { cn } from '@/lib/utils'
 
 import { WahooFailedImportsSection } from './WahooFailedImportsSection'
 import { WahooHistorySection } from './WahooHistorySection'
@@ -54,41 +55,6 @@ const formatConnectionTimestamp = (value?: string) => {
       timeStyle: 'short'
     }).format(date)
   }
-}
-
-const ReadOnlyUrlRow = ({
-  id,
-  label,
-  value
-}: {
-  id: string
-  label: string
-  value: string
-}) => {
-  const { copied, copy } = useCopyToClipboard(2000)
-  return (
-    <FormRow label={label} htmlFor={id}>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          readOnly
-          value={value}
-          onFocus={(event) => event.currentTarget.select()}
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="shrink-0"
-          aria-label={`Copy ${label.toLowerCase()}`}
-          onClick={() => void copy(value)}
-        >
-          {copied ? <Check className="size-3" aria-hidden /> : null}
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
-    </FormRow>
-  )
 }
 
 export const WahooSettingsForm = () => {
@@ -205,30 +171,46 @@ export const WahooSettingsForm = () => {
           <Frame
             form
             footer={
-              <div
-                data-slot="save-bar"
-                className="flex w-full flex-wrap items-center justify-end gap-2"
-              >
-                {settings?.configured && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={isSaving}
-                    onClick={() => setShowDisconnectDialog(true)}
-                  >
-                    Disconnect
+              <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    'min-w-0 text-sm break-words',
+                    error ? 'text-destructive-text' : 'text-muted-foreground'
+                  )}
+                >
+                  {error || message}
+                </p>
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  {settings?.configured && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={isSaving}
+                      onClick={() => setShowDisconnectDialog(true)}
+                    >
+                      Disconnect
+                    </Button>
+                  )}
+                  {settings?.configured && !isSaving && (
+                    <Button asChild variant="outline">
+                      <a href="/api/v1/settings/fitness/wahoo/authorize">
+                        {settings.connected ? 'Reconnect' : 'Connect'}
+                      </a>
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={isSaving || !settings}>
+                    {isSaving ? (
+                      <Loader2
+                        data-slot="spinner"
+                        aria-hidden="true"
+                        className="animate-spin"
+                      />
+                    ) : null}
+                    Save settings
                   </Button>
-                )}
-                {settings?.configured && !isSaving && (
-                  <Button asChild variant="outline">
-                    <a href="/api/v1/settings/fitness/wahoo/authorize">
-                      {settings.connected ? 'Reconnect' : 'Connect'}
-                    </a>
-                  </Button>
-                )}
-                <Button type="submit" disabled={isSaving || !settings}>
-                  {isSaving ? 'Saving…' : 'Save settings'}
-                </Button>
+                </div>
               </div>
             }
           >
@@ -302,19 +284,25 @@ export const WahooSettingsForm = () => {
               label="Automatic import visibility"
               hint="New and historical Wahoo activities use this visibility when posted."
             >
-              <VisibilitySelector
-                visibility={defaultVisibility}
-                onVisibilityChange={setDefaultVisibility}
-              />
+              {({ describedBy, labelledBy }) => (
+                <div
+                  role="group"
+                  aria-labelledby={labelledBy}
+                  aria-describedby={describedBy}
+                >
+                  <VisibilitySelector
+                    visibility={defaultVisibility}
+                    onVisibilityChange={setDefaultVisibility}
+                  />
+                </div>
+              )}
             </FormRow>
 
             {(defaultVisibility === 'public' ||
               defaultVisibility === 'unlisted' ||
               settings?.connected ||
               settings?.configured ||
-              settings?.lastError ||
-              error ||
-              message) && (
+              settings?.lastError) && (
               <div className="space-y-3 px-4 py-2.5">
                 {(defaultVisibility === 'public' ||
                   defaultVisibility === 'unlisted') && (
@@ -344,8 +332,6 @@ export const WahooSettingsForm = () => {
                     title={`Wahoo error: ${settings.lastError}`}
                   />
                 )}
-                {error && <Alert title={error} />}
-                {message && <Alert tone="success" title={message} />}
               </div>
             )}
           </Frame>

@@ -272,6 +272,51 @@ describe('StravaSettingsForm', () => {
     })
   })
 
+  describe('visibility row', () => {
+    it('names the visibility group and describes it with the hint', async () => {
+      mockGetStravaSettings.mockResolvedValueOnce({
+        configured: false,
+        defaultVisibility: 'private'
+      })
+
+      render(<StravaSettingsForm />)
+      await waitFor(() => expect(mockGetStravaSettings).toHaveBeenCalled())
+
+      const group = screen.getByRole('group', {
+        name: 'Automatic import visibility'
+      })
+      expect(group).toHaveAccessibleDescription(
+        /Every activity imported from Strava is posted at this visibility/
+      )
+    })
+
+    it('copies the webhook URL from a read-only row', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+      mockGetStravaSettings.mockResolvedValueOnce({
+        configured: true,
+        connected: true,
+        clientId: '123',
+        webhookUrl: 'https://example.test/api/v1/webhooks/strava',
+        defaultVisibility: 'private'
+      })
+
+      render(<StravaSettingsForm />)
+      expect(await screen.findByLabelText('Webhook URL')).toHaveValue(
+        'https://example.test/api/v1/webhooks/strava'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy webhook url' }))
+
+      await waitFor(() =>
+        expect(writeText).toHaveBeenCalledWith(
+          'https://example.test/api/v1/webhooks/strava'
+        )
+      )
+      expect(await screen.findByText('Copied')).toBeInTheDocument()
+    })
+  })
+
   describe('loading failure', () => {
     it('displays error message when settings request rejects', async () => {
       mockGetStravaSettings.mockRejectedValueOnce(
@@ -395,7 +440,10 @@ describe('StravaSettingsForm', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /save and connect/i }))
 
-      expect(screen.getByRole('button', { name: /saving…/i })).toBeDisabled()
+      // The label stays; a spinner sits inside it while saving.
+      const saving = screen.getByRole('button', { name: /save and connect/i })
+      expect(saving).toBeDisabled()
+      expect(saving.querySelector('[data-slot="spinner"]')).toBeInTheDocument()
 
       resolveSave!({ success: true, message: 'Saved!' })
 

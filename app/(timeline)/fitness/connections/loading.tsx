@@ -4,26 +4,38 @@ import { Frame } from '@/lib/components/surface/Frame'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 
 // A connection's settings (Strava or Wahoo) under the Connections header and
-// its own dropdown, which the layout keeps on screen: a titled panel of fields
-// and buttons, and a second panel for the archive import.
+// its own dropdown, which the layout keeps on screen: a Section's heading and
+// description bars, then one Frame of two-column rows (label and hint on the
+// left, control on the right) with a footer rule and a right-aligned button.
 const Panel: FC<{ fields: number }> = ({ fields }) => (
-  <Frame className="space-y-5 p-6">
+  <div className="space-y-3">
     <div className="space-y-2">
-      <SkeletonBar className="h-6 w-40" />
-      <SkeletonBar className="h-4 w-full" />
-      <SkeletonBar className="h-4 w-2/3" />
+      <SkeletonBar className="h-5 w-40" />
+      <SkeletonBar className="h-4 w-full max-w-xl" />
     </div>
-    {Array.from({ length: fields }, (_, index) => (
-      <div key={index} className="space-y-2">
-        <SkeletonBar className="h-4 w-28" />
-        <SkeletonBar className="h-9 w-full" />
-      </div>
-    ))}
-    <div className="flex gap-2">
-      <SkeletonBar className="h-9 w-36" />
-      <SkeletonBar className="h-9 w-20" />
-    </div>
-  </Frame>
+    <Frame
+      form
+      footer={
+        <div className="flex justify-end gap-2">
+          <SkeletonBar className="h-9 w-20" />
+          <SkeletonBar className="h-9 w-32" />
+        </div>
+      }
+    >
+      {Array.from({ length: fields }, (_, index) => (
+        <div
+          key={index}
+          className="flex flex-col gap-3 px-4 py-2.5 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:items-center sm:gap-6"
+        >
+          <div className="space-y-1.5">
+            <SkeletonBar className="h-4 w-28" />
+            <SkeletonBar className="h-3 w-40" />
+          </div>
+          <SkeletonBar className="h-9 w-full" />
+        </div>
+      ))}
+    </Frame>
+  </div>
 )
 
 const Loading: FC = () => (

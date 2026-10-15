@@ -196,7 +196,49 @@ describe('WahooSettingsForm', () => {
 
     render(<WahooSettingsForm />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(await screen.findByText(message)).toBeInTheDocument()
     expect(window.location.search).toBe('')
+  })
+
+  it('names the visibility group and describes it with the hint', async () => {
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    expect(
+      screen.getByRole('group', { name: 'Automatic import visibility' })
+    ).toHaveAccessibleDescription(
+      'New and historical Wahoo activities use this visibility when posted.'
+    )
+  })
+
+  it('keeps the Save label and shows a spinner while saving', async () => {
+    const deferred = createDeferred<{ success: boolean }>()
+    vi.mocked(client.saveWahooSettings).mockReturnValueOnce(deferred.promise)
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+
+    const button = await screen.findByRole('button', { name: 'Save settings' })
+    await waitFor(() => expect(button).toBeDisabled())
+    expect(button.querySelector('[data-slot="spinner"]')).toBeInTheDocument()
+
+    deferred.resolve({ success: true })
+    expect(await screen.findByText('Wahoo settings saved.')).toBeInTheDocument()
+  })
+
+  it('copies the webhook URL', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    fireEvent.click(screen.getByRole('button', { name: 'Copy webhook url' }))
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(settings.webhookUrl)
+    )
+    expect(await screen.findByText('Copied')).toBeInTheDocument()
+    vi.unstubAllGlobals()
   })
 })

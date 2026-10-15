@@ -176,100 +176,100 @@ export const WahooHistorySection = ({
               disabled={dateDisabled}
             />
           </FormRow>
-
-          {(isLoading || currentImport || error || message) && (
-            <div className="space-y-3 px-4 py-2.5">
-              {isLoading && (
-                <div role="status" className="space-y-2">
-                  <span className="sr-only">Loading import status</span>
-                  <SkeletonBar className="h-10 w-full" />
-                </div>
-              )}
-              {currentImport && (
-                <div className="space-y-3 rounded-md border p-4 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium">
-                      {currentImport.fromDate} to {currentImport.toDate}
-                    </p>
-                    <span className="capitalize text-muted-foreground">
-                      {currentImport.status}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Imported {currentImport.completed}
-                    {currentImport.total > 0
-                      ? ` of ${currentImport.total}`
-                      : ''}{' '}
-                    workouts
-                    {currentImport.failed > 0
-                      ? ` · ${currentImport.failed} failed`
-                      : ''}
-                  </p>
-                  {currentImport.total > 0 && (
-                    <progress
-                      className="w-full"
-                      value={currentImport.completed + currentImport.failed}
-                      max={currentImport.total}
-                      aria-label="History import progress"
-                    />
-                  )}
-                  {currentImport.lastError && (
-                    <Alert title={currentImport.lastError} />
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {isInProgress(currentImport.status) && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={isActing}
-                        onClick={() =>
-                          void runAction(
-                            cancelWahooHistory,
-                            'History import cancelled.'
-                          )
-                        }
-                      >
-                        Cancel import
-                      </Button>
-                    )}
-                    {(currentImport.status === 'failed' ||
-                      currentImport.status === 'cancelled') && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={
-                          isActing || !connected || !automaticImportAvailable
-                        }
-                        onClick={() =>
-                          void runAction(
-                            retryWahooHistory,
-                            currentImport.status === 'cancelled'
-                              ? 'History import resumed.'
-                              : 'Retry started.'
-                          )
-                        }
-                      >
-                        {currentImport.status === 'cancelled'
-                          ? 'Resume history import'
-                          : 'Retry failed workouts'}
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Imported activities appear in{' '}
-                    <Link href="/fitness/files" className="underline">
-                      Fitness files
-                    </Link>
-                    .
-                  </p>
-                </div>
-              )}
-              {error && <Alert title={error} />}
-              {message && <Alert tone="success" title={message} />}
-            </div>
-          )}
         </Frame>
       </form>
+
+      {(isLoading || currentImport || error || message) && (
+        <div className="space-y-3">
+          {isLoading && (
+            <div role="status" className="space-y-2">
+              <span className="sr-only">Loading import status</span>
+              <SkeletonBar className="h-10 w-full" />
+            </div>
+          )}
+          {currentImport && (
+            <div className="space-y-3 rounded-md border p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">
+                  {currentImport.fromDate} to {currentImport.toDate}
+                </p>
+                <span className="capitalize text-muted-foreground">
+                  {currentImport.status}
+                </span>
+              </div>
+              <p className="text-muted-foreground">
+                Imported {currentImport.completed}
+                {currentImport.total > 0
+                  ? ` of ${currentImport.total}`
+                  : ''}{' '}
+                workouts
+                {currentImport.failed > 0
+                  ? ` · ${currentImport.failed} failed`
+                  : ''}
+              </p>
+              {currentImport.total > 0 && (
+                <progress
+                  className="w-full"
+                  value={currentImport.completed + currentImport.failed}
+                  max={currentImport.total}
+                  aria-label="History import progress"
+                />
+              )}
+              {currentImport.lastError && (
+                <Alert title={currentImport.lastError} />
+              )}
+              <div className="flex flex-wrap gap-2">
+                {isInProgress(currentImport.status) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isActing}
+                    onClick={() =>
+                      void runAction(
+                        cancelWahooHistory,
+                        'History import cancelled.'
+                      )
+                    }
+                  >
+                    Cancel import
+                  </Button>
+                )}
+                {(currentImport.status === 'failed' ||
+                  currentImport.status === 'cancelled') && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      isActing || !connected || !automaticImportAvailable
+                    }
+                    onClick={() =>
+                      void runAction(
+                        retryWahooHistory,
+                        currentImport.status === 'cancelled'
+                          ? 'History import resumed.'
+                          : 'Retry started.'
+                      )
+                    }
+                  >
+                    {currentImport.status === 'cancelled'
+                      ? 'Resume history import'
+                      : 'Retry failed workouts'}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Imported activities appear in{' '}
+                <Link href="/fitness/files" className="underline">
+                  Fitness files
+                </Link>
+                .
+              </p>
+            </div>
+          )}
+          {error && <Alert title={error} />}
+          {message && <Alert tone="success" title={message} />}
+        </div>
+      )}
     </Section>
   )
 }

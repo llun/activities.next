@@ -1,7 +1,9 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
+import { ReadOnlyUrlRow } from '@/app/(timeline)/fitness/connections/ReadOnlyUrlRow'
 import {
   deleteStravaSettings,
   getStravaSettings,
@@ -24,6 +26,7 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
 import type { Visibility as MastodonVisibility } from '@/lib/types/mastodon/visibility'
+import { cn } from '@/lib/utils'
 
 import { StravaArchiveImportSection } from './StravaArchiveImportSection'
 
@@ -245,25 +248,37 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           <Frame
             form
             footer={
-              <div
-                data-slot="save-bar"
-                className="flex w-full items-center justify-end gap-2"
-              >
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={!isConfigured || isLoading}
-                  onClick={() => setShowUnlinkDialog(true)}
+              <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    'min-w-0 text-sm break-words',
+                    error ? 'text-destructive-text' : 'text-muted-foreground'
+                  )}
                 >
-                  Unlink
-                </Button>
-                <Button type="submit" disabled={isSaveDisabled}>
-                  {isLoading
-                    ? 'Saving…'
-                    : isConfigured
-                      ? 'Save visibility'
-                      : 'Save and connect'}
-                </Button>
+                  {error || message?.text}
+                </p>
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={!isConfigured || isLoading}
+                    onClick={() => setShowUnlinkDialog(true)}
+                  >
+                    Unlink
+                  </Button>
+                  <Button type="submit" disabled={isSaveDisabled}>
+                    {isLoading && !showUnlinkDialog ? (
+                      <Loader2
+                        data-slot="spinner"
+                        aria-hidden="true"
+                        className="animate-spin"
+                      />
+                    ) : null}
+                    {isConfigured ? 'Save visibility' : 'Save and connect'}
+                  </Button>
+                </div>
               </div>
             }
           >
@@ -336,10 +351,18 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
                 </>
               }
             >
-              <VisibilitySelector
-                visibility={defaultVisibility}
-                onVisibilityChange={setDefaultVisibility}
-              />
+              {({ describedBy, labelledBy }) => (
+                <div
+                  role="group"
+                  aria-labelledby={labelledBy}
+                  aria-describedby={describedBy}
+                >
+                  <VisibilitySelector
+                    visibility={defaultVisibility}
+                    onVisibilityChange={setDefaultVisibility}
+                  />
+                </div>
+              )}
             </FormRow>
 
             {(defaultVisibility === 'public' ||
@@ -364,22 +387,12 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             )}
 
             {webhookUrl && (
-              <FormRow
+              <ReadOnlyUrlRow
+                id="webhookUrl"
                 label="Webhook URL"
-                htmlFor="webhookUrl"
                 hint="Use this URL to configure Strava webhook subscriptions"
-              >
-                {({ describedBy }) => (
-                  <Input
-                    type="text"
-                    id="webhookUrl"
-                    value={webhookUrl}
-                    readOnly
-                    className="bg-muted"
-                    aria-describedby={describedBy}
-                  />
-                )}
-              </FormRow>
+                value={webhookUrl}
+              />
             )}
 
             {isConfigured && !isConnected && (
@@ -388,13 +401,6 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
                   tone="warning"
                   title="Credentials saved but not connected. Please reconnect."
                 />
-              </div>
-            )}
-
-            {(error || message) && (
-              <div className="space-y-3 px-4 py-2.5">
-                {error && <Alert title={error} />}
-                {message && <Alert tone={message.tone} title={message.text} />}
               </div>
             )}
           </Frame>

@@ -83,8 +83,12 @@ const renderSection = async (actorHandle?: string) => {
 const zip = (name = 'export.zip') =>
   new File(['zip'], name, { type: 'application/zip' })
 
+// The native input is hidden behind the "Choose file" button.
+const fileInput = () =>
+  document.querySelector('input[type="file"]') as HTMLInputElement
+
 const chooseFile = (file: File | null) => {
-  fireEvent.change(screen.getByLabelText('Archive file'), {
+  fireEvent.change(fileInput(), {
     target: { files: file ? [file] : [] }
   })
 }
@@ -122,11 +126,26 @@ describe('StravaArchiveImportSection', () => {
       ).toBeInTheDocument()
     })
 
+    it('picks the archive through a labelled "Choose file" button', async () => {
+      await renderSection('@me@example.com')
+
+      const button = screen.getByRole('button', { name: /^Archive file/ })
+      expect(button).toHaveTextContent('Choose file')
+      expect(button).toHaveAccessibleDescription(
+        'Archive import always applies to @me@example.com.'
+      )
+      expect(fileInput()).toHaveClass('hidden')
+      expect(screen.getByText('No file chosen')).toBeInTheDocument()
+      const click = vi.spyOn(fileInput(), 'click')
+      fireEvent.click(button)
+      expect(click).toHaveBeenCalled()
+    })
+
     it('keeps import disabled until an archive is chosen', async () => {
       await renderSection()
 
       expect(importButton()).toBeDisabled()
-      expect(screen.getByLabelText('Archive file')).toBeEnabled()
+      expect(fileInput()).toBeEnabled()
       expect(mockGetBatch).not.toHaveBeenCalled()
     })
 
@@ -209,7 +228,7 @@ describe('StravaArchiveImportSection', () => {
         screen.getByText('Uploading archive to storage…')
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Uploading…' })).toBeDisabled()
-      expect(screen.getByLabelText('Archive file')).toBeDisabled()
+      expect(fileInput()).toBeDisabled()
 
       mockGetActive.mockResolvedValue({ activeImport: activeImport() })
       await act(async () => {
@@ -313,7 +332,7 @@ describe('StravaArchiveImportSection', () => {
       expect(screen.getByText(/Imported 3\/10/)).toHaveTextContent(
         'Imported 3/10 • Failed 1'
       )
-      expect(screen.getByLabelText('Archive file')).toBeDisabled()
+      expect(fileInput()).toBeDisabled()
       expect(importButton()).toBeDisabled()
     })
 
@@ -489,7 +508,7 @@ describe('StravaArchiveImportSection', () => {
       await renderSection()
 
       expect(screen.getByText(message)).toBeInTheDocument()
-      expect(screen.getByLabelText('Archive file')).toBeDisabled()
+      expect(fileInput()).toBeDisabled()
       expect(importButton()).toBeDisabled()
       // A failed import is not polled until the owner retries.
       expect(mockGetBatch).not.toHaveBeenCalled()
@@ -586,7 +605,7 @@ describe('StravaArchiveImportSection', () => {
       expect(screen.queryByText('Batch: batch-1')).not.toBeInTheDocument()
       expect(screen.queryByText('Disk full')).not.toBeInTheDocument()
       // The controls unlock so a new archive can be imported.
-      expect(screen.getByLabelText('Archive file')).toBeEnabled()
+      expect(fileInput()).toBeEnabled()
       expect(
         screen.queryByRole('button', { name: 'Cancel and remove archive' })
       ).not.toBeInTheDocument()
@@ -603,7 +622,7 @@ describe('StravaArchiveImportSection', () => {
       await advance()
 
       expect(screen.getByText('Cancel refused')).toBeInTheDocument()
-      expect(screen.getByLabelText('Archive file')).toBeDisabled()
+      expect(fileInput()).toBeDisabled()
       expect(
         screen.getByRole('button', { name: 'Cancel and remove archive' })
       ).toBeEnabled()
