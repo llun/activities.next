@@ -10,6 +10,8 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
+    "analyze": "next analyze",
+    "bundle:report": "node scripts/run.cjs scripts/maintenance/bundleReport.ts",
     "lint": "oxlint && oxlint -c lint/oxlintrc.scripts.json scripts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
