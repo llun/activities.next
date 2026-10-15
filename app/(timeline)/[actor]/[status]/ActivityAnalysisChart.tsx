@@ -76,6 +76,11 @@ export interface ActivityAnalysisChartProps {
   durationSeconds: number
   /** The time axis the series were binned on; elapsed time when absent. */
   chartAxis?: ChartTimeAxis
+  /**
+   * Paused spans (elapsed time), shaded when the axis shows them. On an axis
+   * that cuts them out they take no width and are not drawn.
+   */
+  pauses?: Array<{ startSeconds: number; endSeconds: number }>
   laps: ActivitySplit[]
   climbs: ActivitySplit[]
   /** The selected lap or climb (`ActivitySplit.key`), if any. */
@@ -173,8 +178,9 @@ const PlotBackdrop: FC<{
   gridLines: number[]
   laps: ActivitySplit[]
   climbs: ActivitySplit[]
+  pauses: Array<{ startSeconds: number; endSeconds: number }>
   selected: ActivitySplit | null
-}> = ({ axis, gridLines, laps, climbs, selected }) => {
+}> = ({ axis, gridLines, laps, climbs, pauses, selected }) => {
   const toX = (elapsedSeconds: number) =>
     clampNumber(
       toChartSeconds(axis, elapsedSeconds) / axis.durationSeconds,
@@ -194,6 +200,23 @@ const PlotBackdrop: FC<{
           vectorEffect="non-scaling-stroke"
         />
       ))}
+      {axis.pauses.length === 0
+        ? pauses.map((pause) => (
+            <rect
+              key={`pause-${pause.startSeconds}`}
+              data-testid="chart-pause"
+              x={toX(pause.startSeconds)}
+              y={0}
+              width={Math.max(
+                0,
+                toX(pause.endSeconds) - toX(pause.startSeconds)
+              )}
+              height={VIEW_HEIGHT}
+              className="fill-muted-foreground"
+              fillOpacity={0.12}
+            />
+          ))
+        : null}
       {climbs.map((climb) => (
         <rect
           key={climb.key}
@@ -287,6 +310,7 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
   mode,
   durationSeconds,
   chartAxis,
+  pauses = [],
   laps,
   climbs,
   selectedKey,
@@ -384,6 +408,7 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
         gridLines={gridLines}
         laps={laps}
         climbs={climbs}
+        pauses={pauses}
         selected={selected}
       />
       {content}

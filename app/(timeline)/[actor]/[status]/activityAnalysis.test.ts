@@ -142,6 +142,20 @@ describe('deriveActivityAnalysis', () => {
       (series) => series.key === 'heart-rate'
     )
     expect(heartRate?.values.every((value) => value === 140)).toBe(true)
+
+    // Shown instead: elapsed time, the stop listed and the lines broken there.
+    const shown = deriveActivityAnalysis({
+      data: { ...data, samples, totalDurationSeconds: 2100 },
+      activityType: 'ride',
+      skipPauses: false
+    })
+    expect(shown.chartAxis).toEqual({ durationSeconds: 2100, pauses: [] })
+    expect(shown.pauses).toEqual([{ startSeconds: 900, endSeconds: 1210 }])
+    expect(
+      shown.series
+        .find((series) => series.key === 'heart-rate')
+        ?.values.some((value) => value === null)
+    ).toBe(true)
   })
 
   it('reports cadence in steps per minute for a run', () => {

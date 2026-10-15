@@ -5,6 +5,7 @@ import {
   type AnalysisSeriesKey
 } from '@/lib/components/fitness/palette'
 import { Frame } from '@/lib/components/surface/Frame'
+import { Switch } from '@/lib/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 import { type HeartRateZone, formatDuration } from './fitnessChartData'
@@ -94,11 +95,18 @@ export interface GraphDisplayCardProps {
   selectedKeys: AnalysisGraphKey[]
   onToggle: (key: AnalysisGraphKey) => void
   hint: string
+  /**
+   * Whether paused time is drawn, for an activity that has pauses; the
+   * toggle is left out when this is absent.
+   */
+  showPauses?: boolean
+  onShowPausesChange?: (show: boolean) => void
 }
 
 /**
- * The "Graph display" card: the Separate/Combined switch and one chip per
- * series. A chip is a toggle; a selected chip takes its series colour.
+ * The "Graph display" card: the Separate/Combined switch, one chip per
+ * series, and under them the hint and, when the activity paused, a "Show
+ * pauses" switch. A chip is a toggle; a selected chip takes its series colour.
  */
 export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
   mode,
@@ -106,7 +114,9 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
   options,
   selectedKeys,
   onToggle,
-  hint
+  hint,
+  showPauses,
+  onShowPausesChange
 }) => (
   <Frame className="space-y-2.5 bg-card px-4 py-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -168,7 +178,17 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
         )
       })}
     </div>
-    <p className="text-xs text-muted-foreground">{hint}</p>
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+      <p className="min-w-0 flex-1 basis-48 text-xs text-muted-foreground">
+        {hint}
+      </p>
+      {typeof showPauses === 'boolean' && onShowPausesChange ? (
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Switch checked={showPauses} onCheckedChange={onShowPausesChange} />
+          Show pauses
+        </label>
+      ) : null}
+    </div>
   </Frame>
 )
 

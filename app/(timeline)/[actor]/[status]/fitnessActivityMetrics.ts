@@ -456,11 +456,19 @@ export const buildChartTimeAxis = (
   const usual = median(gaps)
   if (gaps.length < 2 || usual === null) return { durationSeconds, pauses: [] }
   const pauseAbove = Math.max(usual * 4, usual + 10)
+  // The spans between points, plus the time before the first point and after
+  // the last (a recorder saved a while after its last stop, or privacy
+  // trimming), which would otherwise leave an empty block at either end.
+  const first = points[0].elapsedSeconds
+  const last = points[points.length - 1].elapsedSeconds
+  const spans: Array<[number, number]> = [[0, first]]
+  for (let index = 1; index < points.length; index += 1) {
+    spans.push([points[index - 1].elapsedSeconds, points[index].elapsedSeconds])
+  }
+  spans.push([last, Math.max(last, durationSeconds)])
   const pauses: ChartPause[] = []
   let removed = 0
-  for (let index = 1; index < points.length; index += 1) {
-    const startSeconds = points[index - 1].elapsedSeconds
-    const endSeconds = points[index].elapsedSeconds
+  for (const [startSeconds, endSeconds] of spans) {
     if (endSeconds - startSeconds <= pauseAbove) continue
     const chartStartSeconds = startSeconds - removed
     pauses.push({

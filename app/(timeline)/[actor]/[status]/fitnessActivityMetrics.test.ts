@@ -136,6 +136,23 @@ describe('buildChartTimeAxis', () => {
     }
   })
 
+  it('also cuts empty time before the first point and after the last', () => {
+    const middle = Array.from({ length: 100 }, (_, index) =>
+      at(600 + index * 5)
+    )
+    // Points from 600 s to 1095 s of a 2000 s activity.
+    const axis = buildChartTimeAxis(middle, 2000)
+    expect(
+      axis.pauses.map((pause) => [pause.startSeconds, pause.endSeconds])
+    ).toEqual([
+      [0, 600],
+      [1095, 2000]
+    ])
+    expect(toChartSeconds(axis, 600)).toBe(5)
+    expect(axis.durationSeconds).toBe(2000 - 595 - 900)
+    expect(toElapsedSeconds(axis, axis.durationSeconds)).toBe(2000)
+  })
+
   it('leaves a recording without stops on elapsed time', () => {
     const steady = Array.from({ length: 100 }, (_, index) => at(index * 5))
     const axis = buildChartTimeAxis(steady, 500)
