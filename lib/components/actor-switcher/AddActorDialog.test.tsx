@@ -286,7 +286,7 @@ describe('AddActorDialog', () => {
       fireEvent.submit(input.closest('form')!)
 
       expect(screen.getByText('Username is required')).toBeInTheDocument()
-      expect(input).toHaveAccessibleDescription('Username is required')
+      expect(input).toHaveAccessibleDescription(/Username is required/)
       expect(input).toBeInvalid()
       expect(input).toHaveFocus()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()

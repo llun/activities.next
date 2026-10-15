@@ -305,9 +305,7 @@ export const SpeciesPickerDialog: FC<Props> = ({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${uid}-search`} className="text-[13px]">
-              Search species
-            </Label>
+            <Label htmlFor={`${uid}-search`}>Search species</Label>
             <div className="relative">
               <Search
                 aria-hidden="true"
@@ -319,7 +317,7 @@ export const SpeciesPickerDialog: FC<Props> = ({
                 value={query}
                 autoComplete="off"
                 onChange={(event) => setQuery(event.target.value)}
-                className="h-10 pl-9"
+                className="pl-9"
               />
             </div>
           </div>

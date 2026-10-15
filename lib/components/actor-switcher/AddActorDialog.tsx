@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { createActor, getActorDomains, switchActor } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -201,18 +202,18 @@ export function AddActorDialog({
             Create a new identity. You can switch between actors at any time.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 pb-4">
-            {availableDomains.length > 1 && (
-              <div className="space-y-2">
-                <Label>Domain</Label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {availableDomains.length > 1 && (
+            <FormRow stacked className="p-0" label="Domain">
+              {({ labelledBy }) => (
                 <RadioGroup
+                  aria-labelledby={labelledBy}
                   value={selectedDomain}
                   onValueChange={setSelectedDomain}
                   disabled={isLoading}
                 >
                   {availableDomains.map((domain) => (
-                    <div key={domain} className="flex items-center space-x-2">
+                    <div key={domain} className="flex items-center gap-2">
                       <RadioGroupItem value={domain} id={domain} />
                       <Label htmlFor={domain} className="font-normal">
                         {domain}
@@ -225,38 +226,47 @@ export function AddActorDialog({
                     </div>
                   ))}
                 </RadioGroup>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                ref={usernameInputRef}
-                placeholder="username"
-                value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value)
-                  setFieldError(null)
-                }}
-                disabled={isLoading}
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={fieldError ? 'username-error' : undefined}
-              />
-              <p className="text-sm text-muted-foreground">
-                Your new handle will be @{username || 'username'}@
-                {selectedDomain}
-              </p>
-              {fieldError && (
-                <p
-                  id="username-error"
-                  className="text-xs text-destructive-text"
-                >
-                  {fieldError}
-                </p>
               )}
-              {error && <Alert title={error} />}
-            </div>
-          </div>
+            </FormRow>
+          )}
+          <FormRow
+            stacked
+            className="p-0"
+            label="Username"
+            htmlFor="username"
+            hint={`Your new handle will be @${username || 'username'}@${selectedDomain}`}
+          >
+            {({ describedBy }) => (
+              <>
+                <Input
+                  id="username"
+                  ref={usernameInputRef}
+                  placeholder="username"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value)
+                    setFieldError(null)
+                  }}
+                  disabled={isLoading}
+                  aria-invalid={fieldError ? true : undefined}
+                  aria-describedby={
+                    [describedBy, fieldError ? 'username-error' : null]
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
+                />
+                {fieldError && (
+                  <p
+                    id="username-error"
+                    className="mt-1.5 text-xs text-destructive-text"
+                  >
+                    {fieldError}
+                  </p>
+                )}
+              </>
+            )}
+          </FormRow>
+          {error && <Alert title={error} />}
           <DialogFooter separated>
             <Button
               type="button"

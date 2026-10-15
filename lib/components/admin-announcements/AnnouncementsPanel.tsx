@@ -252,6 +252,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
         <form onSubmit={handleCreate} className="space-y-3">
           <Frame
             form
+            className="overflow-hidden"
             footer={
               <div className="flex justify-end">
                 <Button
@@ -283,22 +284,36 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                 />
               )}
             </FormRow>
-            <FormRow label="Event starts" htmlFor="announcement-starts-at">
-              <Input
-                id="announcement-starts-at"
-                type="datetime-local"
-                value={newStartsAt}
-                onChange={(event) => setNewStartsAt(event.target.value)}
-              />
+            <FormRow
+              label="Event starts"
+              htmlFor="announcement-starts-at"
+              hint="Times are stored in UTC and display in each reader's local timezone."
+            >
+              {({ describedBy }) => (
+                <Input
+                  id="announcement-starts-at"
+                  type="datetime-local"
+                  aria-describedby={describedBy}
+                  value={newStartsAt}
+                  onChange={(event) => setNewStartsAt(event.target.value)}
+                />
+              )}
             </FormRow>
-            <FormRow label="Event ends" htmlFor="announcement-ends-at">
-              <Input
-                id="announcement-ends-at"
-                type="datetime-local"
-                value={newEndsAt}
-                onChange={(event) => setNewEndsAt(event.target.value)}
-                disabled={newAllDay}
-              />
+            <FormRow
+              label="Event ends"
+              htmlFor="announcement-ends-at"
+              hint="The announcement disappears for everyone after the end date."
+            >
+              {({ describedBy }) => (
+                <Input
+                  id="announcement-ends-at"
+                  type="datetime-local"
+                  aria-describedby={describedBy}
+                  value={newEndsAt}
+                  onChange={(event) => setNewEndsAt(event.target.value)}
+                  disabled={newAllDay}
+                />
+              )}
             </FormRow>
             <FormRow
               inline
@@ -326,13 +341,8 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                 onCheckedChange={setNewPublished}
               />
             </FormRow>
+            {formError && <Alert flush title={formError} />}
           </Frame>
-          <p className="text-muted-foreground text-xs">
-            Times are stored in UTC and display in each reader&apos;s local
-            timezone. The announcement disappears for everyone after the end
-            date.
-          </p>
-          {formError && <Alert title={formError} />}
         </form>
       </Section>
 

@@ -129,10 +129,7 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
             checked={trustDevice}
             onChange={(event) => setTrustDevice(event.target.checked)}
           />
-          <Label
-            htmlFor="trustDevice"
-            className="text-sm font-normal text-muted-foreground"
-          >
+          <Label htmlFor="trustDevice" className="font-normal">
             Trust this device for 30 days
           </Label>
         </div>

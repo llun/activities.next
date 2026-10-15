@@ -2,7 +2,7 @@
 
 import { Loader2, VolumeX } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useState } from 'react'
+import { FC, useId, useState } from 'react'
 
 import { mute as muteAccount, unmute as unmuteAccount } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
+import { Label } from '@/lib/components/ui/label'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
 interface MuteActionProps {
@@ -36,6 +37,7 @@ export const MuteAction: FC<MuteActionProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isMuteDialogOpen, setIsMuteDialogOpen] = useState(false)
   const [muteNotifications, setMuteNotifications] = useState(true)
+  const hideNotificationsId = useId()
   const [error, setError] = useState('')
 
   if (!isLoggedIn || relationship === null) return null
@@ -129,15 +131,18 @@ export const MuteAction: FC<MuteActionProps> = ({
               still see and reply to your posts.
             </DialogDescription>
           </DialogHeader>
-          <label className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2">
             <Checkbox
+              id={hideNotificationsId}
               checked={muteNotifications}
               onChange={(event) => setMuteNotifications(event.target.checked)}
             />
-            Also hide notifications from this actor
-          </label>
+            <Label htmlFor={hideNotificationsId} className="font-normal">
+              Also hide notifications from this actor
+            </Label>
+          </div>
           {error ? <Alert title={error} /> : null}
-          <DialogFooter>
+          <DialogFooter separated>
             <Button
               type="button"
               variant="outline"

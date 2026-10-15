@@ -13,6 +13,8 @@ import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SavedIndicator } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
+import { Label } from '@/lib/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
 import { Select } from '@/lib/components/ui/select'
 import type { GallerySettings } from '@/lib/types/database/gallery'
 import {
@@ -133,24 +135,29 @@ export const MediaDetailsSettings: FC = () => {
         <Frame form>
           <FormRow label="Suggest subjects with">
             {({ labelledBy }) => (
-              <fieldset
-                className="m-0 space-y-2 border-0 p-0"
+              <RadioGroup
                 aria-labelledby={labelledBy}
                 aria-busy={modeBusy}
                 disabled={!loaded}
+                value={suggesting ? 'model' : loaded ? 'off' : ''}
+                onValueChange={(value) =>
+                  handleSave(
+                    'subjectSuggestionMode',
+                    value === 'model' ? 'model' : 'off'
+                  )
+                }
               >
-                <label className="flex items-start gap-3 text-sm">
-                  <input
-                    type="radio"
-                    name="media-subject-mode"
-                    className="mt-0.5 size-4 accent-primary"
-                    checked={suggesting}
+                <div className="flex items-start gap-3 text-sm">
+                  <RadioGroupItem
+                    id="media-subject-mode-model"
+                    value="model"
+                    className="mt-0.5"
                     disabled={!loaded || !suggestionsAvailable}
-                    onChange={() =>
-                      handleSave('subjectSuggestionMode', 'model')
-                    }
                   />
-                  <span className="space-y-0.5">
+                  <Label
+                    htmlFor="media-subject-mode-model"
+                    className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 font-normal"
+                  >
                     <span className="block">
                       Server image model
                       {settings?.subjectModel
@@ -162,20 +169,22 @@ export const MediaDetailsSettings: FC = () => {
                         ? 'Your server has no image model set up.'
                         : 'Same model as descriptions. Good at any subject; species names are checked against GBIF.'}
                     </span>
-                  </span>
-                </label>
-                <label className="flex items-start gap-3 text-sm">
-                  <input
-                    type="radio"
-                    name="media-subject-mode"
-                    className="mt-0.5 size-4 accent-primary"
-                    checked={loaded && !suggesting}
-                    disabled={!loaded}
-                    onChange={() => handleSave('subjectSuggestionMode', 'off')}
+                  </Label>
+                </div>
+                <div className="flex items-start gap-3 text-sm">
+                  <RadioGroupItem
+                    id="media-subject-mode-off"
+                    value="off"
+                    className="mt-0.5"
                   />
-                  <span>Don’t suggest</span>
-                </label>
-              </fieldset>
+                  <Label
+                    htmlFor="media-subject-mode-off"
+                    className="min-w-0 flex-1 cursor-pointer font-normal"
+                  >
+                    Don’t suggest
+                  </Label>
+                </div>
+              </RadioGroup>
             )}
           </FormRow>
 

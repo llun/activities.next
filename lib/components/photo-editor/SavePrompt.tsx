@@ -80,7 +80,7 @@ const Body = ({
             <Label htmlFor="photo-edit-update" className="font-medium">
               {plural ? 'Update the posts' : 'Update the post'}
             </Label>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {mode === 'revert'
                 ? `Followers' servers get an edit with the original photo.`
                 : `Followers' servers get an edit with the new photo.`}
@@ -97,7 +97,7 @@ const Body = ({
             <Label htmlFor="photo-edit-gallery" className="font-medium">
               Gallery only
             </Label>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {mode === 'revert'
                 ? plural
                   ? 'The posts keep the edited photo.'
@@ -109,7 +109,7 @@ const Body = ({
           </div>
         </div>
       </RadioGroup>
-      <DialogFooter>
+      <DialogFooter separated>
         <Button type="button" variant="outline" onClick={onKeepEditing}>
           {mode === 'revert' ? 'Cancel' : 'Keep editing'}
         </Button>

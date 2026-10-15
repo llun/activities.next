@@ -4,6 +4,7 @@ import { FC, FormEvent, useEffect, useState } from 'react'
 
 import { createFitnessGear, updateFitnessGear } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -201,43 +202,50 @@ export const GearFormDialog: FC<Props> = ({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gear-brand">Brand</Label>
+            <FormRow stacked className="p-0" label="Brand" htmlFor="gear-brand">
               <Input
                 id="gear-brand"
                 value={brand}
                 onChange={(event) => setBrand(event.target.value)}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gear-model">Model</Label>
+            </FormRow>
+            <FormRow stacked className="p-0" label="Model" htmlFor="gear-model">
               <Input
                 id="gear-model"
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
                 disabled={isSaving}
               />
-            </div>
+            </FormRow>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="gear-nickname">Nickname</Label>
-            <Input
-              id="gear-nickname"
-              value={nickname}
-              onChange={(event) => setNickname(event.target.value)}
-              disabled={isSaving}
-            />
-            <p className="text-xs text-muted-foreground">
-              Shown everywhere instead of brand and model.
-            </p>
-          </div>
+          <FormRow
+            stacked
+            className="p-0"
+            label="Nickname"
+            htmlFor="gear-nickname"
+            hint="Shown everywhere instead of brand and model."
+          >
+            {({ describedBy }) => (
+              <Input
+                id="gear-nickname"
+                value={nickname}
+                onChange={(event) => setNickname(event.target.value)}
+                disabled={isSaving}
+                aria-describedby={describedBy}
+              />
+            )}
+          </FormRow>
 
           {isBike && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="gear-bike-type">Type</Label>
+              <FormRow
+                stacked
+                className="p-0"
+                label="Type"
+                htmlFor="gear-bike-type"
+              >
                 <Select
                   id="gear-bike-type"
                   value={bikeType}
@@ -251,9 +259,13 @@ export const GearFormDialog: FC<Props> = ({
                     </option>
                   ))}
                 </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="gear-weight">Weight (kg)</Label>
+              </FormRow>
+              <FormRow
+                stacked
+                className="p-0"
+                label="Weight (kg)"
+                htmlFor="gear-weight"
+              >
                 <Input
                   id="gear-weight"
                   type="number"
@@ -263,7 +275,7 @@ export const GearFormDialog: FC<Props> = ({
                   onChange={(event) => setWeight(event.target.value)}
                   disabled={isSaving}
                 />
-              </div>
+              </FormRow>
             </div>
           )}
 
@@ -272,83 +284,97 @@ export const GearFormDialog: FC<Props> = ({
               page renders it through the same `GearProductLink`. Only a
               device's is pre-filled — the import seeds it from the brand map
               when it creates the row. */}
-          <div className="space-y-1.5">
-            <Label htmlFor="gear-product-url">Product page</Label>
-            <Input
-              id="gear-product-url"
-              type="url"
-              inputMode="url"
-              placeholder="https://"
-              // The column is varchar(255) and the schema caps there, but a
-              // schema failure is a bare `ERROR_422` naming no field — so a
-              // pasted 280-character store URL would come back as the word
-              // "Unprocessable entity". Product URLs run long in a way brand
-              // and model never do, so this one stops at the input.
-              maxLength={255}
-              value={productUrl}
-              onChange={(event) => setProductUrl(event.target.value)}
-              disabled={isSaving}
-            />
-            <p className="text-xs text-muted-foreground">
-              {isDevice
+          <FormRow
+            stacked
+            className="p-0"
+            label="Product page"
+            htmlFor="gear-product-url"
+            hint={
+              isDevice
                 ? "Linked from this device's page. Starts as the manufacturer's site; point it at the product if you like."
-                : "Optional link to the manufacturer's product page."}
-            </p>
-          </div>
+                : "Optional link to the manufacturer's product page."
+            }
+          >
+            {({ describedBy }) => (
+              <Input
+                id="gear-product-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://"
+                // The column is varchar(255) and the schema caps there, but a
+                // schema failure is a bare `ERROR_422` naming no field — so a
+                // pasted 280-character store URL would come back as the word
+                // "Unprocessable entity". Product URLs run long in a way brand
+                // and model never do, so this one stops at the input.
+                maxLength={255}
+                value={productUrl}
+                onChange={(event) => setProductUrl(event.target.value)}
+                disabled={isSaving}
+                aria-describedby={describedBy}
+              />
+            )}
+          </FormRow>
 
           {!isDevice && (
-            <div className="space-y-1.5">
-              <Label>Default sports</Label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {getSportKeysForKind(kind).map((sportKey) => (
-                  <Label
-                    key={sportKey}
-                    htmlFor={`gear-sport-${sportKey}`}
-                    className="font-normal"
-                  >
-                    <Checkbox
-                      id={`gear-sport-${sportKey}`}
-                      checked={defaultSports.includes(sportKey)}
-                      onChange={() => toggleSport(sportKey)}
-                      disabled={isSaving}
-                    />
-                    {getSportLabel(sportKey)}
-                  </Label>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                New activities of these types are assigned to this gear
-                automatically. One gear per sport — picking a sport moves it off
-                the gear that had it.
-              </p>
-            </div>
+            <FormRow
+              stacked
+              className="p-0"
+              label="Default sports"
+              hint="New activities of these types are assigned to this gear automatically. One gear per sport — picking a sport moves it off the gear that had it."
+            >
+              {({ describedBy, labelledBy }) => (
+                <div
+                  role="group"
+                  aria-labelledby={labelledBy}
+                  aria-describedby={describedBy}
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                >
+                  {getSportKeysForKind(kind).map((sportKey) => (
+                    <Label
+                      key={sportKey}
+                      htmlFor={`gear-sport-${sportKey}`}
+                      className="font-normal"
+                    >
+                      <Checkbox
+                        id={`gear-sport-${sportKey}`}
+                        checked={defaultSports.includes(sportKey)}
+                        onChange={() => toggleSport(sportKey)}
+                        disabled={isSaving}
+                      />
+                      {getSportLabel(sportKey)}
+                    </Label>
+                  ))}
+                </div>
+              )}
+            </FormRow>
           )}
 
           {kind === 'shoes' && (
             <>
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="gear-alert-enabled">Distance alert</Label>
-                  <p
-                    id="gear-alert-enabled-hint"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Most running shoes wear out between 500 and 800 km.
-                    You&apos;ll get a notification and an email when the pair
-                    passes the mark.
-                  </p>
-                </div>
-                <Switch
-                  id="gear-alert-enabled"
-                  aria-describedby="gear-alert-enabled-hint"
-                  checked={isAlertEnabled}
-                  onCheckedChange={setIsAlertEnabled}
-                  disabled={isSaving}
-                />
-              </div>
+              <FormRow
+                inline
+                className="p-0"
+                label="Distance alert"
+                htmlFor="gear-alert-enabled"
+                hint="Most running shoes wear out between 500 and 800 km. You'll get a notification and an email when the pair passes the mark."
+              >
+                {({ describedBy }) => (
+                  <Switch
+                    id="gear-alert-enabled"
+                    aria-describedby={describedBy}
+                    checked={isAlertEnabled}
+                    onCheckedChange={setIsAlertEnabled}
+                    disabled={isSaving}
+                  />
+                )}
+              </FormRow>
               {isAlertEnabled && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="gear-alert-distance">Alert at</Label>
+                <FormRow
+                  stacked
+                  className="p-0"
+                  label="Alert at"
+                  htmlFor="gear-alert-distance"
+                >
                   <Select
                     id="gear-alert-distance"
                     value={String(alertDistanceKm)}
@@ -363,21 +389,20 @@ export const GearFormDialog: FC<Props> = ({
                       </option>
                     ))}
                   </Select>
-                </div>
+                </FormRow>
               )}
             </>
           )}
 
           {!isDevice && (
-            <div className="space-y-1.5">
-              <Label htmlFor="gear-notes">Notes</Label>
+            <FormRow stacked className="p-0" label="Notes" htmlFor="gear-notes">
               <Textarea
                 id="gear-notes"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 disabled={isSaving}
               />
-            </div>
+            </FormRow>
           )}
 
           {error && <Alert title={error} />}

@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   FitnessGeneralSettingsResponse,
@@ -16,9 +16,11 @@ import {
   PrivacyLocationsSaveError
 } from '@/lib/components/privacy-locations/PrivacyLocationsEditor'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SavedIndicator } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
-import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import {
   sanitizePrivacyLocationSettings,
@@ -87,12 +89,18 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   // the route description switch is outside it, so the handler mirrors it here
   // to keep that switch locked while the maps are being queued.
   const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
-  const [routeDescriptionMessage, setRouteDescriptionMessage] = useState<
-    string | null
-  >(null)
+  const [routeDescriptionSaved, setRouteDescriptionSaved] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [routeDescriptionError, setRouteDescriptionError] = useState<
     string | null
   >(null)
+
+  useEffect(
+    () => () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+    },
+    []
+  )
 
   const load = async (): Promise<PrivacyLocationInput[]> => {
     const data = await getFitnessGeneralSettings()
@@ -156,7 +164,8 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
   const handleToggleRouteDescription = async (checked: boolean) => {
     setRouteDescriptionError(null)
-    setRouteDescriptionMessage(null)
+    setRouteDescriptionSaved(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
     setGenerateRouteDescription(checked)
     setIsSavingRouteDescription(true)
 
@@ -174,10 +183,10 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
       }
 
       setGenerateRouteDescription(Boolean(data.generateRouteDescription))
-      setRouteDescriptionMessage(
-        checked
-          ? 'AI route description enabled for new and regenerated maps.'
-          : 'AI route description disabled.'
+      setRouteDescriptionSaved(true)
+      savedTimer.current = setTimeout(
+        () => setRouteDescriptionSaved(false),
+        2000
       )
     } catch {
       setGenerateRouteDescription(!checked)
@@ -217,43 +226,32 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
       <Section
         title="Route map description"
         description="Configure accessibility descriptions for your activity route maps."
+        actions={<SavedIndicator saved={routeDescriptionSaved} />}
       >
-        <div className="space-y-4 rounded-lg border p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 space-y-0.5">
-              <Label
-                htmlFor="generate-route-description"
-                className="cursor-pointer"
-              >
-                Generate AI route description
-              </Label>
-              <p className="text-[0.8rem] text-muted-foreground">
-                Automatically generate an alt-text description of the route
-                using AI when activity maps are created or regenerated. Off by
-                default.
-              </p>
-            </div>
-            <Switch
-              id="generate-route-description"
-              checked={generateRouteDescription}
-              onCheckedChange={handleToggleRouteDescription}
-              disabled={
-                isEditingDisabled ||
-                isSavingRouteDescription ||
-                isRegeneratingMaps
-              }
-            />
-          </div>
+        <Frame form>
+          <FormRow
+            label="Generate AI route description"
+            htmlFor="generate-route-description"
+            hint="Automatically generate an alt-text description of the route using AI when activity maps are created or regenerated. Off by default."
+            inline
+          >
+            {({ describedBy }) => (
+              <Switch
+                id="generate-route-description"
+                aria-describedby={describedBy}
+                checked={generateRouteDescription}
+                onCheckedChange={handleToggleRouteDescription}
+                disabled={
+                  isEditingDisabled ||
+                  isSavingRouteDescription ||
+                  isRegeneratingMaps
+                }
+              />
+            )}
+          </FormRow>
+        </Frame>
 
-          {routeDescriptionError ? (
-            <Alert title={routeDescriptionError} />
-          ) : null}
-          {routeDescriptionMessage ? (
-            <p className="text-sm text-success-text">
-              {routeDescriptionMessage}
-            </p>
-          ) : null}
-        </div>
+        {routeDescriptionError ? <Alert title={routeDescriptionError} /> : null}
       </Section>
     </div>
   )

@@ -6,6 +6,7 @@ import { FC, useMemo, useState } from 'react'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
+import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import {
@@ -88,18 +89,15 @@ const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
           tail of line 1 with no way to scroll it clear whenever line 1 is the
           longest line, which is every single-line block. Keep it in flow. */}
       <div className="mb-2 flex justify-end">
-        <button
+        <Button
           type="button"
+          size="sm"
+          variant="outline"
           onClick={() => copy(block)}
-          className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-            copied
-              ? 'border-foreground/40 text-foreground'
-              : 'border-input text-muted-foreground hover:bg-muted'
-          }`}
         >
           {copied ? <Check className="size-3" aria-hidden /> : null}
           {copied ? 'Copied' : 'Copy .env block'}
-        </button>
+        </Button>
       </div>
       <pre className="overflow-x-auto font-mono text-[12.5px] leading-6 text-foreground">
         {lines.map(({ name, value, masked }) => (

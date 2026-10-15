@@ -12,6 +12,7 @@ import {
   mute
 } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -106,15 +107,12 @@ export const MuteDialog: FC<MuteDialogProps> = ({
             checked={notifications}
             onChange={(e) => setNotifications(e.target.checked)}
           />
-          <Label
-            htmlFor="mute-hide-notifications"
-            className="text-sm font-normal"
-          >
+          <Label htmlFor="mute-hide-notifications" className="font-normal">
             Also hide notifications from this account
           </Label>
         </div>
         {errorAlert(error)}
-        <DialogFooter>
+        <DialogFooter separated>
           <Button
             type="button"
             variant="outline"
@@ -284,58 +282,71 @@ export const ReportDialog: FC<ReportDialogProps> = ({
             report is sent to the moderators of your server.
           </DialogDescription>
         </DialogHeader>
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">
-            Why are you reporting this post?
-          </legend>
-          <RadioGroup
-            value={category}
-            onValueChange={(value) => setCategory(value as ReportCategory)}
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!submitting) void onReport()
+          }}
+        >
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-sm font-medium">
+              Why are you reporting this post?
+            </legend>
+            <RadioGroup
+              value={category}
+              onValueChange={(value) => setCategory(value as ReportCategory)}
+            >
+              {REPORT_CATEGORIES.map((option) => (
+                <div key={option.value} className="flex items-center gap-2">
+                  <RadioGroupItem
+                    value={option.value}
+                    id={`report-category-${option.value}`}
+                  />
+                  <Label
+                    htmlFor={`report-category-${option.value}`}
+                    className="text-sm font-normal"
+                  >
+                    {option.label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </fieldset>
+          <FormRow
+            stacked
+            className="p-0"
+            label="Additional comments"
+            htmlFor="report-comment"
+            hint="Optional."
           >
-            {REPORT_CATEGORIES.map((option) => (
-              <div key={option.value} className="flex items-center gap-2">
-                <RadioGroupItem
-                  value={option.value}
-                  id={`report-category-${option.value}`}
-                />
-                <Label
-                  htmlFor={`report-category-${option.value}`}
-                  className="text-sm font-normal"
-                >
-                  {option.label}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
-        </fieldset>
-        <Textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          maxLength={1000}
-          placeholder="Additional comments (optional)"
-          aria-label="Additional comments"
-          rows={3}
-        />
-        {errorAlert(error)}
-        <DialogFooter separated>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => void onReport()}
-            disabled={submitting}
-          >
-            {submitting ? <Loader2 className="animate-spin" /> : null}
-            Submit report
-          </Button>
-        </DialogFooter>
+            {({ describedBy }) => (
+              <Textarea
+                id="report-comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                maxLength={1000}
+                rows={3}
+                aria-describedby={describedBy}
+              />
+            )}
+          </FormRow>
+          {errorAlert(error)}
+          <DialogFooter separated>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="destructive" disabled={submitting}>
+              {submitting ? <Loader2 className="animate-spin" /> : null}
+              Submit report
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

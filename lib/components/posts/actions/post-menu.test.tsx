@@ -162,6 +162,18 @@ const openSubmenu = async (name: string) => {
   })
 }
 
+// Radix measures a radio's hidden form input with a ResizeObserver, which jsdom
+// lacks; the report dialog's radios now sit inside a real <form>.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+})
+
 describe('PostMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()

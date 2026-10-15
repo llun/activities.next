@@ -693,11 +693,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       await waitFor(() => {
         expect(toggle).toHaveAttribute('aria-checked', 'true')
-        expect(
-          screen.getByText(
-            'AI route description enabled for new and regenerated maps.'
-          )
-        ).toBeInTheDocument()
+        expect(screen.getByText('Saved')).toBeInTheDocument()
       })
 
       const postCall = fetchMock.mock.calls.find(([input, init]) => {
@@ -765,9 +761,7 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       await waitFor(() => {
         expect(toggle).toHaveAttribute('aria-checked', 'false')
-        expect(
-          screen.getByText('AI route description disabled.')
-        ).toBeInTheDocument()
+        expect(screen.getByText('Saved')).toBeInTheDocument()
       })
 
       const postCall = fetchMock.mock.calls.find(([input, init]) => {

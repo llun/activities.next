@@ -11,6 +11,7 @@ import {
   updateFitnessGearComponent
 } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -21,7 +22,6 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 
@@ -187,8 +187,12 @@ export const GearComponentFormDialog: FC<Props> = ({
           aria-label={isEditing ? 'Edit component' : 'Add component'}
           className="space-y-4"
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="component-type">Component type</Label>
+          <FormRow
+            stacked
+            className="p-0"
+            label="Component type"
+            htmlFor="component-type"
+          >
             <Select
               id="component-type"
               value={componentType}
@@ -201,11 +205,15 @@ export const GearComponentFormDialog: FC<Props> = ({
                 </option>
               ))}
             </Select>
-          </div>
+          </FormRow>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="component-brand">Brand</Label>
+            <FormRow
+              stacked
+              className="p-0"
+              label="Brand"
+              htmlFor="component-brand"
+            >
               <Input
                 id="component-brand"
                 maxLength={255}
@@ -213,9 +221,13 @@ export const GearComponentFormDialog: FC<Props> = ({
                 onChange={(event) => setBrand(event.target.value)}
                 disabled={isSaving}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="component-model">Model</Label>
+            </FormRow>
+            <FormRow
+              stacked
+              className="p-0"
+              label="Model"
+              htmlFor="component-model"
+            >
               <Input
                 id="component-model"
                 maxLength={255}
@@ -223,93 +235,110 @@ export const GearComponentFormDialog: FC<Props> = ({
                 onChange={(event) => setModel(event.target.value)}
                 disabled={isSaving}
               />
-            </div>
+            </FormRow>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="component-added">Added on</Label>
-              <Select
-                id="component-added"
-                value={addedMode}
-                onChange={(event) => {
-                  setAddedMode(event.target.value as AddedMode)
-                  // The date input unmounts on "Since beginning"; its error
-                  // goes with it.
-                  setDateError(null)
-                }}
-                disabled={isSaving}
-              >
-                <option value="beginning">Since beginning</option>
-                <option value="date">Specify date</option>
-              </Select>
-              {addedMode === 'date' && (
-                <Input
-                  type="date"
-                  ref={addedDateInputRef}
-                  aria-label="Added date"
-                  required
-                  value={addedDate}
-                  onChange={(event) => {
-                    setAddedDate(event.target.value)
-                    setDateError(null)
-                  }}
+            <FormRow
+              stacked
+              className="p-0"
+              label="Added on"
+              htmlFor="component-added"
+              hint="Distance counts from this date."
+            >
+              {({ describedBy }) => (
+                <div className="space-y-1.5">
+                  <Select
+                    id="component-added"
+                    value={addedMode}
+                    onChange={(event) => {
+                      setAddedMode(event.target.value as AddedMode)
+                      // The date input unmounts on "Since beginning"; its error
+                      // goes with it.
+                      setDateError(null)
+                    }}
+                    disabled={isSaving}
+                    aria-describedby={describedBy}
+                  >
+                    <option value="beginning">Since beginning</option>
+                    <option value="date">Specify date</option>
+                  </Select>
+                  {addedMode === 'date' && (
+                    <Input
+                      type="date"
+                      ref={addedDateInputRef}
+                      aria-label="Added date"
+                      required
+                      value={addedDate}
+                      onChange={(event) => {
+                        setAddedDate(event.target.value)
+                        setDateError(null)
+                      }}
+                      disabled={isSaving}
+                      aria-invalid={dateError ? true : undefined}
+                      aria-describedby={
+                        dateError ? 'component-added-error' : undefined
+                      }
+                    />
+                  )}
+                  {dateError && (
+                    <p
+                      id="component-added-error"
+                      className="text-xs text-destructive-text"
+                    >
+                      {dateError}
+                    </p>
+                  )}
+                </div>
+              )}
+            </FormRow>
+            <FormRow
+              stacked
+              className="p-0"
+              label="Service reminder"
+              htmlFor="component-service"
+              hint="Optional — notify at this distance."
+            >
+              {({ describedBy }) => (
+                <Select
+                  id="component-service"
+                  value={serviceKm}
+                  onChange={(event) => setServiceKm(event.target.value)}
                   disabled={isSaving}
-                  aria-invalid={dateError ? true : undefined}
-                  aria-describedby={
-                    dateError ? 'component-added-error' : undefined
-                  }
-                />
-              )}
-              {dateError && (
-                <p
-                  id="component-added-error"
-                  className="text-xs text-destructive-text"
+                  aria-describedby={describedBy}
                 >
-                  {dateError}
-                </p>
+                  <option value="">No reminder</option>
+                  {serviceReminderOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {formatKmInt(option * 1000)}
+                    </option>
+                  ))}
+                </Select>
               )}
-              <p className="text-xs text-muted-foreground">
-                Distance counts from this date.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="component-service">Service reminder</Label>
-              <Select
-                id="component-service"
-                value={serviceKm}
-                onChange={(event) => setServiceKm(event.target.value)}
-                disabled={isSaving}
-              >
-                <option value="">No reminder</option>
-                {serviceReminderOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {formatKmInt(option * 1000)}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Optional — notify at this distance.
-              </p>
-            </div>
+            </FormRow>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="component-product-url">Product page</Label>
-            <Input
-              id="component-product-url"
-              type="url"
-              inputMode="url"
-              placeholder="https://"
-              maxLength={255}
-              value={productUrl}
-              onChange={(event) => setProductUrl(event.target.value)}
-              disabled={isSaving}
-            />
-            <p className="text-xs text-muted-foreground">
-              Optional link to the manufacturer&apos;s product page.
-            </p>
-          </div>
+          <FormRow
+            stacked
+            className="p-0"
+            label="Product page"
+            htmlFor="component-product-url"
+            hint="Optional link to the manufacturer's product page."
+          >
+            {({ describedBy }) => (
+              <Input
+                id="component-product-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://"
+                maxLength={255}
+                value={productUrl}
+                onChange={(event) => setProductUrl(event.target.value)}
+                disabled={isSaving}
+                aria-describedby={describedBy}
+              />
+            )}
+          </FormRow>
 
           {error && <Alert title={error} />}
 

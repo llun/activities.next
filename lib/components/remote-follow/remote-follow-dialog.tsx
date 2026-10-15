@@ -4,6 +4,7 @@ import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { getRemoteFollowUrl } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -14,7 +15,6 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 
 const REMOTE_FOLLOW_ACCOUNT_KEY = 'activities.remote-follow-account'
 const MAX_ACCOUNT_LENGTH = 320
@@ -139,37 +139,43 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
               you there.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-2 pb-4">
-              <Label htmlFor="remote-follow-account">Your address</Label>
-              <Input
-                id="remote-follow-account"
-                ref={accountInputRef}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                maxLength={MAX_ACCOUNT_LENGTH}
-                placeholder="E.g. username@mastodon.social"
-                value={account}
-                disabled={isLoading}
-                onChange={(event) => {
-                  setAccount(event.target.value)
-                  setFieldError(null)
-                }}
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={
-                  fieldError ? 'remote-follow-account-error' : undefined
-                }
-              />
-              {fieldError ? (
-                <p
-                  id="remote-follow-account-error"
-                  className="text-xs text-destructive-text"
-                >
-                  {fieldError}
-                </p>
-              ) : null}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-4">
+              <FormRow
+                stacked
+                className="p-0"
+                label="Your address"
+                htmlFor="remote-follow-account"
+              >
+                <Input
+                  id="remote-follow-account"
+                  ref={accountInputRef}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={MAX_ACCOUNT_LENGTH}
+                  placeholder="E.g. username@mastodon.social"
+                  value={account}
+                  disabled={isLoading}
+                  onChange={(event) => {
+                    setAccount(event.target.value)
+                    setFieldError(null)
+                  }}
+                  aria-invalid={fieldError ? true : undefined}
+                  aria-describedby={
+                    fieldError ? 'remote-follow-account-error' : undefined
+                  }
+                />
+                {fieldError ? (
+                  <p
+                    id="remote-follow-account-error"
+                    className="mt-1.5 text-xs text-destructive-text"
+                  >
+                    {fieldError}
+                  </p>
+                ) : null}
+              </FormRow>
               {error ? <Alert title={error} /> : null}
             </div>
             <DialogFooter separated>

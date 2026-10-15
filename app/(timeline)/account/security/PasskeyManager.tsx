@@ -2,11 +2,12 @@
 
 import { Check, Fingerprint, Globe, Plus } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, FormEvent, useCallback, useEffect, useState } from 'react'
 
 import { type Passkey, getPasskeys } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Section } from '@/lib/components/surface/Section'
@@ -22,7 +23,6 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
 import type { ServedDomain } from '@/lib/services/auth/servedDomains'
 
@@ -267,6 +267,11 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
     }
   }
 
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    void handleCreate()
+  }
+
   const createDisabled = adding && selectedDomain === currentDomain
 
   const addPasskeyButton = (
@@ -343,63 +348,75 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
             </div>
           </DialogHeader>
 
-          {multiDomain && (
-            <div className="space-y-2">
-              <Label id="passkey-domain-label">Domain</Label>
-              <div
-                role="radiogroup"
-                aria-labelledby="passkey-domain-label"
-                className="space-y-2"
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {multiDomain && (
+              <FormRow
+                stacked
+                className="p-0"
+                label="Domain"
+                hint="Passkeys only work on the domain they were created for."
               >
-                {domains.map((domain) => (
-                  <DomainOption
-                    key={domain.domain}
-                    domain={domain}
-                    handlePrefix={handlePrefix}
-                    selected={selectedDomain === domain.domain}
-                    onSelect={handleSelectDomain}
-                  />
-                ))}
-              </div>
-              <p className="text-muted-foreground text-[0.8rem]">
-                Passkeys only work on the domain they were created for.
-              </p>
-            </div>
-          )}
+                {({ labelledBy, describedBy }) => (
+                  <div
+                    role="radiogroup"
+                    aria-labelledby={labelledBy}
+                    aria-describedby={describedBy}
+                    className="space-y-2"
+                  >
+                    {domains.map((domain) => (
+                      <DomainOption
+                        key={domain.domain}
+                        domain={domain}
+                        handlePrefix={handlePrefix}
+                        selected={selectedDomain === domain.domain}
+                        onSelect={handleSelectDomain}
+                      />
+                    ))}
+                  </div>
+                )}
+              </FormRow>
+            )}
 
-          <div className="space-y-2">
-            <Label htmlFor="passkey-name">Passkey name</Label>
-            <Input
-              id="passkey-name"
-              value={newName}
-              placeholder="e.g. iPhone 15 · Face ID"
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <p className="text-muted-foreground text-[0.8rem]">
-              A label to help you recognize this device later.
-            </p>
-          </div>
-
-          {/* Surface failures inside the dialog — the page-level message below
-              sits behind the modal overlay while the dialog is open. */}
-          {error && <Alert title={error} />}
-
-          <DialogFooter separated>
-            <Button
-              variant="outline"
-              onClick={() => handleDialogOpenChange(false)}
+            <FormRow
+              stacked
+              className="p-0"
+              label="Passkey name"
+              htmlFor="passkey-name"
+              hint="A label to help you recognize this device later."
             >
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={createDisabled}>
-              <Fingerprint className="size-4" />
-              {selectedDomain !== currentDomain
-                ? `Continue on ${selectedDomain}`
-                : adding
-                  ? 'Creating…'
-                  : 'Create passkey'}
-            </Button>
-          </DialogFooter>
+              {({ describedBy }) => (
+                <Input
+                  id="passkey-name"
+                  aria-describedby={describedBy}
+                  value={newName}
+                  placeholder="e.g. iPhone 15 · Face ID"
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+              )}
+            </FormRow>
+
+            {/* Surface failures inside the dialog — the page-level message below
+                sits behind the modal overlay while the dialog is open. */}
+            {error && <Alert title={error} />}
+
+            <DialogFooter separated>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createDisabled}>
+                <Fingerprint className="size-4" />
+                {selectedDomain !== currentDomain
+                  ? `Continue on ${selectedDomain}`
+                  : adding
+                    ? 'Creating…'
+                    : 'Create passkey'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>
