@@ -101,7 +101,7 @@ export const getMentionFromActorID = (actorId: string, withDomain = false) => {
   } catch {
     // Not logged here: this module is imported by client components, and
     // pulling the pino logger in would ship it to the browser. A malformed id
-    // degrades to the raw id, which every caller already renders as-is.
+    // degrades to the raw id.
     return actorId
   }
 }

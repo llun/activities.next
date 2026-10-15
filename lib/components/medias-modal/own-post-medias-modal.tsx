@@ -1,11 +1,21 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { ComponentProps, FC, useMemo, useState } from 'react'
 
-import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
 import { toPostEditItem } from '@/lib/components/gallery/galleryItemEdit'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import type { Attachment } from '@/lib/types/domain/attachment'
+
+// Rendered only while the owner is editing a photo, so keep it (and the media
+// details dialog behind it) out of every timeline page's initial bundle.
+const GalleryEditDetailsDialog = dynamic(
+  () =>
+    import('@/lib/components/gallery/GalleryEditDetailsDialog').then(
+      (module) => module.GalleryEditDetailsDialog
+    ),
+  { ssr: false }
+)
 
 type Props = Omit<ComponentProps<typeof MediasModal>, 'onEdit' | 'canEdit'> & {
   /** Called after an Edit details save, for a page that can refresh its post. */

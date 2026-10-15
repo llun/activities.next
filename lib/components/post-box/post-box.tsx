@@ -109,8 +109,6 @@ import {
 import { ReplyPreview } from './reply-preview'
 import { UploadMediaButton } from './upload-media-button'
 
-// Subject suggestions are model calls: at most this many run at once per
-// composer, the rest wait their turn.
 // Only shown once a media's details are opened, so keep it (and its gallery
 // dependencies) out of the initial bundle.
 const MediaDetailsDialog = dynamic(
@@ -121,6 +119,8 @@ const MediaDetailsDialog = dynamic(
   { ssr: false }
 )
 
+// Subject suggestions are model calls: at most this many run at once per
+// composer, the rest wait their turn.
 const MAX_CONCURRENT_SUGGESTIONS = 2
 
 interface Props {

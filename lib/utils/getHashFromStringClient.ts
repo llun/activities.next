@@ -24,7 +24,7 @@ const rotateRight = (value: number, bits: number) =>
 
 const toHex = (value: number) => value.toString(16).padStart(8, '0')
 
-export const getHashFromBytes = (bytes: Uint8Array) => {
+const getHashFromBytes = (bytes: Uint8Array) => {
   const bitLength = bytes.length * 8
   const paddedLength = Math.ceil((bytes.length + 1 + 8) / 64) * 64
   const data = new Uint8Array(paddedLength)

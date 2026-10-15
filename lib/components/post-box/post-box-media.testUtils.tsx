@@ -1,5 +1,5 @@
 import { fireEvent, render } from '@testing-library/react'
-import { vi } from 'vitest'
+import { beforeAll, vi } from 'vitest'
 
 import {
   createNote,
@@ -21,6 +21,13 @@ import { PostBox } from './post-box'
  * test file declares its own vi.mock(...) calls (mocks are hoisted per file);
  * the vi.mocked handles below resolve to those mocks.
  */
+
+// PostBox loads the media details dialog lazily (next/dynamic). Importing the
+// real module once up front means a cold, loaded machine cannot make the first
+// "open details" assertion time out while it is still being fetched.
+beforeAll(async () => {
+  await import('@/lib/components/media-details/media-details-dialog')
+})
 
 export const uploadAttachmentMock = vi.mocked(uploadAttachment)
 export const getMediaMock = vi.mocked(getMedia)

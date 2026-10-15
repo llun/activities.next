@@ -57,6 +57,11 @@ vi.mock('@/lib/components/gallery/GalleryEditDetailsDialog', () => ({
   }
 }))
 
+// The edit dialog is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('@/lib/components/gallery/GalleryEditDetailsDialog')
+})
+
 const attachment = (
   id: string,
   overrides: Partial<Attachment> = {}
@@ -98,12 +103,14 @@ describe('OwnPostMediasModal', () => {
     editor.current = null
   })
 
-  it('offers Edit on the signed-in actor`s own photos and opens the editor for the one on screen', () => {
+  it('offers Edit on the signed-in actor`s own photos and opens the editor for the one on screen', async () => {
     renderModal([attachment('1'), attachment('2')])
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit 2' }))
 
-    expect(screen.getByRole('dialog', { name: 'Edit details' })).toBeVisible()
+    expect(
+      await screen.findByRole('dialog', { name: 'Edit details' })
+    ).toBeVisible()
     expect(editor.current?.ownerId).toBe(OWNER)
     expect(editor.current?.initialMediaId).toBe('media-2')
     expect(editor.current?.items).toHaveLength(1)
