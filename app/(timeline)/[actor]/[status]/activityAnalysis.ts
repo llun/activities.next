@@ -4,12 +4,14 @@ import type { AnalysisSeriesKey } from '@/lib/components/fitness/palette'
 import {
   type ActivityPoint,
   type ActivitySplit,
+  type ChartTimeAxis,
   type PowerDistribution,
   type PowerEffort,
   type SeriesScale,
   average,
   binValuesByTime,
   buildActivityTimeline,
+  buildChartTimeAxis,
   buildClimbSplits,
   buildLapSplits,
   buildPowerDistribution,
@@ -26,7 +28,8 @@ import {
   getCadenceMultiplier,
   getSeriesScale,
   isRunActivity,
-  spreadSeriesOverBins
+  spreadSeriesOverBins,
+  toChartSeconds
 } from './fitnessActivityMetrics'
 import {
   type HeartRateStats,
@@ -56,7 +59,17 @@ export interface ActivityAnalysis {
    * stops. Power and heart-rate time totals are measured against this.
    */
   recordingSeconds: number
-  /** How many equal slices of elapsed time the chart series are binned into. */
+  /**
+   * Where the recorder paused (an auto-pause or a stop, and empty time at
+   * either end), in elapsed time.
+   */
+  pauses: Array<{ startSeconds: number; endSeconds: number }>
+  /**
+   * The chart's time axis: elapsed time with the pauses cut short, or plain
+   * elapsed time (no pauses listed) when they are shown.
+   */
+  chartAxis: ChartTimeAxis
+  /** How many equal slices of chart time the chart series are binned into. */
   binCount: number
   series: AnalysisSeries[]
   powerSeries: number[]
@@ -102,13 +115,19 @@ export const deriveActivityAnalysis = ({
   data,
   activityType,
   fallbackDurationSeconds = 0,
-  movingTimeSeconds = null
+  movingTimeSeconds = null,
+  skipPauses = true
 }: {
   data: FitnessRouteDataResponse
   activityType?: string | null
   fallbackDurationSeconds?: number
   /** The file's moving (timer) time, when it reports one. */
   movingTimeSeconds?: number | null
+  /**
+   * Draw the chart on a time axis with the pauses cut short (the default),
+   * or on elapsed time, where each pause shows as a shaded gap.
+   */
+  skipPauses?: boolean
 }): ActivityAnalysis => {
   const cadenceMultiplier = getCadenceMultiplier(activityType, [
     ...(data.samples ?? []).map((sample) => sample.cadence),
@@ -124,11 +143,30 @@ export const deriveActivityAnalysis = ({
     data.totalDurationSeconds > 0
       ? Math.max(data.totalDurationSeconds, lastElapsed)
       : Math.max(fallbackDurationSeconds, lastElapsed)
-  const binCount = getChartBinCount(durationSeconds)
+  const pauseAxis = buildChartTimeAxis(timeline, durationSeconds)
+  const pauses = pauseAxis.pauses.map(({ startSeconds, endSeconds }) => ({
+    startSeconds,
+    endSeconds
+  }))
+  const chartAxis: ChartTimeAxis = skipPauses
+    ? pauseAxis
+    : { durationSeconds, pauses: [] }
+  const binCount = getChartBinCount(chartAxis.durationSeconds)
+  const chartTimeline = chartAxis.pauses.length
+    ? timeline.map((point) => ({
+        ...point,
+        elapsedSeconds: toChartSeconds(chartAxis, point.elapsedSeconds)
+      }))
+    : timeline
 
   const fromTimeline = (values: Array<number | null | undefined>) =>
     hasAny(values)
-      ? binValuesByTime(timeline, values, durationSeconds, binCount)
+      ? binValuesByTime(
+          chartTimeline,
+          values,
+          chartAxis.durationSeconds,
+          binCount
+        )
       : []
   const withFallback = (
     binned: Array<number | null>,
@@ -255,6 +293,8 @@ export const deriveActivityAnalysis = ({
     timeline,
     durationSeconds,
     recordingSeconds,
+    pauses,
+    chartAxis,
     binCount,
     series,
     powerSeries,

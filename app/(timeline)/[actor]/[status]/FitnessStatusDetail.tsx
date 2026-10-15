@@ -157,6 +157,8 @@ export const FitnessStatusDetail: FC<Props> = ({
 
   const [graphDisplayMode, setGraphDisplayMode] =
     useState<GraphDisplayMode>('combined')
+  // Paused time is cut out of the chart by default, as on Strava.
+  const [showPauses, setShowPauses] = useState(false)
   // The reader's own choices; a series they have not touched follows
   // `isGraphShownByDefault`, so the default stays right as the recording on
   // screen (and the series it has) changes.
@@ -183,14 +185,16 @@ export const FitnessStatusDetail: FC<Props> = ({
             data: route.data,
             activityType,
             fallbackDurationSeconds: fitness?.totalDurationSeconds ?? 0,
-            movingTimeSeconds: fitness?.movingTimeSeconds ?? null
+            movingTimeSeconds: fitness?.movingTimeSeconds ?? null,
+            skipPauses: !showPauses
           })
         : null,
     [
       route.data,
       activityType,
       fitness?.totalDurationSeconds,
-      fitness?.movingTimeSeconds
+      fitness?.movingTimeSeconds,
+      showPauses
     ]
   )
 
@@ -690,6 +694,8 @@ export const FitnessStatusDetail: FC<Props> = ({
             selectedKeys={shownSeries.map((entry) => entry.key)}
             onToggle={toggleGraph}
             hint={graphHint}
+            showPauses={analysis.pauses.length > 0 ? showPauses : undefined}
+            onShowPausesChange={setShowPauses}
           />
           <div ref={chartRef}>
             <ScrubbedAnalysisChart
@@ -697,6 +703,8 @@ export const FitnessStatusDetail: FC<Props> = ({
               series={shownSeries}
               mode={graphDisplayMode}
               durationSeconds={analysis.durationSeconds}
+              chartAxis={analysis.chartAxis}
+              pauses={analysis.pauses}
               laps={laps}
               climbs={climbs}
               selectedKey={selectedSplitKey}

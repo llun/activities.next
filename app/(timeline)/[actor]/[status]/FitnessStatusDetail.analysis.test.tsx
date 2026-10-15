@@ -240,6 +240,52 @@ describe('FitnessStatusDetail analysis', () => {
     })
   })
 
+  describe('pauses', () => {
+    // The rich ride with a 5 min stop after 15 min.
+    const buildPausedRouteData = () => {
+      const data = buildRichRouteData()
+      return {
+        ...data,
+        totalDurationSeconds: 2100,
+        samples: (data.samples ?? []).map((sample) =>
+          sample.elapsedSeconds > 900
+            ? { ...sample, elapsedSeconds: sample.elapsedSeconds + 300 }
+            : sample
+        )
+      }
+    }
+    const lastTimeLabel = (analysis: HTMLElement) =>
+      within(analysis).getAllByTestId('chart-time-label').at(-1)
+
+    it('skips paused time by default and shows it when switched on', async () => {
+      mockGetFitnessRouteData.mockResolvedValue(buildPausedRouteData())
+      const analysis = await renderAnalysis()
+
+      const toggle = await within(analysis).findByRole('switch', {
+        name: 'Show pauses'
+      })
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
+      expect(lastTimeLabel(analysis)).toHaveTextContent('30:00')
+      expect(within(analysis).queryByTestId('chart-pause')).toBeNull()
+
+      fireEvent.click(toggle)
+
+      expect(toggle).toHaveAttribute('aria-checked', 'true')
+      expect(lastTimeLabel(analysis)).toHaveTextContent('35:00')
+      expect(within(analysis).getAllByTestId('chart-pause')).not.toHaveLength(0)
+    })
+
+    it('leaves the switch out for an activity that never paused', async () => {
+      mockGetFitnessRouteData.mockResolvedValue(buildRichRouteData())
+      const analysis = await renderAnalysis()
+
+      await waitFor(() =>
+        expect(getChip('Power')).toHaveAttribute('aria-pressed', 'true')
+      )
+      expect(within(analysis).queryByRole('switch')).toBeNull()
+    })
+  })
+
   describe('scrubbing', () => {
     it('reads out every shown series and follows the instant on the map', async () => {
       mockGetFitnessFilesByStatus.mockResolvedValue([
@@ -325,7 +371,7 @@ describe('FitnessStatusDetail analysis', () => {
       mockGetFitnessRouteData.mockResolvedValue(buildRichRouteData())
     })
 
-    it('lays the laps along the top of the chart, sized by duration', async () => {
+    it('lays the laps along the top of the chart, all the same width', async () => {
       const analysis = await renderAnalysis({ mapProvider: { type: 'apple' } })
 
       const band = await within(analysis).findByRole('group', { name: 'Laps' })
@@ -333,7 +379,10 @@ describe('FitnessStatusDetail analysis', () => {
       expect(buttons).toHaveLength(3)
       expect(buttons[0]).toHaveTextContent('Lap 1 · 10:00')
       expect(buttons[1]).toHaveTextContent('200 W')
-      expect(buttons[0].style.flexGrow).toBe(String(1 / 3))
+      for (const button of buttons) {
+        expect(button).toHaveClass('flex-1', 'basis-0')
+        expect(button.style.flexGrow).toBe('')
+      }
     })
 
     it('highlights a lap on the chart, the table and the map, and clears it on a second click', async () => {

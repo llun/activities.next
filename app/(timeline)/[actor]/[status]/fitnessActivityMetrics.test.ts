@@ -7,6 +7,7 @@ import {
   CLIMB_MIN_GAIN_METERS,
   binValuesByTime,
   buildActivityTimeline,
+  buildChartTimeAxis,
   buildClimbSplits,
   buildLapSplits,
   buildPowerDistribution,
@@ -25,7 +26,9 @@ import {
   getSeriesScale,
   haversineMeters,
   spreadSeriesOverBins,
-  summarizeRange
+  summarizeRange,
+  toChartSeconds,
+  toElapsedSeconds
 } from './fitnessActivityMetrics'
 
 /** A straight road north, one point every `stepMeters`, one per 10 s. */
@@ -92,6 +95,74 @@ describe('estimateRecordingSeconds', () => {
   it('falls back when there are too few points to tell', () => {
     expect(estimateRecordingSeconds([at(0), at(10)], 99)).toBe(99)
     expect(estimateRecordingSeconds([], 42)).toBe(42)
+  })
+})
+
+describe('buildChartTimeAxis', () => {
+  const at = (elapsedSeconds: number) => ({
+    elapsedSeconds,
+    distanceMeters: null
+  })
+  // A point every 5 s for 30 min, a 3 min stop, then 30 min more.
+  const points = [
+    ...Array.from({ length: 361 }, (_, index) => at(index * 5)),
+    ...Array.from({ length: 360 }, (_, index) => at(1980 + index * 5))
+  ]
+
+  it('cuts a stop down to one usual gap', () => {
+    const axis = buildChartTimeAxis(points, 3780)
+    expect(axis.pauses).toEqual([
+      {
+        startSeconds: 1800,
+        endSeconds: 1980,
+        chartStartSeconds: 1800,
+        chartEndSeconds: 1805
+      }
+    ])
+    expect(axis.durationSeconds).toBe(3780 - 175)
+  })
+
+  it('maps elapsed time onto the chart and back', () => {
+    const axis = buildChartTimeAxis(points, 3780)
+    expect(toChartSeconds(axis, 600)).toBe(600)
+    expect(toChartSeconds(axis, 1980)).toBe(1805)
+    expect(toChartSeconds(axis, 3000)).toBe(2825)
+    // Inside the stop: squeezed into its one gap.
+    expect(toChartSeconds(axis, 1890)).toBe(1802.5)
+    for (const elapsed of [0, 600, 1800, 1890, 1980, 3000, 3780]) {
+      expect(toElapsedSeconds(axis, toChartSeconds(axis, elapsed))).toBe(
+        elapsed
+      )
+    }
+  })
+
+  it('also cuts empty time before the first point and after the last', () => {
+    const middle = Array.from({ length: 100 }, (_, index) =>
+      at(600 + index * 5)
+    )
+    // Points from 600 s to 1095 s of a 2000 s activity.
+    const axis = buildChartTimeAxis(middle, 2000)
+    expect(
+      axis.pauses.map((pause) => [pause.startSeconds, pause.endSeconds])
+    ).toEqual([
+      [0, 600],
+      [1095, 2000]
+    ])
+    expect(toChartSeconds(axis, 600)).toBe(5)
+    expect(axis.durationSeconds).toBe(2000 - 595 - 900)
+    expect(toElapsedSeconds(axis, axis.durationSeconds)).toBe(2000)
+  })
+
+  it('leaves a recording without stops on elapsed time', () => {
+    const steady = Array.from({ length: 100 }, (_, index) => at(index * 5))
+    const axis = buildChartTimeAxis(steady, 500)
+    expect(axis).toEqual({ durationSeconds: 500, pauses: [] })
+    expect(toChartSeconds(axis, 123)).toBe(123)
+    expect(toElapsedSeconds(axis, 123)).toBe(123)
+  })
+
+  it('needs at least two gaps to tell a stop', () => {
+    expect(buildChartTimeAxis([at(0), at(600)], 600).pauses).toEqual([])
   })
 })
 

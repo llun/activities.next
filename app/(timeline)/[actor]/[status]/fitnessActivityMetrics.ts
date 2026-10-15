@@ -268,10 +268,12 @@ export const MAX_BRIDGED_EMPTY_BINS = 3
 
 /**
  * Averages `values` (one per timeline point, null where the point has none)
- * into `binCount` equal slices of the activity's elapsed time. A bin with no
+ * into `binCount` equal slices of the points' time (the chart clock from
+ * `buildChartTimeAxis`, or elapsed time when pauses are shown). A bin with no
  * reading is null; a run of up to three empty bins between two readings is
  * bridged by a straight line, so uneven sample spacing does not break a line,
- * while a real gap (a pause, a sensor dropping out) still does.
+ * while a real gap (a pause shown on elapsed time, a sensor dropping out)
+ * still does.
  */
 export const binValuesByTime = (
   points: ActivityPoint[],
@@ -422,6 +424,108 @@ export const estimateRecordingSeconds = (
     gaps.reduce((sum, gap) => sum + (gap > pauseAbove ? usual : gap), 0) + usual
   return fallbackSeconds > 0 ? Math.min(running, fallbackSeconds) : running
 }
+
+/** A pause cut out of the chart's time axis, in elapsed and in chart time. */
+export interface ChartPause {
+  startSeconds: number
+  endSeconds: number
+  chartStartSeconds: number
+  chartEndSeconds: number
+}
+
+/**
+ * The Analysis chart's time axis: elapsed time with each pause (an auto-pause
+ * or a stop, found as in `estimateRecordingSeconds`) shortened to one usual
+ * gap, so the lines run on across it instead of breaking, as on Strava. Laps,
+ * climbs, the crosshair and the map marker convert through
+ * `toChartSeconds` / `toElapsedSeconds`, so they stay on the same instant.
+ */
+export interface ChartTimeAxis {
+  /** The chart's length: the elapsed duration less each pause beyond its one kept gap. */
+  durationSeconds: number
+  pauses: ChartPause[]
+}
+
+export const buildChartTimeAxis = (
+  points: ActivityPoint[],
+  durationSeconds: number
+): ChartTimeAxis => {
+  const gaps: number[] = []
+  for (let index = 1; index < points.length; index += 1) {
+    const gap = points[index].elapsedSeconds - points[index - 1].elapsedSeconds
+    if (gap > 0) gaps.push(gap)
+  }
+  const usual = median(gaps)
+  if (gaps.length < 2 || usual === null) return { durationSeconds, pauses: [] }
+  const pauseAbove = Math.max(usual * 4, usual + 10)
+  // The spans between points, plus the time before the first point and after
+  // the last (a recorder saved a while after its last stop, or privacy
+  // trimming), which would otherwise leave an empty block at either end.
+  const first = points[0].elapsedSeconds
+  const last = points[points.length - 1].elapsedSeconds
+  const spans: Array<[number, number]> = [[0, first]]
+  for (let index = 1; index < points.length; index += 1) {
+    spans.push([points[index - 1].elapsedSeconds, points[index].elapsedSeconds])
+  }
+  spans.push([last, Math.max(last, durationSeconds)])
+  const pauses: ChartPause[] = []
+  let removed = 0
+  for (const [startSeconds, endSeconds] of spans) {
+    if (endSeconds - startSeconds <= pauseAbove) continue
+    const chartStartSeconds = startSeconds - removed
+    pauses.push({
+      startSeconds,
+      endSeconds,
+      chartStartSeconds,
+      chartEndSeconds: chartStartSeconds + usual
+    })
+    removed += endSeconds - startSeconds - usual
+  }
+  return { durationSeconds: Math.max(0, durationSeconds - removed), pauses }
+}
+
+// Converts between the two clocks: inside a pause the one clock is scaled onto
+// the other's span, and past it they differ by the time cut so far.
+const convertTime = (
+  pauses: ChartPause[],
+  seconds: number,
+  from: 'elapsed' | 'chart'
+): number => {
+  let offset = 0
+  for (const pause of pauses) {
+    const [fromStart, fromEnd, toStart, toEnd] =
+      from === 'elapsed'
+        ? [
+            pause.startSeconds,
+            pause.endSeconds,
+            pause.chartStartSeconds,
+            pause.chartEndSeconds
+          ]
+        : [
+            pause.chartStartSeconds,
+            pause.chartEndSeconds,
+            pause.startSeconds,
+            pause.endSeconds
+          ]
+    if (seconds <= fromStart) break
+    if (seconds < fromEnd) {
+      return (
+        toStart +
+        ((seconds - fromStart) / (fromEnd - fromStart)) * (toEnd - toStart)
+      )
+    }
+    offset = toEnd - fromEnd
+  }
+  return seconds + offset
+}
+
+/** Where an elapsed time sits on the chart's time axis. */
+export const toChartSeconds = (axis: ChartTimeAxis, elapsedSeconds: number) =>
+  convertTime(axis.pauses, elapsedSeconds, 'elapsed')
+
+/** The elapsed time at a point on the chart's time axis. */
+export const toElapsedSeconds = (axis: ChartTimeAxis, chartSeconds: number) =>
+  convertTime(axis.pauses, chartSeconds, 'chart')
 
 const bestAverage = (prefix: number[], windowSize: number): number | null => {
   const count = prefix.length - 1

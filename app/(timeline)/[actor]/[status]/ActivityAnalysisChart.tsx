@@ -20,7 +20,12 @@ import {
   type GraphDisplayMode
 } from './FitnessAnalysisCharts'
 import type { AnalysisSeries } from './activityAnalysis'
-import type { ActivitySplit } from './fitnessActivityMetrics'
+import {
+  type ActivitySplit,
+  type ChartTimeAxis,
+  toChartSeconds,
+  toElapsedSeconds
+} from './fitnessActivityMetrics'
 import {
   buildGappedChartPaths,
   buildXAxisLabels,
@@ -32,7 +37,8 @@ import { useChartScrub } from './useChartScrub'
 
 // Every plot is drawn in one 1000×100 viewBox stretched to its box
 // (`preserveAspectRatio="none"`), with non-scaling strokes, so the combined
-// chart and each separate row share one x scale: elapsed time over the width.
+// chart and each separate row share one x scale: chart time over the width,
+// which is elapsed time with the pauses cut short (`ChartTimeAxis`).
 const VIEW_WIDTH = 1000
 const VIEW_HEIGHT = 100
 const TIME_LABEL_COUNT = 5
@@ -68,6 +74,13 @@ export interface ActivityAnalysisChartProps {
   series: AnalysisSeries[]
   mode: GraphDisplayMode
   durationSeconds: number
+  /** The time axis the series were binned on; elapsed time when absent. */
+  chartAxis?: ChartTimeAxis
+  /**
+   * Paused spans (elapsed time), shaded when the axis shows them. On an axis
+   * that cuts them out they take no width and are not drawn.
+   */
+  pauses?: Array<{ startSeconds: number; endSeconds: number }>
   laps: ActivitySplit[]
   climbs: ActivitySplit[]
   /** The selected lap or climb (`ActivitySplit.key`), if any. */
@@ -103,10 +116,6 @@ const LapsBand: FC<{
   onToggle: (key: string) => void
 }> = ({ laps, selectedKey, onToggle }) => {
   const strip = useMediaStripScroll(laps.map((lap) => lap.key).join(','))
-  const total = laps.reduce(
-    (sum, lap) => sum + Math.max(1, lap.endSeconds - lap.startSeconds),
-    0
-  )
   return (
     <div className="relative border-b bg-muted/40">
       <div
@@ -117,7 +126,6 @@ const LapsBand: FC<{
         className="no-scrollbar flex snap-x snap-proximity scroll-pl-4 gap-1 overflow-x-auto px-4 py-2"
       >
         {laps.map((lap) => {
-          const share = Math.max(1, lap.endSeconds - lap.startSeconds) / total
           const details = [
             lap.avgPower !== null ? `${Math.round(lap.avgPower)} W` : null,
             lap.avgHeartRate !== null
@@ -134,9 +142,10 @@ const LapsBand: FC<{
               type="button"
               aria-pressed={isSelected}
               onClick={() => onToggle(lap.key)}
-              style={{ flexGrow: share, flexShrink: 1, flexBasis: 0 }}
               className={cn(
-                'min-w-28 snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                // Every lap box is the same width: they share the band equally
+                // and scroll once they reach the minimum.
+                'min-w-36 flex-1 basis-0 snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 isSelected
                   ? 'border-primary bg-primary/10'
                   : 'bg-background hover:bg-muted'
@@ -165,14 +174,19 @@ const LapsBand: FC<{
 }
 
 const PlotBackdrop: FC<{
-  durationSeconds: number
+  axis: ChartTimeAxis
   gridLines: number[]
   laps: ActivitySplit[]
   climbs: ActivitySplit[]
+  pauses: Array<{ startSeconds: number; endSeconds: number }>
   selected: ActivitySplit | null
-}> = ({ durationSeconds, gridLines, laps, climbs, selected }) => {
-  const toX = (seconds: number) =>
-    clampNumber(seconds / durationSeconds, 0, 1) * VIEW_WIDTH
+}> = ({ axis, gridLines, laps, climbs, pauses, selected }) => {
+  const toX = (elapsedSeconds: number) =>
+    clampNumber(
+      toChartSeconds(axis, elapsedSeconds) / axis.durationSeconds,
+      0,
+      1
+    ) * VIEW_WIDTH
   return (
     <>
       {gridLines.map((y) => (
@@ -186,6 +200,23 @@ const PlotBackdrop: FC<{
           vectorEffect="non-scaling-stroke"
         />
       ))}
+      {axis.pauses.length === 0
+        ? pauses.map((pause) => (
+            <rect
+              key={`pause-${pause.startSeconds}`}
+              data-testid="chart-pause"
+              x={toX(pause.startSeconds)}
+              y={0}
+              width={Math.max(
+                0,
+                toX(pause.endSeconds) - toX(pause.startSeconds)
+              )}
+              height={VIEW_HEIGHT}
+              className="fill-muted-foreground"
+              fillOpacity={0.12}
+            />
+          ))
+        : null}
       {climbs.map((climb) => (
         <rect
           key={climb.key}
@@ -278,6 +309,8 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
   series,
   mode,
   durationSeconds,
+  chartAxis,
+  pauses = [],
   laps,
   climbs,
   selectedKey,
@@ -286,7 +319,15 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
   onHighlightElapsedSeconds,
   describePosition
 }) => {
-  const scrub = useChartScrub({ durationSeconds, onHighlightElapsedSeconds })
+  const axis = useMemo(
+    () => chartAxis ?? { durationSeconds, pauses: [] },
+    [chartAxis, durationSeconds]
+  )
+  const scrub = useChartScrub({
+    durationSeconds: axis.durationSeconds,
+    toElapsedSeconds: (axisSeconds) => toElapsedSeconds(axis, axisSeconds),
+    onHighlightElapsedSeconds
+  })
   // The readout is placed from measured widths (see `placeReadout`), taken
   // before paint so it never shows in the wrong place first.
   const combinedPlotRef = useRef<HTMLDivElement | null>(null)
@@ -308,23 +349,28 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
         : next
     )
   })
+  const highlightedChartSeconds =
+    typeof highlightedElapsedSeconds === 'number'
+      ? toChartSeconds(axis, highlightedElapsedSeconds)
+      : null
   const ratio =
-    typeof highlightedElapsedSeconds === 'number' && durationSeconds > 0
-      ? clampNumber(highlightedElapsedSeconds / durationSeconds, 0, 1)
+    highlightedChartSeconds !== null && axis.durationSeconds > 0
+      ? clampNumber(highlightedChartSeconds / axis.durationSeconds, 0, 1)
       : null
   const selected =
     [...laps, ...climbs].find((split) => split.key === selectedKey) ?? null
   const timeLabels = useMemo(
-    () => buildXAxisLabels(durationSeconds, TIME_LABEL_COUNT),
-    [durationSeconds]
+    () => buildXAxisLabels(axis.durationSeconds, TIME_LABEL_COUNT),
+    [axis.durationSeconds]
   )
   const position =
     typeof highlightedElapsedSeconds === 'number'
       ? describePosition(highlightedElapsedSeconds)
       : null
+  // On the axis's clock, so the readout matches the time labels under it.
   const timeLabel =
-    typeof highlightedElapsedSeconds === 'number'
-      ? formatDuration(Math.round(highlightedElapsedSeconds))
+    highlightedChartSeconds !== null
+      ? formatDuration(Math.round(highlightedChartSeconds))
       : null
   const statusText = selected
     ? `${selected.label} selected · click again to clear`
@@ -358,10 +404,11 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
       className="block h-full w-full overflow-visible"
     >
       <PlotBackdrop
-        durationSeconds={durationSeconds}
+        axis={axis}
         gridLines={gridLines}
         laps={laps}
         climbs={climbs}
+        pauses={pauses}
         selected={selected}
       />
       {content}
