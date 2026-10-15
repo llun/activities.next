@@ -18,7 +18,6 @@ import {
 import Link from 'next/link'
 import {
   FC,
-  KeyboardEvent,
   ReactNode,
   RefObject,
   useCallback,
@@ -44,6 +43,8 @@ import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
 import { PhotoEditPreview } from '@/lib/components/photo-editor/PhotoEditPreview'
 import type { EditedPosts } from '@/lib/components/photo-editor/PhotoEditorDialog'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -52,6 +53,7 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
@@ -59,6 +61,7 @@ import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
+import { Toggle } from '@/lib/components/ui/toggle'
 import type {
   GalleryGearEntity,
   GallerySettingsEntity
@@ -295,26 +298,23 @@ const Section: FC<{
   aside?: ReactNode
   children: ReactNode
 }> = ({ title, aside, children }) => (
-  <section className="space-y-3 border-b px-5 py-4 last:border-b-0">
+  <section className="space-y-3 px-5 py-4">
     <div className="flex items-baseline justify-between gap-3">
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <h3 className="text-base font-semibold">{title}</h3>
       {aside}
     </div>
     {children}
   </section>
 )
 
-const Field: FC<{ label: string; htmlFor: string; children: ReactNode }> = ({
-  label,
-  htmlFor,
-  children
-}) => (
-  <div className="space-y-1.5">
-    <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">
-      {label}
-    </Label>
+const Field: FC<{
+  label: string
+  htmlFor: string
+  children: ReactNode
+}> = ({ label, htmlFor, children }) => (
+  <FormRow label={label} htmlFor={htmlFor} stacked className="p-0">
     {children}
-  </div>
+  </FormRow>
 )
 
 const CheckRow: FC<{
@@ -628,7 +628,6 @@ export const MediaDetailsDialog: FC<Props> = ({
   // Details the dialog fetched itself; each is only used while the details the
   // composer holds for the item are still the ones it was fetched against.
   const [fetched, setFetched] = useState<FetchedDetails>({})
-  const precisionRefs = useRef<(HTMLButtonElement | null)[]>([])
   // `items` is recomputed by the parent while the dialog is open (uploads
   // finish, attachments are removed), so items we have not edited yet fall back
   // to a seed derived from the current `items` instead of a one-time snapshot.
@@ -1269,27 +1268,6 @@ export const MediaDetailsDialog: FC<Props> = ({
   const subjectStatus = subjectUnchanged ? (details?.subject ?? null) : null
   const placeStatus = details?.place ?? null
 
-  const onPrecisionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const count = MEDIA_PLACE_PRECISIONS.length
-    const current = MEDIA_PLACE_PRECISIONS.indexOf(precision)
-    let nextIndex: number
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-      nextIndex = (current + 1) % count
-    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-      nextIndex = (current - 1 + count) % count
-    } else if (event.key === 'Home') {
-      nextIndex = 0
-    } else if (event.key === 'End') {
-      nextIndex = count - 1
-    } else {
-      return
-    }
-    event.preventDefault()
-    patchDraft({ placePrecision: MEDIA_PLACE_PRECISIONS[nextIndex] })
-    // Roving tabindex: focus follows the selection.
-    precisionRefs.current[nextIndex]?.focus()
-  }
-
   const idFor = (name: string) => `${uid}-${name}`
   const descriptionLength = draft.description.length
 
@@ -1602,10 +1580,10 @@ export const MediaDetailsDialog: FC<Props> = ({
                 {isAdd && addable.length > 1 ? (
                   <section
                     aria-label="Apply to all"
-                    className="space-y-2 border-b px-5 py-4"
+                    className="space-y-2 px-5 py-4"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <h3 className="text-sm font-semibold">Apply to all</h3>
+                      <h3 className="text-base font-semibold">Apply to all</h3>
                       <span className="text-muted-foreground text-xs">
                         Copy this photo’s choices to all {addable.length}
                       </span>
@@ -1618,46 +1596,41 @@ export const MediaDetailsDialog: FC<Props> = ({
                           ['gear', 'Gear']
                         ] as const
                       ).map(([key, label]) => (
-                        <button
+                        <Toggle
                           key={key}
-                          type="button"
-                          aria-pressed={Boolean(shared[key])}
-                          onClick={() =>
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full px-3 text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary-text pointer-coarse:h-10"
+                          pressed={Boolean(shared[key])}
+                          onPressedChange={(pressed) =>
                             setShared((current) => ({
                               ...current,
-                              [key]: !current[key]
+                              [key]: pressed
                             }))
                           }
-                          className={cn(
-                            'focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium outline-none focus-visible:ring-[3px] pointer-coarse:py-2.5',
-                            shared[key]
-                              ? 'border-primary bg-primary/10 text-primary-text'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
                         >
                           {shared[key] ? (
                             <Check className="size-3" aria-hidden="true" />
                           ) : null}
                           {label}
-                        </button>
+                        </Toggle>
                       ))}
                     </div>
                   </section>
                 ) : null}
                 {isAdd ? null : (
-                  <Section title="Show in my gallery">
-                    <div
-                      className={cn(
-                        'space-y-2 rounded-lg border p-3',
-                        draft.inGallery && 'bg-primary/5'
-                      )}
+                  <div className="space-y-3 px-5 py-4">
+                    <FormRow
+                      label="Show in my gallery"
+                      htmlFor={idFor('gallery')}
+                      hint="Adds it to Subjects, Map and Gear. The post is the same either way."
+                      inline
+                      className="p-0"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor={idFor('gallery')} className="text-sm">
-                          Show in my gallery
-                        </Label>
+                      {({ describedBy }) => (
                         <Switch
                           id={idFor('gallery')}
+                          aria-describedby={describedBy}
                           checked={draft.inGallery}
                           onCheckedChange={(checked) => {
                             patchDraft({ inGallery: checked })
@@ -1666,36 +1639,32 @@ export const MediaDetailsDialog: FC<Props> = ({
                             }
                           }}
                         />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Adds it to Subjects, Map and Gear. The post is the same
-                        either way.
-                      </p>
-                      {total > 1 ? (
-                        <CheckRow
-                          id={idFor('gallery-all')}
-                          checked={shared.gallery}
-                          onChange={(checked) => {
-                            setShared((s) => ({ ...s, gallery: checked }))
-                            if (checked) {
-                              setDrafts((current) => {
-                                const next = { ...current }
-                                for (const entry of items) {
-                                  next[entry.id] = {
-                                    ...next[entry.id],
-                                    inGallery: true
-                                  }
+                      )}
+                    </FormRow>
+                    {total > 1 ? (
+                      <CheckRow
+                        id={idFor('gallery-all')}
+                        checked={shared.gallery}
+                        onChange={(checked) => {
+                          setShared((s) => ({ ...s, gallery: checked }))
+                          if (checked) {
+                            setDrafts((current) => {
+                              const next = { ...current }
+                              for (const entry of items) {
+                                next[entry.id] = {
+                                  ...next[entry.id],
+                                  inGallery: true
                                 }
-                                return next
-                              })
-                            }
-                          }}
-                        >
-                          Show all {total} items in my gallery
-                        </CheckRow>
-                      ) : null}
-                    </div>
-                  </Section>
+                              }
+                              return next
+                            })
+                          }
+                        }}
+                      >
+                        Show all {total} items in my gallery
+                      </CheckRow>
+                    ) : null}
+                  </div>
                 )}
 
                 {ownerId ? (
@@ -1986,34 +1955,24 @@ export const MediaDetailsDialog: FC<Props> = ({
                     }
                     onRetry={() => void onRetryLookups('place')}
                   />
-                  <div
-                    role="radiogroup"
-                    aria-label="Place precision"
-                    className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1"
-                    onKeyDown={onPrecisionKeyDown}
-                  >
-                    {MEDIA_PLACE_PRECISIONS.map((option, optionIndex) => (
-                      <button
-                        key={option}
-                        ref={(node) => {
-                          precisionRefs.current[optionIndex] = node
-                        }}
-                        type="button"
-                        role="radio"
-                        aria-checked={precision === option}
-                        tabIndex={precision === option ? 0 : -1}
-                        onClick={() => patchDraft({ placePrecision: option })}
-                        className={cn(
-                          'rounded-md px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                          precision === option
-                            ? 'bg-background text-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        {PRECISION_LABELS[option]}
-                      </button>
-                    ))}
-                  </div>
+                  <FormRow label="Place precision" stacked className="p-0">
+                    {({ labelledBy }) => (
+                      <SegmentedControl
+                        aria-labelledby={labelledBy}
+                        size="sm"
+                        items={MEDIA_PLACE_PRECISIONS.map((option) => ({
+                          value: option,
+                          label: PRECISION_LABELS[option]
+                        }))}
+                        value={precision}
+                        onValueChange={(value) =>
+                          patchDraft({
+                            placePrecision: value as MediaPlacePrecision
+                          })
+                        }
+                      />
+                    )}
+                  </FormRow>
                   {total > 1 && !isAdd ? (
                     <CheckRow
                       id={idFor('place-all')}
@@ -2031,7 +1990,10 @@ export const MediaDetailsDialog: FC<Props> = ({
           </div>
         </div>
 
-        <footer className="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 border-t px-5 py-3">
+        <DialogFooter
+          separated
+          className="mx-0 mb-0 flex-row flex-wrap items-center justify-end gap-x-2 gap-y-2 px-5 py-3"
+        >
           {isAdd && confirmingDiscard ? (
             <div
               role="group"
@@ -2139,7 +2101,7 @@ export const MediaDetailsDialog: FC<Props> = ({
               </Button>
             </>
           )}
-        </footer>
+        </DialogFooter>
         {pickerOpen ? (
           <SpeciesPickerDialog
             photo={{
