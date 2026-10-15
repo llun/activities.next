@@ -300,7 +300,7 @@ const Section: FC<{
 }> = ({ title, aside, children }) => (
   <section className="space-y-3 px-5 py-4">
     <div className="flex items-baseline justify-between gap-3">
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <h3 className="text-base font-semibold">{title}</h3>
       {aside}
     </div>
     {children}
