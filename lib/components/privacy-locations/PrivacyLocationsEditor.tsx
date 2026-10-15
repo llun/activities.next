@@ -1082,15 +1082,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
               ) : null}
             </p>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {!isLoading && !hasLoadedSettings ? (
-              <Button
-                variant="outline"
-                onClick={() => setSettingsReloadToken((token) => token + 1)}
-              >
-                Retry loading
-              </Button>
-            ) : null}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button
               variant="outline"
               onClick={handleClear}
@@ -1332,7 +1324,17 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
         // action handler clears — the guard below must never be left
         // unexplained.
         <div className="px-4 py-2.5">
-          <Alert title="Failed to load your saved privacy locations.">
+          <Alert
+            title="Failed to load your saved privacy locations."
+            action={
+              <Button
+                variant="outline"
+                onClick={() => setSettingsReloadToken((token) => token + 1)}
+              >
+                Retry loading
+              </Button>
+            }
+          >
             Editing and saving are disabled so the locations you already have
             are not overwritten.
           </Alert>
