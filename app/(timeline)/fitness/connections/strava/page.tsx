@@ -29,9 +29,7 @@ const StravaPage: FC = async () => {
     <div className="space-y-6">
       <StravaSettingsForm serverActorHandle={actorHandle} />
 
-      <div data-slot="panel" className="rounded-lg border p-6">
-        <StravaGearDefaultsSection />
-      </div>
+      <StravaGearDefaultsSection />
     </div>
   )
 }

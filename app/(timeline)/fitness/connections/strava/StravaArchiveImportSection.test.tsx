@@ -84,7 +84,7 @@ const zip = (name = 'export.zip') =>
   new File(['zip'], name, { type: 'application/zip' })
 
 const chooseFile = (file: File | null) => {
-  fireEvent.change(screen.getByLabelText('Archive File'), {
+  fireEvent.change(screen.getByLabelText('Archive file'), {
     target: { files: file ? [file] : [] }
   })
 }
@@ -126,7 +126,7 @@ describe('StravaArchiveImportSection', () => {
       await renderSection()
 
       expect(importButton()).toBeDisabled()
-      expect(screen.getByLabelText('Archive File')).toBeEnabled()
+      expect(screen.getByLabelText('Archive file')).toBeEnabled()
       expect(mockGetBatch).not.toHaveBeenCalled()
     })
 
@@ -209,7 +209,7 @@ describe('StravaArchiveImportSection', () => {
         screen.getByText('Uploading archive to storage…')
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Uploading…' })).toBeDisabled()
-      expect(screen.getByLabelText('Archive File')).toBeDisabled()
+      expect(screen.getByLabelText('Archive file')).toBeDisabled()
 
       mockGetActive.mockResolvedValue({ activeImport: activeImport() })
       await act(async () => {
@@ -313,7 +313,7 @@ describe('StravaArchiveImportSection', () => {
       expect(screen.getByText(/Imported 3\/10/)).toHaveTextContent(
         'Imported 3/10 • Failed 1'
       )
-      expect(screen.getByLabelText('Archive File')).toBeDisabled()
+      expect(screen.getByLabelText('Archive file')).toBeDisabled()
       expect(importButton()).toBeDisabled()
     })
 
@@ -489,7 +489,7 @@ describe('StravaArchiveImportSection', () => {
       await renderSection()
 
       expect(screen.getByText(message)).toBeInTheDocument()
-      expect(screen.getByLabelText('Archive File')).toBeDisabled()
+      expect(screen.getByLabelText('Archive file')).toBeDisabled()
       expect(importButton()).toBeDisabled()
       // A failed import is not polled until the owner retries.
       expect(mockGetBatch).not.toHaveBeenCalled()
@@ -586,7 +586,7 @@ describe('StravaArchiveImportSection', () => {
       expect(screen.queryByText('Batch: batch-1')).not.toBeInTheDocument()
       expect(screen.queryByText('Disk full')).not.toBeInTheDocument()
       // The controls unlock so a new archive can be imported.
-      expect(screen.getByLabelText('Archive File')).toBeEnabled()
+      expect(screen.getByLabelText('Archive file')).toBeEnabled()
       expect(
         screen.queryByRole('button', { name: 'Cancel and remove archive' })
       ).not.toBeInTheDocument()
@@ -603,7 +603,7 @@ describe('StravaArchiveImportSection', () => {
       await advance()
 
       expect(screen.getByText('Cancel refused')).toBeInTheDocument()
-      expect(screen.getByLabelText('Archive File')).toBeDisabled()
+      expect(screen.getByLabelText('Archive file')).toBeDisabled()
       expect(
         screen.getByRole('button', { name: 'Cancel and remove archive' })
       ).toBeEnabled()

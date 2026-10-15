@@ -76,7 +76,7 @@ describe('StravaSettingsForm', () => {
   })
 
   describe('layout', () => {
-    it('puts the archive importer in a card of its own, outside the credentials form', async () => {
+    it('puts the archive importer in a section of its own, outside the credentials form', async () => {
       mockGetStravaSettings.mockResolvedValueOnce({
         configured: false,
         defaultVisibility: 'private'
@@ -95,13 +95,11 @@ describe('StravaSettingsForm', () => {
       // Save / Unlink)…
       expect(form).toContainElement(screen.getByLabelText(/^client secret/i))
       expect(form).not.toContainElement(archive)
-      // …but in a panel of its own, beside the settings panel.
-      const archiveCard = archive.closest('[data-slot="panel"]')
-      const settingsCard = form.closest('[data-slot="panel"]')
-      expect(archiveCard).not.toBeNull()
-      expect(settingsCard).not.toBeNull()
-      expect(archiveCard).not.toBe(settingsCard)
-      expect(archiveCard?.parentElement).toBe(settingsCard?.parentElement)
+      // …but a sibling of the settings section, not inside it.
+      const settingsSection = form.closest('[data-slot="section"]')
+      expect(settingsSection).not.toBeNull()
+      expect(settingsSection).not.toContainElement(archive)
+      expect(archive.parentElement).toBe(settingsSection?.parentElement)
     })
   })
 

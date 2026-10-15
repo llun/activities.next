@@ -158,7 +158,7 @@ describe('WahooSettingsForm', () => {
 
     render(<WahooSettingsForm />)
 
-    await screen.findByText(/Last successful import:/)
+    await screen.findByText('Last successful import')
     const times = document.querySelectorAll('time')
     expect(times).toHaveLength(2)
     expect(times[0]).toHaveAttribute('dateTime', '2026-09-22T14:30:00.000Z')

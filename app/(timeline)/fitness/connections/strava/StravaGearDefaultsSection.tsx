@@ -10,6 +10,8 @@ import {
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import { getFitnessGearList, updateFitnessGear } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -277,14 +279,10 @@ export const StravaGearDefaultsSection: FC = () => {
   }
 
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-base font-semibold">Default gear</h2>
-        <p className="text-sm text-muted-foreground">
-          Gear assigned to imported activities, by activity type.
-        </p>
-      </div>
-
+    <Section
+      title="Default gear"
+      description="Gear assigned to imported activities, by activity type. These are the same default sports each gear carries: one gear per activity type, so picking a gear here moves the type off whichever gear held it. Changing a default only affects activities imported afterwards, never recorded history."
+    >
       {gears === null && !error && (
         <div role="status" className="space-y-2">
           <span className="sr-only">Loading gear</span>
@@ -306,57 +304,63 @@ export const StravaGearDefaultsSection: FC = () => {
         </Button>
       )}
 
-      {/* Three empty states, not two. "Add an activity type below" is only
+      {gears !== null && (
+        <Frame divided>
+          {/* Three empty states, not two. "Add an activity type below" is only
           honest when there is something below to add with, and the add control
           needs an ACTIVE gear to point a type at — so an actor whose only gear
           is retired would otherwise be told to use a control that is not
           there. Reachable in two steps: retire your only bike, then remove its
           row. */}
-      {gears !== null && rows.length === 0 && (
-        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-          {gears.length === 0 ? (
-            <>
-              No gear yet.{' '}
-              <Link href="/fitness/gear" className="underline">
-                Add a bike or a pair of shoes
-              </Link>{' '}
-              to assign it to imported activities.
-            </>
-          ) : addableSportsByKind.length > 0 ? (
-            'No defaults yet — add an activity type below.'
-          ) : (
-            <>
-              No defaults yet. Every gear you have is retired, and retired gear
-              is not assigned to new activities —{' '}
-              <Link href="/fitness/gear" className="underline">
-                unretire one or add another
-              </Link>{' '}
-              to set a default.
-            </>
+          {gears !== null && rows.length === 0 && (
+            <p className="px-4 py-3 text-sm text-muted-foreground">
+              {gears.length === 0 ? (
+                <>
+                  No gear yet.{' '}
+                  <Link href="/fitness/gear" className="underline">
+                    Add a bike or a pair of shoes
+                  </Link>{' '}
+                  to assign it to imported activities.
+                </>
+              ) : addableSportsByKind.length > 0 ? (
+                'No defaults yet — add an activity type below.'
+              ) : (
+                <>
+                  No defaults yet. Every gear you have is retired, and retired
+                  gear is not assigned to new activities —{' '}
+                  <Link href="/fitness/gear" className="underline">
+                    unretire one or add another
+                  </Link>{' '}
+                  to set a default.
+                </>
+              )}
+            </p>
           )}
-        </div>
-      )}
 
-      {rows.map(({ sportKey, gear }) => {
-        const KindIcon = KIND_ICON[SPORT_KIND[sportKey]]
-        const options = getGearOptionsForSport(gears ?? [], sportKey, gear.id)
-        const sportLabel = getSportLabel(sportKey)
-        return (
-          // The picker and its remove button share a wrapper that is `w-full`
-          // below `sm`, so they wrap onto their own line and leave the whole
-          // first line to the activity type. Inline, a fixed-width picker beside
-          // a `flex-1` label eats the row on a phone and truncates "Trail run"
-          // down to "T".
-          <div
-            key={sportKey}
-            className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border p-3"
-          >
-            <KindIcon className="size-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {sportLabel}
-            </span>
-            <div className="flex w-full items-center gap-1 sm:w-auto">
-              {/* A menu rather than a `<select>`, the same way the activity
+          {rows.map(({ sportKey, gear }) => {
+            const KindIcon = KIND_ICON[SPORT_KIND[sportKey]]
+            const options = getGearOptionsForSport(
+              gears ?? [],
+              sportKey,
+              gear.id
+            )
+            const sportLabel = getSportLabel(sportKey)
+            return (
+              // The picker and its remove button share a wrapper that is `w-full`
+              // below `sm`, so they wrap onto their own line and leave the whole
+              // first line to the activity type. Inline, a fixed-width picker beside
+              // a `flex-1` label eats the row on a phone and truncates "Trail run"
+              // down to "T".
+              <div
+                key={sportKey}
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
+              >
+                <KindIcon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {sportLabel}
+                </span>
+                <div className="flex w-full items-center gap-1 sm:w-auto">
+                  {/* A menu rather than a `<select>`, the same way the activity
                   page's gear picker is (`FitnessStatusDetail`'s
                   `ActivityGearMeta`). Both commit the moment they change, and
                   on Windows/Linux an arrow key on a CLOSED `<select>` moves the
@@ -372,6 +376,101 @@ export const StravaGearDefaultsSection: FC = () => {
                   trigger registers itself in `triggerRefs`; the focus target is
                   resolved from that AFTER the write settles, never captured
                   here beforehand — see `pendingFocusRef` for why. */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild disabled={isSaving}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isSaving}
+                        aria-describedby={error ? ERROR_ID : undefined}
+                        ref={(element) => {
+                          triggerRefs.current.set(sportKey, element)
+                        }}
+                        className="min-w-0 flex-1 justify-between font-normal sm:w-56 sm:flex-none"
+                      >
+                        {/* Named from its content, so the accessible name carries
+                        the value too — "Ride: Moots · 42.6 km", not a bare
+                        "Ride" that says nothing about what is assigned. */}
+                        <span className="sr-only">{sportLabel}: </span>
+                        <span className="truncate">{getOptionLabel(gear)}</span>
+                        <ChevronDown
+                          className="size-3.5 shrink-0 opacity-50"
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      className="rounded-xl shadow-lg"
+                    >
+                      {options.map((option) => {
+                        const isActive = option.id === gear.id
+                        return (
+                          <DropdownMenuItem
+                            key={option.id}
+                            // Picking what is already assigned is not a change. A
+                            // `<select>` never fired `change` for that; every menu
+                            // row fires `onSelect`, and tapping the checked row to
+                            // dismiss the menu is the natural gesture.
+                            onSelect={() => {
+                              if (isActive) return
+                              void assignSport(option, sportKey)
+                            }}
+                            // One-of-N, so radio semantics rather than the
+                            // `aria-current` the navigation dropdowns use. The
+                            // check mark is decorative, so `aria-checked` is the
+                            // only thing announcing which gear is assigned.
+                            role="menuitemradio"
+                            aria-checked={isActive}
+                            className={cn(
+                              'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
+                              isActive && [
+                                'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10',
+                                'focus:ring-2 focus:ring-primary/50'
+                              ]
+                            )}
+                          >
+                            <Check
+                              className={cn(
+                                'size-4 shrink-0',
+                                !isActive && 'invisible'
+                              )}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">
+                              {getGearDisplayName(option)}
+                              {option.retiredAt ? ' (retired)' : ''}
+                            </span>
+                            <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
+                              {formatGearDistanceKm(option.distanceMeters)}
+                            </span>
+                          </DropdownMenuItem>
+                        )
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label={`Remove ${sportLabel}`}
+                    aria-describedby={error ? ERROR_ID : undefined}
+                    disabled={isSaving}
+                    onClick={() => void clearSport(gear, sportKey)}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* A menu here for the same reason as the row pickers: this control also
+          commits on pick, so an arrow key on a closed `<select>` would add an
+          activity type the user was only scrolling past. */}
+          {addableSportsByKind.length > 0 && (
+            <div className="px-4 py-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={isSaving}>
                   <Button
@@ -379,16 +478,10 @@ export const StravaGearDefaultsSection: FC = () => {
                     variant="outline"
                     disabled={isSaving}
                     aria-describedby={error ? ERROR_ID : undefined}
-                    ref={(element) => {
-                      triggerRefs.current.set(sportKey, element)
-                    }}
-                    className="min-w-0 flex-1 justify-between font-normal sm:w-56 sm:flex-none"
+                    ref={addTriggerRef}
+                    className="w-full justify-between font-normal sm:w-52"
                   >
-                    {/* Named from its content, so the accessible name carries
-                        the value too — "Ride: Moots · 42.6 km", not a bare
-                        "Ride" that says nothing about what is assigned. */}
-                    <span className="sr-only">{sportLabel}: </span>
-                    <span className="truncate">{getOptionLabel(gear)}</span>
+                    Add activity type…
                     <ChevronDown
                       className="size-3.5 shrink-0 opacity-50"
                       aria-hidden="true"
@@ -399,121 +492,39 @@ export const StravaGearDefaultsSection: FC = () => {
                   align="start"
                   className="rounded-xl shadow-lg"
                 >
-                  {options.map((option) => {
-                    const isActive = option.id === gear.id
-                    return (
-                      <DropdownMenuItem
-                        key={option.id}
-                        // Picking what is already assigned is not a change. A
-                        // `<select>` never fired `change` for that; every menu
-                        // row fires `onSelect`, and tapping the checked row to
-                        // dismiss the menu is the natural gesture.
-                        onSelect={() => {
-                          if (isActive) return
-                          void assignSport(option, sportKey)
-                        }}
-                        // One-of-N, so radio semantics rather than the
-                        // `aria-current` the navigation dropdowns use. The
-                        // check mark is decorative, so `aria-checked` is the
-                        // only thing announcing which gear is assigned.
-                        role="menuitemradio"
-                        aria-checked={isActive}
-                        className={cn(
-                          'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
-                          isActive && [
-                            'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10',
-                            'focus:ring-2 focus:ring-primary/50'
-                          ]
-                        )}
+                  {addableSportsByKind.map(({ kind, sports }, groupIndex) => (
+                    <DropdownMenuGroup
+                      key={kind}
+                      // Radix's `MenuGroup` is a bare `role="group"` and its `Label`
+                      // a bare div, so without this the group has no accessible name
+                      // and the heading text is skipped entirely in a screen
+                      // reader's menu mode — a regression from the `<optgroup
+                      // label>` this replaced, which was announced.
+                      aria-labelledby={`gear-defaults-add-${kind}`}
+                    >
+                      {groupIndex > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel
+                        id={`gear-defaults-add-${kind}`}
+                        className="text-xs text-muted-foreground"
                       >
-                        <Check
-                          className={cn(
-                            'size-4 shrink-0',
-                            !isActive && 'invisible'
-                          )}
-                          aria-hidden="true"
-                        />
-                        <span className="truncate">
-                          {getGearDisplayName(option)}
-                          {option.retiredAt ? ' (retired)' : ''}
-                        </span>
-                        <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
-                          {formatGearDistanceKm(option.distanceMeters)}
-                        </span>
-                      </DropdownMenuItem>
-                    )
-                  })}
+                        {KIND_GROUP_LABEL[kind]}
+                      </DropdownMenuLabel>
+                      {sports.map((sportKey) => (
+                        <DropdownMenuItem
+                          key={sportKey}
+                          className="rounded-lg px-3 py-2 font-medium"
+                          onSelect={() => handleAdd(sportKey)}
+                        >
+                          {getSportLabel(sportKey)}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                aria-label={`Remove ${sportLabel}`}
-                aria-describedby={error ? ERROR_ID : undefined}
-                disabled={isSaving}
-                onClick={() => void clearSport(gear, sportKey)}
-              >
-                <X className="size-3.5" />
-              </Button>
             </div>
-          </div>
-        )
-      })}
-
-      {/* A menu here for the same reason as the row pickers: this control also
-          commits on pick, so an arrow key on a closed `<select>` would add an
-          activity type the user was only scrolling past. */}
-      {addableSportsByKind.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild disabled={isSaving}>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSaving}
-              aria-describedby={error ? ERROR_ID : undefined}
-              ref={addTriggerRef}
-              className="w-full justify-between font-normal sm:w-52"
-            >
-              Add activity type…
-              <ChevronDown
-                className="size-3.5 shrink-0 opacity-50"
-                aria-hidden="true"
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="rounded-xl shadow-lg">
-            {addableSportsByKind.map(({ kind, sports }, groupIndex) => (
-              <DropdownMenuGroup
-                key={kind}
-                // Radix's `MenuGroup` is a bare `role="group"` and its `Label`
-                // a bare div, so without this the group has no accessible name
-                // and the heading text is skipped entirely in a screen
-                // reader's menu mode — a regression from the `<optgroup
-                // label>` this replaced, which was announced.
-                aria-labelledby={`gear-defaults-add-${kind}`}
-              >
-                {groupIndex > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel
-                  id={`gear-defaults-add-${kind}`}
-                  className="text-xs text-muted-foreground"
-                >
-                  {KIND_GROUP_LABEL[kind]}
-                </DropdownMenuLabel>
-                {sports.map((sportKey) => (
-                  <DropdownMenuItem
-                    key={sportKey}
-                    className="rounded-lg px-3 py-2 font-medium"
-                    onSelect={() => handleAdd(sportKey)}
-                  >
-                    {getSportLabel(sportKey)}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuGroup>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+        </Frame>
       )}
 
       {/* `role="alert"` because a failed write is otherwise silent: the menu
@@ -527,13 +538,6 @@ export const StravaGearDefaultsSection: FC = () => {
           <Alert title={error} />
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        These are the same default sports each gear carries — one gear per
-        activity type, so picking a gear here moves the type off whichever gear
-        held it. Changing a default only affects activities imported afterwards,
-        never recorded history.
-      </p>
-    </section>
+    </Section>
   )
 }
