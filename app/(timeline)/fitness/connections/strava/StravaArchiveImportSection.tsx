@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import {
   ActiveStravaArchiveImport,
@@ -16,8 +16,9 @@ import {
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
-import { Input } from '@/lib/components/ui/input'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 const MAX_ARCHIVE_BATCH_NOT_READY_POLLS = 90
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
+  const archiveInputRef = useRef<HTMLInputElement>(null)
   const [archiveFile, setArchiveFile] = useState<File | null>(null)
   const [archiveVisibility, setArchiveVisibility] =
     useState<MastodonVisibility>('private')
@@ -317,137 +319,166 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
     }
   }
 
+  const importButtonLabel = isUploading
+    ? 'Uploading…'
+    : isArchiveImporting
+      ? 'Starting import…'
+      : 'Import archive'
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold">Import Strava Archive</h3>
-        <p className="text-xs text-muted-foreground">
+    <Section
+      title="Import Strava archive"
+      description={
+        <>
           Upload your Strava export <code>.zip</code>. This imports activities
           and attached media into local statuses.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">
-          Archive import always applies to {actorHandle || 'your current actor'}
-          .
-        </p>
+        </>
+      }
+    >
+      <Frame
+        form
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {archiveBatchId && (
+              <span className="text-muted-foreground mr-auto text-sm">
+                Batch: {archiveBatchId}
+              </span>
+            )}
+            {activeArchiveImport?.status === 'failed' && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRetryArchiveImport}
+                  disabled={isArchiveActionLoading}
+                >
+                  {isArchiveActionLoading ? 'Retrying…' : 'Retry and continue'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleCancelArchiveImport}
+                  disabled={isArchiveActionLoading}
+                >
+                  {isArchiveActionLoading
+                    ? 'Cancelling…'
+                    : 'Cancel and remove archive'}
+                </Button>
+              </>
+            )}
+            <Button
+              type="button"
+              onClick={handleStartArchiveImport}
+              disabled={!archiveFile || isArchiveControlsDisabled}
+            >
+              {importButtonLabel}
+            </Button>
+          </div>
+        }
+      >
+        <input
+          ref={archiveInputRef}
+          id="archiveFile"
+          type="file"
+          className="hidden"
+          accept=".zip,application/zip,application/x-zip-compressed"
+          onChange={handleArchiveFileChange}
+          disabled={isArchiveControlsDisabled}
+        />
 
         <FormRow
-          stacked
-          className="p-0"
-          label="Archive File"
+          label="Archive file"
           htmlFor="archiveFile"
+          hint={`Archive import always applies to ${actorHandle || 'your current actor'}.`}
         >
-          <Input
-            id="archiveFile"
-            type="file"
-            accept=".zip,application/zip,application/x-zip-compressed"
-            onChange={handleArchiveFileChange}
-            disabled={isArchiveControlsDisabled}
-          />
-          {archiveFile && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              {archiveFile.name}
-            </p>
+          {({ describedBy, labelledBy }) => (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                id="archiveFileChoose"
+                variant="outline"
+                onClick={() => archiveInputRef.current?.click()}
+                disabled={isArchiveControlsDisabled}
+                aria-labelledby={`${labelledBy} archiveFileChoose`}
+                aria-describedby={describedBy}
+              >
+                Choose file
+              </Button>
+              <span className="text-muted-foreground min-w-0 text-sm break-all">
+                {archiveFile ? archiveFile.name : 'No file chosen'}
+              </span>
+            </div>
           )}
         </FormRow>
-      </div>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Visibility:</span>
-        <VisibilitySelector
-          visibility={archiveVisibility}
-          onVisibilityChange={setArchiveVisibility}
-        />
-      </div>
+        <FormRow label="Visibility">
+          {({ labelledBy }) => (
+            <div role="group" aria-labelledby={labelledBy}>
+              <VisibilitySelector
+                visibility={archiveVisibility}
+                onVisibilityChange={setArchiveVisibility}
+              />
+            </div>
+          )}
+        </FormRow>
+      </Frame>
 
-      {activeArchiveImport && (
-        <div className="rounded-md border p-3 text-xs text-muted-foreground">
-          <p>
-            Active import batch:{' '}
-            <span className="font-medium">{activeArchiveImport.batchId}</span>
-          </p>
-          <p>
-            Status:{' '}
-            <span className="font-medium">{activeArchiveImport.status}</span>
-          </p>
-          <p>
-            Imported {activeArchiveImport.completedActivitiesCount}
-            {activeArchiveImport.totalActivitiesCount
-              ? `/${activeArchiveImport.totalActivitiesCount}`
-              : ''}{' '}
-            • Failed {activeArchiveImport.failedActivitiesCount}
-          </p>
+      {(activeArchiveImport ||
+        archiveBatchResult ||
+        archiveError ||
+        archiveMessage) && (
+        <div className="space-y-3">
+          {activeArchiveImport && (
+            <div className="text-muted-foreground rounded-md border p-3 text-xs">
+              <p>
+                Active import batch:{' '}
+                <span className="font-medium">
+                  {activeArchiveImport.batchId}
+                </span>
+              </p>
+              <p>
+                Status:{' '}
+                <span className="font-medium">
+                  {activeArchiveImport.status}
+                </span>
+              </p>
+              <p>
+                Imported {activeArchiveImport.completedActivitiesCount}
+                {activeArchiveImport.totalActivitiesCount
+                  ? `/${activeArchiveImport.totalActivitiesCount}`
+                  : ''}{' '}
+                • Failed {activeArchiveImport.failedActivitiesCount}
+              </p>
+            </div>
+          )}
+
+          {archiveBatchResult && (
+            <div className="text-muted-foreground rounded-md border p-3 text-xs">
+              <p>
+                Status:{' '}
+                <span className="font-medium">{archiveBatchResult.status}</span>
+              </p>
+              <p>
+                Completed {archiveBatchResult.summary.completed}/
+                {archiveBatchResult.summary.total} • Failed{' '}
+                {archiveBatchResult.summary.failed}
+              </p>
+              <p>
+                View details in the{' '}
+                <Link href="/fitness/files" className="underline">
+                  Files
+                </Link>{' '}
+                page.
+              </p>
+            </div>
+          )}
+
+          {archiveError && <Alert title={archiveError} />}
+          {archiveMessage && (
+            <Alert tone={archiveMessage.tone} title={archiveMessage.text} />
+          )}
         </div>
       )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          onClick={handleStartArchiveImport}
-          disabled={!archiveFile || isArchiveControlsDisabled}
-        >
-          {isUploading
-            ? 'Uploading…'
-            : isArchiveImporting
-              ? 'Starting import…'
-              : 'Import archive'}
-        </Button>
-        {archiveBatchId && (
-          <span className="text-xs text-muted-foreground">
-            Batch: {archiveBatchId}
-          </span>
-        )}
-        {activeArchiveImport?.status === 'failed' && (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleRetryArchiveImport}
-              disabled={isArchiveActionLoading}
-            >
-              {isArchiveActionLoading ? 'Retrying…' : 'Retry and continue'}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleCancelArchiveImport}
-              disabled={isArchiveActionLoading}
-            >
-              {isArchiveActionLoading
-                ? 'Cancelling…'
-                : 'Cancel and remove archive'}
-            </Button>
-          </>
-        )}
-      </div>
-
-      {archiveBatchResult && (
-        <div className="rounded-md border p-3 text-xs text-muted-foreground">
-          <p>
-            Status:{' '}
-            <span className="font-medium">{archiveBatchResult.status}</span>
-          </p>
-          <p>
-            Completed {archiveBatchResult.summary.completed}/
-            {archiveBatchResult.summary.total} • Failed{' '}
-            {archiveBatchResult.summary.failed}
-          </p>
-          <p>
-            View details in the{' '}
-            <Link href="/fitness/files" className="underline">
-              Files
-            </Link>{' '}
-            page.
-          </p>
-        </div>
-      )}
-
-      {archiveError && <Alert title={archiveError} />}
-      {archiveMessage && (
-        <Alert tone={archiveMessage.tone} title={archiveMessage.text} />
-      )}
-    </div>
+    </Section>
   )
 }

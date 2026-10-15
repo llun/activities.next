@@ -23,9 +23,7 @@ const WahooPage: FC = async () => {
 
   return (
     <div className="space-y-6">
-      <div data-slot="panel" className="rounded-lg border p-6">
-        <WahooSettingsForm />
-      </div>
+      <WahooSettingsForm />
     </div>
   )
 }

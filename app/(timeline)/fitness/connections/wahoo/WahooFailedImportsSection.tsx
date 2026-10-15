@@ -1,5 +1,6 @@
 'use client'
 
+import { CheckCircle2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
@@ -7,7 +8,11 @@ import {
   getWahooFailedImports,
   retryWahooFailedImport
 } from '@/lib/client'
+import { RefreshButton } from '@/lib/components/refresh-button'
 import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 
@@ -83,29 +88,14 @@ export const WahooFailedImportsSection = ({
   if (!connected) return null
 
   return (
-    <section
-      aria-labelledby="wahoo-failed-imports-heading"
-      className="space-y-4 border-t pt-6"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2
-            id="wahoo-failed-imports-heading"
-            className="text-lg font-semibold"
-          >
-            Workouts needing attention
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Failed and unsupported Wahoo workouts appear here so you can retry
-            them individually.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={isLoading || retryingId !== null}
-          onClick={() => {
+    <Section
+      title="Workouts needing attention"
+      description="Failed and unsupported Wahoo workouts appear here so you can retry them individually."
+      actions={
+        <RefreshButton
+          accessibleName="Refresh workout errors"
+          refreshing={isLoading || retryingId !== null}
+          onRefresh={() => {
             setError('')
             setIsLoading(true)
             void refresh()
@@ -118,11 +108,9 @@ export const WahooFailedImportsSection = ({
               })
               .finally(() => setIsLoading(false))
           }}
-        >
-          Refresh
-        </Button>
-      </div>
-
+        />
+      }
+    >
       {isLoading && (
         <div role="status" className="space-y-2">
           <span className="sr-only">Loading workout errors</span>
@@ -131,24 +119,22 @@ export const WahooFailedImportsSection = ({
         </div>
       )}
       {!isLoading && imports.length === 0 && !error && (
-        <p className="text-sm text-muted-foreground">
-          No workouts need attention.
-        </p>
+        <EmptyState icon={CheckCircle2} title="No workouts need attention." />
       )}
       {imports.length > 0 && (
-        <ul className="space-y-2">
+        <FramedList aria-label="Workouts needing attention">
           {imports.slice(0, 10).map((item) => (
-            <li
+            <FramedListItem
               key={item.id}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3 text-sm"
+              className="flex flex-wrap items-start justify-between gap-3 text-sm"
             >
               <div className="min-w-0 space-y-1">
                 <p className="font-medium">Workout {item.workoutId}</p>
-                <p className="capitalize text-muted-foreground">
+                <p className="text-muted-foreground capitalize">
                   {item.status}
                 </p>
                 {item.lastError && (
-                  <p className="break-words text-destructive">
+                  <p className="text-destructive-text break-words">
                     {item.lastError}
                   </p>
                 )}
@@ -162,24 +148,24 @@ export const WahooFailedImportsSection = ({
               >
                 {retryingId === item.id ? 'Retrying…' : 'Retry'}
               </Button>
-            </li>
+            </FramedListItem>
           ))}
-        </ul>
+        </FramedList>
       )}
       {imports.length > 10 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           Showing 10 of {imports.length} workouts. Retry or resolve them to see
           the rest.
         </p>
       )}
       {!automaticImportAvailable && imports.length > 0 && (
-        <p role="alert" className="text-sm text-muted-foreground">
+        <Alert tone="warning" title="Retrying is unavailable.">
           Retrying workouts requires a durable background job queue on this
           server.
-        </p>
+        </Alert>
       )}
       {error && <Alert title={error} />}
       {message && <Alert tone="success" title={message} />}
-    </section>
+    </Section>
   )
 }

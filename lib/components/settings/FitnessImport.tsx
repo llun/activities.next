@@ -195,16 +195,18 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
 
         <input
           ref={fileInputRef}
+          id="fitnessImportFiles"
           type="file"
           multiple
           className="hidden"
           accept={ACCEPTED_FITNESS_FILE_EXTENSIONS.join(',')}
+          disabled={isImporting}
           onChange={handleFileChange}
         />
 
         <FormRow
           label="Files"
-          htmlFor="fitnessImportChooseFiles"
+          htmlFor="fitnessImportFiles"
           hint="Choose one or more files to import."
         >
           {({ describedBy, labelledBy }) => (

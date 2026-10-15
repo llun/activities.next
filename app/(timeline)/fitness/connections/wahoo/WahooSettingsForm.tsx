@@ -1,7 +1,9 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { ReadOnlyUrlRow } from '@/app/(timeline)/fitness/connections/ReadOnlyUrlRow'
 import {
   type WahooEnvironment,
   type WahooSettingsResponse,
@@ -11,6 +13,9 @@ import {
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -21,7 +26,6 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import type { Visibility } from '@/lib/types/mastodon/visibility'
 
@@ -157,202 +161,244 @@ export const WahooSettingsForm = () => {
   const lastImportAt = formatConnectionTimestamp(settings?.lastImportAt)
 
   return (
-    <div className="space-y-8">
-      <form onSubmit={save} className="space-y-6">
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold">Application settings</h2>
-          <p className="text-sm text-muted-foreground">
-            Create a confidential Wahoo application with workouts_read,
-            offline_data, and user_read scopes. power_zones_read may remain
-            enabled, but is not required for workout imports. Choose the same
-            environment here as in the Wahoo developer portal; external sharing
-            can remain disabled.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="wahoo-client-id">Client ID</Label>
-          <Input
-            id="wahoo-client-id"
-            value={clientId}
-            onChange={(event) => setClientId(event.target.value)}
-            autoComplete="off"
-            required
-            disabled={isSaving}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="wahoo-client-secret">Client secret</Label>
-          <Input
-            id="wahoo-client-secret"
-            type="password"
-            value={clientSecret}
-            onChange={(event) => setClientSecret(event.target.value)}
-            autoComplete="new-password"
-            required={!settings?.hasClientSecret}
-            placeholder={
-              settings?.hasClientSecret ? 'Saved — leave blank to keep' : ''
+    <div className="space-y-6">
+      <Section
+        title="Application settings"
+        description="Create a confidential Wahoo application with workouts_read, offline_data, and user_read scopes. power_zones_read may remain enabled, but is not required for workout imports. Choose the same environment here as in the Wahoo developer portal; external sharing can remain disabled."
+      >
+        <form onSubmit={save}>
+          <Frame
+            form
+            footer={
+              <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                {error ? (
+                  <p
+                    role="alert"
+                    className="text-destructive-text min-w-0 text-sm break-words"
+                  >
+                    {error}
+                  </p>
+                ) : (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-muted-foreground min-w-0 text-sm break-words"
+                  >
+                    {message}
+                  </p>
+                )}
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  {settings?.configured && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={isSaving}
+                      onClick={() => setShowDisconnectDialog(true)}
+                    >
+                      Disconnect
+                    </Button>
+                  )}
+                  {settings?.configured && !isSaving && (
+                    <Button asChild variant="outline">
+                      <a href="/api/v1/settings/fitness/wahoo/authorize">
+                        {settings.connected ? 'Reconnect' : 'Connect'}
+                      </a>
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={isSaving || !settings}>
+                    {isSaving ? (
+                      <Loader2
+                        data-slot="spinner"
+                        aria-hidden="true"
+                        className="animate-spin"
+                      />
+                    ) : null}
+                    Save settings
+                  </Button>
+                </div>
+              </div>
             }
-            disabled={isSaving}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="wahoo-webhook-token">Webhook token</Label>
-          <Input
-            id="wahoo-webhook-token"
-            type="password"
-            value={webhookToken}
-            onChange={(event) => setWebhookToken(event.target.value)}
-            autoComplete="new-password"
-            required={!settings?.hasWebhookToken}
-            placeholder={
-              settings?.hasWebhookToken ? 'Saved — leave blank to keep' : ''
-            }
-            disabled={isSaving}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="wahoo-environment">Environment</Label>
-          <Select
-            id="wahoo-environment"
-            value={environment}
-            onChange={(event) =>
-              setEnvironment(event.target.value as WahooEnvironment)
-            }
-            disabled={isSaving}
           >
-            <option value="sandbox">Sandbox</option>
-            <option value="production">Production</option>
-          </Select>
-          {environment === 'sandbox' && (
-            <p className="text-xs text-muted-foreground">
-              Wahoo sandbox applications cannot later be converted to
-              production.
-            </p>
-          )}
-        </div>
+            <FormRow label="Client ID" htmlFor="wahoo-client-id">
+              <Input
+                id="wahoo-client-id"
+                value={clientId}
+                onChange={(event) => setClientId(event.target.value)}
+                autoComplete="off"
+                required
+                disabled={isSaving}
+              />
+            </FormRow>
 
-        <div className="space-y-2">
-          <Label>Automatic import visibility</Label>
-          <VisibilitySelector
-            visibility={defaultVisibility}
-            onVisibilityChange={setDefaultVisibility}
-          />
-          <p className="text-xs text-muted-foreground">
-            New and historical Wahoo activities use this visibility when posted.
-          </p>
-          {(defaultVisibility === 'public' ||
-            defaultVisibility === 'unlisted') && (
-            <Alert
-              tone="warning"
-              title="Anyone on the fediverse can read imported workouts, including route maps and stats."
-            />
-          )}
-        </div>
+            <FormRow label="Client secret" htmlFor="wahoo-client-secret">
+              <Input
+                id="wahoo-client-secret"
+                type="password"
+                value={clientSecret}
+                onChange={(event) => setClientSecret(event.target.value)}
+                autoComplete="new-password"
+                required={!settings?.hasClientSecret}
+                placeholder={
+                  settings?.hasClientSecret ? 'Saved — leave blank to keep' : ''
+                }
+                disabled={isSaving}
+              />
+            </FormRow>
 
-        <div className="space-y-3">
-          <h3 className="font-medium">Wahoo application URLs</h3>
-          <div className="space-y-1">
-            <Label htmlFor="wahoo-callback-url">Callback URL</Label>
-            <Input
-              id="wahoo-callback-url"
-              readOnly
-              value={callbackUrl}
-              onFocus={(event) => event.currentTarget.select()}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="wahoo-webhook-url">Webhook URL</Label>
-            <Input
-              id="wahoo-webhook-url"
-              readOnly
-              value={webhookUrl}
-              onFocus={(event) => event.currentTarget.select()}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Copy these URLs into the matching Wahoo application fields. Webhooks
-            require a publicly reachable HTTPS URL; localhost cannot receive
-            Wahoo events.
-          </p>
-        </div>
+            <FormRow label="Webhook token" htmlFor="wahoo-webhook-token">
+              <Input
+                id="wahoo-webhook-token"
+                type="password"
+                value={webhookToken}
+                onChange={(event) => setWebhookToken(event.target.value)}
+                autoComplete="new-password"
+                required={!settings?.hasWebhookToken}
+                placeholder={
+                  settings?.hasWebhookToken ? 'Saved — leave blank to keep' : ''
+                }
+                disabled={isSaving}
+              />
+            </FormRow>
 
-        {settings?.connected ? (
-          <Alert
-            tone="success"
-            title={`Connected to Wahoo${
-              settings.providerUserId
-                ? ` (user ${settings.providerUserId})`
-                : ''
-            }.`}
-          />
-        ) : settings?.configured ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Application saved. Connect to authorize your Wahoo account.
-          </p>
-        ) : null}
-        {settings && (
-          <div className="space-y-2 text-sm">
-            <h3 className="font-medium">Connection activity</h3>
-            <p>
-              Last webhook:{' '}
-              {lastWebhookAt ? (
-                <time dateTime={lastWebhookAt.dateTime}>
-                  {lastWebhookAt.label}
-                </time>
-              ) : (
-                <span className="text-muted-foreground">
-                  No webhook received yet
-                </span>
-              )}
-            </p>
-            <p>
-              Last successful import:{' '}
-              {lastImportAt ? (
-                <time dateTime={lastImportAt.dateTime}>
-                  {lastImportAt.label}
-                </time>
-              ) : (
-                <span className="text-muted-foreground">
-                  No successful import yet
-                </span>
-              )}
-            </p>
-          </div>
-        )}
-        {settings?.lastError && (
-          // Standing state read from the saved settings at load, not news.
-          <Alert live={false} title={`Wahoo error: ${settings.lastError}`} />
-        )}
-        {error && <Alert title={error} />}
-        {message && <Alert tone="success" title={message} />}
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={isSaving || !settings}>
-            {isSaving ? 'Saving…' : 'Save settings'}
-          </Button>
-          {settings?.configured && !isSaving && (
-            <Button asChild variant="outline">
-              <a href="/api/v1/settings/fitness/wahoo/authorize">
-                {settings.connected ? 'Reconnect' : 'Connect'}
-              </a>
-            </Button>
-          )}
-          {settings?.configured && (
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={isSaving}
-              onClick={() => setShowDisconnectDialog(true)}
+            <FormRow
+              label="Environment"
+              htmlFor="wahoo-environment"
+              hint={
+                environment === 'sandbox'
+                  ? 'Wahoo sandbox applications cannot later be converted to production.'
+                  : undefined
+              }
             >
-              Disconnect
-            </Button>
-          )}
-        </div>
-      </form>
+              {({ describedBy }) => (
+                <Select
+                  id="wahoo-environment"
+                  value={environment}
+                  onChange={(event) =>
+                    setEnvironment(event.target.value as WahooEnvironment)
+                  }
+                  disabled={isSaving}
+                  aria-describedby={describedBy}
+                >
+                  <option value="sandbox">Sandbox</option>
+                  <option value="production">Production</option>
+                </Select>
+              )}
+            </FormRow>
+
+            <FormRow
+              label="Automatic import visibility"
+              hint="New and historical Wahoo activities use this visibility when posted."
+            >
+              {({ describedBy, labelledBy }) => (
+                <div
+                  role="group"
+                  aria-labelledby={labelledBy}
+                  aria-describedby={describedBy}
+                >
+                  <VisibilitySelector
+                    visibility={defaultVisibility}
+                    onVisibilityChange={setDefaultVisibility}
+                  />
+                </div>
+              )}
+            </FormRow>
+
+            {(defaultVisibility === 'public' ||
+              defaultVisibility === 'unlisted' ||
+              settings?.connected ||
+              settings?.configured ||
+              settings?.lastError) && (
+              <div className="space-y-3 px-4 py-2.5">
+                {(defaultVisibility === 'public' ||
+                  defaultVisibility === 'unlisted') && (
+                  <Alert
+                    tone="warning"
+                    title="Anyone on the fediverse can read imported workouts, including route maps and stats."
+                  />
+                )}
+                {settings?.connected ? (
+                  <Alert
+                    tone="success"
+                    title={`Connected to Wahoo${
+                      settings.providerUserId
+                        ? ` (user ${settings.providerUserId})`
+                        : ''
+                    }.`}
+                  />
+                ) : settings?.configured ? (
+                  <p role="status" className="text-muted-foreground text-sm">
+                    Application saved. Connect to authorize your Wahoo account.
+                  </p>
+                ) : null}
+                {settings?.lastError && (
+                  // Standing state read from the saved settings at load, not news.
+                  <Alert
+                    live={false}
+                    title={`Wahoo error: ${settings.lastError}`}
+                  />
+                )}
+              </div>
+            )}
+          </Frame>
+        </form>
+      </Section>
+
+      <Section title="Wahoo application URLs">
+        <Frame
+          form
+          footer={
+            <p className="text-muted-foreground text-xs">
+              Copy these URLs into the matching Wahoo application fields.
+              Webhooks require a publicly reachable HTTPS URL; localhost cannot
+              receive Wahoo events.
+            </p>
+          }
+        >
+          <ReadOnlyUrlRow
+            id="wahoo-callback-url"
+            label="Callback URL"
+            value={callbackUrl}
+          />
+          <ReadOnlyUrlRow
+            id="wahoo-webhook-url"
+            label="Webhook URL"
+            value={webhookUrl}
+          />
+        </Frame>
+      </Section>
+
+      {settings && (
+        <Section title="Connection activity">
+          <Frame form>
+            <FormRow label="Last webhook">
+              <p className="text-sm">
+                {lastWebhookAt ? (
+                  <time dateTime={lastWebhookAt.dateTime}>
+                    {lastWebhookAt.label}
+                  </time>
+                ) : (
+                  <span className="text-muted-foreground">
+                    No webhook received yet
+                  </span>
+                )}
+              </p>
+            </FormRow>
+            <FormRow label="Last successful import">
+              <p className="text-sm">
+                {lastImportAt ? (
+                  <time dateTime={lastImportAt.dateTime}>
+                    {lastImportAt.label}
+                  </time>
+                ) : (
+                  <span className="text-muted-foreground">
+                    No successful import yet
+                  </span>
+                )}
+              </p>
+            </FormRow>
+          </Frame>
+        </Section>
+      )}
 
       <WahooHistorySection
         connected={Boolean(settings?.connected)}
