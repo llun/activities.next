@@ -26,7 +26,6 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Visibility as MastodonVisibilitySchema } from '@/lib/types/mastodon/visibility'
 import type { Visibility as MastodonVisibility } from '@/lib/types/mastodon/visibility'
-import { cn } from '@/lib/utils'
 
 import { StravaArchiveImportSection } from './StravaArchiveImportSection'
 

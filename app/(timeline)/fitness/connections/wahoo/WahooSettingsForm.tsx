@@ -28,7 +28,6 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Select } from '@/lib/components/ui/select'
 import type { Visibility } from '@/lib/types/mastodon/visibility'
-import { cn } from '@/lib/utils'
 
 import { WahooFailedImportsSection } from './WahooFailedImportsSection'
 import { WahooHistorySection } from './WahooHistorySection'
