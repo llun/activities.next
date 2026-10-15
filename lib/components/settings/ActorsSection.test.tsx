@@ -455,9 +455,7 @@ describe('ActorsSection', () => {
 
     const trigger = screen.getByRole('button', { name: /alice/i })
     expect(trigger).toHaveAccessibleName(/^Actor\b.*alice/i)
-    expect(trigger).toHaveAccessibleDescription(
-      /Select an actor from the dropdown/
-    )
+    expect(trigger).toHaveAccessibleDescription(/Pick an actor to switch to/)
   })
 
   it('switches to selected actor, sets active offline session, and reloads page', async () => {

@@ -203,7 +203,7 @@ export function ActorsSection({
         <FormRow
           label="Actor"
           htmlFor="actorSectionTrigger"
-          hint='Select an actor from the dropdown. Use "Set as default" to set which actor is used on sign-in. Use "Switch to actor" to immediately change to the selected actor.'
+          hint="Pick an actor to switch to, or the one you sign in as by default."
         >
           {({ describedBy, labelledBy }) => (
             <DropdownMenu>
@@ -215,39 +215,37 @@ export function ActorsSection({
                   // "Actor Alice @alice@…" rather than only the actor.
                   aria-labelledby={`${labelledBy} actorSectionTriggerValue`}
                   aria-describedby={describedBy}
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted cursor-pointer"
+                  className="border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border px-3 py-1 text-left text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   disabled={isSwitching || isSavingDefault || isCancelling}
                 >
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="size-6">
                     {selectedActor?.iconUrl && (
                       <AvatarImage src={selectedActor.iconUrl} />
                     )}
-                    <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
+                    <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
                       {getAvatarInitial(selectedActor?.username || '')}
                     </AvatarFallback>
                   </Avatar>
-                  <div
+                  <span
                     id="actorSectionTriggerValue"
-                    className="flex-1 overflow-hidden"
+                    className="flex min-w-0 flex-1 items-baseline gap-1.5"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium truncate">
-                        <ActorDisplayName
-                          name={selectedActor?.name || selectedActor?.username}
-                          tags={selectedActor?.tags}
-                        />
-                      </p>
-                      {selectedActorId === currentActor.id && (
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          (current)
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <span className="truncate">
+                      <ActorDisplayName
+                        name={selectedActor?.name || selectedActor?.username}
+                        tags={selectedActor?.tags}
+                      />
+                    </span>
+                    <span className="text-muted-foreground truncate text-xs">
                       {selectedActor ? getHandle(selectedActor) : ''}
-                    </p>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                    </span>
+                    {selectedActorId === currentActor.id && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        (current)
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent

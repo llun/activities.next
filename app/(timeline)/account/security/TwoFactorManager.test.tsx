@@ -62,16 +62,21 @@ describe('TwoFactorManager', () => {
     })
   })
 
-  it('shows the off state as a warning alert whose action is Set up', () => {
+  it('shows the off state as a line in one form box, with Set up in its footer', () => {
     render(<TwoFactorManager enabled={false} serviceName="Activities" />)
 
-    const alert = screen
-      .getByText('Two-factor authentication is off')
-      .closest('[data-slot="alert"]')
-    expect(alert).toHaveAttribute('data-tone', 'warning')
+    const frame = screen
+      .getByText('Two-factor authentication is off.')
+      .closest('[data-slot="frame"]') as HTMLElement
+    expect(frame).not.toBeNull()
+    expect(frame.querySelector('[data-slot="alert"]')).toBeNull()
+    const footer = frame.querySelector(
+      '[data-slot="frame-footer"]'
+    ) as HTMLElement
     expect(
-      within(alert as HTMLElement).getByRole('button', { name: 'Set up' })
+      within(footer).getByRole('button', { name: 'Set up' })
     ).toBeInTheDocument()
+    expect(within(frame).getByLabelText('Current password')).toBeInTheDocument()
   })
 
   it('reaches the password field before the Set up button', () => {
@@ -254,7 +259,7 @@ describe('TwoFactorManager', () => {
     // and React re-renders; use findByText so the assertion waits for that
     // re-render instead of racing it.
     expect(
-      await screen.findByText('Two-factor authentication is off')
+      await screen.findByText('Two-factor authentication is off.')
     ).toBeInTheDocument()
     expect(mockRefresh).toHaveBeenCalled()
   })

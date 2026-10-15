@@ -16,7 +16,7 @@ import {
   switchActor
 } from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
-import { Frame } from '@/lib/components/surface/Frame'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -277,78 +277,89 @@ export const AuthorizeCard: FC<Props> = ({
     >
       <form onSubmit={handleApprove}>
         <AuthCardBody>
-          <Frame divided>
-            {isOidc && (
-              <div className="space-y-2 px-4 py-4">
-                {/* Informational caption — not a form-control label, so a <p>
+          {isOidc && (
+            <div className="space-y-2">
+              {/* Informational caption — not a form-control label, so a <p>
                     rather than <Label> (which would label nothing). */}
-                <p className="text-sm font-medium text-muted-foreground">
-                  Signed in as
-                </p>
-                <div className="flex w-full items-center gap-3">
-                  <Avatar className="h-10 w-10" aria-hidden="true">
-                    {account.iconUrl && <AvatarImage src={account.iconUrl} />}
-                    <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
-                      {getAvatarInitial(accountDisplayName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-medium truncate">
-                      {accountDisplayName}
-                    </p>
-                    {/* Show the email as a secondary line only when a distinct
+              <p className="text-sm font-medium text-muted-foreground">
+                Signed in as
+              </p>
+              <div className="flex w-full items-center gap-3">
+                <Avatar className="h-10 w-10" aria-hidden="true">
+                  {account.iconUrl && <AvatarImage src={account.iconUrl} />}
+                  <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
+                    {getAvatarInitial(accountDisplayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">
+                    {accountDisplayName}
+                  </p>
+                  {/* Show the email as a secondary line only when a distinct
                         name is the primary identity. Covers name=null, blank,
                         and name===email (which would otherwise render twice).
                         The comparison is case-insensitive because emails
                         are. */}
-                    {accountDisplayName.toLowerCase() !==
-                      account.email.toLowerCase() && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {account.email}
-                      </p>
-                    )}
-                  </div>
+                  {accountDisplayName.toLowerCase() !==
+                    account.email.toLowerCase() && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {account.email}
+                    </p>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {showActorPicker && (
-              <div className="space-y-2 px-4 py-4">
-                <Label className="text-sm font-medium text-muted-foreground">
-                  Authorize as
-                </Label>
+          {showActorPicker && (
+            <FormRow
+              stacked
+              className="p-0"
+              label="Authorize as"
+              htmlFor="authorizeActorTrigger"
+            >
+              {({ labelledBy }) => (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-3 rounded-md border bg-background p-3 text-left transition-colors hover:bg-muted"
+                      id="authorizeActorTrigger"
+                      // The row's label and the actor shown.
+                      aria-labelledby={`${labelledBy} authorizeActorValue`}
+                      className="border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full items-center gap-2 rounded-md border px-3 py-1 text-left text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                       disabled={isSwitching}
                     >
-                      <Avatar className="h-10 w-10">
+                      <Avatar className="size-6">
                         {selectedActor?.iconUrl && (
                           <AvatarImage src={selectedActor.iconUrl} />
                         )}
-                        <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
+                        <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
                           {getAvatarInitial(selectedActor?.username || '')}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-medium truncate">
+                      <span
+                        id="authorizeActorValue"
+                        className="flex min-w-0 flex-1 items-baseline gap-1.5"
+                      >
+                        <span className="truncate">
                           <ActorDisplayName
                             name={
                               selectedActor?.name || selectedActor?.username
                             }
                             tags={selectedActor?.tags}
                           />
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        </span>
+                        <span className="text-muted-foreground truncate text-xs">
                           {selectedActor && getHandle(selectedActor)}
-                        </p>
-                      </div>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        </span>
+                      </span>
+                      <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-[300px]">
+                  <DropdownMenuContent
+                    align="start"
+                    className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                  >
                     {actors.map((actor) => (
                       <DropdownMenuItem
                         key={actor.id}
@@ -356,7 +367,7 @@ export const AuthorizeCard: FC<Props> = ({
                         disabled={isSwitching}
                         className="flex items-center gap-3"
                       >
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="size-6">
                           {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
                           <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
                             {getAvatarInitial(actor.username)}
@@ -380,52 +391,52 @@ export const AuthorizeCard: FC<Props> = ({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-            )}
+              )}
+            </FormRow>
+          )}
 
-            <div className="space-y-4 px-4 py-4">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                Review permissions
-              </h2>
-              <div className="space-y-3">
-                {availabledScopes.map((scope) => {
-                  // `openid` is what makes this an OIDC authentication request and
-                  // gates id_token issuance, so it must not be strippable. Render
-                  // it locked (disabled + checked) and submit it via a hidden
-                  // field so a disabled checkbox (which a browser omits from form
-                  // data) can't silently drop it. Optional OIDC scopes
-                  // (profile/email) stay user-toggleable.
-                  const lockedOidcScope = isOidc && scope === 'openid'
-                  return (
-                    <div key={scope} className="flex items-center space-x-2">
-                      <Checkbox
-                        // `peer` lets the label below dim for a locked scope;
-                        // the 14 px tick is the consent card's own check size.
-                        className="peer bg-[length:14px_14px]"
-                        // A disabled control is omitted from form submission, but
-                        // also drop the name so a non-standard serializer can't
-                        // double-submit `openid` alongside the hidden field.
-                        name={lockedOidcScope ? undefined : 'scope'}
-                        value={scope}
-                        id={`scope-${scope}`}
-                        defaultChecked
-                        disabled={lockedOidcScope}
-                      />
-                      {lockedOidcScope && (
-                        <input type="hidden" name="scope" value={scope} />
-                      )}
-                      <Label
-                        htmlFor={`scope-${scope}`}
-                        className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {scope}
-                      </Label>
-                    </div>
-                  )
-                })}
-              </div>
+          <div className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Review permissions
+            </h2>
+            <div className="space-y-3">
+              {availabledScopes.map((scope) => {
+                // `openid` is what makes this an OIDC authentication request and
+                // gates id_token issuance, so it must not be strippable. Render
+                // it locked (disabled + checked) and submit it via a hidden
+                // field so a disabled checkbox (which a browser omits from form
+                // data) can't silently drop it. Optional OIDC scopes
+                // (profile/email) stay user-toggleable.
+                const lockedOidcScope = isOidc && scope === 'openid'
+                return (
+                  <div key={scope} className="flex items-center space-x-2">
+                    <Checkbox
+                      // `peer` lets the label below dim for a locked scope;
+                      // the 14 px tick is the consent card's own check size.
+                      className="peer bg-[length:14px_14px]"
+                      // A disabled control is omitted from form submission, but
+                      // also drop the name so a non-standard serializer can't
+                      // double-submit `openid` alongside the hidden field.
+                      name={lockedOidcScope ? undefined : 'scope'}
+                      value={scope}
+                      id={`scope-${scope}`}
+                      defaultChecked
+                      disabled={lockedOidcScope}
+                    />
+                    {lockedOidcScope && (
+                      <input type="hidden" name="scope" value={scope} />
+                    )}
+                    <Label
+                      htmlFor={`scope-${scope}`}
+                      className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {scope}
+                    </Label>
+                  </div>
+                )
+              })}
             </div>
-          </Frame>
+          </div>
         </AuthCardBody>
 
         <AuthCardActions>

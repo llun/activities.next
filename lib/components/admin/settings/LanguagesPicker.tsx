@@ -1,7 +1,15 @@
 'use client'
 
-import { Plus, Search, X } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { Plus, X } from 'lucide-react'
+import { FC, useRef, useState } from 'react'
+
+import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/lib/components/ui/popover'
 
 // A curated set of instance languages (code + endonym). Scales past a handful of
 // toggles: selected languages render as removable chips, and new ones come from
@@ -59,10 +67,6 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (open) inputRef.current?.focus()
-  }, [open])
-
   const normalizedQuery = query.toLowerCase()
   const remaining = LANGUAGE_OPTIONS.filter(
     ([code, name]) =>
@@ -105,68 +109,63 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
       )}
 
       {!disabled && (
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen((current) => !current)
-              setQuery('')
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next)
+            setQuery('')
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button type="button" variant="outline" size="sm">
+              <Plus /> Add language
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            collisionPadding={8}
+            className="w-60 max-w-[calc(100vw-2rem)] p-0"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              inputRef.current?.focus()
             }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-input px-3 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60"
           >
-            <Plus className="h-3.5 w-3.5" /> Add language
-          </button>
-          {open && (
-            <>
-              {/* Click-away layer. */}
-              <div
-                className="fixed inset-0 z-30"
-                aria-hidden
-                onClick={() => setOpen(false)}
+            <div className="border-b p-2">
+              <Input
+                ref={inputRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search languages"
+                aria-label="Search languages"
               />
-              <div className="absolute left-0 top-[34px] z-40 w-60 rounded-lg border bg-background shadow-lg">
-                <div className="border-b p-2">
-                  <div className="flex items-center gap-4 rounded-md bg-muted px-2.5 py-1.5">
-                    <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <input
-                      ref={inputRef}
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Search languages"
-                      aria-label="Search languages"
-                      className="w-full bg-transparent text-sm outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="max-h-52 overflow-y-auto p-1">
-                  {remaining.length === 0 ? (
-                    <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-                      No matches
-                    </p>
-                  ) : (
-                    remaining.map(([code, name]) => (
-                      <button
-                        key={code}
-                        type="button"
-                        onClick={() => {
-                          onChange([...value, code])
-                          setOpen(false)
-                          setQuery('')
-                        }}
-                        className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                      >
-                        <span>{name}</span>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {code}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            </div>
+            <div className="max-h-52 overflow-y-auto p-1">
+              {remaining.length === 0 ? (
+                <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                  No matches
+                </p>
+              ) : (
+                remaining.map(([code, name]) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => {
+                      onChange([...value, code])
+                      setOpen(false)
+                      setQuery('')
+                    }}
+                    className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+                  >
+                    <span>{name}</span>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {code}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   )

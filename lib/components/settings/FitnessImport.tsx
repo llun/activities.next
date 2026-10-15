@@ -17,6 +17,8 @@ import {
   getFitnessImportFileState
 } from '@/lib/components/settings/fitnessImportStatus'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
@@ -169,11 +171,31 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         </>
       }
     >
-      <div className="space-y-4 rounded-lg border p-4">
-        {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
+      <Frame
+        form
+        footer={
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={handleStartImport}
+              disabled={files.length === 0 || isImporting}
+            >
+              {isImporting
+                ? 'Importing…'
+                : `Import ${files.length || ''}`.trim()}
+            </Button>
+          </div>
+        }
+      >
+        {actorHandle && (
+          <div className="px-4 pt-1 pb-1.5">
+            <ActorInfoBanner actorHandle={actorHandle} />
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
+          id="fitnessImportFileInput"
           type="file"
           multiple
           className="hidden"
@@ -181,44 +203,51 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           onChange={handleFileChange}
         />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleChooseFiles}
-            disabled={isImporting}
-          >
-            Choose files
-          </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Visibility:</span>
-            <VisibilitySelector
-              visibility={visibility}
-              onVisibilityChange={setVisibility}
-            />
-          </div>
-          <Button
-            type="button"
-            onClick={handleStartImport}
-            disabled={files.length === 0 || isImporting}
-          >
-            {isImporting ? 'Importing…' : `Import ${files.length || ''}`.trim()}
-          </Button>
-        </div>
+        <FormRow label="Files" hint="Choose one or more files to import.">
+          {({ describedBy }) => (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleChooseFiles}
+                  disabled={isImporting}
+                  aria-describedby={describedBy}
+                >
+                  Choose files
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {selectedFileNames.length === 0
+                    ? 'No files chosen'
+                    : `${selectedFileNames.length} ${selectedFileNames.length === 1 ? 'file' : 'files'} chosen`}
+                </span>
+              </div>
+              {selectedFileNames.length > 0 && (
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  {selectedFileNames.map((name, index) => (
+                    <li key={`${name}-${index}`} className="break-all">
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </FormRow>
 
-        {selectedFileNames.length > 0 && (
-          <div className="bg-muted/40 rounded-lg border p-3">
-            <p className="mb-2 text-sm font-medium">
-              Selected files ({selectedFileNames.length})
-            </p>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              {selectedFileNames.map((name, index) => (
-                <li key={`${name}-${index}`}>{name}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <FormRow label="Visibility" hint="Who can see the imported activities.">
+          {({ labelledBy }) => (
+            <div role="group" aria-labelledby={labelledBy}>
+              <VisibilitySelector
+                visibility={visibility}
+                onVisibilityChange={setVisibility}
+              />
+            </div>
+          )}
+        </FormRow>
+      </Frame>
 
+      <div className="space-y-4">
         {batchResult && (
           <div className="space-y-3 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
