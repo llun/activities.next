@@ -114,7 +114,7 @@ export const NewPostsPill: FC<NewPostsPillProps> = ({
       onClick={onJump}
       className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
     >
-      <ArrowUp className="text-primary" aria-hidden="true" />
+      <ArrowUp className="text-muted-foreground" aria-hidden="true" />
       {total} new {total === 1 ? 'post' : 'posts'}
     </Button>
   )
