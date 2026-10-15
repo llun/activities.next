@@ -28,6 +28,22 @@ When the state is `ready`, `recorded` or `empty database`, deploy as usual: run 
 
 A refused database is refused before anything is written: `yarn migrate` creates none of its tables on it. On PostgreSQL concurrent `yarn migrate` runs wait for each other (the migrator's advisory lock, which ends with the connection holding it). On SQLite a run takes the lock row in `kysely_migration_lock`, and a second run on the same file fails with `kysely_migration_lock is already locked` while it is held, without writing to the file. If two runs start at the same moment, one of them can instead fail with `database is locked`; run `yarn migrate` again. A run killed while it holds the lock leaves it held (`yarn migrate:status` shows `Lock: held`); when no run is going on, release it with `yarn migrate:unlock`. It does not create a missing SQLite file (it exits 1 instead), and on PostgreSQL it only connects (`select 1`) and says there is nothing to release; a configuration that does not reach the database fails instead (exit 1). If a run fails and the lock cannot be released either, the run's error says so and asks for `yarn migrate:unlock`. Concurrent `yarn migrate:down` runs are not supported: each checks which migration is last before it takes the lock. Each migration commits in its own transaction and is recorded right after, so a run killed between the two leaves that one migration applied but unrecorded. For the handover on a Knex database that is harmless (it wrote nothing; the next run records it). For a fresh install killed after the baseline schema committed but before it was recorded, the next run reports `unknown-schema`: the database holds no data yet, so drop it, create it empty, and run `yarn migrate` again.
 
+## Bundle Size Report
+
+`yarn bundle:report` (`scripts/maintenance/bundleReport.ts`) shows what JavaScript each page ships to the browser. It has no database or network access and only reads the files of the last build, so run `yarn build` first; without `.next/diagnostics/route-bundle-stats.json` it says so and exits 1.
+
+```bash
+yarn build
+yarn bundle:report                       # every route, largest gzip first
+yarn bundle:report --limit 15            # only the 15 largest
+yarn bundle:report --json before.json    # also save the per-route results
+# change the code, then:
+yarn build
+yarn bundle:report --compare before.json # gzip change per route, added and removed routes
+```
+
+Each route's size is the sum of its first-load chunks (gzip level 9 on the files in `.next/static/chunks`; the uncompressed figure is the one Next reports); the header line gives the chunks every route loads. For a per-module breakdown of one build, use `yarn analyze` (see [docs/setup.md](setup.md)).
+
 ## Database Queue Worker
 
 When the database queue runs in a separate process, start the worker with the
