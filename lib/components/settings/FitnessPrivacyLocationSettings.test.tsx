@@ -62,7 +62,7 @@ describe('FitnessPrivacyLocationSettings', () => {
     expect(screen.getByLabelText('Latitude')).toBeInTheDocument()
     expect(screen.getByLabelText('Longitude')).toBeInTheDocument()
 
-    const radiusSelect = screen.getByLabelText('Hide Radius')
+    const radiusSelect = screen.getByLabelText('Hide radius')
     expect(radiusSelect).toBeInTheDocument()
     // The shared closed-select look: OS arrow hidden, one painted chevron (not
     // a second icon laid over it).
@@ -70,10 +70,9 @@ describe('FitnessPrivacyLocationSettings', () => {
     // …which is the shared Select, not a raw <select> carrying the same class.
     expect(radiusSelect).toHaveAttribute('data-slot', 'select')
     expect(radiusSelect).toHaveAttribute('id', 'privacyHideRadiusMeters')
-    // The design's Hide Radius board draws this one select at 40 px, not the
-    // primitive's 36: `h-10` wins over `h-9` through the primitive's merge.
-    expect(radiusSelect).toHaveClass('h-10')
-    expect(radiusSelect).not.toHaveClass('h-9')
+    // Standard-height select: no per-field height override.
+    expect(radiusSelect).toHaveClass('h-9')
+    expect(radiusSelect).not.toHaveClass('h-10')
     expect(radiusSelect.parentElement?.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('option', { name: '0m' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: '50m' })).toBeInTheDocument()
@@ -141,13 +140,11 @@ describe('FitnessPrivacyLocationSettings', () => {
     fireEvent.change(screen.getByLabelText('Longitude'), {
       target: { value: '100.5018' }
     })
-    fireEvent.change(screen.getByLabelText('Hide Radius'), {
+    fireEvent.change(screen.getByLabelText('Hide radius'), {
       target: { value: '200' }
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Add location to list' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
 
     await waitFor(() => {
       expect(screen.getByText('13.756300, 100.501800')).toBeInTheDocument()
@@ -903,14 +900,12 @@ describe('FitnessPrivacyLocationSettings', () => {
 
       // Leaving these enabled lets the user build a list against an empty form
       // and be told to "save settings to apply" against a disabled Save.
-      expect(
-        screen.getByRole('button', { name: 'Add location to list' })
-      ).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Add to list' })).toBeDisabled()
       expect(
         screen.getByRole('button', { name: 'Use current location' })
       ).toBeDisabled()
       expect(screen.getByLabelText('Latitude')).toBeDisabled()
-      expect(screen.getByLabelText('Hide Radius')).toBeDisabled()
+      expect(screen.getByLabelText('Hide radius')).toBeDisabled()
       expect(
         screen.getByRole('switch', { name: 'Generate AI route description' })
       ).toBeDisabled()
@@ -1152,7 +1147,7 @@ describe('FitnessPrivacyLocationSettings', () => {
         expect(sources.has('fitness-privacy-zones')).toBe(true)
       )
 
-      fireEvent.change(screen.getByLabelText('Hide Radius'), {
+      fireEvent.change(screen.getByLabelText('Hide radius'), {
         target: { value: '500' }
       })
 

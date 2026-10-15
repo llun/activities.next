@@ -1,5 +1,6 @@
 'use client'
 
+import { Check } from 'lucide-react'
 import {
   FC,
   ReactNode,
@@ -19,9 +20,11 @@ import {
 } from '@/lib/components/fitness/PrivacyZoneMapKit'
 import { circleToPolygon } from '@/lib/components/fitness/mapGeometry'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import {
   FITNESS_PRIVACY_RADIUS_OPTIONS,
@@ -83,7 +86,10 @@ export interface PrivacyLocationsEditorProps {
   copy: PrivacyLocationsCopy
   /** Prefix of the GL source and layer ids, so two editors never collide. */
   mapIdPrefix: string
-  /** Extra buttons at the end of the action row. */
+  /**
+   * Extra content set as its own row after the saved list, outside the save
+   * footer (Fitness's "Regenerate maps" row).
+   */
   footer?: ReactNode | ((context: PrivacyLocationsFooterContext) => ReactNode)
   /** Reports whether editing is disabled (loading, failed load, saving). */
   onEditingDisabledChange?: (disabled: boolean) => void
@@ -1045,15 +1051,62 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
         })
       : footer
 
+  const actionsDisabled =
+    isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
+  const coordinatesDescribedBy = coordinatesError
+    ? 'privacy-coordinates-error'
+    : undefined
+  const savedMessageShown = message === copy.saved
+
   return (
-    <div className="space-y-4 rounded-lg border p-4">
+    <Frame
+      form
+      footer={
+        <div className="flex w-full flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 text-sm">
+            {message ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-muted-foreground flex items-center gap-1.5 break-words"
+              >
+                {savedMessageShown ? (
+                  <Check
+                    aria-hidden="true"
+                    className="text-success-text size-4 shrink-0"
+                  />
+                ) : null}
+                {message}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {!isLoading && !hasLoadedSettings ? (
+              <Button
+                variant="outline"
+                onClick={() => setSettingsReloadToken((token) => token + 1)}
+              >
+                Retry loading
+              </Button>
+            ) : null}
+            <Button onClick={handleSave} disabled={actionsDisabled}>
+              {isSaving ? 'Saving…' : copy.saveButton}
+            </Button>
+          </div>
+        </div>
+      }
+    >
       {/* Every provider renders an interactive picker; the manual latitude /
         longitude fields below stay as the fallback when it fails to load. */}
-      <div className="space-y-2">
-        <Label>Location Marker</Label>
+      <div className="space-y-2 px-4 py-2.5">
         <div className="relative h-64 overflow-hidden rounded-md border">
           {glProvider ? (
-            <div ref={mapContainerRef} className="h-full w-full" />
+            <div
+              ref={mapContainerRef}
+              role="region"
+              aria-label="Location marker map"
+              className="h-full w-full"
+            />
           ) : (
             <PrivacyZoneMapKit
               marker={
@@ -1091,135 +1144,149 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="privacyHomeLatitude">Latitude</Label>
-          <Input
-            id="privacyHomeLatitude"
-            ref={latitudeInputRef}
-            type="text"
-            inputMode="decimal"
-            placeholder="e.g. 37.774900"
-            value={latitudeInput}
-            onChange={(event) => {
-              setLatitudeInput(event.target.value)
-              clearCoordinatesError()
-            }}
-            onBlur={() => {
-              if (!isHydratingSettingsRef.current) {
-                flyToMarker()
-              }
-            }}
-            disabled={isEditingDisabled}
-            aria-invalid={coordinatesError ? true : undefined}
-            aria-describedby={
-              coordinatesError ? 'privacy-coordinates-error' : undefined
+      <FormRow label="Latitude" htmlFor="privacyHomeLatitude">
+        <Input
+          id="privacyHomeLatitude"
+          ref={latitudeInputRef}
+          type="text"
+          inputMode="decimal"
+          placeholder="e.g. 37.774900"
+          value={latitudeInput}
+          onChange={(event) => {
+            setLatitudeInput(event.target.value)
+            clearCoordinatesError()
+          }}
+          onBlur={() => {
+            if (!isHydratingSettingsRef.current) {
+              flyToMarker()
             }
-          />
-        </div>
+          }}
+          disabled={isEditingDisabled}
+          aria-invalid={coordinatesError ? true : undefined}
+          aria-describedby={coordinatesDescribedBy}
+        />
+      </FormRow>
 
-        <div className="space-y-2">
-          <Label htmlFor="privacyHomeLongitude">Longitude</Label>
-          <Input
-            id="privacyHomeLongitude"
-            ref={longitudeInputRef}
-            type="text"
-            inputMode="decimal"
-            placeholder="e.g. -122.419400"
-            value={longitudeInput}
-            onChange={(event) => {
-              setLongitudeInput(event.target.value)
-              clearCoordinatesError()
-            }}
-            onBlur={() => {
-              if (!isHydratingSettingsRef.current) {
-                flyToMarker()
-              }
-            }}
-            disabled={isEditingDisabled}
-            aria-invalid={coordinatesError ? true : undefined}
-            aria-describedby={
-              coordinatesError ? 'privacy-coordinates-error' : undefined
+      <FormRow label="Longitude" htmlFor="privacyHomeLongitude">
+        <Input
+          id="privacyHomeLongitude"
+          ref={longitudeInputRef}
+          type="text"
+          inputMode="decimal"
+          placeholder="e.g. -122.419400"
+          value={longitudeInput}
+          onChange={(event) => {
+            setLongitudeInput(event.target.value)
+            clearCoordinatesError()
+          }}
+          onBlur={() => {
+            if (!isHydratingSettingsRef.current) {
+              flyToMarker()
             }
-          />
-        </div>
+          }}
+          disabled={isEditingDisabled}
+          aria-invalid={coordinatesError ? true : undefined}
+          aria-describedby={coordinatesDescribedBy}
+        />
         {coordinatesError ? (
           <p
             id="privacy-coordinates-error"
-            className="text-xs text-destructive-text md:col-span-2"
+            className="mt-1.5 text-xs text-destructive-text"
           >
             {coordinatesError}
           </p>
         ) : null}
-      </div>
+      </FormRow>
 
-      <div className="space-y-2">
-        <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
-        <Select
-          id="privacyHideRadiusMeters"
-          ref={radiusSelectRef}
-          className="h-10"
-          value={String(draftRadiusMeters)}
-          onChange={(event) => {
-            setDraftRadiusMeters(
-              sanitizeDraftRadius(Number(event.target.value))
-            )
-            setFieldError((current) =>
-              current?.field === 'radius' ? null : current
-            )
-          }}
-          disabled={isEditingDisabled}
-          aria-invalid={radiusError ? true : undefined}
-          aria-describedby={radiusError ? 'privacy-radius-error' : undefined}
-        >
-          {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
-            <option key={radius} value={radius}>
-              {formatRadiusLabel(radius)}
-            </option>
-          ))}
-        </Select>
-        <p className="text-xs text-muted-foreground">{copy.hideRadiusHelp}</p>
-        {radiusError ? (
-          <p
-            id="privacy-radius-error"
-            className="text-xs text-destructive-text"
-          >
-            {radiusError}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          onClick={handleUseCurrentLocation}
-          disabled={
-            isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
-          }
-        >
-          {isLocatingCurrentPosition ? 'Locating…' : 'Use current location'}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={handleAddLocation}
-          disabled={
-            isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
-          }
-        >
-          Add location to list
-        </Button>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Saved Privacy Locations</Label>
-        {privacyLocations.length > 0 ? (
-          <div className="space-y-2">
-            {privacyLocations.map((location, index) => (
-              <div
-                key={`${location.latitude}-${location.longitude}-${location.hideRadiusMeters}-${index}`}
-                className="flex items-center justify-between rounded-md border px-3 py-2"
+      <FormRow
+        label="Hide radius"
+        htmlFor="privacyHideRadiusMeters"
+        hint={copy.hideRadiusHelp}
+      >
+        {({ describedBy }) => (
+          <>
+            <Select
+              id="privacyHideRadiusMeters"
+              ref={radiusSelectRef}
+              value={String(draftRadiusMeters)}
+              onChange={(event) => {
+                setDraftRadiusMeters(
+                  sanitizeDraftRadius(Number(event.target.value))
+                )
+                setFieldError((current) =>
+                  current?.field === 'radius' ? null : current
+                )
+              }}
+              disabled={isEditingDisabled}
+              aria-invalid={radiusError ? true : undefined}
+              aria-describedby={
+                [describedBy, radiusError ? 'privacy-radius-error' : undefined]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+            >
+              {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
+                <option key={radius} value={radius}>
+                  {formatRadiusLabel(radius)}
+                </option>
+              ))}
+            </Select>
+            {radiusError ? (
+              <p
+                id="privacy-radius-error"
+                className="mt-1.5 text-xs text-destructive-text"
               >
-                <div className="pr-3">
+                {radiusError}
+              </p>
+            ) : null}
+          </>
+        )}
+      </FormRow>
+
+      <FormRow label="Add a location">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleUseCurrentLocation}
+            disabled={actionsDisabled}
+          >
+            {isLocatingCurrentPosition ? 'Locating…' : 'Use current location'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleAddLocation}
+            disabled={actionsDisabled}
+          >
+            Add to list
+          </Button>
+        </div>
+      </FormRow>
+
+      <div className="space-y-2 px-4 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <h3
+            id="privacy-saved-locations-heading"
+            className="text-sm font-medium"
+          >
+            Saved locations
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClear}
+            disabled={actionsDisabled}
+          >
+            Clear all
+          </Button>
+        </div>
+        {privacyLocations.length > 0 ? (
+          <FramedList aria-labelledby="privacy-saved-locations-heading">
+            {privacyLocations.map((location, index) => (
+              <FramedListItem
+                key={`${location.latitude}-${location.longitude}-${location.hideRadiusMeters}-${index}`}
+                className="flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
                   <p className="text-sm font-medium">
                     {location.latitude.toFixed(6)},{' '}
                     {location.longitude.toFixed(6)}
@@ -1236,9 +1303,9 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
                 >
                   Remove
                 </Button>
-              </div>
+              </FramedListItem>
             ))}
-          </div>
+          </FramedList>
         ) : (
           <p className="text-sm text-muted-foreground">
             No privacy locations added yet.
@@ -1246,46 +1313,24 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
         )}
       </div>
 
+      {footerContent}
+
       {!isLoading && !hasLoadedSettings ? (
         // Derived from the condition, not stored in `error`, which every
         // action handler clears — the guard below must never be left
         // unexplained.
-        <Alert title="Failed to load your saved privacy locations.">
-          Editing and saving are disabled so the locations you already have are
-          not overwritten.
-        </Alert>
+        <div className="px-4 py-2.5">
+          <Alert title="Failed to load your saved privacy locations.">
+            Editing and saving are disabled so the locations you already have
+            are not overwritten.
+          </Alert>
+        </div>
       ) : null}
-      {error ? <Alert title={error} /> : null}
-      {message ? <p className="text-sm text-success-text">{message}</p> : null}
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={handleSave}
-          disabled={
-            isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
-          }
-        >
-          {isSaving ? 'Saving…' : copy.saveButton}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={handleClear}
-          disabled={
-            isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
-          }
-        >
-          Clear all
-        </Button>
-        {!isLoading && !hasLoadedSettings ? (
-          <Button
-            variant="outline"
-            onClick={() => setSettingsReloadToken((token) => token + 1)}
-          >
-            Retry loading
-          </Button>
-        ) : null}
-        {footerContent}
-      </div>
-    </div>
+      {error ? (
+        <div className="px-4 py-2.5">
+          <Alert title={error} />
+        </div>
+      ) : null}
+    </Frame>
   )
 }

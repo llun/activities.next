@@ -113,7 +113,7 @@ describe('PrivacyLocationsEditor', () => {
     fireEvent.change(screen.getByLabelText('Longitude'), {
       target: { value: '5.3' }
     })
-    fireEvent.change(screen.getByLabelText('Hide Radius'), {
+    fireEvent.change(screen.getByLabelText('Hide radius'), {
       target: { value: '200' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save custom places' }))

@@ -210,15 +210,20 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           mapIdPrefix="fitness-privacy"
           onEditingDisabledChange={setIsEditingDisabled}
           footer={(context) => (
-            <Button
-              variant="outline"
-              onClick={() => handleRegenerateOldStatusMaps(context)}
-              disabled={context.disabled || context.busy}
+            <FormRow
+              label="Old status maps"
+              hint="Redraw the maps of statuses posted before your privacy locations changed."
             >
-              {context.busy
-                ? 'Queueing regeneration…'
-                : 'Regenerate maps for old statuses'}
-            </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleRegenerateOldStatusMaps(context)}
+                disabled={context.disabled || context.busy}
+              >
+                {context.busy
+                  ? 'Queueing regeneration…'
+                  : 'Regenerate maps for old statuses'}
+              </Button>
+            </FormRow>
           )}
         />
       </Section>
