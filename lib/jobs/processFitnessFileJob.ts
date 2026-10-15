@@ -9,6 +9,7 @@ import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { getActivityPresentation } from '@/lib/services/fitness-files/activityPresentation'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { writeFitnessFileRoute } from '@/lib/services/fitness-files/fileRouteCache'
+import { savePreParsedRouteData } from '@/lib/services/fitness-files/fileRouteDataCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
@@ -489,6 +490,49 @@ const processFitnessFileJobUnlocked = createJobHandle(
         }
       }
 
+      // Cache the parsed polyline so a heatmap rebuild does not have to
+      // re-download and re-parse this file from object storage. This is the
+      // only heatmap-adjacent work the import path does: it stores the geometry
+      // it already has in hand, and never aggregates (see the note at the end
+      // of this handler).
+      //
+      // Best-effort on purpose, and deliberately WITHOUT a persisted failure
+      // signal — unlike `mapError`, which records a missing route map the owner
+      // can see. A missing row here is invisible: the rebuild simply parses the
+      // file, exactly as it does today, and writes the row through. There is
+      // nothing for an owner to act on, so a log line is the whole of it.
+      try {
+        await writeFitnessFileRoute(database, {
+          fitnessFileId,
+          actorId,
+          coordinates: activityData.coordinates
+        })
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to cache the fitness file route',
+          actorId,
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(error)
+        })
+      }
+
+      try {
+        await savePreParsedRouteData(database, {
+          fitnessFileId,
+          actorId,
+          activityData
+        })
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to cache the pre-parsed fitness file route data',
+          actorId,
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(error)
+        })
+      }
+
       await database.updateFitnessFileActivityData(fitnessFileId, {
         totalDistanceMeters: activityData.totalDistanceMeters,
         totalDurationSeconds: activityData.totalDurationSeconds,
@@ -518,33 +562,6 @@ const processFitnessFileJobUnlocked = createJobHandle(
           ? { deviceName: activityData.deviceName }
           : {})
       })
-
-      // Cache the parsed polyline so a heatmap rebuild does not have to
-      // re-download and re-parse this file from object storage. This is the
-      // only heatmap-adjacent work the import path does: it stores the geometry
-      // it already has in hand, and never aggregates (see the note at the end
-      // of this handler).
-      //
-      // Best-effort on purpose, and deliberately WITHOUT a persisted failure
-      // signal — unlike `mapError`, which records a missing route map the owner
-      // can see. A missing row here is invisible: the rebuild simply parses the
-      // file, exactly as it does today, and writes the row through. There is
-      // nothing for an owner to act on, so a log line is the whole of it.
-      try {
-        await writeFitnessFileRoute(database, {
-          fitnessFileId,
-          actorId,
-          coordinates: activityData.coordinates
-        })
-      } catch (error) {
-        logger.warn({
-          message: 'Failed to cache the fitness file route',
-          actorId,
-          statusId,
-          fitnessFileId,
-          err: toLoggableError(error)
-        })
-      }
 
       await linkFitnessFileDeviceGear({
         database,

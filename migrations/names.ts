@@ -3,6 +3,9 @@
 // names (the startup check, through lib/database/migrate/status.ts) does not
 // load the migrations or Kysely's Migrator. migrations/index.ts must register
 // exactly these: `yarn typecheck` fails when the two disagree.
-export const MIGRATION_NAMES = ['20261014000000_baseline'] as const
+export const MIGRATION_NAMES = [
+  '20261014000000_baseline',
+  '20261015000000_add_fitness_file_route_data'
+] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

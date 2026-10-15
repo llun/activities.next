@@ -23,6 +23,7 @@ vi.mock('next/navigation', async () => ({
 }))
 
 vi.mock('@/lib/config', async () => ({
+  getBaseURL: vi.fn(() => 'https://activities.local'),
   getConfig: vi.fn(() => ({
     host: 'activities.local',
     fitnessStorage: undefined,
@@ -419,6 +420,93 @@ describe('Conversation card chrome', () => {
     expect(card.firstElementChild).toHaveClass('sr-only')
     expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
   })
+
+  it('renders JSON-LD structured data script for public note', async () => {
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@anna@activities.local',
+        status: 'hash'
+      })
+    })
+    const { container } = render(element)
+    const script = container.querySelector('script[type="application/ld+json"]')
+    expect(script).toBeInTheDocument()
+    const jsonLd = JSON.parse(script?.innerHTML ?? '{}')
+    expect(jsonLd['@context']).toBe('https://schema.org')
+    expect(jsonLd['@type']).toBe('SocialMediaPosting')
+    expect(jsonLd.author).toEqual({
+      '@type': 'Person',
+      name: '@anna@activities.local',
+      url: 'https://activities.local/@anna@activities.local'
+    })
+  })
+
+  it('uses actor.id for remote author URL and suppresses JSON-LD on unlisted posts', async () => {
+    const unlisted = buildNote({
+      id: 'unlisted-note',
+      to: [`${AUTHOR_ID}/followers`],
+      cc: [ACTIVITY_STREAM_PUBLIC]
+    })
+    mockResolveStatusFromPath.mockResolvedValueOnce({
+      pathActor: PATH_ACTOR,
+      status: unlisted,
+      statusId: 'unlisted-note',
+      fullStatusId: unlisted.url,
+      isStatusHash: true
+    })
+
+    const unlistedElement = await Page({
+      params: Promise.resolve({
+        actor: '@anna@activities.local',
+        status: 'hash'
+      })
+    })
+    const { container: unlistedContainer } = render(unlistedElement)
+    expect(
+      unlistedContainer.querySelector('script[type="application/ld+json"]')
+    ).not.toBeInTheDocument()
+
+    const remotePublic = buildNote({
+      id: 'https://pleroma.example/objects/123',
+      url: 'https://pleroma.example/notice/123',
+      isLocalActor: false,
+      actor: {
+        id: 'https://pleroma.example/users/alice',
+        username: 'alice',
+        domain: 'pleroma.example',
+        name: 'Alice',
+        followersUrl: 'https://pleroma.example/users/alice/followers',
+        inboxUrl: 'https://pleroma.example/users/alice/inbox',
+        sharedInboxUrl: 'https://pleroma.example/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 1,
+        lastStatusAt: 1,
+        createdAt: 1
+      }
+    })
+    mockResolveStatusFromPath.mockResolvedValueOnce({
+      pathActor: { username: 'alice', domain: 'pleroma.example' },
+      status: remotePublic,
+      statusId: remotePublic.id,
+      fullStatusId: remotePublic.url,
+      isStatusHash: true
+    })
+
+    const remoteElement = await Page({
+      params: Promise.resolve({
+        actor: '@alice@pleroma.example',
+        status: 'hash'
+      })
+    })
+    const { container: remoteContainer } = render(remoteElement)
+    const remoteScript = remoteContainer.querySelector(
+      'script[type="application/ld+json"]'
+    )
+    expect(remoteScript).toBeInTheDocument()
+    const remoteJsonLd = JSON.parse(remoteScript?.innerHTML ?? '{}')
+    expect(remoteJsonLd.author.url).toBe('https://pleroma.example/users/alice')
+  })
 })
 
 // The other card `page.tsx` can return: a completed fitness file takes the
@@ -492,5 +580,48 @@ describe('Fitness activity card chrome', () => {
     // width: a logged-out visitor has no mobile bar to carry the page's h1.
     expect(card.firstElementChild).toHaveClass('sr-only')
     expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
+  })
+
+  it('renders JSON-LD SocialMediaPosting with ExerciseAction about for public fitness activity', async () => {
+    const fitnessNoteWithDistance = buildNote({
+      ...buildFitnessNote(),
+      fitness: {
+        ...buildFitnessNote().fitness!,
+        totalDistanceMeters: 25400
+      }
+    })
+    mockResolveStatusFromPath.mockResolvedValueOnce({
+      pathActor: PATH_ACTOR,
+      status: fitnessNoteWithDistance,
+      statusId: 'ride-1',
+      fullStatusId: fitnessNoteWithDistance.url,
+      isStatusHash: true
+    })
+
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@anna@activities.local',
+        status: 'hash'
+      })
+    })
+    const { container } = render(element)
+    const script = container.querySelector('script[type="application/ld+json"]')
+    expect(script).toBeInTheDocument()
+    const jsonLd = JSON.parse(script?.innerHTML ?? '{}')
+    expect(jsonLd['@context']).toBe('https://schema.org')
+    expect(jsonLd['@type']).toBe('SocialMediaPosting')
+    expect(jsonLd.about).toEqual({
+      '@type': 'ExerciseAction',
+      exerciseType: 'ride',
+      distance: {
+        '@type': 'Distance',
+        name: '25.40 km'
+      }
+    })
+    expect(jsonLd.author).toEqual({
+      '@type': 'Person',
+      name: '@anna@activities.local',
+      url: 'https://activities.local/@anna@activities.local'
+    })
   })
 })

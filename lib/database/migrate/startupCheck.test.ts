@@ -5,9 +5,10 @@ import {
   type DatabaseHandle,
   createDatabaseConnection
 } from '@/lib/database/connection'
-import { BASELINE_MIGRATION, migrateToLatest } from '@/lib/database/migrate'
+import { migrateToLatest } from '@/lib/database/migrate'
 import { warnAboutPendingMigrations } from '@/lib/database/migrate/startupCheck'
 import { logger } from '@/lib/utils/logger'
+import { MIGRATION_NAMES } from '@/migrations/names'
 
 // The startup check only logs; the status it reads is tested on both
 // backends in index.test.ts.
@@ -34,7 +35,7 @@ describe('warnAboutPendingMigrations', () => {
     await warnAboutPendingMigrations({ db: connection.db, config })
 
     expect(logger.error).toHaveBeenCalledWith(
-      { pending: [BASELINE_MIGRATION] },
+      { pending: [...MIGRATION_NAMES] },
       expect.stringContaining('The database has migrations pending')
     )
     const { rows } = await sql`select name from sqlite_master`.execute(
@@ -58,7 +59,7 @@ describe('warnAboutPendingMigrations', () => {
     await warnAboutPendingMigrations({ db: connection.db, config })
 
     expect(logger.error).toHaveBeenCalledWith(
-      { reason: 'unknown-schema', pending: [BASELINE_MIGRATION] },
+      { reason: 'unknown-schema', pending: [...MIGRATION_NAMES] },
       expect.stringContaining('but no migration history')
     )
   })
@@ -101,7 +102,7 @@ describe('warnAboutPendingMigrations', () => {
       await check({ db: connection.db, config })
       expect(loaded).toEqual([])
       expect(error).toHaveBeenCalledWith(
-        { pending: [BASELINE_MIGRATION] },
+        { pending: [...MIGRATION_NAMES] },
         expect.stringContaining('The database has migrations pending')
       )
     } finally {

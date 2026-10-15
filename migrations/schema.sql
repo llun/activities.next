@@ -402,6 +402,15 @@ CREATE TABLE public.filters (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.fitness_file_route_data (
+    "fitnessFileId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "routeData" text NOT NULL,
+    "sourceVersion" integer DEFAULT 1 NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.fitness_file_routes (
     "fitnessFileId" character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1616,6 +1625,9 @@ ALTER TABLE ONLY public.filter_statuses
 ALTER TABLE ONLY public.filters
     ADD CONSTRAINT filters_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.fitness_file_route_data
+    ADD CONSTRAINT fitness_file_route_data_pkey PRIMARY KEY ("fitnessFileId");
+
 ALTER TABLE ONLY public.fitness_file_routes
     ADD CONSTRAINT fitness_file_routes_pkey PRIMARY KEY ("fitnessFileId");
 
@@ -1991,6 +2003,8 @@ CREATE INDEX filter_statuses_filter_id ON public.filter_statuses USING btree ("f
 
 CREATE INDEX filters_actor_created ON public.filters USING btree ("actorId", "createdAt");
 
+CREATE INDEX fitness_file_route_data_actor_id_idx ON public.fitness_file_route_data USING btree ("actorId");
+
 CREATE INDEX fitness_file_routes_actor_id_idx ON public.fitness_file_routes USING btree ("actorId");
 
 CREATE INDEX fitness_file_routes_actor_lat_idx ON public.fitness_file_routes USING btree ("actorId", "minLat", "maxLat");
@@ -2210,6 +2224,12 @@ ALTER TABLE ONLY public.actors
 
 ALTER TABLE ONLY public.federated_timeline
     ADD CONSTRAINT federated_timeline_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.fitness_file_route_data
+    ADD CONSTRAINT "fitness_file_route_data_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.fitness_file_route_data
+    ADD CONSTRAINT "fitness_file_route_data_fitnessFileId_fkey" FOREIGN KEY ("fitnessFileId") REFERENCES public.fitness_files(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.fitness_file_routes
     ADD CONSTRAINT fitness_file_routes_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;

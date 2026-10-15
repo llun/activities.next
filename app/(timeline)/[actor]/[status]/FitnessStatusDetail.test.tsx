@@ -197,6 +197,43 @@ describe('FitnessStatusDetail', () => {
     expect(mockGetFitnessRouteData).toHaveBeenCalledWith('fit-1')
   })
 
+  it('renders an analysis skeleton sized from summary metrics while route analysis is loading', async () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          avgPower: 215,
+          avgHeartRate: 148
+        }
+      } as Partial<StatusNote>)
+    })
+
+    const analysisSection = screen.getByRole('region', {
+      name: 'Analysis'
+    })
+    const loadingRegion = within(analysisSection).getByRole('status', {
+      name: 'Loading activity analysis'
+    })
+    expect(loadingRegion).toBeInTheDocument()
+    expect(
+      analysisSection.querySelectorAll('[data-slot="frame"]')
+    ).toHaveLength(1)
+    const bestEffortsSection = screen.getByRole('region', {
+      name: 'Best efforts'
+    })
+    expect(bestEffortsSection).toBeInTheDocument()
+    expect(analysisSection).not.toContainElement(bestEffortsSection)
+    const distributionSkeleton = screen.getByTestId(
+      'analysis-distribution-skeleton'
+    )
+    expect(analysisSection).not.toContainElement(distributionSkeleton)
+    // 3 distribution skeleton frames (1 HR + 2 power)
+    expect(
+      distributionSkeleton.querySelectorAll('[data-slot="frame"]')
+    ).toHaveLength(3)
+  })
+
   it('leaves out the overview rows the activity has nothing for', async () => {
     renderDetail()
 

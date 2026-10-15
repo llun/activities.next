@@ -780,10 +780,13 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
             type="button"
             onClick={onOpenMap}
             className="block h-full w-full cursor-pointer"
+            aria-label="Open enlarged route map"
           >
             <Media
               attachment={mapAttachment}
               className="h-full w-full object-cover"
+              loading="eager"
+              fetchPriority="high"
             />
           </button>
           {/* Apple bakes its logo into the lower-left corner of the stored

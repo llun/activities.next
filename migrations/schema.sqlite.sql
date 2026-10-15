@@ -315,3 +315,5 @@ CREATE TABLE `attachments` (`id` varchar(255), `statusId` varchar(255), `url` va
 CREATE INDEX `attachmentsIndex` on `attachments` (`statusId`, `createdAt`, `updatedAt`);
 CREATE INDEX `attachments_actorId_idx` on `attachments` (`actorId`);
 CREATE INDEX `attachments_mediaId_idx` on `attachments` (`mediaId`);
+CREATE TABLE IF NOT EXISTS "fitness_file_route_data" ("fitnessFileId" varchar(255) primary key references "fitness_files" ("id") on delete cascade, "actorId" varchar(255) not null references "actors" ("id") on delete cascade, "routeData" text not null, "sourceVersion" integer default 1 not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE INDEX "fitness_file_route_data_actor_id_idx" on "fitness_file_route_data" ("actorId");

@@ -8,6 +8,7 @@ import {
   HeartPulse,
   Mountain,
   Route,
+  Trophy,
   Zap
 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
@@ -402,6 +403,11 @@ export const FitnessStatusDetail: FC<Props> = ({
     calories
   ])
 
+  // Only rows predicted by the stored `fitness_files` summary (`Max speed`,
+  // `Weighted`, `Variability`, `Time in Z3–Z4`) set `reserveWhenLoading`.
+  // Route-only metrics with no summary column (`Calories`, `Laps`, `L / R
+  // balance`, `Decoupling`, and the `Cadence and weather` group) wait for
+  // `/route-data` rather than guessing whether the recording has them.
   const overviewGroups: OverviewGroup[] = [
     {
       key: 'ride',
@@ -421,7 +427,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             analysis?.maxSpeedKmh && analysis.maxSpeedKmh > 0
               ? `${analysis.maxSpeedKmh.toFixed(1)} km/h`
-              : null
+              : null,
+          reserveWhenLoading: distanceMeters > 0
         },
         {
           label: 'Calories',
@@ -449,14 +456,16 @@ export const FitnessStatusDetail: FC<Props> = ({
         },
         {
           label: 'Weighted',
-          value: normalizedPower !== null ? `${normalizedPower} W` : null
+          value: normalizedPower !== null ? `${normalizedPower} W` : null,
+          reserveWhenLoading: avgPower !== null
         },
         {
           label: 'Variability',
           value:
             normalizedPower !== null && avgPower
               ? (normalizedPower / avgPower).toFixed(2)
-              : null
+              : null,
+          reserveWhenLoading: avgPower !== null
         },
         {
           label: 'Work',
@@ -497,7 +506,8 @@ export const FitnessStatusDetail: FC<Props> = ({
                     heartRateZones[2].seconds + heartRateZones[3].seconds
                   )
                 )
-              : null
+              : null,
+          reserveWhenLoading: heartRateStats !== null
         },
         {
           label: 'Decoupling',
@@ -666,56 +676,116 @@ export const FitnessStatusDetail: FC<Props> = ({
         meta={overviewMeta}
         map={map}
         groups={overviewGroups}
+        isLoading={route.isLoading}
       />
 
-      {route.isLoading ? (
-        <Section id="analysis" title="Analysis" icon={Activity}>
-          <Frame className="space-y-3 p-4">
-            <div role="status">
-              <span className="sr-only">Loading analysis</span>
-              <SkeletonBar className="h-[190px] @min-[700px]:h-[250px]" />
-            </div>
-          </Frame>
-        </Section>
-      ) : analysis && availableSeries.length > 0 ? (
+      {route.isLoading || (analysis && availableSeries.length > 0) ? (
         <Section
           id="analysis"
           title="Analysis"
           icon={Activity}
-          meta={analysisMeta}
+          meta={!route.isLoading && analysis ? analysisMeta : undefined}
         >
-          <GraphDisplayCard
-            mode={graphDisplayMode}
-            onModeChange={setGraphDisplayMode}
-            options={availableSeries.map((entry) => ({
-              key: entry.key,
-              label: entry.label
-            }))}
-            selectedKeys={shownSeries.map((entry) => entry.key)}
-            onToggle={toggleGraph}
-            hint={graphHint}
-            showPauses={analysis.pauses.length > 0 ? showPauses : undefined}
-            onShowPausesChange={setShowPauses}
-          />
-          <div ref={chartRef}>
-            <ScrubbedAnalysisChart
-              scrubStore={scrubStore}
-              series={shownSeries}
-              mode={graphDisplayMode}
-              durationSeconds={analysis.durationSeconds}
-              chartAxis={analysis.chartAxis}
-              pauses={analysis.pauses}
-              laps={laps}
-              climbs={climbs}
-              selectedKey={selectedSplitKey}
-              onToggleSplit={toggleSplit}
-              describePosition={describePosition}
-            />
-          </div>
+          {route.isLoading ? (
+            <div
+              role="status"
+              aria-label="Loading activity analysis"
+              className="space-y-4"
+            >
+              <Frame className="space-y-4 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex gap-2">
+                    <SkeletonBar className="h-8 w-20 rounded-md" />
+                    <SkeletonBar className="h-8 w-20 rounded-md" />
+                  </div>
+                  <div className="flex gap-2">
+                    <SkeletonBar className="h-8 w-16 rounded-md" />
+                    <SkeletonBar className="h-8 w-16 rounded-md" />
+                    <SkeletonBar className="h-8 w-16 rounded-md" />
+                  </div>
+                </div>
+                <SkeletonBar className="h-[280px] w-full rounded-md" />
+              </Frame>
+            </div>
+          ) : analysis ? (
+            <>
+              <GraphDisplayCard
+                mode={graphDisplayMode}
+                onModeChange={setGraphDisplayMode}
+                options={availableSeries.map((entry) => ({
+                  key: entry.key,
+                  label: entry.label
+                }))}
+                selectedKeys={shownSeries.map((entry) => entry.key)}
+                onToggle={toggleGraph}
+                hint={graphHint}
+                showPauses={analysis.pauses.length > 0 ? showPauses : undefined}
+                onShowPausesChange={setShowPauses}
+              />
+              <div ref={chartRef}>
+                <ScrubbedAnalysisChart
+                  scrubStore={scrubStore}
+                  series={shownSeries}
+                  mode={graphDisplayMode}
+                  durationSeconds={analysis.durationSeconds}
+                  chartAxis={analysis.chartAxis}
+                  pauses={analysis.pauses}
+                  laps={laps}
+                  climbs={climbs}
+                  selectedKey={selectedSplitKey}
+                  onToggleSplit={toggleSplit}
+                  describePosition={describePosition}
+                />
+              </div>
+            </>
+          ) : null}
         </Section>
       ) : null}
 
-      {analysis ? (
+      {route.isLoading ? (
+        (() => {
+          const hasSummaryHeartRate =
+            typeof fitness?.avgHeartRate === 'number' ||
+            typeof fitness?.maxHeartRate === 'number'
+          const hasSummaryPower =
+            typeof fitness?.avgPower === 'number' ||
+            typeof fitness?.maxPower === 'number'
+          const expectedDistributionCount =
+            (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
+          return (
+            <>
+              {hasSummaryPower && durationSeconds >= 5 ? (
+                <Section
+                  id="best-efforts"
+                  title="Best efforts"
+                  icon={Trophy}
+                  meta="power"
+                >
+                  <Frame className="p-3">
+                    <SkeletonBar className="h-12 w-full rounded-md" />
+                  </Frame>
+                </Section>
+              ) : null}
+              {expectedDistributionCount > 0 ? (
+                <div
+                  data-testid="analysis-distribution-skeleton"
+                  className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+                >
+                  {Array.from(
+                    { length: expectedDistributionCount },
+                    (_, index) => (
+                      <Frame key={index} className="h-44 space-y-2 p-4">
+                        <SkeletonBar className="h-4 w-28" />
+                        <SkeletonBar className="h-28 w-full" />
+                      </Frame>
+                    )
+                  )}
+                </div>
+              ) : null}
+            </>
+          )
+        })()
+      ) : analysis ? (
         <>
           <ActivityBestEfforts efforts={analysis.bestEfforts} />
           <ActivityDistributionRow

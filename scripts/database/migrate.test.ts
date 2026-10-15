@@ -18,6 +18,7 @@ import {
   recreatePgDatabase
 } from '@/lib/database/testing/postgres'
 import { logger } from '@/lib/utils/logger'
+import { MIGRATION_NAMES } from '@/migrations/names'
 
 import { describeConnection } from '../fitness/describeConnection'
 import {
@@ -387,7 +388,7 @@ describe('scripts/database/migrate', () => {
         `Database: better-sqlite3 — file ${filename}`
       )
       expect(migrated.output).toContain(
-        `Applied 1 migration(s):\n  ${BASELINE_MIGRATION}`
+        `Applied ${MIGRATION_NAMES.length} migration(s):\n  ${MIGRATION_NAMES.join('\n  ')}`
       )
       expect((await run(['latest'])).output).toContain('Already up to date.')
 
@@ -397,9 +398,19 @@ describe('scripts/database/migrate', () => {
         `Handover: recorded: ${BASELINE_MIGRATION} is applied.`
       )
       expect(status.output).toMatch(
-        new RegExp(`Applied \\(1\\):\\n  ${BASELINE_MIGRATION}  \\S+Z`)
+        new RegExp(`Applied \\(${MIGRATION_NAMES.length}\\):`)
       )
+      for (const name of MIGRATION_NAMES) {
+        expect(status.output).toMatch(new RegExp(`  ${name}  \\S+Z`))
+      }
       expect(status.output).toContain('Pending (0):')
+
+      expect(MIGRATION_NAMES.length).toBeGreaterThan(1)
+      for (const name of [...MIGRATION_NAMES.slice(1)].reverse()) {
+        const down = await run(['down'])
+        expect(down.exitCode).toBe(0)
+        expect(down.output).toContain(`Rolled back ${name}.`)
+      }
 
       vi.spyOn(console, 'log').mockImplementation(() => {})
       await expect(runMigrateCommand(['down'])).rejects.toThrow(
@@ -424,7 +435,9 @@ describe('scripts/database/migrate', () => {
       const status = await run(['status'])
       expect(status.exitCode).toBe(1)
       expect(status.output).toContain('Handover: REFUSED (unknown-schema)')
-      expect(status.output).toContain(`Pending (1):\n  ${BASELINE_MIGRATION}`)
+      expect(status.output).toContain(
+        `Pending (${MIGRATION_NAMES.length}):\n  ${MIGRATION_NAMES.join('\n  ')}`
+      )
 
       const check = createDatabaseConnection({
         client: 'better-sqlite3',

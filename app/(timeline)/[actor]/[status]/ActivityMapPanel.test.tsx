@@ -32,8 +32,21 @@ vi.mock('@/lib/utils/maplibre', () => ({
 }))
 
 vi.mock('@/lib/components/posts/media', () => ({
-  Media: ({ attachment }: { attachment: Attachment }) => (
-    <div data-testid="media-attachment" data-attachment-id={attachment.id} />
+  Media: ({
+    attachment,
+    loading,
+    fetchPriority
+  }: {
+    attachment: Attachment
+    loading?: string
+    fetchPriority?: string
+  }) => (
+    <div
+      data-testid="media-attachment"
+      data-attachment-id={attachment.id}
+      data-loading={loading}
+      data-fetchpriority={fetchPriority}
+    />
   )
 }))
 
@@ -242,11 +255,24 @@ describe('ActivityMapPanel', () => {
         />
       )
 
-      expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
-      expect(screen.getByLabelText('Open route map image')).toBeInTheDocument()
+      const media = screen.getByTestId('media-attachment')
+      expect(media).toBeInTheDocument()
+      expect(media).toHaveAttribute('data-loading', 'eager')
+      expect(media).toHaveAttribute('data-fetchpriority', 'high')
 
-      fireEvent.click(screen.getByLabelText('Open route map image'))
+      const previewButton = screen.getByRole('button', {
+        name: 'Open enlarged route map'
+      })
+      expect(previewButton).toBeInTheDocument()
+      fireEvent.click(previewButton)
       expect(onOpenMap).toHaveBeenCalledTimes(1)
+
+      const iconButton = screen.getByRole('button', {
+        name: 'Open route map image'
+      })
+      expect(iconButton).toBeInTheDocument()
+      fireEvent.click(iconButton)
+      expect(onOpenMap).toHaveBeenCalledTimes(2)
     })
 
     // The static preview's crop cuts the baked-in Apple logo off, so the chip

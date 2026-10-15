@@ -35,16 +35,20 @@ const EXCLUDED = [
 // forked process.
 const TIME_ZONE_PIN_GUARD = 'test/vitest.config.test.ts'
 
-// Test files that need a process of their own, because Node only honours the
-// call on the main thread: `process.chdir()` ("process.chdir() is not
-// supported in workers") and the `lib/testing/withTimeZone` helper, which
-// moves the process's zone for one test. The helper is matched by its import
-// specifier, so a generic, aliased or namespace call is found as well. They
-// run in the forked-process project; everything else runs on worker threads,
-// which start much faster than a process per file. A file this scan misses
-// fails loudly rather than passing wrongly: `process.chdir()` throws that
-// error, and the helper throws when the zone did not move.
-const FORKED_PROCESS_MARKER = /process\.chdir\(|['"][^'"]*\/withTimeZone['"]/
+// Test files that need a process of their own:
+// - `process.chdir()` ("process.chdir() is not supported in workers") and the
+//   `lib/testing/withTimeZone` helper, which moves the process's zone for one
+//   test, because Node only honours those on the main thread.
+// - `@swc/core` (and `lib/testing/moduleImports`, which wraps it), because its
+//   self-extracting native N-API binary segfaults (`SIGSEGV` in
+//   `napi_register_module_v1`) when a worker thread unloads it on exit and a
+//   later worker thread in the same process loads it again.
+// Helpers are matched by their import specifiers, so generic, aliased or
+// namespace calls are found as well. They run in the forked-process project;
+// everything else runs on worker threads, which start much faster than a
+// process per file.
+const FORKED_PROCESS_MARKER =
+  /process\.chdir\(|['"](?:@swc\/core|[^'"]*\/(?:withTimeZone|moduleImports))['"]/
 const ROOT = resolvePath('.')
 const FORKED_PROCESS_FILES = globSync(TEST_FILES, {
   cwd: ROOT,

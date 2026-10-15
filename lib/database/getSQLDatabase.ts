@@ -18,6 +18,7 @@ import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
 import { fitnessFileQueries } from '@/lib/database/domains/fitnessFile/queries'
 import { fitnessFileRouteQueries } from '@/lib/database/domains/fitnessFileRoute/queries'
+import { fitnessFileRouteDataQueries } from '@/lib/database/domains/fitnessFileRouteData/queries'
 import { fitnessGearQueries } from '@/lib/database/domains/fitnessGear/queries'
 import { fitnessRouteHeatmapQueries } from '@/lib/database/domains/fitnessRouteHeatmap/queries'
 import { fitnessRouteHeatmapTileQueries } from '@/lib/database/domains/fitnessRouteHeatmapTile/queries'
@@ -116,6 +117,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, announcementQueries),
     ...bindDb(kysely, fitnessFileQueries),
     ...bindDb(kysely, fitnessFileRouteQueries),
+    ...bindDb(kysely, fitnessFileRouteDataQueries),
     ...bindDb(kysely, fitnessGearQueries),
     ...bindDb(kysely, fitnessRouteHeatmapQueries),
     ...bindDb(kysely, fitnessRouteHeatmapTileQueries),

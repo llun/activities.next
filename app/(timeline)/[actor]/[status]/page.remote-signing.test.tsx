@@ -32,6 +32,7 @@ vi.mock('next/navigation', async () => ({
 }))
 
 vi.mock('@/lib/config', async () => ({
+  getBaseURL: vi.fn(() => 'https://activities.local'),
   getConfig: vi.fn(() => ({
     host: 'activities.local',
     fitnessStorage: undefined,

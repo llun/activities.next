@@ -207,7 +207,11 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('public, max-age=60')
+    expect(response.headers.get('Cache-Control')).toBe(
+      'public, max-age=60, must-revalidate'
+    )
+    expect(response.headers.get('Vary')).toBe('Authorization, Cookie')
+    expect(response.headers.get('ETag')).toMatch(/^W\/"route-v1-r1-/)
 
     const payload = (await response.json()) as {
       samples: Array<{ elapsedSeconds: number; isHiddenByPrivacy: boolean }>
@@ -265,11 +269,12 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
+    expect(response.headers.get('Vary')).toBe('Authorization, Cookie')
     expect(mockParseFitnessFile).toHaveBeenCalled()
   })
 
-  it('does not cache anonymous public route data in process memory', async () => {
+  it('uses persistent database cache for route data without re-reading file on subsequent requests', async () => {
     mockGetServerSession.mockResolvedValue(null)
 
     const status = await database.createNote({
@@ -300,9 +305,8 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
 
     expect(firstResponse.status).toBe(200)
     expect(secondResponse.status).toBe(200)
-    expect(secondResponse.headers.get('X-Route-Data-Cache')).toBeNull()
-    expect(mockGetFitnessFile).toHaveBeenCalledTimes(2)
-    expect(mockParseFitnessFile).toHaveBeenCalledTimes(2)
+    expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
+    expect(mockParseFitnessFile).toHaveBeenCalledTimes(1)
   })
 
   it('does not trust spoofable forwarded headers for anonymous route-data state', async () => {
@@ -340,7 +344,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     }
 
     expect(response?.status).toBe(200)
-    expect(mockGetFitnessFile).toHaveBeenCalledTimes(3)
+    expect(mockGetFitnessFile).toHaveBeenCalledTimes(1)
   })
 
   it('returns not found for private status route data without a session', async () => {
@@ -411,7 +415,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
     expect(mockParseFitnessFile).toHaveBeenCalled()
   })
 
@@ -796,7 +800,7 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
     expect(mockParseFitnessFile).toHaveBeenCalled()
   })
 
@@ -1225,5 +1229,347 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     } finally {
       fetchSpy.mockRestore()
     }
+  })
+
+  describe('pre-parsed route data cache and ETag', () => {
+    it('serves from pre-parsed cache without downloading buffer or parsing file on cache hit', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/cache-hit-test`,
+        url: `${ACTOR1_ID}/statuses/cache-hit-test`,
+        actorId: ACTOR1_ID,
+        text: 'Cache hit test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL]
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId: status.id,
+        path: 'fitness/cache-hit-test.fit',
+        fileName: 'cache-hit-test.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024
+      })
+
+      // Pre-seed cache
+      await database.upsertFitnessFileRouteData({
+        fitnessFileId: fitnessFile!.id,
+        actorId: ACTOR1_ID,
+        sourceVersion: 1,
+        routeData: JSON.stringify({
+          version: 1,
+          totalDurationSeconds: 400,
+          routeSamples: [
+            {
+              lat: 37.77,
+              lng: -122.42,
+              elapsedSeconds: 0,
+              distanceMeters: 0
+            },
+            {
+              lat: 37.78,
+              lng: -122.41,
+              elapsedSeconds: 400,
+              distanceMeters: 2000
+            }
+          ]
+        })
+      })
+
+      mockGetFitnessFile.mockClear()
+      mockParseFitnessFile.mockClear()
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.totalDurationSeconds).toBe(400)
+      expect(data.samples).toHaveLength(2)
+      expect(mockGetFitnessFile).not.toHaveBeenCalled()
+      expect(mockParseFitnessFile).not.toHaveBeenCalled()
+    })
+
+    it('returns 304 Not Modified when If-None-Match matches ETag', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/etag-304-test`,
+        url: `${ACTOR1_ID}/statuses/etag-304-test`,
+        actorId: ACTOR1_ID,
+        text: 'ETag test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL]
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId: status.id,
+        path: 'fitness/etag-304-test.fit',
+        fileName: 'etag-304-test.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024
+      })
+
+      const firstResponse = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+
+      expect(firstResponse.status).toBe(200)
+      const etag = firstResponse.headers.get('ETag')
+      expect(etag).toBeTruthy()
+
+      mockGetFitnessFile.mockClear()
+      mockParseFitnessFile.mockClear()
+      const getRouteDataSpy = vi.spyOn(database, 'getFitnessFileRouteData')
+
+      // Request with matching If-None-Match header
+      const secondResponse = await GET(
+        createRequest({ 'if-none-match': etag! }),
+        {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        }
+      )
+
+      expect(secondResponse.status).toBe(304)
+      expect(secondResponse.headers.get('ETag')).toBe(etag)
+      expect(secondResponse.headers.get('Vary')).toBe('Authorization, Cookie')
+      const text = await secondResponse.text()
+      expect(text).toBe('')
+      expect(getRouteDataSpy).not.toHaveBeenCalled()
+      expect(mockGetFitnessFile).not.toHaveBeenCalled()
+      expect(mockParseFitnessFile).not.toHaveBeenCalled()
+      getRouteDataSpy.mockRestore()
+    })
+
+    it('separates owner and viewer ETags so an owner ETag does not 304 for a non-owner viewer', async () => {
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/etag-owner-viewer-test`,
+        url: `${ACTOR1_ID}/statuses/etag-owner-viewer-test`,
+        actorId: ACTOR1_ID,
+        text: 'ETag owner vs viewer test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL]
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId: status.id,
+        path: 'fitness/etag-owner-viewer-test.fit',
+        fileName: 'etag-owner-viewer-test.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024
+      })
+
+      mockGetServerSession.mockResolvedValueOnce({
+        user: { email: seedActor1.email }
+      })
+      const ownerResponse = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+      expect(ownerResponse.status).toBe(200)
+      const ownerEtag = ownerResponse.headers.get('ETag')
+      expect(ownerEtag).toMatch(/^W\/"route-v1-r1-.*-owner-/)
+
+      mockGetServerSession.mockResolvedValueOnce(null)
+      const viewerResponse = await GET(
+        createRequest({ 'if-none-match': ownerEtag! }),
+        {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        }
+      )
+      expect(viewerResponse.status).toBe(200)
+      const viewerEtag = viewerResponse.headers.get('ETag')
+      expect(viewerEtag).toMatch(/^W\/"route-v1-r1-.*-viewer-/)
+      expect(viewerEtag).not.toBe(ownerEtag)
+    })
+
+    it('changes owner ETag when privacy location or radius changes', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        path: 'fitness/owner-etag-privacy-test.fit',
+        fileName: 'owner-etag-privacy-test.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024
+      })
+
+      await clearPrivacyLocation()
+
+      const firstResponse = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+      expect(firstResponse.status).toBe(200)
+      const firstEtag = firstResponse.headers.get('ETag')
+      expect(firstEtag).toMatch(/^W\/"route-v1-r1-.*-owner-/)
+
+      await savePrivacyLocation()
+
+      // Requesting with the old ETag after privacy settings changed must return 200 with a new ETag
+      const secondResponse = await GET(
+        createRequest({ 'if-none-match': firstEtag! }),
+        {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        }
+      )
+      expect(secondResponse.status).toBe(200)
+      const secondEtag = secondResponse.headers.get('ETag')
+      expect(secondEtag).toMatch(/^W\/"route-v1-r1-.*-owner-/)
+      expect(secondEtag).not.toBe(firstEtag)
+    })
+
+    it('lazily backfills pre-parsed route data on cache miss before responding', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/lazy-backfill-test`,
+        url: `${ACTOR1_ID}/statuses/lazy-backfill-test`,
+        actorId: ACTOR1_ID,
+        text: 'Lazy backfill test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL]
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId: status.id,
+        path: 'fitness/lazy-backfill-test.fit',
+        fileName: 'lazy-backfill-test.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024
+      })
+
+      // Ensure no cached row exists initially
+      const initialRow = await database.getFitnessFileRouteData({
+        fitnessFileId: fitnessFile!.id
+      })
+      expect(initialRow).toBeNull()
+
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+
+      expect(response.status).toBe(200)
+
+      const cachedRow = await database.getFitnessFileRouteData({
+        fitnessFileId: fitnessFile!.id
+      })
+      expect(cachedRow).not.toBeNull()
+      expect(cachedRow!.actorId).toBe(ACTOR1_ID)
+      expect(cachedRow!.sourceVersion).toBe(1)
+      const parsed = JSON.parse(cachedRow!.routeData)
+      expect(parsed.routeSamples).toBeDefined()
+    })
+
+    it('masks privacy zones identically on cache hit', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/privacy-cache-hit-test`,
+        url: `${ACTOR1_ID}/statuses/privacy-cache-hit-test`,
+        actorId: ACTOR1_ID,
+        text: 'Privacy cache hit test',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL]
+      })
+
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        statusId: status.id,
+        path: 'fitness/privacy-cache-hit-test.fit',
+        fileName: 'privacy-cache-hit-test.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1_024
+      })
+
+      // Pre-seed cache with 3 points
+      await database.upsertFitnessFileRouteData({
+        fitnessFileId: fitnessFile!.id,
+        actorId: ACTOR1_ID,
+        sourceVersion: 1,
+        routeData: JSON.stringify({
+          version: 1,
+          totalDurationSeconds: 600,
+          routeSamples: [
+            {
+              lat: 37.77,
+              lng: -122.42,
+              elapsedSeconds: 0,
+              distanceMeters: 0
+            },
+            {
+              lat: 37.775,
+              lng: -122.415,
+              elapsedSeconds: 300,
+              distanceMeters: 500
+            },
+            {
+              lat: 37.78,
+              lng: -122.41,
+              elapsedSeconds: 600,
+              distanceMeters: 1000
+            }
+          ]
+        })
+      })
+
+      await savePrivacyLocation()
+
+      try {
+        mockGetFitnessFile.mockClear()
+
+        // Anonymous non-owner viewer
+        const nonOwnerResponse = await GET(createRequest(), {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        })
+        expect(nonOwnerResponse.status).toBe(200)
+        const nonOwnerData = await nonOwnerResponse.json()
+        expect(mockGetFitnessFile).not.toHaveBeenCalled()
+        // Hidden head is excluded, distance rebased
+        expect(
+          nonOwnerData.samples.every(
+            (s: { isHiddenByPrivacy: boolean }) => !s.isHiddenByPrivacy
+          )
+        ).toBe(true)
+        expect(nonOwnerData.samples[0].distanceMeters).toBe(0)
+        expect(
+          nonOwnerData.segments.every(
+            (s: { isHiddenByPrivacy: boolean }) => !s.isHiddenByPrivacy
+          )
+        ).toBe(true)
+
+        // Owner viewer
+        mockGetServerSession.mockResolvedValueOnce({
+          user: { email: seedActor1.email }
+        })
+        const ownerResponse = await GET(createRequest(), {
+          params: Promise.resolve({ id: fitnessFile!.id })
+        })
+        expect(ownerResponse.status).toBe(200)
+        const ownerData = await ownerResponse.json()
+        expect(ownerData.samples).toHaveLength(3)
+        expect(ownerData.samples[0].isHiddenByPrivacy).toBe(true)
+        expect(ownerData.samples[0].distanceMeters).toBe(0)
+        expect(
+          ownerData.segments.some(
+            (s: { isHiddenByPrivacy: boolean }) => s.isHiddenByPrivacy
+          )
+        ).toBe(true)
+      } finally {
+        await clearPrivacyLocation()
+      }
+    })
   })
 })

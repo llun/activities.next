@@ -112,6 +112,52 @@ describe('Media', () => {
     expect(canvas.className).toContain('opacity-0')
   })
 
+  it('renders high fetch priority image at opacity-100 above visible blurhash until load completes', () => {
+    const attachmentWithBlurhash: Attachment = {
+      ...baseAttachment,
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+    }
+
+    render(
+      <Media
+        attachment={attachmentWithBlurhash}
+        loading="eager"
+        fetchPriority="high"
+      />
+    )
+
+    const img = screen.getByRole('img')
+    expect(img).toBeInTheDocument()
+    expect(img).toHaveAttribute('loading', 'eager')
+    expect(img).toHaveAttribute('fetchpriority', 'high')
+    expect(img.className).toContain('relative')
+    expect(img.className).toContain('opacity-100')
+    expect(img.className).not.toContain('opacity-0')
+    expect(img.className).not.toContain('transition-opacity')
+
+    const canvas = screen.getByTestId('blurhash-canvas')
+    expect(canvas.className).toContain('opacity-100')
+
+    fireEvent.load(img)
+    expect(canvas.className).toContain('opacity-0')
+  })
+
+  it('keeps standard fade transition when loading="eager" is used without fetchPriority="high"', () => {
+    const attachmentWithBlurhash: Attachment = {
+      ...baseAttachment,
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+    }
+
+    render(<Media attachment={attachmentWithBlurhash} loading="eager" />)
+
+    const img = screen.getByRole('img')
+    expect(img.className).toContain('opacity-0')
+    expect(img.className).toContain('transition-opacity')
+
+    const canvas = screen.getByTestId('blurhash-canvas')
+    expect(canvas.className).toContain('opacity-100')
+  })
+
   // A cached image is already complete before React attaches `onLoad`, so
   // without a complete/naturalWidth check the placeholder would sit at full
   // opacity over a picture that is already painted.
