@@ -47,9 +47,10 @@ export const SavedIndicator: FC<SavedIndicatorProps> = ({
 interface SaveBarProps {
   /**
    * `create` is the footer of a form that makes something new: no status text
-   * ("No unsaved changes" means nothing before anything exists), just the
-   * form's own action button at the end of the row, always enabled unless it is
-   * saving or `disabledReason` is set. Give it `actionLabel` and, optionally,
+   * ("No unsaved changes" means nothing before anything exists) apart from an
+   * error or the muted `disabledReason`, and the form's own action button at
+   * the end of the row, always enabled unless it is saving or `disabledReason`
+   * is set. Give it `actionLabel` and, optionally,
    * `actionIcon`. `dirty` and `saved` are ignored. Default `edit`.
    */
   variant?: 'edit' | 'create'
@@ -71,7 +72,8 @@ interface SaveBarProps {
   submit?: boolean
   /**
    * Why Save is off although the form has changes ("Add a keyword to save").
-   * Shown next to "Unsaved changes", so the bar never claims there is nothing
+   * Shown next to "Unsaved changes" (as muted status text on its own in the
+   * `create` variant), so the bar never claims there is nothing
    * to save while an edit is waiting on something else.
    */
   disabledReason?: string
@@ -141,7 +143,17 @@ export const SaveBar: FC<SaveBarProps> = ({
       )}
     >
       <div className="min-w-0 text-sm">
-        {isCreate && !error ? null : error ? (
+        {isCreate && !error ? (
+          disabledReason ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-muted-foreground min-h-5"
+            >
+              {disabledReason}
+            </p>
+          ) : null
+        ) : error ? (
           <p role="alert" className="text-destructive-text break-words">
             {error}
           </p>

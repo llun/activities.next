@@ -211,6 +211,7 @@ export const FilterEditor: FC<FilterEditorProps> = ({
           accessibleName="Back to filters"
           iconOnlyFrom="md"
           className="md:rounded-lg md:p-2 md:hover:bg-muted"
+          disabled={saving}
           onClick={() => {
             if (!saving) onCancel()
           }}

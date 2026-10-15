@@ -605,6 +605,9 @@ describe('FilterEditor form behaviour', () => {
       })
 
       expect(saveButton()).toBeDisabled()
+      expect(
+        screen.getByRole('link', { name: 'Back to filters' })
+      ).toHaveAttribute('aria-disabled', 'true')
       fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
       expect(onCancel).not.toHaveBeenCalled()
     })

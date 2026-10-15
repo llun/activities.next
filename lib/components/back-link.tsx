@@ -34,6 +34,12 @@ export interface BackLinkProps {
    * route, so a modified click or a right-click still works.
    */
   onClick?: () => void
+  /**
+   * Mutes the link and swallows clicks and Enter, for a Back that must wait
+   * (a save in flight). It stays a link in the tab order, marked
+   * `aria-disabled`.
+   */
+  disabled?: boolean
 }
 
 /**
@@ -50,33 +56,38 @@ export function BackLink({
   className,
   iconClassName = 'size-5 max-md:size-4',
   prefetch,
-  onClick
+  onClick,
+  disabled = false
 }: BackLinkProps) {
   return (
     <Link
       href={href}
       prefetch={prefetch}
+      aria-disabled={disabled ? 'true' : undefined}
       onClick={
-        onClick
-          ? (event) => {
-              if (
-                event.defaultPrevented ||
-                event.button !== 0 ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey
-              )
-                return
-              event.preventDefault()
-              onClick()
-            }
-          : undefined
+        disabled
+          ? (event) => event.preventDefault()
+          : onClick
+            ? (event) => {
+                if (
+                  event.defaultPrevented ||
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                )
+                  return
+                event.preventDefault()
+                onClick()
+              }
+            : undefined
       }
       aria-label={accessibleName}
       className={cn(
         'inline-flex shrink-0 items-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
         MOBILE_BACK_ROW_CLASS,
+        disabled && 'pointer-events-none opacity-50',
         className
       )}
     >

@@ -61,7 +61,7 @@ export const RadioCard: FC<RadioCardProps> = ({
         disabled={disabled}
         aria-labelledby={titleId}
         aria-describedby={hintId}
-        className="mt-0.5 shrink-0"
+        className="mt-0.5 shrink-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100"
       />
       <span className="min-w-0 flex-1 space-y-0.5">
         <span

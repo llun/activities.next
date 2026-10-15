@@ -141,6 +141,18 @@ describe('SavedIndicator', () => {
   })
 
   describe('create variant', () => {
+    it('shows the disabled reason as status text when there is no error', () => {
+      render(
+        <SaveBar
+          variant="create"
+          actionLabel="Add"
+          disabledReason="Add a title"
+        />
+      )
+      expect(screen.getByRole('status')).toHaveTextContent('Add a title')
+      expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+    })
+
     it('shows no status text and the form’s own action label, enabled', () => {
       render(<SaveBar variant="create" submit actionLabel="Save block" />)
       expect(screen.queryByText('No unsaved changes')).toBeNull()
