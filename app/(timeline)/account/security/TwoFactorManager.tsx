@@ -10,7 +10,6 @@ import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
 import { getAuthErrorMessage } from '@/lib/services/auth/getAuthErrorMessage'
 
@@ -264,7 +263,7 @@ export const TwoFactorManager: FC<Props> = ({
       {error && <Alert title={error} />}
       {success && <Alert tone="success" title={success} />}
 
-      {enabled ? (
+      {enabled && (
         <Alert
           tone="success"
           live={false}
@@ -272,51 +271,71 @@ export const TwoFactorManager: FC<Props> = ({
         >
           A verification code is required after password sign-in.
         </Alert>
-      ) : (
-        <Alert
-          tone="warning"
-          live={false}
-          title="Two-factor authentication is off"
-          action={
-            !setup ? (
+      )}
+
+      {!enabled && !setup && (
+        <Frame
+          form
+          className="overflow-hidden"
+          footer={
+            <div className="flex justify-end">
               <Button
                 type="button"
-                size="sm"
                 onClick={handleStartSetup}
                 disabled={loadingAction === 'setup'}
               >
                 <ShieldCheck />
                 {loadingAction === 'setup' ? 'Starting…' : 'Set up'}
               </Button>
-            ) : undefined
+            </div>
           }
         >
-          Add an authenticator app to protect password sign-ins.
-          {/* The password sits inside the alert, ahead of its Set up button,
-              so keyboard focus meets the field the hint says to fill first. */}
-          {!setup && (
-            <div className="mt-3 max-w-xs space-y-1.5">
-              <Label htmlFor="twoFactorPassword" className="text-foreground">
-                Current password
-              </Label>
+          <p className="px-4 pt-1 pb-1.5 text-sm">
+            <span className="font-medium">
+              Two-factor authentication is off.
+            </span>{' '}
+            <span className="text-muted-foreground">
+              Add an authenticator app to protect password sign-ins.
+            </span>
+          </p>
+          <FormRow
+            label="Current password"
+            htmlFor="twoFactorPassword"
+            hint="Enter your password, then choose Set up."
+          >
+            {({ describedBy }) => (
               <Input
                 id="twoFactorPassword"
                 type="password"
                 autoComplete="current-password"
-                aria-describedby="twoFactorPassword-hint"
+                aria-describedby={describedBy}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <p id="twoFactorPassword-hint" className="text-xs">
-                Enter your password, then choose Set up.
-              </p>
-            </div>
-          )}
-        </Alert>
+            )}
+          </FormRow>
+        </Frame>
       )}
 
       {(setup || enabled) && (
-        <Frame form className="overflow-hidden">
+        <Frame
+          form
+          className="overflow-hidden"
+          footer={
+            setup ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={handleVerify}
+                  disabled={loadingAction === 'verify'}
+                >
+                  <Check />
+                  {loadingAction === 'verify' ? 'Verifying…' : 'Verify code'}
+                </Button>
+              </div>
+            ) : undefined
+          }
+        >
           {setup && (
             <>
               <FormRow
@@ -378,26 +397,14 @@ export const TwoFactorManager: FC<Props> = ({
                 hint="Enter the code your app shows to finish setup."
               >
                 {({ describedBy }) => (
-                  <div className="space-y-2">
-                    <Input
-                      id="twoFactorCode"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      aria-describedby={describedBy}
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value)}
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleVerify}
-                      disabled={loadingAction === 'verify'}
-                    >
-                      <Check />
-                      {loadingAction === 'verify'
-                        ? 'Verifying…'
-                        : 'Verify code'}
-                    </Button>
-                  </div>
+                  <Input
+                    id="twoFactorCode"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    aria-describedby={describedBy}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                  />
                 )}
               </FormRow>
               {backupCodes.length > 0 && (

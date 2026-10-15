@@ -17,6 +17,8 @@ import {
   getFitnessImportFileState
 } from '@/lib/components/settings/fitnessImportStatus'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
@@ -169,8 +171,27 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         </>
       }
     >
-      <div className="space-y-4 rounded-lg border p-4">
-        {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
+      <Frame
+        form
+        footer={
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={handleStartImport}
+              disabled={files.length === 0 || isImporting}
+            >
+              {isImporting
+                ? 'Importing…'
+                : `Import ${files.length || ''}`.trim()}
+            </Button>
+          </div>
+        }
+      >
+        {actorHandle && (
+          <div className="px-4 pt-1 pb-1.5">
+            <ActorInfoBanner actorHandle={actorHandle} />
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
@@ -181,116 +202,137 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           onChange={handleFileChange}
         />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleChooseFiles}
-            disabled={isImporting}
-          >
-            Choose files
-          </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Visibility:</span>
-            <VisibilitySelector
-              visibility={visibility}
-              onVisibilityChange={setVisibility}
-            />
-          </div>
-          <Button
-            type="button"
-            onClick={handleStartImport}
-            disabled={files.length === 0 || isImporting}
-          >
-            {isImporting ? 'Importing…' : `Import ${files.length || ''}`.trim()}
-          </Button>
-        </div>
-
-        {selectedFileNames.length > 0 && (
-          <div className="bg-muted/40 rounded-lg border p-3">
-            <p className="mb-2 text-sm font-medium">
-              Selected files ({selectedFileNames.length})
-            </p>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              {selectedFileNames.map((name, index) => (
-                <li key={`${name}-${index}`}>{name}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {batchResult && (
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">
-                Batch {batchResult.batchId} • {batchResult.status}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {batchResult.summary.completed}/{batchResult.summary.total}{' '}
-                completed, {batchResult.summary.failed} failed
-              </p>
+        <FormRow
+          label="Files"
+          htmlFor="fitnessImportChooseFiles"
+          hint="Choose one or more files to import."
+        >
+          {({ describedBy, labelledBy }) => (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  id="fitnessImportChooseFiles"
+                  variant="outline"
+                  onClick={handleChooseFiles}
+                  disabled={isImporting}
+                  aria-labelledby={`${labelledBy} fitnessImportChooseFiles`}
+                  aria-describedby={describedBy}
+                >
+                  Choose files
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {selectedFileNames.length === 0
+                    ? 'No files chosen'
+                    : `${selectedFileNames.length} ${selectedFileNames.length === 1 ? 'file' : 'files'} chosen`}
+                </span>
+              </div>
+              {selectedFileNames.length > 0 && (
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  {selectedFileNames.map((name, index) => (
+                    <li key={`${name}-${index}`} className="break-all">
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
+          )}
+        </FormRow>
 
-            <div className="divide-y rounded-lg border">
-              {batchResult.files.map((file) => {
-                const fileState = getFitnessImportFileState(file)
-                const fileError = getFitnessImportFileError(file)
-                const statusLink = file.statusId
-                  ? getStatusLink(file.actorId, file.statusId)
-                  : null
+        <FormRow label="Visibility" hint="Who can see the imported activities.">
+          {({ describedBy, labelledBy }) => (
+            <div
+              role="group"
+              aria-labelledby={labelledBy}
+              aria-describedby={describedBy}
+            >
+              <VisibilitySelector
+                visibility={visibility}
+                onVisibilityChange={setVisibility}
+              />
+            </div>
+          )}
+        </FormRow>
+      </Frame>
 
-                return (
-                  <div
-                    key={file.id}
-                    className="flex flex-col gap-1 px-3 py-2 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span>{getFitnessImportFileIcon(fileState)}</span>
-                      <span className="min-w-0 break-all font-medium">
-                        {file.fileName}
-                      </span>
-                      <span className="text-xs uppercase text-muted-foreground">
-                        {file.fileType}
-                      </span>
-                      {file.isPrimary && (
-                        <span className="text-xs text-muted-foreground">
-                          primary
+      {(batchResult || error) && (
+        <div className="space-y-4">
+          {batchResult && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Batch {batchResult.batchId} • {batchResult.status}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {batchResult.summary.completed}/{batchResult.summary.total}{' '}
+                  completed, {batchResult.summary.failed} failed
+                </p>
+              </div>
+
+              <div className="divide-y rounded-lg border">
+                {batchResult.files.map((file) => {
+                  const fileState = getFitnessImportFileState(file)
+                  const fileError = getFitnessImportFileError(file)
+                  const statusLink = file.statusId
+                    ? getStatusLink(file.actorId, file.statusId)
+                    : null
+
+                  return (
+                    <div
+                      key={file.id}
+                      className="flex flex-col gap-1 px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{getFitnessImportFileIcon(fileState)}</span>
+                        <span className="min-w-0 break-all font-medium">
+                          {file.fileName}
                         </span>
-                      )}
-                      {statusLink && (
-                        <Link
-                          href={statusLink}
-                          className="text-xs text-primary-text hover:underline"
-                        >
-                          View status →
-                        </Link>
+                        <span className="text-xs uppercase text-muted-foreground">
+                          {file.fileType}
+                        </span>
+                        {file.isPrimary && (
+                          <span className="text-xs text-muted-foreground">
+                            primary
+                          </span>
+                        )}
+                        {statusLink && (
+                          <Link
+                            href={statusLink}
+                            className="text-xs text-primary-text hover:underline"
+                          >
+                            View status →
+                          </Link>
+                        )}
+                      </div>
+                      {fileError && (
+                        <p className="text-destructive-text text-xs">
+                          {fileError}
+                        </p>
                       )}
                     </div>
-                    {fileError && (
-                      <p className="text-destructive-text text-xs">
-                        {fileError}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+
+              {failedCount > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? 'Retrying…' : `Retry failed (${failedCount})`}
+                </Button>
+              )}
             </div>
+          )}
 
-            {failedCount > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleRetry}
-                disabled={isRetrying}
-              >
-                {isRetrying ? 'Retrying…' : `Retry failed (${failedCount})`}
-              </Button>
-            )}
-          </div>
-        )}
-
-        {error && <Alert title="We couldn’t import these files">{error}</Alert>}
-      </div>
+          {error && (
+            <Alert title="We couldn’t import these files">{error}</Alert>
+          )}
+        </div>
+      )}
     </Section>
   )
 }

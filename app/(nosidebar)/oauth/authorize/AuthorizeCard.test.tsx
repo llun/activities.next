@@ -571,6 +571,7 @@ describe('AuthorizeCard', () => {
     )
 
     const trigger = screen.getByRole('button', { name: /llun/ })
+    expect(trigger).toHaveAccessibleName(/^Authorize as\b.*llun/)
     expect(
       trigger.querySelector('[data-slot="avatar-fallback"]')
     ).toHaveTextContent('L')
