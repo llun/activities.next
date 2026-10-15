@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import { Account } from '@/lib/types/domain/account'
-import { logger } from '@/lib/utils/logger'
 
 export const ACTOR_TYPES = [
   'Person',
@@ -100,7 +99,9 @@ export const getMentionFromActorID = (actorId: string, withDomain = false) => {
 
     return `@${id}${getMentionDomainFromActorID(actorId)}`
   } catch {
-    logger.error(`Fail to split the actor id, (${JSON.stringify(actorId)})`)
+    // Not logged here: this module is imported by client components, and
+    // pulling the pino logger in would ship it to the browser. A malformed id
+    // degrades to the raw id, which every caller already renders as-is.
     return actorId
   }
 }

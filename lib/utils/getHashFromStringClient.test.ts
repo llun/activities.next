@@ -1,4 +1,8 @@
-import { getHashFromStringClient } from '@/lib/utils/getHashFromStringClient'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import {
+  getHashFromStringClient,
+  getHashFromStringSync
+} from '@/lib/utils/getHashFromStringClient'
 
 describe('getHashFromStringClient', () => {
   it('generates consistent hash for the same input', async () => {
@@ -52,5 +56,17 @@ describe('getHashFromStringClient', () => {
         Reflect.deleteProperty(globalThis.crypto, 'subtle')
       }
     }
+  })
+})
+
+describe('getHashFromStringSync', () => {
+  it.each([
+    '',
+    'abc',
+    'https://example.com/users/alice/statuses/123',
+    'ünïcödé 🎉',
+    'x'.repeat(1000)
+  ])('matches the node sha256 hex for %j', (input) => {
+    expect(getHashFromStringSync(input)).toBe(getHashFromString(input))
   })
 })

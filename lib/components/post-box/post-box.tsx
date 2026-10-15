@@ -1,4 +1,5 @@
 import { Activity, Eye, X } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import {
   FC,
   FormEvent,
@@ -25,8 +26,7 @@ import {
   uploadFitnessFile
 } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
-import {
-  MediaDetailsDialog,
+import type {
   MediaDetailsDialogItem,
   MediaDetailsSavedItem
 } from '@/lib/components/media-details/media-details-dialog'
@@ -111,6 +111,16 @@ import { UploadMediaButton } from './upload-media-button'
 
 // Subject suggestions are model calls: at most this many run at once per
 // composer, the rest wait their turn.
+// Only shown once a media's details are opened, so keep it (and its gallery
+// dependencies) out of the initial bundle.
+const MediaDetailsDialog = dynamic(
+  () =>
+    import('@/lib/components/media-details/media-details-dialog').then(
+      (module) => module.MediaDetailsDialog
+    ),
+  { ssr: false }
+)
+
 const MAX_CONCURRENT_SUGGESTIONS = 2
 
 interface Props {
