@@ -341,7 +341,7 @@ export const AuthorizeCard: FC<Props> = ({
                         id="authorizeActorValue"
                         className="flex min-w-0 flex-1 items-baseline gap-1.5"
                       >
-                        <span className="max-w-full shrink-0 truncate">
+                        <span className="min-w-0 truncate">
                           <ActorDisplayName
                             name={
                               selectedActor?.name || selectedActor?.username
@@ -349,7 +349,7 @@ export const AuthorizeCard: FC<Props> = ({
                             tags={selectedActor?.tags}
                           />
                         </span>
-                        <span className="text-muted-foreground min-w-0 truncate text-xs">
+                        <span className="text-muted-foreground min-w-0 shrink-[999] truncate text-xs">
                           {selectedActor && getHandle(selectedActor)}
                         </span>
                       </span>

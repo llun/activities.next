@@ -241,8 +241,12 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         </FormRow>
 
         <FormRow label="Visibility" hint="Who can see the imported activities.">
-          {({ labelledBy }) => (
-            <div role="group" aria-labelledby={labelledBy}>
+          {({ describedBy, labelledBy }) => (
+            <div
+              role="group"
+              aria-labelledby={labelledBy}
+              aria-describedby={describedBy}
+            >
               <VisibilitySelector
                 visibility={visibility}
                 onVisibilityChange={setVisibility}
