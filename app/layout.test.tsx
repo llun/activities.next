@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { VERSION } from '@/lib/utils/version'
 
 import RootLayout from './layout'
-import { metadata } from './layout'
+import { metadata, viewport } from './layout'
 
 vi.mock('@/lib/components/navigation-history/InAppHistoryTracker', () => ({
   InAppHistoryTracker: () => <span data-testid="in-app-history-tracker" />
@@ -47,5 +47,14 @@ describe('metadata', () => {
         }
       ]
     })
+  })
+})
+
+describe('viewport', () => {
+  // Without `cover`, iOS Safari stops the page at the safe area and, from iOS
+  // 26, leaves a solid band under its floating address bar; every
+  // `env(safe-area-inset-*)` the app pads by also reads 0.
+  it('covers the whole screen so the safe-area insets are real', () => {
+    expect(viewport.viewportFit).toBe('cover')
   })
 })

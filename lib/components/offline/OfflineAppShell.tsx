@@ -272,7 +272,7 @@ export function OfflineAppShell() {
         ref={scrollContainerRef}
         role="status"
         aria-label="Loading offline timeline"
-        className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background"
+        className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background safe-area-px"
         onScroll={handleScroll}
       >
         <NavPreferencesProvider>
@@ -371,7 +371,7 @@ export function OfflineAppShell() {
   return (
     <div
       ref={scrollContainerRef}
-      className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background"
+      className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background safe-area-px"
       onScroll={handleScroll}
     >
       <InstanceLimitsProvider {...bootstrap.instanceLimits}>

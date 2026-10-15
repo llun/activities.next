@@ -16,9 +16,17 @@ import type { CSSProperties } from 'react'
 // `(parent content width) + 2*M = 100vw - sidebar-w`, which is exactly the
 // available area beside the fixed sidebar at any viewport size — and, below
 // `md` where there is no sidebar, the full viewport width.
+//
+// The left and right safe areas (the notch in landscape on iOS) come off the
+// same way: the body pads by both and the fixed sidebar grows by the left one,
+// so the content stays centered in what is left, and taking both out of the
+// width keeps the chrome clear of the notch and out from under the sidebar.
+const BREAKOUT_MARGIN =
+  'calc(-50vw + 50% + (var(--sidebar-w, 0px) + env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px)) / 2)'
+
 export const breakoutStyle: CSSProperties = {
-  marginLeft: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)',
-  marginRight: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)'
+  marginLeft: BREAKOUT_MARGIN,
+  marginRight: BREAKOUT_MARGIN
 }
 
 // The mobile "Compact B" bar: one 56px row — 55px of content box plus the 1px

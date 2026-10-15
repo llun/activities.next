@@ -98,8 +98,13 @@ export function MobileNavigationDrawer({
           afterCloseRef.current = null
           if (afterClose) window.requestAnimationFrame(afterClose)
         }}
+        // `inset-y-0` alone, no `h-dvh`: the panel spans the same box as its
+        // overlay (`inset-0`), the whole screen now the viewport covers it,
+        // and clears the browser bars and the home indicator with
+        // `safe-area-pb`. A dvh height can end above iOS 26's floating
+        // address bar and leave a band of page under it.
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh flex-col bg-background shadow-xl outline-none duration-200',
+          'fixed inset-y-0 left-0 z-50 flex flex-col bg-background shadow-xl outline-none duration-200',
           'w-[min(320px,calc(100vw-48px))] safe-area-pt safe-area-pb safe-area-pl',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left'
         )}

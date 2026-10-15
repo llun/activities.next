@@ -86,10 +86,13 @@ export const usePendingProfileNavigation = () =>
 const OVERLAY_CLASS = {
   // Covers the `(timeline)` layout's content column, beside the sidebar
   // (72px rail from `md`, 280px from `xl`) and under it, the mobile drawer and
-  // modals, but over the pages' sticky headers.
-  'signed-in': 'inset-y-0 right-0 left-0 z-35 md:left-[72px] xl:left-[280px]',
+  // modals, but over the pages' sticky headers. Both variants pad by the
+  // left and right safe areas like the body, and the rail grows by the left
+  // one, so the skeleton lines up with the page it stands in for.
+  'signed-in':
+    'inset-y-0 right-0 left-0 z-35 pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] md:left-[calc(72px+env(safe-area-inset-left,0px))] md:pl-0 xl:left-[calc(280px+env(safe-area-inset-left,0px))]',
   // Below `PublicShell`'s sticky top bar (h-16 plus its bottom border).
-  public: 'inset-x-0 bottom-0 top-[calc(4rem+1px)] z-20'
+  public: 'inset-x-0 bottom-0 top-[calc(4rem+1px)] z-20 safe-area-px'
 } as const
 
 const COLUMN_CLASS = {
