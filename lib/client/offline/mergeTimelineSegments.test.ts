@@ -222,31 +222,56 @@ describe('mergeFreshPageIntoSegments', () => {
     expect(result.segments[1].statuses.map((s) => s.id)).toEqual(['s10', 's11'])
   })
 
-  it('enforces maxStatuses limit by trimming from the tail segment', () => {
+  it('keeps the whole tail when a fresh merge runs over a list longer than the offline cache cap', () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `s${i + 2}`)
     const currentSegments: HydratedTimelineSegment[] = [
       {
-        statuses: [mockNote('s2'), mockNote('s3')],
-        nextMaxStatusId: 's4',
+        statuses: ids.map((id) => mockNote(id)),
+        nextMaxStatusId: 'tail-cursor',
         prevMinStatusId: 's2'
       }
     ]
 
-    const incoming = [mockNote('s1'), mockNote('s2')]
     const result = mergeFreshPageIntoSegments({
       currentSegments,
-      incomingStatuses: incoming,
-      incomingNextMaxStatusId: 's2',
-      maxStatuses: 2
+      incomingStatuses: [mockNote('s1'), mockNote('s2')],
+      incomingNextMaxStatusId: 's2'
     })
 
-    // S1, S2 kept; S3 trimmed away
     expect(result.segments).toHaveLength(1)
-    expect(result.segments[0].statuses.map((s) => s.id)).toEqual(['s1', 's2'])
-    expect(result.segments[0].nextMaxStatusId).toBe('s2')
+    expect(result.statuses).toHaveLength(251)
+    expect(result.segments[0].statuses[0].id).toBe('s1')
+    expect(result.segments[0].statuses.at(-1)?.id).toBe('s251')
+    expect(result.segments[0].nextMaxStatusId).toBe('tail-cursor')
   })
 })
 
 describe('mergeGapPageIntoSegments', () => {
+  it('keeps every status when a gap merge runs over a list longer than the offline cache cap', () => {
+    const currentSegments: HydratedTimelineSegment[] = [
+      {
+        statuses: Array.from({ length: 150 }, (_, i) => mockNote(`a${i}`)),
+        nextMaxStatusId: 'gap-cursor',
+        prevMinStatusId: 'a0'
+      },
+      {
+        statuses: Array.from({ length: 100 }, (_, i) => mockNote(`z${i}`)),
+        nextMaxStatusId: 'end-cursor',
+        prevMinStatusId: 'z0'
+      }
+    ]
+
+    const result = mergeGapPageIntoSegments({
+      currentSegments,
+      segmentIndex: 0,
+      incomingStatuses: [mockNote('m1'), mockNote('m2')],
+      incomingNextMaxStatusId: 'still-gap'
+    })
+
+    expect(result.statuses).toHaveLength(252)
+    expect(result.segments.at(-1)?.statuses.at(-1)?.id).toBe('z99')
+  })
+
   it('appends incoming statuses to the target segment without bridging if gap remains', () => {
     const currentSegments: HydratedTimelineSegment[] = [
       {
@@ -342,6 +367,26 @@ describe('mergeGapPageIntoSegments', () => {
 })
 
 describe('appendOlderPageToSegments', () => {
+  it('appends past the offline cache cap and keeps the incoming cursor', () => {
+    const currentSegments: HydratedTimelineSegment[] = [
+      {
+        statuses: Array.from({ length: 200 }, (_, i) => mockNote(`a${i}`)),
+        nextMaxStatusId: 'cursor-200',
+        prevMinStatusId: 'a0'
+      }
+    ]
+
+    const result = appendOlderPageToSegments({
+      currentSegments,
+      incomingStatuses: Array.from({ length: 30 }, (_, i) => mockNote(`b${i}`)),
+      incomingNextMaxStatusId: 'cursor-230'
+    })
+
+    expect(result.statuses).toHaveLength(230)
+    expect(result.segments[0].statuses).toHaveLength(230)
+    expect(result.segments[0].nextMaxStatusId).toBe('cursor-230')
+  })
+
   it('appends older statuses to the last segment and updates nextMaxStatusId', () => {
     const currentSegments: HydratedTimelineSegment[] = [
       {

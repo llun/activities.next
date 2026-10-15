@@ -1,10 +1,7 @@
 import { reconcileStatusesMetadata } from '@/lib/components/posts/statusArray'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
-import {
-  HydratedTimelineSegment,
-  MAX_CACHED_STATUSES_PER_TIMELINE
-} from './types'
+import { HydratedTimelineSegment } from './types'
 
 export const trimSegmentsToMax = (
   segments: HydratedTimelineSegment[],
@@ -41,7 +38,6 @@ export const mergeFreshPageIntoSegments = (params: {
   incomingStatuses: Status[]
   incomingNextMaxStatusId: string | null
   incomingPrevMinStatusId?: string | null
-  maxStatuses?: number
 }): {
   segments: HydratedTimelineSegment[]
   statuses: Status[]
@@ -52,8 +48,7 @@ export const mergeFreshPageIntoSegments = (params: {
     currentSegments,
     incomingStatuses,
     incomingNextMaxStatusId,
-    incomingPrevMinStatusId,
-    maxStatuses = MAX_CACHED_STATUSES_PER_TIMELINE
+    incomingPrevMinStatusId
   } = params
 
   if (incomingStatuses.length === 0) {
@@ -76,10 +71,9 @@ export const mergeFreshPageIntoSegments = (params: {
       prevMinStatusId:
         incomingPrevMinStatusId ?? incomingStatuses[0]?.id ?? null
     }
-    const trimmed = trimSegmentsToMax([singleSegment], maxStatuses)
     return {
-      segments: trimmed,
-      statuses: trimmed.flatMap((s) => s.statuses),
+      segments: [singleSegment],
+      statuses: singleSegment.statuses,
       hasGap: false,
       addedNewerCount: incomingStatuses.length
     }
@@ -130,11 +124,10 @@ export const mergeFreshPageIntoSegments = (params: {
     }
 
     const combinedSegments = [newTopSegment, ...updatedLowerSegments]
-    const trimmed = trimSegmentsToMax(combinedSegments, maxStatuses)
 
     return {
-      segments: trimmed,
-      statuses: trimmed.flatMap((s) => s.statuses),
+      segments: combinedSegments,
+      statuses: combinedSegments.flatMap((s) => s.statuses),
       hasGap: true,
       addedNewerCount: incomingStatuses.length
     }
@@ -241,10 +234,9 @@ export const mergeFreshPageIntoSegments = (params: {
     i++
   }
 
-  const trimmed = trimSegmentsToMax(finalSegments, maxStatuses)
   return {
-    segments: trimmed,
-    statuses: trimmed.flatMap((s) => s.statuses),
+    segments: finalSegments,
+    statuses: finalSegments.flatMap((s) => s.statuses),
     hasGap: false,
     addedNewerCount
   }
@@ -255,7 +247,6 @@ export const mergeGapPageIntoSegments = (params: {
   segmentIndex: number
   incomingStatuses: Status[]
   incomingNextMaxStatusId: string | null
-  maxStatuses?: number
 }): {
   segments: HydratedTimelineSegment[]
   statuses: Status[]
@@ -264,13 +255,14 @@ export const mergeGapPageIntoSegments = (params: {
     currentSegments,
     segmentIndex,
     incomingStatuses,
-    incomingNextMaxStatusId,
-    maxStatuses = MAX_CACHED_STATUSES_PER_TIMELINE
+    incomingNextMaxStatusId
   } = params
 
   if (segmentIndex < 0 || segmentIndex >= currentSegments.length) {
-    const trimmed = trimSegmentsToMax(currentSegments, maxStatuses)
-    return { segments: trimmed, statuses: trimmed.flatMap((s) => s.statuses) }
+    return {
+      segments: currentSegments,
+      statuses: currentSegments.flatMap((s) => s.statuses)
+    }
   }
 
   const currSeg = currentSegments[segmentIndex]
@@ -351,10 +343,9 @@ export const mergeGapPageIntoSegments = (params: {
     }
   }
 
-  const trimmed = trimSegmentsToMax(updatedSegments, maxStatuses)
   return {
-    segments: trimmed,
-    statuses: trimmed.flatMap((s) => s.statuses)
+    segments: updatedSegments,
+    statuses: updatedSegments.flatMap((s) => s.statuses)
   }
 }
 
@@ -362,17 +353,11 @@ export const appendOlderPageToSegments = (params: {
   currentSegments: HydratedTimelineSegment[]
   incomingStatuses: Status[]
   incomingNextMaxStatusId: string | null
-  maxStatuses?: number
 }): {
   segments: HydratedTimelineSegment[]
   statuses: Status[]
 } => {
-  const {
-    currentSegments,
-    incomingStatuses,
-    incomingNextMaxStatusId,
-    maxStatuses = MAX_CACHED_STATUSES_PER_TIMELINE
-  } = params
+  const { currentSegments, incomingStatuses, incomingNextMaxStatusId } = params
 
   if (currentSegments.length === 0) {
     const singleSegment: HydratedTimelineSegment = {
@@ -380,10 +365,9 @@ export const appendOlderPageToSegments = (params: {
       nextMaxStatusId: incomingNextMaxStatusId,
       prevMinStatusId: incomingStatuses[0]?.id ?? null
     }
-    const trimmed = trimSegmentsToMax([singleSegment], maxStatuses)
     return {
-      segments: trimmed,
-      statuses: trimmed.flatMap((s) => s.statuses)
+      segments: [singleSegment],
+      statuses: singleSegment.statuses
     }
   }
 
@@ -421,10 +405,9 @@ export const appendOlderPageToSegments = (params: {
     updatedLastSeg
   ]
 
-  const trimmed = trimSegmentsToMax(updatedSegments, maxStatuses)
   return {
-    segments: trimmed,
-    statuses: trimmed.flatMap((s) => s.statuses)
+    segments: updatedSegments,
+    statuses: updatedSegments.flatMap((s) => s.statuses)
   }
 }
 
