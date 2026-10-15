@@ -440,6 +440,12 @@
     html:has([data-floating-nav-trigger]) {
       scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4.75rem);
     }
+
+    /* Where the app backdrop starts (see below): signed in, the 56px compact
+       bar under the top safe area. */
+    html:has([data-mobile-compact-header]) {
+      --backdrop-top: calc(env(safe-area-inset-top, 0px) + 56px);
+    }
   }
 
   /* The viewport covers the whole screen (`viewportFit: 'cover'`), so in
@@ -452,21 +458,63 @@
     padding-right: env(safe-area-inset-right, 0);
   }
 
+  /* Where the app backdrop starts: the bottom edge of the page's top bar,
+     over the content area beside the sidebar. Its two glows are centred on
+     that edge, so the translucent bar and the sidebar no longer cover them.
+     Without a known bar (the auth pages, the profile's floating menu button)
+     they sit at the top of the viewport. */
+  html {
+    --backdrop-left: 0px;
+    --backdrop-top: 0px;
+  }
+
+  /* Logged-out pages: the 64px public top bar plus its 1px border. */
+  html:has([data-public-top-bar]) {
+    --backdrop-top: 65px;
+  }
+
+  /* The shared heatmap page: its 56px top bar plus its 1px border. */
+  html:has([data-heatmap-top-bar]) {
+    --backdrop-top: 57px;
+  }
+
+  /* Signed in, from md up: right of the rail (72px) or sidebar (280px), which
+     grow by the left safe area, and below the 79px sticky page header. */
+  @media (width >= 48rem) {
+    html:has([data-app-shell]) {
+      --backdrop-left: calc(72px + env(safe-area-inset-left, 0px));
+      --backdrop-top: 79px;
+    }
+  }
+
+  @media (width >= 80rem) {
+    html:has([data-app-shell]) {
+      --backdrop-left: calc(280px + env(safe-area-inset-left, 0px));
+    }
+  }
+
   /* The app backdrop. Shared with `.app-backdrop` surfaces that paint over the
      page in its place (the pending profile skeleton), so they match the body
      exactly: `fixed` attachment positions the gradients against the viewport
-     whatever element carries them. */
+     whatever element carries them, and the custom properties above inherit
+     from `html` to both. The glows sit 10 % and 90 % across the content area. */
   body,
   .app-backdrop {
     @apply bg-background;
+    --backdrop-glow-left: calc(
+      var(--backdrop-left) + (100% - var(--backdrop-left)) * 0.1
+    );
+    --backdrop-glow-right: calc(
+      var(--backdrop-left) + (100% - var(--backdrop-left)) * 0.9
+    );
     background-image:
       radial-gradient(
-        1200px 600px at 10% -10%,
+        1400px 800px at var(--backdrop-glow-left) var(--backdrop-top),
         hsl(24 95% 95% / 0.9),
         transparent 60%
       ),
       radial-gradient(
-        900px 600px at 90% -10%,
+        1100px 800px at var(--backdrop-glow-right) var(--backdrop-top),
         hsl(200 80% 94% / 0.8),
         transparent 55%
       );
@@ -482,12 +530,12 @@
   .dark .app-backdrop {
     background-image:
       radial-gradient(
-        1200px 600px at 10% -10%,
+        1400px 800px at var(--backdrop-glow-left) var(--backdrop-top),
         rgb(73 40 18 / 0.6),
         transparent 60%
       ),
       radial-gradient(
-        900px 600px at 90% -10%,
+        1100px 800px at var(--backdrop-glow-right) var(--backdrop-top),
         rgb(25 53 67 / 0.6),
         transparent 55%
       );

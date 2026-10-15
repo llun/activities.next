@@ -445,6 +445,20 @@ describe('design palette tokens', () => {
     expect(darkBody).toContain('rgb(73 40 18 / 0.6)')
     expect(darkBody).toContain('rgb(25 53 67 / 0.6)')
   })
+
+  // The glows start at the bottom edge of the top bar, beside the sidebar,
+  // so neither translucent surface covers them.
+  it('centres the backdrop glows below the top bar, beside the sidebar', () => {
+    const start = css.indexOf('body,\n  .app-backdrop {')
+    expect(start).toBeGreaterThan(-1)
+    const body = css.slice(start, css.indexOf('.dark body', start))
+    expect(body).toContain('at var(--backdrop-glow-left) var(--backdrop-top)')
+    expect(body).toContain('at var(--backdrop-glow-right) var(--backdrop-top)')
+    expect(css).toContain('html:has([data-public-top-bar])')
+    expect(css).toContain('html:has([data-mobile-compact-header])')
+    expect(css).toContain('html:has([data-app-shell])')
+    expect(css).toContain('html:has([data-heatmap-top-bar])')
+  })
 })
 
 describe('fitness heat tokens', () => {
