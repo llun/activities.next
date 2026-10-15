@@ -230,13 +230,13 @@ export function ActorsSection({
                     id="actorSectionTriggerValue"
                     className="flex min-w-0 flex-1 items-baseline gap-1.5"
                   >
-                    <span className="truncate">
+                    <span className="max-w-full shrink-0 truncate">
                       <ActorDisplayName
                         name={selectedActor?.name || selectedActor?.username}
                         tags={selectedActor?.tags}
                       />
                     </span>
-                    <span className="text-muted-foreground truncate text-xs">
+                    <span className="text-muted-foreground min-w-0 truncate text-xs">
                       {selectedActor ? getHandle(selectedActor) : ''}
                     </span>
                     {selectedActorId === currentActor.id && (

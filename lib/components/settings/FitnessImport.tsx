@@ -195,7 +195,6 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
 
         <input
           ref={fileInputRef}
-          id="fitnessImportFileInput"
           type="file"
           multiple
           className="hidden"
@@ -203,15 +202,21 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           onChange={handleFileChange}
         />
 
-        <FormRow label="Files" hint="Choose one or more files to import.">
-          {({ describedBy }) => (
+        <FormRow
+          label="Files"
+          htmlFor="fitnessImportChooseFiles"
+          hint="Choose one or more files to import."
+        >
+          {({ describedBy, labelledBy }) => (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   type="button"
+                  id="fitnessImportChooseFiles"
                   variant="outline"
                   onClick={handleChooseFiles}
                   disabled={isImporting}
+                  aria-labelledby={`${labelledBy} fitnessImportChooseFiles`}
                   aria-describedby={describedBy}
                 >
                   Choose files
