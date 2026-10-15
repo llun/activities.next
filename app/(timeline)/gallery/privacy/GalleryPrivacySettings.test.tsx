@@ -96,8 +96,10 @@ describe('GalleryPrivacySettings', () => {
     const { container } = renderSettings()
     await screen.findByRole('switch', { name: SHOW_GEAR })
 
+    // Three settings frames, plus the privacy editor's box and its
+    // saved-locations list.
     expect(screen.getByRole('heading', { name: 'Place' })).toBeInTheDocument()
-    expect(container.querySelectorAll('[data-slot="frame"]')).toHaveLength(3)
+    expect(container.querySelectorAll('[data-slot="frame"]')).toHaveLength(5)
     expect(
       screen
         .getByRole('switch', { name: SHOW_GEAR })
@@ -335,7 +337,7 @@ describe('GalleryPrivacySettings', () => {
       fireEvent.change(screen.getByLabelText('Longitude'), {
         target: { value: '5.3' }
       })
-      fireEvent.change(screen.getByLabelText('Hide Radius'), {
+      fireEvent.change(screen.getByLabelText('Hide radius'), {
         target: { value: '200' }
       })
       fireEvent.click(
