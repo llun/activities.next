@@ -200,6 +200,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           multiple
           className="hidden"
           accept={ACCEPTED_FITNESS_FILE_EXTENSIONS.join(',')}
+          disabled={isImporting}
           onChange={handleFileChange}
         />
 
