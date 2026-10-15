@@ -10,15 +10,13 @@ import {
 } from '@/app/(timeline)/admin/relays/actions'
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { PageHeader } from '@/lib/components/page-header'
+import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
-import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
-import { Frame } from '@/lib/components/surface/Frame'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
-import { Input } from '@/lib/components/ui/input'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { RelayState } from '@/lib/types/domain/relay'
@@ -79,31 +77,19 @@ const Page = async ({ searchParams }: Props) => {
       )}
 
       <Section title="Add relay">
-        <form action={addRelayAction}>
-          <Frame
-            form
-            footer={
-              <div className="flex justify-end">
-                <Button type="submit">Add relay</Button>
-              </div>
-            }
-          >
-            <FormRow
-              label="Inbox URL"
-              htmlFor="relay-inbox-url"
-              hint="The relay's inbox, usually ending in /inbox."
-            >
-              <Input
-                id="relay-inbox-url"
-                required
-                type="url"
-                name="inboxUrl"
-                placeholder="https://relay.example/inbox"
-                aria-describedby={formRowHintId('relay-inbox-url')}
-              />
-            </FormRow>
-          </Frame>
-        </form>
+        <AddBar
+          action={addRelayAction}
+          label="Inbox URL"
+          id="relay-inbox-url"
+          buttonLabel="Add relay"
+          hint="The relay's inbox, usually ending in /inbox."
+          inputProps={{
+            required: true,
+            type: 'url',
+            name: 'inboxUrl',
+            placeholder: 'https://relay.example/inbox'
+          }}
+        />
       </Section>
 
       <Section

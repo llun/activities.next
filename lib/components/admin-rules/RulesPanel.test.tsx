@@ -207,6 +207,8 @@ describe('RulesPanel', () => {
     expect(
       await screen.findByText('Failed to create rule. Please try again.')
     ).toBeInTheDocument()
+    // A request failure is an Alert in the box, not a field validation error.
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
     // The typed text is preserved so the admin can retry.
     expect(input).toHaveValue('No doxxing')
   })

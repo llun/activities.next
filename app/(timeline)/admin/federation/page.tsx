@@ -11,11 +11,13 @@ import {
 import { Pagination } from '@/lib/components/admin/Pagination'
 import { FederationPolicyForm } from '@/lib/components/admin/settings/FederationPolicyForm'
 import { PageHeader } from '@/lib/components/page-header'
+import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
@@ -219,9 +221,7 @@ const Page = async ({ searchParams }: Props) => {
           <Frame
             form
             footer={
-              <div className="flex justify-end">
-                <Button type="submit">Save block</Button>
-              </div>
+              <SaveBar variant="create" submit actionLabel="Save block" />
             }
           >
             <FormRow label="Domain" htmlFor="block-domain">
@@ -280,25 +280,17 @@ const Page = async ({ searchParams }: Props) => {
       </Section>
 
       <Section title="Add domain allow">
-        <form action={createDomainAllowAction}>
-          <Frame
-            form
-            footer={
-              <div className="flex justify-end">
-                <Button type="submit">Save allow</Button>
-              </div>
-            }
-          >
-            <FormRow label="Domain" htmlFor="allow-domain">
-              <Input
-                id="allow-domain"
-                required
-                name="domain"
-                placeholder="trusted.social"
-              />
-            </FormRow>
-          </Frame>
-        </form>
+        <AddBar
+          action={createDomainAllowAction}
+          label="Domain"
+          id="allow-domain"
+          buttonLabel="Add allow"
+          inputProps={{
+            required: true,
+            name: 'domain',
+            placeholder: 'trusted.social'
+          }}
+        />
       </Section>
 
       <Section title="Domain blocks" meta={stats.blocks.toLocaleString()}>

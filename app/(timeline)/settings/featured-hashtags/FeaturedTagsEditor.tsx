@@ -10,6 +10,7 @@ import {
   removeFeaturedTag
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Frame } from '@/lib/components/surface/Frame'
@@ -17,7 +18,6 @@ import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Section } from '@/lib/components/surface/Section'
 import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
-import { Input } from '@/lib/components/ui/input'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { cn } from '@/lib/utils'
@@ -285,79 +285,67 @@ export const FeaturedTagsEditor: FC = () => {
           </span>
         }
       >
-        <Frame className="p-4">
-          <div ref={wrapRef} className="relative">
-            <div className="flex items-stretch gap-2">
-              <div className="relative flex-1">
-                <Hash className="pointer-events-none absolute left-3 top-1/2 size-[15px] -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={inputRef}
-                  value={value}
-                  disabled={atLimit || submitting}
-                  placeholder={
-                    atLimit
-                      ? 'You’ve reached the 10-hashtag limit'
-                      : 'Add a hashtag'
-                  }
-                  aria-label="Add a hashtag"
-                  aria-describedby={message ? INLINE_MESSAGE_ID : undefined}
-                  className="pl-8"
-                  onChange={(event) => {
-                    setValue(event.target.value)
-                    setOpen(true)
-                    if (message) setMessage(null)
-                  }}
-                  onFocus={() => setOpen(true)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      commit(value)
-                    }
-                    if (event.key === 'Escape') setOpen(false)
-                  }}
-                />
-              </div>
-              <Button
-                type="button"
-                onClick={() => commit(value)}
-                disabled={atLimit || submitting}
-              >
-                <Plus className="size-4" />
-                Add
-              </Button>
-            </div>
-
-            {open && !atLimit && visibleSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-[42px] z-40 rounded-md border bg-popover p-1 shadow-lg">
-                <div className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
-                  Your most-used hashtags
+        <div ref={wrapRef}>
+          <AddBar
+            label="Add a hashtag"
+            id="featured-tag-input"
+            prefix={<Hash className="size-[15px]" />}
+            buttonDisabled={atLimit || submitting}
+            inputRef={inputRef}
+            onSubmit={(event) => {
+              event.preventDefault()
+              commit(value)
+            }}
+            inputProps={{
+              value,
+              disabled: atLimit || submitting,
+              placeholder: atLimit
+                ? 'You’ve reached the 10-hashtag limit'
+                : 'Add a hashtag',
+              'aria-describedby': message ? INLINE_MESSAGE_ID : undefined,
+              onChange: (event) => {
+                setValue(event.target.value)
+                setOpen(true)
+                if (message) setMessage(null)
+              },
+              onFocus: () => setOpen(true),
+              onKeyDown: (event) => {
+                if (event.key === 'Escape') setOpen(false)
+              }
+            }}
+            dropdown={
+              open && !atLimit && visibleSuggestions.length > 0 ? (
+                <div className="absolute top-full right-0 left-0 z-40 mt-1 rounded-md border bg-popover p-1 shadow-lg">
+                  <div className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
+                    Your most-used hashtags
+                  </div>
+                  {visibleSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.name}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        commit(suggestion.name)
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
+                    >
+                      <Hash className="size-[15px] text-primary" />
+                      <span className="font-medium">#{suggestion.name}</span>
+                      <Plus className="ml-auto size-[15px] text-muted-foreground" />
+                    </button>
+                  ))}
                 </div>
-                {visibleSuggestions.map((suggestion) => (
-                  <button
-                    key={suggestion.name}
-                    type="button"
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      commit(suggestion.name)
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
-                  >
-                    <Hash className="size-[15px] text-primary" />
-                    <span className="font-medium">#{suggestion.name}</span>
-                    <Plus className="ml-auto size-[15px] text-muted-foreground" />
-                  </button>
-                ))}
-              </div>
+              ) : null
+            }
+          >
+            <InlineMessageLine message={message} />
+            {atLimit && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                You can feature up to 10 hashtags. Remove one to add another.
+              </p>
             )}
-          </div>
-
-          <InlineMessageLine message={message} />
-          {atLimit && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              You can feature up to 10 hashtags. Remove one to add another.
-            </p>
-          )}
-        </Frame>
+          </AddBar>
+        </div>
       </Section>
 
       <Section

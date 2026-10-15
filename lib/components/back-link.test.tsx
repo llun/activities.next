@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { type AnchorHTMLAttributes, type ReactNode } from 'react'
 
 import { profileBack } from '@/lib/components/navigation-history/backDestination'
@@ -57,5 +57,24 @@ describe('BackLink', () => {
     })
     expect(link).toHaveTextContent(/^Back to profile$/)
     expect(link).toHaveAttribute('data-prefetch', 'false')
+  })
+})
+
+describe('BackLink disabled', () => {
+  it('is aria-disabled, muted, and swallows clicks', () => {
+    const onClick = vi.fn()
+    render(
+      <BackLink
+        href="/lists"
+        accessibleName="Back to lists"
+        onClick={onClick}
+        disabled
+      />
+    )
+    const link = screen.getByRole('link', { name: 'Back to lists' })
+    expect(link).toHaveAttribute('aria-disabled', 'true')
+    expect(link).toHaveClass('pointer-events-none', 'opacity-50')
+    fireEvent.click(link)
+    expect(onClick).not.toHaveBeenCalled()
   })
 })

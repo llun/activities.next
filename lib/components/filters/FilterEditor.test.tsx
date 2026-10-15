@@ -2,9 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { ClientFilter, FilterInput } from '@/lib/client'
+import { PageHeaderSectionProvider } from '@/lib/components/page-header'
 
 import { FilterEditor, type FilterScope } from './FilterEditor'
 
@@ -41,15 +42,17 @@ describe('FilterEditor', () => {
     }
   ])('$description', ({ filterAction, checked }) => {
     render(
-      <FilterEditor
-        initial={filterWithAction(filterAction)}
-        scope="account"
-        currentTime={0}
-        saving={false}
-        error={null}
-        onCancel={() => {}}
-        onSave={() => {}}
-      />
+      <PageHeaderSectionProvider>
+        <FilterEditor
+          initial={filterWithAction(filterAction)}
+          scope="account"
+          currentTime={0}
+          saving={false}
+          error={null}
+          onCancel={() => {}}
+          onSave={() => {}}
+        />
+      </PageHeaderSectionProvider>
     )
 
     const warnRadio = screen.getByRole('radio', {
@@ -69,15 +72,17 @@ describe('FilterEditor', () => {
   describe('warn preview', () => {
     const renderEditor = (filterAction: string) =>
       render(
-        <FilterEditor
-          initial={filterWithAction(filterAction)}
-          scope="account"
-          currentTime={0}
-          saving={false}
-          error={null}
-          onCancel={() => {}}
-          onSave={() => {}}
-        />
+        <PageHeaderSectionProvider>
+          <FilterEditor
+            initial={filterWithAction(filterAction)}
+            scope="account"
+            currentTime={0}
+            saving={false}
+            error={null}
+            onCancel={() => {}}
+            onSave={() => {}}
+          />
+        </PageHeaderSectionProvider>
       )
 
     it('shows the bare "Filtered" bar for a warn filter, with no frame or caption', () => {
@@ -103,16 +108,18 @@ describe('FilterEditor', () => {
       const onSave = vi.fn()
       const onCancel = vi.fn()
       render(
-        <FilterEditor
-          initial={null}
-          scope="account"
-          currentTime={0}
-          saving={false}
-          error={null}
-          onCancel={onCancel}
-          onSave={onSave}
-          {...props}
-        />
+        <PageHeaderSectionProvider>
+          <FilterEditor
+            initial={null}
+            scope="account"
+            currentTime={0}
+            saving={false}
+            error={null}
+            onCancel={onCancel}
+            onSave={onSave}
+            {...props}
+          />
+        </PageHeaderSectionProvider>
       )
       return { onSave, onCancel }
     }
@@ -203,19 +210,21 @@ describe('FilterEditor', () => {
         'Failed to create filter.'
       )
 
-      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
       expect(onCancel).toHaveBeenCalledTimes(1)
     })
 
-    it('moves between the action options with the arrow keys', () => {
+    it('moves between the action options with the arrow keys', async () => {
       renderNew()
 
       const warn = screen.getByRole('radio', { name: /Hide with a warning/i })
       fireEvent.keyDown(warn, { key: 'ArrowDown' })
 
-      expect(
-        screen.getByRole('radio', { name: /Hide completely/i })
-      ).toHaveAttribute('aria-checked', 'true')
+      await waitFor(() =>
+        expect(
+          screen.getByRole('radio', { name: /Hide completely/i })
+        ).toHaveAttribute('aria-checked', 'true')
+      )
     })
 
     it('does not add a second h1 to the page', () => {
@@ -258,15 +267,17 @@ describe('FilterEditor form behaviour', () => {
     const onSave = vi.fn<(input: FilterInput) => void>()
     const onCancel = vi.fn()
     render(
-      <FilterEditor
-        initial={props.initial ?? null}
-        scope={props.scope ?? 'account'}
-        currentTime={props.currentTime ?? 0}
-        saving={props.saving ?? false}
-        error={props.error ?? null}
-        onCancel={onCancel}
-        onSave={onSave}
-      />
+      <PageHeaderSectionProvider>
+        <FilterEditor
+          initial={props.initial ?? null}
+          scope={props.scope ?? 'account'}
+          currentTime={props.currentTime ?? 0}
+          saving={props.saving ?? false}
+          error={props.error ?? null}
+          onCancel={onCancel}
+          onSave={onSave}
+        />
+      </PageHeaderSectionProvider>
     )
     return { onSave, onCancel }
   }
@@ -283,17 +294,17 @@ describe('FilterEditor form behaviour', () => {
         screen.getByRole('heading', { level: 2, name: 'Add filter' })
       ).toBeInTheDocument()
       expect(
-        screen.getByRole('checkbox', { name: /Home and lists/ })
+        screen.getByRole('switch', { name: /Home and lists/ })
       ).toBeChecked()
       expect(
-        screen.getByRole('checkbox', { name: /Notifications/ })
+        screen.getByRole('switch', { name: /Notifications/ })
       ).not.toBeChecked()
       expect(
         screen.getByRole('radio', { name: /Hide with a warning/ })
       ).toHaveAttribute('aria-checked', 'true')
       expect(screen.getByLabelText('Expire after')).toHaveValue('0')
       expect(keywordInput(1)).toHaveValue('')
-      expect(screen.getByRole('switch')).toBeChecked()
+      expect(screen.getByRole('switch', { name: /Whole word/ })).toBeChecked()
     })
 
     it('blocks saving until a keyword has text', () => {
@@ -327,13 +338,13 @@ describe('FilterEditor form behaviour', () => {
       fireEvent.change(screen.getByLabelText('Title'), {
         target: { value: '  Politics  ' }
       })
-      fireEvent.click(screen.getByRole('checkbox', { name: /Notifications/ }))
+      fireEvent.click(screen.getByRole('switch', { name: /Notifications/ }))
       fireEvent.click(screen.getByRole('radio', { name: /Hide completely/ }))
       fireEvent.change(screen.getByLabelText('Expire after'), {
         target: { value: '3600' }
       })
       fireEvent.change(keywordInput(1), { target: { value: 'election' } })
-      fireEvent.click(screen.getByRole('switch'))
+      fireEvent.click(screen.getByRole('switch', { name: /Whole word/ }))
       fireEvent.click(screen.getByRole('button', { name: /Add keyword/ }))
       fireEvent.click(screen.getByRole('button', { name: /Add keyword/ }))
       fireEvent.change(keywordInput(3), { target: { value: 'ballot box' } })
@@ -355,7 +366,7 @@ describe('FilterEditor form behaviour', () => {
     it('falls back to the home context when every context is unchecked', () => {
       const { onSave } = renderEditor()
       fireEvent.change(keywordInput(1), { target: { value: 'spoiler' } })
-      fireEvent.click(screen.getByRole('checkbox', { name: /Home and lists/ }))
+      fireEvent.click(screen.getByRole('switch', { name: /Home and lists/ }))
 
       fireEvent.click(saveButton())
 
@@ -392,13 +403,13 @@ describe('FilterEditor form behaviour', () => {
       ).toBeInTheDocument()
       expect(screen.getByLabelText('Title')).toHaveValue('Spoilers')
       expect(
-        screen.getByRole('checkbox', { name: /Home and lists/ })
+        screen.getByRole('switch', { name: /Home and lists/ })
       ).toBeChecked()
       expect(
-        screen.getByRole('checkbox', { name: /Public timelines/ })
+        screen.getByRole('switch', { name: /Public timelines/ })
       ).toBeChecked()
       expect(
-        screen.getByRole('checkbox', { name: /Notifications/ })
+        screen.getByRole('switch', { name: /Notifications/ })
       ).not.toBeChecked()
       expect(keywordInput(1)).toHaveValue('finale')
       expect(keywordInput(2)).toHaveValue('twist')
@@ -519,20 +530,20 @@ describe('FilterEditor form behaviour', () => {
   })
 
   describe('action cards', () => {
-    it('moves the selection with the arrow keys and wraps around', () => {
+    it('moves the selection with the arrow keys and wraps around', async () => {
       renderEditor()
       const warn = screen.getByRole('radio', { name: /Hide with a warning/ })
       const hide = screen.getByRole('radio', { name: /Hide completely/ })
 
       fireEvent.keyDown(warn, { key: 'ArrowRight' })
-      expect(hide).toHaveAttribute('aria-checked', 'true')
+      await waitFor(() => expect(hide).toHaveAttribute('aria-checked', 'true'))
       expect(hide).toHaveFocus()
 
       fireEvent.keyDown(hide, { key: 'ArrowDown' })
-      expect(warn).toHaveAttribute('aria-checked', 'true')
+      await waitFor(() => expect(warn).toHaveAttribute('aria-checked', 'true'))
 
       fireEvent.keyDown(warn, { key: 'ArrowLeft' })
-      expect(hide).toHaveAttribute('aria-checked', 'true')
+      await waitFor(() => expect(hide).toHaveAttribute('aria-checked', 'true'))
     })
 
     it('ignores keys that are not arrows', () => {
@@ -564,7 +575,7 @@ describe('FilterEditor form behaviour', () => {
 
       expect(
         screen.getByRole('radio', { name: /Hide completely/ })
-      ).toHaveTextContent(hint)
+      ).toHaveAccessibleDescription(hint)
     })
 
     it('updates the warn preview as the title is typed', () => {
@@ -588,16 +599,23 @@ describe('FilterEditor form behaviour', () => {
     })
 
     it('disables saving and going back while a save is in flight', () => {
-      renderEditor({ initial: existingFilter(), saving: true })
+      const { onCancel } = renderEditor({
+        initial: existingFilter(),
+        saving: true
+      })
 
       expect(saveButton()).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+      expect(
+        screen.getByRole('link', { name: 'Back to filters' })
+      ).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
+      expect(onCancel).not.toHaveBeenCalled()
     })
 
     it('calls onCancel from the Back button', () => {
       const { onCancel, onSave } = renderEditor({ initial: existingFilter() })
 
-      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
 
       expect(onCancel).toHaveBeenCalledTimes(1)
       expect(onSave).not.toHaveBeenCalled()

@@ -1,6 +1,6 @@
 'use client'
 
-import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import { GripVertical, Pencil, Trash2 } from 'lucide-react'
 import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
@@ -13,9 +13,9 @@ import {
 import { reorder } from '@/lib/components/admin-rules/reorder'
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { PageHeader } from '@/lib/components/page-header'
+import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
-import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { SkeletonRows } from '@/lib/components/surface/Skeleton'
@@ -460,36 +460,23 @@ export const RulesPanel: FC = () => {
       ) : null}
 
       <Section title="Add a rule">
-        <form onSubmit={handleCreate} className="space-y-3">
-          <Frame
-            form
-            className="overflow-hidden"
-            footer={
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={busy || editing || newText.trim().length === 0}
-                >
-                  <Plus />
-                  Add rule
-                </Button>
-              </div>
-            }
-          >
-            <FormRow label="New rule" htmlFor="new-rule-text">
-              <Input
-                id="new-rule-text"
-                placeholder="Add a rule…"
-                value={newText}
-                maxLength={1000}
-                required
-                disabled={busy || editing}
-                onChange={(event) => setNewText(event.target.value)}
-              />
-            </FormRow>
-            {formError && <Alert flush title={formError} />}
-          </Frame>
-        </form>
+        <AddBar
+          onSubmit={handleCreate}
+          label="New rule"
+          id="new-rule-text"
+          buttonLabel="Add rule"
+          buttonDisabled={busy || editing || newText.trim().length === 0}
+          inputProps={{
+            placeholder: 'Add a rule…',
+            value: newText,
+            maxLength: 1000,
+            required: true,
+            disabled: busy || editing,
+            onChange: (event) => setNewText(event.target.value)
+          }}
+        >
+          {formError ? <Alert className="mt-3" title={formError} /> : null}
+        </AddBar>
       </Section>
     </div>
   )
