@@ -466,7 +466,6 @@ export const RulesPanel: FC = () => {
           id="new-rule-text"
           buttonLabel="Add rule"
           buttonDisabled={busy || editing || newText.trim().length === 0}
-          error={formError}
           inputProps={{
             placeholder: 'Add a rule…',
             value: newText,
@@ -475,7 +474,9 @@ export const RulesPanel: FC = () => {
             disabled: busy || editing,
             onChange: (event) => setNewText(event.target.value)
           }}
-        />
+        >
+          {formError ? <Alert className="mt-3" title={formError} /> : null}
+        </AddBar>
       </Section>
     </div>
   )

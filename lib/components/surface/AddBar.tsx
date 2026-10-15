@@ -31,7 +31,10 @@ interface AddBarProps {
   prefix?: ReactNode
   /** Muted help under the row, wired to the input's `aria-describedby`. */
   hint?: ReactNode
-  /** A validation or request error, shown in the box under the row. */
+  /**
+   * A field validation error, shown in the box under the row. A failed
+   * request is an `Alert` passed as `children` instead.
+   */
   error?: ReactNode
   /** A server action; the form submits to it. Use `onSubmit` for client state. */
   action?: ComponentProps<'form'>['action']
@@ -133,7 +136,7 @@ export const AddBar: FC<AddBarProps> = ({
         <p
           id={errorId}
           role="alert"
-          className="text-destructive-text mt-2 text-sm"
+          className="text-destructive-text mt-2 text-xs"
         >
           {error}
         </p>
