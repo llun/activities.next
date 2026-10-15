@@ -18,7 +18,10 @@ export const PublicTopBar = async () => {
   // In `next dev` it stays root-relative so it loads from the browser's origin.
   const logoSrc = getBrandAssetSrc('/logo-nav.png')
   return (
-    <header className="sticky top-0 z-30 border-b bg-surface-chrome backdrop-blur">
+    <header
+      data-public-top-bar=""
+      className="sticky top-0 z-30 border-b bg-surface-chrome backdrop-blur"
+    >
       {/* Full width below `md` to stay aligned with PublicShell's content
           column, which drops the same 680px cap while mobile feeds span the
           viewport. From `md` up both keep the narrow reading width. */}

@@ -168,6 +168,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                   features={features}
                 />
                 <main
+                  data-app-shell=""
                   className={cn(
                     'flex min-h-dvh flex-col overflow-x-clip pb-6',
                     'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
