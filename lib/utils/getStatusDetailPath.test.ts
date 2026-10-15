@@ -2,13 +2,15 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getStatusDetailPathSync } from '@/lib/utils/getStatusDetailPathSync'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 // The server and client implementations must produce identical paths, so both
 // are checked against the same expected values (and the server hash).
 describe.each([
   ['getStatusDetailPath', getStatusDetailPath],
-  ['getStatusDetailPathClient', getStatusDetailPathClient]
+  ['getStatusDetailPathClient', getStatusDetailPathClient],
+  ['getStatusDetailPathSync', getStatusDetailPathSync]
 ] as const)('%s', (_name, getPath) => {
   it('returns a publicId path for a local note', async () => {
     const publicId = generatePublicId()

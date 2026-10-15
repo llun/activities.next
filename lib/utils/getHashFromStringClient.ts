@@ -110,3 +110,11 @@ export const getHashFromStringClient = async (str: string) => {
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('')
 }
+
+/**
+ * Synchronous pure-JS sha256 hex, identical to node's
+ * `createHash('sha256')` output. Lets browser-reachable code derive the same
+ * hash without importing node's `crypto` (which bundles ~130 KB of polyfills).
+ */
+export const getHashFromStringSync = (str: string) =>
+  getHashFromBytes(encoder.encode(str))

@@ -1,7 +1,6 @@
 'use client'
 
 import { formatDistance } from 'date-fns/formatDistance'
-import _ from 'lodash'
 import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
@@ -195,21 +194,19 @@ export const Post: FC<PostProps> = (props) => {
     : `Open status, posted ${relativeCreatedAt} ago`
   const timestampClassName = 'text-muted-foreground text-xs whitespace-nowrap'
 
-  const processedAndCleanedText = _.chain(actualStatus)
-    .thru((s) => processStatusText(host, s))
-    .thru((parsedText) =>
-      cleanClassName(parsedText, {
-        // Mastodon client contract: when the quote renders structurally (the
-        // QuoteCard below renders for every edge state, tombstones included),
-        // the in-content "RE: <link>" fallback is redundant and is hidden.
-        // With no edge the fallback is the reader's only clue and stays
-        // visible.
-        hideQuoteInline: Boolean(actualStatus.quote),
-        host,
-        tags: actualStatus.tags
-      })
-    )
-    .value()
+  const processedAndCleanedText = cleanClassName(
+    processStatusText(host, actualStatus),
+    {
+      // Mastodon client contract: when the quote renders structurally (the
+      // QuoteCard below renders for every edge state, tombstones included),
+      // the in-content "RE: <link>" fallback is redundant and is hidden.
+      // With no edge the fallback is the reader's only clue and stays
+      // visible.
+      hideQuoteInline: Boolean(actualStatus.quote),
+      host,
+      tags: actualStatus.tags
+    }
+  )
   const fitnessFile =
     actualStatus.type === StatusType.enum.Note ? actualStatus.fitness : null
   const fitnessProcessingStatus = fitnessFile?.processingStatus ?? 'completed'

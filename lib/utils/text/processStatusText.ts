@@ -1,4 +1,7 @@
-import _ from 'lodash'
+import curryRight from 'lodash/curryRight'
+import flow from 'lodash/flow'
+import identity from 'lodash/identity'
+import trim from 'lodash/trim'
 
 import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
@@ -45,15 +48,13 @@ export const processStatusTextContent = (
   options?: ProcessStatusTextOptions
 ) => {
   const convertEmojis = options?.convertEmojis ?? true
-  return _.chain(text)
-    .thru(isLocalActor ? convertMarkdownText(host) : _.identity)
-    .thru(sanitizeText)
-    .thru(
-      convertEmojis ? _.curryRight(convertEmojisToImages)(tags) : _.identity
-    )
-    .thru(convertEmojis ? sanitizeTrustedStatusText : _.identity)
-    .thru(_.trim)
-    .value()
+  return flow(
+    isLocalActor ? convertMarkdownText(host) : identity,
+    sanitizeText,
+    convertEmojis ? curryRight(convertEmojisToImages)(tags) : identity,
+    convertEmojis ? sanitizeTrustedStatusText : identity,
+    (value: string) => trim(value)
+  )(text)
 }
 
 export const processStatusText = (

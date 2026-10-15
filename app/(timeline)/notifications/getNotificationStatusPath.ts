@@ -1,7 +1,7 @@
 import type { StatusWithActor } from '@/app/(timeline)/notifications/types'
 import { getMention } from '@/lib/types/domain/actor'
-import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getStatusDetailPathSync } from '@/lib/utils/getStatusDetailPathSync'
 
 export const getNotificationStatusPath = (status: StatusWithActor) =>
-  getStatusDetailPath(status) ??
+  getStatusDetailPathSync(status) ??
   `/${getMention(status.actor, true)}/${encodeURIComponent(status.id)}`
