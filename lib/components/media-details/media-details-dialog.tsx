@@ -310,10 +310,9 @@ const Section: FC<{
 const Field: FC<{
   label: string
   htmlFor: string
-  hint?: ReactNode
   children: ReactNode
-}> = ({ label, htmlFor, hint, children }) => (
-  <FormRow label={label} htmlFor={htmlFor} hint={hint} stacked className="p-0">
+}> = ({ label, htmlFor, children }) => (
+  <FormRow label={label} htmlFor={htmlFor} stacked className="p-0">
     {children}
   </FormRow>
 )
@@ -1956,17 +1955,11 @@ export const MediaDetailsDialog: FC<Props> = ({
                     }
                     onRetry={() => void onRetryLookups('place')}
                   />
-                  <FormRow
-                    label="Place precision"
-                    htmlFor={idFor('place-precision')}
-                    stacked
-                    className="p-0"
-                  >
+                  <FormRow label="Place precision" stacked className="p-0">
                     {({ labelledBy }) => (
                       <SegmentedControl
                         aria-labelledby={labelledBy}
                         size="sm"
-                        className="w-full sm:w-full"
                         items={MEDIA_PLACE_PRECISIONS.map((option) => ({
                           value: option,
                           label: PRECISION_LABELS[option]
