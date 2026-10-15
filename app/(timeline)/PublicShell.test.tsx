@@ -3,7 +3,6 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
-import { ReactElement } from 'react'
 
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
@@ -88,15 +87,11 @@ describe('PublicTopBar', () => {
 describe('PublicShell', () => {
   it('provides no mobile navigation, so page chrome renders no menu, bar or drawer', () => {
     const { container } = render(
-      PublicShell({
-        children: (
-          <>
-            <MobileCompactHeader title="Post" />
-            <MobileNavigationTrigger variant="floating" />
-            <p>content</p>
-          </>
-        )
-      }) as ReactElement
+      <PublicShell>
+        <MobileCompactHeader title="Post" />
+        <MobileNavigationTrigger variant="floating" />
+        <p>content</p>
+      </PublicShell>
     )
 
     expect(screen.getByTestId('public-top-bar')).toBeInTheDocument()

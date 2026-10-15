@@ -1924,6 +1924,16 @@ legacy shape left to copy.
 - Don't wrap a callback in `useCallback` when its dependencies change on every
   render, or when the consuming child isn't memoized — it adds cost without
   preventing re-renders.
+- The React Compiler is on (`reactCompiler: true` in `next.config.ts`,
+  `babel-plugin-react-compiler` pinned in `package.json`), so new components and
+  hooks need no manual `useMemo`/`useCallback`/`memo` for performance; leave the
+  existing ones in place. It compiles in `infer` mode and silently skips a
+  function that breaks the Rules of React (a ref read or written during render,
+  mutating props, a `react-hooks` lint suppression), so write components to those
+  rules rather than relying on the compiler to rescue them. Unit tests run
+  without the compiler, but a client component should still be rendered as an
+  element (`<Component />`), not called as a function, because a compiled one
+  needs a renderer.
 
 <a id="review-page-chrome-layout-accessibility"></a>
 

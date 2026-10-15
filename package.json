@@ -137,6 +137,7 @@
     "@types/web-push": "^3.6.4",
     "@types/yauzl": "^3.4.0",
     "@vitest/coverage-v8": "^5.0.3",
+    "babel-plugin-react-compiler": "1.0.0",
     "dotenv-flow": "^4.1.0",
     "husky": "^9.1.7",
     "jest-extended": "^7.0.0",
