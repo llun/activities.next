@@ -1,0 +1,95 @@
+app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx
+  s_b117bfcf032581::t_1c319aaf6327e9 35
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_dd24807c6295b0::t_a24b9cdf2d4731 34
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_24f9750640be81::t_9ec8c14c6cab18 210-216,274-279,283,314-315,353,424-426,811-813,1243-1505
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_b117bfcf032581::t_5f5f58307b8c65 5,11-16,20,24,26,36,227-248,250-272,274-287,291-293,301-303,311-312
+docs/architecture.md
+  s_dd24807c6295b0::t_684099b3facce1 638
+lib/database/domains/fitnessFileRouteData/index.ts
+  s_b117bfcf032581::t_0c49d3c55887cd 1-3
+lib/database/domains/fitnessFileRouteData/rows.ts
+  s_b117bfcf032581::t_b71477b86dbd63 1-17
+lib/jobs/processFitnessFileJob.routeCache.test.ts
+  s_a7c14dee90b8fd::t_721da0ef9ad753 114-125
+lib/jobs/processFitnessFileJob.ts
+  s_24f9750640be81::t_d1ced1c4a92855 12,550-565
+lib/services/fitness-files/backfillRouteData.test.ts
+  s_24f9750640be81::t_24eb8898dac200 1-114
+lib/services/fitness-files/backfillRouteData.ts
+  s_24f9750640be81::t_eaf9b7073f97d2 1-73
+lib/services/fitness-files/fileRouteDataCache.test.ts
+  s_24f9750640be81::t_191eb485cf3e39 1-361
+lib/utils/mapkit.test.ts
+  s_24f9750640be81::t_7f908c7d693c1b 116,270-272,426-432,440-477
+lib/utils/mapkit.ts
+  s_24f9750640be81::t_e66767fdb49663 186-187,189,192-194,236-239,355
+migrations/index.ts
+  s_b117bfcf032581::t_9c781c040fcfc9 7,18-19
+migrations/names.ts
+  s_b117bfcf032581::t_4867fccb23ca36 6-9
+migrations/schema.sql
+  s_b117bfcf032581::t_d7364c73c8bb07 405-413,1628-1630,2006-2007,2228-2233
+scripts/database/migrate.test.ts
+  s_60a7220bb2e007::t_62569b9f2e0eb4 21,391,401,403-405,408-414,438-440
+scripts/fitness/backfillFitnessRouteData.test.ts
+  s_e431f40a048ad8::t_90f063b2fae9fa 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f019e98013e1083d336fcc1376077eb978c4fdd2",
+  "prompts": {},
+  "sessions": {
+    "s_24f9750640be81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53982354-1c84-43cf-b912-fc35f5437737",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_60a7220bb2e007": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf49ba-f104-4402-aaa8-bbe5c0cd175e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a7c14dee90b8fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfe2b93b-3a3a-4f52-bcd9-5b24557d035b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_b117bfcf032581": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39fd9001-6406-4404-bfd4-1ae3ed056e3c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dd24807c6295b0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7c65640-63cf-4616-9162-2710be5ba20a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e431f40a048ad8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bd82b8a-bef3-4557-b0b4-e42dee5c8302",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
