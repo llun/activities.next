@@ -256,79 +256,83 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         </FormRow>
       </Frame>
 
-      <div className="space-y-4">
-        {batchResult && (
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">
-                Batch {batchResult.batchId} • {batchResult.status}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {batchResult.summary.completed}/{batchResult.summary.total}{' '}
-                completed, {batchResult.summary.failed} failed
-              </p>
-            </div>
+      {(batchResult || error) && (
+        <div className="space-y-4">
+          {batchResult && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Batch {batchResult.batchId} • {batchResult.status}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {batchResult.summary.completed}/{batchResult.summary.total}{' '}
+                  completed, {batchResult.summary.failed} failed
+                </p>
+              </div>
 
-            <div className="divide-y rounded-lg border">
-              {batchResult.files.map((file) => {
-                const fileState = getFitnessImportFileState(file)
-                const fileError = getFitnessImportFileError(file)
-                const statusLink = file.statusId
-                  ? getStatusLink(file.actorId, file.statusId)
-                  : null
+              <div className="divide-y rounded-lg border">
+                {batchResult.files.map((file) => {
+                  const fileState = getFitnessImportFileState(file)
+                  const fileError = getFitnessImportFileError(file)
+                  const statusLink = file.statusId
+                    ? getStatusLink(file.actorId, file.statusId)
+                    : null
 
-                return (
-                  <div
-                    key={file.id}
-                    className="flex flex-col gap-1 px-3 py-2 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span>{getFitnessImportFileIcon(fileState)}</span>
-                      <span className="min-w-0 break-all font-medium">
-                        {file.fileName}
-                      </span>
-                      <span className="text-xs uppercase text-muted-foreground">
-                        {file.fileType}
-                      </span>
-                      {file.isPrimary && (
-                        <span className="text-xs text-muted-foreground">
-                          primary
+                  return (
+                    <div
+                      key={file.id}
+                      className="flex flex-col gap-1 px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{getFitnessImportFileIcon(fileState)}</span>
+                        <span className="min-w-0 break-all font-medium">
+                          {file.fileName}
                         </span>
-                      )}
-                      {statusLink && (
-                        <Link
-                          href={statusLink}
-                          className="text-xs text-primary-text hover:underline"
-                        >
-                          View status →
-                        </Link>
+                        <span className="text-xs uppercase text-muted-foreground">
+                          {file.fileType}
+                        </span>
+                        {file.isPrimary && (
+                          <span className="text-xs text-muted-foreground">
+                            primary
+                          </span>
+                        )}
+                        {statusLink && (
+                          <Link
+                            href={statusLink}
+                            className="text-xs text-primary-text hover:underline"
+                          >
+                            View status →
+                          </Link>
+                        )}
+                      </div>
+                      {fileError && (
+                        <p className="text-destructive-text text-xs">
+                          {fileError}
+                        </p>
                       )}
                     </div>
-                    {fileError && (
-                      <p className="text-destructive-text text-xs">
-                        {fileError}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+
+              {failedCount > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? 'Retrying…' : `Retry failed (${failedCount})`}
+                </Button>
+              )}
             </div>
+          )}
 
-            {failedCount > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleRetry}
-                disabled={isRetrying}
-              >
-                {isRetrying ? 'Retrying…' : `Retry failed (${failedCount})`}
-              </Button>
-            )}
-          </div>
-        )}
-
-        {error && <Alert title="We couldn’t import these files">{error}</Alert>}
-      </div>
+          {error && (
+            <Alert title="We couldn’t import these files">{error}</Alert>
+          )}
+        </div>
+      )}
     </Section>
   )
 }
