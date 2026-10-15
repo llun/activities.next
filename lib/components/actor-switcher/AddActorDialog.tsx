@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { createActor, getActorDomains, switchActor } from '@/lib/client'
+import { setActiveOfflineSession } from '@/lib/client/offline/offlineDb'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
@@ -125,6 +126,16 @@ export function AddActorDialog({
 
       if (!didSwitch) {
         setError('Failed to switch actor')
+        return
+      }
+
+      try {
+        await setActiveOfflineSession({ actorId: data.id })
+      } catch {
+        // safe ignore
+      }
+
+      if (currentRequestId !== createRequestIdRef.current) {
         return
       }
 

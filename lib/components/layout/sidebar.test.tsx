@@ -591,6 +591,30 @@ describe('Sidebar', () => {
         screen.getAllByRole('link', { name: 'Timeline' })[0]
       ).toHaveAttribute('aria-current', 'page')
     })
+
+    it('renders skeleton account footer when isLoading is true and no user is provided', () => {
+      const { container } = renderSidebar(<Sidebar lists={[]} isLoading />)
+
+      const skeletonElements = container.querySelectorAll('.skeleton')
+      expect(skeletonElements.length).toBeGreaterThan(0)
+    })
+
+    it('renders user account row instead of skeleton when user is provided even if isLoading is true', () => {
+      const { container } = renderSidebar(
+        <Sidebar
+          lists={[]}
+          isLoading
+          user={{
+            name: 'Alice',
+            username: 'alice',
+            handle: '@alice@example.com'
+          }}
+        />
+      )
+
+      expect(screen.getAllByText('Alice')[0]).toBeInTheDocument()
+      expect(container.querySelectorAll('.skeleton')).toHaveLength(0)
+    })
   })
 
   describe('tapping the page already open', () => {

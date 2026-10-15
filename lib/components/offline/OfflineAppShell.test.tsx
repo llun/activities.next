@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TimelineRequestError } from '@/lib/client/timelines'
@@ -34,7 +40,14 @@ vi.mock('@/lib/client/bootstrap', () => ({
 }))
 
 vi.mock('@/lib/components/layout/sidebar', () => ({
-  Sidebar: () => <nav data-testid="desktop-sidebar">Sidebar</nav>
+  Sidebar: (props: { isLoading?: boolean }) => (
+    <nav
+      data-testid="desktop-sidebar"
+      data-loading={props.isLoading ? 'true' : undefined}
+    >
+      Sidebar
+    </nav>
+  )
 }))
 
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
@@ -136,8 +149,25 @@ describe('OfflineAppShell', () => {
   it('renders skeleton in loading state while reading IndexedDB', () => {
     mockGetActiveOfflineSession.mockReturnValue(new Promise(() => {}))
     render(<OfflineAppShell />)
+
+    const loadingRegion = screen.getByRole('status', {
+      name: 'Loading offline timeline'
+    })
+    expect(loadingRegion).toBeInTheDocument()
+
+    const sidebar = screen.getByTestId('desktop-sidebar')
+    expect(sidebar).toBeInTheDocument()
+    expect(sidebar).toHaveAttribute('data-loading', 'true')
+
+    const mobileNav = screen.getByTestId('mobile-nav')
+    expect(mobileNav).toBeInTheDocument()
+
+    const main = screen.getByRole('main')
+    expect(main).toHaveClass('md:pl-[72px]', 'xl:pl-[280px]')
+
+    expect(within(main).getByLabelText('Post composer')).toBeInTheDocument()
     expect(
-      screen.getByRole('status', { name: 'Loading offline timeline' })
+      main.querySelector('[data-slot="post-list-skeleton"]')
     ).toBeInTheDocument()
   })
 

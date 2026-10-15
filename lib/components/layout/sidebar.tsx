@@ -73,6 +73,7 @@ export interface SidebarProps {
   isAdmin?: boolean
   lists?: UserList[]
   features?: Partial<NavFeatureFlags>
+  isLoading?: boolean
 }
 
 // A pointer that cannot hover never fires the reveal below, which would leave
@@ -190,7 +191,8 @@ export function Sidebar({
   galleryUrl,
   isAdmin = false,
   lists = [],
-  features
+  features,
+  isLoading = false
 }: SidebarProps) {
   const isDrawer = variant === 'drawer'
   const pathname = usePathname()
@@ -604,34 +606,47 @@ export function Sidebar({
               onNavigate={onNavigate}
             />
           </div>
-        ) : (
-          user && (
-            <div className={accountRowClassName}>
-              <Link
-                href={`/${user.handle}`}
-                onClick={onNavigate}
-                prefetch={false}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors',
-                  isDrawer && 'min-h-[44px]'
-                )}
-              >
-                <Avatar className="h-10 w-10">
-                  {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                  <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
-                    {getAvatarInitial(user.username)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium truncate">{user.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {user.handle}
-                  </p>
-                </div>
-              </Link>
+        ) : user ? (
+          <div className={accountRowClassName}>
+            <Link
+              href={`/${user.handle}`}
+              onClick={onNavigate}
+              prefetch={false}
+              className={cn(
+                'flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors',
+                isDrawer && 'min-h-[44px]'
+              )}
+            >
+              <Avatar className="h-10 w-10">
+                {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
+                <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
+                  {getAvatarInitial(user.username)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium truncate">{user.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user.handle}
+                </p>
+              </div>
+            </Link>
+          </div>
+        ) : isLoading ? (
+          <div className={accountRowClassName} aria-hidden="true">
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-lg p-2',
+                isDrawer && 'min-h-[44px]'
+              )}
+            >
+              <div className="skeleton h-10 w-10 shrink-0 rounded-full" />
+              <div className="flex-1 space-y-1.5 overflow-hidden">
+                <div className="skeleton h-4 w-24 rounded" />
+                <div className="skeleton h-3 w-32 rounded" />
+              </div>
             </div>
-          )
-        )}
+          </div>
+        ) : null}
       </aside>
 
       {/* Collapsed sidebar - Tablet. Same h-dvh reason as the full sidebar. */}
@@ -777,7 +792,7 @@ export function Sidebar({
             </ul>
           </nav>
 
-          {user && (
+          {user ? (
             // The bottom padding clears the home indicator, so the account
             // stays tappable on iPhones and foldables in landscape.
             // w-full so the divider spans the whole rail (the aside is an
@@ -802,7 +817,14 @@ export function Sidebar({
                 <TooltipContent side="right">{user.handle}</TooltipContent>
               </Tooltip>
             </div>
-          )}
+          ) : isLoading ? (
+            <div
+              aria-hidden="true"
+              className="flex w-full justify-center border-t px-3 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]"
+            >
+              <div className="skeleton h-10 w-10 rounded-full" />
+            </div>
+          ) : null}
         </aside>
       )}
     </TooltipProvider>
