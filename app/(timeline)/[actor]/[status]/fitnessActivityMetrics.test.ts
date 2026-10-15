@@ -18,6 +18,7 @@ import {
   computePowerCurve,
   computeTimeAtZeroPowerSeconds,
   detectClimbs,
+  estimateRecordingSeconds,
   estimateSampleSeconds,
   formatLapPattern,
   getCadenceMultiplier,
@@ -58,6 +59,39 @@ describe('getCadenceMultiplier', () => {
     [null, 1]
   ])('returns %s → %i', (activityType, expected) => {
     expect(getCadenceMultiplier(activityType)).toBe(expected)
+  })
+
+  it('leaves a run recorded in steps per minute as it is', () => {
+    expect(getCadenceMultiplier('run', [0, 168, 172, 176, 0])).toBe(1)
+    expect(getCadenceMultiplier('run', [84, 86, 88])).toBe(2)
+    // At the threshold it is still read per foot.
+    expect(getCadenceMultiplier('run', [120])).toBe(2)
+    // A ride's rpm is never touched, however high.
+    expect(getCadenceMultiplier('ride', [130])).toBe(1)
+  })
+})
+
+describe('estimateRecordingSeconds', () => {
+  const at = (elapsedSeconds: number) => ({
+    elapsedSeconds,
+    distanceMeters: null
+  })
+
+  it('takes a long pause out, counting it as one usual gap', () => {
+    // A point a minute for 30 min, a 20 min pause, then 30 min more.
+    const points = [
+      ...Array.from({ length: 31 }, (_, index) => at(index * 60)),
+      ...Array.from({ length: 30 }, (_, index) => at(3000 + index * 60))
+    ]
+    // 61 points a minute apart, the pause counted as one minute.
+    expect(estimateRecordingSeconds(points, 0)).toBe(61 * 60)
+    // Never more than the elapsed time.
+    expect(estimateRecordingSeconds(points, 3000)).toBe(3000)
+  })
+
+  it('falls back when there are too few points to tell', () => {
+    expect(estimateRecordingSeconds([at(0), at(10)], 99)).toBe(99)
+    expect(estimateRecordingSeconds([], 42)).toBe(42)
   })
 })
 
@@ -340,6 +374,96 @@ describe('buildLapSplits', () => {
     // No lap aggregate: averaged from the timeline instead.
     expect(splits[1].avgPower).toBe(200)
     expect(splits[1].endSeconds).toBe(300)
+  })
+
+  it('falls back to the elapsed offsets when there is no timestamp to place a lap by', () => {
+    const untimed = buildRoad(
+      Array.from({ length: 31 }, () => 0),
+      100,
+      () => ({ power: 200 })
+    )
+    const laps = [
+      {
+        startElapsedSeconds: 0,
+        startTimestamp: 1_000_000,
+        durationSeconds: 100,
+        distanceMeters: 1000
+      },
+      {
+        startElapsedSeconds: 100,
+        // A timestamp that disagrees with the offset: with no timeline
+        // timestamp to anchor it, it cannot be used.
+        startTimestamp: 9_000_000,
+        durationSeconds: 200,
+        distanceMeters: 2000
+      }
+    ]
+    // Neither the timeline nor (for the second call) the laps carry a clock.
+    for (const [points, lapsToUse] of [
+      [untimed, laps],
+      [road, laps.map(({ startTimestamp: _unused, ...lap }) => lap)]
+    ] as const) {
+      const splits = buildLapSplits([...lapsToUse], points, {
+        totalDurationSeconds: 300
+      })
+      expect(
+        splits.map(({ startSeconds, endSeconds }) => [startSeconds, endSeconds])
+      ).toEqual([
+        [0, 100],
+        [100, 300]
+      ])
+    }
+  })
+
+  it("converts the file's raw lap cadence but not the timeline's, which is already converted", () => {
+    const running = buildRoad(
+      Array.from({ length: 31 }, () => 0),
+      30,
+      () => ({ cadence: 170 })
+    )
+    const splits = buildLapSplits(
+      [
+        {
+          startElapsedSeconds: 0,
+          durationSeconds: 150,
+          distanceMeters: 450,
+          avgCadence: 84
+        },
+        { startElapsedSeconds: 150, durationSeconds: 150, distanceMeters: 450 }
+      ],
+      running,
+      { totalDurationSeconds: 300, cadenceMultiplier: 2 }
+    )
+    expect(splits.map((split) => split.avgCadence)).toEqual([168, 170])
+  })
+
+  it('averages every column from the timeline for a lap the file gives no aggregates for', () => {
+    const climbing = buildRoad(
+      Array.from({ length: 31 }, (_, index) => index * 2),
+      100,
+      (index) => ({
+        power: index < 15 ? 100 : 300,
+        heartRate: 140,
+        cadence: 90
+      })
+    )
+    const [split] = buildLapSplits(
+      [{ startElapsedSeconds: 150, durationSeconds: 150, distanceMeters: 0 }],
+      climbing,
+      { totalDurationSeconds: 300 }
+    )
+    expect(split).toMatchObject({
+      startSeconds: 150,
+      endSeconds: 300,
+      distanceMeters: 1500,
+      subline: '0.0 – 1.5 km',
+      avgSpeedKmh: 36,
+      avgPower: 300,
+      avgHeartRate: 140,
+      avgCadence: 90
+    })
+    expect(split.gainMeters).toBeGreaterThan(0)
+    expect(split.gradePercent).toBeCloseTo((split.gainMeters as number) / 15)
   })
 })
 

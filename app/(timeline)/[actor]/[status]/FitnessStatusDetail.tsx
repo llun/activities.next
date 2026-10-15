@@ -1,6 +1,15 @@
 'use client'
 
-import { Activity, Clock, Gauge, Mountain, Route } from 'lucide-react'
+import {
+  Activity,
+  Clock,
+  Flame,
+  Gauge,
+  HeartPulse,
+  Mountain,
+  Route,
+  Zap
+} from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
@@ -15,10 +24,16 @@ import { Status, StatusNote } from '@/lib/types/domain/status'
 import { getFitnessPaceOrSpeed } from '@/lib/utils/fitness'
 import { type PublicMapProvider } from '@/lib/utils/mapProvider'
 
-import { ActivityAnalysisChart } from './ActivityAnalysisChart'
+import {
+  ActivityAnalysisChart,
+  type ActivityAnalysisChartProps
+} from './ActivityAnalysisChart'
 import { ActivityBestEfforts } from './ActivityBestEfforts'
 import { ActivityDistributionRow } from './ActivityDistributionRow'
-import { ActivityMapPanel } from './ActivityMapPanel'
+import {
+  ActivityMapPanel,
+  type ActivityMapPanelProps
+} from './ActivityMapPanel'
 import {
   ActivityOverviewSection,
   type OverviewGroup
@@ -42,6 +57,11 @@ import {
 import { getActivityLabel } from './activityLabels'
 import { average, formatLapPattern } from './fitnessActivityMetrics'
 import { formatDuration, getSeriesMinMax } from './fitnessChartData'
+import {
+  type ScrubStore,
+  createScrubStore,
+  useScrubPosition
+} from './scrubStore'
 import { useActivityRouteData } from './useActivityRouteData'
 import { useFitnessGearAssignment } from './useFitnessGearAssignment'
 import { useMakePrimaryRecording } from './useMakePrimaryRecording'
@@ -71,6 +91,32 @@ export const isGraphShownByDefault = (
 ): boolean => (hasPower ? key !== 'speed' && key !== 'grade' : key !== 'grade')
 
 const EMPTY_REPLIES: Status[] = []
+
+// The two views that follow the scrubbed instant. Each subscribes to the
+// store itself, so a hover re-renders the chart and the map and nothing else.
+const ScrubbedMapPanel: FC<
+  Omit<ActivityMapPanelProps, 'highlightedElapsedSeconds'> & {
+    scrubStore: ScrubStore
+  }
+> = ({ scrubStore, ...props }) => (
+  <ActivityMapPanel
+    {...props}
+    highlightedElapsedSeconds={useScrubPosition(scrubStore)}
+  />
+)
+
+const ScrubbedAnalysisChart: FC<
+  Omit<
+    ActivityAnalysisChartProps,
+    'highlightedElapsedSeconds' | 'onHighlightElapsedSeconds'
+  > & { scrubStore: ScrubStore }
+> = ({ scrubStore, ...props }) => (
+  <ActivityAnalysisChart
+    {...props}
+    highlightedElapsedSeconds={useScrubPosition(scrubStore)}
+    onHighlightElapsedSeconds={scrubStore.set}
+  />
+)
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
 const formatKm = (meters: number) => {
@@ -118,17 +164,16 @@ export const FitnessStatusDetail: FC<Props> = ({
     Partial<Record<AnalysisGraphKey, boolean>>
   >({})
   const [selectedSplitKey, setSelectedSplitKey] = useState<string | null>(null)
-  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
-    number | null
-  >(null)
+  // The scrubbed instant lives outside React state (see `scrubStore`).
+  const [scrubStore] = useState(createScrubStore)
   const chartRef = useRef<HTMLDivElement | null>(null)
 
   // A lap, a climb or a scrubbed instant belongs to the recording it was
   // picked on.
   useEffect(() => {
     setSelectedSplitKey(null)
-    setHighlightedElapsedSeconds(null)
-  }, [fitness?.id])
+    scrubStore.set(null)
+  }, [fitness?.id, scrubStore])
 
   const activityType = fitness?.activityType ?? null
   const analysis = useMemo(
@@ -137,10 +182,16 @@ export const FitnessStatusDetail: FC<Props> = ({
         ? deriveActivityAnalysis({
             data: route.data,
             activityType,
-            fallbackDurationSeconds: fitness?.totalDurationSeconds ?? 0
+            fallbackDurationSeconds: fitness?.totalDurationSeconds ?? 0,
+            movingTimeSeconds: fitness?.movingTimeSeconds ?? null
           })
         : null,
-    [route.data, activityType, fitness?.totalDurationSeconds]
+    [
+      route.data,
+      activityType,
+      fitness?.totalDurationSeconds,
+      fitness?.movingTimeSeconds
+    ]
   )
 
   // A single lap is the whole activity again, so it is no split at all.
@@ -213,11 +264,14 @@ export const FitnessStatusDetail: FC<Props> = ({
         ? Math.round(getSeriesMinMax(powerSeries).maxValue)
         : null
   const normalizedPower = analysis?.normalizedPower ?? null
+  // Average power is over the recorded samples, so work is too: running time,
+  // not elapsed time, which would count an auto-paused stop as pedalling.
+  const workSeconds = analysis?.recordingSeconds ?? movingTimeSeconds
   const totalWorkKj =
     typeof fitness?.totalWorkKj === 'number'
       ? Math.round(fitness.totalWorkKj)
-      : avgPower !== null && durationSeconds > 0
-        ? Math.round((avgPower * durationSeconds) / 1000)
+      : avgPower !== null && workSeconds > 0
+        ? Math.round((avgPower * workSeconds) / 1000)
         : null
   const heartRateStats =
     analysis?.heartRateStats ??
@@ -230,6 +284,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   const heartRateZones = analysis?.heartRateZones ?? []
   const effortPower = normalizedPower ?? avgPower
 
+  const calories = analysis?.calories ?? null
   const tiles = useMemo<ActivityTile[]>(() => {
     const candidates: Array<ActivityTile | null> = [
       distanceMeters > 0
@@ -250,7 +305,10 @@ export const FitnessStatusDetail: FC<Props> = ({
             unit: 'moving'
           }
         : null,
-      typeof fitness?.elevationGainMeters === 'number'
+      // A flat or indoor activity has no climbing to show; its slot goes to
+      // the next figure rather than a "0 m gain".
+      typeof fitness?.elevationGainMeters === 'number' &&
+      Math.round(fitness.elevationGainMeters) > 0
         ? {
             key: 'elevation',
             label: 'Elevation',
@@ -287,11 +345,46 @@ export const FitnessStatusDetail: FC<Props> = ({
             unit: usesPace ? '/km' : 'km/h',
             accent: true
           }
+        : null,
+      // Fill-ins for an activity that lacks one of the four above (an indoor
+      // ride has no distance, pace or climbing), so the strip still fills.
+      heartRateStats
+        ? {
+            key: 'heart-rate',
+            label: 'Avg heart rate',
+            icon: HeartPulse,
+            value: `${heartRateStats.avg}`,
+            unit: 'bpm'
+          }
+        : null,
+      totalWorkKj !== null && totalWorkKj > 0
+        ? {
+            key: 'work',
+            label: 'Work',
+            icon: Zap,
+            value: `${totalWorkKj}`,
+            unit: 'kJ'
+          }
+        : null,
+      typeof calories === 'number' && calories > 0
+        ? {
+            key: 'calories',
+            label: 'Calories',
+            icon: Flame,
+            value: `${Math.round(calories)}`,
+            unit: 'kcal'
+          }
         : null
     ]
-    return candidates
-      .filter((tile): tile is ActivityTile => tile !== null)
-      .slice(0, 4)
+    const available = candidates.filter(
+      (tile): tile is ActivityTile => tile !== null
+    )
+    // The strip is 2×2 or 4 across, so three tiles would leave a hole in
+    // either: show four, or two when there are not four to show.
+    return available.slice(
+      0,
+      available.length >= 4 ? 4 : available.length >= 2 ? 2 : 1
+    )
   }, [
     distanceMeters,
     movingTimeSeconds,
@@ -299,7 +392,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     normalizedPower,
     avgPower,
     paceOrSpeed,
-    usesPace
+    usesPace,
+    heartRateStats,
+    totalWorkKj,
+    calories
   ])
 
   const overviewGroups: OverviewGroup[] = [
@@ -458,11 +554,11 @@ export const FitnessStatusDetail: FC<Props> = ({
   const shouldRenderMap =
     Boolean(mapAttachment) || Boolean(fitness?.hasMapData) || hasRouteGeometry
   const map = shouldRenderMap ? (
-    <ActivityMapPanel
+    <ScrubbedMapPanel
+      scrubStore={scrubStore}
       mapAttachment={mapAttachment}
       routeSamples={routeSamples}
       routeSegments={routeSegments}
-      highlightedElapsedSeconds={highlightedElapsedSeconds}
       highlightedRange={highlightedRange}
       aspectClassName={MAP_ASPECT_CLASS}
       mapProvider={mapProvider}
@@ -596,7 +692,8 @@ export const FitnessStatusDetail: FC<Props> = ({
             hint={graphHint}
           />
           <div ref={chartRef}>
-            <ActivityAnalysisChart
+            <ScrubbedAnalysisChart
+              scrubStore={scrubStore}
               series={shownSeries}
               mode={graphDisplayMode}
               durationSeconds={analysis.durationSeconds}
@@ -604,8 +701,6 @@ export const FitnessStatusDetail: FC<Props> = ({
               climbs={climbs}
               selectedKey={selectedSplitKey}
               onToggleSplit={toggleSplit}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
               describePosition={describePosition}
             />
           </div>

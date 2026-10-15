@@ -112,10 +112,11 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   }, [isReplyingToPost])
 
   const toggleExpanded = () => {
-    setIsExpanded((current) => {
-      storeExpanded(!current)
-      return !current
-    })
+    // Worked out from this render's value, stored, then set: an updater has
+    // to stay pure (React may call it twice), so the write is not inside it.
+    const next = !isExpanded
+    storeExpanded(next)
+    setIsExpanded(next)
   }
 
   const allReplies = useMemo(() => {
@@ -280,7 +281,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
               onClick={() =>
                 setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
               }
-              className="text-xs font-medium text-primary-text hover:underline"
+              className="rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               Load more replies
             </button>

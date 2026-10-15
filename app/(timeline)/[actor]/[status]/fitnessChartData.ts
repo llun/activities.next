@@ -249,11 +249,23 @@ export interface ChartPaths {
 }
 
 /**
- * The line and the filled area of a series that may have gaps (null values):
- * each unbroken run is its own subpath, and each closes down to the plot's
- * bottom on its own, so a pause in the recording is a gap in the chart rather
- * than a straight line drawn across it. Points sit at `index / (count - 1)`
- * of the width, the first on the left edge and the last on the right.
+ * The x of a time bin's centre: bin `index` of `count` equal slices spans
+ * [index/count, (index+1)/count) of the width. A binned value stands for its
+ * whole slice, so it is drawn at the slice's middle, where it lines up with
+ * the lap lines and the crosshair (both at elapsed / duration of the width).
+ */
+export const getBinCentreX = (
+  index: number,
+  count: number,
+  width: number
+): number => ((index + 0.5) / Math.max(1, count)) * width
+
+/**
+ * The line and the filled area of a binned series that may have gaps (null
+ * values): each unbroken run is its own subpath, and each closes down to the
+ * plot's bottom on its own, so a pause in the recording is a gap in the chart
+ * rather than a straight line drawn across it. Each value sits at its bin's
+ * centre (see `getBinCentreX`).
  */
 export const buildGappedChartPaths = (
   values: Array<number | null>,
@@ -286,7 +298,7 @@ export const buildGappedChartPaths = (
       return
     }
     run.push([
-      getChartXPosition(index, values.length, width),
+      getBinCentreX(index, values.length, width),
       clampNumber(
         getChartYPosition(value, height, minValue, maxValue),
         0,

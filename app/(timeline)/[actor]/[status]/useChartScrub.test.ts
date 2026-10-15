@@ -3,7 +3,7 @@
  */
 import { renderHook } from '@testing-library/react'
 import type { PointerEvent } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { useChartScrub } from './useChartScrub'
 
@@ -104,5 +104,64 @@ describe('useChartScrub', () => {
     expect(() =>
       result.current.plotHandlers.onPointerMove(pointerAt(200, createPlot()))
     ).not.toThrow()
+  })
+
+  it('passes at most one move a frame, the first at once and the latest at the frame', () => {
+    const frames: FrameRequestCallback[] = []
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frames.push(callback)
+        return frames.length
+      })
+    onTestFinished(() => requestFrame.mockRestore())
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 600,
+        onHighlightElapsedSeconds: onHighlight
+      })
+    )
+    const plot = createPlot()
+
+    result.current.plotHandlers.onPointerMove(pointerAt(200, plot))
+    result.current.plotHandlers.onPointerMove(pointerAt(300, plot))
+    result.current.plotHandlers.onPointerMove(pointerAt(400, plot))
+    expect(onHighlight.mock.calls).toEqual([[150]])
+
+    frames[0](0)
+    expect(onHighlight.mock.calls).toEqual([[150], [450]])
+  })
+
+  it('drops a move still waiting for its frame when the pointer leaves', () => {
+    const frames: FrameRequestCallback[] = []
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frames.push(callback)
+        return frames.length
+      })
+    const cancelFrame = vi
+      .spyOn(window, 'cancelAnimationFrame')
+      .mockImplementation(() => {})
+    onTestFinished(() => {
+      requestFrame.mockRestore()
+      cancelFrame.mockRestore()
+    })
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 600,
+        onHighlightElapsedSeconds: onHighlight
+      })
+    )
+    const plot = createPlot()
+
+    result.current.plotHandlers.onPointerMove(pointerAt(200, plot))
+    result.current.plotHandlers.onPointerMove(pointerAt(400, plot))
+    result.current.plotHandlers.onPointerLeave()
+
+    expect(cancelFrame).toHaveBeenCalledWith(1)
+    expect(onHighlight.mock.calls).toEqual([[150], [null]])
   })
 })

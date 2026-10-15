@@ -1,5 +1,6 @@
 import type { Attachment } from '@/lib/types/domain/attachment'
 
+import { placeReadout } from './ActivityAnalysisChart'
 import { formatEffortDuration } from './ActivityBestEfforts'
 import { getVisibleOverviewGroups } from './ActivityOverviewSection'
 import { getRouteMapAttachmentIndex } from './ActivityPostFrame'
@@ -134,5 +135,23 @@ describe('isGraphShownByDefault', () => {
   it('shows speed, with only grade off, when it has none', () => {
     expect(isGraphShownByDefault('speed', false)).toBe(true)
     expect(isGraphShownByDefault('grade', false)).toBe(false)
+  })
+})
+
+describe('placeReadout', () => {
+  it('puts the readout right of the crosshair when it fits there', () => {
+    expect(placeReadout(100, 600, 160)).toBe(110)
+  })
+
+  it('flips it left of the crosshair before it would overflow', () => {
+    expect(placeReadout(500, 600, 160)).toBe(332)
+  })
+
+  it('centres it on the crosshair, inside the plot, when neither side fits', () => {
+    expect(placeReadout(150, 300, 160)).toBe(70)
+    expect(placeReadout(20, 170, 160)).toBe(0)
+    expect(placeReadout(160, 170, 160)).toBe(10)
+    // A readout wider than the plot starts at its left edge.
+    expect(placeReadout(50, 100, 160)).toBe(0)
   })
 })

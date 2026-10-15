@@ -80,12 +80,41 @@ export const isRunActivity = (activityType?: string | null): boolean => {
 }
 
 /**
- * Running cadence is recorded per foot (strides per minute), and runners read
- * it in steps per minute, so a run's cadence is doubled. Every other sport
- * (cycling's rpm in particular) is shown as recorded.
+ * Above this median, a run's recorded cadence is already in steps per minute:
+ * per-foot running cadence sits around 75-100, and no runner holds 120
+ * strides (240 steps) a minute, while 150-200 is an ordinary step rate.
  */
-export const getCadenceMultiplier = (activityType?: string | null): number =>
-  isRunActivity(activityType) ? 2 : 1
+export const RUN_CADENCE_STEPS_THRESHOLD = 120
+
+const median = (values: number[]): number | null => {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2
+}
+
+/**
+ * Running cadence is usually recorded per foot (strides per minute), and
+ * runners read it in steps per minute, so a run's cadence is doubled. Some
+ * devices already record steps per minute; a run whose median recorded cadence
+ * (ignoring zeros) is above {@link RUN_CADENCE_STEPS_THRESHOLD} is shown as
+ * recorded. Every other sport (cycling's rpm in particular) is shown as
+ * recorded.
+ */
+export const getCadenceMultiplier = (
+  activityType?: string | null,
+  rawCadences: Array<number | null | undefined> = []
+): number => {
+  if (!isRunActivity(activityType)) return 1
+  const typical = median(
+    rawCadences.filter(
+      (value): value is number => typeof value === 'number' && value > 0
+    )
+  )
+  return typical !== null && typical > RUN_CADENCE_STEPS_THRESHOLD ? 1 : 2
+}
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
@@ -349,11 +378,13 @@ export const getSeriesScale = (
 }
 
 /**
- * Seconds between two values of a full-resolution series. The series keeps
- * only recorded values, so it is read as one per second unless the recording
- * is clearly sparser (Garmin's "smart recording" writes every few seconds):
- * a pause in a 1 Hz file stretches elapsed time without adding samples, and
- * up to 50% of pauses is still read as 1 Hz.
+ * Seconds between two values of a full-resolution series, given how long the
+ * recording was actually running (see {@link estimateRecordingSeconds}). The
+ * series keeps only recorded values, so it is read as one per second unless
+ * the recording is clearly sparser (Garmin's "smart recording" writes every
+ * few seconds). Pass running time, never elapsed time: an auto-paused file has
+ * no samples for its stops, so elapsed time would stretch every sample, shrink
+ * the windows the power maths slides over and inflate every time total.
  */
 export const estimateSampleSeconds = (
   sampleCount: number,
@@ -362,6 +393,34 @@ export const estimateSampleSeconds = (
   if (sampleCount < 2 || !(durationSeconds > 0)) return 1
   const ratio = durationSeconds / sampleCount
   return ratio < 1.5 ? 1 : ratio
+}
+
+/**
+ * How long the recording was running, from the timeline's own timing: the sum
+ * of the gaps between consecutive points, where a gap far longer than the
+ * usual one (an auto-pause, or the recorder stopped) counts as one usual gap,
+ * capped at `fallbackSeconds` (the elapsed time) when that is known.
+ * The timeline is picked evenly by record, so an ordinary gap is the record
+ * interval times the pick step and a pause stands out as one long jump. Falls
+ * back to `fallbackSeconds` when there are too few points to tell.
+ */
+export const estimateRecordingSeconds = (
+  points: ActivityPoint[],
+  fallbackSeconds: number
+): number => {
+  const gaps: number[] = []
+  for (let index = 1; index < points.length; index += 1) {
+    const gap = points[index].elapsedSeconds - points[index - 1].elapsedSeconds
+    if (gap > 0) gaps.push(gap)
+  }
+  const usual = median(gaps)
+  if (gaps.length < 2 || usual === null) return fallbackSeconds
+  const pauseAbove = Math.max(usual * 4, usual + 10)
+  // Each point stands for one usual gap, the last one included, and running
+  // time never exceeds the elapsed time it is part of.
+  const running =
+    gaps.reduce((sum, gap) => sum + (gap > pauseAbove ? usual : gap), 0) + usual
+  return fallbackSeconds > 0 ? Math.min(running, fallbackSeconds) : running
 }
 
 const bestAverage = (prefix: number[], windowSize: number): number | null => {

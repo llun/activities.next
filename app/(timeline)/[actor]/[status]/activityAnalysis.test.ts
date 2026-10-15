@@ -220,3 +220,101 @@ describe('deriveActivityAnalysis', () => {
     expect(analysis.series).toEqual([])
   })
 })
+
+describe('deriveActivityAnalysis with an auto-paused recording', () => {
+  // 2 h of riding recorded at 1 Hz, with a 1 h 15 min café stop the recorder
+  // auto-paused after the first hour: 7200 samples over 3 h 15 min elapsed.
+  const MOVING = 7200
+  const STOP = 4500
+  const ELAPSED = MOVING + STOP
+  // 15 min at 300 W, 5 min stopped at the lights at 0 W, then 100 W.
+  const power = Array.from({ length: MOVING }, (_, second) =>
+    second < 900 ? 300 : second < 1200 ? 0 : 100
+  )
+  const elapsedAt = (second: number) => (second < 3600 ? second : second + STOP)
+  const buildPausedData = (): FitnessRouteDataResponse => ({
+    // The route samples are picked down to one a minute, as the server does.
+    samples: Array.from({ length: MOVING / 60 }, (_, index) => ({
+      lat: 52 + index * 0.0005,
+      lng: 5,
+      elapsedSeconds: elapsedAt(index * 60),
+      power: power[index * 60],
+      heartRate: 130
+    })),
+    totalDurationSeconds: ELAPSED,
+    powerSeries: power,
+    heartRateSeries: Array.from({ length: MOVING }, () => 130)
+  })
+
+  it.each([
+    { source: 'the file’s moving time', movingTimeSeconds: MOVING },
+    { source: 'the timeline’s own gaps', movingTimeSeconds: null }
+  ])(
+    'times the power and heart-rate figures by running time, from $source',
+    ({ movingTimeSeconds }) => {
+      const analysis = deriveActivityAnalysis({
+        data: buildPausedData(),
+        activityType: 'ride',
+        movingTimeSeconds
+      })
+
+      expect(analysis.durationSeconds).toBe(ELAPSED)
+      expect(analysis.recordingSeconds).toBe(MOVING)
+      // One sample a second, so NP smooths over 30 samples, not 18.
+      expect(analysis.sampleSeconds).toBe(1)
+      const best = (seconds: number) =>
+        analysis.bestEfforts.find(
+          (effort) => effort.durationSeconds === seconds
+        )?.watts
+      // The best 20 min is the 15 min block plus 5 min at 0 W: 225 W. Read
+      // against elapsed time it would be a 738-sample window inside the block.
+      expect(best(1200)).toBe(225)
+      // 60 min: 900 s at 300 W, 300 s at 0 W, 2400 s at 100 W.
+      expect(best(3600)).toBe(142)
+      expect(analysis.timeAtZeroPowerSeconds).toBe(300)
+      // Every reading is in Z2: two hours of it, not three and a quarter.
+      expect(analysis.heartRateZones.map((zone) => zone.seconds)).toEqual([
+        0,
+        MOVING,
+        0,
+        0,
+        0
+      ])
+      // The distribution leaves out the 0-25 W bucket (the 300 s at 0 W).
+      const minutes = analysis.powerDistribution.bins.reduce(
+        (sum, bin) => sum + bin.minutes,
+        0
+      )
+      expect(minutes).toBeCloseTo((MOVING - 300) / 60)
+    }
+  )
+})
+
+describe('deriveActivityAnalysis running cadence', () => {
+  const buildRun = (cadence: number): FitnessRouteDataResponse => ({
+    samples: Array.from({ length: 61 }, (_, index) => ({
+      lat: 52 + index * 0.0002,
+      lng: 5,
+      elapsedSeconds: index * 10,
+      cadence
+    })),
+    totalDurationSeconds: 600
+  })
+
+  it('doubles a per-foot running cadence into steps per minute', () => {
+    const analysis = deriveActivityAnalysis({
+      data: buildRun(86),
+      activityType: 'run'
+    })
+    expect(analysis.avgCadence).toBe(172)
+  })
+
+  it('keeps a running cadence the device already recorded in steps per minute', () => {
+    const analysis = deriveActivityAnalysis({
+      data: buildRun(172),
+      activityType: 'run'
+    })
+    expect(analysis.cadenceUnit).toBe('spm')
+    expect(analysis.avgCadence).toBe(172)
+  })
+})

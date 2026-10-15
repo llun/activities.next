@@ -260,19 +260,43 @@ describe('FitnessStatusDetail analysis', () => {
       expect(readout).toHaveTextContent('1.3 km · lap 1')
       expect(readout).toHaveTextContent(/Power\d+ W/)
       expect(readout).toHaveTextContent('Cadence85 rpm')
-      // Left half: the readout sits right of the crosshair.
-      expect(readout.style.transform).toBe('translateX(10px)')
-
-      hoverPlot(plot, 450)
-      expect(
-        within(analysis).getByTestId('analysis-readout').style.transform
-      ).toBe('translateX(calc(-100% - 8px))')
 
       fireEvent.pointerLeave(plot)
       expect(
         within(analysis).queryByTestId('analysis-readout')
       ).not.toBeInTheDocument()
       expect(map).toHaveAttribute('data-highlighted-elapsed-seconds', '')
+    })
+
+    it('flips the readout before it can overflow a narrow plot, and keeps it inside', async () => {
+      mockGetFitnessRouteData.mockResolvedValue(buildRichRouteData())
+      const analysis = await renderAnalysis()
+      await within(analysis).findByText('7 graphs from the FIT file')
+      const plot = within(analysis).getByTestId('analysis-combined-plot')
+      // A 300px plot, as on a phone, and a 160px readout.
+      Object.defineProperty(plot, 'clientWidth', {
+        configurable: true,
+        value: 300
+      })
+      const offsetWidth = vi
+        .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
+        .mockImplementation(function (this: HTMLElement) {
+          return this.dataset.testid === 'analysis-readout' ? 160 : 0
+        })
+      onTestFinished(() => offsetWidth.mockRestore())
+      const readoutLeft = () =>
+        within(analysis).getByTestId('analysis-readout').style.left
+
+      // 22.5% across (x 67.5): room on the right of the crosshair.
+      hoverPlot(plot, 190)
+      expect(readoutLeft()).toBe('77.5px')
+      // 90% across (x 270): no room on the right, so it flips left.
+      hoverPlot(plot, 460)
+      await waitFor(() => expect(readoutLeft()).toBe('102px'))
+      // Halfway (x 150): room on neither side, so it is centred on the
+      // crosshair and clamped inside the plot.
+      hoverPlot(plot, 300)
+      await waitFor(() => expect(readoutLeft()).toBe('70px'))
     })
 
     it('shows the value under the pointer beside each separate graph', async () => {

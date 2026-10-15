@@ -185,9 +185,6 @@ export const computeFocusBounds = (
   return { bounds: { minLat, maxLat, minLng, maxLng }, focused: true }
 }
 
-// Binary-search the route sample nearest to an elapsed offset (the samples are
-// ordered by elapsedSeconds). Drives the "follow the chart hover on the map"
-// highlight in both the GL and MapKit activity route maps.
 /**
  * The parts of each route segment that fall inside a time range, as separate
  * runs of at least two samples: the stretch to highlight for a picked lap or
@@ -215,6 +212,9 @@ export const getRouteSamplesInRange = (
     return runs.filter((entry) => entry.length >= 2)
   })
 
+// Binary-search the route sample nearest to an elapsed offset (the samples are
+// ordered by elapsedSeconds). Drives the "follow the chart hover on the map"
+// highlight in both the GL and MapKit activity route maps.
 export const findRouteSampleForElapsed = (
   samples: FitnessRouteSample[],
   elapsedSeconds: number

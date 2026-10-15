@@ -21,6 +21,7 @@ import {
   computePowerCurve,
   computeTimeAtZeroPowerSeconds,
   detectClimbs,
+  estimateRecordingSeconds,
   estimateSampleSeconds,
   getCadenceMultiplier,
   getSeriesScale,
@@ -50,6 +51,11 @@ export interface AnalysisSeries {
 export interface ActivityAnalysis {
   timeline: ActivityPoint[]
   durationSeconds: number
+  /**
+   * How long the recording was running: elapsed time less auto-pauses and
+   * stops. Power and heart-rate time totals are measured against this.
+   */
+  recordingSeconds: number
   /** How many equal slices of elapsed time the chart series are binned into. */
   binCount: number
   series: AnalysisSeries[]
@@ -95,13 +101,19 @@ const hasAny = (values: Array<number | null | undefined>) =>
 export const deriveActivityAnalysis = ({
   data,
   activityType,
-  fallbackDurationSeconds = 0
+  fallbackDurationSeconds = 0,
+  movingTimeSeconds = null
 }: {
   data: FitnessRouteDataResponse
   activityType?: string | null
   fallbackDurationSeconds?: number
+  /** The file's moving (timer) time, when it reports one. */
+  movingTimeSeconds?: number | null
 }): ActivityAnalysis => {
-  const cadenceMultiplier = getCadenceMultiplier(activityType)
+  const cadenceMultiplier = getCadenceMultiplier(activityType, [
+    ...(data.samples ?? []).map((sample) => sample.cadence),
+    ...(data.metricSamples ?? []).map((sample) => sample.cadence)
+  ])
   const timeline = buildActivityTimeline({
     samples: data.samples ?? [],
     metricSamples: data.metricSamples,
@@ -203,9 +215,19 @@ export const deriveActivityAnalysis = ({
       scale: getSeriesScale(entry.key, entry.values)
     }))
 
+  // The full-resolution series hold only recorded values, so their timing is
+  // measured against running time, not elapsed time: an auto-paused ride has
+  // no samples for its stops. The file's moving time when it has one, else
+  // the timeline's own gaps with the pauses taken out.
+  const recordingSeconds =
+    typeof movingTimeSeconds === 'number' && movingTimeSeconds > 0
+      ? durationSeconds > 0
+        ? Math.min(movingTimeSeconds, durationSeconds)
+        : movingTimeSeconds
+      : estimateRecordingSeconds(timeline, durationSeconds)
   const sampleSeconds = estimateSampleSeconds(
     powerSeries.length,
-    durationSeconds
+    recordingSeconds
   )
   const hasPower = powerSeries.length > 0
   const speeds = (data.speedSeries ?? []).length
@@ -225,6 +247,7 @@ export const deriveActivityAnalysis = ({
   return {
     timeline,
     durationSeconds,
+    recordingSeconds,
     binCount,
     series,
     powerSeries,
@@ -243,7 +266,16 @@ export const deriveActivityAnalysis = ({
     heartRateStats: computeHeartRateStats(heartRateSeries),
     heartRateZones:
       heartRateSeries.length > 0
-        ? computeHeartRateZones(heartRateSeries, durationSeconds)
+        ? computeHeartRateZones(
+            heartRateSeries,
+            // Counted per recorded reading, so a stop that kept recording is
+            // time in its zone and an auto-paused one is not.
+            heartRateSeries.length *
+              estimateSampleSeconds(
+                (data.heartRateSeries ?? []).length,
+                recordingSeconds
+              )
+          )
         : [],
     maxSpeedKmh: speeds.length > 0 ? getSeriesMinMax(speeds).maxValue : null,
     avgCadence: average(cadences),

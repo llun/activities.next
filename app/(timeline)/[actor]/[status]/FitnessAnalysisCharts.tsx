@@ -125,7 +125,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
             aria-pressed={mode === entry.id}
             onClick={() => onModeChange(entry.id)}
             className={cn(
-              'rounded-md px-3 py-1 transition-colors',
+              'rounded-md px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
               mode === entry.id
                 ? 'bg-background text-primary-text shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -146,7 +146,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
             aria-pressed={isSelected}
             onClick={() => onToggle(option.key)}
             className={cn(
-              'flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm font-medium transition-colors',
+              'flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
               isSelected
                 ? cn(
                     ANALYSIS_GRAPH_STYLES[option.key].chipBorder,

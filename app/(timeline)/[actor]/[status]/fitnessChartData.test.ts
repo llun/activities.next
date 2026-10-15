@@ -14,6 +14,7 @@ import {
   filterPositiveHeartRateSeries,
   formatChartValue,
   formatDuration,
+  getBinCentreX,
   getChartXPosition,
   getChartYPosition,
   getSeriesMinMax
@@ -237,10 +238,17 @@ describe('fitnessChartData', () => {
         100,
         50
       )
-      expect(line).toBe('M0.0 50.0L25.0 0.0M75.0 0.0L100.0 50.0')
+      // Five bins of 20 across 100: drawn at their centres, 10, 30, 70, 90.
+      expect(line).toBe('M10.0 50.0L30.0 0.0M70.0 0.0L90.0 50.0')
       expect(area).toBe(
-        'M0.0 50.0L25.0 0.0L25.0 50L0.0 50ZM75.0 0.0L100.0 50.0L100.0 50L75.0 50Z'
+        'M10.0 50.0L30.0 0.0L30.0 50L10.0 50ZM70.0 0.0L90.0 50.0L90.0 50L70.0 50Z'
       )
+    })
+
+    it('puts each bin at the centre of its slice of the width', () => {
+      expect(getBinCentreX(0, 4, 100)).toBe(12.5)
+      expect(getBinCentreX(3, 4, 100)).toBe(87.5)
+      expect(getBinCentreX(0, 1, 100)).toBe(50)
     })
 
     it('draws nothing for an empty or all-missing series', () => {

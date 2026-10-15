@@ -1,6 +1,13 @@
 'use client'
 
-import { type FC, type ReactNode, useMemo } from 'react'
+import {
+  type FC,
+  type ReactNode,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { MediaStripEdges } from '@/lib/components/posts/MediaStripEdges'
 import { useMediaStripScroll } from '@/lib/components/posts/useMediaStripScroll'
@@ -29,8 +36,32 @@ import { useChartScrub } from './useChartScrub'
 const VIEW_WIDTH = 1000
 const VIEW_HEIGHT = 100
 const TIME_LABEL_COUNT = 5
-// The readout flips to the left of the crosshair past this share of the width.
-const READOUT_FLIP_RATIO = 0.55
+// Gaps between the crosshair and the readout on either side of it, in px.
+const READOUT_GAP_RIGHT = 10
+const READOUT_GAP_LEFT = 8
+
+/**
+ * Where the combined chart's readout goes, as its left edge in px within the
+ * plot: right of the crosshair when it fits there, else left of it, and when
+ * the plot is too narrow for either (a phone with several series shown),
+ * centred on the crosshair and clamped inside the plot, so it never runs out
+ * past the chart's edge.
+ */
+export const placeReadout = (
+  cursorX: number,
+  plotWidth: number,
+  readoutWidth: number
+): number => {
+  const right = cursorX + READOUT_GAP_RIGHT
+  if (right + readoutWidth <= plotWidth) return right
+  const left = cursorX - READOUT_GAP_LEFT - readoutWidth
+  if (left >= 0) return left
+  return clampNumber(
+    cursorX - readoutWidth / 2,
+    0,
+    Math.max(0, plotWidth - readoutWidth)
+  )
+}
 
 export interface ActivityAnalysisChartProps {
   /** The selected series, in picker order. */
@@ -53,9 +84,16 @@ const formatSeriesValue = (entry: AnalysisSeries, value: number | null) =>
     ? '–'
     : `${formatChartValue(value, entry.fractionDigits)} ${entry.unit}`
 
+// The bin under a point on the time axis: bin i spans [i/N, (i+1)/N) of the
+// width and is drawn at its centre (see `buildGappedChartPaths`), so the value
+// read out is the one drawn under the cursor.
 const valueAt = (entry: AnalysisSeries, ratio: number | null) => {
   if (ratio === null || entry.values.length === 0) return null
-  const index = Math.round(ratio * (entry.values.length - 1))
+  const index = clampNumber(
+    Math.floor(ratio * entry.values.length),
+    0,
+    entry.values.length - 1
+  )
   return entry.values[index] ?? null
 }
 
@@ -98,7 +136,7 @@ const LapsBand: FC<{
               onClick={() => onToggle(lap.key)}
               style={{ flexGrow: share, flexShrink: 1, flexBasis: 0 }}
               className={cn(
-                'min-w-28 snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors',
+                'min-w-28 snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 isSelected
                   ? 'border-primary bg-primary/10'
                   : 'bg-background hover:bg-muted'
@@ -249,6 +287,27 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
   describePosition
 }) => {
   const scrub = useChartScrub({ durationSeconds, onHighlightElapsedSeconds })
+  // The readout is placed from measured widths (see `placeReadout`), taken
+  // before paint so it never shows in the wrong place first.
+  const combinedPlotRef = useRef<HTMLDivElement | null>(null)
+  const readoutRef = useRef<HTMLDivElement | null>(null)
+  const [readoutSize, setReadoutSize] = useState<{
+    plot: number
+    readout: number
+  } | null>(null)
+  useLayoutEffect(() => {
+    const plotWidth = combinedPlotRef.current?.clientWidth ?? 0
+    const readoutWidth = readoutRef.current?.offsetWidth ?? 0
+    const next =
+      plotWidth > 0 && readoutWidth > 0
+        ? { plot: plotWidth, readout: readoutWidth }
+        : null
+    setReadoutSize((current) =>
+      current?.plot === next?.plot && current?.readout === next?.readout
+        ? current
+        : next
+    )
+  })
   const ratio =
     typeof highlightedElapsedSeconds === 'number' && durationSeconds > 0
       ? clampNumber(highlightedElapsedSeconds / durationSeconds, 0, 1)
@@ -335,6 +394,7 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
             ) : null}
           </div>
           <div
+            ref={combinedPlotRef}
             data-testid="analysis-combined-plot"
             className={cn(
               'relative h-[190px] select-none @min-[700px]:h-[250px]',
@@ -356,16 +416,26 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
             )}
             {ratio !== null && timeLabel ? (
               <div
+                ref={readoutRef}
                 aria-hidden="true"
                 data-testid="analysis-readout"
                 className="pointer-events-none absolute top-1 z-10 grid min-w-[140px] gap-px whitespace-nowrap rounded-md border bg-background px-2 py-1 text-xs tabular-nums shadow-sm"
-                style={{
-                  left: `${ratio * 100}%`,
-                  transform:
-                    ratio > READOUT_FLIP_RATIO
-                      ? 'translateX(calc(-100% - 8px))'
-                      : 'translateX(10px)'
-                }}
+                style={
+                  readoutSize
+                    ? {
+                        left: `${placeReadout(
+                          ratio * readoutSize.plot,
+                          readoutSize.plot,
+                          readoutSize.readout
+                        )}px`
+                      }
+                    : // Not measured yet (the first layout pass): right of
+                      // the crosshair, corrected before paint.
+                      {
+                        left: `${ratio * 100}%`,
+                        transform: `translateX(${READOUT_GAP_RIGHT}px)`
+                      }
+                }
               >
                 <div className="flex items-center justify-between gap-2.5">
                   <span className="text-muted-foreground">{timeLabel}</span>
@@ -400,14 +470,22 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
       ) : (
         <div>
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-2.5">
-            <h3 className="text-sm font-semibold">
-              Separate
+            {/* The scrubbed instant sits beside the heading, not in it, and is
+                hidden from screen readers like the combined readout: it
+                changes on every pointer move, and a heading that renamed
+                itself that often would be read out again each time. */}
+            <div className="flex items-baseline gap-1.5">
+              <h3 className="text-sm font-semibold">Separate</h3>
               {timeLabel ? (
-                <span className="ml-1.5 text-xs font-medium text-muted-foreground tabular-nums">
+                <span
+                  aria-hidden="true"
+                  data-testid="analysis-separate-instant"
+                  className="text-xs font-medium text-muted-foreground tabular-nums"
+                >
                   {[timeLabel, position].filter(Boolean).join(' · ')}
                 </span>
               ) : null}
-            </h3>
+            </div>
             {statusText ? (
               <span className="text-xs text-muted-foreground">
                 {statusText}

@@ -370,7 +370,7 @@ describe('Page visibility for logged-out visitors', () => {
     expect(within(engagementRows[0]).getByText('5')).toBeInTheDocument()
   })
 
-  it('renders the logged-out fitness dashboard with an sr-only heading and no separate stat strip', async () => {
+  it('renders the logged-out fitness dashboard with an sr-only heading', async () => {
     const focused = buildNote({
       id: 'fitness-status',
       fitness: {
@@ -402,8 +402,9 @@ describe('Page visibility for logged-out visitors', () => {
     expect(heading).toHaveClass('sr-only')
     expect(heading).not.toHaveClass('max-md:hidden')
     expect(screen.getByTestId('status-fitness-status')).toBeInTheDocument()
-    // Reply, boost and like counts live on the activity post's reaction row,
-    // so the page no longer adds an engagement strip under it.
+    // The logged-out reply, boost and like counts are drawn by the activity
+    // post's own footer (StatusBox is mocked here; FitnessStatusDetail.test
+    // covers them), so the page adds no second strip under it.
     expect(
       screen.queryByRole('group', { name: 'Engagement' })
     ).not.toBeInTheDocument()

@@ -1,4 +1,4 @@
-import { type PointerEvent } from 'react'
+import { type PointerEvent, useEffect, useRef } from 'react'
 
 import { clampNumber } from './fitnessChartData'
 
@@ -36,6 +36,24 @@ export const useChartScrub = ({
     typeof durationSeconds === 'number' &&
     durationSeconds > 0
 
+  // At most one update a frame. A pointer can report several moves between
+  // two paints, and each one re-renders the chart and moves the map marker:
+  // the first move of a frame goes through at once (so a tap or a single
+  // hover still answers immediately), and the rest of that frame's moves are
+  // folded into one update at its end, with the latest position.
+  const frameRef = useRef<number | null>(null)
+  const pendingRef = useRef<number | null>(null)
+  const callbackRef = useRef(onHighlightElapsedSeconds)
+  useEffect(() => {
+    callbackRef.current = onHighlightElapsedSeconds
+  }, [onHighlightElapsedSeconds])
+  const cancelFrame = () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
+    pendingRef.current = null
+  }
+  useEffect(() => cancelFrame, [])
+
   const scrubTo = (event: PointerEvent<Element>) => {
     if (!canScrub || !onHighlightElapsedSeconds) return
     const bounds = event.currentTarget.getBoundingClientRect()
@@ -44,11 +62,24 @@ export const useChartScrub = ({
       0,
       1
     )
-    onHighlightElapsedSeconds(ratio * (durationSeconds as number))
+    const elapsedSeconds = ratio * (durationSeconds as number)
+    if (frameRef.current !== null) {
+      pendingRef.current = elapsedSeconds
+      return
+    }
+    onHighlightElapsedSeconds(elapsedSeconds)
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null
+      const pending = pendingRef.current
+      pendingRef.current = null
+      if (pending !== null) callbackRef.current?.(pending)
+    })
   }
 
   const clearScrub = () => {
     if (!canScrub || !onHighlightElapsedSeconds) return
+    // A move still waiting for its frame must not bring the readout back.
+    cancelFrame()
     onHighlightElapsedSeconds(null)
   }
 

@@ -30,6 +30,7 @@ import { ActivityGearMeta } from './ActivityGearMeta'
 import { ActivityReplies } from './ActivityReplies'
 import { ActivityStartTime } from './ActivityStartTime'
 import { RecordingLine } from './FitnessRecordingPicker'
+import { StatusStatStrip } from './StatusStatStrip'
 import { VISIBILITY_META, getActivityLabel } from './activityLabels'
 import type { FitnessGearAssignment } from './useFitnessGearAssignment'
 import type { MakePrimaryRecording } from './useMakePrimaryRecording'
@@ -342,35 +343,45 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
       <div className="border-t px-4 py-2.5">
         {/* The shared action row: the same actions and spacing as every other
             surface. `fullBleed` off because this footer's padding already
-            puts the row at the post's left edge. */}
-        <Actions
-          host={host}
-          currentActor={currentActor ?? undefined}
-          currentTime={currentTime}
-          status={status}
-          showActions
-          fullBleed={false}
-          reactionState={reactionState}
-          editable={isOwner}
-          extraMenuItems={gear.gearMenuItems}
-          // Always a reply to this post: the page is the post itself.
-          onReply={
-            currentActor
-              ? () => composer.openReply(status, status.id)
-              : undefined
-          }
-          onEdit={
-            currentActor
-              ? (target) => composer.openEdit(target, status.id)
-              : undefined
-          }
-          onQuote={
-            currentActor
-              ? (target) => composer.openQuote(target, status.id)
-              : undefined
-          }
-          onShowAttachment={onShowAttachment}
-        />
+            puts the row at the post's left edge. `Actions` renders nothing
+            without a viewer, so a signed-out visitor gets the read-only
+            counts in its place rather than an empty footer. */}
+        {currentActor ? (
+          <Actions
+            host={host}
+            currentActor={currentActor ?? undefined}
+            currentTime={currentTime}
+            status={status}
+            showActions
+            fullBleed={false}
+            reactionState={reactionState}
+            editable={isOwner}
+            extraMenuItems={gear.gearMenuItems}
+            // Always a reply to this post: the page is the post itself.
+            onReply={
+              currentActor
+                ? () => composer.openReply(status, status.id)
+                : undefined
+            }
+            onEdit={
+              currentActor
+                ? (target) => composer.openEdit(target, status.id)
+                : undefined
+            }
+            onQuote={
+              currentActor
+                ? (target) => composer.openQuote(target, status.id)
+                : undefined
+            }
+            onShowAttachment={onShowAttachment}
+          />
+        ) : (
+          <StatusStatStrip
+            boosts={status.totalShares ?? 0}
+            likes={status.totalLikes ?? 0}
+            replies={replies.length}
+          />
+        )}
       </div>
 
       {/* Edit and quote open under the post they change, as in the timeline.

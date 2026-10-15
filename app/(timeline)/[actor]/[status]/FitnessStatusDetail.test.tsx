@@ -359,6 +359,68 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
+  it('fills the strip for an indoor ride with no distance or climbing', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          activityType: 'virtual_ride',
+          totalDistanceMeters: 0,
+          elevationGainMeters: 0,
+          avgPower: 200,
+          avgHeartRate: 141,
+          maxHeartRate: 170
+        }
+      } as Partial<StatusNote>)
+    })
+
+    // No "0 m gain" and no distance: heart rate and work take their places.
+    expect(
+      screen.queryByTestId('activity-tile-elevation')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('activity-tile-distance')
+    ).not.toBeInTheDocument()
+    expect(
+      screen
+        .getAllByTestId(/^activity-tile-/)
+        .map((tile) => tile.dataset.testid)
+    ).toEqual([
+      'activity-tile-moving-time',
+      'activity-tile-power',
+      'activity-tile-heart-rate',
+      'activity-tile-work'
+    ])
+    // 200 W over 30 minutes.
+    expect(screen.getByTestId('activity-tile-work')).toHaveTextContent(
+      'Work360kJ'
+    )
+  })
+
+  it('shows two tiles rather than three, which would leave a hole', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          activityType: 'hike',
+          totalDistanceMeters: 0,
+          elevationGainMeters: 50,
+          avgHeartRate: 141
+        }
+      } as Partial<StatusNote>)
+    })
+
+    // Moving time, elevation and heart rate are three figures; the third
+    // would orphan a cell, so the first two show.
+    expect(
+      screen
+        .getAllByTestId(/^activity-tile-/)
+        .map((tile) => tile.dataset.testid)
+    ).toEqual(['activity-tile-moving-time', 'activity-tile-elevation'])
+  })
+
   it('has no section menu: every section is on the page, with an anchor', async () => {
     renderDetail()
 
@@ -654,6 +716,28 @@ describe('FitnessStatusDetail', () => {
       ).not.toBeInTheDocument()
       expect(
         screen.queryByTestId('inline-status-composer')
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows a logged-out viewer the reply, boost and like counts in place of the action row', () => {
+      renderDetail({ currentActor: null, replies: [buildReply('reply-1')] })
+
+      const engagement = screen.getByRole('group', { name: 'Engagement' })
+      expect(
+        within(engagement)
+          .getAllByText(/^\d+$/)
+          .map((node) => node.textContent)
+      ).toEqual(['1', '2', '4'])
+      expect(
+        engagement.closest('[data-slot="fitness-card"]')
+      ).toBeInTheDocument()
+    })
+
+    it('gives a signed-in viewer the action row and no read-only counts', () => {
+      renderDetail({ replies: [buildReply('reply-1')] })
+
+      expect(
+        screen.queryByRole('group', { name: 'Engagement' })
       ).not.toBeInTheDocument()
     })
 
