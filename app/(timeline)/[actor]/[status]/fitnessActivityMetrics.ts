@@ -423,6 +423,100 @@ export const estimateRecordingSeconds = (
   return fallbackSeconds > 0 ? Math.min(running, fallbackSeconds) : running
 }
 
+/** A pause cut out of the chart's time axis, in elapsed and in chart time. */
+export interface ChartPause {
+  startSeconds: number
+  endSeconds: number
+  chartStartSeconds: number
+  chartEndSeconds: number
+}
+
+/**
+ * The Analysis chart's time axis: elapsed time with each pause (an auto-pause
+ * or a stop, found as in `estimateRecordingSeconds`) shortened to one usual
+ * gap, so the lines run on across it instead of breaking, as on Strava. Laps,
+ * climbs, the crosshair and the map marker convert through
+ * `toChartSeconds` / `toElapsedSeconds`, so they stay on the same instant.
+ */
+export interface ChartTimeAxis {
+  /** The chart's length: the elapsed duration less the paused time. */
+  durationSeconds: number
+  pauses: ChartPause[]
+}
+
+export const buildChartTimeAxis = (
+  points: ActivityPoint[],
+  durationSeconds: number
+): ChartTimeAxis => {
+  const gaps: number[] = []
+  for (let index = 1; index < points.length; index += 1) {
+    const gap = points[index].elapsedSeconds - points[index - 1].elapsedSeconds
+    if (gap > 0) gaps.push(gap)
+  }
+  const usual = median(gaps)
+  if (gaps.length < 2 || usual === null) return { durationSeconds, pauses: [] }
+  const pauseAbove = Math.max(usual * 4, usual + 10)
+  const pauses: ChartPause[] = []
+  let removed = 0
+  for (let index = 1; index < points.length; index += 1) {
+    const startSeconds = points[index - 1].elapsedSeconds
+    const endSeconds = points[index].elapsedSeconds
+    if (endSeconds - startSeconds <= pauseAbove) continue
+    const chartStartSeconds = startSeconds - removed
+    pauses.push({
+      startSeconds,
+      endSeconds,
+      chartStartSeconds,
+      chartEndSeconds: chartStartSeconds + usual
+    })
+    removed += endSeconds - startSeconds - usual
+  }
+  return { durationSeconds: Math.max(0, durationSeconds - removed), pauses }
+}
+
+// Converts between the two clocks: inside a pause the one clock is scaled onto
+// the other's span, and past it they differ by the time cut so far.
+const convertTime = (
+  pauses: ChartPause[],
+  seconds: number,
+  from: 'elapsed' | 'chart'
+): number => {
+  let offset = 0
+  for (const pause of pauses) {
+    const [fromStart, fromEnd, toStart, toEnd] =
+      from === 'elapsed'
+        ? [
+            pause.startSeconds,
+            pause.endSeconds,
+            pause.chartStartSeconds,
+            pause.chartEndSeconds
+          ]
+        : [
+            pause.chartStartSeconds,
+            pause.chartEndSeconds,
+            pause.startSeconds,
+            pause.endSeconds
+          ]
+    if (seconds <= fromStart) break
+    if (seconds < fromEnd) {
+      return (
+        toStart +
+        ((seconds - fromStart) / (fromEnd - fromStart)) * (toEnd - toStart)
+      )
+    }
+    offset = toEnd - fromEnd
+  }
+  return seconds + offset
+}
+
+/** Where an elapsed time sits on the chart's time axis. */
+export const toChartSeconds = (axis: ChartTimeAxis, elapsedSeconds: number) =>
+  convertTime(axis.pauses, elapsedSeconds, 'elapsed')
+
+/** The elapsed time at a point on the chart's time axis. */
+export const toElapsedSeconds = (axis: ChartTimeAxis, chartSeconds: number) =>
+  convertTime(axis.pauses, chartSeconds, 'chart')
+
 const bestAverage = (prefix: number[], windowSize: number): number | null => {
   const count = prefix.length - 1
   if (windowSize < 1 || windowSize > count) return null

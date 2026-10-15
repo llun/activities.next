@@ -122,6 +122,28 @@ describe('deriveActivityAnalysis', () => {
     expect(analysis.climbs[0].gainMeters).toBeGreaterThanOrEqual(50)
   })
 
+  it('runs the chart lines on across a stop instead of breaking them', () => {
+    const data = buildRouteData()
+    // A 5 min stop after 15 min: every later sample moves 300 s on.
+    const samples = data.samples.map((sample) =>
+      sample.elapsedSeconds > 900
+        ? { ...sample, elapsedSeconds: sample.elapsedSeconds + 300 }
+        : sample
+    )
+    const analysis = deriveActivityAnalysis({
+      data: { ...data, samples, totalDurationSeconds: 2100 },
+      activityType: 'ride'
+    })
+
+    expect(analysis.durationSeconds).toBe(2100)
+    expect(analysis.chartAxis.pauses).toHaveLength(1)
+    expect(analysis.chartAxis.durationSeconds).toBe(1800)
+    const heartRate = analysis.series.find(
+      (series) => series.key === 'heart-rate'
+    )
+    expect(heartRate?.values.every((value) => value === 140)).toBe(true)
+  })
+
   it('reports cadence in steps per minute for a run', () => {
     const analysis = deriveActivityAnalysis({
       data: buildRouteData(),

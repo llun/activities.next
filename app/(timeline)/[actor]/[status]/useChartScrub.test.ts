@@ -73,6 +73,19 @@ describe('useChartScrub', () => {
     expect(onHighlight).toHaveBeenCalledWith(expected)
   })
 
+  it('maps the axis time to elapsed time when the axis leaves out pauses', () => {
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 1000,
+        toElapsedSeconds: (axisSeconds) => axisSeconds + 300,
+        onHighlightElapsedSeconds: onHighlight
+      })
+    )
+    result.current.plotHandlers.onPointerMove(pointerAt(300, createPlot()))
+    expect(onHighlight).toHaveBeenCalledWith(800)
+  })
+
   it('scrubs on pointer down so a tap shows a reading', () => {
     const onHighlight = vi.fn()
     const { result } = renderHook(() =>

@@ -325,7 +325,7 @@ describe('FitnessStatusDetail analysis', () => {
       mockGetFitnessRouteData.mockResolvedValue(buildRichRouteData())
     })
 
-    it('lays the laps along the top of the chart, sized by duration', async () => {
+    it('lays the laps along the top of the chart, all the same width', async () => {
       const analysis = await renderAnalysis({ mapProvider: { type: 'apple' } })
 
       const band = await within(analysis).findByRole('group', { name: 'Laps' })
@@ -333,7 +333,10 @@ describe('FitnessStatusDetail analysis', () => {
       expect(buttons).toHaveLength(3)
       expect(buttons[0]).toHaveTextContent('Lap 1 · 10:00')
       expect(buttons[1]).toHaveTextContent('200 W')
-      expect(buttons[0].style.flexGrow).toBe(String(1 / 3))
+      for (const button of buttons) {
+        expect(button).toHaveClass('flex-1', 'basis-0')
+        expect(button.style.flexGrow).toBe('')
+      }
     })
 
     it('highlights a lap on the chart, the table and the map, and clears it on a second click', async () => {

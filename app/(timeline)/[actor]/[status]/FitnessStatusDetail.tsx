@@ -697,6 +697,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               series={shownSeries}
               mode={graphDisplayMode}
               durationSeconds={analysis.durationSeconds}
+              chartAxis={analysis.chartAxis}
               laps={laps}
               climbs={climbs}
               selectedKey={selectedSplitKey}

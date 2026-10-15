@@ -4,12 +4,14 @@ import type { AnalysisSeriesKey } from '@/lib/components/fitness/palette'
 import {
   type ActivityPoint,
   type ActivitySplit,
+  type ChartTimeAxis,
   type PowerDistribution,
   type PowerEffort,
   type SeriesScale,
   average,
   binValuesByTime,
   buildActivityTimeline,
+  buildChartTimeAxis,
   buildClimbSplits,
   buildLapSplits,
   buildPowerDistribution,
@@ -26,7 +28,8 @@ import {
   getCadenceMultiplier,
   getSeriesScale,
   isRunActivity,
-  spreadSeriesOverBins
+  spreadSeriesOverBins,
+  toChartSeconds
 } from './fitnessActivityMetrics'
 import {
   type HeartRateStats,
@@ -56,7 +59,9 @@ export interface ActivityAnalysis {
    * stops. Power and heart-rate time totals are measured against this.
    */
   recordingSeconds: number
-  /** How many equal slices of elapsed time the chart series are binned into. */
+  /** The chart's time axis: elapsed time with the pauses cut short. */
+  chartAxis: ChartTimeAxis
+  /** How many equal slices of chart time the chart series are binned into. */
   binCount: number
   series: AnalysisSeries[]
   powerSeries: number[]
@@ -124,11 +129,23 @@ export const deriveActivityAnalysis = ({
     data.totalDurationSeconds > 0
       ? Math.max(data.totalDurationSeconds, lastElapsed)
       : Math.max(fallbackDurationSeconds, lastElapsed)
-  const binCount = getChartBinCount(durationSeconds)
+  const chartAxis = buildChartTimeAxis(timeline, durationSeconds)
+  const binCount = getChartBinCount(chartAxis.durationSeconds)
+  const chartTimeline = chartAxis.pauses.length
+    ? timeline.map((point) => ({
+        ...point,
+        elapsedSeconds: toChartSeconds(chartAxis, point.elapsedSeconds)
+      }))
+    : timeline
 
   const fromTimeline = (values: Array<number | null | undefined>) =>
     hasAny(values)
-      ? binValuesByTime(timeline, values, durationSeconds, binCount)
+      ? binValuesByTime(
+          chartTimeline,
+          values,
+          chartAxis.durationSeconds,
+          binCount
+        )
       : []
   const withFallback = (
     binned: Array<number | null>,
@@ -255,6 +272,7 @@ export const deriveActivityAnalysis = ({
     timeline,
     durationSeconds,
     recordingSeconds,
+    chartAxis,
     binCount,
     series,
     powerSeries,

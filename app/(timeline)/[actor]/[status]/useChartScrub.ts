@@ -4,6 +4,11 @@ import { clampNumber } from './fitnessChartData'
 
 export interface ChartScrubOptions {
   durationSeconds?: number
+  /**
+   * Maps a time on the plot's axis to elapsed time, for a plot whose axis
+   * leaves out the pauses. Elapsed time is the axis when absent.
+   */
+  toElapsedSeconds?: (axisSeconds: number) => number
   onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
 }
 
@@ -29,6 +34,7 @@ export interface ChartScrubResult {
 // `pointerleave`, which clears the readout the way the mouse leaving does.
 export const useChartScrub = ({
   durationSeconds,
+  toElapsedSeconds,
   onHighlightElapsedSeconds
 }: ChartScrubOptions): ChartScrubResult => {
   const canScrub =
@@ -62,7 +68,10 @@ export const useChartScrub = ({
       0,
       1
     )
-    const elapsedSeconds = ratio * (durationSeconds as number)
+    const axisSeconds = ratio * (durationSeconds as number)
+    const elapsedSeconds = toElapsedSeconds
+      ? toElapsedSeconds(axisSeconds)
+      : axisSeconds
     if (frameRef.current !== null) {
       pendingRef.current = elapsedSeconds
       return
