@@ -93,14 +93,37 @@ describe('bundleReport formatComparison', () => {
   it.each([
     [12, '+12 B'],
     [-30, '-30 B'],
-    [2048, '+2.0'],
-    [-2048, '-2.0']
+    [2048, '+2.0 KB'],
+    [-2048, '-2.0 KB'],
+    [5018, '+4.9 KB'],
+    [-5018, '-4.9 KB']
   ])('prints a %d byte change as %s', (delta, text) => {
     const out = formatComparison(
-      compareRoutes([r('/a', 5000)], [r('/a', 5000 + delta)])
+      compareRoutes([r('/a', 10000)], [r('/a', 10000 + delta)])
     )
     expect(out).toContain(text)
     expect(out).not.toMatch(/[+-]0\.0/)
+  })
+
+  it('gives the total line a unit for a nonzero KB total', () => {
+    const out = formatComparison(
+      compareRoutes(
+        [r('/a', 5000), r('/b', 1000)],
+        [r('/a', 10018), r('/b', 1000)]
+      )
+    )
+    expect(out).toContain(
+      'total gzip +4.9 KB across 1 changed routes (1 unchanged)'
+    )
+  })
+
+  it('gives the total line "0 B" when nothing changed', () => {
+    const out = formatComparison(
+      compareRoutes([r('/a', 5000)], [r('/a', 5000)])
+    )
+    expect(out).toContain(
+      'total gzip 0 B across 0 changed routes (1 unchanged)'
+    )
   })
 })
 

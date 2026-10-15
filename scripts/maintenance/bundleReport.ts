@@ -148,9 +148,14 @@ export function compareRoutes(
 }
 
 const kb = (bytes: number) => (bytes / 1024).toFixed(1)
-// A change under 1 KB prints in bytes so a nonzero delta never reads as 0.0.
-const signedKb = (bytes: number) =>
-  `${bytes > 0 ? '+' : ''}${Math.abs(bytes) < 1024 && bytes !== 0 ? `${bytes} B` : kb(bytes)}`
+// Every delta carries its unit: bytes under 1 KB (so a nonzero delta never
+// reads as 0.0 KB), KB otherwise, and "0 B" for no change.
+const signedKb = (bytes: number) => {
+  if (bytes === 0) return '0 B'
+  const sign = bytes > 0 ? '+' : '-'
+  const size = Math.abs(bytes)
+  return size < 1024 ? `${sign}${size} B` : `${sign}${kb(size)} KB`
+}
 
 export function formatSummary(summary: BundleSummary, limit?: number): string {
   const rows = limit ? summary.routes.slice(0, limit) : summary.routes
