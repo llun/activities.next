@@ -324,8 +324,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
 
   it('shows the cover from the photos the review grid has read', () => {
     renderDialog({ initialTab: 'suggestions' })
-    const coverBox = () =>
-      screen.getByText('Cover').parentElement as HTMLElement
+    const coverBox = () => screen.getByRole('group', { name: 'Cover' })
     expect(coverBox().querySelector('img')).toBeNull()
 
     fireEvent.click(

@@ -28,6 +28,12 @@ export interface BackLinkProps {
   iconClassName?: string
   /** `false` for a per-user `[actor]` route (see Link prefetching in feeds). */
   prefetch?: boolean
+  /**
+   * For a Back that leaves an editor held in the page's own state: it runs on
+   * a plain click (the link is not followed) while `href` stays the real
+   * route, so a modified click or a right-click still works.
+   */
+  onClick?: () => void
 }
 
 /**
@@ -43,12 +49,30 @@ export function BackLink({
   iconOnlyFrom,
   className,
   iconClassName = 'size-5 max-md:size-4',
-  prefetch
+  prefetch,
+  onClick
 }: BackLinkProps) {
   return (
     <Link
       href={href}
       prefetch={prefetch}
+      onClick={
+        onClick
+          ? (event) => {
+              if (
+                event.defaultPrevented ||
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
+              event.preventDefault()
+              onClick()
+            }
+          : undefined
+      }
       aria-label={accessibleName}
       className={cn(
         'inline-flex shrink-0 items-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',

@@ -27,13 +27,13 @@ import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { RadioCard } from '@/lib/components/surface/RadioCard'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
+import { RadioGroup } from '@/lib/components/ui/radio-group'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { CollectionEntity } from '@/lib/types/mastodon/collection'
@@ -406,33 +406,16 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
                 value={visibility}
                 onValueChange={(value) => setVisibility(value as Visibility)}
               >
-                {VISIBILITY_OPTIONS.map((option) => {
-                  const Icon = option.icon
-                  const id = `visibility-${option.value}`
-                  return (
-                    <Label
-                      key={option.value}
-                      htmlFor={id}
-                      // The radio is a Radix `<button role="radio">`, never a
-                      // native input outside a <form>, so `:checked` can not
-                      // see it: `data-state` is what marks the selected option.
-                      className="flex cursor-pointer items-start gap-3 rounded-md border p-3 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/[0.06]"
-                    >
-                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium">
-                          {option.label}
-                        </span>
-                        <span className="block text-xs font-normal text-muted-foreground">
-                          {option.help}
-                        </span>
-                      </span>
-                      <RadioGroupItem id={id} value={option.value} />
-                    </Label>
-                  )
-                })}
+                {VISIBILITY_OPTIONS.map((option) => (
+                  <RadioCard
+                    key={option.value}
+                    id={`visibility-${option.value}`}
+                    value={option.value}
+                    title={option.label}
+                    hint={option.help}
+                    icon={option.icon}
+                  />
+                ))}
               </RadioGroup>
             )}
           </FormRow>

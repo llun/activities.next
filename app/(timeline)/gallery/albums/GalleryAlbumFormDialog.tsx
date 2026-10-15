@@ -10,6 +10,8 @@ import {
 } from '@/lib/client'
 import { GALLERY_ALBUM_ITEMS_BATCH } from '@/lib/client/galleryAlbums'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { RadioCard } from '@/lib/components/surface/RadioCard'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -20,8 +22,7 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
+import { RadioGroup } from '@/lib/components/ui/radio-group'
 import {
   Tabs,
   TabsContent,
@@ -365,47 +366,61 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
             className={cn(
               'min-h-0 flex-1 gap-5 overflow-y-auto p-1 -m-1',
               showFields && showPicker
-                ? 'grid md:grid-cols-[16rem_minmax(0,1fr)]'
+                ? 'grid md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
                 : 'block'
             )}
           >
             {showFields ? (
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="gallery-album-title">Title</Label>
-                  <Input
-                    id="gallery-album-title"
-                    ref={titleInputRef}
-                    value={title}
-                    maxLength={MAX_GALLERY_ALBUM_TITLE_LENGTH}
-                    onChange={(event) => {
-                      titleEdited.current = true
-                      setTitle(event.target.value)
-                      setTitleError(null)
-                    }}
-                    disabled={isLocked}
-                    autoComplete="off"
-                    aria-invalid={titleError ? true : undefined}
-                    aria-describedby={
-                      titleError ? 'gallery-album-title-error' : undefined
-                    }
-                  />
-                  {titleError ? (
-                    <p
-                      id="gallery-album-title-error"
-                      className="text-destructive-text text-xs"
-                    >
-                      {titleError}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="gallery-album-description">
-                    Description{' '}
-                    <span className="text-muted-foreground font-normal">
-                      (optional)
-                    </span>
-                  </Label>
+                <FormRow
+                  stacked
+                  className="p-0"
+                  label="Title"
+                  htmlFor="gallery-album-title"
+                >
+                  {() => (
+                    <>
+                      <Input
+                        id="gallery-album-title"
+                        ref={titleInputRef}
+                        value={title}
+                        maxLength={MAX_GALLERY_ALBUM_TITLE_LENGTH}
+                        onChange={(event) => {
+                          titleEdited.current = true
+                          setTitle(event.target.value)
+                          setTitleError(null)
+                        }}
+                        disabled={isLocked}
+                        autoComplete="off"
+                        aria-invalid={titleError ? true : undefined}
+                        aria-describedby={
+                          titleError ? 'gallery-album-title-error' : undefined
+                        }
+                      />
+                      {titleError ? (
+                        <p
+                          id="gallery-album-title-error"
+                          className="text-destructive-text mt-1.5 text-xs"
+                        >
+                          {titleError}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </FormRow>
+                <FormRow
+                  stacked
+                  className="p-0"
+                  label={
+                    <>
+                      Description{' '}
+                      <span className="text-muted-foreground font-normal">
+                        (optional)
+                      </span>
+                    </>
+                  }
+                  htmlFor="gallery-album-description"
+                >
                   <Textarea
                     id="gallery-album-description"
                     value={description}
@@ -414,79 +429,68 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                     onChange={(event) => setDescription(event.target.value)}
                     disabled={isLocked}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <p
-                    id="gallery-album-visibility-label"
-                    className="text-sm leading-5 font-medium"
-                  >
-                    Visibility
-                  </p>
-                  <RadioGroup
-                    aria-labelledby="gallery-album-visibility-label"
-                    value={visibility}
-                    onValueChange={(value) =>
-                      setVisibility(value as GalleryAlbumVisibility)
-                    }
-                    disabled={isLocked}
-                    className="gap-1.5"
-                  >
-                    {GALLERY_ALBUM_VISIBILITIES.map((value) => {
-                      const { label, hint, icon: Icon } = VISIBILITY_COPY[value]
-                      const id = `gallery-album-visibility-${value}`
-                      return (
-                        <div
-                          key={value}
-                          className={cn(
-                            'flex items-start gap-3 rounded-lg border p-3',
-                            visibility === value &&
-                              'border-primary bg-primary/5'
-                          )}
-                        >
-                          <RadioGroupItem
+                </FormRow>
+                <FormRow
+                  stacked
+                  className="p-0"
+                  label="Visibility"
+                  htmlFor="gallery-album-visibility"
+                  hint="A photo is only ever as visible as the post it came from."
+                >
+                  {({ labelledBy, describedBy }) => (
+                    <RadioGroup
+                      aria-labelledby={labelledBy}
+                      aria-describedby={describedBy}
+                      value={visibility}
+                      onValueChange={(value) =>
+                        setVisibility(value as GalleryAlbumVisibility)
+                      }
+                      disabled={isLocked}
+                      className="gap-1.5"
+                    >
+                      {GALLERY_ALBUM_VISIBILITIES.map((value) => {
+                        const { label, hint, icon } = VISIBILITY_COPY[value]
+                        return (
+                          <RadioCard
+                            key={value}
+                            id={`gallery-album-visibility-${value}`}
                             value={value}
-                            id={id}
-                            className="mt-0.5 shrink-0"
+                            title={label}
+                            hint={hint}
+                            icon={icon}
+                            disabled={isLocked}
                           />
-                          <div className="min-w-0 space-y-0.5">
-                            <Label
-                              htmlFor={id}
-                              className="cursor-pointer gap-1.5 font-medium"
-                            >
-                              <Icon className="size-3.5" aria-hidden="true" />
-                              {label}
-                            </Label>
-                            <p className="text-muted-foreground text-xs">
-                              {hint}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </RadioGroup>
-                  <p className="text-muted-foreground text-xs">
-                    A photo is only ever as visible as the post it came from.
-                  </p>
-                </div>
+                        )
+                      })}
+                    </RadioGroup>
+                  )}
+                </FormRow>
                 {intent === 'create' ? (
-                  <div className="space-y-1.5">
-                    <p className="text-sm leading-5 font-medium">Cover</p>
-                    <div className="flex items-center gap-3">
-                      <span
-                        aria-hidden="true"
-                        className="bg-muted/40 text-muted-foreground flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border"
+                  <FormRow
+                    stacked
+                    className="p-0"
+                    label="Cover"
+                    hint="First selected photo. Change later from the album."
+                  >
+                    {({ labelledBy, describedBy }) => (
+                      <div
+                        role="group"
+                        aria-labelledby={labelledBy}
+                        aria-describedby={describedBy}
                       >
-                        {coverItem ? (
-                          <GalleryAlbumThumb item={coverItem} />
-                        ) : (
-                          <Folder className="size-5" />
-                        )}
-                      </span>
-                      <p className="text-muted-foreground text-xs">
-                        First selected photo. Change later from the album.
-                      </p>
-                    </div>
-                  </div>
+                        <span
+                          aria-hidden="true"
+                          className="bg-muted/40 text-muted-foreground flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border"
+                        >
+                          {coverItem ? (
+                            <GalleryAlbumThumb item={coverItem} />
+                          ) : (
+                            <Folder className="size-5" />
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </FormRow>
                 ) : null}
               </div>
             ) : null}

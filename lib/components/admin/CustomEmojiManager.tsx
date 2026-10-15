@@ -14,6 +14,7 @@ import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -132,12 +133,13 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
           <Frame
             form
             footer={
-              <div className="flex justify-end">
-                <Button type="submit" disabled={submitting}>
-                  <Upload />
-                  {submitting ? 'Uploading…' : 'Upload emoji'}
-                </Button>
-              </div>
+              <SaveBar
+                variant="create"
+                submit
+                actionIcon={Upload}
+                actionLabel={submitting ? 'Uploading…' : 'Upload emoji'}
+                saving={submitting}
+              />
             }
           >
             <FormRow

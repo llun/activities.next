@@ -8,6 +8,7 @@ describe('surface kit index', () => {
   })
 
   it.each([
+    'AddBar',
     'Alert',
     'EmptyState',
     'FormRow',
@@ -17,6 +18,7 @@ describe('surface kit index', () => {
     'FormGroup',
     'FramedList',
     'FramedListItem',
+    'RadioCard',
     'SaveBar',
     'SavedIndicator',
     'Section',

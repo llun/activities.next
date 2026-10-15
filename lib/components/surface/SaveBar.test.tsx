@@ -139,4 +139,30 @@ describe('SavedIndicator', () => {
     expect(screen.queryByRole('status')).toBeNull()
     expect(document.querySelector('[aria-live]')).toBeNull()
   })
+
+  describe('create variant', () => {
+    it('shows no status text and the form’s own action label, enabled', () => {
+      render(<SaveBar variant="create" submit actionLabel="Save block" />)
+      expect(screen.queryByText('No unsaved changes')).toBeNull()
+      expect(screen.queryByText('Unsaved changes')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Save block' })).toBeEnabled()
+      expect(
+        screen.getByRole('button', { name: 'Save block' })
+      ).toHaveAttribute('type', 'submit')
+    })
+
+    it('disables the button while saving or when told to', () => {
+      const { rerender } = render(
+        <SaveBar variant="create" actionLabel="Publish" saving />
+      )
+      expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled()
+      rerender(<SaveBar variant="create" actionLabel="Publish" disabled />)
+      expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled()
+    })
+
+    it('still shows an error', () => {
+      render(<SaveBar variant="create" actionLabel="Publish" error="Nope" />)
+      expect(screen.getByRole('alert')).toHaveTextContent('Nope')
+    })
+  })
 })

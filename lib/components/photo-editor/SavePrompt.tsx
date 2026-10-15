@@ -4,6 +4,7 @@ import { format } from 'date-fns/format'
 import { useState } from 'react'
 
 import type { ApplyToPosts } from '@/lib/client/mediaEdit'
+import { RadioCard } from '@/lib/components/surface/RadioCard'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -13,8 +14,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
-import { Label } from '@/lib/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
+import { RadioGroup } from '@/lib/components/ui/radio-group'
 
 interface Props {
   open: boolean
@@ -68,46 +68,32 @@ const Body = ({
         value={choice}
         onValueChange={(value) => setChoice(value as ApplyToPosts)}
         aria-label="What to do with the posts"
-        className="space-y-1"
+        className="gap-2"
       >
-        <div className="flex items-start gap-3 rounded-lg border p-3">
-          <RadioGroupItem
-            value="update"
-            id="photo-edit-update"
-            className="mt-1"
-          />
-          <div className="space-y-1">
-            <Label htmlFor="photo-edit-update" className="font-medium">
-              {plural ? 'Update the posts' : 'Update the post'}
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {mode === 'revert'
-                ? `Followers' servers get an edit with the original photo.`
-                : `Followers' servers get an edit with the new photo.`}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-start gap-3 rounded-lg border p-3">
-          <RadioGroupItem
-            value="gallery"
-            id="photo-edit-gallery"
-            className="mt-1"
-          />
-          <div className="space-y-1">
-            <Label htmlFor="photo-edit-gallery" className="font-medium">
-              Gallery only
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {mode === 'revert'
-                ? plural
-                  ? 'The posts keep the edited photo.'
-                  : 'The post keeps the edited photo.'
-                : plural
-                  ? 'The posts keep the photo as it was.'
-                  : 'The post keeps the photo as it was.'}
-            </p>
-          </div>
-        </div>
+        <RadioCard
+          id="photo-edit-update"
+          value="update"
+          title={plural ? 'Update the posts' : 'Update the post'}
+          hint={
+            mode === 'revert'
+              ? `Followers' servers get an edit with the original photo.`
+              : `Followers' servers get an edit with the new photo.`
+          }
+        />
+        <RadioCard
+          id="photo-edit-gallery"
+          value="gallery"
+          title="Gallery only"
+          hint={
+            mode === 'revert'
+              ? plural
+                ? 'The posts keep the edited photo.'
+                : 'The post keeps the edited photo.'
+              : plural
+                ? 'The posts keep the photo as it was.'
+                : 'The post keeps the photo as it was.'
+          }
+        />
       </RadioGroup>
       <DialogFooter separated>
         <Button type="button" variant="outline" onClick={onKeepEditing}>

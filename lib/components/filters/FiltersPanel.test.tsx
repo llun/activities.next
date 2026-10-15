@@ -132,7 +132,7 @@ describe('FiltersPanel', () => {
       fireEvent.click(emptyStateAction)
 
       expect(
-        await screen.findByRole('heading', { level: 2, name: 'Add filter' })
+        await screen.findByRole('heading', { name: 'Add filter' })
       ).toBeInTheDocument()
     })
 
@@ -277,7 +277,8 @@ describe('FiltersPanel', () => {
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       )
-      expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       pending.resolve(makeFilter({ id: 'f-new', title: 'Politics' }))
       expect(await screen.findByText('Politics')).toBeInTheDocument()
     })
@@ -287,7 +288,7 @@ describe('FiltersPanel', () => {
       await screen.findByText(/No filters yet/)
 
       fireEvent.click(addButton())
-      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
 
       expect(screen.getByText(/No filters yet/)).toBeInTheDocument()
       expect(mockClient.createFilter).not.toHaveBeenCalled()
@@ -300,7 +301,7 @@ describe('FiltersPanel', () => {
       fillAndSaveNewFilter('Politics', 'election')
       await screen.findByText('Failed to create filter. Please try again.')
 
-      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
       fireEvent.click(addButton())
 
       expect(
@@ -387,7 +388,7 @@ describe('FiltersPanel', () => {
       fireEvent.change(screen.getByLabelText('Title'), {
         target: { value: 'Changed' }
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      fireEvent.click(screen.getByRole('link', { name: 'Back to filters' }))
 
       expect(screen.getByText('Spoilers')).toBeInTheDocument()
       expect(mockClient.updateFilter).not.toHaveBeenCalled()

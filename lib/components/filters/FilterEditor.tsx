@@ -1,21 +1,24 @@
 'use client'
 
-import { ArrowLeft, Plus, X } from 'lucide-react'
-import { FC, type KeyboardEvent, useRef, useState } from 'react'
+import { Plus, X } from 'lucide-react'
+import { FC, useRef, useState } from 'react'
 
 import type {
   ClientFilter,
   FilterInput,
   FilterKeywordInput
 } from '@/lib/client'
+import { BackLink } from '@/lib/components/back-link'
+import { PageHeader } from '@/lib/components/page-header'
 import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
+import { RadioCard } from '@/lib/components/surface/RadioCard'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
 import { Button } from '@/lib/components/ui/button'
-import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
+import { RadioGroup } from '@/lib/components/ui/radio-group'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
@@ -83,24 +86,6 @@ export const FilterEditor: FC<FilterEditorProps> = ({
   const isNew = !initial
   const keywordCounter = useRef(0)
   const nextKey = () => `new-${keywordCounter.current++}`
-  // Refs to the action radio cards for roving-focus arrow-key navigation.
-  const actionRefs = useRef<(HTMLButtonElement | null)[]>([])
-
-  const handleActionKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    index: number
-  ) => {
-    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown'
-    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-    if (!forward && !backward) return
-    event.preventDefault()
-    const delta = forward ? 1 : -1
-    const nextIndex =
-      (index + delta + ACTION_CARDS.length) % ACTION_CARDS.length
-    setAction(ACTION_CARDS[nextIndex].id)
-    actionRefs.current[nextIndex]?.focus()
-  }
-
   const [title, setTitle] = useState(initial?.title ?? '')
   const [context, setContext] = useState<FilterContext[]>(
     initial ? [...initial.context] : ['home']
@@ -216,20 +201,24 @@ export const FilterEditor: FC<FilterEditorProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onCancel}
-          disabled={saving}
-        >
-          <ArrowLeft className="size-3.5" />
-          Back
-        </Button>
-        {/* The Settings or Admin layout owns the page's h1. */}
-        <h2 className="text-xl font-semibold tracking-tight">
-          {isNew ? 'Add filter' : `Edit “${initial?.title}”`}
-        </h2>
+      {/* Below md the Back is its own "Back" row above the heading; from md
+          up it is the icon beside the heading, as on the other sub-pages. The
+          Settings or Admin layout owns the page's h1, so the title is the
+          section-mode h2. */}
+      <div className="flex items-start gap-3 max-md:flex-col max-md:gap-1">
+        <BackLink
+          href={scope === 'server' ? '/admin/filters' : '/settings/filters'}
+          accessibleName="Back to filters"
+          iconOnlyFrom="md"
+          className="md:rounded-lg md:p-2 md:hover:bg-muted"
+          onClick={() => {
+            if (!saving) onCancel()
+          }}
+        />
+        <PageHeader
+          className="flex-1"
+          title={isNew ? 'Add filter' : `Edit “${initial?.title}”`}
+        />
       </div>
 
       <Frame
@@ -303,11 +292,11 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               inline
             >
               {({ describedBy }) => (
-                <Checkbox
+                <Switch
                   id={`filterContext-${option.id}`}
                   aria-describedby={describedBy}
                   checked={context.includes(option.id)}
-                  onChange={() => toggleContext(option.id)}
+                  onCheckedChange={() => toggleContext(option.id)}
                 />
               )}
             </FormRow>
@@ -319,53 +308,22 @@ export const FilterEditor: FC<FilterEditorProps> = ({
           headingId="filter-action-heading"
           description="What happens when a post matches."
         >
-          <div
-            className="space-y-0.5 px-2 pt-2"
-            role="radiogroup"
+          <RadioGroup
             aria-labelledby="filter-action-heading"
+            value={action}
+            onValueChange={(value) => setAction(value as FilterAction)}
+            className="gap-2 px-4 pt-2"
           >
-            {ACTION_CARDS.map((card, index) => {
-              const selected = action === card.id
-              return (
-                <button
-                  key={card.id}
-                  ref={(element) => {
-                    actionRefs.current[index] = element
-                  }}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => setAction(card.id)}
-                  onKeyDown={(event) => handleActionKeyDown(event, index)}
-                  className={cn(
-                    'focus-visible:ring-ring/50 flex w-full items-start gap-3 rounded-md px-2 py-2.5 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-inset',
-                    selected ? 'bg-primary/5' : 'hover:bg-muted/50'
-                  )}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border',
-                      selected && 'border-primary'
-                    )}
-                  >
-                    {selected ? (
-                      <span className="bg-primary size-2 rounded-full" />
-                    ) : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium">
-                      {card.label}
-                    </span>
-                    <span className="text-muted-foreground block text-xs">
-                      {card.hint(scope)}
-                    </span>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+            {ACTION_CARDS.map((card) => (
+              <RadioCard
+                key={card.id}
+                id={`filter-action-${card.id}`}
+                value={card.id}
+                title={card.label}
+                hint={card.hint(scope)}
+              />
+            ))}
+          </RadioGroup>
           {action === 'warn' && (
             // The bare bar a warned post collapses to, as the Filter management
             // board draws it: no dashed frame, no caption.

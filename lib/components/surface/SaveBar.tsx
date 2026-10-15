@@ -1,5 +1,5 @@
 import { Check, Loader2 } from 'lucide-react'
-import { FC, ReactNode } from 'react'
+import { ComponentType, FC, ReactNode } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -45,9 +45,21 @@ export const SavedIndicator: FC<SavedIndicatorProps> = ({
 )
 
 interface SaveBarProps {
-  dirty: boolean
-  saving: boolean
-  saved: boolean
+  /**
+   * `create` is the footer of a form that makes something new: no status text
+   * ("No unsaved changes" means nothing before anything exists), just the
+   * form's own action button at the end of the row, always enabled unless it is
+   * saving or `disabledReason` is set. Give it `actionLabel` and, optionally,
+   * `actionIcon`. `dirty` and `saved` are ignored. Default `edit`.
+   */
+  variant?: 'edit' | 'create'
+  /** The create button's text ("Save block"); `create` only. */
+  actionLabel?: string
+  /** The create button's icon; `create` only. */
+  actionIcon?: ComponentType<{ className?: string }>
+  dirty?: boolean
+  saving?: boolean
+  saved?: boolean
   error?: string | null
   /** Called when Save is pressed. Not needed with `submit`. */
   onSave?: () => void
@@ -63,6 +75,8 @@ interface SaveBarProps {
    * to save while an edit is waiting on something else.
    */
   disabledReason?: string
+  /** Switch the button off for a reason the bar does not word (an empty field). */
+  disabled?: boolean
   /**
    * Secondary controls set beside Save at the end of the row, such as a Cancel
    * link on a form that leaves the page when it is done.
@@ -82,21 +96,28 @@ interface SaveBarProps {
  * saved.
  */
 export const SaveBar: FC<SaveBarProps> = ({
-  dirty,
-  saving,
-  saved,
+  variant = 'edit',
+  actionLabel = 'Save',
+  actionIcon: ActionIcon,
+  dirty = false,
+  saving = false,
+  saved = false,
   error,
   onSave,
   submit = false,
   disabledReason,
+  disabled = false,
   actions,
   className
 }) => {
+  const isCreate = variant === 'create'
   const saveButton = (
     <Button
       type={submit ? 'submit' : 'button'}
       onClick={submit ? undefined : onSave}
-      disabled={saving || !dirty || Boolean(disabledReason)}
+      disabled={
+        saving || disabled || (!isCreate && !dirty) || Boolean(disabledReason)
+      }
       className="shrink-0"
     >
       {saving ? (
@@ -105,8 +126,10 @@ export const SaveBar: FC<SaveBarProps> = ({
           aria-hidden="true"
           className="animate-spin"
         />
+      ) : ActionIcon ? (
+        <ActionIcon aria-hidden="true" />
       ) : null}
-      Save
+      {isCreate ? actionLabel : 'Save'}
     </Button>
   )
   return (
@@ -118,7 +141,7 @@ export const SaveBar: FC<SaveBarProps> = ({
       )}
     >
       <div className="min-w-0 text-sm">
-        {error ? (
+        {isCreate && !error ? null : error ? (
           <p role="alert" className="text-destructive-text break-words">
             {error}
           </p>
