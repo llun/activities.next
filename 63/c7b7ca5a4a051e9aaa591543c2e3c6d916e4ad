@@ -1,0 +1,32 @@
+app/(timeline)/MainPageTimeline.test.tsx
+  h_580a04e334fef4 13-17,26,1028-1106
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 224-230
+lib/components/actor-switcher/AddActorDialog.test.tsx
+  h_580a04e334fef4 13,24-27,44,357-362,462,471-497
+lib/components/actor-switcher/AddActorDialog.tsx
+  h_580a04e334fef4 6,131-140
+lib/components/layout/sidebar.test.tsx
+  h_580a04e334fef4 593-616
+lib/components/layout/sidebar.tsx
+  h_580a04e334fef4 68,185-186,572-609,611-612,757,782-789
+lib/components/offline/OfflineAppShell.test.tsx
+  h_580a04e334fef4 5-11,43-50,152-168,170
+lib/components/offline/OfflineAppShell.tsx
+  h_580a04e334fef4 15,272,275-276,278-297
+lib/components/settings/ActorsSection.test.tsx
+  h_580a04e334fef4 8,29-32,34-35,38-54,462-529
+lib/components/settings/ActorsSection.tsx
+  h_580a04e334fef4 8,80-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "63c7b7ca5a4a051e9aaa591543c2e3c6d916e4ad",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
