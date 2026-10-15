@@ -60,7 +60,7 @@ export const generateMetadata = async ({
   // round-trip through the oEmbed endpoint's URL parser.
   const pageUrl = `${getBaseURL()}/${encodeURIComponent(decodedActor)}/${encodeURIComponent(decodePathParam(status))}`
   return {
-    title: `Activities.next: ${decodedActor} status`,
+    title: `${decodedActor} status`,
     alternates: {
       types: {
         // oEmbed discovery link (https://oembed.com/#section4): consumers read

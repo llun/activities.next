@@ -22,7 +22,7 @@ import { AuthorizeInteractionError } from './AuthorizeInteractionError'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Follow',
+  title: 'Follow',
   // The URL carries text a remote server chose; there is nothing here worth
   // indexing and every rendering of it is per-visitor.
   robots: { index: false, follow: false }

@@ -13,7 +13,7 @@ import { SearchLoading } from './loading'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Search'
+  title: 'Search'
 }
 
 const Page = async () => {

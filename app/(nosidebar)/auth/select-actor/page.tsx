@@ -12,7 +12,7 @@ import { ActorSelectionList } from './ActorSelectionList'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Select Actor'
+  title: 'Select Actor'
 }
 
 const Page: FC = async () => {

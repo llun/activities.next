@@ -9,7 +9,7 @@ import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Announcements'
+  title: 'Announcements'
 }
 
 const Page = async () => {

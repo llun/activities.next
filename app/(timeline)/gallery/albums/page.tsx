@@ -13,7 +13,7 @@ import { GalleryAlbumsView } from './GalleryAlbumsView'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery Albums'
+  title: 'Gallery Albums'
 }
 
 const Page: FC = async () => {

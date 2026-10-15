@@ -86,7 +86,7 @@ export const generateFollowListMetadata = async ({
       )
       if (targetUrl) {
         return {
-          title: `Activities.next: ${decodedActorHandle} ${config.label}`,
+          title: `${decodedActorHandle} ${config.label}`,
           robots: { index: false, follow: false },
           alternates: {
             canonical: targetUrl
@@ -97,7 +97,7 @@ export const generateFollowListMetadata = async ({
   }
 
   return {
-    title: `Activities.next: ${decodedActorHandle} ${config.label}`
+    title: `${decodedActorHandle} ${config.label}`
   }
 }
 

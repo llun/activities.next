@@ -11,7 +11,7 @@ import { ExplorePageClient } from './ExplorePageClient'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Explore'
+  title: 'Explore'
 }
 
 const Page = async () => {

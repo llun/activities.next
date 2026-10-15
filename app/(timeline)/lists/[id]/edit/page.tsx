@@ -11,7 +11,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Edit list'
+  title: 'Edit list'
 }
 
 // Seed of followed accounts offered as add suggestions. The editor searches

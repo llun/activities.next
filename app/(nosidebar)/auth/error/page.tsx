@@ -17,7 +17,7 @@ import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Sign-in problem',
+  title: 'Sign-in problem',
   // Nothing here is worth indexing, and the URL carries an error code that
   // reads as a real page to a crawler.
   robots: { index: false, follow: false }

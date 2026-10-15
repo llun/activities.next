@@ -22,7 +22,7 @@ import { resolveSignInRedirect } from './resolveSignInRedirect'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Sign in'
+  title: 'Sign in'
 }
 
 interface Props {

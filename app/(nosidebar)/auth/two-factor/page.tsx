@@ -11,7 +11,7 @@ import { TwoFactorForm } from './TwoFactorForm'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Two-Factor Authentication'
+  title: 'Two-Factor Authentication'
 }
 
 const getRedirectBack = (value: string | string[] | undefined): string => {

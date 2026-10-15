@@ -15,7 +15,7 @@ import { isRealAvatar } from '@/lib/utils/isRealAvatar'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Account Sessions'
+  title: 'Account Sessions'
 }
 
 const Page = async () => {

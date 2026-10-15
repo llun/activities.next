@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const BLOCKS_PAGE_LIMIT = 80
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Blocked accounts'
+  title: 'Blocked accounts'
 }
 
 const Page = async () => {

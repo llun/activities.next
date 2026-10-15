@@ -168,7 +168,7 @@ describe('[actor] following page', () => {
       })
 
       expect(metadata).toEqual({
-        title: 'Activities.next: @localuser@llun.social Following'
+        title: '@localuser@llun.social Following'
       })
     })
   })

@@ -17,7 +17,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Confirm account'
+  title: 'Confirm account'
 }
 
 const isVerify = async (database: Database, verificationCode?: string) => {

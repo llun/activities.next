@@ -24,7 +24,7 @@ export const generateMetadata = async ({
   if (!/^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/.test(tag))
     return { title: 'Not Found' }
   return {
-    title: `#${tag} - Activities.next`
+    title: `#${tag}`
   }
 }
 

@@ -12,7 +12,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery Subjects'
+  title: 'Gallery Subjects'
 }
 
 const Page: FC = async () => {

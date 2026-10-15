@@ -12,7 +12,7 @@ import { GearListView } from './GearListView'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Fitness Gear'
+  title: 'Fitness Gear'
 }
 
 const Page: FC = async () => {

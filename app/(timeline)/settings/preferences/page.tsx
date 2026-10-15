@@ -9,7 +9,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Preferences'
+  title: 'Preferences'
 }
 
 const Page = async () => {

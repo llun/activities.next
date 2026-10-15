@@ -19,7 +19,7 @@ import { GalleryAllMediaView } from './GalleryAllMediaView'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Gallery All media'
+  title: 'Gallery All media'
 }
 
 interface PageProps {

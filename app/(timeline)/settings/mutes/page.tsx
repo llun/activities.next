@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const MUTES_PAGE_LIMIT = 80
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Muted accounts'
+  title: 'Muted accounts'
 }
 
 const Page = async () => {

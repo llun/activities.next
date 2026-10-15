@@ -19,7 +19,7 @@ import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Sign up'
+  title: 'Sign up'
 }
 
 const Page: FC = async () => {
