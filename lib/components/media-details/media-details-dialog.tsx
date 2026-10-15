@@ -1583,7 +1583,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                     className="space-y-2 px-5 py-4"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <h3 className="text-sm font-semibold">Apply to all</h3>
+                      <h3 className="text-base font-semibold">Apply to all</h3>
                       <span className="text-muted-foreground text-xs">
                         Copy this photo’s choices to all {addable.length}
                       </span>
