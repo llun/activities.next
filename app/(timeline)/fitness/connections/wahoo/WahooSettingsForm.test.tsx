@@ -196,7 +196,7 @@ describe('WahooSettingsForm', () => {
 
     render(<WahooSettingsForm />)
 
-    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(window.location.search).toBe('')
   })
 

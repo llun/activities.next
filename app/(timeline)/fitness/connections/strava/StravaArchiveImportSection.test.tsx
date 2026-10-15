@@ -129,7 +129,9 @@ describe('StravaArchiveImportSection', () => {
     it('picks the archive through a labelled "Choose file" button', async () => {
       await renderSection('@me@example.com')
 
-      const button = screen.getByRole('button', { name: /^Archive file/ })
+      const button = screen.getByRole('button', {
+        name: 'Archive file Choose file'
+      })
       expect(button).toHaveTextContent('Choose file')
       expect(button).toHaveAccessibleDescription(
         'Archive import always applies to @me@example.com.'

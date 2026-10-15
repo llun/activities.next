@@ -249,16 +249,22 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             form
             footer={
               <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className={cn(
-                    'min-w-0 text-sm break-words',
-                    error ? 'text-destructive-text' : 'text-muted-foreground'
-                  )}
-                >
-                  {error || message?.text}
-                </p>
+                {error ? (
+                  <p
+                    role="alert"
+                    className="text-destructive-text min-w-0 text-sm break-words"
+                  >
+                    {error}
+                  </p>
+                ) : (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-muted-foreground min-w-0 text-sm break-words"
+                  >
+                    {message?.text}
+                  </p>
+                )}
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                   <Button
                     type="button"

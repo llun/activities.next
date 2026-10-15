@@ -388,7 +388,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
 
         <FormRow
           label="Archive file"
-          htmlFor="archiveFileChoose"
+          htmlFor="archiveFile"
           hint={`Archive import always applies to ${actorHandle || 'your current actor'}.`}
         >
           {({ describedBy, labelledBy }) => (
