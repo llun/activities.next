@@ -10,6 +10,7 @@ import {
   getActorDomains,
   switchActor
 } from '@/lib/client'
+import { setActiveOfflineSession } from '@/lib/client/offline/offlineDb'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import { AddActorDialog } from './AddActorDialog'
@@ -18,6 +19,10 @@ vi.mock('@/lib/client', () => ({
   getActorDomains: vi.fn(),
   createActor: vi.fn(),
   switchActor: vi.fn()
+}))
+
+vi.mock('@/lib/client/offline/offlineDb', () => ({
+  setActiveOfflineSession: vi.fn().mockResolvedValue(undefined)
 }))
 
 class ResizeObserverStub {
@@ -36,6 +41,7 @@ describe('AddActorDialog', () => {
     vi.mocked(getActorDomains).mockReset()
     vi.mocked(createActor).mockReset()
     vi.mocked(switchActor).mockReset()
+    vi.mocked(setActiveOfflineSession).mockReset()
     mockOnOpenChange.mockReset()
     mockOnSuccess.mockReset()
 
@@ -348,7 +354,12 @@ describe('AddActorDialog', () => {
       })
 
       expect(switchActor).toHaveBeenCalledWith({ actorId: 'new-actor-id' })
-      expect(mockOnSuccess).toHaveBeenCalled()
+      await waitFor(() => {
+        expect(setActiveOfflineSession).toHaveBeenCalledWith({
+          actorId: 'new-actor-id'
+        })
+        expect(mockOnSuccess).toHaveBeenCalled()
+      })
       expect(input).toHaveValue('')
     })
 
@@ -448,6 +459,7 @@ describe('AddActorDialog', () => {
       })
 
       expect(switchActor).toHaveBeenCalledWith({ actorId: 'new-actor-id' })
+      expect(setActiveOfflineSession).not.toHaveBeenCalled()
       expect(mockOnSuccess).not.toHaveBeenCalled()
 
       await waitFor(() => {
@@ -455,6 +467,33 @@ describe('AddActorDialog', () => {
       })
 
       expect(screen.getByRole('button', { name: 'Create actor' })).toBeEnabled()
+    })
+
+    it('sets active offline session for the new actor and succeeds even if session update fails', async () => {
+      vi.mocked(createActor).mockResolvedValue({
+        id: 'new-actor-id',
+        username: 'frank',
+        domain: defaultDomain
+      })
+      vi.mocked(switchActor).mockResolvedValue(true)
+      vi.mocked(setActiveOfflineSession).mockRejectedValueOnce(
+        new Error('Storage failure')
+      )
+
+      renderDialog()
+
+      const input = screen.getByLabelText('Username')
+      fireEvent.change(input, { target: { value: 'frank' } })
+      fireEvent.submit(input.closest('form')!)
+
+      await waitFor(() => {
+        expect(switchActor).toHaveBeenCalledWith({ actorId: 'new-actor-id' })
+        expect(setActiveOfflineSession).toHaveBeenCalledWith({
+          actorId: 'new-actor-id'
+        })
+        expect(mockOnSuccess).toHaveBeenCalled()
+      })
+      expect(input).toHaveValue('')
     })
   })
 

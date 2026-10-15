@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 import { cancelActorDeletion, setDefaultActor, switchActor } from '@/lib/client'
+import { setActiveOfflineSession } from '@/lib/client/offline/offlineDb'
 import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Alert } from '@/lib/components/surface/Alert'
@@ -76,6 +77,11 @@ export function ActorsSection({
       const didSwitch = await switchActor({ actorId: selectedActorId })
 
       if (didSwitch) {
+        try {
+          await setActiveOfflineSession({ actorId: selectedActorId })
+        } catch {
+          // safe ignore
+        }
         window.location.reload()
       } else {
         setMessage({ type: 'error', text: 'Failed to switch actor' })

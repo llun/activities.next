@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { cancelActorDeletion, setDefaultActor, switchActor } from '@/lib/client'
+import { setActiveOfflineSession } from '@/lib/client/offline/offlineDb'
 
 import { ActorsSection } from './ActorsSection'
 
@@ -25,9 +26,32 @@ vi.mock('@/lib/client', () => ({
   switchActor: vi.fn()
 }))
 
+vi.mock('@/lib/client/offline/offlineDb', () => ({
+  setActiveOfflineSession: vi.fn().mockResolvedValue(undefined)
+}))
+
 describe('ActorsSection', () => {
+  const originalLocation = window.location
+
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(switchActor).mockReset()
+    vi.mocked(setDefaultActor).mockReset()
+    vi.mocked(cancelActorDeletion).mockReset()
+    vi.mocked(setActiveOfflineSession).mockReset()
+    mockRefresh.mockReset()
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, reload: vi.fn() }
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation
+    })
   })
 
   const actors = [
@@ -434,5 +458,73 @@ describe('ActorsSection', () => {
     expect(trigger).toHaveAccessibleDescription(
       /Select an actor from the dropdown/
     )
+  })
+
+  it('switches to selected actor, sets active offline session, and reloads page', async () => {
+    vi.mocked(switchActor).mockResolvedValue(true)
+
+    render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={actors}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    const bobItem = screen.getByText('Bob')
+    fireEvent.click(bobItem)
+
+    const switchButton = screen.getByRole('button', {
+      name: 'Switch to actor'
+    })
+    expect(switchButton).not.toBeDisabled()
+    fireEvent.click(switchButton)
+
+    expect(switchActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
+    await waitFor(() => {
+      expect(setActiveOfflineSession).toHaveBeenCalledWith({
+        actorId: 'actor-2'
+      })
+      expect(window.location.reload).toHaveBeenCalled()
+    })
+  })
+
+  it('reloads even if setActiveOfflineSession fails during actor switch', async () => {
+    vi.mocked(switchActor).mockResolvedValue(true)
+    vi.mocked(setActiveOfflineSession).mockRejectedValueOnce(
+      new Error('Storage failure')
+    )
+
+    render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={actors}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    const bobItem = screen.getByText('Bob')
+    fireEvent.click(bobItem)
+
+    const switchButton = screen.getByRole('button', {
+      name: 'Switch to actor'
+    })
+    fireEvent.click(switchButton)
+
+    expect(switchActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
+    await waitFor(() => {
+      expect(setActiveOfflineSession).toHaveBeenCalledWith({
+        actorId: 'actor-2'
+      })
+      expect(window.location.reload).toHaveBeenCalled()
+    })
   })
 })

@@ -12,6 +12,7 @@ import {
   useState
 } from 'react'
 
+import { TimelineLoading } from '@/app/(timeline)/(home)/loading'
 import { MainPageTimeline } from '@/app/(timeline)/MainPageTimeline'
 import {
   PendingProfileNavigationProvider,
@@ -32,7 +33,6 @@ import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
-import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { SessionKeepAlive } from '@/lib/components/session-keep-alive'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -269,14 +269,32 @@ export function OfflineAppShell() {
   if (shellState.status === 'loading') {
     return (
       <div
+        ref={scrollContainerRef}
         role="status"
         aria-label="Loading offline timeline"
-        className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background flex flex-col justify-center items-center p-6"
+        className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background"
+        onScroll={handleScroll}
       >
-        <div className="w-full max-w-content space-y-4">
-          <span className="sr-only">Loading timeline</span>
-          <PostListSkeleton rows={4} />
-        </div>
+        <NavPreferencesProvider>
+          <MobileNavigationProvider>
+            <PendingProfileNavigationProvider>
+              <div className="min-h-dvh">
+                <Sidebar isLoading />
+                <MobileNav />
+                <main
+                  className={cn(
+                    'flex min-h-dvh flex-col overflow-x-clip pb-6',
+                    'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+                  )}
+                >
+                  <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                    <TimelineLoading />
+                  </div>
+                </main>
+              </div>
+            </PendingProfileNavigationProvider>
+          </MobileNavigationProvider>
+        </NavPreferencesProvider>
       </div>
     )
   }

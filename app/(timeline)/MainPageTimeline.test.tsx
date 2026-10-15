@@ -10,7 +10,11 @@ import {
   within
 } from '@testing-library/react'
 
-import { TimelineRequestError, getTimeline } from '@/lib/client'
+import {
+  type GetTimelineResult,
+  TimelineRequestError,
+  getTimeline
+} from '@/lib/client'
 import {
   clearAllOfflineData,
   getOfflineTimeline,
@@ -19,6 +23,7 @@ import {
 } from '@/lib/client/offline'
 import { reconcileCachedStatuses } from '@/lib/client/statuses'
 import { Timeline } from '@/lib/services/timelines/types'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { MainPageTimeline } from './MainPageTimeline'
 import {
@@ -1019,6 +1024,85 @@ describe('MainPageTimeline', () => {
       await waitFor(() => {
         expect(screen.queryByRole('status')).not.toBeInTheDocument()
       })
+    })
+
+    it('renders skeleton on initial mount when refreshOnMount is true and statuses is empty, then transitions when fetch settles', async () => {
+      const deferred = createDeferred<GetTimelineResult>()
+      vi.mocked(getTimeline).mockReturnValue(deferred.promise)
+
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+
+      const { container } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[]}
+          refreshOnMount={true}
+        />
+      )
+
+      expect(
+        container.querySelector('[data-slot="post-list-skeleton"]')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Your timeline is empty')
+      ).not.toBeInTheDocument()
+
+      deferred.resolve({
+        statuses: [post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: null
+      })
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('post-https://activities.local/users/llun/s/1')
+        ).toBeInTheDocument()
+      })
+      expect(
+        container.querySelector('[data-slot="post-list-skeleton"]')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('Your timeline is empty')
+      ).not.toBeInTheDocument()
+    })
+
+    it('renders skeleton on initial mount when refreshOnMount is true and statuses is empty, then transitions to empty state on empty result', async () => {
+      const deferred = createDeferred<GetTimelineResult>()
+      vi.mocked(getTimeline).mockReturnValue(deferred.promise)
+
+      const { container } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[]}
+          refreshOnMount={true}
+        />
+      )
+
+      expect(
+        container.querySelector('[data-slot="post-list-skeleton"]')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Your timeline is empty')
+      ).not.toBeInTheDocument()
+
+      deferred.resolve({
+        statuses: [],
+        nextMaxStatusId: null,
+        prevMinStatusId: null
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('Your timeline is empty')).toBeInTheDocument()
+      })
+      expect(
+        container.querySelector('[data-slot="post-list-skeleton"]')
+      ).not.toBeInTheDocument()
     })
   })
 })

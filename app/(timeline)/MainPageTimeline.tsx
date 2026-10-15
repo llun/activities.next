@@ -231,7 +231,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   // yet. They count towards the "new posts" pill with the polled posts that
   // are not loaded at all.
   const [unseenAbove] = useState(createUnseenAboveStore)
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(() =>
+    Boolean(
+      refreshOnMount &&
+      statuses.length === 0 &&
+      (!initialSegments || initialSegments.length === 0)
+    )
+  )
   const [loadingGapSegmentIndex, setLoadingGapSegmentIndex] = useState<
     number | null
   >(null)
