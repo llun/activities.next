@@ -1,6 +1,6 @@
 'use client'
 
-import { Check } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import {
   FC,
   ReactNode,
@@ -1064,23 +1064,25 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 text-sm">
-            {message ? (
-              <p
-                role="status"
-                aria-live="polite"
-                className="text-muted-foreground flex items-center gap-1.5 break-words"
-              >
-                {savedMessageShown ? (
-                  <Check
-                    aria-hidden="true"
-                    className="text-success-text size-4 shrink-0"
-                  />
-                ) : null}
-                {message}
-              </p>
-            ) : null}
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-muted-foreground flex items-center gap-1.5 break-words"
+            >
+              {message ? (
+                <>
+                  {savedMessageShown ? (
+                    <Check
+                      aria-hidden="true"
+                      className="text-success-text size-4 shrink-0"
+                    />
+                  ) : null}
+                  {message}
+                </>
+              ) : null}
+            </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {!isLoading && !hasLoadedSettings ? (
               <Button
                 variant="outline"
@@ -1089,8 +1091,22 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
                 Retry loading
               </Button>
             ) : null}
+            <Button
+              variant="outline"
+              onClick={handleClear}
+              disabled={actionsDisabled}
+            >
+              Clear all
+            </Button>
             <Button onClick={handleSave} disabled={actionsDisabled}>
-              {isSaving ? 'Saving…' : copy.saveButton}
+              {isSaving ? (
+                <Loader2
+                  data-slot="spinner"
+                  aria-hidden="true"
+                  className="animate-spin"
+                />
+              ) : null}
+              {copy.saveButton}
             </Button>
           </div>
         </div>
@@ -1244,41 +1260,37 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
       </FormRow>
 
       <FormRow label="Add a location">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={handleUseCurrentLocation}
-            disabled={actionsDisabled}
+        {({ labelledBy }) => (
+          <div
+            role="group"
+            aria-labelledby={labelledBy}
+            className="flex flex-wrap gap-2"
           >
-            {isLocatingCurrentPosition ? 'Locating…' : 'Use current location'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleAddLocation}
-            disabled={actionsDisabled}
-          >
-            Add to list
-          </Button>
-        </div>
+            <Button
+              variant="outline"
+              onClick={handleUseCurrentLocation}
+              disabled={actionsDisabled}
+            >
+              {isLocatingCurrentPosition ? 'Locating…' : 'Use current location'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleAddLocation}
+              disabled={actionsDisabled}
+            >
+              Add to list
+            </Button>
+          </div>
+        )}
       </FormRow>
 
       <div className="space-y-2 px-4 py-2.5">
-        <div className="flex items-center justify-between gap-3">
-          <h3
-            id="privacy-saved-locations-heading"
-            className="text-sm font-medium"
-          >
-            Saved locations
-          </h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClear}
-            disabled={actionsDisabled}
-          >
-            Clear all
-          </Button>
-        </div>
+        <h3
+          id="privacy-saved-locations-heading"
+          className="text-sm font-medium"
+        >
+          Saved locations
+        </h3>
         {privacyLocations.length > 0 ? (
           <FramedList aria-labelledby="privacy-saved-locations-heading">
             {privacyLocations.map((location, index) => (

@@ -214,15 +214,18 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
               label="Old status maps"
               hint="Redraw the maps of statuses posted before your privacy locations changed."
             >
-              <Button
-                variant="outline"
-                onClick={() => handleRegenerateOldStatusMaps(context)}
-                disabled={context.disabled || context.busy}
-              >
-                {context.busy
-                  ? 'Queueing regeneration…'
-                  : 'Regenerate maps for old statuses'}
-              </Button>
+              {({ describedBy }) => (
+                <Button
+                  variant="outline"
+                  aria-describedby={describedBy}
+                  onClick={() => handleRegenerateOldStatusMaps(context)}
+                  disabled={context.disabled || context.busy}
+                >
+                  {context.busy
+                    ? 'Queueing regeneration…'
+                    : 'Regenerate maps for old statuses'}
+                </Button>
+              )}
             </FormRow>
           )}
         />

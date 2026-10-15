@@ -2075,8 +2075,8 @@ legacy shape left to copy.
   raw `<select>` to append it to, and `lib/components/ui/formControlUsage.test.ts`
   fails on one. The post line limit, the admin statistic type, the report
   category, the Wahoo environment, the notification actor and the privacy hide
-  radius are all `Select`; the hide radius alone passes `h-10`, because the
-  design's Hide Radius board draws that one select at 40 px. There is no raw
+  radius are all `Select` at the standard 36 px height, with no exception for
+  the hide radius. There is no raw
   `<select>` left in the app outside the primitive (`formControlUsage.test.ts`
   pins it): the fitness activity page's recording switcher is a menu, not a
   select (see **Several recordings of one activity** in

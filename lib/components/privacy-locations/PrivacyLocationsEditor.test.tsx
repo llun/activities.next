@@ -241,9 +241,11 @@ describe('PrivacyLocationsEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save custom places' }))
 
-    expect(
-      await screen.findByRole('button', { name: 'Saving…' })
-    ).toBeDisabled()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Save custom places' })
+      ).toBeDisabled()
+    )
     expect(screen.getByLabelText('Latitude')).toBeDisabled()
 
     deferred.resolve([home])
