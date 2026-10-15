@@ -1,7 +1,14 @@
 'use client'
 
 import { GripHorizontal, Maximize2, Minimize2 } from 'lucide-react'
-import { type FC, type ReactNode, useCallback, useRef, useState } from 'react'
+import {
+  type FC,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -12,6 +19,12 @@ export interface ResizableMapContainerProps {
   minHeight?: number
   maxHeight?: number
   showQuickToggle?: boolean
+  /**
+   * Size the map by aspect ratio (e.g. `aspect-video`) until the reader drags
+   * or expands it, instead of starting at `defaultHeight`. Resetting (double
+   * click, Enter, minimize) goes back to the aspect ratio.
+   */
+  aspectClassName?: string
   className?: string
 }
 
@@ -22,27 +35,46 @@ export const ResizableMapContainer: FC<ResizableMapContainerProps> = ({
   minHeight = 200,
   maxHeight = 800,
   showQuickToggle = true,
+  aspectClassName,
   className
 }) => {
-  const [height, setHeight] = useState<number>(defaultHeight)
+  // Null while the aspect ratio decides the height.
+  const resetHeight = aspectClassName ? null : defaultHeight
+  const [height, setHeight] = useState<number | null>(resetHeight)
+  const [measuredHeight, setMeasuredHeight] = useState(defaultHeight)
   const [isDragging, setIsDragging] = useState(false)
   const startY = useRef(0)
   const startHeight = useRef(0)
+  const frameRef = useRef<HTMLDivElement | null>(null)
 
-  const isExpanded = height >= expandedHeight - 40
+  // The rendered height, which the separator reports and a drag starts from.
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      setMeasuredHeight(Math.round(frame.offsetHeight))
+    })
+    observer.observe(frame)
+    return () => observer.disconnect()
+  }, [])
+
+  const currentHeight = height ?? measuredHeight
+  const isExpanded = height !== null && height >= expandedHeight - 40
 
   const toggleExpand = useCallback(() => {
     setHeight((current) =>
-      current >= expandedHeight - 40 ? defaultHeight : expandedHeight
+      current !== null && current >= expandedHeight - 40
+        ? resetHeight
+        : expandedHeight
     )
-  }, [defaultHeight, expandedHeight])
+  }, [resetHeight, expandedHeight])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
     setIsDragging(true)
     startY.current = e.clientY
-    startHeight.current = height
+    startHeight.current = currentHeight
   }
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -76,10 +108,10 @@ export const ResizableMapContainer: FC<ResizableMapContainerProps> = ({
     const step = 24
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setHeight((h) => Math.max(h - step, minHeight))
+      setHeight((h) => Math.max((h ?? measuredHeight) - step, minHeight))
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setHeight((h) => Math.min(h + step, maxHeight))
+      setHeight((h) => Math.min((h ?? measuredHeight) + step, maxHeight))
     } else if (e.key === 'Home') {
       e.preventDefault()
       setHeight(minHeight)
@@ -88,17 +120,28 @@ export const ResizableMapContainer: FC<ResizableMapContainerProps> = ({
       setHeight(maxHeight)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      setHeight(defaultHeight)
+      setHeight(resetHeight)
     }
   }
 
   const handleDoubleClick = () => {
-    setHeight(defaultHeight)
+    setHeight(resetHeight)
   }
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div className="relative w-full shrink-0" style={{ height }}>
+      <div
+        ref={frameRef}
+        className={cn(
+          'relative w-full shrink-0',
+          // `min-h-0` makes the ratio strict: by default a box with an
+          // aspect ratio still grows to fit its content, so a 4:3 static
+          // preview would stretch a 16:9 frame until the live map replaced it,
+          // and the map would fit the route to the taller box.
+          height === null && aspectClassName && ['min-h-0', aspectClassName]
+        )}
+        style={height === null ? undefined : { height }}
+      >
         {children}
         {showQuickToggle && (
           <button
@@ -123,7 +166,7 @@ export const ResizableMapContainer: FC<ResizableMapContainerProps> = ({
         role="separator"
         aria-orientation="horizontal"
         aria-label="Resize map height"
-        aria-valuenow={height}
+        aria-valuenow={currentHeight}
         aria-valuemin={minHeight}
         aria-valuemax={maxHeight}
         tabIndex={0}

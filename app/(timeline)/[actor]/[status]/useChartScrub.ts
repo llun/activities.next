@@ -1,130 +1,86 @@
-import { type MouseEvent, type TouchEvent } from 'react'
+import { type PointerEvent, useEffect, useRef } from 'react'
 
-import {
-  type ChartHighlight,
-  clampNumber,
-  computeChartHighlight,
-  computeHighlightedIndex
-} from './fitnessChartData'
+import { clampNumber } from './fitnessChartData'
 
 export interface ChartScrubOptions {
-  values: number[]
-  width: number
-  height: number
-  minValue: number
-  maxValue: number
   durationSeconds?: number
-  highlightedElapsedSeconds?: number | null
   onHighlightElapsedSeconds?: (elapsedSeconds: number | null) => void
 }
 
 export interface ChartScrubResult {
   canScrub: boolean
-  highlight: ChartHighlight | null
   plotClassName?: string
   plotHandlers: {
-    onMouseMove: (event: MouseEvent<SVGSVGElement>) => void
-    onMouseLeave: () => void
-    onTouchStart: (event: TouchEvent<SVGSVGElement>) => void
-    onTouchMove: (event: TouchEvent<SVGSVGElement>) => void
-    onTouchEnd: (event: TouchEvent<SVGSVGElement>) => void
-    onTouchCancel: () => void
+    onPointerDown: (event: PointerEvent<Element>) => void
+    onPointerMove: (event: PointerEvent<Element>) => void
+    onPointerLeave: () => void
+    onPointerCancel: () => void
   }
 }
 
-// Everything a chart needs to follow the pointer: whether it can, where the
-// highlighted sample sits in plot coordinates, and the DOM handlers that turn a
-// pointer or a finger into an elapsed time.
+// Turns a pointer over a plot into an elapsed time: the x of the pointer as a
+// share of the plot's width, times the activity's duration. Every chart of the
+// activity page scrubs through this one hook, so a hover on any of them moves
+// the same instant on the map and on every other chart.
 //
-// This lives in one hook because two visually different charts now share the
-// behaviour — the Analysis stack's line panels and the Overview's filled
-// elevation profile. Keeping the geometry beside the handlers is what stops the
-// dot from drifting off the line: both read the same `getChartXPosition` /
-// `getChartYPosition` projection the path was drawn with.
+// Pointer events, not mouse and touch ones: a finger and a mouse both report a
+// viewport x, and a tap is not followed by compatibility mouse events that
+// would re-enter the scrub after it was cleared. A finger lifting fires
+// `pointerleave`, which clears the readout the way the mouse leaving does.
 export const useChartScrub = ({
-  values,
-  width,
-  height,
-  minValue,
-  maxValue,
   durationSeconds,
-  highlightedElapsedSeconds = null,
   onHighlightElapsedSeconds
 }: ChartScrubOptions): ChartScrubResult => {
   const canScrub =
     typeof onHighlightElapsedSeconds === 'function' &&
     typeof durationSeconds === 'number' &&
-    durationSeconds > 0 &&
-    values.length > 0
+    durationSeconds > 0
 
-  // One nullable object rather than three parallel nullable fields plus an
-  // `isHighlighted` boolean: a boolean beside them narrows nothing, so every
-  // consumer had to re-assert that x, y and value were numbers before it could
-  // pass them anywhere typed.
-  const highlightedIndex = canScrub
-    ? computeHighlightedIndex(
-        highlightedElapsedSeconds,
-        durationSeconds,
-        values.length
-      )
-    : null
-  const highlight = computeChartHighlight(
-    values,
-    highlightedIndex,
-    width,
-    height,
-    minValue,
-    maxValue
-  )
+  // At most one update a frame. A pointer can report several moves between
+  // two paints, and each one re-renders the chart and moves the map marker:
+  // the first move of a frame goes through at once (so a tap or a single
+  // hover still answers immediately), and the rest of that frame's moves are
+  // folded into one update at its end, with the latest position.
+  const frameRef = useRef<number | null>(null)
+  const pendingRef = useRef<number | null>(null)
+  const callbackRef = useRef(onHighlightElapsedSeconds)
+  useEffect(() => {
+    callbackRef.current = onHighlightElapsedSeconds
+  }, [onHighlightElapsedSeconds])
+  const cancelFrame = () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
+    pendingRef.current = null
+  }
+  useEffect(() => cancelFrame, [])
 
-  // One scrub for pointer and touch alike: both report a viewport x, and the
-  // instant it lands on is the same either way.
-  const scrubToClientX = (clientX: number | undefined, plot: SVGSVGElement) => {
+  const scrubTo = (event: PointerEvent<Element>) => {
     if (!canScrub || !onHighlightElapsedSeconds) return
-    if (typeof clientX !== 'number') return
-    const bounds = plot.getBoundingClientRect()
+    const bounds = event.currentTarget.getBoundingClientRect()
     const ratio = clampNumber(
-      (clientX - bounds.left) / Math.max(bounds.width, 1),
+      (event.clientX - bounds.left) / Math.max(bounds.width, 1),
       0,
       1
     )
-    onHighlightElapsedSeconds(ratio * durationSeconds)
+    const elapsedSeconds = ratio * (durationSeconds as number)
+    if (frameRef.current !== null) {
+      pendingRef.current = elapsedSeconds
+      return
+    }
+    onHighlightElapsedSeconds(elapsedSeconds)
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null
+      const pending = pendingRef.current
+      pendingRef.current = null
+      if (pending !== null) callbackRef.current?.(pending)
+    })
   }
 
   const clearScrub = () => {
     if (!canScrub || !onHighlightElapsedSeconds) return
+    // A move still waiting for its frame must not bring the readout back.
+    cancelFrame()
     onHighlightElapsedSeconds(null)
-  }
-
-  const plotHandlers = {
-    onMouseMove: (event: MouseEvent<SVGSVGElement>) => {
-      scrubToClientX(event.clientX, event.currentTarget)
-    },
-    onMouseLeave: clearScrub,
-    onTouchStart: (event: TouchEvent<SVGSVGElement>) => {
-      scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
-    },
-    onTouchMove: (event: TouchEvent<SVGSVGElement>) => {
-      scrubToClientX(event.touches[0]?.clientX, event.currentTarget)
-    },
-    onTouchEnd: (event: TouchEvent<SVGSVGElement>) => {
-      // A tap is followed by compatibility `mousemove`/`mousedown`/…
-      // at the same point, and that `mousemove` would re-enter the scrub
-      // the moment this clears it — leaving the readout stuck on, because
-      // no `mouseleave` follows a touch. Preventing the default suppresses
-      // that whole compat sequence; the chart has no click behaviour to
-      // lose, and a drag never gets here stuck anyway because movement
-      // past the tap slop suppresses the compat events on its own.
-      // Guarded on `cancelable`: once a scroll is underway Chrome keeps
-      // dispatching `touchend` with `cancelable: false` rather than
-      // switching to `touchcancel`, and calling this on one of those is a
-      // no-op that logs a warning on every vertical swipe that started on
-      // a chart — which is most of them, under four stacked full-width
-      // charts.
-      if (event.cancelable) event.preventDefault()
-      clearScrub()
-    },
-    onTouchCancel: clearScrub
   }
 
   // A vertical swipe still scrolls the page and a pinch still zooms; only the
@@ -133,14 +89,16 @@ export const useChartScrub = ({
   // `touch-action: pan-y`, which drops pinch-zoom, and blocking magnification
   // over a stack of charts takes it away in the one place a low-vision reader
   // most wants it.
-  const plotClassName = canScrub
-    ? 'cursor-crosshair touch-pan-y touch-pinch-zoom'
-    : undefined
-
   return {
     canScrub,
-    highlight,
-    plotClassName,
-    plotHandlers
+    plotClassName: canScrub
+      ? 'cursor-crosshair touch-pan-y touch-pinch-zoom'
+      : undefined,
+    plotHandlers: {
+      onPointerDown: scrubTo,
+      onPointerMove: scrubTo,
+      onPointerLeave: clearScrub,
+      onPointerCancel: clearScrub
+    }
   }
 }

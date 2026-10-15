@@ -74,4 +74,16 @@ describe('Section', () => {
     expect(screen.getByText('Everything you ride.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
   })
+
+  it('takes an anchor id for in-page links', () => {
+    render(
+      <Section title="Laps" id="laps">
+        <p>Body</p>
+      </Section>
+    )
+    expect(screen.getByRole('region', { name: 'Laps' })).toHaveAttribute(
+      'id',
+      'laps'
+    )
+  })
 })

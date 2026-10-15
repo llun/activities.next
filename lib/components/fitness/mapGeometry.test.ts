@@ -6,6 +6,7 @@ import {
   computeFocusBounds,
   downsampleSegments,
   getDistanceToHiddenSegments,
+  getRouteSamplesInRange,
   getScaledCoordinateDistance,
   round2
 } from './mapGeometry'
@@ -637,5 +638,42 @@ describe('circleToPolygon', () => {
     const [ring] = circleToPolygon({ lat: 0, lng: 0 }, 100, 8).coordinates
 
     expect(ring).toHaveLength(9)
+  })
+})
+
+describe('getRouteSamplesInRange', () => {
+  const sample = (elapsedSeconds: number) => ({
+    lat: 52 + elapsedSeconds / 1000,
+    lng: 5,
+    elapsedSeconds
+  })
+
+  it('keeps each run of samples inside the range, per segment', () => {
+    const runs = getRouteSamplesInRange(
+      [
+        { isHiddenByPrivacy: false, samples: [0, 10, 20, 30].map(sample) },
+        { isHiddenByPrivacy: true, samples: [40, 50, 60, 70].map(sample) }
+      ],
+      { startSeconds: 10, endSeconds: 50 }
+    )
+
+    expect(runs.map((run) => run.map((entry) => entry.elapsedSeconds))).toEqual(
+      [
+        [10, 20, 30],
+        [40, 50]
+      ]
+    )
+  })
+
+  it('drops a run of a single sample, which draws no line', () => {
+    expect(
+      getRouteSamplesInRange(
+        [{ isHiddenByPrivacy: false, samples: [0, 10, 20].map(sample) }],
+        {
+          startSeconds: 15,
+          endSeconds: 25
+        }
+      )
+    ).toEqual([])
   })
 })

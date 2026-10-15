@@ -44,7 +44,6 @@ import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
 import { StatusLikes } from './StatusLikes'
-import { StatusStatStrip } from './StatusStatStrip'
 import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
 interface Props {
@@ -358,15 +357,6 @@ const Page: FC<Props> = async ({ params }) => {
               replies={replies.map((reply) => cleanJson(reply))}
               fitnessFiles={fitnessFiles}
             />
-            {!currentActorProfile ? (
-              <div className="px-4 pb-4">
-                <StatusStatStrip
-                  boosts={statusForLayout.totalShares}
-                  likes={statusForLayout.totalLikes}
-                  replies={replies.length}
-                />
-              </div>
-            ) : null}
           </div>
 
           {!currentActorProfile ? (

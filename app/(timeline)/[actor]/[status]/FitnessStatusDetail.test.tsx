@@ -7,6 +7,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
+import { REPLIES_EXPANDED_STORAGE_KEY } from './ActivityReplies'
 import { mockPush } from './FitnessStatusDetail.mocks'
 import {
   actor,
@@ -17,7 +18,6 @@ import {
   mockGetFitnessFilesByStatus,
   mockGetFitnessRouteData,
   openRecordingPicker,
-  openSectionMenu,
   recordingTriggerName,
   renderDetail,
   resetFitnessStatusDetailMocks
@@ -164,57 +164,56 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
-  it('renders summary metrics and elevation chart on overview without fetching route data, and defers route data to analysis', async () => {
-    mockGetFitnessRouteData.mockClear()
-    const statusWithMetrics = buildStatus({
-      fitness: {
-        id: 'fit-1',
-        fileName: 'ride.fit',
-        fileType: 'fit',
-        mimeType: 'application/octet-stream',
-        bytes: 2048,
-        url: 'https://activities.local/fit/ride.fit',
-        processingStatus: 'completed',
-        totalDistanceMeters: 5000,
-        totalDurationSeconds: 1800,
-        elevationGainMeters: 120,
-        activityType: 'ride',
-        hasMapData: false,
-        avgPower: 215,
-        maxPower: 580,
-        avgHeartRate: 148,
-        maxHeartRate: 172,
-        totalWorkKj: 387,
-        elevationSeries: [10, 25, 45, 60, 50, 30]
-      }
+  it('fills the overview groups from the stored totals before the route data arrives', async () => {
+    // The route data never answers, so everything below comes off the status.
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          avgPower: 215,
+          maxPower: 580,
+          avgHeartRate: 148,
+          maxHeartRate: 172,
+          totalWorkKj: 387
+        }
+      } as Partial<StatusNote>)
     })
 
-    renderDetail({ status: statusWithMetrics })
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    expect(
+      within(overview).getByText('5.00 km · 30:00 elapsed')
+    ).toBeInTheDocument()
+    expect(within(overview).getByText('215 / 580 W')).toBeInTheDocument()
+    expect(within(overview).getByText('387 kJ')).toBeInTheDocument()
+    expect(within(overview).getByText('148 / 172 bpm')).toBeInTheDocument()
+    // Figures only the file can give are left out rather than shown as dashes.
+    expect(within(overview).queryByText('Weighted')).not.toBeInTheDocument()
+    expect(within(overview).queryByText('Decoupling')).not.toBeInTheDocument()
+    expect(
+      within(overview).queryByText('Cadence and weather')
+    ).not.toBeInTheDocument()
+    // The route data is asked for at once: every section reads it.
+    expect(mockGetFitnessRouteData).toHaveBeenCalledWith('fit-1')
+  })
 
-    // Summary metrics appear immediately without waiting for route data
-    expect(screen.getByText('Avg HR')).toBeInTheDocument()
-    expect(screen.getByText('148')).toBeInTheDocument()
-    expect(screen.getByText('max 172 bpm')).toBeInTheDocument()
-    expect(screen.getByText('Total work')).toBeInTheDocument()
-    expect(screen.getByText('387')).toBeInTheDocument()
-    expect(screen.getByText('kJ')).toBeInTheDocument()
-    expect(screen.getByText('Avg power')).toBeInTheDocument()
-    expect(screen.getByText('215')).toBeInTheDocument()
-    expect(screen.getAllByText('watts')).toHaveLength(2)
-    expect(screen.getByText('Max power')).toBeInTheDocument()
-    expect(screen.getByText('580')).toBeInTheDocument()
-    expect(screen.getByTestId('overview-elevation-profile')).toBeInTheDocument()
+  it('leaves out the overview rows the activity has nothing for', async () => {
+    renderDetail()
 
-    // Route data was NOT fetched on overview
-    expect(mockGetFitnessRouteData).not.toHaveBeenCalled()
-
-    // Switching to analysis fetches route data
-    const menu = await openSectionMenu()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
-
-    await waitFor(() => {
-      expect(mockGetFitnessRouteData).toHaveBeenCalledWith('fit-1')
-    })
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    // The fixture has power and heart rate but no cadence or temperature.
+    await waitFor(() =>
+      expect(within(overview).getByText('Weighted')).toBeInTheDocument()
+    )
+    expect(within(overview).getByText('Power')).toBeInTheDocument()
+    expect(within(overview).getByText('Heart rate')).toBeInTheDocument()
+    expect(within(overview).queryByText('Avg cadence')).not.toBeInTheDocument()
+    expect(within(overview).queryByText('Temperature')).not.toBeInTheDocument()
+    expect(
+      within(overview).queryByText('Avg temperature')
+    ).not.toBeInTheDocument()
+    // Time at 0 W comes from the power series, which the fixture has.
+    expect(within(overview).getByText('Time at 0 W')).toBeInTheDocument()
   })
 
   it('falls back to the static preview when the interactive map never finishes loading', async () => {
@@ -237,14 +236,6 @@ describe('FitnessStatusDetail', () => {
     vi.useFakeTimers()
     try {
       renderDetail()
-      fireEvent.keyDown(screen.getByRole('button', { name: /Overview/ }), {
-        key: 'ArrowDown'
-      })
-      fireEvent.click(
-        within(screen.getByRole('menu')).getByRole('menuitem', {
-          name: 'Analysis'
-        })
-      )
       // Flush the chained fitness-file -> route-data fetches (each resolves a
       // promise and commits state) so the map effect runs and arms the watchdog.
       for (let flush = 0; flush < 6; flush += 1) {
@@ -276,30 +267,7 @@ describe('FitnessStatusDetail', () => {
     }
   })
 
-  it('activates the interactive map on Overview when the Play button is clicked', async () => {
-    const statusWithMap = buildStatus({
-      fitness: {
-        id: 'fit-1',
-        fileName: 'ride.fit',
-        fileType: 'fit',
-        mimeType: 'application/octet-stream',
-        bytes: 2048,
-        url: 'https://activities.local/fit/ride.fit',
-        processingStatus: 'completed',
-        totalDistanceMeters: 5000,
-        totalDurationSeconds: 1800,
-        elevationGainMeters: 120,
-        activityType: 'ride',
-        activityStartTime: Date.parse('2026-05-27T10:42:00Z'),
-        hasMapData: true,
-        avgPower: 210,
-        maxPower: 450,
-        avgHeartRate: 145,
-        maxHeartRate: 172,
-        totalWorkKj: 387,
-        elevationSeries: [10, 25, 45, 60, 50, 30]
-      } as never
-    })
+  it('draws the interactive map in the overview at once, with no Play button', async () => {
     const map = {
       addControl: vi.fn(),
       addLayer: vi.fn(),
@@ -308,9 +276,7 @@ describe('FitnessStatusDetail', () => {
       getCanvas: vi.fn(() => document.createElement('canvas')),
       getSource: vi.fn(() => null),
       on: vi.fn(),
-      once: vi.fn((event, handler) => {
-        if (event === 'load') handler()
-      }),
+      once: vi.fn(),
       project: vi.fn(() => ({ x: 0, y: 0 })),
       remove: vi.fn(),
       resize: vi.fn(),
@@ -323,42 +289,208 @@ describe('FitnessStatusDetail', () => {
       Map: MapConstructor
     } as never)
 
-    renderDetail({ status: statusWithMap })
-
-    // Overview starts in static mode with the Play button visible
-    const playButton = screen.getByRole('button', {
-      name: 'Load interactive route map'
+    renderDetail({
+      status: buildStatus({
+        fitness: { ...buildStatus().fitness, hasMapData: true }
+      } as Partial<StatusNote>)
     })
-    expect(playButton).toBeInTheDocument()
-    expect(MapConstructor).not.toHaveBeenCalled()
 
-    // Click the Play button
-    fireEvent.click(playButton)
-
-    // The map is constructed on Overview without needing to switch to Analysis
-    await waitFor(() => {
-      expect(MapConstructor).toHaveBeenCalledTimes(1)
-    })
+    await waitFor(() => expect(MapConstructor).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByRole('button', { name: 'Load interactive route map' })
+    ).not.toBeInTheDocument()
+    // Sized by aspect ratio (16:9, 4:3 beside the figures) until resized.
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    expect(overview.querySelector('.aspect-video')).not.toBeNull()
   })
 
-  it('renders the activity header with the type badge and primary stats', async () => {
+  it('renders the activity header with the type badge and the headline figures', async () => {
     renderDetail()
 
-    expect(screen.getByText('Athlete Runner')).toBeInTheDocument()
-    expect(screen.getByText('@athlete@activities.local')).toBeInTheDocument()
+    const post = screen
+      .getByText('Athlete Runner')
+      .closest('[data-slot="fitness-card"]') as HTMLElement
+    expect(
+      within(post).getByText('@athlete@activities.local')
+    ).toBeInTheDocument()
     // Type badge derived from the activity type.
-    expect(screen.getByText('Ride')).toBeInTheDocument()
+    expect(within(post).getByText('Ride')).toBeInTheDocument()
     // The caption renders as normal post content, not a page heading.
-    expect(screen.getByText('Sunset loop')).toBeInTheDocument()
+    expect(within(post).getByText('Sunset loop')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
-    // Primary stat strip.
-    expect(screen.getByText('Distance')).toBeInTheDocument()
-    expect(screen.getByText('5.00')).toBeInTheDocument()
-    expect(screen.getByText('Moving time')).toBeInTheDocument()
-    expect(screen.getByText('30:00')).toBeInTheDocument()
 
-    // The secondary Overview stats derive from the loaded route series.
-    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+    expect(screen.getByTestId('activity-tile-distance')).toHaveTextContent(
+      'Distance5.00km'
+    )
+    expect(screen.getByTestId('activity-tile-moving-time')).toHaveTextContent(
+      'Moving time30:00moving'
+    )
+    expect(screen.getByTestId('activity-tile-elevation')).toHaveTextContent(
+      'Elevation120m gain'
+    )
+    // Weighted (normalized) power once the file's power series is in.
+    await waitFor(() =>
+      expect(screen.getByTestId('activity-tile-power')).toHaveTextContent(
+        /^Weighted power\d+watts$/
+      )
+    )
+  })
+
+  it('shows the average power in the tile until the file gives weighted power', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: { ...buildStatus().fitness, avgPower: 201 }
+      } as Partial<StatusNote>)
+    })
+
+    expect(screen.getByTestId('activity-tile-power')).toHaveTextContent(
+      'Avg power201watts'
+    )
+  })
+
+  it('shows speed in the fourth tile when there is no power', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail()
+
+    expect(screen.queryByTestId('activity-tile-power')).not.toBeInTheDocument()
+    expect(screen.getByTestId('activity-tile-pace')).toHaveTextContent(
+      'Avg speed10.0km/h'
+    )
+  })
+
+  it('fills the strip for an indoor ride with no distance or climbing', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          activityType: 'virtual_ride',
+          totalDistanceMeters: 0,
+          elevationGainMeters: 0,
+          avgPower: 200,
+          avgHeartRate: 141,
+          maxHeartRate: 170
+        }
+      } as Partial<StatusNote>)
+    })
+
+    // No "0 m gain" and no distance: heart rate and work take their places.
+    expect(
+      screen.queryByTestId('activity-tile-elevation')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('activity-tile-distance')
+    ).not.toBeInTheDocument()
+    expect(
+      screen
+        .getAllByTestId(/^activity-tile-/)
+        .map((tile) => tile.dataset.testid)
+    ).toEqual([
+      'activity-tile-moving-time',
+      'activity-tile-power',
+      'activity-tile-heart-rate',
+      'activity-tile-work'
+    ])
+    // 200 W over 30 minutes.
+    expect(screen.getByTestId('activity-tile-work')).toHaveTextContent(
+      'Work360kJ'
+    )
+  })
+
+  it('shows two tiles rather than three, which would leave a hole', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          activityType: 'hike',
+          totalDistanceMeters: 0,
+          elevationGainMeters: 50,
+          avgHeartRate: 141
+        }
+      } as Partial<StatusNote>)
+    })
+
+    // Moving time, elevation and heart rate are three figures; the third
+    // would orphan a cell, so the first two show.
+    expect(
+      screen
+        .getAllByTestId(/^activity-tile-/)
+        .map((tile) => tile.dataset.testid)
+    ).toEqual(['activity-tile-moving-time', 'activity-tile-elevation'])
+  })
+
+  it('has no section menu: every section is on the page, with an anchor', async () => {
+    renderDetail()
+
+    expect(
+      screen.queryByRole('button', { name: /^Overview/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('navigation', { name: 'Activity sections' })
+    ).not.toBeInTheDocument()
+    expect(
+      await screen.findByRole('region', { name: 'Analysis' })
+    ).toHaveAttribute('id', 'analysis')
+    expect(screen.getByRole('region', { name: 'Overview' })).toHaveAttribute(
+      'id',
+      'overview'
+    )
+    // No separate photos or comments sections either.
+    expect(
+      screen.queryByRole('region', { name: 'Photos' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: 'Comments' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the heart rate zones once the route data is in', async () => {
+    renderDetail()
+
+    expect(
+      await screen.findByRole('heading', { name: 'Heart rate zones' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Recovery')).toBeInTheDocument()
+    expect(screen.getByText('Anaerobic')).toBeInTheDocument()
+  })
+
+  it('lists the photos in the post media strip, without the route map image', () => {
+    renderDetail({
+      status: buildStatus({
+        attachments: [
+          {
+            id: 'map',
+            type: 'Document',
+            name: 'Route map',
+            url: 'https://activities.local/map.png',
+            mediaType: 'image/png',
+            width: 800,
+            height: 600
+          },
+          {
+            id: 'photo',
+            type: 'Document',
+            name: 'Sunset',
+            url: 'https://activities.local/sunset.jpg',
+            mediaType: 'image/jpeg',
+            width: 800,
+            height: 600
+          }
+        ]
+      } as unknown as Partial<StatusNote>)
+    })
+
+    const post = screen
+      .getByText('Athlete Runner')
+      .closest('[data-slot="fitness-card"]') as HTMLElement
+    expect(
+      within(post).getByRole('button', { name: 'Open media: Sunset' })
+    ).toBeInTheDocument()
+    expect(
+      within(post).queryByRole('button', { name: 'Open media: Route map' })
+    ).not.toBeInTheDocument()
   })
 
   describe('moving time tile', () => {
@@ -439,113 +571,190 @@ describe('FitnessStatusDetail', () => {
       expect(
         screen.queryByRole('heading', { level: 1 })
       ).not.toBeInTheDocument()
-      expect(screen.queryByText('Ride')).toBeInTheDocument()
+      const post = screen
+        .getByText('Athlete Runner')
+        .closest('[data-slot="fitness-card"]') as HTMLElement
+      expect(within(post).getByText('Ride')).toBeInTheDocument()
     }
   )
 
-  it('switches to the heart rate zones section from the sub-navigation', async () => {
-    renderDetail()
+  describe('replies', () => {
+    const buildReply = (id: string) =>
+      ({
+        id,
+        type: 'Note',
+        actorId: actor.id,
+        actor,
+        reply: buildStatus().id
+      }) as unknown as Status
 
-    // Wait for the route data so the heart-rate zones tab is offered.
-    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+    afterEach(() => {
+      window.localStorage.clear()
+    })
 
-    const menu = await openSectionMenu()
-    fireEvent.click(
-      within(menu).getByRole('menuitem', { name: 'Heart rate zones' })
-    )
+    it('lists the replies inside the post frame, under the action row, open by default', () => {
+      renderDetail({ replies: [buildReply('reply-1')] })
 
-    await waitFor(() =>
+      const post = screen
+        .getByText('Athlete Runner')
+        .closest('[data-slot="fitness-card"]') as HTMLElement
+      const toggle = within(post).getByRole('button', { name: /Replies \(1\)/ })
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      expect(toggle).toHaveTextContent('Hide')
+      expect(within(post).getByTestId('reply-post')).toHaveTextContent(
+        'reply-1'
+      )
+      // No boosts / likes / replies count strip and no separate comments box.
+      expect(screen.queryByText('Boosts')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('comment-composer')).not.toBeInTheDocument()
+    })
+
+    it('hides and shows the list, and remembers the choice for the site', () => {
+      const { unmount } = renderDetail({ replies: [buildReply('reply-1')] })
+
+      fireEvent.click(screen.getByRole('button', { name: /Replies \(1\)/ }))
+
+      const toggle = screen.getByRole('button', { name: /Replies \(1\)/ })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      expect(toggle).toHaveTextContent('Show')
+      expect(screen.getByTestId('reply-post')).not.toBeVisible()
+      expect(window.localStorage.getItem(REPLIES_EXPANDED_STORAGE_KEY)).toBe(
+        '0'
+      )
+
+      unmount()
+      renderDetail({ replies: [buildReply('reply-1')] })
       expect(
-        screen.getByRole('heading', { name: 'Heart rate zones' })
-      ).toBeInTheDocument()
-    )
-    expect(screen.getByText('Recovery')).toBeInTheDocument()
-    expect(screen.getByText('Anaerobic')).toBeInTheDocument()
-  })
+        screen.getByRole('button', { name: /Replies \(1\)/ })
+      ).toHaveAttribute('aria-expanded', 'false')
+    })
 
-  it('opens the comments section with the composer and replies when the reply action is used', async () => {
-    const reply = {
-      id: 'reply-1',
-      type: 'Note',
-      actorId: actor.id,
-      actor
-    } as unknown as Status
+    it('still works when storage is blocked', () => {
+      const getItem = vi
+        .spyOn(Storage.prototype, 'getItem')
+        .mockImplementation(() => {
+          throw new Error('blocked')
+        })
+      const setItem = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation(() => {
+          throw new Error('blocked')
+        })
+      try {
+        renderDetail({ replies: [buildReply('reply-1')] })
+        const toggle = screen.getByRole('button', { name: /Replies \(1\)/ })
+        expect(toggle).toHaveAttribute('aria-expanded', 'true')
+        fireEvent.click(toggle)
+        expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      } finally {
+        getItem.mockRestore()
+        setItem.mockRestore()
+      }
+    })
 
-    renderDetail({ replies: [reply] })
+    it('opens the reply composer at the top of the replies and re-opens a hidden list', () => {
+      renderDetail({ replies: [buildReply('reply-1')] })
+      fireEvent.click(screen.getByRole('button', { name: /Replies \(1\)/ }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
 
-    expect(screen.getByTestId('comment-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('reply-post')).toHaveTextContent('reply-1')
-    // Signed in, the page is a full-bleed card below `md` and the comment list
-    // spans it.
-    expect(screen.getByTestId('reply-post').closest('.divide-y')).toHaveClass(
-      'max-md:mx-[calc(50%_-_50vw)]',
-      'max-md:w-auto'
-    )
-  })
+      expect(
+        screen.getByRole('button', { name: /Replies \(1\)/ })
+      ).toHaveAttribute('aria-expanded', 'true')
+      const composer = screen.getByTestId('inline-status-composer')
+      expect(composer).toHaveAttribute('data-mode', 'reply')
+      expect(composer).toHaveAttribute('data-status-id', buildStatus().id)
+      // Above the first reply.
+      expect(
+        composer.compareDocumentPosition(screen.getByTestId('reply-post')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
 
-  it('omits the comments tab for logged-out viewers with no replies', async () => {
-    renderDetail({ currentActor: null, replies: [] })
+    it('shows five replies, then loads more on request', () => {
+      const replies = Array.from({ length: 7 }, (_, index) =>
+        buildReply(`reply-${index + 1}`)
+      )
+      renderDetail({ replies })
 
-    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+      expect(screen.getAllByTestId('reply-post')).toHaveLength(5)
+      fireEvent.click(screen.getByRole('button', { name: 'Load more replies' }))
+      expect(screen.getAllByTestId('reply-post')).toHaveLength(7)
+      expect(
+        screen.queryByRole('button', { name: 'Load more replies' })
+      ).not.toBeInTheDocument()
+    })
 
-    const menu = await openSectionMenu()
-    expect(
-      within(menu).queryByRole('menuitem', { name: 'Comments' })
-    ).not.toBeInTheDocument()
-    // The action bar is also hidden for logged-out viewers.
-    expect(
-      screen.queryByRole('button', { name: 'Reply' })
-    ).not.toBeInTheDocument()
-  })
+    it('says there are no replies yet, with no header, when there are none', () => {
+      renderDetail({ replies: [] })
 
-  it('renders the read-only comments thread for a logged-out viewer with replies', async () => {
-    const reply = {
-      id: 'reply-1',
-      type: 'Note',
-      actorId: actor.id,
-      actor
-    } as unknown as Status
+      expect(screen.getByText('No replies yet')).toBeInTheDocument()
+      expect(screen.getByText('Be the first to reply.')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Replies \(/ })
+      ).not.toBeInTheDocument()
+    })
 
-    renderDetail({ currentActor: null, replies: [reply] })
+    it('puts the composer in place of the empty state while replying', () => {
+      renderDetail({ replies: [] })
 
-    await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
 
-    const menu = await openSectionMenu()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Comments' }))
+      expect(screen.getByTestId('inline-status-composer')).toHaveAttribute(
+        'data-mode',
+        'reply'
+      )
+      expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+    })
 
-    await waitFor(() =>
+    it('gives a logged-out viewer the read-only list and no composer', () => {
+      renderDetail({ currentActor: null, replies: [buildReply('reply-1')] })
+
       expect(screen.getByTestId('reply-post')).toHaveTextContent('reply-1')
-    )
-    // No composer for logged-out viewers.
-    expect(screen.queryByTestId('comment-composer')).not.toBeInTheDocument()
-    // The logged-out page is an inset card below `md`; a viewport-wide list
-    // would run out past that card's edges, so it keeps the card's own width.
-    const list = screen.getByTestId('reply-post').closest('.divide-y')
-    expect(list).not.toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
-    expect(list).not.toHaveClass('max-md:w-auto')
-  })
+      expect(
+        screen.queryByRole('button', { name: 'Reply' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('inline-status-composer')
+      ).not.toBeInTheDocument()
+    })
 
-  it('navigates to reply status detail when reply openStatus is triggered', async () => {
-    const reply = {
-      id: 'reply-1',
-      type: 'Note',
-      actorId: actor.id,
-      actor
-    } as unknown as Status
+    it('shows a logged-out viewer the reply, boost and like counts in place of the action row', () => {
+      renderDetail({ currentActor: null, replies: [buildReply('reply-1')] })
 
-    renderDetail({ replies: [reply] })
+      const engagement = screen.getByRole('group', { name: 'Engagement' })
+      expect(
+        within(engagement)
+          .getAllByText(/^\d+$/)
+          .map((node) => node.textContent)
+      ).toEqual(['1', '2', '4'])
+      expect(
+        engagement.closest('[data-slot="fitness-card"]')
+      ).toBeInTheDocument()
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    it('gives a signed-in viewer the action row and no read-only counts', () => {
+      renderDetail({ replies: [buildReply('reply-1')] })
 
-    expect(screen.getByTestId('reply-post')).toHaveTextContent('reply-1')
-    expect(screen.getByTestId('open-reply-reply-1')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('group', { name: 'Engagement' })
+      ).not.toBeInTheDocument()
+    })
 
-    fireEvent.click(screen.getByTestId('open-reply-reply-1'))
+    it('tells a logged-out viewer with no replies where they will show up', () => {
+      renderDetail({ currentActor: null, replies: [] })
 
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/@actor/reply-1')
+      expect(screen.getByText('Replies show up here.')).toBeInTheDocument()
+    })
+
+    it('navigates to reply status detail when reply openStatus is triggered', async () => {
+      renderDetail({ replies: [buildReply('reply-1')] })
+
+      fireEvent.click(screen.getByTestId('open-reply-reply-1'))
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/@actor/reply-1')
+      })
     })
   })
 
@@ -576,14 +785,11 @@ describe('FitnessStatusDetail', () => {
         name: recordingTriggerName('ride-morning.fit')
       })
       // The picker is part of the activity card's own "Recorded with" line,
-      // not a card of its own between it and the section navigation.
+      // not a card of its own.
       const activityCard = trigger.closest(
         '[data-slot="fitness-card"]'
       ) as HTMLElement
       expect(activityCard).toContainElement(screen.getByText('Recorded with'))
-      expect(activityCard.nextElementSibling).toBe(
-        screen.getByRole('navigation', { name: 'Activity sections' })
-      )
       expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('Activity file')).not.toBeInTheDocument()
       expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()
@@ -640,96 +846,5 @@ describe('FitnessStatusDetail', () => {
     // Nor a source-file row in the footer: the download is the owner's button
     // beside the device line, and a visitor gets nothing at all.
     expect(screen.queryByText('ride-morning.fit')).not.toBeInTheDocument()
-  })
-
-  describe('overview elevation profile', () => {
-    // Same contract as the analysis stack, on the summary card: drag it and it
-    // reports the elevation under the pointer and moves the highlight on the
-    // map above it. It used to be a static picture.
-    const hoverElevation = (clientX: number) => {
-      const profile = screen.getByTestId('overview-elevation-profile')
-      const [plot] = Array.from(profile.querySelectorAll('svg'))
-      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
-      fireEvent.mouseMove(plot, { clientX })
-      return plot
-    }
-
-    const renderOverview = async () => {
-      renderDetail()
-      await waitFor(() =>
-        expect(
-          screen.getByTestId('overview-elevation-profile')
-        ).toBeInTheDocument()
-      )
-    }
-
-    it('reports the elevation under the pointer while it is dragged', async () => {
-      await renderOverview()
-
-      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
-
-      // A quarter of the way across => 450s of a 1800s ride => sample index 1
-      // of the [10, 24, 40, 55, 48, 30] fixture.
-      const plot = hoverElevation(200)
-
-      const [readout] = screen.getAllByTestId('chart-hover-value')
-      expect(readout).toHaveTextContent(/^24m$/)
-      // The card header carries the instant, so the value has a time to belong
-      // to without a second readout chip. It REPLACES the gain rather than
-      // prefixing it: at 320px a prefixed "1:18:29 · 455 m gain" outgrows the
-      // heading row and wraps it to two lines, which moves the chart under the
-      // finger that is dragging it.
-      expect(screen.getByText('7:30')).toBeInTheDocument()
-      expect(screen.queryByText(/120 m gain/)).not.toBeInTheDocument()
-
-      fireEvent.mouseLeave(plot)
-      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
-      expect(screen.getByText('120 m gain')).toBeInTheDocument()
-    })
-
-    // Four ticks, not the helper's default six. `justify-between` gives the
-    // label row no way to wrap, and six H:MM:SS labels are wider than this
-    // card's 212px content box at the 320px reflow target — so they ran
-    // together into one unbroken string of digits and, past ~5h, crossed the
-    // card's own border, which a Card has no `overflow-hidden` to clip. The
-    // 10:00/20:00 pair is what distinguishes this from the six-tick set.
-    it('labels its time axis with four ticks, which fit the card at 320px', async () => {
-      await renderOverview()
-
-      const profile = screen.getByTestId('overview-elevation-profile')
-      const labels = Array.from(profile.lastElementChild?.children ?? []).map(
-        (label) => label.textContent
-      )
-
-      expect(labels).toEqual(['0:00', '10:00', '20:00', '30:00'])
-    })
-
-    it('scrubs on touch as well as on hover', async () => {
-      await renderOverview()
-
-      const profile = screen.getByTestId('overview-elevation-profile')
-      const [plot] = Array.from(profile.querySelectorAll('svg'))
-      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
-
-      fireEvent.touchStart(plot, { touches: [{ clientX: 200 }] })
-      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveTextContent(
-        /^24m$/
-      )
-
-      fireEvent.touchEnd(plot)
-      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
-    })
-
-    it('drops the highlight when the section changes', async () => {
-      await renderOverview()
-
-      hoverElevation(200)
-      expect(screen.getAllByTestId('chart-hover-value')).not.toHaveLength(0)
-
-      const menu = await openSectionMenu()
-      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
-
-      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
-    })
   })
 })

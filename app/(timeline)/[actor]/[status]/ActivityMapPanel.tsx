@@ -11,7 +11,10 @@ import {
   type RoutePrivacyHintPoint,
   isHoverCapablePointer
 } from '@/lib/components/fitness/RoutePrivacyHint'
-import { findRouteSampleForElapsed } from '@/lib/components/fitness/mapGeometry'
+import {
+  findRouteSampleForElapsed,
+  getRouteSamplesInRange
+} from '@/lib/components/fitness/mapGeometry'
 import {
   ROUTE_HIGHLIGHT_CORE_COLOR,
   ROUTE_HIGHLIGHT_CORE_RADIUS_PX,
@@ -28,7 +31,10 @@ import {
   ROUTE_HIDDEN_OPACITY,
   ROUTE_HIDDEN_WIDTH_PX,
   ROUTE_LINE_COLOR,
-  ROUTE_LINE_WIDTH_PX
+  ROUTE_LINE_WIDTH_PX,
+  ROUTE_SELECTION_COLOR,
+  ROUTE_SELECTION_OPACITY,
+  ROUTE_SELECTION_WIDTH_PX
 } from '@/lib/components/fitness/routeLineStyle'
 import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Media } from '@/lib/components/posts/media'
@@ -80,6 +86,13 @@ interface MapboxLngLatBounds {
   extend: (lngLat: [number, number]) => MapboxLngLatBounds
 }
 
+interface MapboxViewBounds {
+  getWest: () => number
+  getSouth: () => number
+  getEast: () => number
+  getNorth: () => number
+}
+
 /**
  * What a layer-scoped `mousemove`/`click` handler receives. Only `point` is
  * modelled: it is the canvas-relative pixel position, which is all the privacy
@@ -108,6 +121,7 @@ interface MapboxMap {
   getCanvas: () => HTMLCanvasElement
   getSource: (id: string) => unknown
   getZoom: () => number
+  getBounds: () => MapboxViewBounds
   fitBounds: (
     bounds: MapboxLngLatBounds,
     options: { padding: number; maxZoom: number; duration: number }
@@ -134,6 +148,7 @@ export const MAP_ROUTE_SOURCE_ID = 'activity-route'
 export const MAP_ROUTE_CASING_LAYER_ID = 'activity-route-line-casing'
 export const MAP_ROUTE_HIDDEN_HIT_LAYER_ID = 'activity-route-line-hidden-hit'
 export const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
+export const MAP_SELECTION_SOURCE_ID = 'activity-route-selection'
 // The interactive map now renders for every provider, so a style/tile failure
 // (CDN outage, blocked origin, offline) must still surface the pre-generated
 // static preview. `loadModule()` has its own 15s timeout, but once the GL module
@@ -223,6 +238,10 @@ export interface ActivityMapPanelProps {
   routeSamples?: FitnessRouteSample[]
   routeSegments?: FitnessRouteSegment[]
   highlightedElapsedSeconds?: number | null
+  /** A picked lap or climb, drawn as a band under that stretch of route. */
+  highlightedRange?: { startSeconds: number; endSeconds: number } | null
+  /** Passed to the map's container: size it by aspect ratio until resized. */
+  aspectClassName?: string
   mapProvider: PublicMapProvider
   routeDataError?: string | null
   isRouteDataLoading?: boolean
@@ -245,6 +264,8 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   routeSamples = EMPTY_ROUTE_SAMPLES,
   routeSegments = EMPTY_ROUTE_SEGMENTS,
   highlightedElapsedSeconds = null,
+  highlightedRange = null,
+  aspectClassName,
   mapProvider,
   routeDataError = null,
   isRouteDataLoading = false,
@@ -332,6 +353,35 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
     [drawableRouteSegments]
   )
 
+  const selectionStart = highlightedRange?.startSeconds
+  const selectionEnd = highlightedRange?.endSeconds
+  const selectionFeatureCollection = useMemo(
+    (): MapFeatureCollection<MapLineStringGeometry, RouteLineProperties> => ({
+      type: 'FeatureCollection',
+      features:
+        typeof selectionStart === 'number' && typeof selectionEnd === 'number'
+          ? getRouteSamplesInRange(drawableRouteSegments, {
+              startSeconds: selectionStart,
+              endSeconds: selectionEnd
+            }).map((samples) => ({
+              type: 'Feature',
+              properties: { isHiddenByPrivacy: false },
+              geometry: {
+                type: 'LineString',
+                coordinates: samples.map((sample) => [sample.lng, sample.lat])
+              }
+            }))
+          : []
+    }),
+    [drawableRouteSegments, selectionStart, selectionEnd]
+  )
+  // Read by the map's `load` handler, so a range picked while the map was
+  // still loading is drawn as soon as the layer exists.
+  const selectionFeatureCollectionRef = useRef(selectionFeatureCollection)
+  useEffect(() => {
+    selectionFeatureCollectionRef.current = selectionFeatureCollection
+  }, [selectionFeatureCollection])
+
   const activeSample = useMemo(() => {
     if (!shouldRenderInteractiveMap) return null
     if (typeof highlightedElapsedSeconds !== 'number') return null
@@ -413,6 +463,24 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         map.once('load', () => {
           clearLoadWatchdog()
           if (cancelled || !mapRef.current) return
+
+          // Added first so it is drawn under the route and its casing.
+          map.addSource(MAP_SELECTION_SOURCE_ID, {
+            type: 'geojson',
+            data: selectionFeatureCollectionRef.current
+          })
+
+          map.addLayer({
+            id: 'activity-route-selection',
+            type: 'line',
+            source: MAP_SELECTION_SOURCE_ID,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': ROUTE_SELECTION_COLOR,
+              'line-width': ROUTE_SELECTION_WIDTH_PX,
+              'line-opacity': ROUTE_SELECTION_OPACITY
+            }
+          })
 
           map.addSource(MAP_ROUTE_SOURCE_ID, {
             type: 'geojson',
@@ -569,7 +637,12 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           const lngPadding = Math.max(lngSpan * 0.2, 0.002)
           const latPadding = Math.max(latSpan * 0.2, 0.002)
 
-          // Limit panning to the route vicinity.
+          // Limit panning to the route vicinity. The limit also takes in the
+          // fitted view: in a frame much wider (or taller) than the route, as
+          // the 16:9 map on a phone is, that view reaches past the padded
+          // route box, and bounds smaller than the view make the map zoom in
+          // until the view fits inside them, cutting the route off.
+          const fittedView = map.getBounds()
           map.setMaxBounds(
             new mapbox.LngLatBounds(
               [
@@ -581,6 +654,14 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
                 clampLatitude(routeBoundsCoordinates.north + latPadding)
               ]
             )
+              .extend([
+                clampLongitude(fittedView.getWest()),
+                clampLatitude(fittedView.getSouth())
+              ])
+              .extend([
+                clampLongitude(fittedView.getEast()),
+                clampLatitude(fittedView.getNorth())
+              ])
           )
         })
       } catch (_error) {
@@ -647,6 +728,13 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   }, [activeSample, shouldRenderInteractiveMap])
 
   useEffect(() => {
+    if (!shouldRenderInteractiveMap) return
+    const source = mapRef.current?.getSource(MAP_SELECTION_SOURCE_ID) as
+      MapboxGeoJSONSource | undefined
+    source?.setData(selectionFeatureCollection)
+  }, [selectionFeatureCollection, shouldRenderInteractiveMap])
+
+  useEffect(() => {
     return () => {
       if (privacyHintTimeoutRef.current !== undefined) {
         window.clearTimeout(privacyHintTimeoutRef.current)
@@ -664,6 +752,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
       minHeight={200}
       maxHeight={800}
       showQuickToggle
+      aspectClassName={aspectClassName}
       className="relative overflow-hidden rounded-lg border bg-muted"
     >
       {shouldRenderInteractiveMap && !glProvider ? (
@@ -671,6 +760,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           routeSegments={drawableRouteSegments}
           routeSamples={normalizedRouteSamples}
           highlightedElapsedSeconds={highlightedElapsedSeconds}
+          highlightedRange={highlightedRange}
           onUnavailable={() =>
             setMapLoadError(
               'Interactive map unavailable. Using static preview.'

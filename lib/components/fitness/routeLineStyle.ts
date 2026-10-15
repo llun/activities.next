@@ -20,6 +20,15 @@ export const ROUTE_CASING_COLOR = '#ffffff'
 export const ROUTE_CASING_WIDTH_PX = 6
 export const ROUTE_CASING_OPACITY = 0.9
 
+/**
+ * The lap or climb picked on the activity page: a wide, translucent dark band
+ * under the trace (under its casing too), so the stretch reads as highlighted
+ * on any basemap without recolouring the route itself.
+ */
+export const ROUTE_SELECTION_COLOR = '#0a0a0a'
+export const ROUTE_SELECTION_WIDTH_PX = 14
+export const ROUTE_SELECTION_OPACITY = 0.28
+
 /** Stretches hidden from other viewers by a privacy location. */
 export const ROUTE_HIDDEN_COLOR = '#16a34a'
 export const ROUTE_HIDDEN_WIDTH_PX = 4

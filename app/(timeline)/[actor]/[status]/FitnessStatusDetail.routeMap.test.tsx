@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteDataResponse } from '@/lib/client'
 import type { StatusNote } from '@/lib/types/domain/status'
@@ -13,7 +13,6 @@ import {
   buildStatus,
   mockGetFitnessFilesByStatus,
   mockGetFitnessRouteData,
-  openSectionMenu,
   renderDetail,
   resetFitnessStatusDetailMocks,
   routeData,
@@ -159,6 +158,12 @@ describe('FitnessStatusDetail', () => {
         getCanvas: vi.fn(() => canvas),
         getSource: vi.fn(() => ({ setData: vi.fn() })),
         getZoom: vi.fn(() => 12),
+        getBounds: vi.fn(() => ({
+          getWest: () => 0,
+          getSouth: () => 0,
+          getEast: () => 0,
+          getNorth: () => 0
+        })),
         fitBounds: vi.fn(),
         setMinZoom: vi.fn(),
         setMaxBounds: vi.fn(),
@@ -180,9 +185,9 @@ describe('FitnessStatusDetail', () => {
       } as never)
       mockGetFitnessRouteData.mockResolvedValue(routeData)
 
+      // The map is interactive from the start: no section to switch to and
+      // no Play button to press.
       renderDetail()
-      const menu = await openSectionMenu()
-      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
       await waitFor(() => expect(MapConstructor).toHaveBeenCalled())
       await act(async () => {})
 
@@ -300,8 +305,6 @@ describe('FitnessStatusDetail', () => {
       buildFitnessFile({ hasMapData: true })
     ])
     renderDetail()
-    const menu = await openSectionMenu()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
 
     // Positive anchor first: the zoom control lives in the same overlay
     // fragment the badge used to, so its presence proves the overlay really

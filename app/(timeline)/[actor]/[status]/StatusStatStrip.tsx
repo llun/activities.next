@@ -14,11 +14,12 @@ interface Stat {
   noun: string
 }
 
-// Read-only engagement summary shown on the fitness dashboard for logged-out
-// visitors, who don't get the interactive action row. Mirrors the timeline
-// status component's icon row (reply / boost / like) from the web-public
-// design — same order and icon style as `ReadOnlyStats`, but it carries the
-// real reply count, which timeline statuses don't hydrate.
+// Read-only engagement summary in the activity post's footer for logged-out
+// visitors, who don't get the interactive action row (`Actions` renders
+// nothing without a viewer). Mirrors the timeline status component's icon row
+// (reply / boost / like) from the web-public design — same order and icon
+// style as `ReadOnlyStats`, but it carries the real reply count, which
+// timeline statuses don't hydrate.
 export const StatusStatStrip: FC<Props> = ({ boosts, likes, replies }) => {
   const stats: Stat[] = [
     {
@@ -42,7 +43,7 @@ export const StatusStatStrip: FC<Props> = ({ boosts, likes, replies }) => {
   ]
   return (
     <div
-      className="mt-3 flex items-center gap-5 border-t pt-3 text-sm text-muted-foreground sm:gap-6"
+      className="flex min-h-9 items-center gap-5 text-sm text-muted-foreground sm:gap-6"
       role="group"
       aria-label="Engagement"
     >

@@ -2,235 +2,166 @@
  * @vitest-environment jsdom
  */
 import { renderHook } from '@testing-library/react'
-import type { MouseEvent, TouchEvent } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import type { PointerEvent } from 'react'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { useChartScrub } from './useChartScrub'
 
+const createPlot = (left = 100, width = 400) => {
+  const plot = document.createElement('div')
+  plot.getBoundingClientRect = () =>
+    ({
+      left,
+      width,
+      top: 50,
+      height: 200,
+      right: left + width,
+      bottom: 250,
+      x: left,
+      y: 50,
+      toJSON: () => {}
+    }) as DOMRect
+  return plot
+}
+
+const pointerAt = (clientX: number, plot: Element) =>
+  ({ clientX, currentTarget: plot }) as unknown as PointerEvent<Element>
+
 describe('useChartScrub', () => {
-  const defaultOptions = {
-    values: [10, 20, 30, 40, 50],
-    width: 400,
-    height: 200,
-    minValue: 10,
-    maxValue: 50,
-    durationSeconds: 1000,
-    highlightedElapsedSeconds: null,
-    onHighlightElapsedSeconds: vi.fn()
-  }
-
-  const createMockSvg = (left = 100, width = 400) => {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-    svg.getBoundingClientRect = () =>
-      ({
-        left,
-        width,
-        top: 50,
-        height: 200,
-        right: left + width,
-        bottom: 250,
-        x: left,
-        y: 50,
-        toJSON: () => {}
-      }) as DOMRect
-    return svg
-  }
-
-  it('determines canScrub based on duration, values length, and callback', () => {
-    const { result: activeResult } = renderHook(() =>
-      useChartScrub(defaultOptions)
+  it('can scrub only with a duration and a callback', () => {
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 1000,
+        onHighlightElapsedSeconds: onHighlight
+      })
     )
-    expect(activeResult.current.canScrub).toBe(true)
-    expect(activeResult.current.plotClassName).toBe(
+    expect(result.current.canScrub).toBe(true)
+    expect(result.current.plotClassName).toBe(
       'cursor-crosshair touch-pan-y touch-pinch-zoom'
     )
 
-    const { result: noCallbackResult } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: undefined
-      })
+    const { result: noCallback } = renderHook(() =>
+      useChartScrub({ durationSeconds: 1000 })
     )
-    expect(noCallbackResult.current.canScrub).toBe(false)
-    expect(noCallbackResult.current.plotClassName).toBeUndefined()
+    expect(noCallback.current.canScrub).toBe(false)
+    expect(noCallback.current.plotClassName).toBeUndefined()
 
-    const { result: zeroDurationResult } = renderHook(() =>
+    const { result: noDuration } = renderHook(() =>
       useChartScrub({
-        ...defaultOptions,
-        durationSeconds: 0
+        durationSeconds: 0,
+        onHighlightElapsedSeconds: onHighlight
       })
     )
-    expect(zeroDurationResult.current.canScrub).toBe(false)
-
-    const { result: emptyValuesResult } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        values: []
-      })
-    )
-    expect(emptyValuesResult.current.canScrub).toBe(false)
+    expect(noDuration.current.canScrub).toBe(false)
   })
 
-  it('calculates highlight coordinates when highlightedElapsedSeconds is provided', () => {
-    // 500s of 1000s duration on 5 values ([10, 20, 30, 40, 50]) -> ratio 0.5 -> sample index 2 (value 30)
-    // x: (2 / 4) * 400 = 200
-    // y: 200 - ((30 - 10) / (50 - 10)) * 200 = 200 - (0.5 * 200) = 100
+  it.each([
+    ['the left edge', 100, 0],
+    ['the middle', 300, 500],
+    ['past the right edge', 900, 1000],
+    ['before the left edge', 0, 0]
+  ])('maps a pointer at %s to an elapsed time', (_, clientX, expected) => {
+    const onHighlight = vi.fn()
     const { result } = renderHook(() =>
       useChartScrub({
-        ...defaultOptions,
-        highlightedElapsedSeconds: 500
+        durationSeconds: 1000,
+        onHighlightElapsedSeconds: onHighlight
       })
     )
+    result.current.plotHandlers.onPointerMove(pointerAt(clientX, createPlot()))
+    expect(onHighlight).toHaveBeenCalledWith(expected)
+  })
 
-    expect(result.current.highlight).toEqual({
-      value: 30,
-      x: 200,
-      y: 100
+  it('scrubs on pointer down so a tap shows a reading', () => {
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 600,
+        onHighlightElapsedSeconds: onHighlight
+      })
+    )
+    result.current.plotHandlers.onPointerDown(pointerAt(200, createPlot()))
+    expect(onHighlight).toHaveBeenCalledWith(150)
+  })
+
+  it('clears the highlight when the pointer leaves or is cancelled', () => {
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 600,
+        onHighlightElapsedSeconds: onHighlight
+      })
+    )
+    result.current.plotHandlers.onPointerLeave()
+    result.current.plotHandlers.onPointerCancel()
+    expect(onHighlight).toHaveBeenNthCalledWith(1, null)
+    expect(onHighlight).toHaveBeenNthCalledWith(2, null)
+  })
+
+  it('does nothing when it cannot scrub', () => {
+    const { result } = renderHook(() => useChartScrub({ durationSeconds: 600 }))
+    expect(() =>
+      result.current.plotHandlers.onPointerMove(pointerAt(200, createPlot()))
+    ).not.toThrow()
+  })
+
+  it('passes at most one move a frame, the first at once and the latest at the frame', () => {
+    const frames: FrameRequestCallback[] = []
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frames.push(callback)
+        return frames.length
+      })
+    onTestFinished(() => requestFrame.mockRestore())
+    const onHighlight = vi.fn()
+    const { result } = renderHook(() =>
+      useChartScrub({
+        durationSeconds: 600,
+        onHighlightElapsedSeconds: onHighlight
+      })
+    )
+    const plot = createPlot()
+
+    result.current.plotHandlers.onPointerMove(pointerAt(200, plot))
+    result.current.plotHandlers.onPointerMove(pointerAt(300, plot))
+    result.current.plotHandlers.onPointerMove(pointerAt(400, plot))
+    expect(onHighlight.mock.calls).toEqual([[150]])
+
+    frames[0](0)
+    expect(onHighlight.mock.calls).toEqual([[150], [450]])
+  })
+
+  it('drops a move still waiting for its frame when the pointer leaves', () => {
+    const frames: FrameRequestCallback[] = []
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frames.push(callback)
+        return frames.length
+      })
+    const cancelFrame = vi
+      .spyOn(window, 'cancelAnimationFrame')
+      .mockImplementation(() => {})
+    onTestFinished(() => {
+      requestFrame.mockRestore()
+      cancelFrame.mockRestore()
     })
-  })
-
-  it('returns null highlight when highlightedElapsedSeconds is null or out of range', () => {
-    const { result: nullResult } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        highlightedElapsedSeconds: null
-      })
-    )
-    expect(nullResult.current.highlight).toBeNull()
-  })
-
-  it('handles mouseMove by calculating elapsed time from viewport clientX', () => {
     const onHighlight = vi.fn()
     const { result } = renderHook(() =>
       useChartScrub({
-        ...defaultOptions,
+        durationSeconds: 600,
         onHighlightElapsedSeconds: onHighlight
       })
     )
+    const plot = createPlot()
 
-    const svg = createMockSvg(100, 400)
-    const event = {
-      clientX: 200, // (200 - 100) / 400 = 0.25 -> 250s
-      currentTarget: svg
-    } as unknown as MouseEvent<SVGSVGElement>
+    result.current.plotHandlers.onPointerMove(pointerAt(200, plot))
+    result.current.plotHandlers.onPointerMove(pointerAt(400, plot))
+    result.current.plotHandlers.onPointerLeave()
 
-    result.current.plotHandlers.onMouseMove(event)
-    expect(onHighlight).toHaveBeenCalledWith(250)
-  })
-
-  it('clamps mouseMove scrub ratio between 0 and 1', () => {
-    const onHighlight = vi.fn()
-    const { result } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: onHighlight
-      })
-    )
-
-    const svg = createMockSvg(100, 400)
-
-    // Far to the left of the SVG
-    result.current.plotHandlers.onMouseMove({
-      clientX: 50,
-      currentTarget: svg
-    } as unknown as MouseEvent<SVGSVGElement>)
-    expect(onHighlight).toHaveBeenCalledWith(0)
-
-    // Far to the right of the SVG
-    result.current.plotHandlers.onMouseMove({
-      clientX: 600,
-      currentTarget: svg
-    } as unknown as MouseEvent<SVGSVGElement>)
-    expect(onHighlight).toHaveBeenCalledWith(1000)
-  })
-
-  it('clears scrub on mouseLeave', () => {
-    const onHighlight = vi.fn()
-    const { result } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: onHighlight
-      })
-    )
-
-    result.current.plotHandlers.onMouseLeave()
-    expect(onHighlight).toHaveBeenCalledWith(null)
-  })
-
-  it('handles touchStart and touchMove via touch clientX', () => {
-    const onHighlight = vi.fn()
-    const { result } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: onHighlight
-      })
-    )
-
-    const svg = createMockSvg(100, 400)
-
-    result.current.plotHandlers.onTouchStart({
-      touches: [{ clientX: 300 }] as unknown as TouchList,
-      currentTarget: svg
-    } as unknown as TouchEvent<SVGSVGElement>)
-    // (300 - 100) / 400 = 0.5 -> 500s
-    expect(onHighlight).toHaveBeenCalledWith(500)
-
-    result.current.plotHandlers.onTouchMove({
-      touches: [{ clientX: 400 }] as unknown as TouchList,
-      currentTarget: svg
-    } as unknown as TouchEvent<SVGSVGElement>)
-    // (400 - 100) / 400 = 0.75 -> 750s
-    expect(onHighlight).toHaveBeenCalledWith(750)
-  })
-
-  it('prevents default on touchEnd when cancelable to suppress compatibility mouse events', () => {
-    const onHighlight = vi.fn()
-    const { result } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: onHighlight
-      })
-    )
-
-    const preventDefault = vi.fn()
-    result.current.plotHandlers.onTouchEnd({
-      cancelable: true,
-      preventDefault
-    } as unknown as TouchEvent<SVGSVGElement>)
-
-    expect(preventDefault).toHaveBeenCalled()
-    expect(onHighlight).toHaveBeenCalledWith(null)
-  })
-
-  it('does not call preventDefault on touchEnd when cancelable is false', () => {
-    const onHighlight = vi.fn()
-    const { result } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: onHighlight
-      })
-    )
-
-    const preventDefault = vi.fn()
-    result.current.plotHandlers.onTouchEnd({
-      cancelable: false,
-      preventDefault
-    } as unknown as TouchEvent<SVGSVGElement>)
-
-    expect(preventDefault).not.toHaveBeenCalled()
-    expect(onHighlight).toHaveBeenCalledWith(null)
-  })
-
-  it('clears scrub on touchCancel', () => {
-    const onHighlight = vi.fn()
-    const { result } = renderHook(() =>
-      useChartScrub({
-        ...defaultOptions,
-        onHighlightElapsedSeconds: onHighlight
-      })
-    )
-
-    result.current.plotHandlers.onTouchCancel()
-    expect(onHighlight).toHaveBeenCalledWith(null)
+    expect(cancelFrame).toHaveBeenCalledWith(1)
+    expect(onHighlight.mock.calls).toEqual([[150], [null]])
   })
 })

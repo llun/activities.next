@@ -379,11 +379,26 @@ A demoted recording's `mapError` is cleared with its flag, since a secondary own
 ## User-Facing Features
 
 - **Fitness file** item in the post box's **Post options** menu (new posts only; hidden when replying or editing). It opens the file picker of a hidden `.fit`/`.gpx`/`.tcx` input (`FitnessFileInput`), which keeps the extension check and its error message
-- Fitness activity status detail with route map, stats, device info, media, and analysis graphs; for an activity with several recordings, a picker in the "Recorded with" line, the owner's download button and "Make primary" (see **Several recordings of one activity**)
+- Fitness activity status detail (see **The activity page** below); for an activity with several recordings, a picker in the "Recorded with" line, the owner's download button and "Make primary" (see **Several recordings of one activity**)
 - Settings pages for storage usage, file management, default visibility, Strava, privacy locations, and route map regeneration
 - Fitness overview with a viewer-local training calendar, date range picker and per-day activity details, and the route heatmap view
 - Strava OAuth and webhook imports
 - Strava archive ZIP upload with progress, retry, and cancel support
+
+### The activity page
+
+`FitnessStatusDetail` (`app/(timeline)/[actor]/[status]/`) composes the page from one component per part, all on the surface kit, inside an `@container` wrapper so every breakpoint below is the page column's width, not the window's. The page has no section menu: each part is a `Section` with its own anchor (`#overview`, `#analysis`, `#best-efforts`, `#laps`, `#climbs`), the row that holds the heart-rate zones, power distribution and power curve sections is anchored as a whole at `#zones` (that row's sections carry no id of their own), and the post's engagement lives in its own footer: the shared action row for a signed-in viewer, and for a signed-out one, who gets no action row, a read-only row of reply, boost and like counts (`StatusStatStrip`) in its place.
+
+- **The post** (`ActivityPostFrame`) keeps the post chrome every post has (header, the "Recorded with" line and its picker, download, Make primary, gear, caption) and adds a `StatStrip` of tiles (`detail`, 2×2 then 4-up from 560px): distance, moving time, elevation (only when the climbing rounds to at least 1 m) and weighted power (average power until the route data arrives, pace or speed when the file has no power). A slot left empty, such as on an indoor ride with no distance or climbing, is filled in turn by average heart rate, work and calories, and the strip shows four tiles or two (or one), never three, so it never leaves a hole. The photos are the shared `Attachments` media strip with the route map image left out, since Overview draws the route. Replies are inside the frame under the action row (`ActivityReplies`): a "Replies (N)" button that hides and shows them (open by default, remembered per browser under `activities.fitness.repliesExpanded`, and reopened by Reply), the first five replies with "Load more replies", and the inline reply composer at the top of the list.
+- **Overview** puts the route map beside up to four groups of figures (the activity, power, heart rate, cadence and weather) from a 820px column, and above them, at 16:9, below that. A row the file has no value for is left out, and so is a group left empty.
+- **Analysis** charts every series the file recorded (elevation, speed, power, heart rate, cadence, temperature and the grade derived from elevation) on one shared time axis, overlaid or as separate rows, with a readout that follows the pointer and moves a marker on the map. Activities with no GPS track are charted from `metricSamples`. A band of laps above the chart, each as wide as its share of the time, picks a lap; a lap or climb picked here or in its table is shaded on the chart and drawn over the route on the map.
+- **Best efforts** (the best average power for 5 s, 1, 5, 20 and 60 min), then heart rate zones, the power distribution and the power curve. Each is left out when the file has no power or heart rate.
+- **Laps and Climbs** are two tables with the same columns (time, distance, speed or pace, power, heart rate, cadence, gain, grade), each column shown only when one of them has a value for it. Laps come from the file and are shown only when there are at least two. Climbs are detected from the elevation (`detectClimbs` in `fitnessActivityMetrics.ts`): altitude is smoothed over five points; a climb runs from a low point to the highest point before the road gives back 10 m or stays flat for 1,000 m; each end is trimmed while the next 200 m rises by less than 2%; and it is kept only when it gains at least 20 m over at least 300 m at an average of at least 1%.
+- Running cadence is shown in steps per minute (the file's per-foot value doubled) and labelled `spm`.
+
+The power and heart-rate figures (best efforts, normalized power, time at 0 W, the power distribution and the heart-rate zones) are timed against how long the recorder was running, not elapsed time: the larger of the file's moving time and the timeline's own record gaps with long pauses taken out (`estimateRecordingSeconds`). An auto-paused file has no records for its stops, and a recorder that keeps writing through them (smart recording, about one record every 2 s) runs for longer than its moving time, so neither is read against the wrong clock.
+
+All of the maths is pure and unit-tested: `fitnessActivityMetrics.ts` (the timeline, splits, climbs, power and heart-rate figures), `activityAnalysis.ts` (what the page derives from one route-data response) and `fitnessChartData.ts` (chart geometry).
 
 ## Maintenance Scripts
 
@@ -445,7 +460,7 @@ Read the applicable rules and review checks below before changing this subsystem
 
 - **Every labelled stat strip renders through `StatStrip`**
   (`@/lib/components/surface/StatStrip`): the `detail` variant (the activity
-  detail page's header strip and the strip under its route map), the `chip`
+  page's header tiles), the `chip`
   variant (the inline fitness chip in a timeline post) and the `summary`
   variant (the hairline totals strip of the Fitness overview, the gear and
   Device pages, Gallery, Albums and Files, filled with `StatCell`s). Do not
@@ -460,8 +475,8 @@ Read the applicable rules and review checks below before changing this subsystem
   wrapped "31.1 km/h" onto two lines, while a chip in a wide column stayed
   needlessly 2-up at any window under 640px.
 - The three variants differ, and it is the type size that separates them.
-  `detail` is 1-up, 2-up from **420px** and 4-up from **780px** (values are
-  21–28px, so a cell needs ~200px). `chip` is 2-up and 4-up from **424px**
+  `detail` is 2×2 and 4-up from **560px** (values are 24px, so a cell needs
+  ~130px), the activity design's own layout. `chip` is 2-up and 4-up from **424px**
   (`text-sm` values fit four cells in 4×100px + 3×8px of gap) and never drops to
   one column — a 4-row chip in a feed is a worse trade than a slightly tight
   cell. `summary` (the overview's Activities / Distance / Duration / Elevation)
@@ -471,10 +486,9 @@ Read the applicable rules and review checks below before changing this subsystem
   `rem`, not `px`, so they follow the reader's text size: at 200% text a narrow
   column stacks to one column rather than clipping "22.2 km". A 1px gap over a
   border-coloured track draws its hairline dividers.
-- The detail page's two strips measure **separately** — the header one sits
-  inside the card's `p-5` and is 42px narrower than the one under the map — so
-  they can legitimately differ by one step in a narrow band of window widths.
-  That is the rule working on real available width, not drift.
+- The activity page's best efforts use the `summary` strip's five-value
+  layout (`columns={5}`: three over two, then 5-up from **30rem**), and on a
+  column of 520px or less a list with a bar per duration instead.
 - `@container` goes on a **wrapper**, never on the grid itself: a container
   query styles a container's descendants, not the container, so a grid cannot
   both establish the container and read it. Not test-guarded: jsdom does not

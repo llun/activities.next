@@ -2,122 +2,70 @@
 
 import {
   Activity,
-  AlertCircle,
-  BarChart3,
-  Bike,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
   Clock,
-  ExternalLink,
   Flame,
-  Footprints,
   Gauge,
-  Globe,
-  Heart,
   HeartPulse,
-  Image as ImageIcon,
-  Lock,
-  type LucideIcon,
-  Mail,
-  MessageCircle,
   Mountain,
-  Repeat2,
   Route,
-  Unlock,
-  Watch,
-  Wrench
+  Zap
 } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
-import { formatGearDistanceKm } from '@/app/(timeline)/fitness/gear/gearUi'
-import {
-  type FitnessRouteSample,
-  type FitnessRouteSegment,
-  type StatusFitnessFileItem,
-  getFitnessFilesByStatus,
-  getFitnessGearList,
-  getFitnessRouteData,
-  makeFitnessFilePrimary,
-  updateFitnessFileGear
-} from '@/lib/client'
-import { Actions } from '@/lib/components/posts/actions/actions'
-import type { PostMenuExtraItem } from '@/lib/components/posts/actions/post-menu'
-import { ActorAvatar } from '@/lib/components/posts/actor'
-import {
-  MOBILE_FEED_SURFACE_CLASS,
-  POST_LIST_FRAME_CLASS
-} from '@/lib/components/posts/feedLayout'
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
-import { Media } from '@/lib/components/posts/media'
-import { Post } from '@/lib/components/posts/post'
-import { ReactionRow } from '@/lib/components/posts/reaction-row'
+import type { StatusFitnessFileItem } from '@/lib/client'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
-import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
-import { ThreadNode, buildThreadTree } from '@/lib/components/posts/threadModel'
-import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
-import { useReactionState } from '@/lib/components/posts/useReactionState'
-import {
-  SectionNavSelect,
-  type SectionNavSelectTab
-} from '@/lib/components/section-nav-select'
 import { Alert } from '@/lib/components/surface/Alert'
-import { EmptyState } from '@/lib/components/surface/EmptyState'
-import { StatCell } from '@/lib/components/surface/StatCell'
-import { StatStrip } from '@/lib/components/surface/StatStrip'
-import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
-import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
-import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
-import { ActorProfile, getMention } from '@/lib/types/domain/actor'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import {
-  Status,
-  StatusNote,
-  StatusType,
-  getOriginalStatus
-} from '@/lib/types/domain/status'
-import { cn } from '@/lib/utils'
-import {
-  getFitnessPaceOrSpeed,
-  getFitnessSourceLabel,
-  normalizeFitnessSourceUrl,
-  sortStatusFitnessFiles
-} from '@/lib/utils/fitness'
-import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
-import {
-  type MastodonVisibility,
-  getVisibility
-} from '@/lib/utils/getVisibility'
+import { Status, StatusNote } from '@/lib/types/domain/status'
+import { getFitnessPaceOrSpeed } from '@/lib/utils/fitness'
 import { type PublicMapProvider } from '@/lib/utils/mapProvider'
-import { cleanClassName } from '@/lib/utils/text/cleanClassName'
-import { processStatusText } from '@/lib/utils/text/processStatusText'
 
-import { ActivityMapPanel } from './ActivityMapPanel'
-import { ActivityStartTime } from './ActivityStartTime'
 import {
-  ANALYSIS_GRAPH_OPTIONS,
+  ActivityAnalysisChart,
+  type ActivityAnalysisChartProps
+} from './ActivityAnalysisChart'
+import { ActivityBestEfforts } from './ActivityBestEfforts'
+import { ActivityDistributionRow } from './ActivityDistributionRow'
+import {
+  ActivityMapPanel,
+  type ActivityMapPanelProps
+} from './ActivityMapPanel'
+import {
+  ActivityOverviewSection,
+  type OverviewGroup
+} from './ActivityOverviewSection'
+import {
+  ActivityPostFrame,
+  type ActivityTile,
+  getRouteMapAttachmentIndex
+} from './ActivityPostFrame'
+import { ActivitySplitsTables } from './ActivitySplitsTables'
+import {
   type AnalysisGraphKey,
-  ElevationProfileChart,
-  FitnessAnalysisCharts,
-  GRAPH_HEIGHT_CLASSNAME,
-  type GraphDisplayMode,
-  HeartRateZonesPanel
+  GraphDisplayCard,
+  type GraphDisplayMode
 } from './FitnessAnalysisCharts'
-import { RecordingLine, getRecordingLabel } from './FitnessRecordingPicker'
 import {
-  GRAPH_VIEW_HEIGHT,
-  computeHeartRateStats,
-  computeHeartRateZones,
-  computePowerHistogramMinutes,
-  fillHeartRateDropouts,
-  filterPositiveHeartRateSeries,
-  formatDuration,
-  getPowerAxisTickIndices,
-  getSeriesMinMax,
-  plotAtStravaDensity
-} from './fitnessChartData'
+  type AnalysisSeries,
+  deriveActivityAnalysis,
+  findPointAtElapsed
+} from './activityAnalysis'
+import { getActivityLabel } from './activityLabels'
+import { average, formatLapPattern } from './fitnessActivityMetrics'
+import { formatDuration, getSeriesMinMax } from './fitnessChartData'
+import {
+  type ScrubStore,
+  createScrubStore,
+  useScrubPosition
+} from './scrubStore'
+import { useActivityRouteData } from './useActivityRouteData'
+import { useFitnessGearAssignment } from './useFitnessGearAssignment'
+import { useMakePrimaryRecording } from './useMakePrimaryRecording'
+import { useStatusFitnessFiles } from './useStatusFitnessFiles'
 
 interface Props {
   host: string
@@ -132,1648 +80,569 @@ interface Props {
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
-type SectionKey =
-  | 'overview'
-  | 'analysis'
-  | 'heart-rate-zones'
-  | '25w-distribution'
-  | 'photos'
-  | 'comments'
+/**
+ * The series a chart starts with. Speed and grade start off when the file has
+ * power (power tells the effort, elevation the terrain); without power only
+ * grade starts off, since elevation already draws the terrain.
+ */
+export const isGraphShownByDefault = (
+  key: AnalysisGraphKey,
+  hasPower: boolean
+): boolean => (hasPower ? key !== 'speed' && key !== 'grade' : key !== 'grade')
 
-type SectionTab = SectionNavSelectTab<SectionKey>
+const EMPTY_REPLIES: Status[] = []
 
-const VISIBILITY_META: Record<
-  MastodonVisibility,
-  { label: string; icon: LucideIcon }
-> = {
-  public: { label: 'Public', icon: Globe },
-  unlisted: { label: 'Unlisted', icon: Unlock },
-  private: { label: 'Followers only', icon: Lock },
-  direct: { label: 'Direct', icon: Mail }
-}
-
-const getActivityLabel = (activityType?: string) => {
-  if (!activityType) return 'Activity'
-
-  const normalized = activityType.toLowerCase()
-  if (normalized.includes('ride') || normalized.includes('bike')) {
-    return 'Ride'
+// The two views that follow the scrubbed instant. Each subscribes to the
+// store itself, so a hover re-renders the chart and the map and nothing else.
+const ScrubbedMapPanel: FC<
+  Omit<ActivityMapPanelProps, 'highlightedElapsedSeconds'> & {
+    scrubStore: ScrubStore
   }
-  if (normalized.includes('run')) return 'Run'
-  if (normalized.includes('walk') || normalized.includes('hike')) return 'Walk'
-  if (normalized.includes('swim')) return 'Swim'
-  if (normalized.includes('row')) return 'Row'
-  if (normalized.includes('yoga') || normalized.includes('pilates')) {
-    return 'Yoga'
-  }
-  if (normalized.includes('climb')) return 'Climb'
-  if (normalized.includes('ski') || normalized.includes('snowboard')) {
-    return 'Ski'
-  }
-  if (normalized.includes('skat')) return 'Skate'
-  if (normalized.includes('surf')) return 'Surf'
-  if (normalized.includes('racket') || normalized.includes('tennis')) {
-    return 'Racket'
-  }
-  if (normalized.includes('martial') || normalized.includes('box')) {
-    return 'Martial Arts'
-  }
-  if (
-    normalized.includes('team') ||
-    normalized.includes('soccer') ||
-    normalized.includes('football')
-  ) {
-    return 'Team Sports'
-  }
-  if (
-    normalized.includes('train') ||
-    normalized.includes('workout') ||
-    normalized.includes('weight') ||
-    normalized.includes('crossfit') ||
-    normalized.includes('gym')
-  ) {
-    return 'Training'
-  }
-  if (normalized === 'other') return 'Other'
-
-  return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
-}
-
-const Card: FC<{
-  className?: string
-  children: ReactNode
-  padded?: boolean
-}> = ({ className, children, padded = true }) => (
-  <div
-    data-slot="fitness-card"
-    className={cn(
-      'rounded-lg border bg-background',
-      padded && 'p-5',
-      className
-    )}
-  >
-    {children}
-  </div>
+> = ({ scrubStore, ...props }) => (
+  <ActivityMapPanel
+    {...props}
+    highlightedElapsedSeconds={useScrubPosition(scrubStore)}
+  />
 )
 
-const SectionTitle: FC<{
-  icon?: LucideIcon
-  children: ReactNode
-  right?: ReactNode
-}> = ({ icon: Icon, children, right }) => (
-  <div className="mb-3 flex items-center justify-between gap-2">
-    <h2 className="flex items-center gap-2 text-base font-semibold">
-      {Icon ? <Icon className="size-4 text-muted-foreground" /> : null}
-      {children}
-    </h2>
-    {right}
-  </div>
+const ScrubbedAnalysisChart: FC<
+  Omit<
+    ActivityAnalysisChartProps,
+    'highlightedElapsedSeconds' | 'onHighlightElapsedSeconds'
+  > & { scrubStore: ScrubStore }
+> = ({ scrubStore, ...props }) => (
+  <ActivityAnalysisChart
+    {...props}
+    highlightedElapsedSeconds={useScrubPosition(scrubStore)}
+    onHighlightElapsedSeconds={scrubStore.set}
+  />
 )
+const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
-const StatTile: FC<{
-  icon?: LucideIcon
-  label: string
-  value: string
-  sub?: string
-  accent?: boolean
-  big?: boolean
-}> = ({ icon: Icon, label, value, sub, accent = false, big = false }) => (
-  <div className="rounded-lg border bg-background p-3.5">
-    <div className="flex items-center gap-1.5 text-muted-foreground">
-      {Icon ? <Icon className="size-3.5" /> : null}
-      <span className="text-xs font-medium uppercase tracking-wide">
-        {label}
-      </span>
-    </div>
-    <div
-      className={cn(
-        'mt-1.5 font-semibold tracking-tight tabular-nums',
-        big ? 'text-[28px]' : 'text-[21px]',
-        // After the size class on purpose: tailwind-merge treats `text-[28px]`
-        // as also setting the line height and drops an EARLIER `leading-*`,
-        // which left the value at 1.5 (42px) and the tile 115px tall instead
-        // of the design's 99px.
-        'leading-none',
-        accent && 'text-primary-text'
-      )}
-    >
-      {value}
-    </div>
-    {sub ? (
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-    ) : null}
-  </div>
-)
-
-interface GearPickerOption {
-  id: string
-  name: string
-  kind: FitnessGearKind | null
-  distanceMeters: number | null
-}
-
-// `Wrench` is the app's own icon for the Gear section (see the fitness layout's
-// sub-nav), so it is the honest fallback when neither the assigned gear nor the
-// activity type says which kind this is — a free-form GPX `activityType` that
-// `normalizeActivityTypeToSportKey` refuses to guess at, most often.
-const GEAR_KIND_ICON: Record<FitnessGearKind, LucideIcon> = {
-  bike: Bike,
-  shoes: Footprints,
-  // Never reached through the picker — devices are filtered out of it — but a
-  // gear already assigned is always shown whatever it is, and this map is what
-  // renders that value.
-  device: Watch
+const formatKm = (meters: number) => {
+  const km = meters / 1000
+  return km >= 10 ? km.toFixed(1) : km.toFixed(2)
 }
 
 /**
- * The assigned gear, inline in the header's metadata line. The design system
- * (`FAGearRow` in `ui_kits/web/FitnessActivity.jsx`) reads the recording
- * metadata as one wrapping line — date · visibility · gear — rather than giving
- * gear a labelled field and a row of its own, and makes the gear a LINK to its
- * own page. Changing the assignment is not here at all: it is "Change gear" in
- * the post's ⋯ menu, the way `FAMoreMenu` has it.
- *
- * `/fitness/gear/<id>` is owner-scoped, so only the owner gets the link — the
- * same constraint `BrandedDeviceLink` resolves the same way on the line below.
- * Everyone else gets the name as plain text, and nobody gets anything when no
- * gear is attributed.
+ * A completed fitness activity's own page: the post (with its photos, figures
+ * and replies), then the route and figures, the analysis charts, best efforts,
+ * the zone and power charts, and the laps and climbs. Every section below the
+ * post reads the recording's route data and is left out when the file has
+ * nothing for it.
  */
-const ActivityGearMeta: FC<{
-  isOwner: boolean
-  /** The id of the gear this activity is attributed to, if any. */
-  gearId: string | null
-  /** The name the status payload carried, for a viewer with no gear list. */
-  gearName: string | null
-  /**
-   * That gear's lifetime distance, when the owner's shed has been loaded. It
-   * rides in the `title` rather than on the line, which is already carrying the
-   * date and the visibility.
-   */
-  distanceMeters: number | null
-  /** The kind of the assigned gear, else what the activity type implies. */
-  kind: FitnessGearKind | null
-}> = ({ isOwner, gearId, gearName, distanceMeters, kind }) => {
-  const label = gearName?.trim() || null
-  if (!label) return null
-
-  const Icon = kind ? GEAR_KIND_ICON[kind] : Wrench
-  const title =
-    distanceMeters === null
-      ? `Gear: ${label}`
-      : `Gear: ${label} · ${formatGearDistanceKm(distanceMeters)}`
-  // The icon alone carries the meaning visually; spell it out for a screen
-  // reader, which otherwise hears a bare product name.
-  const content = (
-    <>
-      <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-      <span className="sr-only">Gear: </span>
-      <span className="truncate">{label}</span>
-    </>
-  )
-
-  return (
-    <>
-      <span aria-hidden="true">·</span>
-      {isOwner && gearId ? (
-        <Link
-          // One link on a detail page rather than one per feed row, but it
-          // points at the same dynamic owner-scoped route the device link
-          // beside it does, so it opts out of prefetching for the same reason.
-          prefetch={false}
-          href={`/fitness/gear/${encodeURIComponent(gearId)}`}
-          title={title}
-          className="inline-flex min-w-0 items-center gap-1.5 rounded-md underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-        >
-          {content}
-        </Link>
-      ) : (
-        <span
-          className="inline-flex min-w-0 items-center gap-1.5"
-          title={title}
-        >
-          {content}
-        </span>
-      )}
-    </>
-  )
-}
-
-const ActivityGallery: FC<{
-  attachments: Attachment[]
-  onOpenAttachment: (index: number) => void
-}> = ({ attachments, onOpenAttachment }) => {
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {attachments.map((attachment, index) => (
-        <button
-          key={attachment.id}
-          type="button"
-          onClick={() => onOpenAttachment(index)}
-          className="relative aspect-video overflow-hidden rounded-md border transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-          aria-label={`Open media ${index + 1}`}
-        >
-          <Media
-            attachment={attachment}
-            className="h-full w-full object-cover"
-          />
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export const FitnessStatusDetail: FC<Props> = ({
   host,
   mapProvider,
   currentTime,
   currentActor,
   status,
-  replies = [],
+  replies = EMPTY_REPLIES,
   isMediaUploadEnabled,
   initialFitnessFiles,
   onShowAttachment
 }) => {
-  const router = useRouter()
-  const openStatus = (statusToOpen: Status) => {
-    void (async () => {
-      const detailPath = await getStatusDetailPathClient(statusToOpen)
-      if (detailPath) router.push(detailPath)
-    })()
-  }
-  const [activeSection, setActiveSection] = useState<SectionKey>('overview')
-  // `separate` (the default) stacks each selected graph into its own row; the new
-  // `combined` option overlays them in one chart.
-  const [graphDisplayMode, setGraphDisplayMode] =
-    useState<GraphDisplayMode>('separate')
-  // Which series are drawn, as a multi-select. Every graph starts on, so the
-  // default view is every available series (a key with no data is filtered out
-  // downstream), and the picker chips toggle each on and off. Intersecting this
-  // intent with the series that actually have data is what lets it stay stable
-  // as the selected file changes underneath it.
-  const [selectedGraphKeys, setSelectedGraphKeys] = useState<
-    AnalysisGraphKey[]
-  >(() => ANALYSIS_GRAPH_OPTIONS.map((option) => option.id))
-  const toggleGraphKey = (key: AnalysisGraphKey) =>
-    setSelectedGraphKeys((previous) =>
-      previous.includes(key)
-        ? previous.filter((selected) => selected !== key)
-        : [...previous, key]
-    )
-  // Force-resets the always-on comment composer after a cancel or a post.
-  const [composerKey, setComposerKey] = useState(0)
-  // Edit and quote open the same inline composer every other surface uses, so
-  // a fitness activity is editable from its own page exactly as it is from the
-  // timeline. Reply is not routed through it here: this page has an always-on
-  // composer in its Comments section, which the reply action jumps to instead.
-  const composer = useInlineComposer()
-
-  const threadTree = useMemo(
-    () => buildThreadTree({ focusedStatus: status, descendants: replies }),
-    [status, replies]
-  )
-  const [expandedCommentOverrides, setExpandedCommentOverrides] = useState<
-    Record<string, boolean>
-  >({})
-
-  const isCommentExpanded = (node: ThreadNode): boolean => {
-    const override = expandedCommentOverrides[node.status.id]
-    if (override !== undefined) return override
-    return !node.initiallyCollapsed
-  }
-
-  const toggleCommentBranch = (nodeId: string) => {
-    setExpandedCommentOverrides((prev) => {
-      const current = prev[nodeId]
-      if (current !== undefined) return { ...prev, [nodeId]: !current }
-      const findNode = (nodes: ThreadNode[]): ThreadNode | null => {
-        for (const n of nodes) {
-          if (n.status.id === nodeId) return n
-          const inChild = findNode(n.replies)
-          if (inChild) return inChild
-        }
-        return null
-      }
-      const targetNode = findNode(threadTree.descendants)
-      const initialState = targetNode ? !targetNode.initiallyCollapsed : true
-      return { ...prev, [nodeId]: !initialState }
-    })
-  }
-
-  const renderCommentNode = (node: ThreadNode): ReactNode => {
-    const isExpanded = isCommentExpanded(node)
-    const hasReplies = node.replies.length > 0
-    const actualReply =
-      node.status.type === StatusType.enum.Announce
-        ? getOriginalStatus(node.status)
-        : node.status
-    const canCompose = Boolean(currentActor)
-    const boundedDepth = Math.min(node.depth, 4)
-
-    return (
-      <div
-        key={node.status.id}
-        data-testid="thread-node"
-        data-node-id={node.status.id}
-        className={cn(
-          'transition-colors',
-          boundedDepth > 0 &&
-            'ml-3 sm:ml-5 pl-3 sm:pl-4 border-l-2 border-border/60'
-        )}
-      >
-        {node.parentUnavailable ? (
-          <div className="my-1.5 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border/80 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
-            <AlertCircle className="size-3.5" />
-            <span>Prior reply is unavailable</span>
-          </div>
-        ) : null}
-
-        <article className="p-4">
-          <Post
-            host={host}
-            currentActor={currentActor ?? undefined}
-            currentTime={currentTime}
-            status={node.status}
-            showActions={canCompose}
-            showReadOnlyStats={!canCompose}
-            editable={canCompose && currentActor?.id === actualReply.actorId}
-            collapsible
-            onReply={
-              canCompose
-                ? (target) => composer.openReply(target, node.status.id)
-                : undefined
-            }
-            onEdit={
-              canCompose
-                ? (target) => composer.openEdit(target, node.status.id)
-                : undefined
-            }
-            onQuote={
-              canCompose
-                ? (target) => composer.openQuote(target, node.status.id)
-                : undefined
-            }
-            onOpenStatus={openStatus}
-            onShowAttachment={onShowAttachment}
-          />
-
-          {composer.active?.anchorId === node.status.id && currentActor ? (
-            <div className="mt-3">
-              <InlineStatusComposer
-                key={`${composer.active.mode}-${composer.active.anchorId}`}
-                host={host}
-                profile={currentActor}
-                mode={composer.active.mode}
-                status={composer.active.status}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                onCancel={composer.close}
-                onCreated={() => {
-                  composer.close()
-                  router.refresh()
-                }}
-                onUpdated={() => {
-                  composer.close()
-                  router.refresh()
-                }}
-              />
-            </div>
-          ) : null}
-
-          {hasReplies ? (
-            <div className="mt-1">
-              <button
-                type="button"
-                onClick={() => toggleCommentBranch(node.status.id)}
-                aria-expanded={isExpanded}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline focus:outline-none"
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="size-3.5 text-primary" />
-                    <span>Hide replies</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="size-3.5 text-primary" />
-                    <span>
-                      Show {node.totalDescendantCount} more{' '}
-                      {node.totalDescendantCount === 1 ? 'reply' : 'replies'}
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
-          ) : null}
-        </article>
-
-        {hasReplies && isExpanded ? (
-          <div className="space-y-1">
-            {node.replies.map((reply) => renderCommentNode(reply))}
-          </div>
-        ) : null}
-      </div>
-    )
-  }
-  // This page lays out its own card, so it holds the reaction rollups the way
-  // `Post` does — the chip row in the card body and the picker trigger in the
-  // shared `Actions` row below both read this one state.
-  const reactionState = useReactionState({
-    currentActor: currentActor ?? undefined,
-    status
-  })
-
-  // Hoisted above the effects below: the gear list is owner-only, so the effect
-  // that loads it needs this before it runs.
   const isOwner =
     Boolean(status.isLocalActor) && currentActor?.id === status.actorId
-
-  const defaultFitnessFiles = useMemo<StatusFitnessFileItem[]>(() => {
-    if (!status.fitness) {
-      return []
-    }
-
-    return [
-      {
-        id: status.fitness.id,
-        actorId: status.actorId,
-        fileName: status.fitness.fileName,
-        fileType: status.fitness.fileType,
-        statusId: status.id,
-        isPrimary: true,
-        processingStatus: status.fitness.processingStatus ?? 'pending',
-        totalDistanceMeters: status.fitness.totalDistanceMeters ?? null,
-        totalDurationSeconds: status.fitness.totalDurationSeconds ?? null,
-        movingTimeSeconds: status.fitness.movingTimeSeconds ?? null,
-        elevationGainMeters: status.fitness.elevationGainMeters ?? null,
-        activityType: status.fitness.activityType ?? null,
-        // Must come off the payload, not from `status.createdAt`: a Strava
-        // webhook import is stamped when it published rather than when the ride
-        // began, so a post-time stand-in dates the activity wrongly until the
-        // by-status fetch below replaces this placeholder. The `??` arm is only
-        // a shape default — the single fallback that actually renders is the one
-        // on `activityStartTime` further down, which this deliberately mirrors
-        // rather than pre-empts.
-        activityStartTime: status.fitness.activityStartTime ?? status.createdAt,
-        hasMapData: status.fitness.hasMapData ?? false,
-        description: status.fitness.description ?? null,
-        deviceManufacturer: status.fitness.deviceManufacturer ?? null,
-        deviceName: status.fitness.deviceName ?? null,
-        sourceUrl: status.fitness.sourceUrl ?? null,
-        gearId: status.fitness.gearId ?? null,
-        gearName: status.fitness.gearName ?? null,
-        deviceGearId: status.fitness.deviceGearId ?? null,
-        deviceGearName: status.fitness.deviceGearName ?? null,
-        avgPower: status.fitness.avgPower ?? null,
-        maxPower: status.fitness.maxPower ?? null,
-        avgHeartRate: status.fitness.avgHeartRate ?? null,
-        maxHeartRate: status.fitness.maxHeartRate ?? null,
-        totalWorkKj: status.fitness.totalWorkKj ?? null,
-        elevationSeries: status.fitness.elevationSeries ?? null
-      }
-    ]
-  }, [
-    status.actorId,
-    status.createdAt,
-    status.id,
-    status.fitness?.id,
-    status.fitness?.fileName,
-    status.fitness?.fileType,
-    status.fitness?.processingStatus,
-    status.fitness?.totalDistanceMeters,
-    status.fitness?.totalDurationSeconds,
-    status.fitness?.movingTimeSeconds,
-    status.fitness?.elevationGainMeters,
-    status.fitness?.activityType,
-    status.fitness?.activityStartTime,
-    status.fitness?.hasMapData,
-    status.fitness?.description,
-    status.fitness?.deviceManufacturer,
-    status.fitness?.deviceName,
-    status.fitness?.sourceUrl,
-    status.fitness?.gearId,
-    status.fitness?.gearName,
-    status.fitness?.deviceGearId,
-    status.fitness?.deviceGearName,
-    status.fitness?.avgPower,
-    status.fitness?.maxPower,
-    status.fitness?.avgHeartRate,
-    status.fitness?.maxHeartRate,
-    status.fitness?.totalWorkKj,
-    status.fitness?.elevationSeries
-  ])
-
-  const initialFiles = useMemo(() => {
-    const source =
-      initialFitnessFiles && initialFitnessFiles.length > 0
-        ? initialFitnessFiles
-        : defaultFitnessFiles
-    return sortStatusFitnessFiles(source)
-  }, [initialFitnessFiles, defaultFitnessFiles])
-
-  const [fitnessFiles, setFitnessFiles] =
-    useState<StatusFitnessFileItem[]>(initialFiles)
-  const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
-    string | null
-  >(() => {
-    const primary = initialFiles.find((item) => item.isPrimary)
-    return primary?.id ?? initialFiles[0]?.id ?? null
+  const files = useStatusFitnessFiles(status, initialFitnessFiles)
+  const { fitness, fitnessFiles, setFitnessFiles, setSelectedFitnessFileId } =
+    files
+  const gear = useFitnessGearAssignment({ isOwner, fitness, setFitnessFiles })
+  const primary = useMakePrimaryRecording({
+    fitnessFiles,
+    setFitnessFiles,
+    setSelectedFitnessFileId
   })
-  const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
-    null
-  )
-  const [gearOptions, setGearOptions] = useState<GearEntity[]>([])
-  // Keyed by file, not a single slot. An activity can aggregate several files
-  // and the switcher stays enabled during a PATCH, so a failure that lands after
-  // the reader has moved on must not render as the NEXT file's error — that
-  // would wire `aria-describedby` from that file's picker to a message about a
-  // different one. One slot was not enough either: whichever file failed second
-  // would evict the first, and the first was invisible at the time precisely
-  // because its reader had moved on, so nobody would ever have seen it.
-  const [gearUpdateErrors, setGearUpdateErrors] = useState<
-    Record<string, string>
+  const route = useActivityRouteData(fitness?.id)
+
+  const [graphDisplayMode, setGraphDisplayMode] =
+    useState<GraphDisplayMode>('combined')
+  // The reader's own choices; a series they have not touched follows
+  // `isGraphShownByDefault`, so the default stays right as the recording on
+  // screen (and the series it has) changes.
+  const [graphChoices, setGraphChoices] = useState<
+    Partial<Record<AnalysisGraphKey, boolean>>
   >({})
-  const [isSavingGear, setIsSavingGear] = useState(false)
-  // Making a recording primary is one request for the whole activity, not one
-  // per file, so a single slot of state is enough: the action is disabled while
-  // it is in flight, and the message belongs to the activity rather than to
-  // whichever recording is on screen.
-  const recordingTriggerRef = useRef<HTMLButtonElement>(null)
-  const [makingPrimaryId, setMakingPrimaryId] = useState<string | null>(null)
-  const [primaryNotice, setPrimaryNotice] = useState<string | null>(null)
-  // The file the failed attempt was for, so Retry tries the same one even if
-  // the owner has since looked at another recording.
-  const [primaryError, setPrimaryError] = useState<{
-    message: string
-    fileId: string
-  } | null>(null)
-  const [routeSamples, setRouteSamples] = useState<FitnessRouteSample[]>([])
-  const [routeSegments, setRouteSegments] = useState<FitnessRouteSegment[]>([])
-  const [powerSeries, setPowerSeries] = useState<number[]>([])
-  const [heartRateSeries, setHeartRateSeries] = useState<number[]>([])
-  const [altitudeSeries, setAltitudeSeries] = useState<number[]>([])
-  const [speedSeries, setSpeedSeries] = useState<number[]>([])
-  const [routeDataError, setRouteDataError] = useState<string | null>(null)
-  const [isRouteDataLoading, setIsRouteDataLoading] = useState(false)
-  const [highlightedElapsedSeconds, setHighlightedElapsedSeconds] = useState<
-    number | null
-  >(null)
+  const [selectedSplitKey, setSelectedSplitKey] = useState<string | null>(null)
+  // The scrubbed instant lives outside React state (see `scrubStore`).
+  const [scrubStore] = useState(createScrubStore)
+  const chartRef = useRef<HTMLDivElement | null>(null)
 
+  // A lap, a climb or a scrubbed instant belongs to the recording it was
+  // picked on.
   useEffect(() => {
-    setFitnessFiles(initialFiles)
-    setSelectedFitnessFileId((current) => {
-      if (current && initialFiles.some((item) => item.id === current)) {
-        return current
-      }
-      return (
-        initialFiles.find((item) => item.isPrimary)?.id ??
-        initialFiles[0]?.id ??
-        null
-      )
-    })
-  }, [initialFiles])
+    setSelectedSplitKey(null)
+    scrubStore.set(null)
+  }, [fitness?.id, scrubStore])
 
-  useEffect(() => {
-    if (initialFitnessFiles && initialFitnessFiles.length > 0) return
-
-    let cancelled = false
-
-    const loadFitnessFiles = async () => {
-      try {
-        const files = await getFitnessFilesByStatus(status.id)
-        if (cancelled || !files || files.length === 0) return
-
-        const ordered = sortStatusFitnessFiles(files)
-
-        setFitnessFiles(ordered)
-        setSelectedFitnessFileId((current) => {
-          if (current && ordered.some((item) => item.id === current)) {
-            return current
-          }
-          return ordered.find((item) => item.isPrimary)?.id ?? ordered[0].id
-        })
-      } catch {
-        // Keep the status payload fallback if the list endpoint is unavailable.
-      }
-    }
-
-    void loadFitnessFiles()
-
-    return () => {
-      cancelled = true
-    }
-  }, [status.id, initialFitnessFiles])
-
-  // Owner only — /api/v1/fitness/gear is the owner's shed, and a viewer has no
-  // use for it. A failure leaves the list empty, which degrades the picker to
-  // the read-only gear row rather than breaking the page.
-  useEffect(() => {
-    if (!isOwner) return
-
-    let cancelled = false
-
-    const loadGear = async () => {
-      try {
-        const gear = await getFitnessGearList()
-        if (cancelled) return
-        setGearOptions(gear)
-      } catch {
-        // Keep the read-only presentation when the gear list is unavailable.
-      }
-    }
-
-    void loadGear()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isOwner])
-
-  const actorName = status.actor?.name || status.actor?.username || 'Athlete'
-  const actorHandle = status.actor ? getMention(status.actor, true) : null
-  const fitness = useMemo(
+  const activityType = fitness?.activityType ?? null
+  const analysis = useMemo(
     () =>
-      fitnessFiles.find((item) => item.id === selectedFitnessFileId) ??
-      fitnessFiles[0],
-    [fitnessFiles, selectedFitnessFileId]
-  )
-  const selectedGearId = fitness?.gearId ?? null
-  // Options for the owner's gear picker. Retired gear is out (it is still
-  // *assignable* through the API — see `setFitnessFileGear` — but it does not
-  // belong in a picker for a fresh activity), and the list narrows to the kind
-  // the activity implies. An unrecognised activity type narrows to nothing:
-  // `getGearKindForActivityType` is a convenience, never a permission.
-  //
-  // Whatever is currently assigned is ALWAYS in the list, even when the kind
-  // filter or its retirement would drop it — a picker that cannot represent its
-  // own value renders the assignment as something else, which reads as the gear
-  // having changed on its own. The last fallback covers the gear list failing to
-  // load at all, using the name the status payload carried.
-  const gearPickerOptions = useMemo<GearPickerOption[]>(() => {
-    const kind = getGearKindForActivityType(fitness?.activityType)
-    // Devices are excluded BEFORE the kind narrowing, not by it: an
-    // unrecognised activity type narrows to nothing and offers every active
-    // gear, which would put the head unit that recorded the ride in the list of
-    // things the ride could have been done on.
-    const active = gearOptions.filter(
-      (gear) => gear.retiredAt === null && gear.kind !== 'device'
-    )
-    const options = (
-      kind ? active.filter((gear) => gear.kind === kind) : active
-    ).map((gear) => ({
-      id: gear.id,
-      name: gear.name,
-      kind: gear.kind,
-      distanceMeters: gear.distanceMeters
-    }))
-
-    if (!selectedGearId || options.some((item) => item.id === selectedGearId)) {
-      return options
-    }
-
-    const assigned = gearOptions.find((gear) => gear.id === selectedGearId)
-    return [
-      {
-        id: selectedGearId,
-        name: assigned?.name ?? fitness?.gearName ?? 'Assigned gear',
-        kind: assigned?.kind ?? null,
-        distanceMeters: assigned?.distanceMeters ?? null
-      },
-      ...options
+      route.data
+        ? deriveActivityAnalysis({
+            data: route.data,
+            activityType,
+            fallbackDurationSeconds: fitness?.totalDurationSeconds ?? 0,
+            movingTimeSeconds: fitness?.movingTimeSeconds ?? null
+          })
+        : null,
+    [
+      route.data,
+      activityType,
+      fitness?.totalDurationSeconds,
+      fitness?.movingTimeSeconds
     ]
-  }, [gearOptions, fitness?.activityType, fitness?.gearName, selectedGearId])
-
-  // Whatever is assigned is always in `gearPickerOptions` when the shed has
-  // loaded, so this is where the metadata line's link gets its kind icon and
-  // its lifetime distance. Undefined for a viewer (who never loads the shed)
-  // and for an owner whose shed failed to load, both of which fall back to the
-  // activity type's kind and no distance.
-  const assignedGear = selectedGearId
-    ? gearPickerOptions.find((option) => option.id === selectedGearId)
-    : undefined
-
-  // Only ever the error for the file on screen; a failure that lands after the
-  // reader switched files stays with the file it happened to, and comes back
-  // with it.
-  const gearErrorMessage = fitness?.id
-    ? (gearUpdateErrors[fitness.id] ?? null)
-    : null
-
-  const handleGearChange = async (value: string) => {
-    const fitnessFileId = fitness?.id
-    if (!fitnessFileId) return
-    // Re-picking what is already assigned is not a change. A `<select>` never
-    // fired `onChange` for that, but every row of a menu fires `onSelect`, and
-    // tapping the checked row to dismiss the menu is the natural gesture — it
-    // would otherwise PATCH, re-evaluate the service reminders, and on a network
-    // hiccup show an error for a change the owner never made.
-    if (value === (selectedGearId ?? '')) return
-
-    const nextGearId = value || null
-    const nextGearName = nextGearId
-      ? (gearPickerOptions.find((item) => item.id === nextGearId)?.name ?? null)
-      : null
-    // Only this file's assignment is rolled back, and only through an updater:
-    // restoring a whole array captured from this render would also discard
-    // anything the `getFitnessFilesByStatus` effect (or a sibling file's own
-    // change) wrote while the PATCH was in flight.
-    const previousGearId = fitness?.gearId ?? null
-    const previousGearName = fitness?.gearName ?? null
-
-    // Drops only this file's own error. A reset that reached the whole map
-    // would discard a sibling file's pending failure, and because that one was
-    // hidden while its reader was on another file, they would never have seen
-    // it — the gear silently back to what it was, with nothing saying why.
-    setGearUpdateErrors((current) => {
-      if (!(fitnessFileId in current)) return current
-      const { [fitnessFileId]: _cleared, ...rest } = current
-      return rest
-    })
-    setIsSavingGear(true)
-    setFitnessFiles((files) =>
-      files.map((file) =>
-        file.id === fitnessFileId
-          ? { ...file, gearId: nextGearId, gearName: nextGearName }
-          : file
-      )
-    )
-
-    try {
-      await updateFitnessFileGear(fitnessFileId, nextGearId)
-    } catch (error) {
-      // Put the previous assignment back rather than leaving the select showing
-      // a value the server never accepted.
-      setFitnessFiles((files) =>
-        files.map((file) =>
-          file.id === fitnessFileId
-            ? { ...file, gearId: previousGearId, gearName: previousGearName }
-            : file
-        )
-      )
-      setGearUpdateErrors((current) => ({
-        ...current,
-        [fitnessFileId]:
-          error instanceof Error ? error.message : 'Failed to update gear.'
-      }))
-    } finally {
-      setIsSavingGear(false)
-    }
-  }
-
-  // Owner only (the recording picker offers it to no one else, and the endpoint
-  // answers 404 to anyone but the owner). The server moves the flag, the gear
-  // and the route map's pointers, then reprocesses the new primary so the post's
-  // map is redrawn from it. With a real queue that happens after the response,
-  // so the message says the map follows shortly and the page is re-read only
-  // when the server reports the job already ran (a refresh before that would
-  // just show the old map again).
-  const handleMakePrimary = async (fitnessFileId: string) => {
-    if (makingPrimaryId) return
-    const target = fitnessFiles.find((file) => file.id === fitnessFileId)
-    if (!target || target.isPrimary) {
-      // Nothing left to do for this file (it already is the primary, or is
-      // gone), so a failure shown for it has no action to offer.
-      setPrimaryError((current) =>
-        current?.fileId === fitnessFileId ? null : current
-      )
-      return
-    }
-
-    setMakingPrimaryId(fitnessFileId)
-    setPrimaryNotice(null)
-    setPrimaryError(null)
-
-    try {
-      const {
-        file: updated,
-        processed,
-        alreadyPrimary
-      } = await makeFitnessFilePrimary(fitnessFileId)
-      // The response is the new primary as the server now holds it (it may have
-      // inherited the old primary's gear); every other file just lost the flag.
-      setFitnessFiles((files) =>
-        files.map((file) =>
-          file.id === fitnessFileId
-            ? { ...file, ...updated, isPrimary: true }
-            : { ...file, isPrimary: false }
-        )
-      )
-      setSelectedFitnessFileId(fitnessFileId)
-      const label = getRecordingLabel(target)
-      setPrimaryNotice(
-        alreadyPrimary
-          ? `${label} is already the primary recording.`
-          : processed
-            ? `${label} is now the primary recording.`
-            : `${label} is now the primary recording. The route map updates shortly.`
-      )
-      if (processed && !alreadyPrimary) router.refresh()
-    } catch (error) {
-      setPrimaryError({
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Failed to make this the primary recording.',
-        fileId: fitnessFileId
-      })
-    } finally {
-      setMakingPrimaryId(null)
-    }
-  }
-
-  // Retry is a first attempt again, except for where focus goes. Focus moves to
-  // the picker trigger BEFORE the Alert unmounts (the Alert holds it until
-  // then, so it is never dropped to the page body); after that nothing touches
-  // focus, so a slow request cannot pull it back from wherever the owner went.
-  // A repeat failure mounts a fresh Alert, which a screen reader announces even
-  // when the message is the same as before.
-  const retryMakePrimary = () => {
-    if (!primaryError) return
-    recordingTriggerRef.current?.focus()
-    void handleMakePrimary(primaryError.fileId)
-  }
-
-  // Changing the assignment is an item in the post's own ⋯ menu, the way the
-  // design system's `FAMoreMenu` has it — the metadata line's gear is a link to
-  // the gear page, not a control. Absent entirely when there is nothing to pick
-  // (`FAMoreMenu`'s own `if (!canChange) return null`): a submenu whose only
-  // entry is "No gear" is dead UI, the same rule that kept the old picker off
-  // an empty shed.
-  //
-  // Not memoized on purpose: it closes over `handleGearChange`, which is rebuilt
-  // every render anyway, so a `useMemo` here would only be able to hand back a
-  // stale one.
-  const gearMenuItems: PostMenuExtraItem[] =
-    isOwner && gearPickerOptions.length > 0
-      ? [
-          {
-            key: 'change-gear',
-            icon: <Wrench className="size-4" />,
-            label: 'Change gear',
-            // Two quick changes otherwise race, and the loser's rollback would
-            // put back a value the server has since replaced. On the trigger as
-            // well as the rows, so the submenu cannot even be opened mid-write.
-            disabled: isSavingGear,
-            items: [
-              ...gearPickerOptions.map((option) => ({
-                key: option.id,
-                label: option.name,
-                checked: option.id === selectedGearId,
-                // The lifetime total, as the design shows it — it is what tells
-                // two similar bikes apart at a glance. Absent on a gear the
-                // list never returned.
-                trailing:
-                  typeof option.distanceMeters === 'number'
-                    ? formatGearDistanceKm(option.distanceMeters)
-                    : undefined,
-                disabled: isSavingGear,
-                onSelect: () => void handleGearChange(option.id)
-              })),
-              {
-                key: 'no-gear',
-                label: 'No gear',
-                checked: selectedGearId === null,
-                muted: true,
-                disabled: isSavingGear,
-                onSelect: () => void handleGearChange('')
-              }
-            ]
-          }
-        ]
-      : []
-
-  // Every provider renders an interactive map, so route data is loaded whenever
-  // there is a fitness file to load it from.
-  const shouldLoadInteractiveMap = Boolean(fitness?.id)
-  const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
-  // Render the caption through the same pipeline `Post` uses (markdown/sanitize
-  // + emoji/mention/hashtag markup, parsed to React nodes), rather than
-  // flattening `status.text` to plain text for a synthetic heading. That
-  // previous plain-text heading dropped every tag from the caption — including
-  // its own `<p>`/`<br>` line breaks, which ran every paragraph onto one line —
-  // so this caption now looks exactly like the same post's caption in the
-  // timeline. Memoized because this re-parses HTML and the component re-renders
-  // frequently (e.g. on chart hover).
-  const caption = useMemo(
-    () =>
-      cleanClassName(processStatusText(host, status), {
-        host,
-        tags: status.tags
-      }),
-    [host, status]
   )
-  const activityStartTime = fitness?.activityStartTime ?? status.createdAt
-  const visibilityMeta =
-    VISIBILITY_META[getVisibility(status.to, status.cc)] ??
-    VISIBILITY_META.public
-  const VisibilityIcon = visibilityMeta.icon
+
+  // A single lap is the whole activity again, so it is no split at all.
+  const laps = useMemo(
+    () => (analysis && analysis.laps.length >= 2 ? analysis.laps : []),
+    [analysis]
+  )
+  const climbs = useMemo(() => analysis?.climbs ?? [], [analysis])
+  const selectedSplit = useMemo(
+    () =>
+      [...laps, ...climbs].find((split) => split.key === selectedSplitKey) ??
+      null,
+    [laps, climbs, selectedSplitKey]
+  )
+  const highlightedRange = useMemo(
+    () =>
+      selectedSplit
+        ? {
+            startSeconds: selectedSplit.startSeconds,
+            endSeconds: selectedSplit.endSeconds
+          }
+        : null,
+    [selectedSplit]
+  )
+
+  const toggleSplit = (key: string) => {
+    setSelectedSplitKey((current) => (current === key ? null : key))
+  }
+  // From a table far below the chart: pick it and bring the chart into view.
+  const selectSplitFromTable = (key: string) => {
+    const isSelecting = selectedSplitKey !== key
+    toggleSplit(key)
+    if (isSelecting) {
+      chartRef.current?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'center'
+      })
+    }
+  }
+
+  // ---- figures ------------------------------------------------------------
+
+  const distanceMeters = fitness?.totalDistanceMeters ?? 0
+  const durationSeconds =
+    analysis?.durationSeconds ?? fitness?.totalDurationSeconds ?? 0
+  const movingTimeSeconds =
+    typeof fitness?.movingTimeSeconds === 'number' &&
+    fitness.movingTimeSeconds > 0
+      ? fitness.movingTimeSeconds
+      : (fitness?.totalDurationSeconds ?? 0)
   const paceOrSpeed = getFitnessPaceOrSpeed({
     distanceMeters: fitness?.totalDistanceMeters ?? undefined,
     durationSeconds: fitness?.totalDurationSeconds ?? undefined,
     movingTimeSeconds: fitness?.movingTimeSeconds ?? undefined,
     activityType: fitness?.activityType ?? undefined
   })
-  const fitnessSourceUrl = normalizeFitnessSourceUrl(fitness?.sourceUrl)
+  const usesPace = paceOrSpeed?.label === 'Pace'
 
-  const mapAttachmentIndex = useMemo(() => {
-    const routeMapIndex = status.attachments.findIndex((attachment) =>
-      attachment.name.toLowerCase().includes('route map')
+  const powerSeries = analysis?.powerSeries ?? []
+  const avgPower =
+    typeof fitness?.avgPower === 'number'
+      ? Math.round(fitness.avgPower)
+      : powerSeries.length > 0
+        ? Math.round(average(powerSeries) as number)
+        : null
+  const maxPower =
+    typeof fitness?.maxPower === 'number'
+      ? Math.round(fitness.maxPower)
+      : powerSeries.length > 0
+        ? Math.round(getSeriesMinMax(powerSeries).maxValue)
+        : null
+  const normalizedPower = analysis?.normalizedPower ?? null
+  // Average power is over the recorded samples, so work is too: running time,
+  // not elapsed time, which would count an auto-paused stop as pedalling.
+  const workSeconds = analysis?.recordingSeconds ?? movingTimeSeconds
+  const totalWorkKj =
+    typeof fitness?.totalWorkKj === 'number'
+      ? Math.round(fitness.totalWorkKj)
+      : avgPower !== null && workSeconds > 0
+        ? Math.round((avgPower * workSeconds) / 1000)
+        : null
+  const heartRateStats =
+    analysis?.heartRateStats ??
+    (typeof fitness?.avgHeartRate === 'number'
+      ? {
+          avg: Math.round(fitness.avgHeartRate),
+          max: Math.round(fitness.maxHeartRate ?? fitness.avgHeartRate)
+        }
+      : null)
+  const heartRateZones = analysis?.heartRateZones ?? []
+  const effortPower = normalizedPower ?? avgPower
+
+  const calories = analysis?.calories ?? null
+  const tiles = useMemo<ActivityTile[]>(() => {
+    const candidates: Array<ActivityTile | null> = [
+      distanceMeters > 0
+        ? {
+            key: 'distance',
+            label: 'Distance',
+            icon: Route,
+            value: formatKm(distanceMeters),
+            unit: 'km'
+          }
+        : null,
+      movingTimeSeconds > 0
+        ? {
+            key: 'moving-time',
+            label: 'Moving time',
+            icon: Clock,
+            value: formatDuration(movingTimeSeconds),
+            unit: 'moving'
+          }
+        : null,
+      // A flat or indoor activity has no climbing to show; its slot goes to
+      // the next figure rather than a "0 m gain".
+      typeof fitness?.elevationGainMeters === 'number' &&
+      Math.round(fitness.elevationGainMeters) > 0
+        ? {
+            key: 'elevation',
+            label: 'Elevation',
+            icon: Mountain,
+            value: `${Math.max(0, Math.round(fitness.elevationGainMeters))}`,
+            unit: 'm gain'
+          }
+        : null,
+      normalizedPower !== null
+        ? {
+            key: 'power',
+            label: 'Weighted power',
+            icon: Gauge,
+            value: `${normalizedPower}`,
+            unit: 'watts'
+          }
+        : avgPower !== null
+          ? {
+              key: 'power',
+              label: 'Avg power',
+              icon: Gauge,
+              value: `${avgPower}`,
+              unit: 'watts'
+            }
+          : null,
+      paceOrSpeed
+        ? {
+            key: 'pace',
+            label: usesPace ? 'Avg pace' : 'Avg speed',
+            icon: Gauge,
+            value: usesPace
+              ? paceOrSpeed.value.replace(/\s*\/km$/, '')
+              : (paceOrSpeed.speedKmh as number).toFixed(1),
+            unit: usesPace ? '/km' : 'km/h',
+            accent: true
+          }
+        : null,
+      // Fill-ins for an activity that lacks one of the four above (an indoor
+      // ride has no distance, pace or climbing), so the strip still fills.
+      heartRateStats
+        ? {
+            key: 'heart-rate',
+            label: 'Avg heart rate',
+            icon: HeartPulse,
+            value: `${heartRateStats.avg}`,
+            unit: 'bpm'
+          }
+        : null,
+      totalWorkKj !== null && totalWorkKj > 0
+        ? {
+            key: 'work',
+            label: 'Work',
+            icon: Zap,
+            value: `${totalWorkKj}`,
+            unit: 'kJ'
+          }
+        : null,
+      typeof calories === 'number' && calories > 0
+        ? {
+            key: 'calories',
+            label: 'Calories',
+            icon: Flame,
+            value: `${Math.round(calories)}`,
+            unit: 'kcal'
+          }
+        : null
+    ]
+    const available = candidates.filter(
+      (tile): tile is ActivityTile => tile !== null
     )
+    // The strip is 2×2 or 4 across, so three tiles would leave a hole in
+    // either: show four, or two when there are not four to show.
+    return available.slice(
+      0,
+      available.length >= 4 ? 4 : available.length >= 2 ? 2 : 1
+    )
+  }, [
+    distanceMeters,
+    movingTimeSeconds,
+    fitness?.elevationGainMeters,
+    normalizedPower,
+    avgPower,
+    paceOrSpeed,
+    usesPace,
+    heartRateStats,
+    totalWorkKj,
+    calories
+  ])
 
-    if (routeMapIndex >= 0) return routeMapIndex
-    if (fitness?.hasMapData && status.attachments.length > 0) return 0
-    return -1
-  }, [fitness?.hasMapData, status.attachments])
+  const overviewGroups: OverviewGroup[] = [
+    {
+      key: 'ride',
+      title: getActivityLabel(activityType ?? undefined),
+      colour: 'speed',
+      rows: [
+        {
+          label: 'Elapsed time',
+          value: durationSeconds > 0 ? formatDuration(durationSeconds) : null
+        },
+        {
+          label: usesPace ? 'Avg pace' : 'Avg speed',
+          value: paceOrSpeed?.value ?? null
+        },
+        {
+          label: 'Max speed',
+          value:
+            analysis?.maxSpeedKmh && analysis.maxSpeedKmh > 0
+              ? `${analysis.maxSpeedKmh.toFixed(1)} km/h`
+              : null
+        },
+        {
+          label: 'Calories',
+          value:
+            typeof analysis?.calories === 'number' && analysis.calories > 0
+              ? `${Math.round(analysis.calories)} kcal`
+              : null
+        },
+        { label: 'Laps', value: formatLapPattern(laps) }
+      ]
+    },
+    {
+      key: 'power',
+      title: 'Power',
+      colour: 'power',
+      rows: [
+        {
+          label: 'Avg / max',
+          value:
+            avgPower !== null
+              ? maxPower !== null
+                ? `${avgPower} / ${maxPower} W`
+                : `${avgPower} W`
+              : null
+        },
+        {
+          label: 'Weighted',
+          value: normalizedPower !== null ? `${normalizedPower} W` : null
+        },
+        {
+          label: 'Variability',
+          value:
+            normalizedPower !== null && avgPower
+              ? (normalizedPower / avgPower).toFixed(2)
+              : null
+        },
+        {
+          label: 'Work',
+          value: totalWorkKj !== null ? `${totalWorkKj} kJ` : null
+        },
+        {
+          label: 'L / R balance',
+          value: analysis?.leftRightBalance
+            ? `${analysis.leftRightBalance.left} / ${analysis.leftRightBalance.right}`
+            : null
+        }
+      ]
+    },
+    {
+      key: 'heart-rate',
+      title: 'Heart rate',
+      colour: 'heart-rate',
+      rows: [
+        {
+          label: 'Avg / max',
+          value: heartRateStats
+            ? `${heartRateStats.avg} / ${heartRateStats.max} bpm`
+            : null
+        },
+        {
+          label: 'Power / HR',
+          value:
+            effortPower !== null && heartRateStats && heartRateStats.avg > 0
+              ? (effortPower / heartRateStats.avg).toFixed(2)
+              : null
+        },
+        {
+          label: 'Time in Z3–Z4',
+          value:
+            heartRateZones.length >= 4
+              ? formatDuration(
+                  Math.round(
+                    heartRateZones[2].seconds + heartRateZones[3].seconds
+                  )
+                )
+              : null
+        },
+        {
+          label: 'Decoupling',
+          value:
+            typeof analysis?.decouplingPercent === 'number'
+              ? `${analysis.decouplingPercent.toFixed(1)} %`
+              : null
+        }
+      ]
+    },
+    {
+      key: 'cadence',
+      title: 'Cadence and weather',
+      colour: 'cadence',
+      rows: [
+        {
+          label: 'Avg cadence',
+          value:
+            typeof analysis?.avgCadence === 'number'
+              ? `${Math.round(analysis.avgCadence)} ${analysis.cadenceUnit}`
+              : null
+        },
+        {
+          label: 'Temperature',
+          value: analysis?.temperature
+            ? `${Math.round(analysis.temperature.min)} – ${Math.round(analysis.temperature.max)} °C`
+            : null
+        },
+        {
+          label: 'Avg temperature',
+          value: analysis?.temperature
+            ? `${analysis.temperature.avg.toFixed(1)} °C`
+            : null
+        },
+        {
+          label: 'Time at 0 W',
+          value:
+            typeof analysis?.timeAtZeroPowerSeconds === 'number'
+              ? formatDuration(Math.round(analysis.timeAtZeroPowerSeconds))
+              : null
+        }
+      ]
+    }
+  ]
 
+  // ---- map ----------------------------------------------------------------
+
+  const mapAttachmentIndex = getRouteMapAttachmentIndex(
+    status.attachments,
+    Boolean(fitness?.hasMapData)
+  )
   const mapAttachment =
     mapAttachmentIndex >= 0 ? status.attachments[mapAttachmentIndex] : undefined
-
-  const shouldRenderMapPanel =
-    !!mapAttachment ||
-    fitness?.hasMapData ||
-    (shouldLoadInteractiveMap &&
-      (isRouteDataLoading ||
-        routeSegments.length > 0 ||
-        routeSamples.length >= 2))
-
-  const mediaWithoutMap = useMemo(
-    () => status.attachments.filter((_, index) => index !== mapAttachmentIndex),
-    [mapAttachmentIndex, status.attachments]
-  )
-
-  const hasSummaryMetrics =
-    typeof fitness?.avgPower === 'number' ||
-    typeof fitness?.avgHeartRate === 'number' ||
-    (Array.isArray(fitness?.elevationSeries) &&
-      fitness.elevationSeries.length > 0)
-
-  const hasMapToRender = Boolean(fitness?.hasMapData || mapAttachment)
-
-  const [isOverviewInteractiveRequested, setIsOverviewInteractiveRequested] =
-    useState(false)
-
-  const needsRouteData =
-    !hasSummaryMetrics ||
-    (activeSection === 'overview' &&
-      isOverviewInteractiveRequested &&
-      hasMapToRender) ||
-    activeSection === 'analysis' ||
-    activeSection === 'heart-rate-zones' ||
-    activeSection === '25w-distribution'
-
-  const [loadedRouteDataFileId, setLoadedRouteDataFileId] = useState<
-    string | null
-  >(null)
-
-  useEffect(() => {
-    setRouteSamples([])
-    setRouteSegments([])
-    setPowerSeries([])
-    setHeartRateSeries([])
-    setAltitudeSeries([])
-    setSpeedSeries([])
-    setRouteDataError(null)
-    setLoadedRouteDataFileId(null)
-    setIsOverviewInteractiveRequested(false)
-  }, [fitness?.id])
-
-  useEffect(() => {
-    if (!needsRouteData) return
-    if (!fitness?.id) {
-      setIsRouteDataLoading(false)
-      return
-    }
-    if (loadedRouteDataFileId === fitness.id) return
-
-    let cancelled = false
-
-    const loadRouteSamples = async () => {
-      try {
-        setIsRouteDataLoading(true)
-
-        const data = await getFitnessRouteData(fitness.id)
-
-        if (cancelled) return
-
-        setRouteSamples(data.samples ?? [])
-        setRouteSegments(data.segments ?? [])
-        setPowerSeries(data.powerSeries ?? [])
-        setHeartRateSeries(data.heartRateSeries ?? [])
-        setAltitudeSeries(data.altitudeSeries ?? [])
-        setSpeedSeries(data.speedSeries ?? [])
-        setLoadedRouteDataFileId(fitness.id)
-      } catch (_error) {
-        if (cancelled) return
-        setRouteSamples([])
-        setRouteSegments([])
-        setPowerSeries([])
-        setHeartRateSeries([])
-        setAltitudeSeries([])
-        setSpeedSeries([])
-        setRouteDataError(
-          'Could not load route and analysis data for this activity.'
-        )
-      } finally {
-        if (!cancelled) {
-          setIsRouteDataLoading(false)
+  const routeSamples = route.data?.samples
+  const routeSegments = route.data?.segments
+  const hasRouteGeometry =
+    (routeSegments?.length ?? 0) > 0 || (routeSamples?.length ?? 0) >= 2
+  const shouldRenderMap =
+    Boolean(mapAttachment) || Boolean(fitness?.hasMapData) || hasRouteGeometry
+  const map = shouldRenderMap ? (
+    <ScrubbedMapPanel
+      scrubStore={scrubStore}
+      mapAttachment={mapAttachment}
+      routeSamples={routeSamples}
+      routeSegments={routeSegments}
+      highlightedRange={highlightedRange}
+      aspectClassName={MAP_ASPECT_CLASS}
+      mapProvider={mapProvider}
+      routeDataError={route.error}
+      isRouteDataLoading={route.isLoading}
+      interactive
+      onOpenMap={() => {
+        if (mapAttachmentIndex >= 0) {
+          onShowAttachment(status.attachments, mapAttachmentIndex)
         }
-      }
+      }}
+    />
+  ) : null
+
+  // ---- analysis -----------------------------------------------------------
+
+  const hasPower = powerSeries.length > 0
+  const availableSeries = analysis?.series ?? []
+  const shownSeries: AnalysisSeries[] = availableSeries.filter(
+    (entry) =>
+      graphChoices[entry.key] ?? isGraphShownByDefault(entry.key, hasPower)
+  )
+  const toggleGraph = (key: AnalysisGraphKey) => {
+    setGraphChoices((current) => ({
+      ...current,
+      [key]: !(current[key] ?? isGraphShownByDefault(key, hasPower))
+    }))
+  }
+  const describePosition = (elapsedSeconds: number): string | null => {
+    if (!analysis) return null
+    const point = findPointAtElapsed(analysis.timeline, elapsedSeconds)
+    const parts: string[] = []
+    if (point && typeof point.distanceMeters === 'number') {
+      parts.push(`${(point.distanceMeters / 1000).toFixed(1)} km`)
     }
-
-    void loadRouteSamples()
-
-    return () => {
-      cancelled = true
-    }
-  }, [fitness?.id, needsRouteData, loadedRouteDataFileId])
-
-  // Both Overview (its elevation profile) and Analysis (its graph stack) scrub
-  // the same instant onto the same map, so leaving a section always drops the
-  // highlight: the pointer is no longer over any chart, and a crosshair left
-  // standing on a section you have just switched away from reads as a fault.
-  useEffect(() => {
-    setHighlightedElapsedSeconds(null)
-  }, [activeSection])
-
-  const distanceMeters = fitness?.totalDistanceMeters ?? 0
-  const durationSeconds = fitness?.totalDurationSeconds ?? 0
-  // The "Moving time" tile reads the stored moving time (stops excluded) — the
-  // same value the average-speed tile divides the distance by, so the two agree
-  // — and falls back to elapsed time only when none was recorded, exactly as
-  // `getFitnessPaceOrSpeed` does. Charts and axes keep `durationSeconds`:
-  // they plot the whole elapsed span.
-  const movingTimeSeconds =
-    typeof fitness?.movingTimeSeconds === 'number' &&
-    fitness.movingTimeSeconds > 0
-      ? fitness.movingTimeSeconds
-      : durationSeconds
-  const elevationGainMeters = fitness?.elevationGainMeters ?? 0
-  const distanceKm = distanceMeters > 0 ? distanceMeters / 1000 : 0
-  const distanceValue =
-    distanceKm >= 10 ? distanceKm.toFixed(1) : distanceKm.toFixed(2)
-
-  const avgPower = useMemo(() => {
-    if (typeof fitness?.avgPower === 'number') {
-      return fitness.avgPower
-    }
-    if (powerSeries.length === 0) return null
-    return Math.round(
-      powerSeries.reduce((a, b) => a + b, 0) / powerSeries.length
+    const lapIndex = laps.findIndex(
+      (lap) =>
+        elapsedSeconds >= lap.startSeconds && elapsedSeconds <= lap.endSeconds
     )
-  }, [fitness?.avgPower, powerSeries])
-
-  const maxPower = useMemo(() => {
-    if (typeof fitness?.maxPower === 'number') {
-      return fitness.maxPower
-    }
-    if (powerSeries.length === 0) return null
-    return Math.round(getSeriesMinMax(powerSeries).maxValue)
-  }, [fitness?.maxPower, powerSeries])
-
-  const totalWorkKj = useMemo(() => {
-    if (typeof fitness?.totalWorkKj === 'number') {
-      return fitness.totalWorkKj
-    }
-    // 0 W is a valid average (e.g. a fully-coasting segment), so only treat a
-    // genuinely-absent power series (null) as "no total work".
-    if (avgPower === null || durationSeconds <= 0) return null
-    return Math.round((avgPower * durationSeconds) / 1000)
-  }, [fitness?.totalWorkKj, avgPower, durationSeconds])
-
-  // Heart-rate monitors report 0 bpm during sensor dropouts; exclude those from
-  // the avg/max and the zone buckets, which are order-free tallies (unlike
-  // power, 0 bpm is never a real reading). Mirrors computeHeartRateZones.
-  const positiveHeartRateSeries = useMemo(
-    () => filterPositiveHeartRateSeries(heartRateSeries),
-    [heartRateSeries]
-  )
-
-  // The Analysis chart cannot use that filtered array: it maps sample INDEX to
-  // elapsed time positionally, so dropping samples slides the whole heart-rate
-  // axis left and the readout reports the wrong instant — a strap that takes
-  // ten minutes of a thirty-minute ride to pick up would put the halfway
-  // crosshair on the reading recorded at 20:00, with the other three graphs
-  // beside it correctly on 15:00 and nothing on screen to say so. Hold the last
-  // good reading across a gap instead (back-filling a leading one), which keeps
-  // the length and still keeps 0 bpm off the plot.
-  const heartRateChartSeries = useMemo(
-    () => fillHeartRateDropouts(heartRateSeries),
-    [heartRateSeries]
-  )
-
-  const heartRateStats = useMemo(() => {
-    if (positiveHeartRateSeries.length > 0) {
-      return computeHeartRateStats(positiveHeartRateSeries)
-    }
-    if (typeof fitness?.avgHeartRate === 'number') {
-      return {
-        avg: fitness.avgHeartRate,
-        max:
-          typeof fitness.maxHeartRate === 'number'
-            ? fitness.maxHeartRate
-            : fitness.avgHeartRate
-      }
-    }
-    return null
-  }, [positiveHeartRateSeries, fitness?.avgHeartRate, fitness?.maxHeartRate])
-
-  const heartRateZones = useMemo(
-    () => computeHeartRateZones(positiveHeartRateSeries, durationSeconds),
-    [positiveHeartRateSeries, durationSeconds]
-  )
-
-  const activitySeries = useMemo(() => {
-    return {
-      heartRate: plotAtStravaDensity(heartRateChartSeries),
-      power: plotAtStravaDensity(powerSeries),
-      speed: plotAtStravaDensity(speedSeries),
-      elevation: plotAtStravaDensity(altitudeSeries)
-    }
-  }, [heartRateChartSeries, powerSeries, speedSeries, altitudeSeries])
-
-  const elevationChartValues = useMemo(() => {
-    if (activitySeries.elevation.length > 0) {
-      return activitySeries.elevation
-    }
-    if (fitness?.elevationSeries && fitness.elevationSeries.length > 0) {
-      return fitness.elevationSeries
-    }
-    return []
-  }, [activitySeries.elevation, fitness?.elevationSeries])
-
-  const highlightedElapsedLabel =
-    typeof highlightedElapsedSeconds === 'number'
-      ? formatDuration(Math.round(highlightedElapsedSeconds))
-      : null
-
-  const histogramMinutes = useMemo(
-    () => computePowerHistogramMinutes(powerSeries),
-    [powerSeries]
-  )
-
-  const histogramLayout = useMemo(() => {
-    const histogramViewHeight = GRAPH_VIEW_HEIGHT
-    const histogramTopPadding = 24 // More padding for the average power label
-    const histogramHeight = histogramViewHeight - histogramTopPadding
-    const barCount = histogramMinutes.length
-    const barGap = 2
-    const totalGaps = (barCount - 1) * barGap
-    const barWidth = (760 - totalGaps) / Math.max(1, barCount)
-    const maxValue = Math.max(...histogramMinutes, 1)
-
-    // Calculate weighted average line position
-    const weightedAvgPowerValue = avgPower ?? 0
-    const weightedAvgX = (weightedAvgPowerValue / 25) * (barWidth + barGap)
-
-    // Y-axis grid lines (4 intervals)
-    const yAxisTicks = Array.from({ length: 5 }, (_, i) => {
-      const valueMinutes = (maxValue / 4) * i
-      const y =
-        histogramViewHeight - (valueMinutes / maxValue) * histogramHeight
-      return {
-        y,
-        label:
-          valueMinutes === 0
-            ? '0s'
-            : formatDuration(Math.round(valueMinutes * 60))
-      }
-    })
-
-    return {
-      histogramViewHeight,
-      histogramTopPadding,
-      histogramHeight,
-      barCount,
-      barGap,
-      barWidth,
-      maxValue,
-      weightedAvgPowerValue,
-      weightedAvgX,
-      yAxisTicks
-    }
-  }, [avgPower, histogramMinutes])
-
-  // Where the average line sits across the plot, 0-100, for the HTML label that
-  // follows it.
-  const averageLabelLeftPercent = Math.min(
-    100,
-    Math.max(0, (histogramLayout.weightedAvgX / 760) * 100)
-  )
-
-  const getBarColor = (index: number, total: number) => {
-    const ratio = index / Math.max(1, total - 1)
-    // Interpolate between light pink (#f4e6ec) and dark purple (#804374)
-    const r1 = 244,
-      g1 = 230,
-      b1 = 236
-    const r2 = 128,
-      g2 = 67,
-      b2 = 116
-    const r = Math.round(r1 + (r2 - r1) * ratio)
-    const g = Math.round(g1 + (g2 - g1) * ratio)
-    const b = Math.round(b1 + (b2 - b1) * ratio)
-    return `rgb(${r}, ${g}, ${b})`
+    if (lapIndex >= 0) parts.push(`lap ${lapIndex + 1}`)
+    return parts.length > 0 ? parts.join(' · ') : null
   }
+  const fileLabel = fitness?.fileType ? fitness.fileType.toUpperCase() : null
+  const graphCount = availableSeries.length
+  const analysisMeta = `${graphCount} ${graphCount === 1 ? 'graph' : 'graphs'} from the ${fileLabel ? `${fileLabel} ` : ''}file`
+  const graphHint =
+    graphDisplayMode === 'combined'
+      ? `Pick the graphs to overlay in one chart.${map ? ' Hover it to follow that time point on the map.' : ''}`
+      : `Pick the graphs to show.${map ? ' Hover any graph to follow that time point on the map.' : ''}`
 
-  const hasHeartRate =
-    positiveHeartRateSeries.length > 0 ||
-    typeof fitness?.avgHeartRate === 'number'
-  const hasPower =
-    powerSeries.length > 0 || typeof fitness?.avgPower === 'number'
-  const hasPhotos = mediaWithoutMap.length > 0
-  const hasComments = replies.length > 0 || Boolean(currentActor)
-  // The comment list spans the viewport below `md` inside the signed-in page's
-  // full-bleed card. A logged-out page is an inset card there, and a
-  // viewport-wide list would run out past that card's edges, so it keeps the
-  // card's own width.
-  const commentsSurfaceClass = currentActor ? MOBILE_FEED_SURFACE_CLASS : ''
-
-  const tabs = useMemo<SectionTab[]>(() => {
-    const items: SectionTab[] = [
-      { id: 'overview', label: 'Overview', icon: Activity },
-      { id: 'analysis', label: 'Analysis', icon: BarChart3 }
-    ]
-    if (hasHeartRate) {
-      items.push({
-        id: 'heart-rate-zones',
-        label: 'Heart rate zones',
-        icon: HeartPulse
-      })
-    }
-    if (hasPower) {
-      items.push({
-        id: '25w-distribution',
-        label: '25 W Distribution',
-        icon: Gauge
-      })
-    }
-    if (hasPhotos) {
-      items.push({ id: 'photos', label: 'Photos', icon: ImageIcon })
-    }
-    if (hasComments) {
-      items.push({ id: 'comments', label: 'Comments', icon: MessageCircle })
-    }
-    return items
-  }, [hasHeartRate, hasPower, hasPhotos, hasComments])
-
-  // Fall back to Overview if the active section's data went away (e.g. the
-  // selected file has no heart-rate series, so the zones tab is dropped).
-  useEffect(() => {
-    if (!tabs.some((tab) => tab.id === activeSection)) {
-      setActiveSection('overview')
-    }
-  }, [tabs, activeSection])
-
-  // Owner only, matching the endpoint: the raw upload carries the whole track,
-  // including the ends a privacy location trims off the map and the route data,
-  // so `GET /api/v1/fitness-files/:id` 404s for everyone else and a link offered
-  // to them would only ever 404. It follows the selected recording, so the
-  // download beside the picker is always the file the page is describing.
-  const sourceHref =
-    isOwner && fitness?.id
-      ? `/api/v1/fitness-files/${encodeURIComponent(fitness.id)}`
-      : undefined
-
-  const secondaryStats: Array<{
-    icon: LucideIcon
-    label: string
-    value: string
-    sub?: string
-  }> = []
-  if (heartRateStats) {
-    secondaryStats.push({
-      icon: HeartPulse,
-      label: 'Avg HR',
-      value: `${heartRateStats.avg}`,
-      sub: `max ${heartRateStats.max} bpm`
-    })
-  }
-  if (totalWorkKj !== null) {
-    secondaryStats.push({
-      icon: Flame,
-      label: 'Total work',
-      value: `${totalWorkKj}`,
-      sub: 'kJ'
-    })
-  }
-  if (maxPower !== null) {
-    secondaryStats.push({
-      icon: Gauge,
-      label: 'Max power',
-      value: `${maxPower}`,
-      sub: 'watts'
-    })
-  }
-  // Only surface Elevation here when the header's 4th primary tile is Avg power
-  // (rides). For runs the header already shows "Elev gain", so repeating it as a
-  // secondary tile would duplicate the same number.
-  if (avgPower !== null) {
-    secondaryStats.push({
-      icon: Mountain,
-      label: 'Elevation',
-      value: `${Math.max(0, Math.round(elevationGainMeters))} m`,
-      sub: 'total ascent'
-    })
-  }
+  const overviewMeta =
+    distanceMeters > 0 && durationSeconds > 0
+      ? `${formatKm(distanceMeters)} km · ${formatDuration(durationSeconds)} elapsed`
+      : durationSeconds > 0
+        ? `${formatDuration(durationSeconds)} elapsed`
+        : undefined
+  const lapsMeta = (() => {
+    const pattern = formatLapPattern(laps)
+    if (!pattern || !pattern.includes('×')) return `${laps.length}`
+    return `${laps.length} · every ${pattern.split('× ')[1]}`
+  })()
 
   return (
-    <div className="space-y-4 p-4 sm:p-5">
-      {/* Header card */}
-      {/* No `overflow-hidden`: this card ends with the shared `<Actions>` row,
-          and the row's error tooltips and its edit-history panel are the
-          overlays that do NOT portal, so a clip here is a clip on both.
-
-          The tooltips hang `top-full mt-1` under whatever they are anchored to
-          — each button's own `relative` span for `ActionButtonError`, the ⋯
-          wrapper for `PostMenu`'s error, and the row itself for the compact
-          `ActionRowErrors` — and the row is the last child of the footer's
-          `py-2.5`, so all three land at the same height. Measured on the
-          running page, an anchored tooltip runs y473→515 against a card ending
-          at 484: 11 of 42px survived, which reads as nothing happening at all.
-          Not a *delete* failure, though — that one goes through the portalled
-          confirm dialog. It is the like, bookmark and reaction buttons (reply
-          and repost render no error at all), plus `PostMenu`'s non-dialog
-          actions (copy link, visibility, quote policy, unmute, unblock), and
-          none of those tooltips has a responsive variant, so this half was
-          clipped at every breakpoint.
-
-          The edit-history panel opens *upward* from the same row
-          (`bottom-full`, ~360px — a 2.5rem header over a `max-h-80` list) over
-          a card body only ~230px tall, so the card's top border cut off the
-          panel's own header, its close button and its newest revisions (the
-          list is newest-first). That half is desktop-only: the panel is
-          `max-md:fixed`.
-
-          Only the ⋯ menu's *popover* and the reaction picker are unaffected
-          either way — those two portal to the document body. This is the same
-          defect class #1369 fixed on the sibling conversation card, and the
-          fitness page's own outer card in `page.tsx` had to drop its clip too:
-          the like button's tooltip — the leftmost one that renders — starts
-          left of this card as well as below it.
-
-          Nothing has to round itself in compensation: this card paints the only
-          background in the subtree that reaches its corners — neither the `p-5`
-          body nor the footer strip paints one of its own — so give either of
-          them a background and it will need `rounded-t-lg`/`rounded-b-lg` to
-          stop the square fill bleeding past the border. Nothing inside is
-          `position: sticky` either, so no descendant loses a scrollport here. */}
-      <div data-slot="fitness-card" className="rounded-lg border bg-background">
-        <div className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="shrink-0">
-              <ActorAvatar
-                actor={status.actor}
-                actorId={status.actorId}
-                statusUrl={status.url}
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{actorName}</div>
-              {actorHandle ? (
-                <div className="truncate text-xs text-muted-foreground">
-                  {actorHandle}
-                </div>
-              ) : null}
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
-              <Activity className="size-3.5 text-primary" /> {activityLabel}
-            </span>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Calendar className="size-3.5" />{' '}
-              <ActivityStartTime timestamp={activityStartTime} />
-            </span>
-            <span aria-hidden="true">·</span>
-            <span
-              className="inline-flex items-center gap-1.5"
-              title={visibilityMeta.label}
-            >
-              <VisibilityIcon className="size-3.5" /> {visibilityMeta.label}
-            </span>
-            {/* Gear rides on the same line as the rest of the recording
-                metadata, the way the design system's header does: the device is
-                what captured the activity, the gear is what it was done on.
-                Its kind comes from the assigned gear when the owner's shed has
-                loaded, and otherwise from what the activity type implies — a
-                viewer never loads the shed, so that fallback is all they get. */}
-            <ActivityGearMeta
-              isOwner={isOwner}
-              gearId={selectedGearId}
-              gearName={fitness?.gearName ?? null}
-              distanceMeters={assignedGear?.distanceMeters ?? null}
-              kind={
-                assignedGear?.kind ??
-                getGearKindForActivityType(fitness?.activityType)
-              }
-            />
-          </div>
-
-          {gearErrorMessage ? (
-            <p
-              id="activity-gear-error"
-              className="mt-1 text-xs text-destructive"
-              role="alert"
-            >
-              {gearErrorMessage}
-            </p>
-          ) : null}
-
-          <RecordingLine
-            files={fitnessFiles}
-            selected={fitness}
-            isOwner={isOwner}
-            downloadHref={sourceHref}
-            triggerRef={recordingTriggerRef}
-            onSelect={setSelectedFitnessFileId}
-            onMakePrimary={(fileId) => void handleMakePrimary(fileId)}
-            makingPrimaryId={makingPrimaryId}
-          />
-
-          {/* The failure is an Alert with a Retry for the same file. Pending and
-              done share one live region that is always mounted (empty when
-              idle): a region added to the page together with its text is not
-              reliably announced, one that already exists and then changes is. */}
-          {primaryError ? (
-            <Alert
-              className="mt-2"
-              title={primaryError.message}
-              onRetry={retryMakePrimary}
-            />
-          ) : null}
-          <p
-            role="status"
-            className={cn(
-              'text-xs text-muted-foreground',
-              (makingPrimaryId || primaryNotice) && 'mt-1'
-            )}
-          >
-            {makingPrimaryId
-              ? 'Making this the primary recording…'
-              : (primaryNotice ?? '')}
-          </p>
-
-          {fitnessSourceUrl ? (
-            <div className="mt-1 text-sm">
-              <a
-                href={fitnessSourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              >
-                <ExternalLink className="size-3.5 shrink-0" />
-                {getFitnessSourceLabel(fitnessSourceUrl)}
-              </a>
-            </div>
-          ) : null}
-
-          {/* Design system order: the caption sits after the date/device
-              metadata, right before the stat grid — not immediately under the
-              header row. */}
-          <div className="mt-3 text-sm leading-relaxed break-words markdown-content">
-            {caption}
-          </div>
-
-          <StatStrip variant="detail" className="mt-4">
-            <StatTile
-              icon={Route}
-              label="Distance"
-              value={distanceValue}
-              sub="km"
-              big
-            />
-            <StatTile
-              icon={Clock}
-              label="Moving time"
-              value={formatDuration(movingTimeSeconds)}
-              sub="moving"
-              big
-            />
-            <StatTile
-              icon={Gauge}
-              label={paceOrSpeed?.label ?? 'Avg speed'}
-              value={paceOrSpeed?.value ?? '0.0 km/h'}
-              big
-              accent
-            />
-            {avgPower !== null ? (
-              <StatTile
-                icon={Gauge}
-                label="Avg power"
-                value={`${avgPower}`}
-                sub="watts"
-                big
-              />
-            ) : (
-              <StatTile
-                icon={Mountain}
-                label="Elev gain"
-                value={`${Math.max(0, Math.round(elevationGainMeters))}`}
-                sub="m"
-                big
-              />
-            )}
-          </StatStrip>
-
-          {/* Reactions belong to the post, so the chips sit inside the card body
-              directly under the stats, the way `Post` puts them directly under
-              its content. This page lays out its own card rather than going
-              through `Posts`, so both halves — the chips here and the picker
-              trigger in the action row below — have to be placed explicitly;
-              without them a fitness post is the one surface where an existing
-              reaction is invisible and no new one can be added. */}
-          {reactionState.reactions.length > 0 && (
-            // The gate is on the wrapper, not just on `ReactionRow`: the row
-            // renders nothing of its own on an unreacted post, so an ungated
-            // wrapper would leave dead space under the stat grid.
-            <div data-testid="reaction-chips">
-              <ReactionRow state={reactionState} />
-            </div>
-          )}
-        </div>
-
-        {/* Deliberately keyed on the file EXISTING, not on the owner-gated
-            `sourceHref`: this strip carries the action row, and on a fitness
-            post `fitness?.id` is always set. Gating it on ownership instead
-            would take the actions away from every logged-out viewer. */}
-        {(fitness?.id || currentActor) && (
-          <div className="border-t px-4 py-2.5">
-            {/* The shared action row, not a local copy of it: a post offers the
-                same actions with the same spacing on every surface — packed at
-                the left edge with ⋯ pushed to the right — and a hand-rolled row
-                here is exactly how this page previously drifted into a
-                right-packed cluster with gaps of its own. `fullBleed` off
-                because the card footer's own padding already puts the row at
-                the status's left edge — there is no avatar column to pull back
-                over. */}
-            <Actions
-              host={host}
-              currentActor={currentActor ?? undefined}
-              currentTime={currentTime}
-              status={status}
-              showActions
-              fullBleed={false}
-              reactionState={reactionState}
-              // Same authoring gate the status detail page applies: a signed-in
-              // owner edits their own post from its own page rather than having
-              // to find it in a feed. Quote comes from the same composer.
-              editable={isOwner}
-              extraMenuItems={gearMenuItems}
-              onReply={() => setActiveSection('comments')}
-              onEdit={
-                currentActor
-                  ? (target) => composer.openEdit(target, status.id)
-                  : undefined
-              }
-              onQuote={
-                currentActor
-                  ? (target) => composer.openQuote(target, status.id)
-                  : undefined
-              }
-              onShowAttachment={onShowAttachment}
-            />
-          </div>
-        )}
-
-        {/* The shared inline composer, inside the card and beneath the post it
-            targets — the same component and the same hook `Posts` and
-            `StatusBox` drive, so an edit from here behaves exactly as it does
-            in the timeline. It closes itself after a successful write (see
-            `InlineStatusComposer`), so the callbacks here only re-fetch. The
-            `key` remounts it when the mode changes, rather than carrying a
-            quote's draft into an edit. */}
-        {composer.active?.anchorId === status.id && currentActor ? (
-          <div className="px-4 pb-4">
-            <InlineStatusComposer
-              key={`${composer.active.mode}-${composer.active.anchorId}`}
-              host={host}
-              profile={currentActor}
-              mode={composer.active.mode}
-              status={composer.active.status}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              onCancel={composer.close}
-              onCreated={() => router.refresh()}
-              onUpdated={() => router.refresh()}
-            />
-          </div>
-        ) : null}
-      </div>
-
-      {/* Section sub-navigation */}
-      <SectionNavSelect
-        label="Activity sections"
-        tabs={tabs}
-        active={activeSection}
-        onChange={setActiveSection}
+    <div className="@container space-y-6 p-4 sm:p-5">
+      <ActivityPostFrame
+        host={host}
+        currentTime={currentTime}
+        currentActor={currentActor}
+        status={status}
+        replies={replies}
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        isOwner={isOwner}
+        files={files}
+        gear={gear}
+        primary={primary}
+        mapAttachmentIndex={mapAttachmentIndex}
+        tiles={tiles}
+        onShowAttachment={onShowAttachment}
       />
 
-      {/* This page replaces `Post` for a completed fitness activity, so the
-          retry `Post` offers for a missing route map has to exist here too —
-          otherwise the owner who opens the activity to ask where their map went
-          is the one person who cannot act on it.
-          Read from `status.fitness` (the status's primary file), NOT the
-          file the switcher has selected: the retry endpoint only acts on the
-          primary, so a button driven by a non-primary file's reason would 422
-          on every click. Same `completed` gate `Post` applies. */}
+      {/* This page replaces `Post` for a completed activity, so the retry
+          `Post` offers for a missing route map has to exist here too. Read from
+          `status.fitness` (the primary file), not the recording on screen: the
+          retry endpoint only acts on the primary. */}
       {status.fitness?.mapFailure &&
       status.fitness?.processingStatus === 'completed' &&
       isOwner ? (
@@ -1783,463 +652,82 @@ export const FitnessStatusDetail: FC<Props> = ({
         />
       ) : null}
 
-      {/* When the route-data load fails and there is no map panel to host the
-          banner, surface the error here so the failure is never invisible. */}
-      {routeDataError && !shouldRenderMapPanel ? (
-        <Alert tone="warning" title={routeDataError} />
+      {/* With no map to carry the banner, the failure is shown here so it is
+          never invisible. */}
+      {route.error && !map ? (
+        <Alert tone="warning" title={route.error} />
       ) : null}
 
-      <div
-        className="min-w-0"
-        role="region"
-        aria-label={
-          tabs.find((tab) => tab.id === activeSection)?.label ?? 'Activity'
-        }
-      >
-        {activeSection === 'overview' && (
-          <div className="space-y-4">
-            {shouldRenderMapPanel && (
-              <ActivityMapPanel
-                mapAttachment={mapAttachment}
-                routeSamples={routeSamples}
-                routeSegments={routeSegments}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                mapProvider={mapProvider}
-                routeDataError={routeDataError}
-                isRouteDataLoading={isRouteDataLoading}
-                interactive={isOverviewInteractiveRequested}
-                onRequestInteractive={() =>
-                  setIsOverviewInteractiveRequested(true)
-                }
-                onOpenMap={() => {
-                  if (mapAttachmentIndex >= 0) {
-                    onShowAttachment(status.attachments, mapAttachmentIndex)
-                  }
-                }}
-              />
-            )}
+      <ActivityOverviewSection
+        meta={overviewMeta}
+        map={map}
+        groups={overviewGroups}
+      />
 
-            {secondaryStats.length > 0 && (
-              // Same strip, same rule as the header's — the two measure
-              // themselves separately (this one is not inside the card's `p-5`,
-              // so it is 42px wider) and can legitimately disagree by one step
-              // in a narrow band of window widths. That is the rule working on
-              // real available width, which is the whole point of it.
-              <StatStrip variant="detail">
-                {secondaryStats.map((stat) => (
-                  <StatTile
-                    key={stat.label}
-                    icon={stat.icon}
-                    label={stat.label}
-                    value={stat.value}
-                    sub={stat.sub}
-                  />
-                ))}
-              </StatStrip>
-            )}
-
-            {elevationChartValues.length > 0 && (
-              <Card>
-                <SectionTitle
-                  icon={Mountain}
-                  right={
-                    <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                      {/* The scrubbed instant REPLACES the gain rather than
-                          prefixing it, the same way the Analysis card swaps its
-                          hover hint for "Selected time". Prefixing made this
-                          slot grow past the heading row's width at the 320px
-                          reflow target, and `formatFitnessDuration` widens from
-                          M:SS to H:MM:SS at exactly 3600s — so dragging across
-                          the one-hour mark wrapped the row to two lines and
-                          pushed the chart 8px down under the user's own finger,
-                          then snapped back when they lifted it. The gain is the
-                          resting state and returns the moment the scrub ends. */}
-                      {highlightedElapsedLabel ??
-                        `${Math.max(0, Math.round(elevationGainMeters))} m gain`}
-                    </span>
-                  }
-                >
-                  Elevation
-                </SectionTitle>
-                <ElevationProfileChart
-                  values={elevationChartValues}
-                  durationSeconds={durationSeconds}
-                  highlightedElapsedSeconds={highlightedElapsedSeconds}
-                  onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-                />
-              </Card>
-            )}
-          </div>
-        )}
-
-        {activeSection === 'analysis' && (
-          <div className="space-y-4">
-            {/* Keep the heading outline contiguous (h1 -> h2 -> h3); the
-                section is already visually identified by the sub-nav. */}
-            <h2 className="sr-only">Analysis</h2>
-            {shouldRenderMapPanel && (
-              <ActivityMapPanel
-                mapAttachment={mapAttachment}
-                routeSamples={routeSamples}
-                routeSegments={routeSegments}
-                highlightedElapsedSeconds={highlightedElapsedSeconds}
-                mapProvider={mapProvider}
-                routeDataError={routeDataError}
-                isRouteDataLoading={isRouteDataLoading}
-                interactive
-                announceLoading={false}
-                onOpenMap={() => {
-                  if (mapAttachmentIndex >= 0) {
-                    onShowAttachment(status.attachments, mapAttachmentIndex)
-                  }
-                }}
-              />
-            )}
-
-            <FitnessAnalysisCharts
-              activitySeries={activitySeries}
-              durationSeconds={durationSeconds}
-              highlightedElapsedSeconds={highlightedElapsedSeconds}
-              onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
-              graphDisplayMode={graphDisplayMode}
-              onGraphDisplayModeChange={setGraphDisplayMode}
-              selectedGraphKeys={selectedGraphKeys}
-              onToggleGraphKey={toggleGraphKey}
-              isRouteDataLoading={isRouteDataLoading}
-              routeDataError={routeDataError}
-            />
-          </div>
-        )}
-
-        {activeSection === 'heart-rate-zones' && (
-          <Card>
-            <SectionTitle
-              icon={HeartPulse}
-              right={
-                heartRateStats ? (
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    avg {heartRateStats.avg} · max {heartRateStats.max} bpm
-                  </span>
-                ) : null
-              }
-            >
-              Heart rate zones
-            </SectionTitle>
-            <HeartRateZonesPanel zones={heartRateZones} />
-          </Card>
-        )}
-
-        {activeSection === '25w-distribution' && (
-          <Card>
-            <SectionTitle
-              icon={BarChart3}
-              right={
-                avgPower !== null && maxPower !== null ? (
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    avg {avgPower} · max {maxPower} W
-                  </span>
-                ) : null
-              }
-            >
-              Power distribution
-            </SectionTitle>
-            <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
-              {/* The `pt-1` matches the plot column's, so this box and the svg
-                  start at the same y. Each label is centred on its own gridline
-                  at `tick.y / viewBox height` of that box — the gridlines are
-                  not evenly spread over it (the top one is below the average
-                  label's headroom, the bottom one is the baseline), which
-                  `justify-between` could not follow. All labels share one grid
-                  cell, so the column is still as wide as the widest of them,
-                  and the clamp keeps the baseline label inside the box
-                  instead of hanging below it. */}
-              <div className="pt-1">
-                <div
-                  className={cn(
-                    'grid text-xs leading-4 tabular-nums text-muted-foreground',
-                    GRAPH_HEIGHT_CLASSNAME
-                  )}
-                >
-                  {histogramLayout.yAxisTicks
-                    .slice()
-                    .reverse()
-                    .map((tick, i) => (
-                      <span
-                        key={`y-tick-${i}`}
-                        data-testid="power-y-tick"
-                        className="relative col-start-1 row-start-1 -translate-y-1/2 self-start justify-self-end whitespace-nowrap pr-2 text-right"
-                        style={{
-                          top: `clamp(8px, ${
-                            (tick.y / histogramLayout.histogramViewHeight) * 100
-                          }%, calc(100% - 8px))`
-                        }}
-                      >
-                        {tick.label}
-                      </span>
-                    ))}
-                </div>
-              </div>
-              <div className="relative min-w-0 pt-1">
-                <svg
-                  viewBox={`0 0 760 ${histogramLayout.histogramViewHeight}`}
-                  preserveAspectRatio="none"
-                  className={cn('w-full', GRAPH_HEIGHT_CLASSNAME)}
-                >
-                  {/* Grid lines */}
-                  {histogramLayout.yAxisTicks.map((tick, i) => (
-                    <line
-                      key={`grid-${i}`}
-                      x1="0"
-                      y1={tick.y}
-                      x2="760"
-                      y2={tick.y}
-                      className="stroke-muted stroke-[1]"
-                    />
-                  ))}
-
-                  {/* Bars */}
-                  {histogramMinutes.map((value, index) => {
-                    const x =
-                      index *
-                      (histogramLayout.barWidth + histogramLayout.barGap)
-                    const barHeight =
-                      (value / histogramLayout.maxValue) *
-                      histogramLayout.histogramHeight
-                    const y = histogramLayout.histogramViewHeight - barHeight
-                    const isHovered = hoveredBucketIndex === index
-
-                    return (
-                      <rect
-                        key={`bar-${index}`}
-                        x={x}
-                        y={y}
-                        width={histogramLayout.barWidth}
-                        height={barHeight}
-                        fill={getBarColor(index, histogramLayout.barCount)}
-                        className={cn(
-                          'cursor-crosshair transition-opacity',
-                          hoveredBucketIndex !== null && !isHovered
-                            ? 'opacity-40'
-                            : 'opacity-100'
-                        )}
-                        onMouseMove={() => setHoveredBucketIndex(index)}
-                        onMouseLeave={() => setHoveredBucketIndex(null)}
-                      />
-                    )
-                  })}
-
-                  {/* Hover Tooltip */}
-                  {hoveredBucketIndex !== null &&
-                    (() => {
-                      const value = histogramMinutes[hoveredBucketIndex]
-                      const totalMinutes = histogramMinutes.reduce(
-                        (a, b) => a + b,
-                        0
-                      )
-                      const percentage =
-                        totalMinutes > 0 ? (value / totalMinutes) * 100 : 0
-                      const powerRange = `${hoveredBucketIndex * 25}-${
-                        (hoveredBucketIndex + 1) * 25
-                      }W`
-
-                      // Tooltip positioning
-                      const tooltipWidth = 140
-                      const tooltipHeight = 60
-                      let tooltipX =
-                        hoveredBucketIndex *
-                          (histogramLayout.barWidth + histogramLayout.barGap) +
-                        histogramLayout.barWidth / 2 -
-                        tooltipWidth / 2
-                      // Keep within bounds
-                      tooltipX = Math.max(
-                        0,
-                        Math.min(760 - tooltipWidth, tooltipX)
-                      )
-                      const tooltipY = Math.max(
-                        0,
-                        histogramLayout.histogramViewHeight -
-                          (value / histogramLayout.maxValue) *
-                            histogramLayout.histogramHeight -
-                          tooltipHeight -
-                          10
-                      )
-
-                      return (
-                        <g
-                          transform={`translate(${tooltipX}, ${tooltipY})`}
-                          className="pointer-events-none"
-                        >
-                          <rect
-                            width={tooltipWidth}
-                            height={tooltipHeight}
-                            rx="4"
-                            className="fill-foreground/90"
-                          />
-                          <text
-                            x={tooltipWidth / 2}
-                            y="20"
-                            textAnchor="middle"
-                            className="fill-background text-xs font-bold"
-                          >
-                            {powerRange}
-                          </text>
-                          <text
-                            x={tooltipWidth / 2}
-                            y="38"
-                            textAnchor="middle"
-                            className="fill-background/80 text-xs"
-                          >
-                            {formatDuration(Math.round(value * 60))} (
-                            {percentage.toFixed(1)}%)
-                          </text>
-                        </g>
-                      )
-                    })()}
-
-                  {/* Weighted Average Line */}
-                  <line
-                    x1={histogramLayout.weightedAvgX}
-                    y1={histogramLayout.histogramTopPadding}
-                    x2={histogramLayout.weightedAvgX}
-                    y2={histogramLayout.histogramViewHeight}
-                    stroke="#a65e92"
-                    strokeWidth="1.5"
-                    strokeDasharray="4,4"
-                  />
-                </svg>
-
-                {/* The label is HTML laid over the plot, not an SVG <text>: the
-                    svg is stretched to the card with
-                    `preserveAspectRatio="none"`, which scaled the label with it
-                    down to ~8px at a 590pt card. As a span it is a fixed
-                    12px/Medium and starts just right of the average line, in
-                    the band above the bars. Past the middle it flips to the
-                    line's left, whichever side has more room. */}
-                <span
-                  data-testid="power-average-label"
-                  className="pointer-events-none absolute top-1 whitespace-nowrap text-xs font-medium"
-                  style={{
-                    color: '#a65e92',
-                    ...(averageLabelLeftPercent > 50
-                      ? {
-                          right: `calc(${100 - averageLabelLeftPercent}% + 6px)`
-                        }
-                      : { left: `calc(${averageLabelLeftPercent}% + 6px)` })
-                  }}
-                >
-                  Average Power {histogramLayout.weightedAvgPowerValue} W
-                </span>
-
-                {/* X-Axis labels */}
-                <div className="relative mt-2 flex h-6 border-t border-border pt-2 text-xs tabular-nums text-muted-foreground">
-                  {/* A label at the start of every other bucket (every 50 W),
-                      except the ones the end label below would sit on. */}
-                  {getPowerAxisTickIndices(histogramLayout.barCount).map(
-                    (index) => {
-                      const leftPercent =
-                        (index / histogramLayout.barCount) * 100
-                      return (
-                        <span
-                          key={`label-${index}`}
-                          data-testid="power-x-tick"
-                          className="absolute whitespace-nowrap"
-                          style={{ left: `${leftPercent}%` }}
-                        >
-                          {index * 25} W
-                        </span>
-                      )
-                    }
-                  )}
-                  {/* Final label at the end */}
-                  <span
-                    data-testid="power-x-end-label"
-                    className="absolute right-0 whitespace-nowrap text-right"
-                  >
-                    {histogramLayout.barCount * 25} W
-                  </span>
-                </div>
-              </div>
+      {route.isLoading ? (
+        <Section id="analysis" title="Analysis" icon={Activity}>
+          <Frame className="space-y-3 p-4">
+            <div role="status">
+              <span className="sr-only">Loading analysis</span>
+              <SkeletonBar className="h-[190px] @min-[700px]:h-[250px]" />
             </div>
-          </Card>
-        )}
-
-        {activeSection === 'photos' && (
-          <Card padded={false} className="p-4">
-            <SectionTitle
-              icon={ImageIcon}
-              right={
-                <span className="text-xs text-muted-foreground">
-                  {mediaWithoutMap.length}{' '}
-                  {mediaWithoutMap.length === 1 ? 'photo' : 'photos'}
-                </span>
-              }
-            >
-              Photos
-            </SectionTitle>
-            <ActivityGallery
-              attachments={mediaWithoutMap}
-              onOpenAttachment={(index) => {
-                const target = status.attachments.findIndex(
-                  (attachment) => attachment.id === mediaWithoutMap[index]?.id
-                )
-                if (target >= 0) {
-                  onShowAttachment(status.attachments, target)
-                }
-              }}
+          </Frame>
+        </Section>
+      ) : analysis && availableSeries.length > 0 ? (
+        <Section
+          id="analysis"
+          title="Analysis"
+          icon={Activity}
+          meta={analysisMeta}
+        >
+          <GraphDisplayCard
+            mode={graphDisplayMode}
+            onModeChange={setGraphDisplayMode}
+            options={availableSeries.map((entry) => ({
+              key: entry.key,
+              label: entry.label
+            }))}
+            selectedKeys={shownSeries.map((entry) => entry.key)}
+            onToggle={toggleGraph}
+            hint={graphHint}
+          />
+          <div ref={chartRef}>
+            <ScrubbedAnalysisChart
+              scrubStore={scrubStore}
+              series={shownSeries}
+              mode={graphDisplayMode}
+              durationSeconds={analysis.durationSeconds}
+              laps={laps}
+              climbs={climbs}
+              selectedKey={selectedSplitKey}
+              onToggleSplit={toggleSplit}
+              describePosition={describePosition}
             />
-          </Card>
-        )}
-
-        {activeSection === 'comments' && (
-          <div className="space-y-4">
-            <StatStrip variant="counts" columns={3}>
-              <StatCell
-                label="Boosts"
-                icon={Repeat2}
-                value={status.totalShares}
-              />
-              <StatCell label="Likes" icon={Heart} value={status.totalLikes} />
-              <StatCell
-                label="Comments"
-                icon={MessageCircle}
-                value={replies.length}
-              />
-            </StatStrip>
-
-            {currentActor ? (
-              <StatusReplyBox
-                key={composerKey}
-                profile={currentActor}
-                replyStatus={status}
-                isMediaUploadEnabled={isMediaUploadEnabled}
-                onCancel={() => setComposerKey((value) => value + 1)}
-                onPostCreated={() => {
-                  setComposerKey((value) => value + 1)
-                  router.refresh()
-                }}
-              />
-            ) : null}
-
-            {threadTree.totalDescendants > 0 ? (
-              <div
-                className={cn(
-                  POST_LIST_FRAME_CLASS,
-                  'divide-y',
-                  commentsSurfaceClass
-                )}
-              >
-                {threadTree.descendants.map((node) => renderCommentNode(node))}
-              </div>
-            ) : (
-              <EmptyState icon={MessageCircle} title="No comments yet">
-                {currentActor
-                  ? 'Be the first to reply to this activity.'
-                  : 'Replies to this activity show up here.'}
-              </EmptyState>
-            )}
           </div>
-        )}
-      </div>
+        </Section>
+      ) : null}
+
+      {analysis ? (
+        <>
+          <ActivityBestEfforts efforts={analysis.bestEfforts} />
+          <ActivityDistributionRow
+            heartRateZones={heartRateZones}
+            heartRateStats={heartRateStats}
+            powerDistribution={analysis.powerDistribution}
+            avgPower={avgPower}
+            maxPower={maxPower}
+            powerCurve={analysis.powerCurve}
+          />
+          <ActivitySplitsTables
+            laps={laps}
+            climbs={climbs}
+            lapsMeta={lapsMeta}
+            usesPace={usesPace}
+            selectedKey={selectedSplitKey}
+            onSelect={selectSplitFromTable}
+          />
+        </>
+      ) : null}
     </div>
   )
 }

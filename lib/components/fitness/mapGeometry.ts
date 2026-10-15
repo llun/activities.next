@@ -1,7 +1,8 @@
 import type {
   FitnessRouteHeatmapBounds,
   FitnessRouteHeatmapSegment,
-  FitnessRouteSample
+  FitnessRouteSample,
+  FitnessRouteSegment
 } from '@/lib/client'
 import type { LatLng } from '@/lib/fitness/regions'
 
@@ -183,6 +184,33 @@ export const computeFocusBounds = (
 
   return { bounds: { minLat, maxLat, minLng, maxLng }, focused: true }
 }
+
+/**
+ * The parts of each route segment that fall inside a time range, as separate
+ * runs of at least two samples: the stretch to highlight for a picked lap or
+ * climb. A segment the range only grazes with one sample contributes nothing.
+ */
+export const getRouteSamplesInRange = (
+  segments: FitnessRouteSegment[],
+  range: { startSeconds: number; endSeconds: number }
+): FitnessRouteSample[][] =>
+  segments.flatMap((segment) => {
+    const runs: FitnessRouteSample[][] = []
+    let run: FitnessRouteSample[] = []
+    for (const sample of segment.samples) {
+      if (
+        sample.elapsedSeconds >= range.startSeconds &&
+        sample.elapsedSeconds <= range.endSeconds
+      ) {
+        run.push(sample)
+      } else if (run.length > 0) {
+        runs.push(run)
+        run = []
+      }
+    }
+    if (run.length > 0) runs.push(run)
+    return runs.filter((entry) => entry.length >= 2)
+  })
 
 // Binary-search the route sample nearest to an elapsed offset (the samples are
 // ordered by elapsedSeconds). Drives the "follow the chart hover on the map"

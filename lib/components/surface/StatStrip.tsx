@@ -19,9 +19,9 @@ import { cn } from '@/lib/utils'
  * The two variants really do differ, and it is the type size that separates
  * them:
  *
- * - `detail` — the activity page's header strip and the strip under its map.
- *   Values are 21–28px, so they need ~200px a cell: 4-up from 780px, 2-up from
- *   420px, 1-up on a phone.
+ * - `detail` — the activity page's header tiles. Values are 24px, so a cell
+ *   needs ~130px: 2×2 on a phone and 4-up from 560px, as the activity design
+ *   lays them out.
  * - `chip` — the inline card inside a timeline post. Values are `text-sm`, so
  *   four cells still fit in 424px (the kit derives that from 4×100px + 3×8px of
  *   gap) and it never drops to a single column — a 4-row chip in a feed is a
@@ -47,7 +47,7 @@ import { cn } from '@/lib/utils'
  *   alone on a second row on a 390px phone.
  */
 const VARIANT_CLASS_NAMES = {
-  detail: 'gap-3 grid-cols-1 @min-[420px]:grid-cols-2 @min-[780px]:grid-cols-4',
+  detail: 'gap-2 grid-cols-2 @min-[560px]:grid-cols-4',
   chip: 'gap-2 grid-cols-2 @min-[424px]:grid-cols-4',
   summary:
     'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[43.75rem]:grid-cols-4'
@@ -64,7 +64,8 @@ const COUNT_COLUMN_CLASS_NAMES = {
   1: 'gap-px grid-cols-1',
   2: 'gap-px grid-cols-1 @min-[12rem]:grid-cols-2',
   3: 'gap-px grid-cols-1 @min-[17rem]:grid-cols-3',
-  4: 'gap-px grid-cols-1 @min-[12rem]:grid-cols-2 @min-[24rem]:grid-cols-4'
+  4: 'gap-px grid-cols-1 @min-[12rem]:grid-cols-2 @min-[24rem]:grid-cols-4',
+  5: 'gap-px grid-cols-1 @min-[12rem]:grid-cols-3 @min-[30rem]:grid-cols-5'
 } as const
 
 /**
@@ -75,14 +76,16 @@ const COUNT_COLUMN_CLASS_NAMES = {
  * 3-up from 30rem (a 480px column still gives each "35,670.2 km" ~160px) and,
  * on a phone, two over one with the third cell spanning the row, the 2×2
  * strip's shape rather than a tall single column; two follow the four-cell
- * strip's own 16rem step; a lone cell is one full-width column. Same `rem`
- * reasoning as above.
+ * strip's own 16rem step; a lone cell is one full-width column. Five values
+ * (the activity page's best efforts: 5 s, 1, 5, 20 and 60 min) go 5-up from
+ * 30rem and three over two below it. Same `rem` reasoning as above.
  */
 const SUMMARY_COLUMN_CLASS_NAMES = {
   1: 'gap-px grid-cols-1',
   2: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2',
   3: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[16rem]:[&>*:nth-child(3)]:col-span-2 @min-[30rem]:grid-cols-3 @min-[30rem]:[&>*:nth-child(3)]:col-span-1',
-  4: VARIANT_CLASS_NAMES.summary
+  4: VARIANT_CLASS_NAMES.summary,
+  5: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-3 @min-[30rem]:grid-cols-5'
 } as const
 
 export type StatStripColumns = keyof typeof SUMMARY_COLUMN_CLASS_NAMES

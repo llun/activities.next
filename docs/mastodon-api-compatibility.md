@@ -959,7 +959,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
   halves share one `ReactionState` from `useReactionState`, held by whoever lays
-  out the post — `Post`, or `FitnessStatusDetail`, which builds its own card and
+  out the post — `Post`, or the activity page's `ActivityPostFrame`, which builds its own card and
   therefore calls the hook itself and passes the state into `Actions`. The same
   applies to the bookmark: `useBookmarkState` is held by `Actions` and
   `BookmarkButton` only renders it.
@@ -1020,9 +1020,9 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   **Edit and Quote are in its `⋯` like everywhere else** — the composer renders
   inside the header card beneath the action row that opened it. `editable`
   without `onEdit` would only render a menu item that does nothing, so the two
-  are wired together or not at all. Reply is the one action it routes
-  differently: this page has an always-on composer in its Comments section, and
-  the reply action jumps to that rather than opening a second one.
+  are wired together or not at all. Reply opens the same inline composer, at
+  the top of the replies inside the post frame, and shows the replies again if
+  the reader had hidden them.
   What is still unwired is `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged`,
   so a delete from the menu leaves the page showing a status that no longer
   exists. That is a **known gap it shares with `StatusBox`**, the non-fitness

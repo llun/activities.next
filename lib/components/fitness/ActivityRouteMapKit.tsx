@@ -16,6 +16,7 @@ import {
 import {
   findRouteSampleForElapsed,
   getDistanceToHiddenSegments,
+  getRouteSamplesInRange,
   getScaledCoordinateDistance
 } from '@/lib/components/fitness/mapGeometry'
 import {
@@ -39,7 +40,10 @@ import {
   ROUTE_HIDDEN_OPACITY,
   ROUTE_HIDDEN_WIDTH_PX,
   ROUTE_LINE_COLOR,
-  ROUTE_LINE_WIDTH_PX
+  ROUTE_LINE_WIDTH_PX,
+  ROUTE_SELECTION_COLOR,
+  ROUTE_SELECTION_OPACITY,
+  ROUTE_SELECTION_WIDTH_PX
 } from '@/lib/components/fitness/routeLineStyle'
 import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 
@@ -55,6 +59,13 @@ const VISIBLE_ROUTE_STYLE = {
   strokeColor: ROUTE_LINE_COLOR,
   lineWidth: ROUTE_LINE_WIDTH_PX,
   strokeOpacity: 1
+}
+const SELECTION_ROUTE_STYLE = {
+  strokeColor: ROUTE_SELECTION_COLOR,
+  lineWidth: ROUTE_SELECTION_WIDTH_PX,
+  strokeOpacity: ROUTE_SELECTION_OPACITY,
+  lineCap: 'round',
+  lineJoin: 'round'
 }
 const HIDDEN_ROUTE_STYLE = {
   strokeColor: ROUTE_HIDDEN_COLOR,
@@ -206,6 +217,8 @@ export interface ActivityRouteMapKitProps {
   routeSamples: FitnessRouteSample[]
   /** Elapsed offset hovered on the analysis charts, or null when not hovering. */
   highlightedElapsedSeconds?: number | null
+  /** A picked lap or climb, drawn as a band under that stretch of route. */
+  highlightedRange?: { startSeconds: number; endSeconds: number } | null
   /** Called when MapKit can't load/render so the caller can fall back. */
   onUnavailable: () => void
 }
@@ -220,6 +233,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
   routeSegments,
   routeSamples,
   highlightedElapsedSeconds = null,
+  highlightedRange = null,
   onUnavailable
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -227,6 +241,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
   const mapkitRef = useRef<MapKitSurfaceModule | null>(null)
   const markerRef = useRef<MapKitAnnotation | null>(null)
   const overlaysRef = useRef<MapKitOverlay[]>([])
+  const selectionOverlaysRef = useRef<MapKitOverlay[]>([])
   const onUnavailableRef = useRef(onUnavailable)
   const [isMapLoaded, setIsMapLoaded] = useState(false)
   const [privacyHintPoint, setPrivacyHintPoint] =
@@ -337,6 +352,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
       setPrivacyHintPoint(null)
       markerRef.current = null
       overlaysRef.current = []
+      selectionOverlaysRef.current = []
       mapRef.current?.destroy()
       mapRef.current = null
       mapkitRef.current = null
@@ -394,6 +410,45 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     privacyHintTimeoutRef.current = undefined
     setPrivacyHintPoint(null)
   }, [isMapLoaded, routeSignature])
+
+  // Draw the picked lap or climb as a band under the route. MapKit stacks
+  // overlays in the order they are added, so the route overlays are lifted
+  // back on top after the band goes in.
+  const selectionStart = highlightedRange?.startSeconds
+  const selectionEnd = highlightedRange?.endSeconds
+  useEffect(() => {
+    const map = mapRef.current
+    const mapkit = mapkitRef.current
+    if (!isMapLoaded || !map || !mapkit) return
+
+    if (selectionOverlaysRef.current.length > 0) {
+      map.removeOverlays(selectionOverlaysRef.current)
+      selectionOverlaysRef.current = []
+    }
+    if (typeof selectionStart !== 'number' || typeof selectionEnd !== 'number')
+      return
+
+    const style = new mapkit.Style(SELECTION_ROUTE_STYLE)
+    const overlays = getRouteSamplesInRange(segmentsRef.current, {
+      startSeconds: selectionStart,
+      endSeconds: selectionEnd
+    }).map(
+      (samples) =>
+        new mapkit.PolylineOverlay(
+          samples.map(
+            (sample) => new mapkit.Coordinate(sample.lat, sample.lng)
+          ),
+          { style }
+        )
+    )
+    if (overlays.length === 0) return
+    map.addOverlays(overlays)
+    selectionOverlaysRef.current = overlays
+    if (overlaysRef.current.length > 0) {
+      map.removeOverlays(overlaysRef.current)
+      map.addOverlays(overlaysRef.current)
+    }
+  }, [isMapLoaded, routeSignature, selectionStart, selectionEnd])
 
   // Move (or clear) the highlighted-position marker as the chart hover changes.
   useEffect(() => {

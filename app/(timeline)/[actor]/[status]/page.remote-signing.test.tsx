@@ -97,7 +97,6 @@ vi.mock('./RemoteStatusLoading', async () => ({
   RemoteStatusLoading: () => null
 }))
 vi.mock('./SignInCallout', async () => ({ SignInCallout: () => null }))
-vi.mock('./StatusStatStrip', async () => ({ StatusStatStrip: () => null }))
 vi.mock('./StatusBox', async () => ({ StatusBox: () => null }))
 vi.mock('./StatusLikes', async () => ({ StatusLikes: () => null }))
 
