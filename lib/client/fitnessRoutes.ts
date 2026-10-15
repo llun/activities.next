@@ -13,7 +13,47 @@ export interface FitnessRouteSample {
   altitude?: number
   heartRate?: number
   speed?: number
+  power?: number
+  cadence?: number
+  temperature?: number
+  /** Percent of power from the LEFT leg, 0-100. */
+  leftRightBalance?: number
+  /** Cumulative distance from the file, in meters. */
+  distanceMeters?: number
   isHiddenByPrivacy?: boolean
+}
+
+/** Time-aligned sample; only sent for activities with no GPS track. */
+export interface FitnessMetricSample {
+  elapsedSeconds: number
+  timestamp?: number
+  distanceMeters?: number
+  power?: number
+  heartRate?: number
+  cadence?: number
+  /** km/h */
+  speed?: number
+  altitude?: number
+  temperature?: number
+  /** Percent of power from the LEFT leg, 0-100. */
+  leftRightBalance?: number
+}
+
+export interface FitnessRouteLap {
+  startElapsedSeconds: number
+  /** Absolute lap start (epoch ms) when the file gives one; matches sample `timestamp`. */
+  startTimestamp?: number
+  /** Elapsed time for FIT files, timer time for TCX files. */
+  durationSeconds: number
+  distanceMeters: number
+  avgPower?: number
+  avgHeartRate?: number
+  maxHeartRate?: number
+  avgCadence?: number
+  /** km/h */
+  avgSpeed?: number
+  elevationGainMeters?: number
+  calories?: number
 }
 
 export interface FitnessRouteSegment {
@@ -29,6 +69,10 @@ export interface FitnessRouteDataResponse {
   heartRateSeries?: number[]
   altitudeSeries?: number[]
   speedSeries?: number[]
+  laps?: FitnessRouteLap[]
+  calories?: number
+  /** Present only when the activity has no GPS track. */
+  metricSamples?: FitnessMetricSample[]
 }
 
 /**

@@ -6,12 +6,21 @@ import { z } from 'zod'
 import {
   FitnessActivityData,
   FitnessCoordinate,
+  FitnessLap,
+  FitnessMetricPoint,
   FitnessTrackPoint,
+  METRIC_POINT_KEYS,
   toActivityData
 } from '@/lib/services/fitness-files/activityData'
 import { getBrandFromManufacturer } from '@/lib/utils/fitnessDeviceBrands'
 
-export type { FitnessActivityData, FitnessCoordinate, FitnessTrackPoint }
+export type {
+  FitnessActivityData,
+  FitnessCoordinate,
+  FitnessLap,
+  FitnessMetricPoint,
+  FitnessTrackPoint
+}
 export { toActivityData }
 
 export type ParseableFitnessFileType = 'fit' | 'gpx' | 'tcx'
@@ -89,6 +98,11 @@ const TcxTrackPointSchema = z
       })
       .passthrough()
       .optional(),
+    // Newly read fields are `unknown` so a value in an unexpected shape (for
+    // example `<Cadence><Value>1</Value></Cadence>`) can never make a file that
+    // parsed before fail validation; `toNumber` ignores what it cannot read.
+    DistanceMeters: z.unknown().optional(),
+    Cadence: z.unknown().optional(),
     HeartRateBpm: z
       .object({
         Value: NumberLikeSchema.optional()
@@ -111,6 +125,15 @@ const TcxLapSchema = z
   .object({
     TotalTimeSeconds: NumberLikeSchema.optional(),
     DistanceMeters: NumberLikeSchema.optional(),
+    // Newly read fields are `unknown` on purpose: an empty `<Extensions/>` or
+    // `<AverageHeartRateBpm/>` parses to "" and must not make a file that
+    // parsed before fail validation.
+    StartTime: z.unknown().optional(),
+    Calories: z.unknown().optional(),
+    AverageHeartRateBpm: z.unknown().optional(),
+    MaximumHeartRateBpm: z.unknown().optional(),
+    Cadence: z.unknown().optional(),
+    Extensions: z.unknown().optional(),
     Track: z.union([TcxTrackSchema, z.array(TcxTrackSchema)]).optional()
   })
   .passthrough()
@@ -179,6 +202,93 @@ const toDate = (value: unknown): Date | undefined => {
   }
 
   return undefined
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * Read a child element by trying several namespace-prefix spellings. Garmin and
+ * third-party exporters bind the same extension namespace to different prefixes
+ * (`ns3:`, `ns2:`, `gpxtpx:`, `tpx:`, or none), so a single literal key misses
+ * valid files.
+ */
+const readPrefixed = (
+  container: unknown,
+  prefixes: readonly string[],
+  name: string
+): unknown => {
+  if (!isRecord(container)) return undefined
+  for (const prefix of prefixes) {
+    const value = container[`${prefix}${name}`]
+    if (value !== undefined) return value
+  }
+  return undefined
+}
+
+const TCX_EXTENSION_PREFIXES = ['ns3:', 'ns2:', 'tpx:', ''] as const
+const GPX_EXTENSION_PREFIXES = ['gpxtpx:', 'ns3:', 'tpx:', ''] as const
+
+const readTcxTpx = (extensions: unknown): unknown =>
+  readPrefixed(extensions, TCX_EXTENSION_PREFIXES, 'TPX')
+
+const readTcxTpxNumber = (extensions: unknown, name: string) =>
+  toNumber(readPrefixed(readTcxTpx(extensions), TCX_EXTENSION_PREFIXES, name))
+
+const readTcxLx = (extensions: unknown): unknown =>
+  readPrefixed(extensions, TCX_EXTENSION_PREFIXES, 'LX')
+
+/**
+ * Normalize a FIT `left_right_balance` to the percentage of power from the LEFT
+ * leg (0-100), or undefined when it cannot be known.
+ *
+ * fit-file-parser decodes the record field through its 8-bit
+ * `left_right_balance` bitfield (mask 0x7F, flag 0x80 = `right`), so
+ * `record.left_right_balance` arrives as `{ value, right }`. Per the FIT
+ * profile the flag marks that `value` is the RIGHT leg's share, so the left
+ * share is `100 - value`; without the flag the side is unknown and nothing is
+ * returned. A raw number is split with the same bits. A raw number above 0xFF
+ * is the 16-bit `left_right_balance_100` form (mask 0x3FFF, flag 0x8000),
+ * whose value is in hundredths of a percent.
+ */
+const toLeftBalancePercent = (raw: unknown): number | undefined => {
+  let value: number | undefined
+  let right: boolean
+  let scale = 1
+
+  if (isRecord(raw)) {
+    value = toNumber(raw.value)
+    right = raw.right === true
+  } else {
+    const numeric = toNumber(raw)
+    if (typeof numeric !== 'number') return undefined
+    if (numeric > 0xff) {
+      value = numeric & 0x3fff
+      right = (numeric & 0x8000) !== 0
+      scale = 100
+    } else {
+      value = numeric & 0x7f
+      right = (numeric & 0x80) !== 0
+    }
+  }
+
+  if (!right || typeof value !== 'number') return undefined
+  const percent = value / scale
+  if (percent < 0 || percent > 100) return undefined
+  return Math.round((100 - percent) * 100) / 100
+}
+
+/**
+ * Keep the samples that chart something. Used for files without a GPS track, so
+ * these are the only per-sample data they have.
+ */
+const toMetricPoints = (
+  points: FitnessMetricPoint[]
+): FitnessMetricPoint[] | undefined => {
+  const kept = points.filter((point) =>
+    METRIC_POINT_KEYS.some((key) => point[key] !== undefined)
+  )
+  return kept.length > 0 ? kept : undefined
 }
 
 const semicirclesToDegrees = (value: number): number => value * (180 / 2 ** 31)
@@ -293,10 +403,34 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
         timestamp: toDate(record.timestamp),
         power: toNumber(record.power),
         heartRate: toNumber(record.heart_rate),
-        speed: toNumber(record.speed)
+        speed: toNumber(record.speed),
+        cadence: toNumber(record.cadence),
+        temperature: toNumber(record.temperature),
+        leftRightBalance: toLeftBalancePercent(record.left_right_balance),
+        // lengthUnit defaults to 'm', so record.distance is already meters.
+        distanceMeters: toNumber(record.distance)
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
+
+  // Only files without a GPS track need time-aligned samples; outdoor files
+  // skip the extra per-record work (imports and heatmap jobs parse many files).
+  const metricPoints =
+    points.length === 0
+      ? toMetricPoints(
+          records.map((record) => ({
+            timestamp: toDate(record.timestamp),
+            distanceMeters: toNumber(record.distance),
+            power: toNumber(record.power),
+            heartRate: toNumber(record.heart_rate),
+            cadence: toNumber(record.cadence),
+            speed: toNumber(record.speed),
+            altitude: toNumber(record.altitude),
+            temperature: toNumber(record.temperature),
+            leftRightBalance: toLeftBalancePercent(record.left_right_balance)
+          }))
+        )
+      : undefined
 
   const recordDistanceSamples = records
     .map((record) => toNumber(record.distance))
@@ -330,12 +464,58 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
       ? Math.round(sessionTotalWork / 1000)
       : undefined
 
+  let activityStart = toDate(primarySession?.start_time)
+  if (!activityStart) {
+    for (const record of records) {
+      activityStart = toDate(record.timestamp)
+      if (activityStart) break
+    }
+  }
+
+  const laps = asArray(parsed.laps).flatMap((lap): FitnessLap[] => {
+    const lapStart = toDate(lap.start_time)
+    const durationSeconds =
+      toNumber(lap.total_elapsed_time) ?? toNumber(lap.total_timer_time)
+    if (!lapStart || !activityStart || typeof durationSeconds !== 'number') {
+      return []
+    }
+
+    const avgPower = toNumber(lap.avg_power)
+    const avgHeartRate = toNumber(lap.avg_heart_rate)
+    const maxHeartRate = toNumber(lap.max_heart_rate)
+    const avgCadence = toNumber(lap.avg_cadence)
+    const avgSpeed = toNumber(lap.avg_speed ?? lap.enhanced_avg_speed)
+    const elevationGainMeters = toNumber(lap.total_ascent)
+    const calories = toNumber(lap.total_calories)
+    return [
+      {
+        startElapsedSeconds: Math.max(
+          0,
+          (lapStart.getTime() - activityStart.getTime()) / 1000
+        ),
+        startTimestamp: lapStart.getTime(),
+        durationSeconds,
+        distanceMeters: toNumber(lap.total_distance) ?? 0,
+        ...(avgPower !== undefined ? { avgPower } : null),
+        ...(avgHeartRate !== undefined ? { avgHeartRate } : null),
+        ...(maxHeartRate !== undefined ? { maxHeartRate } : null),
+        ...(avgCadence !== undefined ? { avgCadence } : null),
+        ...(avgSpeed !== undefined ? { avgSpeed } : null),
+        ...(elevationGainMeters !== undefined ? { elevationGainMeters } : null),
+        ...(calories !== undefined ? { calories } : null)
+      }
+    ]
+  })
+
   const base = toActivityData({
     points,
     powerSeries: powerSeries.length > 0 ? powerSeries : undefined,
     heartRateSeries: heartRateSeries.length > 0 ? heartRateSeries : undefined,
     altitudeSeries: altitudeSeries.length > 0 ? altitudeSeries : undefined,
     speedSeries: speedSeries.length > 0 ? speedSeries : undefined,
+    laps,
+    metricPoints,
+    calories: toNumber(primarySession?.total_calories),
     avgPower: sessionAvgPower,
     maxPower: sessionMaxPower,
     avgHeartRate: sessionAvgHeartRate,
@@ -374,33 +554,70 @@ const parseGpx = (buffer: Buffer): FitnessActivityData => {
   }
 
   const tracks = asArray(parsedResult.data.gpx?.trk)
-  const points = tracks
+  const rawPoints = tracks
     .flatMap((track) => asArray(track.trkseg))
     .flatMap((segment) => asArray(segment.trkpt))
     .map((point) => {
-      const lat = normalizeLatitude(point.lat)
-      const lng = normalizeLongitude(point.lon)
-      if (typeof lat !== 'number' || typeof lng !== 'number') {
-        return null
-      }
-
-      const tpx = point.extensions?.['gpxtpx:TrackPointExtension'] as any
+      const tpx = readPrefixed(
+        point.extensions,
+        GPX_EXTENSION_PREFIXES,
+        'TrackPointExtension'
+      )
+      const readTpx = (name: string) =>
+        toNumber(readPrefixed(tpx, GPX_EXTENSION_PREFIXES, name))
       // gpxtpx:speed and point.speed are in m/s per the GPX spec; convert to km/h
-      const speedMs = toNumber(tpx?.['gpxtpx:speed']) ?? toNumber(point.speed)
+      const speedMs = readTpx('speed') ?? toNumber(point.speed)
+      // Power has no standard GPX home: some exporters write <power> directly
+      // under <extensions>, Garmin nests it in gpxpx:PowerExtension.
+      const power =
+        toNumber(point.extensions?.power) ??
+        toNumber(
+          readPrefixed(
+            readPrefixed(point.extensions, ['gpxpx:'], 'PowerExtension'),
+            ['gpxpx:'],
+            'PowerInWatts'
+          )
+        )
       return {
-        lat,
-        lng,
+        lat: normalizeLatitude(point.lat),
+        lng: normalizeLongitude(point.lon),
         altitudeMeters: toNumber(point.ele),
         altitude: toNumber(point.ele),
         timestamp: toDate(point.time),
-        heartRate: toNumber(tpx?.['gpxtpx:hr']),
-        speed: typeof speedMs === 'number' ? speedMs * 3.6 : undefined
+        heartRate: readTpx('hr'),
+        speed: typeof speedMs === 'number' ? speedMs * 3.6 : undefined,
+        power,
+        cadence: readTpx('cad'),
+        temperature: readTpx('atemp')
       }
     })
+
+  const points = rawPoints
+    .map(({ lat, lng, ...rest }) =>
+      typeof lat === 'number' && typeof lng === 'number'
+        ? { lat, lng, ...rest }
+        : null
+    )
     .filter((point): point is NonNullable<typeof point> => point !== null)
+
+  // Only files without a GPS track need time-aligned samples.
+  const metricPoints =
+    points.length === 0
+      ? toMetricPoints(
+          rawPoints.map(
+            ({
+              lat: _lat,
+              lng: _lng,
+              altitudeMeters: _altitudeMeters,
+              ...rest
+            }) => rest
+          )
+        )
+      : undefined
 
   return toActivityData({
     points,
+    metricPoints,
     activityType: tracks.find((track) => track.type)?.type,
     startTime: toDate(parsedResult.data.gpx?.metadata?.time)
   })
@@ -441,13 +658,17 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
         altitudeMeters: toNumber(point.AltitudeMeters),
         altitude: toNumber(point.AltitudeMeters),
         timestamp: toDate(point.Time),
-        power: toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts']),
+        power: readTcxTpxNumber(point.Extensions, 'Watts'),
         heartRate: toNumber(point.HeartRateBpm?.Value),
         // ns3:Speed is in m/s per the TCX schema; convert to km/h
         speed: (() => {
-          const ms = toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Speed'])
+          const ms = readTcxTpxNumber(point.Extensions, 'Speed')
           return typeof ms === 'number' ? ms * 3.6 : undefined
-        })()
+        })(),
+        cadence:
+          toNumber(point.Cadence) ??
+          readTcxTpxNumber(point.Extensions, 'RunCadence'),
+        distanceMeters: toNumber(point.DistanceMeters)
       }
     })
     .filter((point): point is NonNullable<typeof point> => point !== null)
@@ -455,14 +676,14 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
   // Extract metric series from all trackpoints regardless of GPS presence
   // so indoor activities (no GPS) still get power/HR/speed data
   const powerSeries = rawTrackpoints
-    .map((point) => toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Watts']))
+    .map((point) => readTcxTpxNumber(point.Extensions, 'Watts'))
     .filter((v): v is number => typeof v === 'number')
   const heartRateSeries = rawTrackpoints
     .map((point) => toNumber(point.HeartRateBpm?.Value))
     .filter((v): v is number => typeof v === 'number')
   const speedSeries = rawTrackpoints
     .map((point) => {
-      const ms = toNumber(point.Extensions?.['ns3:TPX']?.['ns3:Speed'])
+      const ms = readTcxTpxNumber(point.Extensions, 'Speed')
       return typeof ms === 'number' ? ms * 3.6 : undefined
     })
     .filter((v): v is number => typeof v === 'number')
@@ -479,8 +700,87 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
     0
   )
 
+  // Only files without a GPS track need time-aligned samples.
+  const metricPoints =
+    gpsPoints.length === 0
+      ? toMetricPoints(
+          rawTrackpoints.map((point) => {
+            const speedMs = readTcxTpxNumber(point.Extensions, 'Speed')
+            return {
+              timestamp: toDate(point.Time),
+              distanceMeters: toNumber(point.DistanceMeters),
+              power: readTcxTpxNumber(point.Extensions, 'Watts'),
+              heartRate: toNumber(point.HeartRateBpm?.Value),
+              cadence:
+                toNumber(point.Cadence) ??
+                readTcxTpxNumber(point.Extensions, 'RunCadence'),
+              speed: typeof speedMs === 'number' ? speedMs * 3.6 : undefined,
+              altitude: toNumber(point.AltitudeMeters)
+            }
+          })
+        )
+      : undefined
+
+  const activityStart =
+    toDate(activity?.Id) ??
+    laps.map((lap) => toDate(lap.StartTime)).find(Boolean)
+  let elapsedBeforeLap = 0
+  const fitnessLaps = laps.flatMap((lap): FitnessLap[] => {
+    const durationSeconds = toNumber(lap.TotalTimeSeconds)
+    if (typeof durationSeconds !== 'number') return []
+
+    const lapStart = toDate(lap.StartTime)
+    const startElapsedSeconds =
+      lapStart && activityStart
+        ? Math.max(0, (lapStart.getTime() - activityStart.getTime()) / 1000)
+        : elapsedBeforeLap
+    elapsedBeforeLap = startElapsedSeconds + durationSeconds
+
+    const lx = readTcxLx(lap.Extensions)
+    const avgSpeedMs = toNumber(
+      readPrefixed(lx, TCX_EXTENSION_PREFIXES, 'AvgSpeed')
+    )
+    const avgPower = toNumber(
+      readPrefixed(lx, TCX_EXTENSION_PREFIXES, 'AvgWatts')
+    )
+    const avgHeartRate = toNumber(
+      readPrefixed(lap.AverageHeartRateBpm, [''], 'Value')
+    )
+    const maxHeartRate = toNumber(
+      readPrefixed(lap.MaximumHeartRateBpm, [''], 'Value')
+    )
+    const avgCadence =
+      toNumber(lap.Cadence) ??
+      toNumber(readPrefixed(lx, TCX_EXTENSION_PREFIXES, 'AvgRunCadence'))
+    const calories = toNumber(lap.Calories)
+    return [
+      {
+        startElapsedSeconds,
+        // TCX durations are timer time (TotalTimeSeconds), unlike FIT's elapsed.
+        ...(lapStart ? { startTimestamp: lapStart.getTime() } : null),
+        durationSeconds,
+        distanceMeters: toNumber(lap.DistanceMeters) ?? 0,
+        ...(avgPower !== undefined ? { avgPower } : null),
+        ...(avgHeartRate !== undefined ? { avgHeartRate } : null),
+        ...(maxHeartRate !== undefined ? { maxHeartRate } : null),
+        ...(avgCadence !== undefined ? { avgCadence } : null),
+        ...(typeof avgSpeedMs === 'number'
+          ? { avgSpeed: avgSpeedMs * 3.6 }
+          : null),
+        ...(calories !== undefined ? { calories } : null)
+      }
+    ]
+  })
+  const lapCalories = laps.reduce(
+    (sum, lap) => sum + (toNumber(lap.Calories) ?? 0),
+    0
+  )
+
   const base = toActivityData({
     points: gpsPoints,
+    laps: fitnessLaps,
+    metricPoints,
+    calories: lapCalories > 0 ? lapCalories : undefined,
     powerSeries: powerSeries.length > 0 ? powerSeries : undefined,
     heartRateSeries: heartRateSeries.length > 0 ? heartRateSeries : undefined,
     speedSeries: speedSeries.length > 0 ? speedSeries : undefined,

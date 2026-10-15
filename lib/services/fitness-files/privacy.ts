@@ -483,7 +483,7 @@ export const buildPrivacySegments = <T extends { isHiddenByPrivacy: boolean }>(
   return segments
 }
 
-const downsamplePoints = <T>(points: T[], maxPoints: number): T[] => {
+export const downsamplePoints = <T>(points: T[], maxPoints: number): T[] => {
   if (maxPoints <= 0) {
     return []
   }
