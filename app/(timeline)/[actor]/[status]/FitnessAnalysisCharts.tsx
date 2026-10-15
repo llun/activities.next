@@ -5,6 +5,7 @@ import {
   type AnalysisSeriesKey
 } from '@/lib/components/fitness/palette'
 import { Frame } from '@/lib/components/surface/Frame'
+import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import { cn } from '@/lib/utils'
 
@@ -183,10 +184,19 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
         {hint}
       </p>
       {typeof showPauses === 'boolean' && onShowPausesChange ? (
-        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Switch checked={showPauses} onCheckedChange={onShowPausesChange} />
-          Show pauses
-        </label>
+        <div className="flex shrink-0 items-center gap-2">
+          <Switch
+            id="analysis-show-pauses"
+            checked={showPauses}
+            onCheckedChange={onShowPausesChange}
+          />
+          <Label
+            htmlFor="analysis-show-pauses"
+            className="cursor-pointer text-xs text-muted-foreground"
+          >
+            Show pauses
+          </Label>
+        </div>
       ) : null}
     </div>
   </Frame>

@@ -268,10 +268,12 @@ export const MAX_BRIDGED_EMPTY_BINS = 3
 
 /**
  * Averages `values` (one per timeline point, null where the point has none)
- * into `binCount` equal slices of the activity's elapsed time. A bin with no
+ * into `binCount` equal slices of the points' time (the chart clock from
+ * `buildChartTimeAxis`, or elapsed time when pauses are shown). A bin with no
  * reading is null; a run of up to three empty bins between two readings is
  * bridged by a straight line, so uneven sample spacing does not break a line,
- * while a real gap (a pause, a sensor dropping out) still does.
+ * while a real gap (a pause shown on elapsed time, a sensor dropping out)
+ * still does.
  */
 export const binValuesByTime = (
   points: ActivityPoint[],
@@ -439,7 +441,7 @@ export interface ChartPause {
  * `toChartSeconds` / `toElapsedSeconds`, so they stay on the same instant.
  */
 export interface ChartTimeAxis {
-  /** The chart's length: the elapsed duration less the paused time. */
+  /** The chart's length: the elapsed duration less each pause beyond its one kept gap. */
   durationSeconds: number
   pauses: ChartPause[]
 }
