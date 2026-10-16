@@ -54,7 +54,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // not the error copy: an unknown client must be reported without involving the
   // resource owner and without ever redirecting to the requested redirect_uri.
   // Before 1.7.10 Better Auth's authorize endpoint answered an unknown client
-  // with `invalid_client / client_id is required` (indistinguishable from a
+  // with `invalid_client / client_id is required` (the same message as a
   // missing client_id); from 1.7.10 it answers `client not found`. Either way
   // that happens after the visitor has already been through sign-in. Do not
   // remove this check on the grounds that /auth/error now explains
