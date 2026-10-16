@@ -703,6 +703,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       const nextCursor = result.nextMaxStatusId ?? null
       lastStatusIdRef.current = nextCursor
       setHasMoreStatuses(Boolean(result.nextMaxStatusId))
+      // Loading older posts means the reader is past any saved reading spot.
+      setPendingScrollAnchor(null)
 
       setSegments((prev) => {
         const appended = appendOlderPageToSegments({

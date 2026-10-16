@@ -965,6 +965,101 @@ describe('MainPageTimeline', () => {
       expect(screen.getByTestId('post-' + post1.id)).toBeInTheDocument()
     })
 
+    describe('scroll anchor hydration', () => {
+      const cachedTimeline = (anchorId: string) => {
+        const a = createStatus('https://activities.local/users/llun/s/cached-a')
+        const b = createStatus('https://activities.local/users/llun/s/cached-b')
+        return {
+          actorId: profile.id,
+          timeline: 'home',
+          filterKey: '',
+          statuses: [a, b],
+          segments: [
+            {
+              statuses: [a, b],
+              nextMaxStatusId: 'cursor-cached',
+              prevMinStatusId: a.id
+            }
+          ],
+          ancestorsById: {},
+          lastRefreshedAt: FIXED_CURRENT_TIME,
+          scrollAnchor: { statusId: anchorId, offsetTop: 500, updatedAt: 1 }
+        } as unknown as Awaited<ReturnType<typeof getOfflineTimeline>>
+      }
+
+      it('restores a cached scroll anchor that the cache holds', async () => {
+        const scrollBy = vi
+          .spyOn(window, 'scrollBy')
+          .mockImplementation(() => undefined)
+        vi.mocked(getOfflineTimeline).mockResolvedValue(
+          cachedTimeline('https://activities.local/users/llun/s/cached-b')
+        )
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[
+              createStatus('https://activities.local/users/llun/s/fresh')
+            ]}
+            initialNextMaxStatusId="cursor-fresh"
+          />
+        )
+
+        await waitFor(() => {
+          expect(scrollBy).toHaveBeenCalled()
+        })
+        scrollBy.mockRestore()
+      })
+
+      it('clears a pending scroll anchor once the reader loads more', async () => {
+        const scrollBy = vi
+          .spyOn(window, 'scrollBy')
+          .mockImplementation(() => undefined)
+        const first = createStatus(
+          'https://activities.local/users/llun/s/first'
+        )
+        const deep = createStatus('https://activities.local/users/llun/s/deep')
+        vi.mocked(getTimeline).mockResolvedValue({
+          statuses: [deep],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        })
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[first]}
+            initialSegments={[
+              {
+                statuses: [first],
+                nextMaxStatusId: 'cursor-1',
+                prevMinStatusId: first.id
+              }
+            ]}
+            initialScrollAnchor={{
+              statusId: deep.id,
+              offsetTop: 500,
+              updatedAt: 1
+            }}
+          />
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+        await waitFor(() => {
+          expect(screen.getByTestId('post-' + deep.id)).toBeInTheDocument()
+        })
+        expect(scrollBy).not.toHaveBeenCalled()
+        scrollBy.mockRestore()
+      })
+    })
+
     it('uses partition key timeline: "home" when loading and persisting offline timeline', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
 

@@ -417,7 +417,14 @@ export const getOfflineTimeline = async (params: {
       ancestorsById: persisted.ancestorsById || {},
       nextMaxStatusId,
       lastRefreshedAt: persisted.lastRefreshedAt,
-      scrollAnchor: persisted.scrollAnchor || null
+      // The cache is capped, so an anchor saved deeper than it keeps (or one
+      // whose status is gone) cannot be restored; drop it instead of letting
+      // the page jump to it later.
+      scrollAnchor:
+        persisted.scrollAnchor &&
+        allStatuses.some((s) => s.id === persisted.scrollAnchor?.statusId)
+          ? persisted.scrollAnchor
+          : null
     }
   } catch {
     return null

@@ -296,5 +296,60 @@ describe('MainPageTimeline', () => {
       // Disconnect was called during unmount
       expect(disconnectMock).toHaveBeenCalled()
     })
+
+    it('keeps loading older posts past the 200 post offline cache cap', async () => {
+      const initial = Array.from({ length: 200 }, (_, i) =>
+        createStatus(`https://activities.local/users/llun/s/a${i}`)
+      )
+      const more = Array.from({ length: 30 }, (_, i) =>
+        createStatus(`https://activities.local/users/llun/s/b${i}`)
+      )
+      vi.mocked(getTimeline)
+        .mockResolvedValueOnce({
+          statuses: more,
+          nextMaxStatusId: 'cursor-230',
+          prevMinStatusId: null
+        })
+        .mockResolvedValueOnce({
+          statuses: [],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={initial}
+          initialNextMaxStatusId="cursor-200"
+        />
+      )
+
+      triggerIntersection(true)
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('post-https://activities.local/users/llun/s/b29')
+        ).toBeInTheDocument()
+      })
+      expect(document.querySelectorAll('[data-status-id]')).toHaveLength(230)
+      expect(getTimeline).toHaveBeenNthCalledWith(1, {
+        timeline: Timeline.MAIN,
+        maxStatusId: 'cursor-200'
+      })
+
+      triggerIntersection(true)
+
+      await waitFor(() => {
+        expect(getTimeline).toHaveBeenCalledTimes(2)
+      })
+      expect(getTimeline).toHaveBeenNthCalledWith(2, {
+        timeline: Timeline.MAIN,
+        maxStatusId: 'cursor-230'
+      })
+      expect(document.querySelectorAll('[data-status-id]')).toHaveLength(230)
+    })
   })
 })

@@ -275,7 +275,7 @@ describe('offlineDb storage layer', () => {
         segments: [
           {
             statuses: largeStatuses,
-            nextMaxStatusId: null,
+            nextMaxStatusId: 'tail',
             prevMinStatusId: 'status-0'
           }
         ]
@@ -287,6 +287,9 @@ describe('offlineDb storage layer', () => {
       })
 
       expect(loaded?.statuses).toHaveLength(MAX_CACHED_STATUSES_PER_TIMELINE)
+      // The cut segment's cursor moves to the last post that was kept.
+      expect(loaded?.segments[0].nextMaxStatusId).toBe('status-199')
+      expect(loaded?.nextMaxStatusId).toBe('status-199')
       expect(loaded?.statuses[0].id).toBe('status-0')
       expect(loaded?.statuses[199].id).toBe('status-199')
     })
@@ -322,6 +325,38 @@ describe('offlineDb storage layer', () => {
         offsetTop: 150,
         updatedAt: 7777
       })
+    })
+  })
+
+  describe('scroll anchor beyond the cache', () => {
+    it('returns no scroll anchor when the anchored status was not kept', async () => {
+      const statuses: Status[] = []
+      for (let i = 0; i < 250; i++) {
+        statuses.push(mockStatus(`status-${i}`))
+      }
+      await saveOfflineTimeline({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home',
+        segments: [
+          {
+            statuses,
+            nextMaxStatusId: null,
+            prevMinStatusId: 'status-0'
+          }
+        ]
+      })
+      await saveOfflineScrollAnchor({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home',
+        scrollAnchor: { statusId: 'status-230', offsetTop: 10, updatedAt: 1 }
+      })
+
+      const loaded = await getOfflineTimeline({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home'
+      })
+      expect(loaded?.statuses).toHaveLength(MAX_CACHED_STATUSES_PER_TIMELINE)
+      expect(loaded?.scrollAnchor).toBeNull()
     })
   })
 
