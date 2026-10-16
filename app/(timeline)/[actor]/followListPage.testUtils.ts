@@ -1,4 +1,4 @@
-export const createLocalProfileData = ({
+export const createLocalProfileIdentity = ({
   followersCount,
   followingCount
 }: {
@@ -11,14 +11,7 @@ export const createLocalProfileData = ({
   } as never,
   followersCount,
   followingCount,
-  statusesCount: 0,
-  attachments: [],
-  isInternalAccount: true,
-  hasFitnessData: false,
-  hasGalleryMedia: false,
-  gallerySubviews: [],
-  statuses: [],
-  statusPagination: { nextPageUrl: null, prevPageUrl: null }
+  isInternalAccount: true
 })
 
 export const createFollowRecord = ({
