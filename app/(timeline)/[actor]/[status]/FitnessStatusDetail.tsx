@@ -384,8 +384,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     const available = candidates.filter(
       (tile): tile is ActivityTile => tile !== null
     )
-    // The strip is 2×2 or 4 across, so three tiles would leave a hole in
-    // either: show four, or two when there are not four to show.
+    // Show four, or two when there are not four to show, never three: the
+    // band also copes with an odd count (its last cell spans the row, so no
+    // border-coloured cell shows), but 2×2 and 4-up are the designed shapes.
     return available.slice(
       0,
       available.length >= 4 ? 4 : available.length >= 2 ? 2 : 1
@@ -636,7 +637,10 @@ export const FitnessStatusDetail: FC<Props> = ({
   })()
 
   return (
-    <div className="@container space-y-6 p-4 sm:p-5">
+    <div className="@container">
+      {/* The post is flush in the page card, directly under its header, like
+          the focused post on the post page; the sections after it sit in the
+          padded column. */}
       <ActivityPostFrame
         host={host}
         currentTime={currentTime}
@@ -653,159 +657,163 @@ export const FitnessStatusDetail: FC<Props> = ({
         onShowAttachment={onShowAttachment}
       />
 
-      {/* This page replaces `Post` for a completed activity, so the retry
+      <div className="space-y-6 p-4 sm:p-5">
+        {/* This page replaces `Post` for a completed activity, so the retry
           `Post` offers for a missing route map has to exist here too. Read from
           `status.fitness` (the primary file), not the recording on screen: the
           retry endpoint only acts on the primary. */}
-      {status.fitness?.mapFailure &&
-      status.fitness?.processingStatus === 'completed' &&
-      isOwner ? (
-        <RetryFitnessButton
-          statusId={status.id}
-          variant={`map-${status.fitness.mapFailure}`}
-        />
-      ) : null}
+        {status.fitness?.mapFailure &&
+        status.fitness?.processingStatus === 'completed' &&
+        isOwner ? (
+          <RetryFitnessButton
+            statusId={status.id}
+            variant={`map-${status.fitness.mapFailure}`}
+          />
+        ) : null}
 
-      {/* With no map to carry the banner, the failure is shown here so it is
+        {/* With no map to carry the banner, the failure is shown here so it is
           never invisible. */}
-      {route.error && !map ? (
-        <Alert tone="warning" title={route.error} />
-      ) : null}
+        {route.error && !map ? (
+          <Alert tone="warning" title={route.error} />
+        ) : null}
 
-      <ActivityOverviewSection
-        meta={overviewMeta}
-        map={map}
-        groups={overviewGroups}
-        isLoading={route.isLoading}
-      />
+        <ActivityOverviewSection
+          meta={overviewMeta}
+          map={map}
+          groups={overviewGroups}
+          isLoading={route.isLoading}
+        />
 
-      {route.isLoading || (analysis && availableSeries.length > 0) ? (
-        <Section
-          id="analysis"
-          title="Analysis"
-          icon={Activity}
-          meta={!route.isLoading && analysis ? analysisMeta : undefined}
-        >
-          {route.isLoading ? (
-            <div
-              role="status"
-              aria-label="Loading activity analysis"
-              className="space-y-4"
-            >
-              <Frame className="space-y-4 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex gap-2">
-                    <SkeletonBar className="h-8 w-20 rounded-md" />
-                    <SkeletonBar className="h-8 w-20 rounded-md" />
+        {route.isLoading || (analysis && availableSeries.length > 0) ? (
+          <Section
+            id="analysis"
+            title="Analysis"
+            icon={Activity}
+            meta={!route.isLoading && analysis ? analysisMeta : undefined}
+          >
+            {route.isLoading ? (
+              <div
+                role="status"
+                aria-label="Loading activity analysis"
+                className="space-y-4"
+              >
+                <Frame className="space-y-4 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex gap-2">
+                      <SkeletonBar className="h-8 w-20 rounded-md" />
+                      <SkeletonBar className="h-8 w-20 rounded-md" />
+                    </div>
+                    <div className="flex gap-2">
+                      <SkeletonBar className="h-8 w-16 rounded-md" />
+                      <SkeletonBar className="h-8 w-16 rounded-md" />
+                      <SkeletonBar className="h-8 w-16 rounded-md" />
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <SkeletonBar className="h-8 w-16 rounded-md" />
-                    <SkeletonBar className="h-8 w-16 rounded-md" />
-                    <SkeletonBar className="h-8 w-16 rounded-md" />
-                  </div>
-                </div>
-                <SkeletonBar className="h-[280px] w-full rounded-md" />
-              </Frame>
-            </div>
-          ) : analysis ? (
-            <>
-              <GraphDisplayCard
-                mode={graphDisplayMode}
-                onModeChange={setGraphDisplayMode}
-                options={availableSeries.map((entry) => ({
-                  key: entry.key,
-                  label: entry.label
-                }))}
-                selectedKeys={shownSeries.map((entry) => entry.key)}
-                onToggle={toggleGraph}
-                hint={graphHint}
-                showPauses={analysis.pauses.length > 0 ? showPauses : undefined}
-                onShowPausesChange={setShowPauses}
-              />
-              <div ref={chartRef}>
-                <ScrubbedAnalysisChart
-                  scrubStore={scrubStore}
-                  series={shownSeries}
-                  mode={graphDisplayMode}
-                  durationSeconds={analysis.durationSeconds}
-                  chartAxis={analysis.chartAxis}
-                  pauses={analysis.pauses}
-                  laps={laps}
-                  climbs={climbs}
-                  selectedKey={selectedSplitKey}
-                  onToggleSplit={toggleSplit}
-                  describePosition={describePosition}
-                />
+                  <SkeletonBar className="h-[280px] w-full rounded-md" />
+                </Frame>
               </div>
-            </>
-          ) : null}
-        </Section>
-      ) : null}
-
-      {route.isLoading ? (
-        (() => {
-          const hasSummaryHeartRate =
-            typeof fitness?.avgHeartRate === 'number' ||
-            typeof fitness?.maxHeartRate === 'number'
-          const hasSummaryPower =
-            typeof fitness?.avgPower === 'number' ||
-            typeof fitness?.maxPower === 'number'
-          const expectedDistributionCount =
-            (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
-          return (
-            <>
-              {hasSummaryPower && durationSeconds >= 5 ? (
-                <Section
-                  id="best-efforts"
-                  title="Best efforts"
-                  icon={Trophy}
-                  meta="power"
-                >
-                  <Frame className="p-3">
-                    <SkeletonBar className="h-12 w-full rounded-md" />
-                  </Frame>
-                </Section>
-              ) : null}
-              {expectedDistributionCount > 0 ? (
-                <div
-                  data-testid="analysis-distribution-skeleton"
-                  className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
-                >
-                  {Array.from(
-                    { length: expectedDistributionCount },
-                    (_, index) => (
-                      <Frame key={index} className="h-44 space-y-2 p-4">
-                        <SkeletonBar className="h-4 w-28" />
-                        <SkeletonBar className="h-28 w-full" />
-                      </Frame>
-                    )
-                  )}
+            ) : analysis ? (
+              <>
+                <GraphDisplayCard
+                  mode={graphDisplayMode}
+                  onModeChange={setGraphDisplayMode}
+                  options={availableSeries.map((entry) => ({
+                    key: entry.key,
+                    label: entry.label
+                  }))}
+                  selectedKeys={shownSeries.map((entry) => entry.key)}
+                  onToggle={toggleGraph}
+                  hint={graphHint}
+                  showPauses={
+                    analysis.pauses.length > 0 ? showPauses : undefined
+                  }
+                  onShowPausesChange={setShowPauses}
+                />
+                <div ref={chartRef}>
+                  <ScrubbedAnalysisChart
+                    scrubStore={scrubStore}
+                    series={shownSeries}
+                    mode={graphDisplayMode}
+                    durationSeconds={analysis.durationSeconds}
+                    chartAxis={analysis.chartAxis}
+                    pauses={analysis.pauses}
+                    laps={laps}
+                    climbs={climbs}
+                    selectedKey={selectedSplitKey}
+                    onToggleSplit={toggleSplit}
+                    describePosition={describePosition}
+                  />
                 </div>
-              ) : null}
-            </>
-          )
-        })()
-      ) : analysis ? (
-        <>
-          <ActivityBestEfforts efforts={analysis.bestEfforts} />
-          <ActivityDistributionRow
-            heartRateZones={heartRateZones}
-            heartRateStats={heartRateStats}
-            powerDistribution={analysis.powerDistribution}
-            avgPower={avgPower}
-            maxPower={maxPower}
-            powerCurve={analysis.powerCurve}
-          />
-          <ActivitySplitsTables
-            laps={laps}
-            climbs={climbs}
-            lapsMeta={lapsMeta}
-            usesPace={usesPace}
-            selectedKey={selectedSplitKey}
-            onSelect={selectSplitFromTable}
-          />
-        </>
-      ) : null}
+              </>
+            ) : null}
+          </Section>
+        ) : null}
+
+        {route.isLoading ? (
+          (() => {
+            const hasSummaryHeartRate =
+              typeof fitness?.avgHeartRate === 'number' ||
+              typeof fitness?.maxHeartRate === 'number'
+            const hasSummaryPower =
+              typeof fitness?.avgPower === 'number' ||
+              typeof fitness?.maxPower === 'number'
+            const expectedDistributionCount =
+              (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
+            return (
+              <>
+                {hasSummaryPower && durationSeconds >= 5 ? (
+                  <Section
+                    id="best-efforts"
+                    title="Best efforts"
+                    icon={Trophy}
+                    meta="power"
+                  >
+                    <Frame className="p-3">
+                      <SkeletonBar className="h-12 w-full rounded-md" />
+                    </Frame>
+                  </Section>
+                ) : null}
+                {expectedDistributionCount > 0 ? (
+                  <div
+                    data-testid="analysis-distribution-skeleton"
+                    className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+                  >
+                    {Array.from(
+                      { length: expectedDistributionCount },
+                      (_, index) => (
+                        <Frame key={index} className="h-44 space-y-2 p-4">
+                          <SkeletonBar className="h-4 w-28" />
+                          <SkeletonBar className="h-28 w-full" />
+                        </Frame>
+                      )
+                    )}
+                  </div>
+                ) : null}
+              </>
+            )
+          })()
+        ) : analysis ? (
+          <>
+            <ActivityBestEfforts efforts={analysis.bestEfforts} />
+            <ActivityDistributionRow
+              heartRateZones={heartRateZones}
+              heartRateStats={heartRateStats}
+              powerDistribution={analysis.powerDistribution}
+              avgPower={avgPower}
+              maxPower={maxPower}
+              powerCurve={analysis.powerCurve}
+            />
+            <ActivitySplitsTables
+              laps={laps}
+              climbs={climbs}
+              lapsMeta={lapsMeta}
+              usesPace={usesPace}
+              selectedKey={selectedSplitKey}
+              onSelect={selectSplitFromTable}
+            />
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }

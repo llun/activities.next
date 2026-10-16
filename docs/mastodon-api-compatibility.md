@@ -959,7 +959,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
   halves share one `ReactionState` from `useReactionState`, held by whoever lays
-  out the post — `Post`, or the activity page's `ActivityPostFrame`, which builds its own card and
+  out the post — `Post`, or the activity page's `ActivityPostFrame`, which builds its own post and
   therefore calls the hook itself and passes the state into `Actions`. The same
   applies to the bookmark: `useBookmarkState` is held by `Actions` and
   `BookmarkButton` only renders it.

@@ -12,7 +12,10 @@ import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
 import { Alert } from '@/lib/components/surface/Alert'
-import { StatStrip } from '@/lib/components/surface/StatStrip'
+import {
+  StatStrip,
+  type StatStripColumns
+} from '@/lib/components/surface/StatStrip'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -65,14 +68,15 @@ export interface ActivityTile {
 
 /**
  * One of the post's headline figures: a small uppercase label with its icon,
- * the value, and its unit under it.
+ * the value, and its unit under it. It is a cell of the edge-to-edge band, so
+ * it has no border or radius of its own: the band's 1px gaps draw the dividers.
  */
 const ActivityTileCell: FC<{ tile: ActivityTile }> = ({ tile }) => {
   const Icon = tile.icon
   return (
     <div
       data-testid={`activity-tile-${tile.key}`}
-      className="grid min-w-0 gap-0.5 rounded-lg border bg-background p-3"
+      className="grid min-w-0 gap-0.5 bg-background px-4 py-3"
     >
       <span className="flex items-center gap-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         <Icon className="size-3.5 shrink-0" aria-hidden="true" />
@@ -116,7 +120,13 @@ export interface ActivityPostFrameProps {
 /**
  * The activity's post: who and when, the recording it is drawn from, the
  * caption, the photos (the status media strip), the headline figures, the
- * reactions and action row, and the replies under them, all in one frame.
+ * reactions and action row, and the replies under them.
+ *
+ * It is laid out like the focused post on the post page, not as a box inside
+ * the page card: flush under the page header, no border or radius of its own,
+ * sections divided by full-width hairlines. The headline figures are an
+ * edge-to-edge band, and the article's own `border-b` closes the post before
+ * the Overview section.
  */
 export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
   host,
@@ -188,6 +198,8 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
       ? `/api/v1/fitness-files/${encodeURIComponent(fitness.id)}`
       : undefined
 
+  const hasReactions = reactionState.reactions.length > 0
+
   const isEditingOrQuoting =
     Boolean(currentActor) &&
     composer.active?.anchorId === status.id &&
@@ -198,16 +210,30 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
     // edit-history panel do not portal, so a clip here would cut them off.
     <article
       data-slot="fitness-card"
-      className="rounded-lg border bg-background"
+      className={cn(
+        'border-b bg-background',
+        // Signed out there is no `Header` above the post (the page card has
+        // only an `sr-only` heading), so the post is what meets the card's top
+        // corners, and its background would paint over them if square. Signed
+        // in, the header's own clipped wrapper takes them.
+        !currentActor && 'rounded-t-lg'
+      )}
     >
       <div
-        className="p-5"
+        className={cn(
+          'p-4',
+          // The figure band ends the body and the action row's `border-t` is
+          // the one line under it, so the body must not pad below it. With
+          // reaction chips after the band, the band draws its own `border-b`
+          // and the chips sit in the padded space under it instead.
+          tiles.length > 0 && !hasReactions && 'pb-0'
+        )}
         style={
           {
-            // The media strip runs to the frame's edges: it bleeds out by the
+            // The media strip runs to the post's edges: it bleeds out by the
             // body's own padding on each side.
-            '--post-media-bleed-left': '1.25rem',
-            '--post-media-bleed-right': '1.25rem'
+            '--post-media-bleed-left': '1rem',
+            '--post-media-bleed-right': '1rem'
           } as CSSProperties
         }
       >
@@ -324,14 +350,18 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
         />
 
         {tiles.length > 0 ? (
-          <StatStrip variant="detail" className="mt-4">
+          <StatStrip
+            variant="band"
+            columns={Math.min(tiles.length, 5) as StatStripColumns}
+            className={cn('-mx-4 mt-4 border-t', hasReactions && 'border-b')}
+          >
             {tiles.map((tile) => (
               <ActivityTileCell key={tile.key} tile={tile} />
             ))}
           </StatStrip>
         ) : null}
 
-        {reactionState.reactions.length > 0 ? (
+        {hasReactions ? (
           // Gated on the wrapper: the row renders nothing on an unreacted post,
           // and an ungated wrapper would leave dead space under the figures.
           <div data-testid="reaction-chips">

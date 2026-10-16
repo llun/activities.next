@@ -498,11 +498,11 @@ const Page: FC<Props> = async ({ params }) => {
             currentActorProfile && 'md:mt-4',
             // No `overflow-hidden`: this card wraps a post, and a post's
             // non-portalled overlays have to escape it. They all hang off the
-            // action row inside `FitnessStatusDetail`'s own card — the
-            // edit-history panel opening upward (`bottom-full`, ~360px) and the
-            // action-button error tooltips hanging below it (`top-full`) — and
-            // that card dropping its clip only got them out of the *inner* box.
-            // The like button's tooltip — the leftmost one that renders — still
+            // action row inside the activity post — the edit-history panel
+            // opening upward (`bottom-full`, ~360px) and the action-button
+            // error tooltips hanging below it (`top-full`). The post is flush
+            // in this card with no clip of its own, so only this card's clip
+            // could still cut them off. The like button's tooltip — the leftmost one that renders — still
             // starts ~14px left of this card's edge, which this clip then cut
             // off, so a failed bookmark stayed unreadable. The picker and the ⋯
             // popover are unaffected either way; both portal to the document
@@ -545,8 +545,9 @@ const Page: FC<Props> = async ({ params }) => {
               // so with the clip gone each corner they reach has to be rounded
               // here, and reset below `md` where the outer card is square and
               // full-bleed. Logged out there is no `Header` above this — the
-              // `sr-only` heading is out of flow and paints nothing — so it meets
-              // the top corners as well…
+              // `sr-only` heading is out of flow and paints nothing — so the
+              // activity post, flush at the top of it, meets the top corners as
+              // well (`ActivityPostFrame` rounds itself when signed out)…
               !currentActorProfile && 'rounded-t-lg',
               // …and it is the last child unless the logged-out `SignInCallout`
               // follows it, in which case that block takes the bottom corners.
