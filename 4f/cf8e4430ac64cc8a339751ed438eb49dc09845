@@ -1,0 +1,14 @@
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  h_580a04e334fef4 3,27-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4fcf8e4430ac64cc8a339751ed438eb49dc09845",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
