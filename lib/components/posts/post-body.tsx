@@ -70,6 +70,8 @@ interface PostBodyProps {
   postLineLimit?: PostLineLimit
   onOpenStatus?: (status: Status) => void
   onShowAttachment?: OnMediaSelectedHandle
+  /** Load this post's first picture eagerly at high priority. */
+  prioritizeMedia?: boolean
 }
 
 /**
@@ -86,7 +88,8 @@ export const PostBody: FC<PostBodyProps> = ({
   collapsible,
   postLineLimit,
   onOpenStatus,
-  onShowAttachment = () => {}
+  onShowAttachment = () => {},
+  prioritizeMedia = false
 }) => {
   const actualStatus = getActualStatus(status)
   const processedAndCleanedText = cleanClassName(
@@ -331,7 +334,11 @@ export const PostBody: FC<PostBodyProps> = ({
         currentTime={currentTime}
         currentActorId={currentActor?.id}
       />
-      <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
+      <Attachments
+        status={actualStatus}
+        onMediaSelected={onShowAttachment}
+        prioritizeMedia={prioritizeMedia}
+      />
       {/* The link card yields to any richer representation of what the post is
           about — media, a quoted post, or a fitness activity — rather than
           stacking a second block under it. This is the display rule Mastodon

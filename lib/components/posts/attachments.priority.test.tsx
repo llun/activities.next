@@ -1,0 +1,104 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { render } from '@testing-library/react'
+
+import { Attachments } from './attachments'
+import {
+  BLURHASH,
+  buildAttachment,
+  buildNoteStatus,
+  resetAttachmentTestState
+} from './attachments.testUtils'
+
+beforeEach(() => {
+  resetAttachmentTestState()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+const renderAttachments = (
+  attachments: ReturnType<typeof buildAttachment>[],
+  prioritizeMedia?: boolean
+) =>
+  render(
+    <Attachments
+      status={buildNoteStatus(attachments)}
+      onMediaSelected={vi.fn()}
+      prioritizeMedia={prioritizeMedia}
+    />
+  )
+
+const picture = () =>
+  buildAttachment({ width: 800, height: 600, blurhash: BLURHASH })
+
+describe('Attachments prioritizeMedia', () => {
+  it('leaves a single image default when not asked', () => {
+    const { container } = renderAttachments([picture()])
+    const image = container.querySelector('img')!
+    expect(image).not.toHaveAttribute('fetchpriority')
+    expect(image).not.toHaveAttribute('loading')
+  })
+
+  it('loads a single image eagerly at high priority', () => {
+    const { container } = renderAttachments([picture()], true)
+    const image = container.querySelector('img')!
+    expect(image).toHaveAttribute('loading', 'eager')
+    expect(image).toHaveAttribute('fetchpriority', 'high')
+    expect(image).toHaveClass('opacity-100')
+  })
+
+  it('prioritizes only the first image of a strip', () => {
+    const { container } = renderAttachments(
+      [picture(), picture(), picture()],
+      true
+    )
+    const images = Array.from(container.querySelectorAll('img'))
+    expect(images.map((image) => image.getAttribute('loading'))).toEqual([
+      'eager',
+      'lazy',
+      'lazy'
+    ])
+    expect(images.map((image) => image.getAttribute('fetchpriority'))).toEqual([
+      'high',
+      null,
+      null
+    ])
+  })
+
+  it('keeps every strip image lazy when not asked', () => {
+    const { container } = renderAttachments([picture(), picture()])
+    const images = Array.from(container.querySelectorAll('img'))
+    expect(images.every((i) => i.getAttribute('loading') === 'lazy')).toBe(true)
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+  })
+
+  it('does not prioritize an animated GIF', () => {
+    const { container } = renderAttachments(
+      [
+        buildAttachment({
+          mediaType: 'image/gif',
+          width: 400,
+          height: 300
+        })
+      ],
+      true
+    )
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+  })
+
+  it('does not hand the priority to a later image when the first is a video', () => {
+    const { container } = renderAttachments(
+      [
+        buildAttachment({ mediaType: 'video/mp4', width: 400, height: 300 }),
+        picture()
+      ],
+      true
+    )
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+  })
+})

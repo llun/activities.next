@@ -832,4 +832,64 @@ describe('StatusThread', () => {
       )
     })
   })
+
+  it('prioritizes only the focused post image, not ancestors or replies', () => {
+    const withPhoto = <T extends { id: string; actorId: string }>(
+      note: T,
+      name: string
+    ) => ({ ...note, attachments: [createMockPhoto(note, name)] })
+
+    const root = withPhoto(
+      createMockNote({
+        id: 'https://activities.local/users/alice/statuses/root',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Ancestor Root',
+        createdAt: BASE_TIME
+      }),
+      'root-photo'
+    )
+    const focused = withPhoto(
+      createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: root.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME + 60000
+      }),
+      'focused-photo'
+    )
+    const descendant = withPhoto(
+      createMockNote({
+        id: 'https://activities.local/users/bob/statuses/reply1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: focused.id,
+        text: 'Reply',
+        createdAt: BASE_TIME + 120000
+      }),
+      'reply-photo'
+    )
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        descendants={[descendant]}
+        currentTime={BASE_TIME + 200000}
+      />
+    )
+
+    const priority = document.querySelectorAll('img[fetchpriority="high"]')
+    expect(priority).toHaveLength(1)
+    expect(screen.getByTestId('focused-status')).toContainElement(
+      priority[0] as HTMLElement
+    )
+    expect(priority[0]).toHaveAttribute(
+      'src',
+      expect.stringContaining('focused-photo')
+    )
+  })
 })

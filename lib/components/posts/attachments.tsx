@@ -302,12 +302,34 @@ const AnimationCard: FC<AnimationCardProps> = ({
   )
 }
 
+// The attachment `Attachments` hands the first-visible-media priority to: the
+// first picture, when it is an ordinary image (not a video or an animation).
+// Exported so a feed can pick the row that will actually spend the priority.
+export const getPrioritizedAttachment = (
+  attachments: Attachment[]
+): Attachment | undefined => {
+  const first = attachments.find(isVisualAttachment)
+  if (!first || isAnimationAttachment(first) || isVideoAttachment(first)) {
+    return undefined
+  }
+  return first
+}
+
 interface Props {
   status: Status
   onMediaSelected: OnMediaSelectedHandle
+  /**
+   * The first picture is likely the page's largest contentful paint: load it
+   * eagerly at high priority. Only that one image; the rest stay lazy.
+   */
+  prioritizeMedia?: boolean
 }
 
-export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
+export const Attachments: FC<Props> = ({
+  status,
+  onMediaSelected,
+  prioritizeMedia = false
+}) => {
   const attachments = useMemo(
     () => (status.type === StatusType.enum.Note ? status.attachments : []),
     [status]
@@ -316,6 +338,9 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     () => attachments.filter(isVisualAttachment),
     [attachments]
   )
+  const prioritizedId = prioritizeMedia
+    ? getPrioritizedAttachment(pictures)?.id
+    : undefined
   const players = useMemo(
     () => attachments.filter(isAudibleAttachment),
     [attachments]
@@ -429,6 +454,9 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               <Media
                 className="h-full w-full object-cover rounded-2xl"
                 attachment={attachment}
+                {...(attachment.id === prioritizedId
+                  ? { loading: 'eager', fetchPriority: 'high' }
+                  : {})}
               />
             </button>
           )}
@@ -532,7 +560,12 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                             cornerClass
                           )}
                           attachment={attachment}
-                          loading="lazy"
+                          loading={
+                            attachment.id === prioritizedId ? 'eager' : 'lazy'
+                          }
+                          fetchPriority={
+                            attachment.id === prioritizedId ? 'high' : undefined
+                          }
                         />
                       </button>
                     )}

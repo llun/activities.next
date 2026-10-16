@@ -29,6 +29,8 @@ export interface PostListItemProps {
   /** Extra classes for the `<article>` (e.g. the framed list's corner radius). */
   className?: string
   showReplyContext?: boolean
+  /** The row whose first picture is the list's first visible media. */
+  prioritizeMedia?: boolean
   parentPreview?: TimelineParentPreview | null
   /** Reply/quote/edit are offered (signed-in actor and an interactive feed). */
   canCompose: boolean
@@ -84,6 +86,7 @@ export const PostListItem = memo(function PostListItem({
   postLineLimit,
   className,
   showReplyContext,
+  prioritizeMedia,
   parentPreview,
   canCompose,
   activeComposer,
@@ -131,6 +134,7 @@ export const PostListItem = memo(function PostListItem({
         collapsible
         postLineLimit={postLineLimit}
         showReplyContext={showReplyContext}
+        prioritizeMedia={prioritizeMedia}
         parentPreview={parentPreview}
         onReply={
           canCompose ? (target) => openReply(target, status.id) : undefined
