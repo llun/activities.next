@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
@@ -21,8 +22,13 @@ import { Tag } from '@/lib/types/domain/tag'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
-import { FitnessStatusDetail } from './FitnessStatusDetail'
 import { StatusLikes } from './StatusLikes'
+
+// Only fitness posts render this (large) detail view. SSR stays on because it is
+// the primary content there; other status pages never download it.
+const FitnessStatusDetail = dynamic(() =>
+  import('./FitnessStatusDetail').then((module) => module.FitnessStatusDetail)
+)
 
 interface Props {
   host: string
