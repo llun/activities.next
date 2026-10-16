@@ -10,6 +10,8 @@ import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-media
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
+import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -25,9 +27,21 @@ import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 import { StatusLikes } from './StatusLikes'
 
 // Only fitness posts render this (large) detail view. SSR stays on because it is
-// the primary content there; other status pages never download it.
-const FitnessStatusDetail = dynamic(() =>
-  import('./FitnessStatusDetail').then((module) => module.FitnessStatusDetail)
+// the primary content there; other status pages never download it. The
+// fallback only shows on a client-side navigation: the title block and the map.
+const FitnessStatusDetail = dynamic(
+  () =>
+    import('./FitnessStatusDetail').then(
+      (module) => module.FitnessStatusDetail
+    ),
+  {
+    loading: () => (
+      <div className="space-y-4">
+        <SectionSkeleton sections={[]} />
+        <SkeletonBar className="aspect-video h-auto w-full rounded-md" />
+      </div>
+    )
+  }
 )
 
 interface Props {

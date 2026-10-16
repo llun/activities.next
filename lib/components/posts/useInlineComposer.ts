@@ -43,7 +43,7 @@ export interface InlineComposerControls {
  * `active.anchorId`.
  */
 export const useInlineComposer = (
-  canCompose = false
+  canCompose: boolean
 ): InlineComposerControls => {
   const [active, setActive] = useState<ActiveStatusComposer | null>(null)
 

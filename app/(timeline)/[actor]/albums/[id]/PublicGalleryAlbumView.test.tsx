@@ -28,12 +28,18 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
-    albumsOwnerId
+    albumsOwnerId,
+    prioritizeFirst
   }: {
     items: { mediaId: string }[]
     albumsOwnerId?: string | null
+    prioritizeFirst?: boolean
   }) => (
-    <ul data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
+    <ul
+      data-testid="grid"
+      data-albums-owner={albumsOwnerId ?? 'none'}
+      data-prioritize-first={String(Boolean(prioritizeFirst))}
+    >
       {items.map((item) => (
         <li key={item.mediaId}>{item.mediaId}</li>
       ))}
@@ -192,6 +198,30 @@ describe('PublicGalleryAlbumView', () => {
     )
     expect(writeText).toHaveBeenCalledWith(PAGE_URL)
     expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
+  })
+
+  it('fetches the cover first and leaves the grid lazy when there is a cover', () => {
+    const { container } = renderView()
+    const high = container.querySelectorAll('img[fetchpriority="high"]')
+    expect(high).toHaveLength(1)
+    expect(high[0]).toHaveAttribute('loading', 'eager')
+    expect(screen.getByTestId('grid')).toHaveAttribute(
+      'data-prioritize-first',
+      'false'
+    )
+  })
+
+  it('prioritizes the first grid tile when there is no cover', () => {
+    const { container } = renderView(
+      buildAlbumView({
+        album: buildAlbumCard('a1', { title: 'No cover', cover: null })
+      })
+    )
+    expect(container.querySelector('img[fetchpriority="high"]')).toBeNull()
+    expect(screen.getByTestId('grid')).toHaveAttribute(
+      'data-prioritize-first',
+      'true'
+    )
   })
 
   it('shows a plain heading when no photo is visible to use as a cover', () => {

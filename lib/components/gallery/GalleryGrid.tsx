@@ -166,6 +166,8 @@ export const GalleryGrid: FC<Props> = ({
             .filter(Boolean)
             .join(' · ')
           const isSelected = selection?.selected.has(item.mediaId) ?? false
+          const isPriorityTile =
+            prioritizeFirst && index === 0 && !isVideo(item)
           return (
             <li key={item.mediaId} className="min-w-0">
               <button
@@ -194,16 +196,8 @@ export const GalleryGrid: FC<Props> = ({
                         }
                       : item.attachment
                   }
-                  loading={
-                    prioritizeFirst && index === 0 && !isVideo(item)
-                      ? 'eager'
-                      : 'lazy'
-                  }
-                  fetchPriority={
-                    prioritizeFirst && index === 0 && !isVideo(item)
-                      ? 'high'
-                      : undefined
-                  }
+                  loading={isPriorityTile ? 'eager' : 'lazy'}
+                  fetchPriority={isPriorityTile ? 'high' : undefined}
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
                 {item.inGallery === false ? (

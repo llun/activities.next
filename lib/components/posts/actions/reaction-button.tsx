@@ -8,6 +8,7 @@ import {
   ACTION_BUTTON_CLASS,
   ActionButtonError
 } from '@/lib/components/posts/actions/actionButtonShared'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import {
   ReactionState,
   formatReactionCount
@@ -23,7 +24,7 @@ const loadReactionPicker = () =>
 // post list's first-load bundle. The trigger preloads the chunk on hover/focus.
 const ReactionPicker = dynamic(loadReactionPicker, { ssr: false })
 
-const preloadReactionPicker = () => {
+export const preloadReactionPicker = () => {
   loadReactionPicker().catch(() => undefined)
 }
 
@@ -128,24 +129,28 @@ export const ReactionButton: FC<Props> = ({
           {error}
         </span>
       )}
-      {/* Portalled and viewport-positioned, so it lays nothing out here. */}
+      {/* Portalled and viewport-positioned, so it lays nothing out here. If its
+          chunk fails to load, the message is absolutely positioned under the
+          action row (`relative`), so it adds no flex item either. */}
       {isPicking && (
-        <ReactionPicker
-          anchorRef={triggerRef}
-          // Focus goes back to the trigger on close, so dismissing the picker
-          // with Escape or an outside click does not dump a keyboard user on
-          // <body>. On a pick the chip that appears is the natural next target,
-          // but the trigger is still the element that was activated.
-          onClose={() => {
-            setIsPicking(false)
-            focusTrigger()
-          }}
-          onPick={(name) => {
-            setIsPicking(false)
-            focusTrigger()
-            void state.toggle(name, 'add')
-          }}
-        />
+        <LazyChunkBoundary className="absolute top-full left-0 z-50 mt-1 w-72 max-w-full bg-background">
+          <ReactionPicker
+            anchorRef={triggerRef}
+            // Focus goes back to the trigger on close, so dismissing the picker
+            // with Escape or an outside click does not dump a keyboard user on
+            // <body>. On a pick the chip that appears is the natural next target,
+            // but the trigger is still the element that was activated.
+            onClose={() => {
+              setIsPicking(false)
+              focusTrigger()
+            }}
+            onPick={(name) => {
+              setIsPicking(false)
+              focusTrigger()
+              void state.toggle(name, 'add')
+            }}
+          />
+        </LazyChunkBoundary>
       )}
     </>
   )

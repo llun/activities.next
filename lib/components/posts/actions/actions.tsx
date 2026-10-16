@@ -15,7 +15,7 @@ import { BookmarkButton } from './bookmark-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
 import { PostMenu, PostMenuExtraItem } from './post-menu'
-import { ReactionButton } from './reaction-button'
+import { ReactionButton, preloadReactionPicker } from './reaction-button'
 import { ReplyButton } from './reply-button'
 import { RepostButton } from './repost-button'
 import { getBookmarkLabel, useBookmarkState } from './useBookmarkState'
@@ -235,6 +235,8 @@ export const Actions: FC<Props> = ({
         canEdit={canEdit}
         triggerRef={isCompact ? reactionState.triggerRef : undefined}
         extraItems={extraItems}
+        // The compact row's "React to post" item mounts the lazy picker.
+        onMenuOpen={isCompact ? preloadReactionPicker : undefined}
         onReply={onReply}
         onEdit={onEdit}
         onQuote={onQuote}

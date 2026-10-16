@@ -38,6 +38,13 @@ interface Props {
   showReadOnlyStats?: boolean
   currentTime: number
   statuses: Status[]
+  /**
+   * The list's first picture is the page's likely largest contentful paint:
+   * load it eagerly at high priority. Off by default, because most pages put
+   * something else (a cover image, filters, a header) above the list; only the
+   * surface whose list is the first visible content opts in.
+   */
+  prioritizeFirstMedia?: boolean
   isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
   /**
@@ -87,6 +94,7 @@ export const Posts: FC<Props> = ({
   showReadOnlyStats = false,
   currentTime,
   statuses,
+  prioritizeFirstMedia = false,
   isMediaUploadEnabled,
   postLineLimit,
   onStatusCreated,
@@ -135,8 +143,8 @@ export const Posts: FC<Props> = ({
   )
 
   const prioritizedRowIndex = useMemo(
-    () => getPrioritizedRowIndex(statuses),
-    [statuses]
+    () => (prioritizeFirstMedia ? getPrioritizedRowIndex(statuses) : -1),
+    [prioritizeFirstMedia, statuses]
   )
 
   if (statuses.length === 0) return null

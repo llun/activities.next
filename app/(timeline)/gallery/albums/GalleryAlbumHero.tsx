@@ -12,6 +12,8 @@ interface Props {
   dateRange: string
   // Set when the visible places are all in one country.
   countryName: string | null
+  /** The cover is the page's likely largest contentful paint: fetch it first. */
+  prioritizeCover?: boolean
 }
 
 /**
@@ -23,7 +25,8 @@ export const GalleryAlbumHero: FC<Props> = ({
   title,
   cover,
   dateRange,
-  countryName
+  countryName,
+  prioritizeCover = false
 }) => {
   const subtitle = dateRange
     ? `${dateRange}${countryName ? ` · ${countryName}` : ''}`
@@ -44,7 +47,12 @@ export const GalleryAlbumHero: FC<Props> = ({
 
   return (
     <div className="bg-muted/40 relative aspect-[4/3] w-full overflow-hidden rounded-lg border sm:aspect-[16/7]">
-      <GalleryAlbumThumb item={cover} loading="eager" quality="full" />
+      <GalleryAlbumThumb
+        item={cover}
+        loading="eager"
+        quality="full"
+        fetchPriority={prioritizeCover ? 'high' : undefined}
+      />
       <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 via-black/30 to-transparent p-4 text-white sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">
           {title}
