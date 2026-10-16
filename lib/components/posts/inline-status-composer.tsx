@@ -48,26 +48,29 @@ export const InlineStatusComposer: FC<Props> = ({
   onUpdated
 }) => {
   if (mode === 'reply') {
+    // `contents` keeps the wrapper out of layout; it only carries the marker.
     return (
-      <StatusReplyBox
-        profile={profile}
-        replyStatus={status}
-        isMediaUploadEnabled={isMediaUploadEnabled}
-        onCancel={onCancel}
-        onPostCreated={(created) => {
-          if (onReplyCreated) {
-            onReplyCreated(created)
-          } else {
-            onCreated?.(created)
-          }
-          onCancel()
-        }}
-      />
+      <div className="contents" data-row-overlay>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={status}
+          isMediaUploadEnabled={isMediaUploadEnabled}
+          onCancel={onCancel}
+          onPostCreated={(created) => {
+            if (onReplyCreated) {
+              onReplyCreated(created)
+            } else {
+              onCreated?.(created)
+            }
+            onCancel()
+          }}
+        />
+      </div>
     )
   }
 
   return (
-    <div className="mt-4 border-t border-border/40 pt-4">
+    <div className="mt-4 border-t border-border/40 pt-4" data-row-overlay>
       <PostBox
         host={host}
         profile={profile}

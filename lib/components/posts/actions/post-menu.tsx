@@ -345,6 +345,7 @@ export const PostMenu: FC<Props> = ({
       {actionError ? (
         <span
           className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-max max-w-[min(14rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm"
+          data-row-overlay
           role="alert"
         >
           {actionError}

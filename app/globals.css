@@ -728,3 +728,33 @@
   background-color: transparent;
   padding: 0;
 }
+
+/* Post rows in long feeds (`PostListItem`'s <article class="feed-row">).
+   `content-visibility: auto` skips layout and paint of rows far off-screen,
+   which removed the scroll long tasks on 200-300 post timelines. Its
+   containment applies to on-screen rows too, not only skipped ones: the row
+   becomes a stacking context and the containing block of absolute and fixed
+   descendants, and it clips like `overflow: clip` to its (rounded) padding box.
+   So a row that holds an open overlay (edit-history panel, action error
+   bubble, emoji picker, inline composer) opts out through `data-row-overlay`.
+   The rules need all of:
+   - `:has()`, so Chrome 85-104 (content-visibility without `:has()`) never
+     clips an overlay;
+   - `overflow-anchor`, so Safari, which has historically lacked scroll
+     anchoring, never shifts the visible content when rows above the viewport
+     render late.
+   Only the block axis gets an intrinsic size, so a skipped row has no
+   intrinsic width; `auto` remembers each row's last rendered height. 380px is
+   the content box of a row not rendered yet: a text-only post is roughly
+   150-250px and one with media about 400px, so it sits between the two (about
+   405px with the row's padding and divider). */
+@supports selector(:has(a)) and (overflow-anchor: auto) {
+  .feed-row {
+    content-visibility: auto;
+    contain-intrinsic-block-size: auto 380px;
+  }
+
+  .feed-row:has([data-row-overlay]) {
+    content-visibility: visible;
+  }
+}

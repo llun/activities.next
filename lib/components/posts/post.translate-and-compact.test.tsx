@@ -507,6 +507,8 @@ describe('Post', () => {
       const bookmarkError = await screen.findByTestId('bookmark-error')
       fireEvent.click(screen.getByLabelText('Add 🔥 reaction, 2'))
       const reactionError = await screen.findByTestId('reaction-error')
+      // Both live in `ActionRowErrors`, whose wrapper marks the row.
+      expect(bookmarkError.parentElement).toHaveAttribute('data-row-overlay')
 
       // Both writes are independent, so both can fail inside one dismiss
       // window. Sharing a parent is not the point and would have been true of

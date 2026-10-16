@@ -106,11 +106,19 @@ export const PostListItem = memo(function PostListItem({
 
   return (
     <article
+      // `feed-row` (app/globals.css) skips rendering off-screen rows with
+      // `content-visibility: auto`. Its containment applies to on-screen rows
+      // too: the row becomes a stacking context and the containing block of
+      // absolute and fixed descendants, and clips like `overflow: clip` to its
+      // (rounded) padding box. So an overlay inside a row must be portaled, or
+      // carry a bare `data-row-overlay` (never `={bool}`) on an element rendered
+      // only while it is open (a row with one is not contained, see
+      // globals.css). `ui/popover.tsx` accepts a `container`: passing one
+      // inside a row defeats its portal.
       // Callers may pass the framed box's corner radius so any child
       // background can't bleed past the rounded edges now that the list has no
-      // `overflow-hidden` (posts render non-portaled overlays such as the
-      // edit-history panel and inline error bubbles that must escape the box).
-      className={cn('min-h-0 min-w-0 px-4 py-3', className)}
+      // `overflow-hidden`.
+      className={cn('feed-row min-h-0 min-w-0 px-4 py-3', className)}
     >
       <Post
         host={host}

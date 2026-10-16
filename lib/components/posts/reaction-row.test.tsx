@@ -198,6 +198,9 @@ describe('ReactionRow', () => {
     await waitFor(() =>
       expect(screen.getByTestId('reaction-error')).toBeInTheDocument()
     )
+    expect(screen.getByTestId('reaction-error')).toHaveAttribute(
+      'data-row-overlay'
+    )
     // Reverted: back to the un-pressed chip with its original count.
     expect(screen.getByLabelText('Add 🔥 reaction, 2')).toHaveTextContent('2')
   })
