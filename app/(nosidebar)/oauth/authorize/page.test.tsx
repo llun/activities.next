@@ -279,10 +279,11 @@ describe('/oauth/authorize unregistered client', () => {
   // Regression pin: a client_id this server does not know — e.g. one a Mastodon
   // client cached and re-used after the registration went away — must fail
   // here. Forwarding it to Better Auth instead makes its authorize endpoint
-  // answer `invalid_client / client_id is required` (its message for BOTH a
-  // missing and an unknown client) only after the visitor has been through
-  // sign-in. Per RFC 6749 4.1.2.1 the client must be rejected before the
-  // resource owner is involved, which is what this check enforces.
+  // answer `invalid_client` (`client_id is required` before 1.7.10, which it
+  // also used for a missing client; `client not found` since) only after the
+  // visitor has been through sign-in. Per RFC 6749 4.1.2.1 the client must be
+  // rejected before the resource owner is involved, which is what this check
+  // enforces.
   it.each([
     {
       description: 'with an authenticated session',
