@@ -8,9 +8,12 @@ import { notFound } from 'next/navigation'
 import {
   createFollowListActor,
   createFollowRecord,
-  createLocalProfileData
+  createLocalProfileIdentity
 } from '@/app/(timeline)/[actor]/followListPage.testUtils'
-import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
+import {
+  getProfileData,
+  getProfileIdentity
+} from '@/app/(timeline)/[actor]/getProfileData'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -52,7 +55,8 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
 }))
 
 vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
-  getProfileData: vi.fn()
+  getProfileData: vi.fn(),
+  getProfileIdentity: vi.fn()
 }))
 
 vi.mock('@/app/(timeline)/[actor]/FollowList', () => ({
@@ -80,7 +84,7 @@ vi.mock('@/app/(timeline)/[actor]/getFollowListBlockedActorIds', () => ({
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
 const mockIsLocalFederationDomain = vi.mocked(isLocalFederationDomain)
-const mockGetProfileData = vi.mocked(getProfileData)
+const mockGetProfileIdentity = vi.mocked(getProfileIdentity)
 const mockNotFound = vi.mocked(notFound)
 
 describe('[actor] followers page', () => {
@@ -89,7 +93,7 @@ describe('[actor] followers page', () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorFromSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(false)
-    mockGetProfileData.mockResolvedValue(null)
+    mockGetProfileIdentity.mockResolvedValue(null)
     mockDatabase.getFollowers.mockReset().mockResolvedValue([])
     mockDatabase.getActorsFromIds.mockReset().mockResolvedValue([])
     mockDatabase.getActorFromId.mockReset().mockResolvedValue(null)
@@ -100,22 +104,14 @@ describe('[actor] followers page', () => {
       user: { email: 'user@llun.social' }
     } as never)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue({
+    mockGetProfileIdentity.mockResolvedValue({
       person: {
         id: 'https://llun.social/users/localuser',
         preferredUsername: 'localuser'
       } as never,
       followersCount: 1,
       followingCount: 0,
-      statusesCount: 0,
-      attachments: [],
-      isInternalAccount: true,
-      profileFields: [],
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      statuses: [],
-      statusPagination: { nextPageUrl: null, prevPageUrl: null }
+      isInternalAccount: true
     })
     mockDatabase.getFollowers.mockResolvedValue([
       {
@@ -158,6 +154,7 @@ describe('[actor] followers page', () => {
       ids: ['https://llun.social/users/follower1']
     })
     expect(mockNotFound).not.toHaveBeenCalled()
+    expect(getProfileData).not.toHaveBeenCalled()
   })
 
   describe('generateMetadata', () => {
@@ -177,24 +174,14 @@ describe('[actor] followers page', () => {
   it('renders followers page with follow list and empty message when profile is found', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue({
+    mockGetProfileIdentity.mockResolvedValue({
       person: {
         id: 'https://llun.test/users/llun',
         preferredUsername: 'llun'
-      } as unknown as Parameters<typeof getProfileData>[0] extends never
-        ? never
-        : NonNullable<Awaited<ReturnType<typeof getProfileData>>>['person'],
-      statuses: [],
-      statusesCount: 0,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
+      } as never,
       followingCount: 0,
       followersCount: 0,
-      isInternalAccount: true,
-      profileFields: [],
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: []
+      isInternalAccount: true
     })
     mockDatabase.getFollowers.mockResolvedValue([])
 
@@ -219,24 +206,14 @@ describe('[actor] followers page', () => {
       user: { email: 'user@llun.test' }
     } as never)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue({
+    mockGetProfileIdentity.mockResolvedValue({
       person: {
         id: 'https://llun.test/users/llun',
         preferredUsername: 'llun'
-      } as unknown as Parameters<typeof getProfileData>[0] extends never
-        ? never
-        : NonNullable<Awaited<ReturnType<typeof getProfileData>>>['person'],
-      statuses: [],
-      statusesCount: 0,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
+      } as never,
       followingCount: 0,
       followersCount: 42,
-      isInternalAccount: true,
-      profileFields: [],
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: []
+      isInternalAccount: true
     })
     mockDatabase.getFollowers.mockResolvedValue([])
 
@@ -260,24 +237,14 @@ describe('[actor] followers page', () => {
   it('renders navigation text and follower count on a new line without PageHeader when anonymous', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue({
+    mockGetProfileIdentity.mockResolvedValue({
       person: {
         id: 'https://llun.test/users/llun',
         preferredUsername: 'llun'
-      } as unknown as Parameters<typeof getProfileData>[0] extends never
-        ? never
-        : NonNullable<Awaited<ReturnType<typeof getProfileData>>>['person'],
-      statuses: [],
-      statusesCount: 0,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
+      } as never,
       followingCount: 0,
       followersCount: 42,
-      isInternalAccount: true,
-      profileFields: [],
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: []
+      isInternalAccount: true
     })
     mockDatabase.getFollowers.mockResolvedValue([])
 
@@ -304,22 +271,14 @@ describe('[actor] followers page', () => {
       user: { email: 'user@llun.social' }
     } as never)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue({
+    mockGetProfileIdentity.mockResolvedValue({
       person: {
         id: 'https://llun.social/users/user',
         preferredUsername: 'user'
       } as never,
       followersCount: null,
       followingCount: 10,
-      statusesCount: 5,
-      attachments: [],
-      isInternalAccount: false,
-      profileFields: [],
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      statuses: [],
-      statusPagination: { nextPageUrl: null, prevPageUrl: null }
+      isInternalAccount: false
     })
     mockDatabase.getFollowers.mockResolvedValue([])
 
@@ -335,8 +294,8 @@ describe('[actor] followers page', () => {
   it('hydrates followers in batch preserving follow order and filtering missing actors', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue(
-      createLocalProfileData({ followersCount: 2, followingCount: 0 })
+    mockGetProfileIdentity.mockResolvedValue(
+      createLocalProfileIdentity({ followersCount: 2, followingCount: 0 })
     )
     mockDatabase.getFollowers.mockResolvedValue([
       createFollowRecord({
