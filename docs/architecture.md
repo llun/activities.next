@@ -1788,8 +1788,28 @@ legacy shape left to copy.
   `lazy-inline-status-composer` (a `next/dynamic`, `ssr: false` wrapper that
   keeps `PostBox` out of anonymous first-load JS; `useInlineComposer(canCompose)`
   preloads the chunk at idle for signed-in viewers, never for anonymous ones).
-  The reaction picker, `FitnessStatusDetail` and the profile gallery panels are
-  lazy the same way. Pages pass only
+  Four pieces are split out of first-load JS, each with its own rule:
+  - **Inline composer and reaction picker: `ssr: false`.** Neither can be
+    primary content (they mount only after a click), so they render nothing on
+    the server. The composer chunk is preloaded at idle for a signed-in viewer
+    (`useInlineComposer(canCompose)`, where `canCompose` is a required
+    boolean) and never for an anonymous one; the picker chunk is preloaded when
+    its trigger is hovered or focused, or when the compact row's ⋯ menu opens
+    (`preloadReactionPicker`). Both are wrapped in `LazyChunkBoundary`, so a
+    chunk that fails to download (deploy skew) shows an inline `Alert`
+    ("Couldn't load. Reload the page to try again.") instead of reaching the
+    route error boundary.
+  - **`FitnessStatusDetail` (status page) and the profile gallery panels
+    (`ActorMediaGallery`, `ProfileGalleryTab`): SSR kept.** A fitness post's
+    detail and a media-only profile's gallery are the page's primary content,
+    so they stay in the server HTML. `FitnessStatusDetail` shows a skeleton
+    while it loads on a client-side navigation; the gallery panels are
+    preloaded when the profile tab bar is hovered or focused.
+  - **The rule: a lazily loaded component keeps SSR whenever it can be the
+    primary content of some page.** Use `ssr: false` only for UI that cannot
+    exist before an interaction.
+
+  Pages pass only
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
@@ -2512,6 +2532,20 @@ legacy shape left to copy.
   and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
+- **One image per page is the exception: the first visible media loads eagerly
+  at `fetchPriority="high"`; everything else stays lazy.** It is the likely
+  largest contentful paint, and only one image per page may claim it.
+  `Posts` takes `prioritizeFirstMedia` (default `false`) and the surface whose
+  list is its first visible content opts in: the landing feed, the hashtag
+  page, the public collection page, and the profile Posts tab only when the
+  profile has no cover image (the cover is then the LCP). The prioritized image
+  is the first ordinary image (not a video or animation, not behind a content
+  warning) among the list's first three rows. A `focused` status (the status
+  detail page) always prioritizes its first image. A public album page
+  prioritizes its hero cover; `GalleryGrid` gets `prioritizeFirst` only when
+  the album has no cover. Search, gear, fitness and other pages with content
+  above the list never opt in. `fetchPriority="high"` on `Media` also skips its
+  opacity-until-hydration gate.
 - The counter names the 1-based card the strip is on. At the end of the strip
   it is the last card, so it reads `N / N` exactly when the forward arrow is
   disabled. Otherwise it is the first card whose left edge has reached the
