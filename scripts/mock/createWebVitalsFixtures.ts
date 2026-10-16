@@ -4,7 +4,8 @@
  * (Lighthouse / trace runs) of the public pages. Run it ONCE against a freshly
  * migrated, EMPTY local SQLite database; it refuses everything else.
  *
- * What it creates (all local, nothing federated, no external network):
+ * What it creates (all local, nothing federated; `globalThis.fetch` is also
+ * kept off the external network while offline map tiles are on, the default):
  *   - main actor `vitals` (email test@example.com, password testpassword123)
  *     and 30 extra local actors with local avatars, following each other
  *     (`Accepted` follows in both directions) so /followers and /following
@@ -28,7 +29,8 @@
  * seed two separate database files + storage directories:
  *   --landing hero   fewer than 100 local public posts  -> brand hero
  *   --landing feed   at least 120 local public posts, images among the newest
- *                    20                                  -> public feed
+ *                    15 (the main actor's list, then the collection members'
+ *                    photo posts)                        -> public feed
  *
  * OFFLINE MAP TILES (`--offline-map-tiles`, default ON; `--no-offline-map-tiles`
  * to disable): the server-side static route map is rendered from
@@ -36,8 +38,10 @@
  * wrapper around `globalThis.fetch` answers those tile URLs with a
  * deterministic 256x256 PNG generated with sharp, so the real map attachment is
  * produced offline and reproducibly. Any other non-loopback request made
- * through `globalThis.fetch` is rejected while the flag is on (only the origin
- * and path are logged and recorded; query strings can carry tokens). Other
+ * through `globalThis.fetch` is rejected, but ONLY while the flag is on (only the
+ * origin and path are logged and recorded; query strings can carry tokens).
+ * With the flag off no wrapper is installed: `globalThis.fetch` is untouched, so
+ * real OpenStreetMap tile requests go out over the network. Other
  * HTTP clients are NOT intercepted; the target guard instead refuses every
  * configuration that would send this script's traffic elsewhere (non-OSM map
  * provider, non-local storage, non-inline queue, non-loopback host). The
@@ -518,8 +522,8 @@ export interface PlannedPost {
 
 /**
  * The newest-first post plan for the main actor. The first seven entries are
- * the photo posts the pages are measured on; the landing feed's newest 20 are
- * all taken from this list so they carry images or text of every shape.
+ * the photo posts the pages are measured on; the landing feed's newest 15 are
+ * this whole list, followed by the collection members' posts.
  */
 export const buildMainPostPlan = (): PlannedPost[] => {
   const photo = (
@@ -649,7 +653,12 @@ export const parseCliOptions = (args: string[]): CliOptions => {
     const key = equalsIndex < 0 ? arg : arg.slice(0, equalsIndex)
     const inline = equalsIndex < 0 ? undefined : arg.slice(equalsIndex + 1)
     if (key === '--offline-map-tiles') {
-      offlineMapTiles = inline === undefined ? true : inline !== 'false'
+      if (inline !== undefined && inline !== 'true' && inline !== 'false') {
+        throw new Error(
+          `Invalid value for --offline-map-tiles: ${inline} (use true or false)`
+        )
+      }
+      offlineMapTiles = inline !== 'false'
     } else if (key === '--no-offline-map-tiles') {
       offlineMapTiles = false
     } else if (key === '--landing' || key === '--manifest') {
