@@ -16,6 +16,12 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { Actions } from './actions'
 import type { PostMenuExtraItem } from './post-menu'
+import { preloadReactionPicker } from './reaction-button'
+
+vi.mock('./reaction-button', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./reaction-button')>()),
+  preloadReactionPicker: vi.fn()
+}))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() })
@@ -151,6 +157,26 @@ const openMenu = async () => {
 describe('Actions', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  describe('reaction picker preload', () => {
+    it('preloads the picker chunk when the compact ⋯ menu opens', async () => {
+      observeWidth(320)
+      render(<ActionsHarness />)
+      expect(preloadReactionPicker).not.toHaveBeenCalled()
+
+      await openMenu()
+      expect(preloadReactionPicker).toHaveBeenCalledTimes(1)
+    })
+
+    it('leaves it to the trigger when the row is full width', async () => {
+      observeWidth(900)
+      render(<ActionsHarness />)
+
+      await openMenu()
+      expect(preloadReactionPicker).not.toHaveBeenCalled()
+    })
   })
 
   describe('extraMenuItems', () => {

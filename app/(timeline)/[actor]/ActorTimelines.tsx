@@ -70,6 +70,11 @@ const preloadGalleryPanels = () => {
 interface Props {
   host: string
   actorId: string
+  /**
+   * The profile shows a cover image above the tabs. That image is the likely
+   * largest contentful paint, so the posts list then keeps its media lazy.
+   */
+  hasHeaderImage?: boolean
   currentTime: number
   statuses: Status[]
   attachments: Attachment[]
@@ -175,7 +180,8 @@ export const ActorTimelines: FC<Props> = ({
   isPixelfed = false,
   isMediaService = false,
   isInternalAccount = true,
-  isMediaOnly: isMediaOnlyProp = false
+  isMediaOnly: isMediaOnlyProp = false,
+  hasHeaderImage = false
 }) => {
   const isMediaOnly = Boolean(isPixelfed || isMediaService || isMediaOnlyProp)
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -513,13 +519,15 @@ export const ActorTimelines: FC<Props> = ({
 
   const renderFeed = (
     feedStatuses: Status[],
-    empty: { icon: LucideIcon; title: string; hint: string }
+    empty: { icon: LucideIcon; title: string; hint: string },
+    prioritizeFirstMedia = false
   ) =>
     feedStatuses.length > 0 ? (
       <Posts
         host={host}
         currentTime={currentTime}
         statuses={feedStatuses}
+        prioritizeFirstMedia={prioritizeFirstMedia}
         currentActor={currentActor}
         showActions={showActions}
         showReadOnlyStats={!showActions}
@@ -598,7 +606,7 @@ export const ActorTimelines: FC<Props> = ({
   if (availableTabs.length <= 1) {
     return (
       <div className="space-y-4">
-        {renderFeed(postStatuses, noPosts)}
+        {renderFeed(postStatuses, noPosts, !hasHeaderImage)}
 
         {loadMoreControl}
       </div>
@@ -607,11 +615,7 @@ export const ActorTimelines: FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      <div
-        className="contents"
-        onPointerEnter={preloadGalleryPanels}
-        onFocus={preloadGalleryPanels}
-      >
+      <div onPointerEnter={preloadGalleryPanels} onFocus={preloadGalleryPanels}>
         <SegmentedControl
           aria-label="Profile sections"
           items={availableTabs.map((value) => ({
@@ -624,7 +628,8 @@ export const ActorTimelines: FC<Props> = ({
         />
       </div>
 
-      {effectiveActiveTab === 'posts' && renderFeed(postStatuses, noPosts)}
+      {effectiveActiveTab === 'posts' &&
+        renderFeed(postStatuses, noPosts, !hasHeaderImage)}
 
       {effectiveActiveTab === 'replies' &&
         showRepliesTab &&

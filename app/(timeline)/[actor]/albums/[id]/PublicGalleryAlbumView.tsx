@@ -223,6 +223,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
         cover={album.cover}
         dateRange={dateRange}
         countryName={facts.countryName}
+        prioritizeCover
       />
 
       {album.description ? (
@@ -284,7 +285,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
                 No photos in this view.
               </p>
             ) : (
-              <GalleryGrid items={items} prioritizeFirst />
+              <GalleryGrid items={items} prioritizeFirst={!album.cover} />
             )}
           </div>
 

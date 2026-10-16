@@ -185,6 +185,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           host={host}
           currentTime={currentTime}
           statuses={currentStatuses}
+          prioritizeFirstMedia
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
           showReadOnlyStats={!currentActor}

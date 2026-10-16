@@ -501,10 +501,22 @@ describe('Posts', () => {
         text: id
       })
 
-    const renderRows = (statuses: Status[]) =>
+    const renderRows = (statuses: Status[], prioritizeFirstMedia = true) =>
       render(
-        <Posts host="activities.local" currentTime={0} statuses={statuses} />
+        <Posts
+          host="activities.local"
+          currentTime={0}
+          statuses={statuses}
+          prioritizeFirstMedia={prioritizeFirstMedia}
+        />
       )
+
+    it('keeps every image lazy unless the surface opts in', () => {
+      const { container } = renderRows([photoNote('p1')], false)
+      expect(container.querySelector('img')).not.toBeNull()
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      expect(container.querySelector('img[loading="eager"]')).toBeNull()
+    })
 
     it('prioritizes only the first image row, skipping text-only rows', () => {
       const { container } = renderRows([

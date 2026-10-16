@@ -20,7 +20,7 @@ describe('LandingHero', () => {
     expect(watermark).toHaveAttribute('fetchpriority', 'high')
     expect(watermark).toHaveAttribute('alt', '')
     expect(watermark).toHaveAttribute('aria-hidden', 'true')
-    // The deprecated `preload` would emit a <link rel="preload"> as well.
+    // `preload` (and the deprecated `priority` it replaces) would emit a <link rel="preload"> as well.
     expect(container.querySelector('link[rel="preload"]')).toBeNull()
 
     const logo = images.find((image) => image.getAttribute('width') === '44')
