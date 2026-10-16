@@ -508,6 +508,29 @@ node scripts/run.cjs scripts/mock/createMockFitnessCalendarData.ts \
 
 It **refuses to run against anything but a local database** (local SQLite, or PostgreSQL on `localhost`, `127.0.0.1`, `::1`, `activities.local`, `host.docker.internal` or `postgres`) and prints which database it is about to touch first. Like the other mock scripts it does not load `.env.local`, so export the variables as shown. It is idempotent: every row it writes has a file path under `mock-calendar/` and every post carries the `mock-calendar` application name, so a run deletes the actor's earlier rows under that prefix and inserts the set again, leaving other activities untouched. It ends with the row counts and a SHA-256 `Checksum:` over the rows it owns, read the way the app reads them (timestamps as epoch milliseconds, booleans as booleans), so the same options print the same checksum on SQLite and on PostgreSQL and a rerun can be compared with the run before it.
 
+### Create Web Vitals Fixtures
+
+Seeds a deterministic public-page fixture set for repeatable Web Vitals (Lighthouse / trace) measurements: a `vitals` actor (`test@example.com` / `testpassword123`) with 30 follower/following accounts, photo posts of every shape, text and `#vitalsphoto` posts, a public gallery album, a public collection, fitness rides imported through the real pipeline (dense, sparse, indoor, and one corrupt file that fails to import) and the all-time route heatmap with a fixed share token. Nothing is federated.
+
+Run it **once** against a freshly migrated, **empty** local SQLite file, then serve the same file with the app:
+
+```bash
+export ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
+  ACTIVITIES_DATABASE_SQLITE_FILENAME=/abs/path/vitals.sqlite3 \
+  ACTIVITIES_HOST=localhost:3210 ACTIVITIES_INSECURE_AUTH=true \
+  ACTIVITIES_SECRET_PHASE=<32+ chars> ACTIVITIES_MEDIA_STORAGE_TYPE=fs \
+  ACTIVITIES_MEDIA_STORAGE_PATH=/abs/path/storage
+yarn migrate    # creates the empty SQLite file and prints the database target
+node scripts/run.cjs scripts/mock/createWebVitalsFixtures.ts \
+  --landing hero|feed --manifest /abs/path/manifest.json [--no-offline-map-tiles]
+```
+
+- `--landing` (required) picks the logged-out landing variant. The landing page previews the public feed only once the server holds `LANDING_FEED_MIN_POSTS` (100) local public posts, and that count is cached per process, so `hero` seeds fewer than 100 and `feed` at least 120. Use **one database file and one storage directory per landing mode**.
+- `--manifest` (required, absolute) is where the JSON manifest is written. It lists the host, database, media and fitness storage paths, the actor, the random ids (account, album, collection, heatmap, fitness files and posts), the pages to measure with the content markers that prove each page rendered, and the counts. `identityHash` is the SHA-256 of the deterministic content only (post text and public ids, image and TCX SHA-256, counts, share token); the random ids are excluded, so re-seeding with the same script and sharp build gives the same hash.
+- `--offline-map-tiles` (default on; `--no-offline-map-tiles` or `--offline-map-tiles=false` to disable) answers `https://tile.openstreetmap.org/z/x/y.png` inside the script's own process with a generated PNG so the stored static route map renders offline. Other non-loopback requests through `globalThis.fetch` are rejected, and only their origin and path (never the query string) are recorded in `blockedExternalRequests`.
+
+It refuses to run (before writing anything) unless the database client is `better-sqlite3` on an existing absolute file path (not `:memory:`), `ACTIVITIES_HOST` is loopback, media storage is local `fs` with an absolute path, the effective fitness storage is local `fs` with an absolute path inside the media storage path (so a fitness S3 or object-storage setting is refused), the job queue is inline (no `ACTIVITIES_QUEUE_*`), the map provider resolves to `osm`, and the database holds no accounts and no local public posts. Like the other mock scripts it does not load `.env.local`. See also [Local Manual / Browser Testing](../CONTRIBUTING.md#local-manual-browser-testing).
+
 ### Render Email Previews
 
 Renders every email template to standalone HTML files so a template change can
