@@ -155,6 +155,53 @@ describe('Posts', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
+  it('gives every row the feed-row class that skips off-screen rendering', () => {
+    const { container } = render(
+      <Posts
+        host="activities.local"
+        currentTime={pollStatusCurrentTime}
+        statuses={[pollStatusFixture, makeBoost('boost-1')]}
+      />
+    )
+
+    const articles = container.querySelectorAll('article')
+    expect(articles).toHaveLength(2)
+    articles.forEach((article) => expect(article).toHaveClass('feed-row'))
+  })
+
+  it('renders no [data-row-overlay] in closed rows, including the edit-history toggle', () => {
+    // `data-row-overlay` must exist only while an overlay is open, or the row
+    // loses content-visibility containment for nothing.
+    const edited = {
+      ...pollStatusFixture,
+      edits: [
+        {
+          text: 'the previous text',
+          summary: null,
+          createdAt: pollStatusCurrentTime - 60_000
+        }
+      ]
+    } as Status
+    const { container } = render(
+      <Posts
+        host="activities.local"
+        currentActor={pollStatusFixture.actor ?? undefined}
+        currentTime={pollStatusCurrentTime}
+        statuses={[edited, makeBoost('boost-1')]}
+        showActions
+      />
+    )
+
+    expect(container.querySelectorAll('article')).toHaveLength(2)
+    expect(
+      screen.getAllByRole('button', { name: /Reply to post/ })
+    ).toHaveLength(2)
+    expect(
+      screen.getAllByRole('button', { name: /Show edit history/ }).length
+    ).toBeGreaterThan(0)
+    expect(container.querySelectorAll('[data-row-overlay]')).toHaveLength(0)
+  })
+
   describe('viewer albums owner', () => {
     const withPhoto = (overrides: Partial<StatusNote> = {}): StatusNote =>
       ({

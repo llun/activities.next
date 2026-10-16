@@ -71,6 +71,9 @@ describe('InlineStatusComposer', () => {
     )
 
     expect(screen.getByTestId('reply-box')).toBeInTheDocument()
+    expect(
+      screen.getByTestId('reply-box').closest('[data-row-overlay]')
+    ).not.toBeNull()
     expect(screen.queryByTestId('post-box')).not.toBeInTheDocument()
   })
 
@@ -89,6 +92,9 @@ describe('InlineStatusComposer', () => {
     )
 
     expect(screen.getByTestId('post-box')).toHaveAttribute('data-mode', mode)
+    expect(
+      screen.getByTestId('post-box').closest('[data-row-overlay]')
+    ).not.toBeNull()
     expect(screen.queryByTestId('reply-box')).not.toBeInTheDocument()
   })
 

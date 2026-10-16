@@ -100,6 +100,7 @@ describe('LikeButton', () => {
     expect(
       await screen.findByText('Failed to like post. Please try again.')
     ).toHaveAttribute('role', 'alert')
+    expect(screen.getByTestId('like-error')).toHaveAttribute('data-row-overlay')
     expect(screen.getByRole('button', { name: 'Like' })).toBeEnabled()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
   })

@@ -43,6 +43,7 @@ export const ActionButtonError: FC<ActionErrorProps> = ({
   <span
     className={cn('absolute right-0 top-full z-10 mt-1', ACTION_ERROR_CLASS)}
     data-testid={testId}
+    data-row-overlay
     role="alert"
   >
     {message}
@@ -63,7 +64,10 @@ export const ActionRowErrors: FC<{ errors: ActionErrorProps[] }> = ({
   errors
 }) =>
   errors.length === 0 ? null : (
-    <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 flex flex-col items-start gap-1">
+    <div
+      className="pointer-events-none absolute left-0 top-full z-10 mt-1 flex flex-col items-start gap-1"
+      data-row-overlay
+    >
       {errors.map((error) => (
         <span
           key={error.testId}

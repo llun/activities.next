@@ -97,6 +97,9 @@ describe('BookmarkButton', () => {
     expect(
       await screen.findByText('Failed to bookmark post. Please try again.')
     ).toHaveAttribute('role', 'alert')
+    expect(screen.getByTestId('bookmark-error')).toHaveAttribute(
+      'data-row-overlay'
+    )
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument()
     expect(onBookmarkChanged).not.toHaveBeenCalled()
   })

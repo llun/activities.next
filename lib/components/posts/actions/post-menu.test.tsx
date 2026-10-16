@@ -788,6 +788,7 @@ describe('PostMenu', () => {
         expect(screen.getByRole('alert')).toHaveTextContent(
           "Couldn't change post visibility. Please try again."
         )
+        expect(screen.getByRole('alert')).toHaveAttribute('data-row-overlay')
 
         await act(async () => {
           await vi.advanceTimersByTimeAsync(3999)

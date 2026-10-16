@@ -78,6 +78,7 @@ export const EditHistoryButton: FC<Props> = ({
       {showHistory && (
         <div
           id={editHistoryId}
+          data-row-overlay
           role="region"
           aria-label="Edit history"
           // Anchored to the action row, not to the trigger: the row spans the

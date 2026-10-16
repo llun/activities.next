@@ -127,6 +127,20 @@ describe('TimelineFeed', () => {
     mockGetStatusDetailPathClient.mockResolvedValue('/@alice/test')
   })
 
+  it('gives every row the feed-row class that skips off-screen rendering', () => {
+    const { container } = render(
+      <TimelineFeed
+        host="activities.local"
+        currentTime={BASE_TIME + 1000}
+        statuses={selfThreadScenario.statuses}
+      />
+    )
+
+    const articles = container.querySelectorAll('article')
+    expect(articles.length).toBeGreaterThan(0)
+    articles.forEach((article) => expect(article).toHaveClass('feed-row'))
+  })
+
   it('renders a single status without thread or conversation wrapper', () => {
     render(
       <TimelineFeed

@@ -1946,6 +1946,31 @@ legacy shape left to copy.
   effect. Unit tests run without the compiler, but a client component should
   still be rendered as an element (`<Component />`), not called as a function,
   because a compiled one needs a renderer.
+- Post list rows carry the `feed-row` class, which `app/globals.css` gives
+  `content-visibility: auto` (with `contain-intrinsic-block-size: auto 380px`,
+  the content box of a not-yet-rendered row, about 405px with padding and
+  divider) so long timelines skip layout and paint of off-screen rows. The
+  containment applies to on-screen rows too: the row becomes a stacking context
+  and the containing block of absolute and fixed descendants, and it clips like
+  `overflow: clip` to its rounded padding box. An overlay rendered inside a row
+  (a panel, error bubble, picker or composer that is not portaled) MUST either
+  be portaled (Radix dropdowns, tooltips, popovers and dialogs, the reaction
+  picker, the media modal) or carry the `data-row-overlay` attribute on an
+  element that exists only while it is open (a bare attribute, never
+  `={bool}`: React renders `data-row-overlay="false"`, which still matches).
+  Passing a `container` inside a row to `ui/popover.tsx` defeats its portal.
+  `.feed-row:has([data-row-overlay])` turns containment off. The rules sit in
+  an `@supports` block whose condition is
+  `@supports selector(:has(a)) and (overflow-anchor: auto)`, so browsers without
+  `:has()` or scroll anchoring (older Chrome, Safari) never contain a row.
+  `app/globals.css` is guarded by `test/feed-row-css.test.ts`, and
+  `test/feed-row-overlays.test.ts` scans the post components for unmarked
+  overlays: any `fixed` tag (including responsive variants), or an `absolute`
+  tag with a `top-full`/`bottom-full`/`left-full`/`right-full` offset, unless it
+  is marked or inside `createPortal`, and any valued `data-row-overlay=`. It is
+  a lint, not an audit: arbitrary offsets, `-translate-y-full`, margin- or
+  numeric-offset placement (`absolute mt-2`, `absolute -top-10`) and classes
+  built outside the tag are not seen.
 
 <a id="review-page-chrome-layout-accessibility"></a>
 

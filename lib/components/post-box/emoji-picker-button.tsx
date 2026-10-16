@@ -163,11 +163,13 @@ export const EmojiPickerButton: FC<Props> = ({
         <>
           <div
             className="fixed inset-0 z-40"
+            data-row-overlay
             aria-hidden
             onClick={() => setOpen(false)}
           />
           <div
             role="dialog"
+            data-row-overlay
             aria-label="Emoji and sticker picker"
             className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border bg-background shadow-lg"
           >
