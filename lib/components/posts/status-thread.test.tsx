@@ -4,7 +4,15 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from 'vitest'
 
 import { createNote } from '@/lib/client'
 import {
@@ -60,6 +68,11 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 }))
 
 const mockCreateNote = vi.mocked(createNote)
+
+// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('./inline-status-composer')
+})
 
 describe('StatusThread', () => {
   const host = 'activities.local'
@@ -239,7 +252,7 @@ describe('StatusThread', () => {
     expect(focusedRow).not.toHaveClass('border-b-0')
   })
 
-  it('swaps the empty state for the reply composer until it is cancelled', () => {
+  it('swaps the empty state for the reply composer until it is cancelled', async () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/lonely',
       actor: mockBob,
@@ -262,7 +275,9 @@ describe('StatusThread', () => {
 
     fireEvent.click(screen.getByLabelText(/Reply/i))
 
-    expect(screen.getByPlaceholderText(/Reply to Bob/i)).toBeInTheDocument()
+    expect(
+      await screen.findByPlaceholderText(/Reply to Bob/i)
+    ).toBeInTheDocument()
     expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))

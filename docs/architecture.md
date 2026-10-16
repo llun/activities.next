@@ -1784,7 +1784,12 @@ legacy shape left to copy.
   action set on every surface. A page turns actions on with `currentActor` +
   `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
   `onEdit`), hide individual actions, or build a bespoke post/action row.
-  Reply/quote/edit use the shared `InlineStatusComposer`; pages pass only
+  Reply/quote/edit use the shared `InlineStatusComposer`, imported from
+  `lazy-inline-status-composer` (a `next/dynamic`, `ssr: false` wrapper that
+  keeps `PostBox` out of anonymous first-load JS; `useInlineComposer(canCompose)`
+  preloads the chunk at idle for signed-in viewers, never for anonymous ones).
+  The reaction picker, `FitnessStatusDetail` and the profile gallery panels are
+  lazy the same way. Pages pass only
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
