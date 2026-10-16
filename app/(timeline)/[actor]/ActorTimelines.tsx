@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   MessageCircle
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   FC,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/components/posts/statusArray'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import type { GallerySubview } from '@/lib/services/gallery/galleryEntities'
@@ -42,8 +44,28 @@ import {
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
-import { ActorMediaGallery } from './ActorMediaGallery'
-import { ProfileGalleryTab } from './ProfileGalleryTab'
+const loadActorMediaGallery = () =>
+  import('./ActorMediaGallery').then((module) => module.ActorMediaGallery)
+const loadProfileGalleryTab = () =>
+  import('./ProfileGalleryTab').then((module) => module.ProfileGalleryTab)
+
+// The default tab is posts, so the gallery panels (and the map behind the
+// gallery tab) load on demand. SSR stays on: a media-only profile renders the
+// gallery as its primary content. Hovering or focusing the tab bar preloads them.
+const galleryFallback = (
+  <SectionSkeleton sections={[3]} headings={false} descriptions={false} />
+)
+const ActorMediaGallery = dynamic(loadActorMediaGallery, {
+  loading: () => galleryFallback
+})
+const ProfileGalleryTab = dynamic(loadProfileGalleryTab, {
+  loading: () => galleryFallback
+})
+
+const preloadGalleryPanels = () => {
+  loadActorMediaGallery().catch(() => undefined)
+  loadProfileGalleryTab().catch(() => undefined)
+}
 
 interface Props {
   host: string
@@ -585,16 +607,22 @@ export const ActorTimelines: FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      <SegmentedControl
-        aria-label="Profile sections"
-        items={availableTabs.map((value) => ({
-          value,
-          label: PROFILE_TAB_LABELS[value]
-        }))}
-        value={effectiveActiveTab}
-        onValueChange={(value) => setActiveTab(value as ProfileTab)}
-        className="sm:w-fit"
-      />
+      <div
+        className="contents"
+        onPointerEnter={preloadGalleryPanels}
+        onFocus={preloadGalleryPanels}
+      >
+        <SegmentedControl
+          aria-label="Profile sections"
+          items={availableTabs.map((value) => ({
+            value,
+            label: PROFILE_TAB_LABELS[value]
+          }))}
+          value={effectiveActiveTab}
+          onValueChange={(value) => setActiveTab(value as ProfileTab)}
+          className="sm:w-fit"
+        />
+      </div>
 
       {effectiveActiveTab === 'posts' && renderFeed(postStatuses, noPosts)}
 
