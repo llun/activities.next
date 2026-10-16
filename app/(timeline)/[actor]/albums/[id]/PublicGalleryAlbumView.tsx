@@ -284,7 +284,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
                 No photos in this view.
               </p>
             ) : (
-              <GalleryGrid items={items} />
+              <GalleryGrid items={items} prioritizeFirst />
             )}
           </div>
 

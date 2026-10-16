@@ -1,19 +1,26 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useState } from 'react'
+import { FC, useCallback, useMemo, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
+import { getPrioritizedAttachment } from './attachments'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { PostListItem } from './post-list-item'
 import { useInlineComposer } from './useInlineComposer'
@@ -52,6 +59,25 @@ interface Props {
     reactions: StatusReaction[]
   ) => void
 }
+
+// Rows past this are below the fold on any viewport, so they never get the
+// first-visible-media priority.
+const PRIORITY_ROW_WINDOW = 3
+
+/**
+ * The row whose first picture should load at high priority: the first of the
+ * list's first rows whose post shows an ordinary image outright. Content
+ * warning posts keep their media collapsed, so they are skipped.
+ */
+export const getPrioritizedRowIndex = (statuses: Status[]) =>
+  statuses.slice(0, PRIORITY_ROW_WINDOW).findIndex((status) => {
+    const actual = getActualStatus(status)
+    return (
+      actual.type === StatusType.enum.Note &&
+      !actual.summary?.trim() &&
+      getPrioritizedAttachment(actual.attachments) !== undefined
+    )
+  })
 
 export const Posts: FC<Props> = ({
   host,
@@ -108,6 +134,11 @@ export const Posts: FC<Props> = ({
     [currentActor]
   )
 
+  const prioritizedRowIndex = useMemo(
+    () => getPrioritizedRowIndex(statuses),
+    [statuses]
+  )
+
   if (statuses.length === 0) return null
 
   // Authoring actions require a signed-in actor and an interactive feed. When
@@ -128,11 +159,12 @@ export const Posts: FC<Props> = ({
           className
         )}
       >
-        {statuses.map((status) => (
+        {statuses.map((status, index) => (
           <PostListItem
             key={status.id}
             className="first:rounded-t-lg last:rounded-b-lg"
             status={status}
+            prioritizeMedia={index === prioritizedRowIndex}
             host={host}
             currentTime={currentTime}
             currentActor={currentActor}

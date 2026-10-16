@@ -50,6 +50,11 @@ interface Props {
    * its albums pill changed, so a page that shows one of them can refresh.
    */
   onAlbumsChanged?: (albumIds: string[]) => void
+  /**
+   * The grid is the page's primary content: its first tile loads eagerly at
+   * high priority (the likely largest contentful paint) and the rest stay lazy.
+   */
+  prioritizeFirst?: boolean
   className?: string
 }
 
@@ -92,6 +97,7 @@ export const GalleryGrid: FC<Props> = ({
   onItemsDeleted,
   onViewerClosed,
   onAlbumsChanged,
+  prioritizeFirst = false,
   className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
@@ -188,7 +194,16 @@ export const GalleryGrid: FC<Props> = ({
                         }
                       : item.attachment
                   }
-                  loading="lazy"
+                  loading={
+                    prioritizeFirst && index === 0 && !isVideo(item)
+                      ? 'eager'
+                      : 'lazy'
+                  }
+                  fetchPriority={
+                    prioritizeFirst && index === 0 && !isVideo(item)
+                      ? 'high'
+                      : undefined
+                  }
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
                 {item.inGallery === false ? (

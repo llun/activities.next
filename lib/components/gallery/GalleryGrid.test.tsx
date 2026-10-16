@@ -10,9 +10,22 @@ import type { Attachment } from '@/lib/types/domain/attachment'
 import { GalleryGrid } from './GalleryGrid'
 
 vi.mock('@/lib/components/posts/media', () => ({
-  Media: ({ attachment }: { attachment?: Attachment }) => (
+  Media: ({
+    attachment,
+    loading,
+    fetchPriority
+  }: {
+    attachment?: Attachment
+    loading?: 'lazy' | 'eager'
+    fetchPriority?: 'high' | 'low' | 'auto'
+  }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={attachment?.url} alt="" />
+    <img
+      src={attachment?.url}
+      alt=""
+      loading={loading}
+      fetchPriority={fetchPriority}
+    />
   )
 }))
 
@@ -93,6 +106,28 @@ const items = [
 ]
 
 describe('GalleryGrid', () => {
+  it('keeps every tile lazy unless the first is prioritized', () => {
+    const items = [buildGalleryItem('a'), buildGalleryItem('b')]
+    const { container, rerender } = render(<GalleryGrid items={items} />)
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    expect(
+      Array.from(container.querySelectorAll('img')).map((i) =>
+        i.getAttribute('loading')
+      )
+    ).toEqual(['lazy', 'lazy'])
+
+    rerender(<GalleryGrid items={items} prioritizeFirst />)
+    const images = Array.from(container.querySelectorAll('img'))
+    expect(images.map((i) => i.getAttribute('loading'))).toEqual([
+      'eager',
+      'lazy'
+    ])
+    expect(images.map((i) => i.getAttribute('fetchpriority'))).toEqual([
+      'high',
+      null
+    ])
+  })
+
   it('renders one tile per item, labelled by alt text, subject or position', () => {
     const withAlt = buildGalleryItem('4')
     withAlt.attachment.name = 'A fox in the snow'

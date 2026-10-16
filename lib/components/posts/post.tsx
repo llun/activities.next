@@ -79,6 +79,11 @@ export interface PostProps {
    * to the avatar's top edge.
    */
   focused?: boolean
+  /**
+   * This row's first picture is the first visible media of its page region:
+   * load it eagerly at high priority. A `focused` post always does.
+   */
+  prioritizeMedia?: boolean
 }
 
 interface BoostStatusProps {
@@ -196,6 +201,7 @@ export const Post: FC<PostProps> = (props) => {
               postLineLimit={postLineLimit}
               onOpenStatus={onOpenStatus}
               onShowAttachment={onShowAttachment}
+              prioritizeMedia={Boolean(props.focused || props.prioritizeMedia)}
             />
 
             <div>
