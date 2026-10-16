@@ -497,7 +497,11 @@
      page in its place (the pending profile skeleton), so they match the body
      exactly: `fixed` attachment positions the gradients against the viewport
      whatever element carries them, and the custom properties above inherit
-     from `html` to both. The glows sit 10 % and 90 % across the content area. */
+     from `html` to both. The glows sit 10 % and 90 % across the content
+     area. Full-screen scroll containers over the body (the offline `/app`
+     shell) stay transparent rather than taking `.app-backdrop`: a
+     fixed-attachment background on a scroll container repaints on every
+     scroll. */
   body,
   .app-backdrop {
     @apply bg-background;

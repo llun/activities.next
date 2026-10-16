@@ -265,6 +265,60 @@ describe('OfflineAppShell', () => {
     })
   })
 
+  describe('wrapper backdrop', () => {
+    const expectNoBackground = (wrapper: Element | null) => {
+      expect(wrapper).not.toBeNull()
+      expect(wrapper!.className).not.toMatch(/(^|\s)bg-/)
+    }
+
+    it('paints no background while loading', () => {
+      mockGetActiveOfflineSession.mockReturnValue(new Promise(() => {}))
+
+      render(<OfflineAppShell />)
+
+      expectNoBackground(
+        screen.getByRole('status', { name: 'Loading offline timeline' })
+      )
+    })
+
+    it('paints no background when ready', async () => {
+      mockGetActiveOfflineSession.mockResolvedValueOnce({
+        actorId: 'actor-1',
+        accountId: 'account-1'
+      })
+      mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+      mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+      mockGetAccountBootstrap.mockResolvedValueOnce(null)
+
+      render(<OfflineAppShell />)
+
+      const timeline = await screen.findByTestId('main-timeline')
+      expectNoBackground(timeline.closest('.overflow-y-auto'))
+    })
+
+    it('paints no background when the cache is empty and offline', async () => {
+      mockGetActiveOfflineSession.mockResolvedValueOnce(null)
+      mockGetAccountBootstrap.mockRejectedValueOnce(new Error('Network error'))
+
+      render(<OfflineAppShell />)
+
+      const text = await screen.findByText('You are offline')
+      expectNoBackground(text.closest('.overflow-y-auto'))
+    })
+
+    it('paints no background when the cache is empty and unauthorized', async () => {
+      mockGetActiveOfflineSession.mockResolvedValueOnce(null)
+      mockGetAccountBootstrap.mockRejectedValueOnce(
+        new TimelineRequestError('Unauthorized', 401)
+      )
+
+      render(<OfflineAppShell />)
+
+      const text = await screen.findByText('Not signed in')
+      expectNoBackground(text.closest('.overflow-y-auto'))
+    })
+  })
+
   it('synchronizes container scroll event with window.scrollY and window scroll event', async () => {
     mockGetActiveOfflineSession.mockResolvedValueOnce({
       actorId: 'actor-1',
