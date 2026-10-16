@@ -936,11 +936,9 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row
   beneath them line up with the text instead of hanging off it). A surface with
   no avatar column to pull back over ends up with neither — the fitness activity
-  detail's card, where each row already sits at its own container's padding
-  edge: the chips with the title and the stat grid in the card body, the action
-  row alone in the footer. (Those two containers are padded
-  differently, `p-5` against `px-4`, so the two rows are deliberately aligned to
-  their own content rather than to each other.)
+  post, where each row already sits at its own container's padding edge: the
+  reaction chips in the post body (`p-4`) and the action row alone in the footer
+  (`px-4`), both 16px from the post's edge, so neither pulls back.
   Still give the row the **full width** of its container rather than seating it
   beside something else — but note what that now buys and what it does not. The
   spacing between the actions is a flat `gap-1` and is width-independent, so it
@@ -959,7 +957,7 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   chips** (`ReactionButton`, showing `SmilePlus` + the running total). The chips
   are a read-out; a post with no reactions yet renders no chip row at all. Both
   halves share one `ReactionState` from `useReactionState`, held by whoever lays
-  out the post — `Post`, or the activity page's `ActivityPostFrame`, which builds its own card and
+  out the post — `Post`, or the activity page's `ActivityPostFrame`, which builds its own post and
   therefore calls the hook itself and passes the state into `Actions`. The same
   applies to the bookmark: `useBookmarkState` is held by `Actions` and
   `BookmarkButton` only renders it.
@@ -1009,19 +1007,19 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
   `Posts`/`Post`. **That licenses a different page layout, not a different
-  action row.** The fitness detail lays out its own card and therefore places
-  the two halves of the reaction control by hand — `ReactionRow` in the card
-  body under the stats, and the picker trigger in the row below — but the row
+  action row.** The fitness detail lays out its own post and therefore places
+  the two halves of the reaction control by hand — `ReactionRow` in the post
+  body under the figure band, and the picker trigger in the row below — but the row
   itself is the shared `<Actions>` (`fullBleed={false}`, its own
   `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
   how that page drifted into a right-packed cluster with its own gaps while
   every other surface used the shared spacing.
   It now drives the shared `useInlineComposer` / `InlineStatusComposer` too, so
   **Edit and Quote are in its `⋯` like everywhere else** — the composer renders
-  inside the header card beneath the action row that opened it. `editable`
+  in the post, under the action row that opened it. `editable`
   without `onEdit` would only render a menu item that does nothing, so the two
   are wired together or not at all. Reply opens the same inline composer, at
-  the top of the replies inside the post frame, and shows the replies again if
+  the top of the replies in the post, and shows the replies again if
   the reader had hidden them.
   What is still unwired is `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged`,
   so a delete from the menu leaves the page showing a status that no longer

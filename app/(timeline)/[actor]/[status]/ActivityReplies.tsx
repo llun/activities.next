@@ -232,7 +232,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
         aria-controls={listId}
         onClick={toggleExpanded}
         className={cn(
-          'flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+          'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
           isExpanded && 'border-b'
         )}
       >
@@ -252,7 +252,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
         {replyComposer ? <div className="border-b">{replyComposer}</div> : null}
         <div
           data-testid="activity-replies-list"
-          className="divide-y divide-border/40 px-4 @max-[520px]:px-3"
+          className="divide-y divide-border/40 px-4"
         >
           {visibleNodes.map((node) => (
             <ThreadReplyNode
