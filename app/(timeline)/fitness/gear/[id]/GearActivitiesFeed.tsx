@@ -240,13 +240,19 @@ export const GearActivitiesFeed: FC<Props> = ({
     onLoadMore: loadMore
   })
 
-  const removeStatus = (status: Status) =>
-    setStatuses((current) => current.filter((item) => item.id !== status.id))
+  const removeStatus = useCallback(
+    (status: Status) =>
+      setStatuses((current) => current.filter((item) => item.id !== status.id)),
+    []
+  )
 
-  const updateStatus = (status: Status) =>
-    setStatuses((current) =>
-      current.map((item) => (item.id === status.id ? status : item))
-    )
+  const updateStatus = useCallback(
+    (status: Status) =>
+      setStatuses((current) =>
+        current.map((item) => (item.id === status.id ? status : item))
+      ),
+    []
+  )
 
   // Three separate reasons the list can be empty, and only one of them is "this
   // gear has no posted activities". `!hasMore` rules out a page that simply had

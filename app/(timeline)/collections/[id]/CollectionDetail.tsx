@@ -202,15 +202,21 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
     }
   }
 
-  const removeStatus = (status: Status) =>
-    setCurrentStatuses((previous) =>
-      previous.filter((item) => item.id !== status.id)
-    )
+  const removeStatus = useCallback(
+    (status: Status) =>
+      setCurrentStatuses((previous) =>
+        previous.filter((item) => item.id !== status.id)
+      ),
+    []
+  )
 
-  const updateStatus = (status: Status) =>
-    setCurrentStatuses((previous) =>
-      previous.map((item) => (item.id === status.id ? status : item))
-    )
+  const updateStatus = useCallback(
+    (status: Status) =>
+      setCurrentStatuses((previous) =>
+        previous.map((item) => (item.id === status.id ? status : item))
+      ),
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     const maxStatusId = lastStatusIdRef.current
