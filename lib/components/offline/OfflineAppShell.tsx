@@ -266,13 +266,17 @@ export function OfflineAppShell() {
     }
   }
 
+  // None of the full-screen wrappers below paints a background, so the body
+  // backdrop (app/globals.css) shows through; the signed-in ones carry
+  // `main[data-app-shell]` so the glows sit below the top bar, as on the
+  // server layout.
   if (shellState.status === 'loading') {
     return (
       <div
         ref={scrollContainerRef}
         role="status"
         aria-label="Loading offline timeline"
-        className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background safe-area-px"
+        className="fixed inset-0 z-20 min-h-dvh overflow-y-auto safe-area-px"
         onScroll={handleScroll}
       >
         <NavPreferencesProvider>
@@ -302,7 +306,7 @@ export function OfflineAppShell() {
 
   if (shellState.status === 'empty-cache-offline') {
     return (
-      <div className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background flex flex-col justify-center items-center p-6">
+      <div className="fixed inset-0 z-20 min-h-dvh overflow-y-auto flex flex-col justify-center items-center p-6">
         <div className="w-full max-w-md">
           <EmptyState icon={WifiOff} title="You are offline">
             No cached timeline found for this device. Please connect to the
@@ -315,7 +319,7 @@ export function OfflineAppShell() {
 
   if (shellState.status === 'empty-cache-unauthorized') {
     return (
-      <div className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background flex flex-col justify-center items-center p-6">
+      <div className="fixed inset-0 z-20 min-h-dvh overflow-y-auto flex flex-col justify-center items-center p-6">
         <div className="w-full max-w-md">
           <EmptyState
             icon={UserX}
@@ -372,7 +376,7 @@ export function OfflineAppShell() {
   return (
     <div
       ref={scrollContainerRef}
-      className="fixed inset-0 z-20 min-h-dvh overflow-y-auto bg-background safe-area-px"
+      className="fixed inset-0 z-20 min-h-dvh overflow-y-auto safe-area-px"
       onScroll={handleScroll}
     >
       <InstanceLimitsProvider {...bootstrap.instanceLimits}>
