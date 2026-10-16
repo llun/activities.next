@@ -227,7 +227,11 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
         // Signed out there is no `Header` above the post (the page card has
         // only an `sr-only` heading), so the post is what meets the card's top
         // corners, and its background would paint over them if square. Signed
-        // in, the header's own clipped wrapper takes them.
+        // in, the header's own clipped wrapper takes them. The bottom corners
+        // are always round: if the sections column below is empty and hidden,
+        // the post is the card's last child. Otherwise the matching
+        // backgrounds hide it.
+        'rounded-b-lg',
         !currentActor && 'rounded-t-lg'
       )}
     >

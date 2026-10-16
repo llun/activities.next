@@ -1007,9 +1007,9 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   notification snippet (`StatusNotification`) are intentionally separate
   presentations and are outside this contract; everything else goes through
   `Posts`/`Post`. **That licenses a different page layout, not a different
-  action row.** The fitness detail lays out its own card and therefore places
-  the two halves of the reaction control by hand — `ReactionRow` in the card
-  body under the stats, and the picker trigger in the row below — but the row
+  action row.** The fitness detail lays out its own post and therefore places
+  the two halves of the reaction control by hand — `ReactionRow` in the post
+  body under the figure band, and the picker trigger in the row below — but the row
   itself is the shared `<Actions>` (`fullBleed={false}`, its own
   `useReactionState` passed in), not a local copy. A hand-rolled row is exactly
   how that page drifted into a right-packed cluster with its own gaps while

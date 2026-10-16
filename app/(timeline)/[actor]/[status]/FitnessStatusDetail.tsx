@@ -637,7 +637,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   })()
 
   return (
-    <div className="@container">
+    <div>
       {/* The post is flush in the page card, directly under its header, like
           the focused post on the post page; the sections after it sit in the
           padded column. */}

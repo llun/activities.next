@@ -59,14 +59,15 @@ describe('FitnessStatusDetail post layout', () => {
     document.querySelector('[data-slot="fitness-card"]') as HTMLElement
   const getBand = () => screen.getByTestId('activity-figure-band')
 
-  it('has no frame around the post: no border box and no radius', () => {
+  it('has no frame around the post: no border box, only the bottom radius', () => {
     renderDetail()
 
     const post = getPost()
     expect(post).toHaveClass('bg-background')
     expect(post).not.toHaveClass('border-b')
     expect(post).not.toHaveClass('border')
-    expect(post.className).not.toMatch(/(^|\s)rounded(-|\s|$)/)
+    expect(post).toHaveClass('rounded-b-lg')
+    expect(post).not.toHaveClass('rounded-t-lg')
   })
 
   it('renders the post outside the padded column, which keeps the sections', () => {
