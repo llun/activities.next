@@ -1793,12 +1793,28 @@ legacy shape left to copy.
     primary content (they mount only after a click), so they render nothing on
     the server. The composer chunk is preloaded at idle for a signed-in viewer
     (`useInlineComposer(canCompose)`, where `canCompose` is a required
-    boolean) and never for an anonymous one; the picker chunk is preloaded when
+    boolean) and never for an anonymous one; the picker chunk is preloaded at idle
+    when a signed-in viewer's reaction button renders, and when
     its trigger is hovered or focused, or when the compact row's ⋯ menu opens
     (`preloadReactionPicker`). Both are wrapped in `LazyChunkBoundary`, so a
     chunk that fails to download (deploy skew) shows an inline `Alert`
     ("Couldn't load. Reload the page to try again.") instead of reaching the
     route error boundary.
+  - **Preloaded splits render synchronously (`createPreloadable`).** A
+    `next/dynamic` component is a `React.lazy`, which suspends on the first
+    render of each lazy instance even when its module is already loaded, and
+    React then holds the Suspense reveal for ~300ms after a fallback commits.
+    So preloading with `import()` alone still leaves a ~300ms first open. Each
+    split therefore keeps its module-scope `dynamic(load, {...})` call (Next's
+    compiler needs the inline options object) and passes it with `load` to
+    `createPreloadable` (`lib/components/lazy/createPreloadable.tsx`), which
+    returns `{ Component, preload }`: `Component` renders the dynamic component
+    until `preload()` has resolved, then the loaded component directly. Start
+    preloads from an event handler or an effect (`runWhenIdle`), never at
+    module top level, so the server render and hydration still use the dynamic
+    (SSR'd) path and cannot mismatch. The composer and reaction picker preload
+    at idle for signed-in viewers; the gallery panels at idle once the profile
+    has a media or gallery tab, and on tab-bar hover or focus.
   - **`FitnessStatusDetail` (status page) and the profile gallery panels
     (`ActorMediaGallery`, `ProfileGalleryTab`): SSR kept.** A fitness post's
     detail and a media-only profile's gallery are the page's primary content,

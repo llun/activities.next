@@ -20,6 +20,10 @@ import {
 } from 'react'
 
 import { getAccountStatusesPage, getActorStatuses } from '@/lib/client'
+import {
+  createPreloadable,
+  runWhenIdle
+} from '@/lib/components/lazy/createPreloadable'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { Posts } from '@/lib/components/posts/posts'
 import {
@@ -55,16 +59,23 @@ const loadProfileGalleryTab = () =>
 const galleryFallback = (
   <SectionSkeleton sections={[3]} headings={false} descriptions={false} />
 )
-const ActorMediaGallery = dynamic(loadActorMediaGallery, {
+const DynamicActorMediaGallery = dynamic(loadActorMediaGallery, {
   loading: () => galleryFallback
 })
-const ProfileGalleryTab = dynamic(loadProfileGalleryTab, {
+const DynamicProfileGalleryTab = dynamic(loadProfileGalleryTab, {
   loading: () => galleryFallback
 })
 
+// Render synchronously once preloaded; see `createPreloadable`. On the server
+// and during hydration nothing is preloaded, so the SSR'd dynamic path renders.
+const { Component: ActorMediaGallery, preload: preloadActorMediaGallery } =
+  createPreloadable(loadActorMediaGallery, DynamicActorMediaGallery)
+const { Component: ProfileGalleryTab, preload: preloadProfileGalleryTab } =
+  createPreloadable(loadProfileGalleryTab, DynamicProfileGalleryTab)
+
 const preloadGalleryPanels = () => {
-  loadActorMediaGallery().catch(() => undefined)
-  loadProfileGalleryTab().catch(() => undefined)
+  void preloadActorMediaGallery()
+  void preloadProfileGalleryTab()
 }
 
 interface Props {
@@ -243,6 +254,14 @@ export const ActorTimelines: FC<Props> = ({
     }
     return tabs
   }, [showRepliesTab, hasMedia, showGalleryTab, showFitnessTab])
+
+  // Warm the gallery panels at idle once a tab can show them, so switching to
+  // it renders at once instead of waiting out the Suspense reveal throttle.
+  const hasGalleryPanelTab = hasMedia || showGalleryTab
+  useEffect(() => {
+    if (!hasGalleryPanelTab) return
+    return runWhenIdle(preloadGalleryPanels)
+  }, [hasGalleryPanelTab])
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     isMediaOnly ? 'media' : 'posts'

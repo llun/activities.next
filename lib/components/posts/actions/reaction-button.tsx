@@ -4,6 +4,8 @@ import { SmilePlus } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { FC, useEffect, useRef } from 'react'
 
+import { createPreloadable } from '@/lib/components/lazy/createPreloadable'
+import { runWhenIdle } from '@/lib/components/lazy/createPreloadable'
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError
@@ -22,10 +24,16 @@ const loadReactionPicker = () =>
 
 // Mounted only while open, so the emoji dataset behind it stays out of every
 // post list's first-load bundle. The trigger preloads the chunk on hover/focus.
-const ReactionPicker = dynamic(loadReactionPicker, { ssr: false })
+const DynamicReactionPicker = dynamic(loadReactionPicker, { ssr: false })
+
+// Renders synchronously once preloaded; see `createPreloadable`.
+const { Component: ReactionPicker, preload } = createPreloadable(
+  loadReactionPicker,
+  DynamicReactionPicker
+)
 
 export const preloadReactionPicker = () => {
-  loadReactionPicker().catch(() => undefined)
+  void preload()
 }
 
 const getReactionButtonLabel = (total: number, targetLabel?: string) => {
@@ -76,6 +84,10 @@ export const ReactionButton: FC<Props> = ({
   // ordinary open or close does not re-run it.
   const isPickingRef = useRef(isPicking)
   isPickingRef.current = isPicking
+
+  // The button only renders for a signed-in viewer, so warm the picker chunk at
+  // idle; hover/focus still preload it sooner.
+  useEffect(() => runWhenIdle(preloadReactionPicker), [])
 
   useEffect(() => {
     // The element the picker hangs off moves between this button and the ⋯
