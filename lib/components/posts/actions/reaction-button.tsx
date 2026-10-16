@@ -14,10 +14,12 @@ import {
 } from '@/lib/components/posts/useReactionState'
 import { cn } from '@/lib/utils'
 
-const getReactionButtonLabel = (total: number) =>
-  total > 0
-    ? `Add reaction, ${total} ${total === 1 ? 'reaction' : 'reactions'}`
-    : 'Add reaction'
+const getReactionButtonLabel = (total: number, targetLabel?: string) => {
+  const verb = targetLabel ? `Add reaction to ${targetLabel}` : 'Add reaction'
+  return total > 0
+    ? `${verb}, ${total} ${total === 1 ? 'reaction' : 'reactions'}`
+    : verb
+}
 
 interface Props {
   state: ReactionState
@@ -27,6 +29,8 @@ interface Props {
    * viewport-positioned, so it only needs to stay mounted.
    */
   hideTrigger?: boolean
+  /** Names the post when the row's buttons act on different ones. */
+  targetLabel?: string
 }
 
 /**
@@ -35,7 +39,11 @@ interface Props {
  * with no reactions yet still offers one — and so the chips stay a pure
  * read-out of what people picked.
  */
-export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
+export const ReactionButton: FC<Props> = ({
+  state,
+  hideTrigger,
+  targetLabel
+}) => {
   const {
     isPicking,
     setIsPicking,
@@ -78,8 +86,8 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
             // Busy rather than `disabled`, so the control the user just
             // activated keeps focus instead of being blurred back to <body>.
             aria-disabled={isBusy}
-            aria-label={getReactionButtonLabel(total)}
-            title={getReactionButtonLabel(total)}
+            aria-label={getReactionButtonLabel(total, targetLabel)}
+            title={getReactionButtonLabel(total, targetLabel)}
             aria-haspopup="dialog"
             aria-expanded={isPicking}
             className={cn(

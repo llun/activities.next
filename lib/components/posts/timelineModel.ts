@@ -115,7 +115,7 @@ const isGroupActorBoost = (status: TimelineInputStatus): boolean => {
 /**
  * Collects all known identifier aliases for a status (id, url, uri, publicId).
  */
-const getStatusAliases = (status: TimelineInputStatus): string[] => {
+export const getStatusAliases = (status: TimelineInputStatus): string[] => {
   const aliases: string[] = [status.id]
   if ('url' in status && typeof status.url === 'string' && status.url) {
     aliases.push(status.url)

@@ -16,6 +16,8 @@ interface Props {
   actorId?: string
   statusUrl?: string | null
   className?: string
+  /** Replaces the avatar's default 40px box (e.g. `size-7` inside an inset). */
+  avatarClassName?: string
 }
 
 type ActorIdParts = {
@@ -210,7 +212,12 @@ export const getActorDisplayName = (
 // remote actor this instance has not persisted yet, a WebFinger lookup and a
 // signed actor fetch to the remote server. See "Link prefetching in feeds" in
 // AGENTS.md.
-export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
+export const ActorAvatar: FC<Props> = ({
+  actor,
+  actorId,
+  statusUrl,
+  avatarClassName
+}) => {
   if (!actor && !actorId) return null
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
@@ -219,7 +226,7 @@ export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
     : getInitials(getActorIdHandle(actorId || '', statusUrl))
 
   const avatar = (
-    <Avatar className="h-10 w-10">
+    <Avatar className={avatarClassName ?? 'h-10 w-10'}>
       <AvatarImage src={actor?.iconUrl} />
       <AvatarFallback>{initials}</AvatarFallback>
     </Avatar>

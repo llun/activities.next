@@ -18,7 +18,7 @@ import { PostMenu, PostMenuExtraItem } from './post-menu'
 import { ReactionButton } from './reaction-button'
 import { ReplyButton } from './reply-button'
 import { RepostButton } from './repost-button'
-import { useBookmarkState } from './useBookmarkState'
+import { getBookmarkLabel, useBookmarkState } from './useBookmarkState'
 import { useCompactActionBar } from './useCompactActionBar'
 
 interface Props extends Omit<PostProps, 'currentTime'> {
@@ -46,6 +46,18 @@ interface Props extends Omit<PostProps, 'currentTime'> {
    * (see **Status Posts & Actions** in AGENTS.md).
    */
   extraMenuItems?: PostMenuExtraItem[]
+  /**
+   * For a combined post, whose bar belongs to several posts: Reply acts on
+   * (and counts the replies of) `replyStatus`, the latest post, while every
+   * other control acts on `status`, the first. The labels then name the target
+   * ("Reply to the latest post", "Like the first post") so the two are never
+   * ambiguous to a screen reader. Without it every control acts on `status`.
+   */
+  splitTargets?: {
+    replyStatus: Status
+    replyLabel: string
+    label: string
+  }
   onShowEdits?: (status: Status) => void
 }
 
@@ -59,6 +71,7 @@ export const Actions: FC<Props> = ({
   reactionState,
   fullBleed = true,
   extraMenuItems,
+  splitTargets,
   onReply,
   onEdit,
   onQuote,
@@ -73,6 +86,10 @@ export const Actions: FC<Props> = ({
       : status
   // Owned here rather than by the button: on a narrow post the bookmark is a ⋯
   // menu item instead, and both spellings have to read the same state.
+  const replyStatus = splitTargets
+    ? getOriginalStatus(splitTargets.replyStatus)
+    : actualStatus
+  const targetLabel = splitTargets?.label
   const bookmark = useBookmarkState({
     status: actualStatus,
     onBookmarkChanged
@@ -99,7 +116,7 @@ export const Actions: FC<Props> = ({
         {
           key: 'react',
           icon: <SmilePlus className="size-4" />,
-          label: 'React to post',
+          label: targetLabel ? `React to ${targetLabel}` : 'React to post',
           disabled: reactionState.pendingName !== null,
           // The picker takes focus once it is placed, so it has to open after
           // the menu has finished handing focus back.
@@ -113,7 +130,7 @@ export const Actions: FC<Props> = ({
               className={cn('size-4', bookmark.isBookmarked && 'fill-current')}
             />
           ),
-          label: bookmark.label,
+          label: getBookmarkLabel(bookmark.isBookmarked, targetLabel),
           disabled: bookmark.isLoading,
           onSelect: () => {
             void bookmark.toggle()
@@ -141,18 +158,33 @@ export const Actions: FC<Props> = ({
         fullBleed && '-ml-13 mt-3'
       )}
     >
-      <ReplyButton status={actualStatus} onReply={onReply} />
-      <RepostButton currentActor={currentActor} status={actualStatus} />
+      <ReplyButton
+        status={replyStatus}
+        targetLabel={splitTargets?.replyLabel}
+        onReply={onReply}
+      />
+      <RepostButton
+        currentActor={currentActor}
+        status={actualStatus}
+        targetLabel={targetLabel}
+      />
       <LikeButton
         key={`${actualStatus.id}-like`}
         currentActor={currentActor}
         status={actualStatus}
+        targetLabel={targetLabel}
         onLikeChanged={onLikeChanged}
       />
-      {isCompact ? null : <BookmarkButton state={bookmark} />}
+      {isCompact ? null : (
+        <BookmarkButton state={bookmark} targetLabel={targetLabel} />
+      )}
       {/* Still mounted when compact: the picker it renders is portalled, and
           the menu item that opens it needs somewhere for it to live. */}
-      <ReactionButton state={reactionState} hideTrigger={isCompact} />
+      <ReactionButton
+        state={reactionState}
+        hideTrigger={isCompact}
+        targetLabel={targetLabel}
+      />
       {isCompact ? (
         // Those two buttons are gone from the row but their failures are not,
         // and each button was the only thing that rendered its own error. The
@@ -184,6 +216,7 @@ export const Actions: FC<Props> = ({
         // margin eats every pixel of free space in the row, which is what pins
         // ⋯ to the post's right edge while the rest stay packed on the left.
         className="ml-auto"
+        targetLabel={targetLabel}
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}

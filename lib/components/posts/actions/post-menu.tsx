@@ -171,6 +171,10 @@ interface Props {
   extraItems?: PostMenuExtraItem[]
   /** Layout classes from the row that owns the menu (e.g. `ml-auto`). */
   className?: string
+  /** Classes for the ⋯ trigger, to size it for a denser row (e.g. `size-6`). */
+  triggerClassName?: string
+  /** Names the post when the row's buttons act on different ones. */
+  targetLabel?: string
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
@@ -191,6 +195,8 @@ export const PostMenu: FC<Props> = ({
   triggerRef,
   extraItems,
   className,
+  triggerClassName,
+  targetLabel,
   onReply,
   onEdit,
   onQuote,
@@ -362,8 +368,13 @@ export const PostMenu: FC<Props> = ({
           <button
             ref={triggerRef}
             type="button"
-            className="flex size-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
-            aria-label="More actions"
+            className={cn(
+              'flex size-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground',
+              triggerClassName
+            )}
+            aria-label={
+              targetLabel ? `More actions for ${targetLabel}` : 'More actions'
+            }
           >
             <MoreHorizontal className="size-[18px]" />
           </button>

@@ -14,10 +14,13 @@ import { cn } from '@/lib/utils'
 interface RepostButtonProps {
   currentActor?: ActorProfile
   status: Status
+  /** Names the post when the row's buttons act on different ones. */
+  targetLabel?: string
 }
 export const RepostButton: FC<RepostButtonProps> = ({
   currentActor,
-  status
+  status,
+  targetLabel
 }) => {
   const mainStatus =
     status.type === StatusType.enum.Announce
@@ -34,7 +37,11 @@ export const RepostButton: FC<RepostButtonProps> = ({
   }, [mainStatus.actorAnnounceStatusId])
 
   if (!currentActor) return null
-  const repostLabel = repostedStatusId ? 'Undo repost' : 'Repost'
+  const repostLabel = targetLabel
+    ? `${repostedStatusId ? 'Undo repost of' : 'Repost'} ${targetLabel}`
+    : repostedStatusId
+      ? 'Undo repost'
+      : 'Repost'
 
   return (
     <button

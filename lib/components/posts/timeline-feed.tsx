@@ -21,6 +21,12 @@ import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { TimelineGapRow } from './TimelineGapRow'
 import { BoostCarousel } from './boost-carousel'
+import { CombinedPostListItem } from './combined-post-list-item'
+import {
+  CombinedBlock,
+  buildCombinedBlocks,
+  hasCombinedRun
+} from './combinedThreadModel'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { PostListItem } from './post-list-item'
 import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
@@ -117,6 +123,13 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     () => new Set()
   )
 
+  // Rows the viewer switched from the combined layout back to separate posts
+  // (the combined post's "Show as separate posts" menu item), keyed by row.
+  const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
+  const showRowSeparate = useCallback((key: string) => {
+    setSeparateRows((prev) => new Set(prev).add(key))
+  }, [])
+
   const toggleThreadExpanded = (key: string) => {
     setExpandedThreads((prev) => {
       const next = new Set(prev)
@@ -142,6 +155,21 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       groupBoosts: readingGroupBoosts
     })
   }, [statuses, readingGroupBoosts])
+
+  // A thread or conversation row's quick self-replies, combined into runs. A
+  // row with no run is absent, so it renders post by post exactly as before.
+  const combinedBlocksByRow = useMemo(() => {
+    const byRow = new Map<string, CombinedBlock[]>()
+    for (const row of rows) {
+      if (row.kind !== 'thread' && row.kind !== 'conversation') continue
+      const rowStatuses = row.entryIds
+        .map((id) => statusMap.get(id))
+        .filter((s): s is Status => Boolean(s))
+      const blocks = buildCombinedBlocks(rowStatuses)
+      if (hasCombinedRun(blocks)) byRow.set(row.key, blocks)
+    }
+    return byRow
+  }, [rows, statusMap])
 
   // Stable so memoized rows don't re-render when this list's state changes.
   const openStatus = useCallback(
@@ -214,6 +242,73 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     />
   )
 
+  // The reply context a thread or conversation shows above its first post: the
+  // post it answers, when that is not part of the row.
+  const getLeadContext = (first: Status, entryIds: string[]) => {
+    const replyTarget = getStatusReplyTargetId(getActualStatus(first))
+    return {
+      showReplyContext:
+        Boolean(replyTarget) && !entryIds.includes(replyTarget!),
+      parentPreview: replyTarget
+        ? timelineContext?.ancestorsById?.[replyTarget]
+        : undefined
+    }
+  }
+
+  const renderCombinedBlocks = (
+    rowKey: string,
+    entryIds: string[],
+    blocks: CombinedBlock[]
+  ) =>
+    blocks.map((block, index) => {
+      const lead =
+        index === 0
+          ? getLeadContext(
+              block.kind === 'run' ? block.parts[0].status : block.status,
+              entryIds
+            )
+          : { showReplyContext: false, parentPreview: undefined }
+      if (block.kind === 'post') return renderPostItem(block.status, lead)
+
+      const firstStatusId = block.parts[0].status.id
+      return (
+        <CombinedPostListItem
+          key={block.key}
+          parts={block.parts}
+          rowKey={rowKey}
+          host={host}
+          currentTime={currentTime}
+          currentActor={currentActor}
+          showActions={showActions}
+          showReadOnlyStats={showReadOnlyStats}
+          postLineLimit={postLineLimit}
+          showReplyContext={lead.showReplyContext}
+          parentPreview={lead.parentPreview}
+          canCompose={canCompose}
+          activeComposer={
+            currentActor && composer.active?.anchorId === firstStatusId
+              ? composer.active
+              : null
+          }
+          isMediaUploadEnabled={isMediaUploadEnabled}
+          openReply={composer.openReply}
+          openQuote={composer.openQuote}
+          openEdit={composer.openEdit}
+          close={composer.close}
+          onOpenStatus={openStatus}
+          onShowMedia={showMedia}
+          onShowSeparate={showRowSeparate}
+          onStatusCreated={onStatusCreated}
+          onReplyCreated={onReplyCreated}
+          onPostUpdated={onPostUpdated}
+          onPostDeleted={onPostDeleted}
+          onBookmarkChanged={onBookmarkChanged}
+          onLikeChanged={onLikeChanged}
+          onReactionsChanged={onReactionsChanged}
+        />
+      )
+    })
+
   return (
     <>
       <section
@@ -265,6 +360,10 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             const isExpanded = expandedThreads.has(row.key)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
+            const combinedBlocks =
+              shouldCollapse || separateRows.has(row.key)
+                ? undefined
+                : combinedBlocksByRow.get(row.key)
 
             rowContent = (
               <div
@@ -277,7 +376,9 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
-                {shouldCollapse ? (
+                {combinedBlocks ? (
+                  renderCombinedBlocks(row.key, row.entryIds, combinedBlocks)
+                ) : shouldCollapse ? (
                   <>
                     {/* First post */}
                     {renderPostItem(threadStatuses[0], {
@@ -348,6 +449,9 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             if (convStatuses.length === 0) return null
             rowStatusIds = convStatuses.map((s) => s.id)
+            const combinedBlocks = separateRows.has(row.key)
+              ? undefined
+              : combinedBlocksByRow.get(row.key)
 
             rowContent = (
               <div
@@ -360,22 +464,25 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
-                {convStatuses.map((status, index) => {
-                  const isFirst = index === 0
-                  const replyTarget = isFirst
-                    ? getStatusReplyTargetId(getActualStatus(status))
-                    : null
-                  const showReplyContext =
-                    Boolean(replyTarget) && !row.entryIds.includes(replyTarget!)
-                  const parentPreview = replyTarget
-                    ? timelineContext?.ancestorsById?.[replyTarget]
-                    : undefined
+                {combinedBlocks
+                  ? renderCombinedBlocks(row.key, row.entryIds, combinedBlocks)
+                  : convStatuses.map((status, index) => {
+                      const isFirst = index === 0
+                      const replyTarget = isFirst
+                        ? getStatusReplyTargetId(getActualStatus(status))
+                        : null
+                      const showReplyContext =
+                        Boolean(replyTarget) &&
+                        !row.entryIds.includes(replyTarget!)
+                      const parentPreview = replyTarget
+                        ? timelineContext?.ancestorsById?.[replyTarget]
+                        : undefined
 
-                  return renderPostItem(status, {
-                    showReplyContext,
-                    parentPreview
-                  })
-                })}
+                      return renderPostItem(status, {
+                        showReplyContext,
+                        parentPreview
+                      })
+                    })}
               </div>
             )
           } else if (row.kind === 'boosts') {

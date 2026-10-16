@@ -14,12 +14,15 @@ import { cn } from '@/lib/utils'
 interface LikeButtonProps {
   currentActor?: ActorProfile
   status: StatusNote | StatusPoll
+  /** Names the post when the row's buttons act on different ones. */
+  targetLabel?: string
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
 }
 
 export const LikeButton: FC<LikeButtonProps> = ({
   currentActor,
   status,
+  targetLabel,
   onLikeChanged
 }) => {
   const [{ isActorLiked, totalLikes }, setLikeState] = useState({
@@ -38,14 +41,13 @@ export const LikeButton: FC<LikeButtonProps> = ({
   }, [status.id, status.isActorLiked, status.totalLikes, setError])
 
   const isOwnPost = status.actorId === currentActor?.id
+  const likeVerb = `${isActorLiked ? 'Unlike' : 'Like'}${
+    targetLabel ? ` ${targetLabel}` : ''
+  }`
   const likeLabel =
     totalLikes > 0
-      ? `${isActorLiked ? 'Unlike' : 'Like'}, ${totalLikes} ${
-          totalLikes === 1 ? 'like' : 'likes'
-        }`
-      : isActorLiked
-        ? 'Unlike'
-        : 'Like'
+      ? `${likeVerb}, ${totalLikes} ${totalLikes === 1 ? 'like' : 'likes'}`
+      : likeVerb
   const failureMessage = isActorLiked
     ? 'Failed to unlike post. Please try again.'
     : 'Failed to like post. Please try again.'

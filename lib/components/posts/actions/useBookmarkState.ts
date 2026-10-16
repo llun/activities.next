@@ -15,6 +15,20 @@ export interface BookmarkState {
   toggle: () => Promise<void>
 }
 
+/**
+ * "Bookmark" / "Remove bookmark", naming the post when the row's buttons act on
+ * different ones ("Bookmark the first post").
+ */
+export const getBookmarkLabel = (
+  isBookmarked: boolean,
+  targetLabel?: string
+): string => {
+  if (!targetLabel) return isBookmarked ? 'Remove bookmark' : 'Bookmark'
+  return isBookmarked
+    ? `Remove bookmark from ${targetLabel}`
+    : `Bookmark ${targetLabel}`
+}
+
 interface UseBookmarkStateParams {
   status: StatusNote | StatusPoll
   onBookmarkChanged?: (
@@ -82,7 +96,7 @@ export const useBookmarkState = ({
     isBookmarked,
     isLoading,
     error,
-    label: isBookmarked ? 'Remove bookmark' : 'Bookmark',
+    label: getBookmarkLabel(isBookmarked),
     toggle
   }
 }
