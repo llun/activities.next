@@ -63,7 +63,8 @@ describe('FitnessStatusDetail post layout', () => {
     renderDetail()
 
     const post = getPost()
-    expect(post).toHaveClass('border-b', 'bg-background')
+    expect(post).toHaveClass('bg-background')
+    expect(post).not.toHaveClass('border-b')
     expect(post).not.toHaveClass('border')
     expect(post.className).not.toMatch(/(^|\s)rounded(-|\s|$)/)
   })
@@ -74,18 +75,15 @@ describe('FitnessStatusDetail post layout', () => {
     const post = getPost()
     const column = screen.getByRole('region', { name: 'Overview' })
       .parentElement as HTMLElement
-    expect(column).toHaveClass('@container', 'space-y-6', 'p-4', 'empty:hidden')
+    expect(column).toHaveClass(
+      '@container',
+      'space-y-6',
+      'border-t',
+      'p-4',
+      'empty:hidden'
+    )
     expect(column).not.toContainElement(post)
     expect(post.parentElement).toBe(column.parentElement)
-  })
-
-  it('pads the body like the focused post and bleeds the media by the same', () => {
-    renderDetail()
-
-    const body = getPost().firstElementChild as HTMLElement
-    expect(body).toHaveClass('p-4')
-    expect(body.style.getPropertyValue('--post-media-bleed-left')).toBe('1rem')
-    expect(body.style.getPropertyValue('--post-media-bleed-right')).toBe('1rem')
   })
 
   it('keeps the body padding, the band bleed and the media bleed in step', () => {
@@ -97,9 +95,12 @@ describe('FitnessStatusDetail post layout', () => {
     expect(rem(POST_BAND_BLEED_CLASS)).toBe(POST_MEDIA_BLEED)
 
     const body = getPost().firstElementChild as HTMLElement
-    expect(body).toHaveClass(POST_BODY_PADDING_CLASS)
+    expect(body).toHaveClass('p-4', POST_BODY_PADDING_CLASS)
     expect(getBand()).toHaveClass(POST_BAND_BLEED_CLASS)
     expect(body.style.getPropertyValue('--post-media-bleed-left')).toBe(
+      POST_MEDIA_BLEED
+    )
+    expect(body.style.getPropertyValue('--post-media-bleed-right')).toBe(
       POST_MEDIA_BLEED
     )
   })

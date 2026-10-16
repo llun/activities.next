@@ -2014,7 +2014,7 @@ legacy shape left to copy.
 - Settings-style sections (settings, fitness, admin) use the shared
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
-- Fitness stat strips (the activity page's header tiles and best efforts, the
+- Fitness stat strips (the activity post's figure band and best efforts, the
   inline chip in a post, the overview's totals) render through
   `StatStrip` (`@/lib/components/surface/StatStrip`) and size themselves with **container** queries — no
   hand-rolled `grid-cols-*` strip and no `sm:`/viewport breakpoint, which cannot

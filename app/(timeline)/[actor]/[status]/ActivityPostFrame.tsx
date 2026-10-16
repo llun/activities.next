@@ -136,8 +136,9 @@ export interface ActivityPostFrameProps {
  * It is laid out like the focused post on the post page, not as a box inside
  * the page card: flush under the page header, no border or radius of its own,
  * sections divided by full-width hairlines. The headline figures are an
- * edge-to-edge band, and the article's own `border-b` closes the post before
- * the Overview section.
+ * edge-to-edge band. The line between the post and the sections under it belongs
+ * to the sections column (its `border-t`), not to the post, so an empty column
+ * takes the line with it.
  */
 export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
   host,
@@ -222,7 +223,7 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
     <article
       data-slot="fitness-card"
       className={cn(
-        'border-b bg-background',
+        'bg-background',
         // Signed out there is no `Header` above the post (the page card has
         // only an `sr-only` heading), so the post is what meets the card's top
         // corners, and its background would paint over them if square. Signed

@@ -252,7 +252,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
         {replyComposer ? <div className="border-b">{replyComposer}</div> : null}
         <div
           data-testid="activity-replies-list"
-          className="divide-y divide-border/40 px-4 @max-[520px]:px-3"
+          className="divide-y divide-border/40 px-4"
         >
           {visibleNodes.map((node) => (
             <ThreadReplyNode
