@@ -258,11 +258,11 @@ describe('lib/database/migrate', () => {
     it('loads the baseline: the schema the reference dump describes', async () => {
       expect(await getMigrationStatus(target)).toMatchObject({
         executed: [],
-        pending: [BASELINE_MIGRATION],
+        pending: [...MIGRATION_NAMES],
         handover: { kind: 'empty' }
       })
 
-      expect(await migrateToLatest(target)).toEqual([BASELINE_MIGRATION])
+      expect(await migrateToLatest(target)).toEqual([...MIGRATION_NAMES])
       const migrated = await readSchema(connection.db)
 
       // The schema the test databases load from migrations/schema*.sql, in a
@@ -293,26 +293,28 @@ describe('lib/database/migrate', () => {
     })
 
     it('records the baseline once: a second run is a no-op', async () => {
-      expect(await migrateToLatest(target)).toEqual([BASELINE_MIGRATION])
+      expect(await migrateToLatest(target)).toEqual([...MIGRATION_NAMES])
       const schema = await readSchema(connection.db)
 
       expect(await migrateToLatest(target)).toEqual([])
       expect(await readSchema(connection.db)).toEqual(schema)
-      expect(await countRows(connection.db, 'kysely_migration')).toBe(1)
+      expect(await countRows(connection.db, 'kysely_migration')).toBe(
+        MIGRATION_NAMES.length
+      )
       expect(await getMigrationStatus(target)).toMatchObject({
         pending: [],
         unknown: [],
         handover: { kind: 'recorded' }
       })
       expect(await getAppliedMigrationNames(target)).toEqual([
-        BASELINE_MIGRATION
+        ...MIGRATION_NAMES
       ])
       // Read inside a transaction too, as the production archive does.
       await expect(
         inTransaction(connection.db, (trx) =>
           getAppliedMigrationNames({ db: trx, config })
         )
-      ).resolves.toEqual([BASELINE_MIGRATION])
+      ).resolves.toEqual([...MIGRATION_NAMES])
     })
 
     it('reports zero nodeinfo and servicestat counters on a fresh install', async () => {
@@ -375,12 +377,17 @@ describe('lib/database/migrate', () => {
         BASELINE_MIGRATION
       ])
 
+      const baselineOnly: MigrationRegistry = {
+        [BASELINE_MIGRATION]: migrations[BASELINE_MIGRATION]
+      }
       const statements: string[] = []
       const stop = connection.onQuery(({ sql: statement }) => {
         statements.push(statement)
       })
       try {
-        expect(await migrateToLatest(target)).toEqual([BASELINE_MIGRATION])
+        expect(await migrateToLatest(target, baselineOnly)).toEqual([
+          BASELINE_MIGRATION
+        ])
       } finally {
         stop()
       }
@@ -416,7 +423,7 @@ describe('lib/database/migrate', () => {
       `.execute(connection.db)
       expect(rows).toEqual([{ value: 3 }])
 
-      expect(await migrateToLatest(target)).toEqual([])
+      expect(await migrateToLatest(target, baselineOnly)).toEqual([])
       expect((await getMigrationStatus(target)).handover).toEqual({
         kind: 'recorded'
       })
@@ -634,7 +641,7 @@ describe('lib/database/migrate', () => {
 
     it('rolls back the last migration, but never the baseline', async () => {
       const registry: MigrationRegistry = {
-        ...migrations,
+        [BASELINE_MIGRATION]: migrations[BASELINE_MIGRATION],
         '20300101000000_probe': {
           up: createTable('probe'),
           down: async (db) => {
@@ -688,10 +695,10 @@ describe('lib/database/migrate', () => {
         try {
           const memoryTarget = { db: memory.db, config: memoryConfig }
           expect(await migrateToLatest(memoryTarget)).toEqual([
-            BASELINE_MIGRATION
+            ...MIGRATION_NAMES
           ])
           expect(await getAppliedMigrationNames(memoryTarget)).toEqual([
-            BASELINE_MIGRATION
+            ...MIGRATION_NAMES
           ])
           expect(await countRows(memory.db, 'accounts')).toBe(0)
         } finally {
@@ -727,8 +734,10 @@ describe('lib/database/migrate', () => {
             migrateToLatest(target),
             migrateToLatest({ db: other.db, config })
           ])
-          expect(results.flat()).toEqual([BASELINE_MIGRATION])
-          expect(await countRows(connection.db, 'kysely_migration')).toBe(1)
+          expect(results.flat()).toEqual([...MIGRATION_NAMES])
+          expect(await countRows(connection.db, 'kysely_migration')).toBe(
+            MIGRATION_NAMES.length
+          )
           // The SQLite lock row is not used here: the advisory lock is.
           expect(
             statements.filter((statement) =>
@@ -791,7 +800,7 @@ describe('lib/database/migrate', () => {
           expect(refusedStatements.filter(isWrite)).toEqual([])
           release()
           expect(await first).toEqual([
-            BASELINE_MIGRATION,
+            ...MIGRATION_NAMES,
             '20300101000000_slow'
           ])
           expect(calls).toBe(1)

@@ -161,6 +161,10 @@ export const deleteFitnessFile = (
       .deleteFrom('fitness_file_routes')
       .where('fitnessFileId', '=', id)
       .execute()
+    await trx
+      .deleteFrom('fitness_file_route_data')
+      .where('fitnessFileId', '=', id)
+      .execute()
 
     if (accountId) {
       await decreaseCounterValue(

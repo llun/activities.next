@@ -171,9 +171,10 @@ const fetchAppleMapsTokenWithRetry = async (): Promise<string | null> => {
 }
 
 /**
- * MapKit re-invokes `authorizationCallback` whenever the token expires, so this
- * must stay side-effect free and re-runnable: always request a fresh short-lived
- * token, never cache or short-circuit.
+ * MapKit re-invokes `authorizationCallback` whenever the token expires. The
+ * first callback consumes `prefetchedTokenPromise` (started in parallel with
+ * the MapKit script load) and clears it so every subsequent expiry refresh
+ * requests a fresh short-lived token.
  *
  * When no token can be minted at all, `done` is never called and MapKit can never
  * authorize. That is not a state a caller can recover from, so we surface it as a
@@ -183,11 +184,15 @@ const fetchAppleMapsTokenWithRetry = async (): Promise<string | null> => {
  */
 const initializeMapKit = (
   mapkit: MapKitModule,
-  onAuthorizationFailure: (error: Error) => void
+  onAuthorizationFailure: (error: Error) => void,
+  prefetchedTokenPromise?: Promise<string | null> | null
 ) => {
+  let initialTokenPromise = prefetchedTokenPromise
   mapkit.init({
     authorizationCallback: (done) => {
-      void fetchAppleMapsTokenWithRetry().then((token) => {
+      const tokenPromise = initialTokenPromise ?? fetchAppleMapsTokenWithRetry()
+      initialTokenPromise = null
+      void tokenPromise.then((token) => {
         if (token) {
           done(token)
           return
@@ -228,6 +233,10 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
       `MapKit is unusable for this page: ${mapkitLastErrorStatus ?? 'the ready callback already ran without MapKit becoming initialized'}`
     )
   }
+
+  const prefetchedTokenPromise = fetchAppleMapsTokenWithRetry().catch(
+    () => null
+  )
 
   const loadPromise = new Promise<unknown>((resolve, reject) => {
     let settled = false
@@ -344,7 +353,7 @@ export const loadMapKitModule = async <T = MapKitModule>(): Promise<T> => {
       }
 
       mapkitBootstrapCompleted = true
-      initializeMapKit(mapkit, rejectOnce)
+      initializeMapKit(mapkit, rejectOnce, prefetchedTokenPromise)
     }
 
     const existingScript = document.querySelector<HTMLScriptElement>(

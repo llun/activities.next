@@ -4,6 +4,7 @@ import type {
 } from '@/lib/database/migrate/types'
 
 import * as baseline from './20261014000000_baseline'
+import * as addFitnessFileRouteData from './20261015000000_add_fitness_file_route_data'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -14,5 +15,6 @@ import type { MigrationName } from './names'
 // migrations/names.ts (the `satisfies` below fails the typecheck until both
 // list the same names).
 export const migrations: MigrationRegistry = {
-  '20261014000000_baseline': baseline
+  '20261014000000_baseline': baseline,
+  '20261015000000_add_fitness_file_route_data': addFitnessFileRouteData
 } satisfies Record<MigrationName, MigrationModule>

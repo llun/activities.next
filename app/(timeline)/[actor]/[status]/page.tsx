@@ -37,7 +37,12 @@ import {
 import { cn } from '@/lib/utils'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
+import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
+import { getVisibility } from '@/lib/utils/getVisibility'
+import { getCanonicalAuthority, isOwnInstanceHost } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
@@ -50,23 +55,151 @@ interface Props {
   params: Promise<{ actor: string; status: string }>
 }
 
+const isStatusStrictlyPublic = (status: Status): boolean => {
+  if (status.type === StatusType.enum.Announce) {
+    return (
+      getVisibility(status.to, status.cc) === 'public' &&
+      getVisibility(status.originalStatus.to, status.originalStatus.cc) ===
+        'public'
+    )
+  }
+  return getVisibility(status.to, status.cc) === 'public'
+}
+
+const isLocalActorHandleDomain = (
+  actorDomain: string,
+  baseHost: string
+): boolean => {
+  const canonicalActorDomain = getCanonicalAuthority(actorDomain)
+  if (!canonicalActorDomain) return false
+  if (baseHost && getCanonicalAuthority(baseHost) === canonicalActorDomain) {
+    return true
+  }
+  try {
+    const config = getConfig()
+    if (!config) return false
+    if (isOwnInstanceHost(actorDomain, config)) {
+      return true
+    }
+    return (config.allowActorDomains ?? []).some(
+      (domain) => getCanonicalAuthority(domain) === canonicalActorDomain
+    )
+  } catch {
+    return false
+  }
+}
+
+const getCanonicalStatusUrl = (
+  actualStatus: NonNullable<ReturnType<typeof getOriginalStatus>>,
+  fallbackUrl: string
+): { canonicalUrl: string; isRemote: boolean } => {
+  if (actualStatus.isLocalActor === false) {
+    const remoteUrl =
+      'url' in actualStatus && actualStatus.url
+        ? actualStatus.url
+        : actualStatus.id
+    return {
+      canonicalUrl: remoteUrl || fallbackUrl,
+      isRemote: true
+    }
+  }
+
+  const detailPath = getStatusDetailPath(actualStatus)
+  return {
+    canonicalUrl: detailPath ? `${getBaseURL()}${detailPath}` : fallbackUrl,
+    isRemote: false
+  }
+}
+
+const getAuthorCanonicalUrl = (
+  actualStatus: NonNullable<ReturnType<typeof getOriginalStatus>>,
+  fallbackHref: string
+): string => {
+  if (!actualStatus.actor) {
+    return `${getBaseURL()}${fallbackHref}`
+  }
+
+  if (actualStatus.isLocalActor === false) {
+    return actualStatus.actor.id
+  }
+
+  return `${getBaseURL()}/${getActorMentionPathSegment(actualStatus.actor)}`
+}
+
 export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
   const { actor, status } = await params
   const decodedActor = decodePathParam(actor)
+  const baseUrl = getBaseURL()
   // Deterministically re-encoded page URL: the status segment can itself be a
   // full remote status URL, so each segment is percent-encoded to survive the
   // round-trip through the oEmbed endpoint's URL parser.
-  const pageUrl = `${getBaseURL()}/${encodeURIComponent(decodedActor)}/${encodeURIComponent(decodePathParam(status))}`
+  const pageUrl = `${baseUrl}/${encodeURIComponent(decodedActor)}/${encodeURIComponent(decodePathParam(status))}`
+
+  const baseHost = (() => {
+    try {
+      return new URL(baseUrl).host.toLowerCase()
+    } catch {
+      return ''
+    }
+  })()
+  const actorDomainMatch = decodedActor.match(/^@?[^@]+@([^/@]+)$/)
+  const actorDomain = actorDomainMatch?.[1]?.toLowerCase()
+  const isRemoteActorHandle = Boolean(
+    actorDomain && baseHost && !isLocalActorHandleDomain(actorDomain, baseHost)
+  )
+
+  let description = `View ${decodedActor}'s post on Activities.next`
+  let canonicalUrl: string | undefined = isRemoteActorHandle
+    ? undefined
+    : pageUrl
+  let shouldNoIndex = isRemoteActorHandle
+  const database = getDatabase()
+  if (database) {
+    try {
+      const resolved = await resolveStatusFromPath({
+        database,
+        actorParam: actor,
+        statusParam: status
+      })
+      if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
+        const actualStatus = getOriginalStatus(resolved.status)
+        if (actualStatus) {
+          const resolvedCanonical = getCanonicalStatusUrl(actualStatus, pageUrl)
+          canonicalUrl = resolvedCanonical.canonicalUrl
+          shouldNoIndex = resolvedCanonical.isRemote
+
+          if (actualStatus.type === StatusType.enum.Note) {
+            const text = actualStatus.summary || actualStatus.text
+            if (text) {
+              const cleanText = htmlToPlainText(text)
+              if (cleanText) {
+                description = cleanText.slice(0, 160)
+              }
+            }
+          }
+        }
+      } else if (resolved) {
+        canonicalUrl = undefined
+        shouldNoIndex = true
+      }
+    } catch {
+      // Best-effort description fallback
+    }
+  }
+
   return {
     title: `${decodedActor} status`,
+    description,
+    ...(shouldNoIndex ? { robots: { index: false, follow: false } } : {}),
     alternates: {
+      ...(canonicalUrl ? { canonical: canonicalUrl } : {}),
       types: {
         // oEmbed discovery link (https://oembed.com/#section4): consumers read
         // <link rel="alternate" type="application/json+oembed"> from the
         // public status page to find GET /api/oembed.
-        'application/json+oembed': `${getBaseURL()}/api/oembed?url=${encodeURIComponent(pageUrl)}`
+        'application/json+oembed': `${baseUrl}/api/oembed?url=${encodeURIComponent(pageUrl)}`
       }
     }
   }
@@ -267,6 +400,83 @@ const Page: FC<Props> = async ({ params }) => {
     domain: pathActor.domain
   })
 
+  const isStrictlyPublic = isStatusStrictlyPublic(status)
+  let jsonLd: Record<string, unknown> | null = null
+  if (isStrictlyPublic && actualStatus) {
+    const fallbackPageUrl = `${getBaseURL()}/${encodeURIComponent(decodePathParam(actor))}/${encodeURIComponent(decodePathParam(statusParam))}`
+    const { canonicalUrl: statusUrl } = getCanonicalStatusUrl(
+      actualStatus,
+      fallbackPageUrl
+    )
+    const authorUrl = getAuthorCanonicalUrl(actualStatus, authorProfileHref)
+    const author = actualStatus.actor
+      ? {
+          '@type': 'Person',
+          name: actualStatus.actor.name || actualStatus.actor.username,
+          url: authorUrl
+        }
+      : {
+          '@type': 'Person',
+          name: authorName,
+          url: authorUrl
+        }
+    const cleanSummary =
+      actualStatus.type === StatusType.enum.Note && actualStatus.summary
+        ? htmlToPlainText(actualStatus.summary)
+        : ''
+    const noteText =
+      actualStatus.type === StatusType.enum.Note
+        ? actualStatus.summary || actualStatus.text || ''
+        : ''
+    const cleanDescription =
+      htmlToPlainText(noteText) || `Post by ${author.name}`
+    const publishedDate = actualStatus.createdAt
+      ? new Date(actualStatus.createdAt).toISOString()
+      : undefined
+    const fitnessSummary =
+      isFitnessDashboard && actualStatus.type === StatusType.enum.Note
+        ? actualStatus.fitness
+        : undefined
+
+    jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'SocialMediaPosting',
+      url: statusUrl,
+      name:
+        cleanSummary ||
+        (fitnessSummary
+          ? `${author.name}'s ${fitnessSummary.activityType || 'Activity'}`
+          : cleanDescription),
+      headline: cleanSummary || cleanDescription.slice(0, 110),
+      description: cleanDescription,
+      datePublished: publishedDate,
+      author,
+      ...(fitnessSummary
+        ? {
+            about: {
+              '@type': 'ExerciseAction',
+              ...(fitnessSummary.activityType
+                ? { exerciseType: fitnessSummary.activityType }
+                : {}),
+              ...(fitnessSummary.totalDistanceMeters &&
+              fitnessSummary.totalDistanceMeters > 0
+                ? {
+                    distance: {
+                      '@type': 'Distance',
+                      name: `${(fitnessSummary.totalDistanceMeters / 1000).toFixed(2)} km`
+                    }
+                  }
+                : {})
+            }
+          }
+        : {})
+    }
+  }
+
+  const safeJsonLdString = jsonLd
+    ? JSON.stringify(jsonLd).replace(/</g, '\\u003c')
+    : null
+
   if (isFitnessDashboard) {
     const fitnessFiles = await getStatusFitnessFiles(
       database,
@@ -368,6 +578,12 @@ const Page: FC<Props> = async ({ params }) => {
             />
           ) : null}
         </div>
+        {safeJsonLdString ? (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: safeJsonLdString }}
+          />
+        ) : null}
       </>
     )
   }
@@ -477,6 +693,12 @@ const Page: FC<Props> = async ({ params }) => {
           />
         ) : null}
       </div>
+      {safeJsonLdString ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLdString }}
+        />
+      ) : null}
     </>
   )
 }

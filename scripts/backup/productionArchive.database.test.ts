@@ -13,6 +13,7 @@ import {
   BASELINE_MIGRATION,
   getAppliedMigrationNames,
   getKnownMigrationNames,
+  migrateDown,
   migrateToLatest
 } from '@/lib/database/migrate'
 import { tableExists } from '@/lib/database/migrate/baseline'
@@ -27,6 +28,7 @@ import {
 } from '@/lib/database/testing/postgres'
 import { seedDatabase } from '@/lib/stub/database'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
+import { MIGRATION_NAMES } from '@/migrations/names'
 
 import {
   type ArchiveDatabase,
@@ -54,8 +56,11 @@ const migrationCalls = vi.hoisted(() => [] as { readsTimestampAs: string }[])
 vi.mock('@/lib/database/migrate', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/database/migrate')>()
   const { sql: probeSql } = await import('kysely')
-  return {
+  const { migrations: registeredMigrations } =
+    await import('@/migrations/index')
+  const migrateMock = {
     ...actual,
+    getKnownMigrationNames: vi.fn(actual.getKnownMigrationNames),
     migrateToLatest: async (
       target: Parameters<typeof actual.migrateToLatest>[0]
     ) => {
@@ -76,9 +81,16 @@ vi.mock('@/lib/database/migrate', async (importOriginal) => {
         }
       })
       migrationCalls.push({ readsTimestampAs: typeof at })
-      return actual.migrateToLatest(target)
+      const known = await migrateMock.getKnownMigrationNames()
+      const registry = Object.fromEntries(
+        Object.entries(registeredMigrations).filter(([name]) =>
+          known.includes(name)
+        )
+      )
+      return actual.migrateToLatest(target, registry)
     }
   }
+  return migrateMock
 })
 
 const sqliteMemoryConfig = getTestDatabaseConfig('sqlite')
@@ -964,7 +976,7 @@ describe('production archive scripts', () => {
       expect(manifest.database?.migrations).toEqual(
         await getKnownMigrationNames()
       )
-      expect(manifest.database?.migrations).toEqual([BASELINE_MIGRATION])
+      expect(manifest.database?.migrations).toEqual([...MIGRATION_NAMES])
       // The migration bookkeeping is not archived: the manifest's list says
       // what the source had applied.
       expect(
@@ -1470,61 +1482,118 @@ describe('production archive scripts', () => {
         migration_time: '2026-10-12T00:00:00.000Z'
       }))
 
+    const exportBaselineArchive = async () => {
+      const app = createDatabaseConnection(sourceConfig)
+      try {
+        for (const _ of MIGRATION_NAMES.slice(1)) {
+          await migrateDown({ db: app.db, config: sourceConfig })
+        }
+      } finally {
+        await app.destroy()
+      }
+
+      const baselineDir = path.join(tempDir, 'baseline-archive')
+      const baselineArchive = createDatabaseConnection(sourceConfig, {
+        normalizeResults: false
+      })
+      let baselineManifest: ArchiveManifest
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        const result = await exportDatabase(
+          { config: sourceConfig, db: baselineArchive.db },
+          baselineDir,
+          { includeReferencedStoragePaths: true }
+        )
+        baselineManifest = {
+          ...manifest,
+          database: result.manifest
+        }
+      } finally {
+        logSpy.mockRestore()
+        await baselineArchive.destroy()
+      }
+      return { baselineDir, baselineManifest }
+    }
+
+    const restoreSourceToLatest = async () => {
+      const app = createDatabaseConnection(sourceConfig)
+      try {
+        await migrateToLatest({ db: app.db, config: sourceConfig })
+      } finally {
+        await app.destroy()
+      }
+    }
+
     // What an archive made before the handover holds: the Knex migrations as
     // the manifest's list, and knex_migrations exported as a table.
     it(
       'restores an archive made before the handover into an empty database',
       async () => {
-        const legacyDir = path.join(tempDir, 'legacy-archive')
-        await fs.cp(archiveDir, legacyDir, { recursive: true })
-        await fs.writeFile(
-          path.join(legacyDir, 'database', 'knex_migrations.jsonl'),
-          knexMigrationRows()
-            .map((row) => `${JSON.stringify(row)}\n`)
-            .join('')
-        )
-        const legacyManifest: ArchiveManifest = {
-          ...manifest,
-          database: {
-            ...manifest.database!,
-            migrations: [...LEGACY_KNEX_MIGRATIONS],
-            tables: [
-              ...manifest.database!.tables,
-              {
-                name: 'knex_migrations',
-                rowCount: LEGACY_KNEX_MIGRATIONS.length
-              }
-            ].sort((a, b) => a.name.localeCompare(b.name))
-          }
-        }
-        const config = await emptyTarget('legacy-target')
-
-        const migrationsBefore = migrationCalls.length
-        const logs = await restoreWith(config, legacyDir, legacyManifest)
-
-        // The restore loaded the baseline once, and kept its own history.
-        expect(migrationCalls.slice(migrationsBefore)).toEqual([
-          { readsTimestampAs: 'number' }
-        ])
-        expect(logs).toContain(
-          'Database: skipped knex_migrations; the local database keeps its ' +
-            'own migration history'
-        )
-        expect(await dumpTables(config)).toEqual(await dumpTables(sourceConfig))
-        expect(await searchMatches(config)).toEqual(
-          await searchMatches(sourceConfig)
-        )
-        const restored = createDatabaseConnection(config)
+        const { baselineDir, baselineManifest } = await exportBaselineArchive()
         try {
-          expect(
-            await getAppliedMigrationNames({ db: restored.db, config })
-          ).toEqual([BASELINE_MIGRATION])
-          const { rows } = await sql<{ name: string }>`
-            select name from kysely_migration
-          `.execute(restored.db)
-          expect(rows).toEqual([{ name: BASELINE_MIGRATION }])
+          const legacyDir = path.join(tempDir, 'legacy-archive')
+          await fs.cp(baselineDir, legacyDir, { recursive: true })
+          await fs.writeFile(
+            path.join(legacyDir, 'database', 'knex_migrations.jsonl'),
+            knexMigrationRows()
+              .map((row) => `${JSON.stringify(row)}\n`)
+              .join('')
+          )
+          const legacyManifest: ArchiveManifest = {
+            ...baselineManifest,
+            database: {
+              ...baselineManifest.database!,
+              migrations: [...LEGACY_KNEX_MIGRATIONS],
+              tables: [
+                ...baselineManifest.database!.tables,
+                {
+                  name: 'knex_migrations',
+                  rowCount: LEGACY_KNEX_MIGRATIONS.length
+                }
+              ].sort((a, b) => a.name.localeCompare(b.name))
+            }
+          }
+          const config = await emptyTarget('legacy-target')
+
+          const migrationsBefore = migrationCalls.length
+          const knownSpy = vi
+            .mocked(getKnownMigrationNames)
+            .mockResolvedValue([BASELINE_MIGRATION])
+          let logs: string[]
+          try {
+            logs = await restoreWith(config, legacyDir, legacyManifest)
+          } finally {
+            knownSpy.mockRestore()
+          }
+
+          // The restore loaded the baseline once, and kept its own history.
+          expect(migrationCalls.slice(migrationsBefore)).toEqual([
+            { readsTimestampAs: 'number' }
+          ])
+          expect(logs).toContain(
+            'Database: skipped knex_migrations; the local database keeps its ' +
+              'own migration history'
+          )
+          expect(await dumpTables(config)).toEqual(
+            await dumpTables(sourceConfig)
+          )
+          expect(await searchMatches(config)).toEqual(
+            await searchMatches(sourceConfig)
+          )
+          const restored = createDatabaseConnection(config)
+          try {
+            expect(
+              await getAppliedMigrationNames({ db: restored.db, config })
+            ).toEqual([BASELINE_MIGRATION])
+            const { rows } = await sql<{ name: string }>`
+              select name from kysely_migration
+            `.execute(restored.db)
+            expect(rows).toEqual([{ name: BASELINE_MIGRATION }])
+          } finally {
+            await restored.destroy()
+          }
         } finally {
-          await restored.destroy()
+          await restoreSourceToLatest()
         }
       },
       ROUND_TRIP_TIMEOUT_MS
@@ -1533,55 +1602,68 @@ describe('production archive scripts', () => {
     it(
       'restores into a database the Knex migrations built, without migrating it',
       async () => {
-        const config = await emptyTarget('knex-target')
-        const knexDatabase = createDatabaseConnection(config)
+        const { baselineDir, baselineManifest } = await exportBaselineArchive()
+        const knownSpy = vi
+          .mocked(getKnownMigrationNames)
+          .mockResolvedValue([BASELINE_MIGRATION])
         try {
-          await knexDatabase.executeScript(
-            await fs.readFile(
-              path.join(
-                process.cwd(),
-                'migrations',
-                'baseline',
-                backend === 'pg' ? 'postgres.sql' : 'sqlite.sql'
-              ),
-              'utf8'
+          const config = await emptyTarget('knex-target')
+          const knexDatabase = createDatabaseConnection(config)
+          try {
+            await knexDatabase.executeScript(
+              await fs.readFile(
+                path.join(
+                  process.cwd(),
+                  'migrations',
+                  'baseline',
+                  backend === 'pg' ? 'postgres.sql' : 'sqlite.sql'
+                ),
+                'utf8'
+              )
             )
-          )
-          await sql`
-            create table knex_migrations (
-              id integer primary key, name varchar(255), batch integer,
-              migration_time varchar(64)
-            )
-          `.execute(knexDatabase.db)
-          for (const row of knexMigrationRows()) {
             await sql`
-              insert into knex_migrations (id, name, batch, migration_time)
-              values (${row.id}, ${row.name}, ${row.batch},
-                      ${row.migration_time})
+              create table knex_migrations (
+                id integer primary key, name varchar(255), batch integer,
+                migration_time varchar(64)
+              )
             `.execute(knexDatabase.db)
+            for (const row of knexMigrationRows()) {
+              await sql`
+                insert into knex_migrations (id, name, batch, migration_time)
+                values (${row.id}, ${row.name}, ${row.batch},
+                        ${row.migration_time})
+              `.execute(knexDatabase.db)
+            }
+          } finally {
+            await knexDatabase.destroy()
+          }
+
+          const migrationsBefore = migrationCalls.length
+          await restoreWith(config, baselineDir, baselineManifest)
+
+          // At the baseline already: nothing ran, nothing was recorded.
+          expect(migrationCalls.slice(migrationsBefore)).toEqual([])
+          expect(await dumpTables(config)).toEqual(
+            await dumpTables(sourceConfig)
+          )
+          const restored = createDatabaseConnection(config)
+          try {
+            const { rows } = await sql<{ count: number | string }>`
+              select count(*) as count from knex_migrations
+            `.execute(restored.db)
+            expect(Number(rows[0].count)).toBe(LEGACY_KNEX_MIGRATIONS.length)
+            expect(
+              await getAppliedMigrationNames({ db: restored.db, config })
+            ).toEqual([BASELINE_MIGRATION])
+            expect(await tableExists(restored.db, 'kysely_migration')).toBe(
+              false
+            )
+          } finally {
+            await restored.destroy()
           }
         } finally {
-          await knexDatabase.destroy()
-        }
-
-        const migrationsBefore = migrationCalls.length
-        await restoreWith(config, archiveDir, manifest)
-
-        // At the baseline already: nothing ran, nothing was recorded.
-        expect(migrationCalls.slice(migrationsBefore)).toEqual([])
-        expect(await dumpTables(config)).toEqual(await dumpTables(sourceConfig))
-        const restored = createDatabaseConnection(config)
-        try {
-          const { rows } = await sql<{ count: number | string }>`
-            select count(*) as count from knex_migrations
-          `.execute(restored.db)
-          expect(Number(rows[0].count)).toBe(LEGACY_KNEX_MIGRATIONS.length)
-          expect(
-            await getAppliedMigrationNames({ db: restored.db, config })
-          ).toEqual([BASELINE_MIGRATION])
-          expect(await tableExists(restored.db, 'kysely_migration')).toBe(false)
-        } finally {
-          await restored.destroy()
+          knownSpy.mockRestore()
+          await restoreSourceToLatest()
         }
       },
       ROUND_TRIP_TIMEOUT_MS

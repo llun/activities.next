@@ -1,5 +1,6 @@
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
+import { FitnessFileRouteDataDatabase } from '@/lib/database/domains/fitnessFileRouteData/types'
 import { FitnessGearDatabase } from '@/lib/database/domains/fitnessGear/types'
 import { FitnessRouteHeatmapDatabase } from '@/lib/database/domains/fitnessRouteHeatmap/types'
 import { FitnessRouteHeatmapTileDatabase } from '@/lib/database/domains/fitnessRouteHeatmapTile/types'
@@ -76,6 +77,7 @@ export type Database = AccountDatabase &
   InstanceRuleDatabase &
   FitnessFileDatabase &
   FitnessFileRouteDatabase &
+  FitnessFileRouteDataDatabase &
   FitnessGearDatabase &
   FitnessRouteHeatmapDatabase &
   FitnessRouteHeatmapTileDatabase &

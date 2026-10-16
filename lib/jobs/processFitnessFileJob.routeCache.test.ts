@@ -111,6 +111,18 @@ describe('processFitnessFileJob', () => {
           maxLng: -122.41
         }
       })
+
+      const routeData = await database.getFitnessFileRouteData({
+        fitnessFileId
+      })
+      expect(routeData).not.toBeNull()
+      expect(routeData).toMatchObject({
+        fitnessFileId,
+        actorId: actor.id,
+        sourceVersion: 1
+      })
+      const parsed = JSON.parse(routeData!.routeData)
+      expect(parsed.routeSamples).toHaveLength(2)
     })
 
     it('caches the route before privacy trimming, so moving a zone needs no re-read', async () => {

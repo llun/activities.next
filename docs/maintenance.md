@@ -573,6 +573,7 @@ NODE_ENV=production ./scripts/fitness/repairFailedFitnessImports.ts --actor-id h
 NODE_ENV=production ./scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/backfillFitnessMovingTime.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/backfillFitnessRouteData.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/importFitnessGear.ts --actor-id https://your-domain.tld/users/username --input ./gear-import.json --dry-run
 NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username
 NODE_ENV=production ./scripts/fitness/normalizeFitnessActivityTypes.ts --actor-id https://your-domain.tld/users/username
@@ -587,6 +588,8 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 > **Note:** `recreateFitnessRouteHeatmaps.ts` soft-deletes the actor's heatmap rows and queues a generation job per variant and region, each rebuilding its own row on its own clock. Only the all-activities/all-time row also rebuilds that actor's **tile pyramid** — what the interactive maps and the share image draw street-level detail from — so a rebuild is heavier than the queued-job count suggests. While that pyramid is `generating` rather than `completed`, nothing serves tiles at all: a row already rebuilt draws its stored geometry, and street-level detail returns only once the build stamps itself completed. A row soft-deleted and not yet rebuilt has nothing to serve, and deleting it also clears its share token, so a previously shared heatmap stays unshared after the rebuild until its owner shares it again.
 >
 > **Note:** `backfillFitnessMovingTime.ts` recomputes `movingTimeSeconds` for already-stored activity files by re-parsing them, so their average pace/speed switches from elapsed-time to moving-time (matching Strava). New imports already compute it during processing; this only needs running once over historical records. It skips files that already have a moving time (pass `--force` to recompute anyway) and supports `--dry-run` to preview.
+>
+> **Note:** `backfillFitnessRouteData.ts` populates `fitness_file_route_data` for an actor's completed fitness files so that route-data requests resolve from database cache instead of downloading and re-parsing files. It skips files that already have cached route data unless `--force` is passed, and supports `--dry-run` to preview.
 
 #### Linking recording devices onto activities imported before devices had gear rows
 
@@ -653,6 +656,21 @@ the OLD strings, and the script does not rewrite them (the unique index on
 rather than merge into it). The script prints the exact command, which is the
 usual `recreateFitnessRouteHeatmaps.ts` run — read its note above first, since a
 rebuild is heavier than the queued-job count suggests.
+
+#### Backfilling pre-parsed route data for instant map and chart rendering
+
+`scripts/fitness/backfillFitnessRouteData.ts` populates `fitness_file_route_data` for an actor's completed fitness files so that route-data requests (`/api/v1/fitness-files/:id/route-data`) resolve directly from database cache instead of downloading and re-parsing source files from object storage on demand.
+
+Files that already have a cached route data record are skipped unless `--force` is provided. The script supports `--dry-run` to preview the files that would be updated without writing to the database.
+
+```bash
+# Preview, then backfill
+NODE_ENV=production ./scripts/fitness/backfillFitnessRouteData.ts --actor-id https://your-domain.tld/users/username --dry-run
+NODE_ENV=production ./scripts/fitness/backfillFitnessRouteData.ts --actor-id https://your-domain.tld/users/username
+
+# Force re-parsing and overwriting existing cache
+NODE_ENV=production ./scripts/fitness/backfillFitnessRouteData.ts --actor-id https://your-domain.tld/users/username --force
+```
 
 #### Backfilling gear onto activities imported before gear tracking existed
 

@@ -1,3 +1,4 @@
+import { runInReactCacheScope } from '@/lib/testing/reactCacheScope'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
   StatusAnnounce,
@@ -11,6 +12,12 @@ import {
   parseActorPathParam,
   resolveStatusFromPath
 } from './resolveStatusFromPath'
+
+vi.mock('react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react')>()
+  const { serverCache } = await import('@/lib/testing/reactCacheScope')
+  return { ...actual, cache: serverCache }
+})
 
 // The Back to profile fallback on the status page is built from this parse,
 // so it is the boundary that keeps that link on this site.
@@ -484,5 +491,73 @@ describe('resolveStatusFromPath', () => {
       statusId: originalStatus.id,
       withReplies: false
     })
+  })
+
+  it('deduplicates repeated anonymous lookups within the same request scope', async () => {
+    const database = createDatabase()
+    database.getStatus.mockResolvedValue(originalStatus)
+
+    const [first, second] = await runInReactCacheScope(async () =>
+      Promise.all([
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: '123'
+        }),
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: '123'
+        })
+      ])
+    )
+
+    expect(database.getActorFromUsername).toHaveBeenCalledTimes(1)
+    expect(database.getStatus).toHaveBeenCalledTimes(1)
+    expect(first).toBe(second)
+  })
+
+  it('does not share cached status results between anonymous and signed-in lookups while sharing actor lookup', async () => {
+    const database = createDatabase()
+    const viewerActorId = 'https://llun.test/users/viewer'
+    const viewerStatus = {
+      ...originalStatus,
+      isActorLiked: true
+    }
+    database.getStatus
+      .mockResolvedValueOnce(originalStatus)
+      .mockResolvedValueOnce(viewerStatus)
+
+    const [anonymousResult, signedInResult] = await runInReactCacheScope(
+      async () => {
+        const anon = await resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: '123'
+        })
+        const signedIn = await resolveStatusFromPath({
+          database,
+          actorParam: '@original@remote.example',
+          statusParam: '123',
+          currentActorId: viewerActorId
+        })
+        return [anon, signedIn] as const
+      }
+    )
+
+    expect(database.getActorFromUsername).toHaveBeenCalledTimes(1)
+    expect(database.getStatus).toHaveBeenCalledTimes(2)
+    expect(database.getStatus).toHaveBeenNthCalledWith(1, {
+      statusId: 'https://remote.example/users/original/statuses/123',
+      withReplies: false,
+      currentActorId: undefined
+    })
+    expect(database.getStatus).toHaveBeenNthCalledWith(2, {
+      statusId: 'https://remote.example/users/original/statuses/123',
+      withReplies: false,
+      currentActorId: viewerActorId
+    })
+    expect(anonymousResult?.status).toBe(originalStatus)
+    expect(signedInResult?.status).toBe(viewerStatus)
   })
 })

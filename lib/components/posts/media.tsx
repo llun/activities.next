@@ -22,6 +22,7 @@ export interface Props {
   attachment?: Attachment
   showVideoControl?: boolean
   loading?: 'lazy' | 'eager'
+  fetchPriority?: 'high' | 'low' | 'auto'
   onClick?: (event: MouseEvent) => void
   allowAutoplay?: boolean
   manuallyPaused?: boolean | null
@@ -35,12 +36,14 @@ export const Media: FC<Props> = ({
   attachment,
   showVideoControl = false,
   loading,
+  fetchPriority,
   onClick,
   allowAutoplay = true,
   manuallyPaused = null,
   isPlaying: isPlayingProp,
   onPlayStateChange
 }) => {
+  const isPriority = fetchPriority === 'high'
   const { autoplayGifs } = usePlaybackPreferences()
   const [isLoaded, setIsLoaded] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
@@ -265,6 +268,7 @@ export const Media: FC<Props> = ({
             onClick={onClick}
             key={`paused-${id}`}
             loading={loading}
+            fetchPriority={fetchPriority}
             className={cn(
               'h-full w-full rounded-[inherit]',
               className?.includes('object-contain')
@@ -316,6 +320,7 @@ export const Media: FC<Props> = ({
           onClick={onClick}
           key={id}
           loading={loading}
+          fetchPriority={fetchPriority}
           className={cn(
             'h-full w-full rounded-[inherit]',
             className?.includes('object-contain')
@@ -362,12 +367,14 @@ export const Media: FC<Props> = ({
             onClick={onClick}
             key={id}
             loading={loading}
+            fetchPriority={fetchPriority}
             className={cn(
-              'h-full w-full transition-opacity duration-300 rounded-[inherit]',
+              'relative h-full w-full rounded-[inherit]',
+              !isPriority && 'transition-opacity duration-300',
               className?.includes('object-contain')
                 ? 'object-contain'
                 : 'object-cover',
-              isLoaded ? 'opacity-100' : 'opacity-0'
+              isPriority || isLoaded ? 'opacity-100' : 'opacity-0'
             )}
             style={style}
             alt={caption ?? name ?? url}
@@ -388,6 +395,7 @@ export const Media: FC<Props> = ({
         onClick={onClick}
         key={id}
         loading={loading}
+        fetchPriority={fetchPriority}
         className={cn('rounded-[inherit]', className)}
         style={style}
         alt={caption ?? name ?? url}

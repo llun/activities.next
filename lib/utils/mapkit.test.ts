@@ -113,6 +113,7 @@ describe('loadMapKitModule', () => {
     vi.resetModules()
     // The mocked @/lib/client instance survives resetModules, so clear its calls.
     vi.resetAllMocks()
+    vi.mocked(getAppleMapsToken).mockResolvedValue('apple-token')
     cleanup()
   })
 
@@ -265,6 +266,9 @@ describe('loadMapKitModule', () => {
 
     const { loadMapKitModule } = await import('@/lib/utils/mapkit')
     const promise = loadMapKitModule()
+
+    // Token prefetch is initiated immediately in parallel with script loading
+    expect(getAppleMapsToken).toHaveBeenCalledTimes(1)
 
     const fake = publishGlobal()
     completeBootstrap(fake)
@@ -419,11 +423,56 @@ describe('loadMapKitModule', () => {
     completeBootstrap(fake)
     await expect(promise).resolves.toBe(fake)
 
+    // Initial authorization consumes the prefetched token
+    const initialDone = vi.fn()
+    authorizationCallbackOf(fake.init)(initialDone)
+    await vi.waitFor(() =>
+      expect(initialDone).toHaveBeenCalledWith('apple-token')
+    )
+
     // MapKit re-invokes the callback when the token expires; each call fetches a
     // fresh short-lived token rather than replaying a cached one.
     vi.mocked(getAppleMapsToken).mockResolvedValue('refreshed-token')
     const done = vi.fn()
     authorizationCallbackOf(fake.init)(done)
     await vi.waitFor(() => expect(done).toHaveBeenCalledWith('refreshed-token'))
+  })
+
+  it('prefetches the Apple Maps token in parallel with script loading and passes it to done', async () => {
+    const { getAppleMapsToken } = await clientMock()
+    let resolveToken: (token: string) => void = () => {}
+    const tokenPromise = new Promise<string>((resolve) => {
+      resolveToken = resolve
+    })
+    vi.mocked(getAppleMapsToken).mockImplementation(() => tokenPromise)
+
+    const { loadMapKitModule } = await import('@/lib/utils/mapkit')
+    const promise = loadMapKitModule()
+    promise.catch(() => {})
+
+    // Prefetch started immediately as soon as loadMapKitModule was called
+    expect(getAppleMapsToken).toHaveBeenCalledTimes(1)
+
+    const fake = publishGlobal()
+    invokeReadyCallback()
+
+    expect(fake.init).toHaveBeenCalledTimes(1)
+    const authorizationCallback = authorizationCallbackOf(fake.init)
+
+    const done = vi.fn()
+    authorizationCallback(done)
+
+    // Token has not resolved yet, so done has not been called
+    expect(done).not.toHaveBeenCalled()
+
+    // When the prefetched token resolves, done is called with the token
+    resolveToken('prefetched-token')
+    await vi.waitFor(() =>
+      expect(done).toHaveBeenCalledWith('prefetched-token')
+    )
+    expect(getAppleMapsToken).toHaveBeenCalledTimes(1)
+
+    fake.emit('configuration-change', { status: 'Initialized' })
+    await expect(promise).resolves.toBe(fake)
   })
 })

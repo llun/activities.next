@@ -418,6 +418,53 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
 
   return (
     <Frame className="overflow-hidden">
+      {series.length > 0 ? (
+        <table className="sr-only">
+          <caption>Activity analysis metrics summary</caption>
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col">Min</th>
+              <th scope="col">Max</th>
+              <th scope="col">Average</th>
+            </tr>
+          </thead>
+          <tbody>
+            {series.map((entry) => {
+              const nonNull = entry.values.filter(
+                (v): v is number => v !== null && Number.isFinite(v)
+              )
+              const min = nonNull.length > 0 ? Math.min(...nonNull) : null
+              const max = nonNull.length > 0 ? Math.max(...nonNull) : null
+              const avg =
+                nonNull.length > 0
+                  ? nonNull.reduce((sum, v) => sum + v, 0) / nonNull.length
+                  : null
+              return (
+                <tr key={entry.key}>
+                  <th scope="row">{entry.label}</th>
+                  <td>
+                    {min !== null
+                      ? `${formatChartValue(min, entry.fractionDigits)} ${entry.unit}`
+                      : '–'}
+                  </td>
+                  <td>
+                    {max !== null
+                      ? `${formatChartValue(max, entry.fractionDigits)} ${entry.unit}`
+                      : '–'}
+                  </td>
+                  <td>
+                    {avg !== null
+                      ? `${formatChartValue(avg, entry.fractionDigits)} ${entry.unit}`
+                      : '–'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      ) : null}
+
       {laps.length > 0 ? (
         <LapsBand
           laps={laps}
