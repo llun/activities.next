@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { runWhenIdle } from '@/lib/components/lazy/createPreloadable'
 import {
   EditableStatus,
   Status,
@@ -51,12 +52,7 @@ export const useInlineComposer = (
   // can open it. Anonymous viewers never download it.
   useEffect(() => {
     if (!canCompose) return
-    if (typeof window.requestIdleCallback !== 'function') {
-      const timer = window.setTimeout(preloadInlineStatusComposer, 1000)
-      return () => window.clearTimeout(timer)
-    }
-    const handle = window.requestIdleCallback(preloadInlineStatusComposer)
-    return () => window.cancelIdleCallback(handle)
+    return runWhenIdle(preloadInlineStatusComposer)
   }, [canCompose])
 
   // `onReply`/`onQuote` reach us with the already-resolved note/poll (the post

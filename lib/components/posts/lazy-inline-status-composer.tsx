@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { ComponentProps, FC } from 'react'
 
+import { createPreloadable } from '@/lib/components/lazy/createPreloadable'
 import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 
 const loadInlineStatusComposer = () =>
@@ -15,9 +16,15 @@ const loadInlineStatusComposer = () =>
 // bundle of anonymous pages. `ssr: false` is safe: it never renders on the
 // server. Signed-in pages preload the chunk (see `useInlineComposer`) so opening
 // the composer is usually instant; until it arrives nothing is drawn.
-const LazyInlineStatusComposer = dynamic(loadInlineStatusComposer, {
+const DynamicInlineStatusComposer = dynamic(loadInlineStatusComposer, {
   ssr: false
 })
+
+// Renders synchronously once preloaded; see `createPreloadable`.
+const { Component: LazyInlineStatusComposer, preload } = createPreloadable(
+  loadInlineStatusComposer,
+  DynamicInlineStatusComposer
+)
 
 export const InlineStatusComposer: FC<
   ComponentProps<typeof LazyInlineStatusComposer>
@@ -28,5 +35,5 @@ export const InlineStatusComposer: FC<
 )
 
 export const preloadInlineStatusComposer = () => {
-  loadInlineStatusComposer().catch(() => undefined)
+  void preload()
 }
