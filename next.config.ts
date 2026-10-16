@@ -8,11 +8,13 @@ import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The React Compiler (babel-plugin-react-compiler, pinned in package.json)
-  // memoizes components and hooks at build time, so new code needs no manual
-  // `useMemo`/`useCallback`/`memo` for performance. The default 'infer' mode
-  // compiles only what looks like a component or hook, and silently leaves a
-  // function that breaks the Rules of React as written. Existing manual
-  // memoization stays as it is.
+  // memoizes client components and hooks at build time, so new code needs no
+  // manual `useMemo`/`useCallback`/`memo` for performance. The default 'infer'
+  // mode skips a function where it detects a Rules-of-React violation, or that
+  // contains try/finally. It cannot see globals (`window.*`), module-level
+  // mutable state, calls with no reactive arguments (`Date.now()`) or unused
+  // memo deps; those compile with changed behavior, so read them through state,
+  // `useSyncExternalStore` or an effect. Existing manual memoization stays.
   reactCompiler: true,
   // Handle slash removal through redirects() below so the exact Wahoo webhook
   // URL can keep its trailing slash, including requests Next routes internally.

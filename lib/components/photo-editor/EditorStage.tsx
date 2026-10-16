@@ -223,29 +223,32 @@ export const EditorStage = ({
     isDragging.current = false
   }
 
-  const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1
+  // The CSS size does not depend on the pixel ratio; only the backing-store
+  // size does, and that is read inside the effect (not during render) so a
+  // window moving between a 1x and a 2x display is not frozen by the compiler.
   const compareSizes =
     bitmap && box.width > 0 && box.height > 0
-      ? getPreviewSizes(
-          { width: bitmap.width, height: bitmap.height },
-          box,
-          dpr
-        )
+      ? getPreviewSizes({ width: bitmap.width, height: bitmap.height }, box, 1)
       : null
 
-  const compareWidth = compareSizes?.pixels.width ?? 0
-  const compareHeight = compareSizes?.pixels.height ?? 0
   useEffect(() => {
     const canvas = compareRef.current
-    if (!comparing || !bitmap || !canvas || compareWidth === 0) return
+    if (!comparing || !bitmap || !canvas || box.width <= 0 || box.height <= 0)
+      return
     const context = canvas.getContext('2d')
     if (!context) return
-    canvas.width = compareWidth
-    canvas.height = compareHeight
+    const dpr = window.devicePixelRatio || 1
+    const { pixels } = getPreviewSizes(
+      { width: bitmap.width, height: bitmap.height },
+      box,
+      dpr
+    )
+    canvas.width = pixels.width
+    canvas.height = pixels.height
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
-    context.drawImage(bitmap, 0, 0, compareWidth, compareHeight)
-  }, [comparing, bitmap, compareWidth, compareHeight])
+    context.drawImage(bitmap, 0, 0, pixels.width, pixels.height)
+  }, [comparing, bitmap, box])
 
   const failed = status === 'lost' || status === 'error'
 

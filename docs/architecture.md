@@ -1922,18 +1922,24 @@ legacy shape left to copy.
   create/edit actions while the operation is in flight, so a rollback can't discard
   items added in the meantime.
 - Don't wrap a callback in `useCallback` when its dependencies change on every
-  render, or when the consuming child isn't memoized — it adds cost without
-  preventing re-renders.
+  render. The compiler memoizes most components, but not per `.map` iteration,
+  so list rows still need `memo` to skip re-rendering with the list.
 - The React Compiler is on (`reactCompiler: true` in `next.config.ts`,
-  `babel-plugin-react-compiler` pinned in `package.json`), so new components and
-  hooks need no manual `useMemo`/`useCallback`/`memo` for performance; leave the
-  existing ones in place. It compiles in `infer` mode and silently skips a
-  function that breaks the Rules of React (a ref read or written during render,
-  mutating props, a `react-hooks` lint suppression), so write components to those
-  rules rather than relying on the compiler to rescue them. Unit tests run
-  without the compiler, but a client component should still be rendered as an
-  element (`<Component />`), not called as a function, because a compiled one
-  needs a renderer.
+  `babel-plugin-react-compiler` pinned in `package.json`) for client components
+  only; server components are not compiled. New components and hooks need no
+  manual `useMemo`/`useCallback`/`memo` for performance; leave the existing ones
+  in place. It compiles in `infer` mode and skips a function where it detects a
+  Rules-of-React violation (a ref read or written during render, mutating props,
+  a `react-hooks` lint suppression) and any function containing `try/finally`
+  (so `MainPageTimeline` and `post-box` stay uncompiled). It cannot see globals
+  (`window.*`, `navigator.*`), module-level mutable state, mutable objects read
+  during render, calls with no reactive arguments (`Date.now()`, `new Date()`,
+  `localStorage.getItem()`), or `useMemo`/`useCallback` deps the body never
+  reads. Those are compiled with changed behavior (computed once, not
+  invalidated), so read such values through state, `useSyncExternalStore` or an
+  effect. Unit tests run without the compiler, but a client component should
+  still be rendered as an element (`<Component />`), not called as a function,
+  because a compiled one needs a renderer.
 
 <a id="review-page-chrome-layout-accessibility"></a>
 

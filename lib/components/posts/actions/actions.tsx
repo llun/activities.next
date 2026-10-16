@@ -21,7 +21,9 @@ import { RepostButton } from './repost-button'
 import { useBookmarkState } from './useBookmarkState'
 import { useCompactActionBar } from './useCompactActionBar'
 
-interface Props extends PostProps {
+interface Props extends Omit<PostProps, 'currentTime'> {
+  /** Required: a default of `Date.now()` would be frozen at mount by the compiler. */
+  currentTime: number
   /** The post's reaction rollups, shared with the chip row above. */
   reactionState: ReactionState
   /**
@@ -50,7 +52,7 @@ interface Props extends PostProps {
 export const Actions: FC<Props> = ({
   host = '',
   currentActor,
-  currentTime = Date.now(),
+  currentTime,
   status,
   editable = false,
   showActions = false,

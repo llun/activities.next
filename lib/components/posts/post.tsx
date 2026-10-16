@@ -571,7 +571,11 @@ export const Post: FC<PostProps> = (props) => {
                 starts at the text, and chips hanging 52px further left would
                 line up with nothing. */}
               <ReactionRow state={reactionState} fullBleed={showsActionRow} />
-              <Actions {...props} reactionState={reactionState} />
+              <Actions
+                {...props}
+                currentTime={currentTime}
+                reactionState={reactionState}
+              />
               {props.showReadOnlyStats && !props.showActions && (
                 <ReadOnlyStats status={status} />
               )}
