@@ -23,8 +23,9 @@ export const AUTH_ERROR_FALLBACK: AuthErrorContent = {
 // including a code invented by someone hand-crafting a link to this page —
 // falls back to AUTH_ERROR_FALLBACK rather than being echoed as prose.
 const AUTH_ERROR_CONTENT: Record<string, AuthErrorContent> = {
-  // @better-auth/oauth-provider: unknown, unregistered or disabled client.
-  // `invalid_client` doubles as "client_id is missing", hence the joint copy.
+  // @better-auth/oauth-provider: unknown or unregistered client — `client not
+  // found` since 1.7.10 (before that it reused `client_id is required`). A
+  // missing client_id arrives as `invalid_request` instead.
   invalid_client: {
     title: "This app isn't registered here",
     body: "The app that sent you here isn't registered with this instance, or its registration was removed. Sign out of it and connect it again to register it afresh."
