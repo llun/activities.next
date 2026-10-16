@@ -249,6 +249,41 @@ describe('buildCombinedBlocks', () => {
       ])
     })
 
+    it('lets a reply that was waiting start a run of its own', () => {
+      const c0 = note('c0', { actor: mockBob, at: 0 })
+      const c1 = note('c1', { at: MINUTE, reply: c0.id })
+      const c2 = note('c2', { at: 2 * MINUTE, reply: c1.id })
+      const c3 = note('c3', { at: 3 * MINUTE, reply: c2.id })
+
+      expect(shape(buildCombinedBlocks([c0, c1, c2, c3]))).toEqual([
+        'c0',
+        'c1 > c2 > c3'
+      ])
+    })
+
+    it('lets a waiting reply start a run with the next reply to it', () => {
+      const a1 = note('a1', { at: 0 })
+      const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })
+      const b2 = note('b2', { actor: mockBob, at: 2 * MINUTE, reply: b1.id })
+
+      expect(shape(buildCombinedBlocks([a1, b1, b2]))).toEqual([
+        'a1',
+        'b1 > b2'
+      ])
+    })
+
+    it('rescans two waiting replies after a split', () => {
+      const a1 = note('a1', { at: 0 })
+      const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })
+      const b2 = note('b2', { actor: mockBob, at: 2 * MINUTE, reply: b1.id })
+      const b3 = note('b3', { actor: mockBob, at: 3 * MINUTE, reply: b2.id })
+
+      expect(shape(buildCombinedBlocks([a1, b1, b2, b3]))).toEqual([
+        'a1',
+        'b1 > b2 > b3'
+      ])
+    })
+
     it('does not tuck a reply that comes long after the post it answers', () => {
       const a1 = note('a1', { at: 0 })
       const b1 = note('b1', {

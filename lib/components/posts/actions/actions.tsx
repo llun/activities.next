@@ -57,6 +57,11 @@ interface Props extends Omit<PostProps, 'currentTime'> {
     replyStatus: Status
     replyLabel: string
     label: string
+    /**
+     * Names the ⋯ trigger when it holds the block's own items ("More actions
+     * for this post group") rather than just the first post's.
+     */
+    menuLabel?: string
   }
   onShowEdits?: (status: Status) => void
 }
@@ -206,6 +211,7 @@ export const Actions: FC<Props> = ({
           status={actualStatus}
           host={host}
           currentTime={currentTime}
+          targetLabel={targetLabel}
           onShowEdits={onShowEdits}
         />
       ) : null}
@@ -216,7 +222,7 @@ export const Actions: FC<Props> = ({
         // margin eats every pixel of free space in the row, which is what pins
         // ⋯ to the post's right edge while the rest stay packed on the left.
         className="ml-auto"
-        targetLabel={targetLabel}
+        targetLabel={splitTargets?.menuLabel ?? targetLabel}
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}

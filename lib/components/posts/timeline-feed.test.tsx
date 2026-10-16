@@ -482,7 +482,9 @@ describe('TimelineFeed', () => {
       expect(actionBars()).toHaveLength(1)
 
       await chooseFromMenu(
-        screen.getByRole('button', { name: 'More actions for the first post' }),
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
         'Show as separate posts'
       )
 
@@ -536,7 +538,7 @@ describe('TimelineFeed', () => {
         'Repost the first post',
         'Bookmark the first post',
         'Add reaction to the first post',
-        'More actions for the first post'
+        'More actions for this post group'
       ]) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
@@ -572,6 +574,176 @@ describe('TimelineFeed', () => {
       expect(
         screen.queryByRole('button', { name: /More actions for part/ })
       ).not.toBeInTheDocument()
+    })
+
+    it('combines a run that starts with a reply to someone else', () => {
+      const b0 = note('r0', 0, '', mockBob)
+      const a1 = note('r1', MINUTE, b0.id)
+      const a2 = note('r2', 2 * MINUTE, a1.id)
+      const a3 = note('r3', 3 * MINUTE, a2.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[a3, a2, a1, b0]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      expect(screen.getByLabelText('Conversation')).toBeInTheDocument()
+      // Bob's post on its own, then Alice's three replies as one post.
+      expect(actionBars()).toHaveLength(2)
+      expect(screen.getAllByRole('article')).toHaveLength(2)
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 3/ })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/1 of 3/)).not.toBeInTheDocument()
+      expect(screen.getByText('Text of r0')).toBeInTheDocument()
+    })
+
+    it('keeps the row as separate posts after a reply is added to it', async () => {
+      const t1 = note('s1', 0, '')
+      const t2 = note('s2', MINUTE, t1.id)
+      const t3 = note('s3', 2 * MINUTE, t2.id)
+      const renderFeed = (statuses: Status[]) => (
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      const { rerender } = render(renderFeed([t3, t2, t1]))
+      expect(actionBars()).toHaveLength(1)
+
+      await chooseFromMenu(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        'Show as separate posts'
+      )
+      expect(actionBars()).toHaveLength(3)
+
+      // A reply arrives (inline reply, paging): the row's key changes, the
+      // viewer's choice does not.
+      const t4 = note('s4', 3 * MINUTE, t3.id)
+      rerender(renderFeed([t4, t3, t2, t1]))
+
+      // Four posts collapse behind the expander, as separate posts do.
+      expect(screen.getByText('Text of s4')).toBeInTheDocument()
+      expect(actionBars()).toHaveLength(2)
+      fireEvent.click(
+        screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
+      )
+      expect(actionBars()).toHaveLength(4)
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+    })
+
+    it('keeps the composer when a collapsed thread is expanded into one post', () => {
+      const t1 = note('x1', 0, '')
+      const t2 = note('x2', MINUTE, t1.id)
+      const t3 = note('x3', 2 * MINUTE, t2.id)
+      const t4 = note('x4', 3 * MINUTE, t3.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[t4, t3, t2, t1]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      // Reply on the last post, which is visible in the collapsed thread.
+      const [, lastReply] = screen.getAllByRole('button', { name: /^Reply to/ })
+      fireEvent.click(lastReply)
+      expect(screen.getByTestId('inline-composer')).toHaveAttribute(
+        'data-status',
+        t4.id
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
+      )
+
+      expect(actionBars()).toHaveLength(1)
+      expect(screen.getAllByTestId('inline-composer')).toHaveLength(1)
+      expect(screen.getByRole('article')).toContainElement(
+        screen.getByTestId('inline-composer')
+      )
+    })
+
+    describe('edit history of later parts', () => {
+      const edited = (name: string, at: number, reply: string) =>
+        createMockNote({
+          id: `https://activities.local/users/alice/statuses/${name}`,
+          actor: mockAlice,
+          createdAt: BASE_TIME + at,
+          text: `Text of ${name}`,
+          reply,
+          edits: [
+            { text: `Old text of ${name}`, createdAt: BASE_TIME + at - 1000 }
+          ]
+        })
+
+      it('shows the edit history of a part that was edited', () => {
+        const e1 = note('e1', 0, '')
+        const e2 = edited('e2', MINUTE, e1.id)
+        const e3 = note('e3', 2 * MINUTE, e2.id)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[e3, e2, e1]}
+            currentActor={mockBob}
+            showActions
+          />
+        )
+
+        // Only the edited part has one, and the first post's bar has none.
+        const button = screen.getByRole('button', {
+          name: 'Show edit history of part 2 of 3, 1 edit'
+        })
+        expect(
+          screen.getAllByRole('button', { name: /Show edit history/ })
+        ).toHaveLength(1)
+
+        fireEvent.click(button)
+        const panel = screen.getByRole('region', { name: 'Edit history' })
+        expect(panel).toHaveTextContent('Old text of e2')
+        expect(panel).toHaveAttribute('data-row-overlay')
+      })
+
+      it('names the first post on the bar’s own edit history button', () => {
+        const f1 = edited('f1', 0, '')
+        const f2 = edited('f2', MINUTE, f1.id)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[f2, f1]}
+            currentActor={mockBob}
+            showActions
+          />
+        )
+
+        expect(
+          screen.getByRole('button', {
+            name: 'Show edit history of the first post, 1 edit'
+          })
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('button', {
+            name: 'Show edit history of part 2 of 2, 1 edit'
+          })
+        ).toBeInTheDocument()
+      })
     })
 
     it('leaves a conversation without self-replies as separate posts', () => {
@@ -662,7 +834,7 @@ describe('TimelineFeed', () => {
     expect(screen.queryByTestId('inline-composer')).not.toBeInTheDocument()
 
     await chooseFromMenu(
-      screen.getByRole('button', { name: 'More actions for the first post' }),
+      screen.getByRole('button', { name: 'More actions for this post group' }),
       'Show as separate posts'
     )
 

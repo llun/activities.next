@@ -41,6 +41,8 @@ interface StatusInfo {
 interface PendingInset {
   info: StatusInfo
   partIndex: number
+  /** Position of the reply in the statuses, to rescan from if the run splits. */
+  index: number
 }
 
 interface RunDraft {
@@ -78,7 +80,8 @@ const canTuck = (status: Status): boolean => {
  * posts are at most `COMBINE_MAX_GAP_MS` apart and all share one visibility.
  * Someone else's reply to a run post stays inside the run as an inset when the
  * run carries at most `COMBINE_MAX_INSETS` of them, the reply has nothing but
- * text and the author's next post follows it; otherwise the run splits there.
+ * text and the author's next post follows it; otherwise the run splits there and
+ * those replies are looked at again, each one free to start a run of its own.
  */
 export const buildCombinedBlocks = (
   statuses: readonly Status[]
@@ -114,8 +117,13 @@ export const buildCombinedBlocks = (
     pending: []
   })
 
-  const closeRun = () => {
-    if (!run) return
+  /**
+   * Emits the open run. Replies still pending were never followed up on by the
+   * author, so they are not part of it: the index of the first one is returned
+   * and the caller scans again from there, so each can start a run of its own.
+   */
+  const closeRun = (): number | null => {
+    if (!run) return null
     if (run.parts.length >= 2) {
       blocks.push({
         kind: 'run',
@@ -128,17 +136,25 @@ export const buildCombinedBlocks = (
     } else {
       blocks.push({ kind: 'post', status: run.parts[0].info.status })
     }
-    // Replies the author never followed up on stay ordinary posts.
-    for (const { info } of run.pending) {
-      blocks.push({ kind: 'post', status: info.status })
-    }
+    const rewindTo = run.pending.length ? run.pending[0].index : null
     run = null
+    return rewindTo
   }
 
-  for (const status of statuses) {
-    const info = infoOf(status)
+  const infos = statuses.map(infoOf)
+  let index = 0
+  for (;;) {
+    if (index >= infos.length) {
+      const rewindTo = closeRun()
+      if (rewindTo === null) break
+      index = rewindTo
+      continue
+    }
+
+    const info = infos[index]
     if (!run) {
       run = startRun(info)
+      index += 1
       continue
     }
 
@@ -162,6 +178,7 @@ export const buildCombinedBlocks = (
         }
         run.pending = []
         run.parts.push({ info, insets: [] })
+        index += 1
         continue
       }
     } else if (info.parentId !== null && info.canTuck) {
@@ -176,15 +193,20 @@ export const buildCombinedBlocks = (
         insetCount < COMBINE_MAX_INSETS &&
         isWithinGap(info.createdAt, previous.createdAt)
       ) {
-        run.pending.push({ info, partIndex })
+        run.pending.push({ info, partIndex, index })
+        index += 1
         continue
       }
     }
 
-    closeRun()
+    const rewindTo = closeRun()
+    if (rewindTo !== null) {
+      index = rewindTo
+      continue
+    }
     run = startRun(info)
+    index += 1
   }
-  closeRun()
 
   return blocks
 }

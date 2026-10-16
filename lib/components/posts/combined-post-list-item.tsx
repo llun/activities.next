@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { Actions } from './actions/actions'
+import { EditHistoryButton } from './actions/edit-history-button'
 import { LikeButton } from './actions/like-button'
 import { PostMenu, PostMenuExtraItem } from './actions/post-menu'
 import { ReplyButton } from './actions/reply-button'
@@ -41,7 +42,10 @@ import { useReactionState } from './useReactionState'
 export interface CombinedPostListItemProps {
   /** The run's author posts in order, each with the replies tucked under it. */
   parts: CombinedPart[]
-  /** The timeline row this belongs to, handed back to `onShowSeparate`. */
+  /**
+   * Identifies the timeline row this belongs to (its root status id, which
+   * outlives replies being added), handed back to `onShowSeparate`.
+   */
   rowKey: string
   host: string
   currentTime: number
@@ -54,8 +58,8 @@ export interface CombinedPostListItemProps {
   /** Reply/quote/edit are offered (signed-in actor and an interactive feed). */
   canCompose: boolean
   /**
-   * The composer anchored to this row (by its first post's id), or null. See
-   * `PostListItem`: passing only this row's slice keeps every other row's
+   * The composer anchored to this row (by the id of any of its posts), or null.
+   * See `PostListItem`: passing only this row's slice keeps every other row's
    * props unchanged when the composer opens, moves or closes.
    */
   activeComposer: ActiveStatusComposer | null
@@ -427,7 +431,10 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                         language={partLanguage}
                         enabled={partTranslatable}
                       >
-                        <div className="flex min-h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
+                        {/* `relative`: the edit history panel anchors to the
+                            nearest positioned ancestor, which for the first
+                            post is its action row; here it is this one. */}
+                        <div className="relative flex min-h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
                           <button
                             type="button"
                             className="-mx-1 rounded-sm px-1 py-0.5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -436,19 +443,29 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                           >
                             {label} · {compactTime}
                           </button>
-                          {isOwnPost ? (
-                            <PostMenu
-                              status={actualStatus}
-                              isOwner
-                              canEdit
-                              triggerClassName="size-6"
-                              targetLabel={`part ${label}`}
-                              onReply={handleReply}
-                              onEdit={handleEdit}
-                              onQuote={handleQuote}
-                              onPostDeleted={onPostDeleted}
-                            />
-                          ) : null}
+                          <div className="flex items-center gap-1">
+                            {showsActionRow && actualStatus.edits.length > 0 ? (
+                              <EditHistoryButton
+                                status={actualStatus}
+                                host={host}
+                                currentTime={currentTime}
+                                targetLabel={`part ${label}`}
+                              />
+                            ) : null}
+                            {isOwnPost ? (
+                              <PostMenu
+                                status={actualStatus}
+                                isOwner
+                                canEdit
+                                triggerClassName="size-6"
+                                targetLabel={`part ${label}`}
+                                onReply={handleReply}
+                                onEdit={handleEdit}
+                                onQuote={handleQuote}
+                                onPostDeleted={onPostDeleted}
+                              />
+                            ) : null}
+                          </div>
                         </div>
                         {body}
                       </TranslationProvider>
@@ -476,7 +493,8 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
               splitTargets={{
                 replyStatus: getOriginalStatus(lastStatus),
                 replyLabel: 'the latest post',
-                label: 'the first post'
+                label: 'the first post',
+                menuLabel: 'this post group'
               }}
               onReply={handleReply}
               onEdit={handleEdit}

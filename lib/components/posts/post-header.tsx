@@ -53,12 +53,14 @@ export const PostHeader: FC<PostHeaderProps> = ({
     currentTime
   )
   const lastActual = lastStatus ? getActualStatus(lastStatus) : null
-  const compactLabel = lastActual
-    ? `${compactCreatedAt} – ${formatCompactRelativeTime(
-        lastActual.createdAt,
-        currentTime
-      )}`
-    : compactCreatedAt
+  const compactLastCreatedAt = lastActual
+    ? formatCompactRelativeTime(lastActual.createdAt, currentTime)
+    : null
+  // A run inside one bucket ("6h – 6h") reads as a single time.
+  const compactLabel =
+    compactLastCreatedAt && compactLastCreatedAt !== compactCreatedAt
+      ? `${compactCreatedAt} – ${compactLastCreatedAt}`
+      : compactCreatedAt
   const spokenSpan = lastActual
     ? `, last post ${formatDistance(lastActual.createdAt, currentTime)} ago`
     : ''

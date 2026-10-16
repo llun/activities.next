@@ -30,6 +30,8 @@ interface Props {
   host: string
   currentTime: number
   status: StatusNote | StatusPoll
+  /** Names the post when several share a row ("part 2 of 4"). */
+  targetLabel?: string
   onShowEdits?: (status: Status) => void
 }
 
@@ -37,6 +39,7 @@ export const EditHistoryButton: FC<Props> = ({
   host,
   currentTime,
   status,
+  targetLabel,
   onShowEdits
 }) => {
   const [showHistory, setShowHistory] = useState<boolean>(false)
@@ -69,7 +72,11 @@ export const EditHistoryButton: FC<Props> = ({
           setShowHistory((value) => !value)
         }}
         title={editCountLabel}
-        aria-label={`Show edit history, ${editCountLabel}`}
+        aria-label={
+          targetLabel
+            ? `Show edit history of ${targetLabel}, ${editCountLabel}`
+            : `Show edit history, ${editCountLabel}`
+        }
         aria-expanded={showHistory}
         aria-controls={showHistory ? editHistoryId : undefined}
       >

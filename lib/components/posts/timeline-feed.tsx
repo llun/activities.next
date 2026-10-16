@@ -124,10 +124,12 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   )
 
   // Rows the viewer switched from the combined layout back to separate posts
-  // (the combined post's "Show as separate posts" menu item), keyed by row.
+  // (the combined post's "Show as separate posts" menu item), keyed by the
+  // row's root status id. `row.key` lists every id in the row, so it changes
+  // whenever a reply is added, deleted or paged in, and would flip the row back.
   const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
-  const showRowSeparate = useCallback((key: string) => {
-    setSeparateRows((prev) => new Set(prev).add(key))
+  const showRowSeparate = useCallback((rootId: string) => {
+    setSeparateRows((prev) => new Set(prev).add(rootId))
   }, [])
 
   const toggleThreadExpanded = (key: string) => {
@@ -256,7 +258,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   }
 
   const renderCombinedBlocks = (
-    rowKey: string,
+    rowRootId: string,
     entryIds: string[],
     blocks: CombinedBlock[]
   ) =>
@@ -270,12 +272,21 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           : { showReplyContext: false, parentPreview: undefined }
       if (block.kind === 'post') return renderPostItem(block.status, lead)
 
-      const firstStatusId = block.parts[0].status.id
+      // The composer may be anchored to any post of the run: a reply opened on
+      // the visible last post of a collapsed thread stays open when the thread
+      // expands into one combined post.
+      const composerAnchored =
+        composer.active !== null &&
+        block.parts.some(
+          (part) =>
+            part.status.id === composer.active?.anchorId ||
+            part.insets.some((inset) => inset.id === composer.active?.anchorId)
+        )
       return (
         <CombinedPostListItem
           key={block.key}
           parts={block.parts}
-          rowKey={rowKey}
+          rowKey={rowRootId}
           host={host}
           currentTime={currentTime}
           currentActor={currentActor}
@@ -286,9 +297,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           parentPreview={lead.parentPreview}
           canCompose={canCompose}
           activeComposer={
-            currentActor && composer.active?.anchorId === firstStatusId
-              ? composer.active
-              : null
+            currentActor && composerAnchored ? composer.active : null
           }
           isMediaUploadEnabled={isMediaUploadEnabled}
           openReply={composer.openReply}
@@ -361,7 +370,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
             const isExpanded = expandedThreads.has(row.key)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
             const combinedBlocks =
-              shouldCollapse || separateRows.has(row.key)
+              shouldCollapse || separateRows.has(row.entryIds[0])
                 ? undefined
                 : combinedBlocksByRow.get(row.key)
 
@@ -377,7 +386,11 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 )}
               >
                 {combinedBlocks ? (
-                  renderCombinedBlocks(row.key, row.entryIds, combinedBlocks)
+                  renderCombinedBlocks(
+                    row.entryIds[0],
+                    row.entryIds,
+                    combinedBlocks
+                  )
                 ) : shouldCollapse ? (
                   <>
                     {/* First post */}
@@ -449,7 +462,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             if (convStatuses.length === 0) return null
             rowStatusIds = convStatuses.map((s) => s.id)
-            const combinedBlocks = separateRows.has(row.key)
+            const combinedBlocks = separateRows.has(row.entryIds[0])
               ? undefined
               : combinedBlocksByRow.get(row.key)
 
@@ -465,7 +478,11 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 )}
               >
                 {combinedBlocks
-                  ? renderCombinedBlocks(row.key, row.entryIds, combinedBlocks)
+                  ? renderCombinedBlocks(
+                      row.entryIds[0],
+                      row.entryIds,
+                      combinedBlocks
+                    )
                   : convStatuses.map((status, index) => {
                       const isFirst = index === 0
                       const replyTarget = isFirst
