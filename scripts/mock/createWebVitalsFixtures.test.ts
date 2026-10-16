@@ -144,6 +144,19 @@ describe('parseCliOptions', () => {
     ).toBe(true)
   })
 
+  it.each(['0', 'no', 'False', ''])(
+    'rejects --offline-map-tiles=%s as neither true nor false',
+    (value) => {
+      expect(() =>
+        parseCliOptions([
+          '--landing=hero',
+          '--manifest=/tmp/m.json',
+          `--offline-map-tiles=${value}`
+        ])
+      ).toThrow('Invalid value for --offline-map-tiles')
+    }
+  )
+
   it('rejects unknown arguments', () => {
     expect(() =>
       parseCliOptions(['--landing', 'hero', '--manifest', '/m.json', '--bogus'])
