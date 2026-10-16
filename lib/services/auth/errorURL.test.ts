@@ -63,12 +63,12 @@ describe('onAPIError.errorURL', () => {
   // the option is set.
   it('sends better-auth its own error endpoint to the in-app page', async () => {
     const { status, location } = await locationFor(
-      '/api/auth/error?error=invalid_client&error_description=client_id+is+required'
+      '/api/auth/error?error=invalid_client&error_description=client+not+found'
     )
 
     expect(status).toBe(302)
     expect(location).toEqual(
-      `${AUTH_ERROR_PATH}?error=invalid_client&error_description=client_id+is+required`
+      `${AUTH_ERROR_PATH}?error=invalid_client&error_description=client+not+found`
     )
   })
 
