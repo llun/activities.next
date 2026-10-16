@@ -10,7 +10,7 @@ import {
   within
 } from '@testing-library/react'
 import { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { likeStatus } from '@/lib/client'
 import {
@@ -150,6 +150,10 @@ const chooseFromMenu = async (trigger: HTMLElement, item: string) => {
   // Some items run only once the menu has closed.
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 }
+// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('./inline-status-composer')
+})
 
 describe('TimelineFeed', () => {
   beforeEach(() => {
@@ -965,7 +969,7 @@ describe('TimelineFeed', () => {
     // Click reply on post 2
     fireEvent.click(replyButtons[1])
 
-    const composer = screen.getByTestId('inline-composer')
+    const composer = await screen.findByTestId('inline-composer')
     expect(composer).toBeInTheDocument()
     expect(composer).toHaveAttribute('data-mode', 'reply')
     expect(composer).toHaveAttribute(

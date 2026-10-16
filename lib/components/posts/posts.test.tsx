@@ -125,6 +125,11 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 const mockVotePoll = vi.mocked(votePoll)
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
 
+// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('./inline-status-composer')
+})
+
 describe('Posts', () => {
   beforeEach(() => {
     mockPush.mockClear()
@@ -300,7 +305,7 @@ describe('Posts', () => {
     })
   })
 
-  it('opens the shared inline composer from a post action row', () => {
+  it('opens the shared inline composer from a post action row', async () => {
     // Every signed-in feed passes the same action wiring, so using an action
     // (reply here) opens the shared composer for that post regardless of page.
     render(
@@ -317,7 +322,7 @@ describe('Posts', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Reply to post/ }))
 
-    const composer = screen.getByTestId('inline-composer')
+    const composer = await screen.findByTestId('inline-composer')
     expect(composer).toHaveAttribute('data-mode', 'reply')
     expect(composer).toHaveAttribute('data-status', pollStatusFixture.id)
   })

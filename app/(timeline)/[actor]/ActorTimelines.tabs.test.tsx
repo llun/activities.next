@@ -36,6 +36,12 @@ vi.mock('@/lib/components/ui/button', async () => ({
   Button: (await import('./ActorTimelines.testUtils')).MockButton
 }))
 
+// The gallery panels are loaded lazily (next/dynamic); resolve them before the tests.
+beforeAll(async () => {
+  await import('./ActorMediaGallery')
+  await import('./ProfileGalleryTab')
+})
+
 describe('ActorTimelines', () => {
   const getActorStatusesMock = getActorStatuses as jest.Mock
 
@@ -131,7 +137,7 @@ describe('ActorTimelines', () => {
       })
     })
 
-    it('renders media gallery directly and skips tabs when isMediaOnly is true', () => {
+    it('renders media gallery directly and skips tabs when isMediaOnly is true', async () => {
       render(
         <ActorTimelines
           host="localhost:3000"
@@ -163,7 +169,9 @@ describe('ActorTimelines', () => {
       expect(
         screen.queryByRole('radio', { name: 'Replies' })
       ).not.toBeInTheDocument()
-      expect(screen.getByTestId('mock-media-gallery')).toBeInTheDocument()
+      expect(
+        await screen.findByTestId('mock-media-gallery')
+      ).toBeInTheDocument()
     })
 
     it('enables load more when isMediaOnly or isMediaService is true', async () => {

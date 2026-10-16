@@ -120,6 +120,11 @@ vi.mock('@/lib/components/posts/BrandedDeviceLink', async () => ({
     .MockBrandedDeviceLink
 }))
 
+// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('@/lib/components/posts/inline-status-composer')
+})
+
 describe('FitnessStatusDetail', () => {
   beforeEach(() => {
     resetFitnessStatusDetailMocks()
@@ -689,7 +694,7 @@ describe('FitnessStatusDetail', () => {
       }
     })
 
-    it('opens the reply composer at the top of the replies and re-opens a hidden list', () => {
+    it('opens the reply composer at the top of the replies and re-opens a hidden list', async () => {
       renderDetail({ replies: [buildReply('reply-1')] })
       fireEvent.click(screen.getByRole('button', { name: /Replies \(1\)/ }))
 
@@ -698,7 +703,7 @@ describe('FitnessStatusDetail', () => {
       expect(
         screen.getByRole('button', { name: /Replies \(1\)/ })
       ).toHaveAttribute('aria-expanded', 'true')
-      const composer = screen.getByTestId('inline-status-composer')
+      const composer = await screen.findByTestId('inline-status-composer')
       expect(composer).toHaveAttribute('data-mode', 'reply')
       expect(composer).toHaveAttribute('data-status-id', buildStatus().id)
       // Above the first reply.

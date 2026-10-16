@@ -40,6 +40,12 @@ vi.mock('@/lib/components/ui/button', async () => ({
   Button: (await import('./ActorTimelines.testUtils')).MockButton
 }))
 
+// The gallery panels are loaded lazily (next/dynamic); resolve them before the tests.
+beforeAll(async () => {
+  await import('./ActorMediaGallery')
+  await import('./ProfileGalleryTab')
+})
+
 describe('ActorTimelines', () => {
   const getActorStatusesMock = getActorStatuses as jest.Mock
 
@@ -256,7 +262,7 @@ describe('ActorTimelines', () => {
         />
       )
 
-    it('is offered after Media and before Fitness when the viewer may see gallery photos', () => {
+    it('is offered after Media and before Fitness when the viewer may see gallery photos', async () => {
       renderTimelines({
         hasFitnessData: true,
         hasGalleryMedia: true,
@@ -269,7 +275,7 @@ describe('ActorTimelines', () => {
       expect(names).toEqual(['Posts', 'Replies', 'Media', 'Gallery', 'Fitness'])
 
       fireEvent.click(screen.getByRole('radio', { name: 'Gallery' }))
-      expect(screen.getByTestId('mock-gallery-tab')).toHaveTextContent(
+      expect(await screen.findByTestId('mock-gallery-tab')).toHaveTextContent(
         'subjects,recent:false'
       )
     })
