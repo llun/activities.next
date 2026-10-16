@@ -7,7 +7,7 @@ import { CSSProperties, FC, useMemo } from 'react'
 import { Actions } from '@/lib/components/posts/actions/actions'
 import { ActorAvatar } from '@/lib/components/posts/actor'
 import { Attachments } from '@/lib/components/posts/attachments'
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
+import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
@@ -159,7 +159,7 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
   const { fitness, fitnessFiles, setSelectedFitnessFileId } = files
   // Reply, edit and quote share one composer, so only one is ever open. Reply
   // opens it at the top of the replies; edit and quote under the action row.
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor))
   // This page lays out its own post, so it holds the reaction rollups the way
   // `Post` does: the chips under the figures and the picker in the action row
   // read this one state.

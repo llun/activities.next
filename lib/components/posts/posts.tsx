@@ -106,7 +106,7 @@ export const Posts: FC<Props> = ({
   } | null>(null)
   // Reply/quote/edit share one inline composer owned here, so every surface
   // that renders <Posts> offers the identical action set without re-wiring it.
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor))
 
   // Stable so memoized rows don't re-render when this list's state changes.
   const openStatus = useCallback(

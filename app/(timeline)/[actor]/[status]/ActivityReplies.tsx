@@ -4,7 +4,7 @@ import { ChevronDown, MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useId, useMemo, useState } from 'react'
 
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
+import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   type ThreadNode,
