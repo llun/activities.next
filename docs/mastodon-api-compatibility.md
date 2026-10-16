@@ -1018,10 +1018,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   every other surface used the shared spacing.
   It now drives the shared `useInlineComposer` / `InlineStatusComposer` too, so
   **Edit and Quote are in its `⋯` like everywhere else** — the composer renders
-  inside the header card beneath the action row that opened it. `editable`
+  in the post, under the action row that opened it. `editable`
   without `onEdit` would only render a menu item that does nothing, so the two
   are wired together or not at all. Reply opens the same inline composer, at
-  the top of the replies inside the post frame, and shows the replies again if
+  the top of the replies in the post, and shows the replies again if
   the reader had hidden them.
   What is still unwired is `onPostDeleted`/`onLikeChanged`/`onBookmarkChanged`,
   so a delete from the menu leaves the page showing a status that no longer

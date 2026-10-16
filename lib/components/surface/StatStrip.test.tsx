@@ -10,7 +10,7 @@ import { StatStrip } from './StatStrip'
 // constants). What a strip owes its callers is that every cell it is given is
 // rendered, whatever the variant.
 describe('StatStrip', () => {
-  it.each(['detail', 'chip', 'summary', 'counts', 'band'] as const)(
+  it.each(['chip', 'summary', 'counts', 'band'] as const)(
     'renders every cell of the %s variant',
     (variant) => {
       render(

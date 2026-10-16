@@ -232,7 +232,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
         aria-controls={listId}
         onClick={toggleExpanded}
         className={cn(
-          'flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+          'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
           isExpanded && 'border-b'
         )}
       >

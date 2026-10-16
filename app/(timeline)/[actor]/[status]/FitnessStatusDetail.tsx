@@ -657,7 +657,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         onShowAttachment={onShowAttachment}
       />
 
-      <div className="space-y-6 p-4 sm:p-5">
+      <div className="@container space-y-6 p-4 empty:hidden">
         {/* This page replaces `Post` for a completed activity, so the retry
           `Post` offers for a missing route map has to exist here too. Read from
           `status.fitness` (the primary file), not the recording on screen: the

@@ -502,11 +502,11 @@ const Page: FC<Props> = async ({ params }) => {
             // opening upward (`bottom-full`, ~360px) and the action-button
             // error tooltips hanging below it (`top-full`). The post is flush
             // in this card with no clip of its own, so only this card's clip
-            // could still cut them off. The like button's tooltip — the leftmost one that renders — still
-            // starts ~14px left of this card's edge, which this clip then cut
-            // off, so a failed bookmark stayed unreadable. The picker and the ⋯
-            // popover are unaffected either way; both portal to the document
-            // body.
+            // could still cut them off. The like button's tooltip, the
+            // leftmost one, hangs past the card's left edge because the action
+            // row starts close to it, so a clip here would cut it off and a
+            // failed like would stay unreadable. The picker and the ⋯ popover
+            // are unaffected either way; both portal to the document body.
             POST_LIST_FRAME_CLASS,
             // Below `md` a signed-in page is the full-bleed feed surface. A
             // logged-out page is not one card but a stack of inset cards (the

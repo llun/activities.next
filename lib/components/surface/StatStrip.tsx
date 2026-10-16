@@ -16,12 +16,9 @@ import { cn } from '@/lib/utils'
  * column below a 640px viewport stayed needlessly 2-up. Same reasoning as
  * `useCompactActionBar` on the post action row.
  *
- * The two variants really do differ, and it is the type size that separates
+ * The variants really do differ, and it is the type size that separates
  * them:
  *
- * - `detail` — the activity page's header tiles. Values are 24px, so a cell
- *   needs ~130px: 2×2 on a phone and 4-up from 560px, as the activity design
- *   lays them out.
  * - `chip` — the inline card inside a timeline post. Values are `text-sm`, so
  *   four cells still fit in 424px (the kit derives that from 4×100px + 3×8px of
  *   gap) and it never drops to a single column — a 4-row chip in a feed is a
@@ -49,13 +46,12 @@ import { cn } from '@/lib/utils'
  *   its own frame, for a strip that runs edge to edge inside a post (the
  *   caller bleeds it out with a negative margin and draws the `border-t` /
  *   `border-b` lines, so the dividers are full-width hairlines, not a box
- *   inside the post). Values are 24px like `detail`, so it is 2 across and
+ *   inside the post). Values are 24px (a cell needs ~130px), so it is 2 across and
  *   4-up from 560px, but it is built with `columns` like `summary`, so an
  *   uneven count never leaves a border-coloured gap: see
  *   `BAND_COLUMN_CLASS_NAMES`.
  */
 const VARIANT_CLASS_NAMES = {
-  detail: 'gap-2 grid-cols-2 @min-[560px]:grid-cols-4',
   chip: 'gap-2 grid-cols-2 @min-[424px]:grid-cols-4',
   summary:
     'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[43.75rem]:grid-cols-4'
@@ -99,7 +95,7 @@ const SUMMARY_COLUMN_CLASS_NAMES = {
 
 /**
  * The `band` strip's columns for the number of cells it holds: 2 across and
- * 4-up from 560px (the `detail` rule), with the 1px gaps over the strip's
+ * 4-up from 560px, with the 1px gaps over the strip's
  * `bg-border` track drawing the dividers. A count that does not fill its last
  * row would show the track as an empty grey cell, so that cell spans the rest
  * of the row: the odd last cell of a 2-across row, and the third of three
@@ -134,9 +130,18 @@ export const StatStrip: FC<{
   /** `summary`, `counts` and `band`: how many cells the strip holds (default four). */
   columns?: StatStripColumns
   className?: string
+  /** Set on the outer wrapper, for a test to find the strip by. */
+  'data-testid'?: string
   children: ReactNode
-}> = ({ variant = 'summary', columns = 4, className, children }) => (
+}> = ({
+  variant = 'summary',
+  columns = 4,
+  className,
+  'data-testid': testId,
+  children
+}) => (
   <div
+    data-testid={testId}
     className={cn(
       '@container',
       (variant === 'summary' || variant === 'counts') && STAT_STRIP_CLASS,

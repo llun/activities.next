@@ -57,6 +57,17 @@ export const getRouteMapAttachmentIndex = (
   return -1
 }
 
+/**
+ * The post body's side padding, written three ways that must agree: the body's
+ * padding class, the figure band's negative margin that bleeds it back out to
+ * the edges, and the CSS length the media strip bleeds by. Tailwind needs the
+ * class names spelled out, so they are literals here; a test ties them to the
+ * same length.
+ */
+export const POST_BODY_PADDING_CLASS = 'p-4'
+export const POST_BAND_BLEED_CLASS = '-mx-4'
+export const POST_MEDIA_BLEED = '1rem'
+
 export interface ActivityTile {
   key: string
   label: string
@@ -221,7 +232,7 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
     >
       <div
         className={cn(
-          'p-4',
+          POST_BODY_PADDING_CLASS,
           // The figure band ends the body and the action row's `border-t` is
           // the one line under it, so the body must not pad below it. With
           // reaction chips after the band, the band draws its own `border-b`
@@ -232,8 +243,8 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
           {
             // The media strip runs to the post's edges: it bleeds out by the
             // body's own padding on each side.
-            '--post-media-bleed-left': '1rem',
-            '--post-media-bleed-right': '1rem'
+            '--post-media-bleed-left': POST_MEDIA_BLEED,
+            '--post-media-bleed-right': POST_MEDIA_BLEED
           } as CSSProperties
         }
       >
@@ -352,8 +363,13 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
         {tiles.length > 0 ? (
           <StatStrip
             variant="band"
+            data-testid="activity-figure-band"
             columns={Math.min(tiles.length, 5) as StatStripColumns}
-            className={cn('-mx-4 mt-4 border-t', hasReactions && 'border-b')}
+            className={cn(
+              POST_BAND_BLEED_CLASS,
+              'mt-4 border-t',
+              hasReactions && 'border-b'
+            )}
           >
             {tiles.map((tile) => (
               <ActivityTileCell key={tile.key} tile={tile} />

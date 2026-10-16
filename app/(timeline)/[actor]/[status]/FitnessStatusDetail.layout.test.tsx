@@ -5,6 +5,11 @@ import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
 
 import {
+  POST_BAND_BLEED_CLASS,
+  POST_BODY_PADDING_CLASS,
+  POST_MEDIA_BLEED
+} from './ActivityPostFrame'
+import {
   buildReactedStatus,
   buildStatus,
   mockGetFitnessRouteData,
@@ -52,9 +57,7 @@ describe('FitnessStatusDetail post layout', () => {
 
   const getPost = () =>
     document.querySelector('[data-slot="fitness-card"]') as HTMLElement
-  const getBand = () =>
-    screen.getByTestId('activity-tile-distance').parentElement!
-      .parentElement as HTMLElement
+  const getBand = () => screen.getByTestId('activity-figure-band')
 
   it('has no frame around the post: no border box and no radius', () => {
     renderDetail()
@@ -71,7 +74,7 @@ describe('FitnessStatusDetail post layout', () => {
     const post = getPost()
     const column = screen.getByRole('region', { name: 'Overview' })
       .parentElement as HTMLElement
-    expect(column).toHaveClass('space-y-6', 'p-4', 'sm:p-5')
+    expect(column).toHaveClass('@container', 'space-y-6', 'p-4', 'empty:hidden')
     expect(column).not.toContainElement(post)
     expect(post.parentElement).toBe(column.parentElement)
   })
@@ -83,6 +86,22 @@ describe('FitnessStatusDetail post layout', () => {
     expect(body).toHaveClass('p-4')
     expect(body.style.getPropertyValue('--post-media-bleed-left')).toBe('1rem')
     expect(body.style.getPropertyValue('--post-media-bleed-right')).toBe('1rem')
+  })
+
+  it('keeps the body padding, the band bleed and the media bleed in step', () => {
+    renderDetail()
+
+    // One Tailwind step is 0.25rem, so `p-4` and `-mx-4` are both 1rem.
+    const rem = (cls: string) => `${Number(/(\d+)$/.exec(cls)![1]) * 0.25}rem`
+    expect(rem(POST_BODY_PADDING_CLASS)).toBe(POST_MEDIA_BLEED)
+    expect(rem(POST_BAND_BLEED_CLASS)).toBe(POST_MEDIA_BLEED)
+
+    const body = getPost().firstElementChild as HTMLElement
+    expect(body).toHaveClass(POST_BODY_PADDING_CLASS)
+    expect(getBand()).toHaveClass(POST_BAND_BLEED_CLASS)
+    expect(body.style.getPropertyValue('--post-media-bleed-left')).toBe(
+      POST_MEDIA_BLEED
+    )
   })
 
   it('rounds the post top corners only when no header sits above it', () => {
