@@ -1,18 +1,31 @@
 'use client'
 
 import { SmilePlus } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { FC, useEffect, useRef } from 'react'
 
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError
 } from '@/lib/components/posts/actions/actionButtonShared'
-import { ReactionPicker } from '@/lib/components/posts/reaction-picker'
 import {
   ReactionState,
   formatReactionCount
 } from '@/lib/components/posts/useReactionState'
 import { cn } from '@/lib/utils'
+
+const loadReactionPicker = () =>
+  import('@/lib/components/posts/reaction-picker').then(
+    (module) => module.ReactionPicker
+  )
+
+// Mounted only while open, so the emoji dataset behind it stays out of every
+// post list's first-load bundle. The trigger preloads the chunk on hover/focus.
+const ReactionPicker = dynamic(loadReactionPicker, { ssr: false })
+
+const preloadReactionPicker = () => {
+  loadReactionPicker().catch(() => undefined)
+}
 
 const getReactionButtonLabel = (total: number, targetLabel?: string) => {
   const verb = targetLabel ? `Add reaction to ${targetLabel}` : 'Add reaction'
@@ -96,6 +109,8 @@ export const ReactionButton: FC<Props> = ({
               mine ? 'text-primary-text' : 'hover:text-primary-text',
               isBusy && 'cursor-not-allowed opacity-50'
             )}
+            onPointerEnter={preloadReactionPicker}
+            onFocus={preloadReactionPicker}
             onClick={(event) => {
               event.stopPropagation()
               if (isBusy) return

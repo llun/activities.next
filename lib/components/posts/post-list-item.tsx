@@ -11,7 +11,7 @@ import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
-import { InlineStatusComposer } from './inline-status-composer'
+import { InlineStatusComposer } from './lazy-inline-status-composer'
 import { Post } from './post'
 import {
   ActiveStatusComposer,

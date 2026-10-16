@@ -6,7 +6,7 @@ import { FC, useState } from 'react'
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
+import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -58,7 +58,7 @@ export const StatusBox: FC<Props> = ({
   } | null>(null)
   // Reply/quote/edit share the same inline composer used by every feed so the
   // status detail page offers the identical action set.
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor))
   const actualStatus =
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)

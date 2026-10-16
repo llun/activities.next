@@ -127,7 +127,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     /** The viewer's actor id when the post is their own (the albums pill). */
     albumsOwnerId: string | null
   } | null>(null)
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor))
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(
     () => new Set()
   )
