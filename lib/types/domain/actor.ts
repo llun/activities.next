@@ -61,6 +61,8 @@ export type ActorProfile = z.infer<typeof ActorProfile>
 
 export const Actor = ActorProfile.extend({
   fields: ActorProfileField.array().optional(),
+  // Epoch ms of the last profile link check (internal, never serialized).
+  linksCheckedAt: z.number().optional(),
   privateKey: z.string().optional(),
   publicKey: z.string(),
   account: Account.optional(),

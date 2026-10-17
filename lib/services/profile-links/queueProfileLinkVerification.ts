@@ -14,8 +14,18 @@ type FieldLike = { name?: string; value: string; verifiedAt?: number | null }
 // database queue keeps finished jobs and ignores a new job under a taken id,
 // so the id cannot be the state alone: saving the same unverified value again
 // after adding the rel="me" link must run again. A check takes a few seconds
-// (two 5 s timeouts at most), so a short window covers concurrent queues.
+// (up to about 30 s per link), so a short window covers concurrent queues.
 const DEDUPE_WINDOW_MS = 30_000
+
+// Render-path bounds (a remote profile view), measured from `linksCheckedAt`,
+// which the job stamps on every run. A changed value is checked again after an
+// hour: soon enough that a real edit is picked up, rare enough that a remote
+// serving different values on every fetch cannot make each render fetch up to
+// four sites. An unchanged unverified value waits as long as the remote actor
+// refresh does (3 days), the cadence at which the owner could have added the
+// link back.
+export const RENDER_CHANGED_RECHECK_MS = 3_600_000
+export const RENDER_UNVERIFIED_RECHECK_MS = 3 * 86_400_000
 
 /**
  * Queue the rel="me" check of an actor's profile links when the field values
@@ -27,9 +37,12 @@ const DEDUPE_WINDOW_MS = 30_000
  * nothing verifiable, and a refresh that changed nothing on a profile whose
  * links are all verified (or not verifiable) sends no request.
  *
- * `recheckUnverified: false` limits the gate to changed values, for a path that
- * runs on every page render (a remote profile view) and must not fetch the
- * linked sites each time.
+ * `renderCheckedAt` marks a path that runs on every page render (a remote
+ * profile view) and must not fetch the linked sites each time: it passes the
+ * actor's `linksCheckedAt` (or null when never checked), and nothing is queued
+ * while that is newer than `RENDER_CHANGED_RECHECK_MS` (changed values) or
+ * `RENDER_UNVERIFIED_RECHECK_MS` (unchanged unverified values). Leave it
+ * undefined for the local save paths and real refreshes, which always queue.
  *
  * `remote` says how a value reads: a local actor's is the raw text the owner
  * typed, a remote actor's is the HTML its server sent. `after` is the incoming
@@ -44,13 +57,13 @@ export const queueProfileLinkVerification = async ({
   before,
   after,
   remote,
-  recheckUnverified = true
+  renderCheckedAt
 }: {
   actorId: string
   before: FieldLike[] | undefined
   after: FieldLike[]
   remote: boolean
-  recheckUnverified?: boolean
+  renderCheckedAt?: number | null
 }): Promise<void> => {
   if (after.length === 0) return
   const effective = carryOverFieldVerification(
@@ -73,7 +86,12 @@ export const queueProfileLinkVerification = async ({
       getVerifiableFieldUrl(field.value, { remote }) !== null
   )
   if (!needsCheck) return
-  if (!recheckUnverified && !profileFieldValuesChanged(before, after)) return
+  if (renderCheckedAt !== undefined && renderCheckedAt !== null) {
+    const interval = profileFieldValuesChanged(before, after)
+      ? RENDER_CHANGED_RECHECK_MS
+      : RENDER_UNVERIFIED_RECHECK_MS
+    if (Date.now() - renderCheckedAt < interval) return
+  }
 
   const stateHash = getHashFromString(
     JSON.stringify(after.map((field) => field.value).sort())

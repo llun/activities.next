@@ -23,6 +23,10 @@ export interface ActorSettings {
   // VerifyProfileLinksJob once the value's page links back with rel="me", and
   // is dropped whenever the value changes. It is never federated.
   fields?: ActorSettingsField[]
+  // When (epoch ms) VerifyProfileLinksJob last ran for this actor, whatever the
+  // outcome. Bounds how often a remote profile render re-queues the check.
+  // Internal: never federated and never in the API.
+  linksCheckedAt?: number
   // Custom emoji tags in display name/bio.
   tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags. `bot` marks an automated account;

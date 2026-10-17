@@ -7,7 +7,8 @@ import packageJson from '@/package.json'
 import { hasRelMeLinkTo } from './html'
 
 // Mastodon reads the page for a few seconds; a profile link is a small static
-// page, so a slow or huge one is simply "not verified".
+// page, so a slow or huge one is simply "not verified". The timeouts apply to
+// each redirect hop, so a link with two redirects can take about 30 s.
 export const PROFILE_LINK_CONNECT_TIMEOUT_MS = 5_000
 export const PROFILE_LINK_READ_TIMEOUT_MS = 5_000
 export const PROFILE_LINK_MAX_BODY_BYTES = 1024 * 1024

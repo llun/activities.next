@@ -165,23 +165,51 @@ describe('queueProfileLinkVerification re-checks', () => {
     expect(publish).toHaveBeenCalledTimes(1)
   })
 
-  it('limits a render-time call to changed values with recheckUnverified: false', async () => {
+  describe('render path (renderCheckedAt)', () => {
+    const fields = [{ name: 'Blog', value: 'https://a.example' }]
+    const changed = [{ name: 'Blog', value: 'https://b.example' }]
+    const run = (
+      after: typeof fields,
+      renderCheckedAt: number | null | undefined
+    ) =>
+      queueProfileLinkVerification({
+        actorId: ACTOR_ID,
+        before: fields,
+        after,
+        remote: true,
+        renderCheckedAt
+      })
+
+    it('skips changed and unchanged unverified values checked recently', async () => {
+      await run(changed, Date.now() - 60_000)
+      await run(fields, Date.now() - 60_000)
+      expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('rechecks a changed value after an hour but an unchanged one only after 3 days', async () => {
+      const twoHoursAgo = Date.now() - 2 * 3_600_000
+      await run(fields, twoHoursAgo)
+      expect(publish).not.toHaveBeenCalled()
+      await run(changed, twoHoursAgo)
+      expect(publish).toHaveBeenCalledTimes(1)
+
+      await run(fields, Date.now() - 4 * 86_400_000)
+      expect(publish).toHaveBeenCalledTimes(2)
+    })
+
+    it('queues when the actor was never checked', async () => {
+      await run(fields, null)
+      expect(publish).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('ignores any stamp when renderCheckedAt is not passed (local saves)', async () => {
     const fields = [{ name: 'Blog', value: 'https://a.example' }]
     await queueProfileLinkVerification({
       actorId: ACTOR_ID,
       before: fields,
       after: fields,
-      remote: true,
-      recheckUnverified: false
-    })
-    expect(publish).not.toHaveBeenCalled()
-
-    await queueProfileLinkVerification({
-      actorId: ACTOR_ID,
-      before: fields,
-      after: [{ name: 'Blog', value: 'https://b.example' }],
-      remote: false,
-      recheckUnverified: false
+      remote: false
     })
     expect(publish).toHaveBeenCalledTimes(1)
   })

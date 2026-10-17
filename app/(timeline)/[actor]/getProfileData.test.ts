@@ -916,19 +916,21 @@ describe('getProfileData', () => {
           before: stored,
           after: [{ name: 'Blog', value: linkedValue }],
           remote: true,
-          recheckUnverified: false
+          renderCheckedAt: null
         })
       })
 
-      it('re-checks an unchanged unverified link only once the stored row is old', async () => {
+      it('passes the stored linksCheckedAt so a recent check suppresses the queue', async () => {
         ;(getActorPerson as jest.Mock).mockResolvedValue(
           personWithLinks(linkedValue)
         )
-        const stored = [{ name: 'Blog', value: linkedValue }]
+        const checkedAt = Date.now() - 60_000
         ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
           id: mockPerson.id,
-          fields: stored,
-          updatedAt: Date.now() - 4 * 86_400_000
+          fields: [{ name: 'Blog', value: linkedValue }],
+          // updatedAt is old, but only linksCheckedAt is the gate.
+          updatedAt: Date.now() - 10 * 86_400_000,
+          linksCheckedAt: checkedAt
         })
 
         await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
@@ -936,7 +938,7 @@ describe('getProfileData', () => {
         })
 
         expect(queueProfileLinkVerification).toHaveBeenCalledWith(
-          expect.objectContaining({ remote: true, recheckUnverified: true })
+          expect.objectContaining({ remote: true, renderCheckedAt: checkedAt })
         )
       })
     })

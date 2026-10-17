@@ -85,6 +85,8 @@ export type MarkActorProfileFieldsVerifiedParams = {
   // The field values the rel="me" check passed for.
   values: string[]
   verifiedAt: number
+  // When the check ran; stored as `linksCheckedAt` even if `values` is empty.
+  checkedAt: number
 }
 export type UpdateActorParams = {
   actorId: string

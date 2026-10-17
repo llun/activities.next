@@ -78,6 +78,23 @@ describe('verifyProfileLinksJob', () => {
     })
   })
 
+  it('stamps linksCheckedAt whatever the outcome', async () => {
+    await database.updateActor({
+      actorId: ACTOR1_ID,
+      fields: [{ name: 'Blog', value: 'https://nolink.example' }]
+    })
+    mockedVerify.mockResolvedValue(false)
+    const before = Date.now()
+
+    await run(database, ACTOR1_ID)
+
+    const actor = await database.getActorFromId({ id: ACTOR1_ID })
+    expect(actor?.fields?.[0].verifiedAt).toBeUndefined()
+    expect(actor?.linksCheckedAt).toBeGreaterThanOrEqual(before)
+    const account = await database.getMastodonActorFromId({ id: ACTOR1_ID })
+    expect(JSON.stringify(account)).not.toContain('linksCheckedAt')
+  })
+
   it('does not check a field that is already verified', async () => {
     await database.updateActor({
       actorId: ACTOR1_ID,
@@ -86,7 +103,8 @@ describe('verifyProfileLinksJob', () => {
     await database.markActorProfileFieldsVerified({
       actorId: ACTOR1_ID,
       values: ['https://done.example'],
-      verifiedAt: 1700000000000
+      verifiedAt: 1700000000000,
+      checkedAt: 1700000000000
     })
 
     await run(database, ACTOR1_ID)

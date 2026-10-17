@@ -44,7 +44,8 @@ describe('ActorDatabase profile field verification', () => {
       await database.markActorProfileFieldsVerified({
         actorId,
         values: ['https://blog.example', 'https://site.example'],
-        verifiedAt: 1700000000000
+        verifiedAt: 1700000000000,
+        checkedAt: 1700000000000
       })
 
       await database.updateActor({
@@ -80,7 +81,8 @@ describe('ActorDatabase profile field verification', () => {
       await database.markActorProfileFieldsVerified({
         actorId,
         values: ['https://a.example', 'https://gone.example'],
-        verifiedAt: 1700000000000
+        verifiedAt: 1700000000000,
+        checkedAt: 1700000000000
       })
 
       const after = await database.getActorFromId({ id: actorId })
@@ -89,6 +91,42 @@ describe('ActorDatabase profile field verification', () => {
         { name: 'B', value: 'https://b.example' }
       ])
       expect(after?.updatedAt).toBe(before?.updatedAt)
+    })
+
+    it('keeps a mark and linksCheckedAt through an updateActor with unchanged values', async () => {
+      const actorId = await newActor()
+      const fields = [{ name: 'Blog', value: 'https://blog.example' }]
+      await database.updateActor({ actorId, fields })
+      await database.markActorProfileFieldsVerified({
+        actorId,
+        values: ['https://blog.example'],
+        verifiedAt: 1700000000000,
+        checkedAt: 1700000001000
+      })
+
+      await database.updateActor({ actorId, fields, name: 'Renamed' })
+
+      const actor = await database.getActorFromId({ id: actorId })
+      expect(actor?.fields?.[0].verifiedAt).toBe(1700000000000)
+      expect(actor?.linksCheckedAt).toBe(1700000001000)
+    })
+
+    it('stamps linksCheckedAt even when nothing was verified', async () => {
+      const actorId = await newActor()
+      await database.updateActor({
+        actorId,
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      })
+      await database.markActorProfileFieldsVerified({
+        actorId,
+        values: [],
+        verifiedAt: 1700000000000,
+        checkedAt: 1700000002000
+      })
+
+      const actor = await database.getActorFromId({ id: actorId })
+      expect(actor?.linksCheckedAt).toBe(1700000002000)
+      expect(actor?.fields?.[0].verifiedAt).toBeUndefined()
     })
 
     it('emits verified_at as an ISO time in the Account and its source', async () => {
@@ -103,7 +141,8 @@ describe('ActorDatabase profile field verification', () => {
       await database.markActorProfileFieldsVerified({
         actorId,
         values: ['https://blog.example'],
-        verifiedAt: Date.UTC(2026, 9, 17, 12, 30, 0)
+        verifiedAt: Date.UTC(2026, 9, 17, 12, 30, 0),
+        checkedAt: Date.UTC(2026, 9, 17, 12, 30, 0)
       })
 
       const account = await database.getMastodonActorFromId({ id: actorId })

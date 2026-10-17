@@ -1,5 +1,4 @@
 import {
-  REMOTE_ACTOR_REFRESH_INTERVAL_MS,
   getPersistableActorPerson,
   getPersistableProfile
 } from '@/lib/actions/utils'
@@ -362,11 +361,10 @@ export const getProfileData = async (
       before: storedActor.fields,
       after: persistableProfile.fields,
       remote: true,
-      // This runs on every render of a remote profile. A changed value is
-      // checked at once; a link still unverified is checked again only when the
-      // stored row is as old as recordActorIfNeeded's refresh interval.
-      recheckUnverified:
-        Date.now() - storedActor.updatedAt > REMOTE_ACTOR_REFRESH_INTERVAL_MS
+      // This runs on every render of a remote profile, and `updatedAt` moves
+      // on each one, so the gate is the job's own `linksCheckedAt` stamp:
+      // changed values at most hourly, unverified ones every 3 days.
+      renderCheckedAt: storedActor.linksCheckedAt ?? null
     })
   } else if (persistablePerson && handle) {
     const persistableProfile = getPersistableProfile(persistablePerson)

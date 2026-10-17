@@ -52,22 +52,26 @@ export const verifyProfileLinksJob: JobHandle = createJobHandle(
           const url = getVerifiableFieldUrl(field.value, { remote })
           return url ? [{ value: field.value, url }] : []
         })
-      if (candidates.length === 0) return
-
-      const results = await Promise.all(
-        candidates.map(async ({ value, url }) =>
-          (await verifyProfileLink({ url, linkBacks })) ? value : null
+      // Stamp the check whatever the outcome, so a render path can bound how
+      // often it queues this job (see queueProfileLinkVerification).
+      let values: string[] = []
+      try {
+        const results = await Promise.all(
+          candidates.map(async ({ value, url }) =>
+            (await verifyProfileLink({ url, linkBacks })) ? value : null
+          )
         )
-      )
-      const values = results.filter((value): value is string => value !== null)
+        values = results.filter((value): value is string => value !== null)
+      } finally {
+        const now = Date.now()
+        await database.markActorProfileFieldsVerified({
+          actorId,
+          values,
+          verifiedAt: now,
+          checkedAt: now
+        })
+      }
       span.setAttribute('verifiedCount', values.length)
-      if (values.length === 0) return
-
-      await database.markActorProfileFieldsVerified({
-        actorId,
-        values,
-        verifiedAt: Date.now()
-      })
     })
   }
 )

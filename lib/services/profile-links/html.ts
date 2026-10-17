@@ -8,8 +8,9 @@ type TopLevelNode = { tag: string | null; href?: string; text: string }
  * The URL Mastodon's `extract_url_from_html` finds in a remote actor's field
  * value: the whole value must be one `<a>` whose href equals its text content
  * (the markup Mastodon builds for a bare URL, which hides the scheme in a
- * nested span), or a bare URL, and it must be https (`safeRemoteFetch` refuses plain http,
- * which Mastodon would fetch). Anything else is not verifiable.
+ * nested span), or a bare URL, and it must be https, as in Mastodon's
+ * `Account::Field` (`ACCEPTED_SCHEMES = %w(https)`). Anything else is not
+ * verifiable.
  */
 export const getLinkFromFieldHtml = (html: string): string | null => {
   const nodes: TopLevelNode[] = []

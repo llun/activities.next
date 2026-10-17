@@ -145,6 +145,9 @@ export const getActor = (
     manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
     ...(settings.tags ? { tags: settings.tags } : null),
     ...(settings.fields?.length ? { fields: settings.fields } : null),
+    ...(settings.linksCheckedAt
+      ? { linksCheckedAt: settings.linksCheckedAt }
+      : null),
     // Booleans use !== undefined so a persisted `false` survives the
     // row-to-domain round-trip (a truthy spread would drop it).
     ...(settings.readingExpandMedia !== undefined
