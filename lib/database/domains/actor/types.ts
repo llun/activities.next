@@ -6,7 +6,11 @@ import type {
   NotificationPolicy,
   UpdateNotificationPolicyParams
 } from '@/lib/types/database/operations'
-import type { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
+import type {
+  ActorSettings,
+  ActorSettingsField,
+  PostLineLimit
+} from '@/lib/types/database/rows'
 import type { Actor, ActorType } from '@/lib/types/domain/actor'
 import type * as Mastodon from '@/lib/types/mastodon'
 
@@ -21,8 +25,10 @@ export type CreateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
   manuallyApprovesFollowers?: boolean
-  // Mastodon profile metadata fields (name/value pairs).
-  fields?: { name: string; value: string }[]
+  // Mastodon profile metadata fields. A field without `verifiedAt` keeps the
+  // verification of a stored field that has the same value (see
+  // carryOverFieldVerification); a changed value starts unverified.
+  fields?: ActorSettingsField[]
   tags?: { type: 'emoji'; name: string; value: string }[]
 
   inboxUrl: string
@@ -74,6 +80,12 @@ export type IsCurrentActorFollowingParams = {
   currentActorId: string
   followingActorId: string
 }
+export type MarkActorProfileFieldsVerifiedParams = {
+  actorId: string
+  // The field values the rel="me" check passed for.
+  values: string[]
+  verifiedAt: number
+}
 export type UpdateActorParams = {
   actorId: string
   type?: ActorType
@@ -83,8 +95,10 @@ export type UpdateActorParams = {
   iconUrl?: string | null
   headerImageUrl?: string | null
   manuallyApprovesFollowers?: boolean
-  // Mastodon profile metadata fields (name/value pairs).
-  fields?: { name: string; value: string }[]
+  // Mastodon profile metadata fields. A field without `verifiedAt` keeps the
+  // verification of a stored field that has the same value (see
+  // carryOverFieldVerification); a changed value starts unverified.
+  fields?: ActorSettingsField[]
   tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags and `source.*` posting defaults.
   bot?: boolean
@@ -202,6 +216,9 @@ export interface ActorDatabase {
     params: GetLocalActorsParams
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
+  markActorProfileFieldsVerified(
+    params: MarkActorProfileFieldsVerifiedParams
+  ): Promise<void>
   deleteActor(params: DeleteActorParams): Promise<void>
   setActorCounters(params: SetActorCountersParams): Promise<void>
   hasActorCounters(params: HasActorCountersParams): Promise<boolean>

@@ -5,7 +5,8 @@ import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 const LINK_DISPLAY_LENGTH = 30
 const URL_PREFIX_PATTERN = /^https?:\/\/(www\.)?/i
 
-const getHttpUrl = (value: string): string | null => {
+/** The value when it is exactly one http(s) URL (no whitespace), else null. */
+export const getProfileFieldHttpUrl = (value: string): string | null => {
   if (/\s/.test(value)) return null
   try {
     const { protocol } = new URL(value)
@@ -32,7 +33,7 @@ const getHttpUrl = (value: string): string | null => {
  */
 export const formatProfileFieldValue = (rawValue: string): string => {
   const value = rawValue.trim()
-  const url = getHttpUrl(value)
+  const url = getProfileFieldHttpUrl(value)
   if (!url) return escapeHtml(value)
 
   const prefix = url.match(URL_PREFIX_PATTERN)?.[0] ?? ''

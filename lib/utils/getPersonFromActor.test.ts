@@ -116,6 +116,18 @@ describe('getPersonFromActor', () => {
       ])
     })
 
+    it('does not federate verifiedAt', () => {
+      const actor = MockActor({})
+      const withVerification = getPersonFromActor({
+        ...actor,
+        fields: fields.map((field) => ({ ...field, verifiedAt: 1700000000000 }))
+      })
+      const without = getPersonFromActor({ ...actor, fields })
+
+      expect(withVerification).toEqual(without)
+      expect(JSON.stringify(withVerification)).not.toMatch(/verif/i)
+    })
+
     it('declares the schema terms in the context only when there are fields', () => {
       const person = getPersonFromActor({ ...MockActor({}), fields })
       expect(person['@context']).toContainEqual({

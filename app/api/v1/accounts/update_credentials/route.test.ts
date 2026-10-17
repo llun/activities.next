@@ -6,6 +6,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -14,6 +15,10 @@ import { PATCH } from './route'
 
 vi.mock('@/lib/services/actors/actorUpdate', () => ({
   publishActorUpdate: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/profile-links/queueProfileLinkVerification', () => ({
+  queueProfileLinkVerification: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@/lib/services/medias', () => ({
@@ -542,6 +547,33 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(response.status).toBe(422)
     expect(updateActor).not.toHaveBeenCalled()
     updateActor.mockRestore()
+  })
+
+  it('queues the link check when fields_attributes are sent', async () => {
+    const form = new FormData()
+    form.set('fields_attributes[0][name]', 'Website')
+    form.set('fields_attributes[0][value]', 'https://queued.example')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        after: [{ name: 'Website', value: 'https://queued.example' }]
+      })
+    )
+  })
+
+  it('does not queue the link check when no fields are sent', async () => {
+    const form = new FormData()
+    form.set('display_name', 'Someone')
+
+    await PATCH(createRequest(form), { params: Promise.resolve({}) })
+
+    expect(queueProfileLinkVerification).not.toHaveBeenCalled()
   })
 
   it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {

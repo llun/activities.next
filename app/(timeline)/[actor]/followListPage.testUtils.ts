@@ -14,6 +14,7 @@ export const createLocalProfileData = ({
   statusesCount: 0,
   attachments: [],
   isInternalAccount: true,
+  profileFields: [],
   hasFitnessData: false,
   hasGalleryMedia: false,
   gallerySubviews: [],

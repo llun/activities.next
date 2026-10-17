@@ -66,7 +66,8 @@ import {
   SEND_UPDATE_NOTE_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
-  UPDATE_POLL_JOB_NAME
+  UPDATE_POLL_JOB_NAME,
+  VERIFY_PROFILE_LINKS_JOB_NAME
 } from './names'
 import { processFitnessFileJob } from './processFitnessFileJob'
 import { processForwardedActivityJob } from './processForwardedActivityJob'
@@ -91,6 +92,7 @@ import { sendUpdateNoteJob } from './sendUpdateNoteJob'
 import { updateActorJob } from './updateActorJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
+import { verifyProfileLinksJob } from './verifyProfileLinksJob'
 
 // Re-export JobHandle for external use
 export type { JobHandle }
@@ -185,6 +187,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [UPDATE_ACTOR_JOB_NAME]() {
     return updateActorJob
+  },
+  get [VERIFY_PROFILE_LINKS_JOB_NAME]() {
+    return verifyProfileLinksJob
   },
   get [SEND_DELETE_NOTE_JOB_NAME]() {
     return sendDeleteNoteJob

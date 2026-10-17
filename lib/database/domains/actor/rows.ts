@@ -204,12 +204,12 @@ export const getMastodonAccountFromSQLActor = (
   // some clients/servers string-match `acct` strictly.
   const qualifiedAcct = `${sqlActor.username}@${sqlActor.domain.toLowerCase()}`
 
-  // Profile metadata fields are stored as plain name/value pairs; URLs are not
-  // server-verified, so verified_at is always null.
+  // Profile metadata fields are stored as name/value pairs. `verified_at` is
+  // when VerifyProfileLinksJob saw the value's page link back with rel="me".
   const sourceFields = (settings.fields ?? []).map((field) => ({
     name: field.name,
     value: field.value,
-    verified_at: null
+    verified_at: field.verifiedAt ? getISOTimeUTC(field.verifiedAt) : null
   }))
   const sourceNote = sqlActor.summary ?? ''
   // `note` and `fields[].value` are HTML in the Mastodon Account entity, and

@@ -4,6 +4,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
@@ -280,12 +281,18 @@ export const recordActorIfNeeded = async ({
       })
       return
     }
+    const persistableProfile = getPersistableProfile(person)
     const actor = await database.createActor({
       actorId: person.id,
       username: handle.username,
       domain: handle.domain,
-      ...getPersistableProfile(person),
+      ...persistableProfile,
       createdAt: new Date(person.published ?? Date.now()).getTime()
+    })
+    await queueProfileLinkVerification({
+      actorId: person.id,
+      before: undefined,
+      after: persistableProfile.fields
     })
     await syncActorCollectionCounts(
       database,
@@ -337,9 +344,17 @@ export const recordActorIfNeeded = async ({
     }
     return existingActor
   }
+  const persistableProfile = getPersistableProfile(person)
   const actor = await database.updateActor({
     actorId,
-    ...getPersistableProfile(person)
+    ...persistableProfile
+  })
+  // Only a changed value is checked again; a refresh that changed nothing
+  // sends no request to the linked sites.
+  await queueProfileLinkVerification({
+    actorId,
+    before: existingActor.fields,
+    after: persistableProfile.fields
   })
   await syncActorCollectionCounts(
     database,

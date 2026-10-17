@@ -103,6 +103,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 10,
       followersCount: 20,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -147,6 +148,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 2,
       followersCount: 3,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -179,6 +181,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 0,
       followersCount: 0,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -213,6 +216,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 3,
       followersCount: 4,
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -254,6 +258,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 0,
       followersCount: 0,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -293,6 +298,7 @@ describe('[actor] page header handle link', () => {
         followingCount: counts,
         followersCount: counts === null ? null : 15,
         isInternalAccount: false,
+        profileFields: [],
         hasFitnessData: false,
         hasGalleryMedia: false,
         gallerySubviews: [],
@@ -333,6 +339,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 5,
       followersCount: 15,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -367,6 +374,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 5,
       followersCount: 15,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -412,6 +420,7 @@ describe('[actor] page header handle link', () => {
       followingCount: 5,
       followersCount: 15,
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -440,7 +449,19 @@ describe('[actor] page profile links', () => {
     mockIsLocalFederationDomain.mockResolvedValue(false)
   })
 
-  const profileData = (attachment?: unknown[]) => ({
+  const profileData = (
+    attachment?: unknown[],
+    profileFields: {
+      name: string
+      value: string
+      verifiedAt?: string | null
+    }[] = (
+      (attachment ?? []) as { type: string; name?: string; value?: string }[]
+    )
+      .filter((item) => item.type === 'PropertyValue')
+      .map((item) => ({ name: item.name ?? '', value: item.value ?? '' }))
+  ) => ({
+    profileFields,
     person: {
       id: 'https://remote.example/users/alice',
       type: 'Person',
@@ -485,6 +506,31 @@ describe('[actor] page profile links', () => {
       screen.getByText('Bio text').compareDocumentPosition(term) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+
+  it('passes the verification from the page data into the block', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profileData(undefined, [
+        {
+          name: 'Web',
+          value: 'https://remote.example',
+          verifiedAt: '2026-03-04T10:00:00.000Z'
+        },
+        { name: 'Pronouns', value: 'they/them', verifiedAt: null }
+      ])
+    )
+
+    render(
+      await Page({
+        params: Promise.resolve({ actor: '@alice@remote.example' })
+      })
+    )
+
+    const block = document.querySelector('[data-slot="profile-fields"]')
+    expect(block?.querySelectorAll('[aria-label="Verified"]')).toHaveLength(1)
+    expect(
+      screen.getByText('https://remote.example').closest('dd')
+    ).toContainElement(block!.querySelector('[aria-label="Verified"]'))
   })
 
   it('shows no links block when the actor has none', async () => {

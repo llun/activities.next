@@ -7,6 +7,7 @@ import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCou
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import type { ProfileFieldItem } from '@/lib/components/profile/ProfileFieldsBlock'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
@@ -20,6 +21,7 @@ import {
 } from '@/lib/services/federation/serverSoftware'
 import { toGalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import { GallerySubview } from '@/lib/services/gallery/galleryEntities'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import {
   canActorReadStatus,
   resolveActorStatusesAudience
@@ -28,13 +30,24 @@ import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { getActorProfileFields } from '@/lib/utils/activitypubActor'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
+import { formatProfileFieldValue } from '@/lib/utils/text/formatProfileFieldValue'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { VERSION } from '@/lib/utils/version'
 
+// ISO 8601 for the profile block; a field is verified only when its stored
+// verifiedAt is set.
+const toVerifiedAt = (verifiedAt: number | null | undefined) =>
+  verifiedAt ? getISOTimeUTC(verifiedAt) : null
+
 type ProfileData = {
   person: Actor
+  // The profile links with their verification, ready for ProfileFieldsBlock:
+  // values are HTML, `verifiedAt` comes from the stored actor row.
+  profileFields: ProfileFieldItem[]
   statuses: Status[]
   statusesCount: number | null
   statusPagination: {
@@ -204,6 +217,13 @@ export const getProfileData = async (
 
     return {
       person: getPersonFromActor(persistedActor),
+      // A local actor's stored value is the raw text; the page shows the HTML
+      // the actor document carries.
+      profileFields: (persistedActor.fields ?? []).map((field) => ({
+        name: field.name,
+        value: formatProfileFieldValue(field.value),
+        verifiedAt: toVerifiedAt(field.verifiedAt)
+      })),
       statuses,
       statusesCount,
       statusPagination: {
@@ -331,9 +351,15 @@ export const getProfileData = async (
     // Same field set recordActorIfNeeded persists, so the web profile page
     // and the Mastodon API refresh paths write consistent snapshots (including
     // metadata fields and the locked state).
+    const persistableProfile = getPersistableProfile(persistablePerson)
     await database.updateActor({
       actorId: persistablePerson.id,
-      ...getPersistableProfile(persistablePerson)
+      ...persistableProfile
+    })
+    await queueProfileLinkVerification({
+      actorId: persistablePerson.id,
+      before: storedActor.fields,
+      after: persistableProfile.fields
     })
   } else if (persistablePerson && handle) {
     const persistableProfile = getPersistableProfile(persistablePerson)
@@ -348,6 +374,11 @@ export const getProfileData = async (
         domain: handle.domain,
         ...persistableProfile,
         createdAt: new Date(persistablePerson.published ?? Date.now()).getTime()
+      })
+      await queueProfileLinkVerification({
+        actorId: persistablePerson.id,
+        before: undefined,
+        after: persistableProfile.fields
       })
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
@@ -440,6 +471,19 @@ export const getProfileData = async (
   return {
     ...actorPostsResponse,
     person,
+    // The live document's fields, with the verification of the stored row's
+    // field of the same name and value (a changed value is not verified).
+    profileFields: getActorProfileFields(person).map((field) => ({
+      ...field,
+      verifiedAt: toVerifiedAt(
+        storedActor?.fields?.find(
+          (stored) =>
+            stored.name === field.name &&
+            stored.value === field.value &&
+            stored.verifiedAt
+        )?.verifiedAt
+      )
+    })),
     statusesCount: resolvedStatusesCount,
     statusPagination: {
       nextPageUrl: actorPostsResponse.nextPageUrl ?? null,

@@ -10,6 +10,12 @@ import {
   recordActorIfNeeded
 } from './utils'
 
+const mockQueueProfileLinkVerification = vi.fn()
+vi.mock('@/lib/services/profile-links/queueProfileLinkVerification', () => ({
+  queueProfileLinkVerification: (...params: unknown[]) =>
+    mockQueueProfileLinkVerification(...params)
+}))
+
 const mockGetActorPerson = vi.fn()
 const mockGetActorCollectionCounts = vi.fn()
 
@@ -128,6 +134,53 @@ describe('recordActorIfNeeded', () => {
       fields: [
         { name: 'Website', value: 'https://example.com', verified_at: null }
       ]
+    })
+  })
+
+  it('queues the profile link check for a new actor with links', async () => {
+    const actorId = 'https://remote-links-new.test/users/linker'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, {
+        attachment: [
+          { type: 'PropertyValue', name: 'Web', value: 'https://example.com' }
+        ]
+      })
+    )
+
+    await recordActorIfNeeded({ actorId, database })
+
+    expect(mockQueueProfileLinkVerification).toHaveBeenCalledWith({
+      actorId,
+      before: undefined,
+      after: [{ name: 'Web', value: 'https://example.com' }]
+    })
+  })
+
+  it('hands the stored fields to the link check on a refresh', async () => {
+    const actorId = 'https://remote-links-refresh.test/users/linker'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, {
+        attachment: [
+          { type: 'PropertyValue', name: 'Web', value: 'https://one.example' }
+        ]
+      })
+    )
+    await recordActorIfNeeded({ actorId, database })
+    mockQueueProfileLinkVerification.mockClear()
+
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, {
+        attachment: [
+          { type: 'PropertyValue', name: 'Web', value: 'https://two.example' }
+        ]
+      })
+    )
+    await recordActorIfNeeded({ actorId, database, forceRefresh: true })
+
+    expect(mockQueueProfileLinkVerification).toHaveBeenCalledWith({
+      actorId,
+      before: [{ name: 'Web', value: 'https://one.example' }],
+      after: [{ name: 'Web', value: 'https://two.example' }]
     })
   })
 

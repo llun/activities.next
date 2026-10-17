@@ -30,7 +30,6 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
-import { getActorProfileFields } from '@/lib/utils/activitypubActor'
 import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -165,6 +164,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   const {
     person,
+    profileFields,
     statuses,
     attachments,
     statusesCount,
@@ -373,10 +373,11 @@ const Page: FC<Props> = async ({ params }) => {
 
           <Bio summary={person.summary} tags={getActorEmojiTags(person)} />
 
-          {/* A local actor's document already carries each value as HTML, so
-              both kinds go through the same sanitizer in the block. */}
+          {/* Each value is HTML (a local actor's is formatted from its raw
+              text), so both kinds go through the same sanitizer in the block.
+              `verifiedAt` comes from the stored actor row. */}
           <ProfileFieldsBlock
-            fields={getActorProfileFields(person)}
+            fields={profileFields}
             tags={getActorEmojiTags(person)}
           />
 

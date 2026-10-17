@@ -1,0 +1,71 @@
+import { z } from 'zod'
+
+import { createJobHandle } from '@/lib/jobs/createJobHandle'
+import { VERIFY_PROFILE_LINKS_JOB_NAME } from '@/lib/jobs/names'
+import { PROFILE_FIELD_LIMIT } from '@/lib/services/accounts/profileFieldLimits'
+import { getVerifiableFieldUrl } from '@/lib/services/profile-links/html'
+import { verifyProfileLink } from '@/lib/services/profile-links/verifyProfileLink'
+import { JobHandle } from '@/lib/services/queue/type'
+import { getActorProfileUrl } from '@/lib/utils/getPersonFromActor'
+import { withSpan } from '@/lib/utils/trace'
+
+const JobData = z.object({
+  actorId: z.string()
+})
+
+/**
+ * Mastodon's rel="me" verification: for each profile link that is a single
+ * http(s) URL and not yet verified, fetch the page and look for a rel="me"
+ * link back to the profile. A link back is the profile page URL or the actor
+ * id. Only a field whose value still equals the one that was checked gets
+ * `verifiedAt` (the write re-reads the row under a lock). Nothing is
+ * re-checked later: a failed link stays "not verified" until its value is
+ * edited, as on Mastodon.
+ */
+export const verifyProfileLinksJob: JobHandle = createJobHandle(
+  VERIFY_PROFILE_LINKS_JOB_NAME,
+  async (database, message) => {
+    await withSpan('job', 'verifyProfileLinks', {}, async (span) => {
+      const parsed = JobData.safeParse(message.data)
+      if (!parsed.success) {
+        span.recordException(new Error('Malformed verify profile links job'))
+        return
+      }
+      const { actorId } = parsed.data
+      span.setAttribute('actorId', actorId)
+
+      const actor = await database.getActorFromId({ id: actorId })
+      if (!actor?.fields?.length) return
+
+      const remote = !actor.privateKey
+      // A remote actor's own `url` is not stored; Mastodon-compatible servers
+      // serve the profile at /@username, and the actor id covers the rest.
+      const linkBacks = [getActorProfileUrl(actor), actor.id]
+
+      // Mastodon keeps four fields, so a remote actor sending more is capped.
+      const candidates = actor.fields
+        .slice(0, PROFILE_FIELD_LIMIT)
+        .flatMap((field) => {
+          if (field.verifiedAt) return []
+          const url = getVerifiableFieldUrl(field.value, { remote })
+          return url ? [{ value: field.value, url }] : []
+        })
+      if (candidates.length === 0) return
+
+      const results = await Promise.all(
+        candidates.map(async ({ value, url }) =>
+          (await verifyProfileLink({ url, linkBacks })) ? value : null
+        )
+      )
+      const values = results.filter((value): value is string => value !== null)
+      span.setAttribute('verifiedCount', values.length)
+      if (values.length === 0) return
+
+      await database.markActorProfileFieldsVerified({
+        actorId,
+        values,
+        verifiedAt: Date.now()
+      })
+    })
+  }
+)

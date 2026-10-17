@@ -5,6 +5,12 @@ import { type ActorType } from '@/lib/types/domain/actor'
 export const POST_LINE_LIMIT_VALUES = [5, 10, 0] as const
 export type PostLineLimit = (typeof POST_LINE_LIMIT_VALUES)[number]
 
+export interface ActorSettingsField {
+  name: string
+  value: string
+  verifiedAt?: number | null
+}
+
 export interface ActorSettings {
   iconUrl?: string
   headerImageUrl?: string
@@ -13,8 +19,10 @@ export interface ActorSettings {
   sharedInboxUrl: string
   manuallyApprovesFollowers?: boolean
   // Profile metadata fields (Mastodon update_credentials `fields_attributes`).
-  // Stored as plain name/value pairs; URL verification is not performed.
-  fields?: { name: string; value: string }[]
+  // Stored as name/value pairs; `verifiedAt` (epoch ms) is set by
+  // VerifyProfileLinksJob once the value's page links back with rel="me", and
+  // is dropped whenever the value changes. It is never federated.
+  fields?: ActorSettingsField[]
   // Custom emoji tags in display name/bio.
   tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags. `bot` marks an automated account;

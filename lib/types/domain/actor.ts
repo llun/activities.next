@@ -22,9 +22,12 @@ export type ActorEmojiTag = z.infer<typeof ActorEmojiTag>
 
 // One profile metadata field ("link"): the label and the raw value the owner
 // typed. Federation and the Mastodon API turn the value into HTML.
+// `verifiedAt` (epoch ms) is when the link's page was seen linking back with
+// rel="me"; it is local state and never federated.
 export const ActorProfileField = z.object({
   name: z.string(),
-  value: z.string()
+  value: z.string(),
+  verifiedAt: z.number().nullable().optional()
 })
 export type ActorProfileField = z.infer<typeof ActorProfileField>
 

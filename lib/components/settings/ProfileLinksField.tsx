@@ -1,5 +1,6 @@
 'use client'
 
+import { Check } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 
 import { Input } from '@/lib/components/ui/input'
@@ -8,12 +9,14 @@ import {
   PROFILE_FIELD_NAME_MAX_LENGTH,
   PROFILE_FIELD_VALUE_MAX_LENGTH
 } from '@/lib/services/accounts/profileFieldLimits'
+import { getProfileFieldHttpUrl } from '@/lib/utils/text/formatProfileFieldValue'
 
 export const PROFILE_LINK_ERROR =
   'Fill in both the label and the content, or clear both.'
 
 interface Props {
-  fields: { name: string; value: string }[]
+  /** The saved fields; `verifiedAt` (epoch ms) is set once the link was checked. */
+  fields: { name: string; value: string; verifiedAt?: number | null }[]
   /** The public profile URL, shown in the `rel="me"` snippet. */
   profileUrl: string
   /** The row's hint id (the `FormRow` render prop), read by every input. */
@@ -25,6 +28,13 @@ interface Props {
 interface Row {
   name: string
   value: string
+}
+
+// The saved URL of a row, or null when the row is empty or plain text. A row
+// has a status only while its content is still the saved one.
+const getSavedUrl = (saved: { value: string } | undefined, current: string) => {
+  const url = saved ? getProfileFieldHttpUrl(saved.value.trim()) : null
+  return url && saved?.value.trim() === current.trim() ? url : null
 }
 
 const isHalfFilled = (row: Row) =>
@@ -84,9 +94,17 @@ export const ProfileLinksField: FC<Props> = ({
       {rows.map((row, index) => {
         const invalid = shown[index] && isHalfFilled(row)
         const errorId = `profileField${index}Error`
+        const statusId = `profileField${index}Status`
+        const saved = fields[index]
+        const hasStatus = getSavedUrl(saved, row.value) !== null
+        const verified = hasStatus && Boolean(saved?.verifiedAt)
         const inputDescribedBy =
           [describedBy, invalid ? errorId : null].filter(Boolean).join(' ') ||
           undefined
+        const valueDescribedBy =
+          [inputDescribedBy, hasStatus ? statusId : null]
+            .filter(Boolean)
+            .join(' ') || undefined
         return (
           <div key={index}>
             <div
@@ -127,13 +145,29 @@ export const ProfileLinksField: FC<Props> = ({
                 maxLength={PROFILE_FIELD_VALUE_MAX_LENGTH}
                 value={row.value}
                 aria-invalid={invalid ? true : undefined}
-                aria-describedby={inputDescribedBy}
+                aria-describedby={valueDescribedBy}
                 onChange={(event) =>
                   update(index, { value: event.target.value })
                 }
                 onInvalid={() => reveal(index)}
               />
             </div>
+            {hasStatus ? (
+              <p
+                id={statusId}
+                data-slot="profile-link-status"
+                className={
+                  verified
+                    ? 'mt-1.5 flex items-center gap-1 text-xs font-medium text-success-text'
+                    : 'mt-1.5 text-xs text-muted-foreground'
+                }
+              >
+                {verified ? (
+                  <Check aria-hidden="true" className="size-3.5 shrink-0" />
+                ) : null}
+                {verified ? 'Verified' : 'Not verified'}
+              </p>
+            ) : null}
             {invalid ? (
               <p
                 id={errorId}

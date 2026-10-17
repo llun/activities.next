@@ -13,6 +13,7 @@ import type {
   CancelActorDeletionParams,
   CreateActorParams,
   DeleteActorParams,
+  MarkActorProfileFieldsVerifiedParams,
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
   UpdateActorParams
@@ -30,6 +31,7 @@ import type {
 } from '@/lib/types/database/operations'
 import type { ActorSettings } from '@/lib/types/database/rows'
 import type { Actor } from '@/lib/types/domain/actor'
+import { carryOverFieldVerification } from '@/lib/utils/profileFieldVerification'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 
@@ -217,7 +219,11 @@ export const updateActor = async (
     ...(manuallyApprovesFollowers !== undefined
       ? { manuallyApprovesFollowers }
       : null),
-    ...(fields !== undefined ? { fields } : null),
+    ...(fields !== undefined
+      ? {
+          fields: carryOverFieldVerification(fields, persistedSettings.fields)
+        }
+      : null),
     ...(resolvedTags !== undefined ? { tags: resolvedTags } : null),
     ...(bot !== undefined ? { bot } : null),
     ...(discoverable !== undefined ? { discoverable } : null),
@@ -332,6 +338,45 @@ export const updateActor = async (
     })
   })
   return getActorFromId(db, { id: actorId })
+}
+
+// Stamps `verifiedAt` on the stored profile fields whose value is one of
+// `values`, the values the verification job checked. The row is re-read under
+// a lock and only fields that still hold such a value and are not verified yet
+// change, so a profile edited while the job ran keeps its newer fields as they
+// are. Only the settings JSON is written: `updatedAt` is the remote refresh
+// clock and the profile text did not change, so neither moves.
+export const markActorProfileFieldsVerified = async (
+  db: Db,
+  { actorId, values, verifiedAt }: MarkActorProfileFieldsVerifiedParams
+): Promise<void> => {
+  await inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (!row) return
+    const settings = getCompatibleJSON<ActorSettings>(
+      row.settings as string | ActorSettings
+    )
+    const checked = new Set(values)
+    let changed = false
+    const fields = (settings.fields ?? []).map((field) => {
+      if (field.verifiedAt || !checked.has(field.value)) return field
+      changed = true
+      return { ...field, verifiedAt }
+    })
+    if (!changed) return
+    await trx
+      .updateTable('actors')
+      .set({ settings: JSON.stringify({ ...settings, fields }) })
+      .where('id', '=', actorId)
+      .execute()
+  })
 }
 
 export const updateNotificationPolicy = async (

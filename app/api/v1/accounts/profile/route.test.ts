@@ -1,11 +1,16 @@
 import { NextRequest } from 'next/server'
 
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 
 import { POST } from './route'
 
 vi.mock('@/lib/services/actors/actorUpdate', () => ({
   publishActorUpdate: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/profile-links/queueProfileLinkVerification', () => ({
+  queueProfileLinkVerification: vi.fn().mockResolvedValue(undefined)
 }))
 
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
@@ -16,6 +21,7 @@ const mockCurrentActor: {
   domain: string
   iconUrl?: string
   headerImageUrl?: string
+  fields?: { name: string; value: string }[]
 } = {
   id: 'https://llun.test/users/llun',
   domain: 'llun.test'
@@ -57,6 +63,7 @@ describe('POST /api/v1/accounts/profile', () => {
     mockDatabase.updateActor.mockResolvedValue(null)
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
+    delete mockCurrentActor.fields
   })
 
   const createRequest = (fields: Record<string, string>) => {
@@ -195,6 +202,27 @@ describe('POST /api/v1/accounts/profile', () => {
       expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
         'fields'
       )
+    })
+
+    it('queues the link check with the stored and the submitted fields', async () => {
+      mockCurrentActor.fields = [{ name: 'Blog', value: 'https://old.example' }]
+
+      await post({
+        'fields[0][name]': 'Blog',
+        'fields[0][value]': 'https://blog.example'
+      })
+
+      expect(queueProfileLinkVerification).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        before: [{ name: 'Blog', value: 'https://old.example' }],
+        after: [{ name: 'Blog', value: 'https://blog.example' }]
+      })
+    })
+
+    it('does not queue the link check when the form sends no links', async () => {
+      await post({ name: 'New name' })
+
+      expect(queueProfileLinkVerification).not.toHaveBeenCalled()
     })
 
     it('refuses an invalid row without writing or federating anything', async () => {
