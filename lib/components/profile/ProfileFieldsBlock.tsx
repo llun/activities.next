@@ -70,15 +70,32 @@ const ICONS: Record<ProfileFieldIconKind, LucideIcon> = {
 const PHONE_VISIBLE = 2
 const DESKTOP_VISIBLE = 3
 
-const plainText = (html: string) =>
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: ' ',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  amp: '&'
+}
+
+// The text of a field value for a title: drops script and style elements with
+// their contents, then the tags, then decodes entities. No DOM needed.
+export const plainText = (html: string) =>
   html
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
+    .replace(
+      /&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi,
+      (entity, dec, hex, name) => {
+        if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? entity
+        try {
+          return String.fromCodePoint(dec ? Number(dec) : parseInt(hex, 16))
+        } catch {
+          return entity
+        }
+      }
+    )
     .trim()
 
 // The class that hides item `index` while the list is collapsed.
@@ -89,7 +106,7 @@ const collapsedClass = (index: number) => {
 }
 
 const MORE_CLASS =
-  'cursor-pointer text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2'
+  'cursor-pointer rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 // The profile's metadata fields ("links") on one wrapping line under the bio:
 // a muted icon and the value per field, folded behind "+N more" past the first
@@ -125,80 +142,81 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
   )
 
   return (
-    <ul
-      data-slot="profile-fields"
-      className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm"
-    >
-      {rows.map((field, index) => {
-        const verifiedDate = field.verifiedAt
-          ? formatVerifiedDate(field.verifiedAt)
-          : null
-        const verified = Boolean(field.verifiedAt)
-        const choice = chooseProfileFieldIcon(field.name, field.value)
-        const Icon = ICONS[choice.kind]
-        const showLabel = choice.kind === 'text'
-        const hasLink = /<a\s/i.test(field.value)
-        const label = field.name.trim()
-        const text = plainText(field.value)
-        return (
-          <li
-            key={`${index}-${field.name}`}
-            title={
-              verified
-                ? `Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
-                : `${label ? `${label}: ` : ''}${text}`
-            }
-            className={cn(
-              'inline-flex max-w-full shrink-0 items-center gap-1.5',
-              !expanded && collapsedClass(index)
-            )}
-          >
-            <Icon
-              aria-hidden="true"
-              className="size-3.5 shrink-0 text-muted-foreground"
-            />
-            {verified ? (
-              <Check
-                role="img"
-                aria-label="Verified"
-                className="size-3.5 shrink-0 text-success-text"
-              />
-            ) : null}
-            <span
-              className={cn(
-                'min-w-0 truncate',
-                showLabel ? 'text-muted-foreground' : 'sr-only'
-              )}
-            >
-              <ActorDisplayName text={field.name} tags={emojiTags} />
-              {showLabel ? '' : ': '}
-            </span>
-            <span
-              className={cn(
-                // `pr-px` keeps sub-pixel text widths from tripping the ellipsis.
-                'min-w-0 truncate pr-px',
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+      {/* `contents` lets the items and the toggle share one wrapping line; the
+          role keeps the list semantics that `display: contents` can drop. */}
+      <ul data-slot="profile-fields" role="list" className="contents">
+        {rows.map((field, index) => {
+          const verifiedDate = field.verifiedAt
+            ? formatVerifiedDate(field.verifiedAt)
+            : null
+          const verified = Boolean(field.verifiedAt)
+          const choice = chooseProfileFieldIcon(field.name, field.value)
+          const Icon = ICONS[choice.kind]
+          const showLabel = choice.kind === 'text'
+          const label = field.name.trim()
+          const text = plainText(field.value)
+          return (
+            <li
+              key={`${index}-${field.name}`}
+              title={
                 verified
-                  ? VERIFIED_LINK_CLASS
-                  : hasLink
-                    ? LINK_CLASS
-                    : showLabel
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
+                  ? `${label ? `${label}: ` : ''}${text} · Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
+                  : `${label ? `${label}: ` : ''}${text}`
+              }
+              className={cn(
+                'inline-flex max-w-full shrink-0 items-center gap-1.5',
+                !expanded && collapsedClass(index)
               )}
             >
-              {cleanClassName(
-                sanitizeTrustedStatusText(
-                  convertEmojisToImages(sanitizeText(field.value), emojiTags)
-                ),
-                // Keep the link the person entered (target and rel="me").
-                { rewriteProfileLinks: false }
-              )}
-            </span>
-          </li>
-        )
-      })}
+              <Icon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
+              {verified ? (
+                <Check
+                  role="img"
+                  aria-label="Verified"
+                  className="size-3.5 shrink-0 text-success-text"
+                />
+              ) : null}
+              <span
+                className={cn(
+                  'min-w-0 truncate',
+                  showLabel ? 'text-muted-foreground' : 'sr-only'
+                )}
+              >
+                <ActorDisplayName text={field.name} tags={emojiTags} />
+                {showLabel ? '' : ': '}
+              </span>
+              {showLabel ? <span className="sr-only">: </span> : null}
+              <span
+                className={cn(
+                  // `pr-px` keeps sub-pixel text widths from tripping the ellipsis.
+                  'min-w-0 truncate pr-px',
+                  verified
+                    ? VERIFIED_LINK_CLASS
+                    : choice.isLink
+                      ? LINK_CLASS
+                      : showLabel
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                )}
+              >
+                {cleanClassName(
+                  sanitizeTrustedStatusText(
+                    convertEmojisToImages(sanitizeText(field.value), emojiTags)
+                  ),
+                  // Keep the link the person entered (target and rel="me").
+                  { rewriteProfileLinks: false }
+                )}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
       {hiddenOnPhone > 0 ? (
-        <li className={cn(hiddenOnDesktop === 0 && 'sm:hidden')}>
+        <span className={cn(hiddenOnDesktop === 0 && 'sm:hidden')}>
           {hiddenOnDesktop > 0 ? (
             <>
               {toggle(hiddenOnPhone, 'sm:hidden')}
@@ -207,8 +225,8 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
           ) : (
             toggle(hiddenOnPhone, '')
           )}
-        </li>
+        </span>
       ) : null}
-    </ul>
+    </div>
   )
 }

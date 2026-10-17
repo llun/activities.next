@@ -24,15 +24,37 @@ describe('chooseProfileFieldIcon', () => {
     expect(chooseProfileFieldIcon('LOCATION', 'x').kind).toBe('location')
   })
 
-  it('marks keyword matches as specific and the fallbacks as not', () => {
-    expect(chooseProfileFieldIcon('Based in', 'x').specific).toBe(true)
-    expect(chooseProfileFieldIcon('Pronouns', 'x').specific).toBe(false)
+  it('reports whether the value is a link, quoted or not', () => {
     expect(
-      chooseProfileFieldIcon('Website', link('https://example.com')).specific
-    ).toBe(false)
+      chooseProfileFieldIcon('Web', link('https://a.example')).isLink
+    ).toBe(true)
+    expect(
+      chooseProfileFieldIcon('Web', '<a href=https://a.example>a</a>').isLink
+    ).toBe(true)
+    expect(chooseProfileFieldIcon('Web', 'a.example').isLink).toBe(false)
+  })
+
+  it('uses the host of an unquoted href', () => {
+    expect(
+      chooseProfileFieldIcon('Me', '<a href=https://www.flickr.com/me>x</a>')
+        .kind
+    ).toBe('image')
   })
 
   it('does not match keywords inside other words', () => {
     expect(chooseProfileFieldIcon('Pride', 'x').kind).toBe('text')
+  })
+
+  it.each(['Homepage', 'Home page', 'Home', 'Livestream', 'Runbook', 'Rider'])(
+    '%s is not a keyword match',
+    (label) => {
+      expect(chooseProfileFieldIcon(label, 'x').kind).toBe('text')
+    }
+  )
+
+  it('does not match a keyword inside a host name', () => {
+    expect(
+      chooseProfileFieldIcon('Me', link('https://runkit.com/me')).kind
+    ).toBe('link')
   })
 })

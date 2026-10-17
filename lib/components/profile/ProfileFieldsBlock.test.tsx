@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
-import { ProfileFieldsBlock } from './ProfileFieldsBlock'
+import { ProfileFieldsBlock, plainText } from './ProfileFieldsBlock'
 
 const link = (href: string, text: string) =>
   `<a href="${href}" target="_blank" rel="nofollow noopener me">${text}</a>`
@@ -80,7 +80,9 @@ describe('ProfileFieldsBlock', () => {
     const label = screen.getByText('Pronouns')
     expect(label.closest('.sr-only')).toBeNull()
     expect(label).toBeVisible()
-    expect(screen.getByRole('listitem')).toHaveTextContent('Pronounsthey/them')
+    expect(screen.getByRole('listitem')).toHaveTextContent(
+      'Pronouns: they/them'
+    )
   })
 
   it('opens a link in a new tab with rel me and hides the invisible parts', () => {
@@ -177,7 +179,7 @@ describe('ProfileFieldsBlock', () => {
       const item = screen.getByRole('listitem')
       expect(item).toHaveAttribute(
         'title',
-        'Ownership of this link was checked on Mar 4, 2026'
+        'Web: example.com · Ownership of this link was checked on Mar 4, 2026'
       )
       expect(item.innerHTML).toContain('text-success-text')
     })
@@ -204,11 +206,23 @@ describe('ProfileFieldsBlock', () => {
       render(<ProfileFieldsBlock fields={four.slice(0, 3)} />)
 
       const button = screen.getByRole('button', { name: '+1 more' })
-      expect(button.closest('li')).toHaveClass('sm:hidden')
+      expect(button.parentElement).toHaveClass('sm:hidden')
+      expect(screen.getAllByRole('listitem')).toHaveLength(3)
       expect(screen.getAllByRole('listitem')[2]).toHaveClass(
         'hidden',
         'sm:inline-flex'
       )
+    })
+
+    it('keeps one Show less button and the phone-only wrapper with 3 fields expanded', () => {
+      render(<ProfileFieldsBlock fields={four.slice(0, 3)} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '+1 more' }))
+
+      const button = screen.getByRole('button', { name: 'Show less' })
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+      expect(button).toHaveAttribute('aria-expanded', 'true')
+      expect(button.parentElement).toHaveClass('sm:hidden')
     })
 
     it('counts per breakpoint with 4 fields', () => {
@@ -219,9 +233,8 @@ describe('ProfileFieldsBlock', () => {
       expect(phone).toHaveClass('sm:hidden')
       expect(desktop).toHaveClass('max-sm:hidden')
 
-      const items = screen
-        .getAllByRole('listitem')
-        .filter((item) => item.getAttribute('title'))
+      const items = screen.getAllByRole('listitem')
+      expect(items).toHaveLength(4)
       expect(items[0]).not.toHaveClass('hidden')
       expect(items[1]).not.toHaveClass('hidden')
       expect(items[2]).toHaveClass('hidden', 'sm:inline-flex')
@@ -243,7 +256,6 @@ describe('ProfileFieldsBlock', () => {
       )
       screen
         .getAllByRole('listitem')
-        .filter((item) => item.getAttribute('title'))
         .forEach((item) => expect(item).not.toHaveClass('hidden'))
 
       fireEvent.click(buttons[0])
@@ -252,5 +264,23 @@ describe('ProfileFieldsBlock', () => {
         'false'
       )
     })
+  })
+})
+
+describe('plainText', () => {
+  it('drops script and style contents along with tags', () => {
+    expect(
+      plainText('a<script>alert(1)</script><style>p{}</style><b>b</b>')
+    ).toBe('ab')
+  })
+
+  it('decodes named and numeric entities', () => {
+    expect(plainText('Tom &amp; Jerry&#x27;s &#8230; &lt;3 &#39;x&#39;')).toBe(
+      "Tom & Jerry's … <3 'x'"
+    )
+  })
+
+  it('leaves an invalid code point as it is', () => {
+    expect(plainText('&#99999999;')).toBe('&#99999999;')
   })
 })

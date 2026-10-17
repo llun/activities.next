@@ -3,18 +3,18 @@ export type ProfileFieldIconKind =
 
 export interface ProfileFieldIconChoice {
   kind: ProfileFieldIconKind
-  /** True when a keyword picked the icon, so the icon says what the label would. */
-  specific: boolean
+  /** Whether the value holds a link. */
+  isLink: boolean
 }
 
-const LOCATION = /\b(location|based|home|city|lives?|living)/
+const LOCATION = /\b(location|based|hometown|city|lives?|living)\b/
 const IMAGE =
-  /\b(photo|photos|photography|gallery|flickr|pixelfed|instagram|500px)/
-const ACTIVITY = /\b(strava|fitness|run|running|ride|riding|garmin|activity)/
-const MAIL = /\b(mail|email|e-mail)/
+  /\b(photo|photos|photography|gallery|flickr|pixelfed|instagram|500px)\b/
+const ACTIVITY = /\b(strava|fitness|run|running|ride|riding|garmin|activity)\b/
+const MAIL = /\b(mail|email|e-mail)\b/
 
 const hrefOf = (value: string) =>
-  /<a\s[^>]*?href\s*=\s*["']([^"']*)["']/i.exec(value)?.[1] ?? null
+  /<a\s[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(value)
 
 const hostOf = (href: string) => {
   if (/^mailto:/i.test(href)) return 'mailto'
@@ -27,21 +27,21 @@ const hostOf = (href: string) => {
 
 // Picks the icon of a profile field by a case-insensitive keyword match on the
 // label and, for a link, its host. `value` is the field's HTML as stored.
+// `isLink` says whether the value holds a link, so callers agree on it.
 export const chooseProfileFieldIcon = (
   label: string,
   value: string
 ): ProfileFieldIconChoice => {
-  const href = hrefOf(value)
-  const isLink = href !== null
+  const match = hrefOf(value)
+  const href = match ? (match[1] ?? match[2] ?? match[3] ?? '') : null
+  const isLink = match !== null
   const labelText = label.toLowerCase()
   const haystack = `${labelText} ${href ? hostOf(href).toLowerCase() : ''}`
 
-  if (LOCATION.test(labelText)) return { kind: 'location', specific: true }
+  if (LOCATION.test(labelText)) return { kind: 'location', isLink }
   if (MAIL.test(labelText) || href?.toLowerCase().startsWith('mailto:'))
-    return { kind: 'mail', specific: true }
-  if (IMAGE.test(haystack)) return { kind: 'image', specific: true }
-  if (ACTIVITY.test(haystack)) return { kind: 'activity', specific: true }
-  return isLink
-    ? { kind: 'link', specific: false }
-    : { kind: 'text', specific: false }
+    return { kind: 'mail', isLink }
+  if (IMAGE.test(haystack)) return { kind: 'image', isLink }
+  if (ACTIVITY.test(haystack)) return { kind: 'activity', isLink }
+  return { kind: isLink ? 'link' : 'text', isLink }
 }
