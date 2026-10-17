@@ -7,6 +7,7 @@ import {
   ActorDisplayName,
   type CustomEmojiTextProps
 } from '@/lib/components/actors/ActorDisplayName'
+import { Frame } from '@/lib/components/surface/Frame'
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
@@ -60,60 +61,64 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
   )
 
   return (
-    <dl
-      data-slot="profile-fields"
-      className="mt-4 divide-y overflow-hidden rounded-lg border"
-    >
-      {rows.map((field, index) => {
-        const verifiedDate = field.verifiedAt
-          ? formatVerifiedDate(field.verifiedAt)
-          : null
-        const verified = Boolean(field.verifiedAt)
-        return (
-          <div
-            key={`${index}-${field.name}`}
-            className={cn(
-              'grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]',
-              verified && 'bg-success/10'
-            )}
-          >
-            <dt
+    <Frame className="mt-4 overflow-hidden">
+      <dl data-slot="profile-fields" className="divide-y">
+        {rows.map((field, index) => {
+          const verifiedDate = field.verifiedAt
+            ? formatVerifiedDate(field.verifiedAt)
+            : null
+          const verified = Boolean(field.verifiedAt)
+          return (
+            <div
+              key={`${index}-${field.name}`}
               className={cn(
-                'px-4 pt-2.5 text-xs font-medium tracking-wide break-words text-muted-foreground uppercase sm:py-2.5',
-                !verified && 'sm:bg-muted/40'
+                'grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]',
+                verified && 'bg-success/10'
               )}
             >
-              <ActorDisplayName text={field.name} tags={emojiTags} />
-            </dt>
-            <dd
-              title={
-                verified
-                  ? `Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
-                  : undefined
-              }
-              className={cn(
-                'flex min-w-0 items-start gap-1.5 px-4 pt-1 pb-2.5 text-sm [overflow-wrap:anywhere] sm:py-2.5',
-                verified ? VERIFIED_LINK_CLASS : LINK_CLASS
-              )}
-            >
-              {verified ? (
-                <Check
-                  role="img"
-                  aria-label="Verified"
-                  className="mt-0.5 size-3.5 shrink-0 text-success-text"
-                />
-              ) : null}
-              <span className="min-w-0">
-                {cleanClassName(
-                  sanitizeTrustedStatusText(
-                    convertEmojisToImages(sanitizeText(field.value), emojiTags)
-                  )
+              <dt
+                className={cn(
+                  'px-4 pt-2.5 text-xs font-medium tracking-wide break-words text-muted-foreground uppercase sm:py-2.5 sm:leading-5',
+                  !verified && 'sm:bg-muted/40'
                 )}
-              </span>
-            </dd>
-          </div>
-        )
-      })}
-    </dl>
+              >
+                <ActorDisplayName text={field.name} tags={emojiTags} />
+              </dt>
+              <dd
+                title={
+                  verified
+                    ? `Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
+                    : undefined
+                }
+                className={cn(
+                  'flex min-w-0 items-start gap-1.5 px-4 pt-1 pb-2.5 text-sm [overflow-wrap:anywhere] sm:py-2.5',
+                  verified ? VERIFIED_LINK_CLASS : LINK_CLASS
+                )}
+              >
+                {verified ? (
+                  <Check
+                    role="img"
+                    aria-label="Verified"
+                    className="mt-0.5 size-3.5 shrink-0 text-success-text"
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  {cleanClassName(
+                    sanitizeTrustedStatusText(
+                      convertEmojisToImages(
+                        sanitizeText(field.value),
+                        emojiTags
+                      )
+                    ),
+                    // Keep the link the person entered (target and rel="me").
+                    { rewriteProfileLinks: false }
+                  )}
+                </div>
+              </dd>
+            </div>
+          )
+        })}
+      </dl>
+    </Frame>
   )
 }

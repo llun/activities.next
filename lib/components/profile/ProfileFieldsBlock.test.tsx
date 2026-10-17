@@ -37,13 +37,9 @@ describe('ProfileFieldsBlock', () => {
     expect(screen.getAllByRole('definition').map((d) => d.textContent)).toEqual(
       ['they/them', 'Bangkok']
     )
-    const frame = terms[0].closest('dl')
-    expect(frame).toHaveClass(
-      'divide-y',
-      'overflow-hidden',
-      'rounded-lg',
-      'border'
-    )
+    expect(
+      document.querySelector('[data-slot="profile-fields"]')
+    ).toContainElement(terms[0])
   })
 
   it('opens a link in a new tab with rel me and hides the invisible parts', () => {
@@ -67,6 +63,30 @@ describe('ProfileFieldsBlock', () => {
       expect.arrayContaining(['me', 'nofollow', 'noopener', 'noreferrer'])
     )
     expect(link.querySelector('.hidden')).toHaveTextContent('https://')
+  })
+
+  it('keeps the link the person entered instead of rewriting a bridged profile', () => {
+    render(
+      <ProfileFieldsBlock
+        fields={[
+          {
+            name: 'Bluesky',
+            value:
+              '<a href="https://bsky.app/profile/anna.example" rel="me nofollow noopener" target="_blank">bsky.app/profile/anna.example</a>'
+          }
+        ]}
+      />
+    )
+
+    const link = screen.getByRole('link')
+    expect(link).toHaveAttribute(
+      'href',
+      'https://bsky.app/profile/anna.example'
+    )
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link.getAttribute('rel')?.split(' ')).toEqual(
+      expect.arrayContaining(['me', 'nofollow', 'noopener', 'noreferrer'])
+    )
   })
 
   it('strips scripts from a remote value', () => {
@@ -104,7 +124,7 @@ describe('ProfileFieldsBlock', () => {
   describe('verified rows', () => {
     const verifiedAt = '2026-03-04T10:00:00.000Z'
 
-    it('tints the row, marks it verified and explains it in a title', () => {
+    it('marks the row verified and explains it in a title', () => {
       render(
         <ProfileFieldsBlock
           fields={[
@@ -123,12 +143,9 @@ describe('ProfileFieldsBlock', () => {
         'title',
         'Ownership of this link was checked on Mar 4, 2026'
       )
-      expect(definition).toHaveClass('[&_a]:text-success-text')
-      expect(definition.parentElement).toHaveClass('bg-success/10')
-      expect(screen.getByRole('term')).not.toHaveClass('sm:bg-muted/40')
     })
 
-    it('leaves an unverified row plain', () => {
+    it('shows no verified mark on an unverified row', () => {
       render(
         <ProfileFieldsBlock
           fields={[{ name: 'Web', value: 'x', verifiedAt: null }]}
@@ -137,7 +154,6 @@ describe('ProfileFieldsBlock', () => {
 
       expect(screen.queryByLabelText('Verified')).not.toBeInTheDocument()
       expect(screen.getByRole('definition')).not.toHaveAttribute('title')
-      expect(screen.getByRole('term')).toHaveClass('sm:bg-muted/40')
     })
   })
 })

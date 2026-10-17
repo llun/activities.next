@@ -45,6 +45,13 @@ export interface CleanClassNameOptions {
   hideQuoteInline?: boolean
   host?: string
   tags?: Tag[]
+  /**
+   * Rewrite a link to a profile on this instance or a bridged one (for example
+   * `bsky.app/profile/…`) into an in-app profile `Link`. On by default; a
+   * surface that must keep the exact link the author wrote, such as a profile
+   * field carrying `rel="me"`, turns it off.
+   */
+  rewriteProfileLinks?: boolean
 }
 
 export const cleanClassName = (
@@ -55,7 +62,12 @@ export const cleanClassName = (
   // surface with no card leaves the fallback visible as the reader's only
   // clue. The marker rides on a `p` (Mastodon 4.5), a `span` (the older
   // appended convention), or — rarely — the anchor itself.
-  { hideQuoteInline = false, host, tags }: CleanClassNameOptions = {}
+  {
+    hideQuoteInline = false,
+    host,
+    tags,
+    rewriteProfileLinks = true
+  }: CleanClassNameOptions = {}
 ) => {
   const options: HTMLReactParserOptions = {
     replace: (node: DOMNode) => {
@@ -92,13 +104,14 @@ export const cleanClassName = (
           : undefined
 
         const isMention = hasToken(replacingNode.attribs.class, 'mention')
-        const profileHref = !tagName
-          ? extractProfileHref(replacingNode.attribs.href, {
-              host,
-              tags,
-              isMention
-            })
-          : undefined
+        const profileHref =
+          !tagName && rewriteProfileLinks
+            ? extractProfileHref(replacingNode.attribs.href, {
+                host,
+                tags,
+                isMention
+              })
+            : undefined
 
         if (tagName) {
           replacingNode.attribs.href = `/tags/${tagName}`

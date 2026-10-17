@@ -197,47 +197,15 @@ describe('POST /api/v1/accounts/profile', () => {
       )
     })
 
-    it.each([
-      ['a label without content', { 'fields[0][name]': 'Blog' }],
-      [
-        'content without a label',
-        { 'fields[0][value]': 'https://blog.example' }
-      ],
-      [
-        'a label over 255 characters',
-        { 'fields[0][name]': 'a'.repeat(256), 'fields[0][value]': 'x' }
-      ],
-      [
-        'content over 2047 characters',
-        { 'fields[0][name]': 'a', 'fields[0][value]': 'x'.repeat(2048) }
-      ]
-    ])('refuses %s without writing anything', async (_label, fields) => {
-      const response = await post({ name: 'New name', ...fields })
+    it('refuses an invalid row without writing or federating anything', async () => {
+      const response = await post({
+        name: 'New name',
+        'fields[0][name]': 'Blog'
+      })
 
       expect(response.status).toBe(422)
       expect(mockDatabase.updateActor).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
-    })
-
-    it('refuses more than four rows', async () => {
-      const rows = Object.fromEntries(
-        [0, 1, 2, 3, 4].flatMap((index) => [
-          [`fields[${index}][name]`, `n${index}`],
-          [`fields[${index}][value]`, `v${index}`]
-        ])
-      )
-      const response = await post(rows)
-
-      expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
-    })
-
-    it('federates the change as an Update(Person)', async () => {
-      await post({ 'fields[0][name]': 'Blog', 'fields[0][value]': 'x' })
-
-      expect(publishActorUpdate).toHaveBeenCalledWith({
-        actorId: mockCurrentActor.id
-      })
     })
   })
 

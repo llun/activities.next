@@ -373,19 +373,19 @@ const Page: FC<Props> = async ({ params }) => {
 
           <Bio summary={person.summary} tags={getActorEmojiTags(person)} />
 
-          {formattedSoftware && (
-            <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground break-words">
-              <Info className="size-3.5 shrink-0" aria-hidden="true" />
-              <span>{formattedSoftware}</span>
-            </div>
-          )}
-
           {/* A local actor's document already carries each value as HTML, so
               both kinds go through the same sanitizer in the block. */}
           <ProfileFieldsBlock
             fields={getActorProfileFields(person)}
             tags={getActorEmojiTags(person)}
           />
+
+          {formattedSoftware && (
+            <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground break-words">
+              <Info className="size-3.5 shrink-0" aria-hidden="true" />
+              <span>{formattedSoftware}</span>
+            </div>
+          )}
 
           <FeaturedTagsBlock tags={featuredTags} />
         </div>

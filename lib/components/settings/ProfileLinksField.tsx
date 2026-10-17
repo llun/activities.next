@@ -16,6 +16,8 @@ interface Props {
   fields: { name: string; value: string }[]
   /** The public profile URL, shown in the `rel="me"` snippet. */
   profileUrl: string
+  /** The row's hint id (the `FormRow` render prop), read by every input. */
+  describedBy?: string
 }
 
 interface Row {
@@ -33,16 +35,22 @@ const isHalfFilled = (row: Row) =>
  * through the browser's own validation and says why under the row; the route
  * checks the same rule again.
  */
-export const ProfileLinksField: FC<Props> = ({ fields, profileUrl }) => {
+export const ProfileLinksField: FC<Props> = ({
+  fields,
+  profileUrl,
+  describedBy
+}) => {
   const [rows, setRows] = useState<Row[]>(() =>
     Array.from({ length: PROFILE_FIELD_LIMIT }, (_, index) => ({
       name: fields[index]?.name ?? '',
       value: fields[index]?.value ?? ''
     }))
   )
-  // A row's error shows once the person has left it or tried to submit.
+  // A row's error shows once the person has left it or tried to submit. A
+  // half-filled row saved earlier (update_credentials allows one) shows it from
+  // the start, so the person sees why Save is blocked.
   const [shown, setShown] = useState<boolean[]>(() =>
-    Array.from({ length: PROFILE_FIELD_LIMIT }, () => false)
+    rows.map((row) => isHalfFilled(row))
   )
   const nameRefs = useRef<(HTMLInputElement | null)[]>([])
   const valueRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -73,6 +81,9 @@ export const ProfileLinksField: FC<Props> = ({ fields, profileUrl }) => {
       {rows.map((row, index) => {
         const invalid = shown[index] && isHalfFilled(row)
         const errorId = `profileField${index}Error`
+        const inputDescribedBy =
+          [describedBy, invalid ? errorId : null].filter(Boolean).join(' ') ||
+          undefined
         return (
           <div key={index}>
             <div
@@ -96,7 +107,7 @@ export const ProfileLinksField: FC<Props> = ({ fields, profileUrl }) => {
                 maxLength={PROFILE_FIELD_NAME_MAX_LENGTH}
                 value={row.name}
                 aria-invalid={invalid ? true : undefined}
-                aria-describedby={invalid ? errorId : undefined}
+                aria-describedby={inputDescribedBy}
                 onChange={(event) =>
                   update(index, { name: event.target.value })
                 }
@@ -113,7 +124,7 @@ export const ProfileLinksField: FC<Props> = ({ fields, profileUrl }) => {
                 maxLength={PROFILE_FIELD_VALUE_MAX_LENGTH}
                 value={row.value}
                 aria-invalid={invalid ? true : undefined}
-                aria-describedby={invalid ? errorId : undefined}
+                aria-describedby={inputDescribedBy}
                 onChange={(event) =>
                   update(index, { value: event.target.value })
                 }
@@ -121,7 +132,11 @@ export const ProfileLinksField: FC<Props> = ({ fields, profileUrl }) => {
               />
             </div>
             {invalid ? (
-              <p id={errorId} className="mt-1.5 text-xs text-destructive-text">
+              <p
+                id={errorId}
+                role="alert"
+                className="mt-1.5 text-xs text-destructive-text"
+              >
                 {PROFILE_LINK_ERROR}
               </p>
             ) : null}

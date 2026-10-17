@@ -4,6 +4,11 @@ import { Database } from '@/lib/database/types'
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import { buildProfile } from '@/lib/services/accounts/profile'
+import {
+  PROFILE_FIELD_LIMIT,
+  PROFILE_FIELD_NAME_MAX_LENGTH,
+  PROFILE_FIELD_VALUE_MAX_LENGTH
+} from '@/lib/services/accounts/profileFieldLimits'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import {
   OAuthGuardAnyScope,
@@ -32,8 +37,8 @@ export const UPDATE_CREDENTIALS_CORS_HEADERS = [
 ]
 
 const FieldAttribute = z.object({
-  name: z.string().max(255),
-  value: z.string().max(2047)
+  name: z.string().max(PROFILE_FIELD_NAME_MAX_LENGTH),
+  value: z.string().max(PROFILE_FIELD_VALUE_MAX_LENGTH)
 })
 
 // Scalar (non-file) update_credentials params. `fields` are normalized from
@@ -48,7 +53,7 @@ const UpdateCredentialsRequest = z.object({
   hide_collections: z.union([z.boolean(), z.string()]).optional(),
   // Mastodon caps attribution domains at 100 entries; a hostname fits in 255.
   attribution_domains: z.string().max(255).array().max(100).optional(),
-  fields: FieldAttribute.array().max(4).optional(),
+  fields: FieldAttribute.array().max(PROFILE_FIELD_LIMIT).optional(),
   // Mastodon 4.6 PATCH /api/v1/profile appearance params. Accepted on both
   // PATCH endpoints so they share one param surface; update_credentials
   // clients simply never send them. Descriptions cap at 1500 chars (Mastodon's
@@ -260,7 +265,7 @@ export const updateCredentialsHandler = (
         indexable,
         hide_collections,
         attribution_domains,
-        fields,
+        fields: submittedFields,
         source,
         avatar_description,
         header_description,
@@ -268,6 +273,11 @@ export const updateCredentialsHandler = (
         show_media_replies,
         show_featured
       } = parsed.data
+      // Like Mastodon's `fields_attributes`, a row with a blank name and a
+      // blank value is dropped; a name with an empty value is kept.
+      const fields = submittedFields?.filter(
+        (field) => field.name.trim() !== '' || field.value.trim() !== ''
+      )
 
       // Persist avatar/header through the shared media-save pipeline and store
       // the resulting URLs as actor settings. An invalid file (wrong type/too

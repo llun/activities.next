@@ -132,10 +132,13 @@ const Page = async () => {
               hint="Up to 4. Shown on your profile and on other servers. Plain text works too."
               className="sm:items-start"
             >
-              <ProfileLinksField
-                fields={settings?.fields ?? []}
-                profileUrl={getActorProfileUrl(actor)}
-              />
+              {({ describedBy }) => (
+                <ProfileLinksField
+                  fields={settings?.fields ?? []}
+                  profileUrl={getActorProfileUrl(actor)}
+                  describedBy={describedBy}
+                />
+              )}
             </FormRow>
             <ImageUploadField
               fieldName="iconUrl"

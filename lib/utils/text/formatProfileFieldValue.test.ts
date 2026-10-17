@@ -62,4 +62,19 @@ describe('formatProfileFieldValue', () => {
   it('keeps a custom emoji shortcode as text', () => {
     expect(formatProfileFieldValue(':blobcat:')).toBe(':blobcat:')
   })
+
+  it('never splits an emoji at the cut and reassembles to the href', () => {
+    const rest = `${'a'.repeat(29)}😀tail/path`
+    const url = `https://${rest}`
+    const html = formatProfileFieldValue(url)
+    const visible = html.match(
+      /<span class="ellipsis">([^<]*)<\/span><span class="invisible">([^<]*)<\/span>/
+    )
+    expect(visible).not.toBeNull()
+    const [, display, hidden] = visible as RegExpMatchArray
+    expect(display).toBe(`${'a'.repeat(29)}😀`)
+    expect(hidden).toBe('tail/path')
+    expect(`https://${display}${hidden}`).toBe(url)
+    expect(html).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/)
+  })
 })

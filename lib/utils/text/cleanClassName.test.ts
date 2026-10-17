@@ -1,3 +1,4 @@
+import { Fragment, createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { cleanClassName, extractTagFromHref } from './cleanClassName'
@@ -237,5 +238,29 @@ describe('cleanClassName', () => {
       expect(output).toContain('class="quote-inline"')
       expect(output).not.toContain('hidden')
     })
+  })
+})
+
+describe('cleanClassName rewriteProfileLinks', () => {
+  const html =
+    '<a href="https://bsky.app/profile/anna.example" rel="me" target="_blank">anna</a>'
+
+  it('rewrites a bridged profile link into an in-app link by default', () => {
+    const markup = renderToStaticMarkup(
+      createElement(Fragment, null, cleanClassName(html))
+    )
+    expect(markup).toContain('href="/@')
+  })
+
+  it('keeps the original link when the rewrite is turned off', () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        Fragment,
+        null,
+        cleanClassName(html, { rewriteProfileLinks: false })
+      )
+    )
+    expect(markup).toContain('href="https://bsky.app/profile/anna.example"')
+    expect(markup).toContain('target="_blank"')
   })
 })

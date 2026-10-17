@@ -8,10 +8,17 @@ import { PROFILE_LINK_ERROR, ProfileLinksField } from './ProfileLinksField'
 
 const PROFILE_URL = 'https://llun.test/@anna'
 
-const renderField = (fields: { name: string; value: string }[] = []) =>
+const renderField = (
+  fields: { name: string; value: string }[] = [],
+  describedBy?: string
+) =>
   render(
     <form>
-      <ProfileLinksField fields={fields} profileUrl={PROFILE_URL} />
+      <ProfileLinksField
+        fields={fields}
+        profileUrl={PROFILE_URL}
+        describedBy={describedBy}
+      />
     </form>
   )
 
@@ -110,5 +117,27 @@ describe('ProfileLinksField', () => {
     expect(
       (container.querySelector('form') as HTMLFormElement).checkValidity()
     ).toBe(true)
+  })
+
+  it('flags a half-filled saved row on mount and blocks the submit', () => {
+    const { container } = renderField([{ name: 'Pronouns', value: '' }])
+
+    expect(screen.getByRole('alert')).toHaveTextContent(PROFILE_LINK_ERROR)
+    expect(
+      (container.querySelector('form') as HTMLFormElement).checkValidity()
+    ).toBe(false)
+  })
+
+  it('points every input at the row hint, and at the error when there is one', () => {
+    renderField([{ name: 'Pronouns', value: '' }], 'hint-id')
+
+    expect(screen.getByLabelText('Link 2 label')).toHaveAttribute(
+      'aria-describedby',
+      'hint-id'
+    )
+    expect(screen.getByLabelText('Link 1 content')).toHaveAttribute(
+      'aria-describedby',
+      'hint-id profileField0Error'
+    )
   })
 })

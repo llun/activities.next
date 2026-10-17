@@ -740,6 +740,35 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('drops blank profile field rows but keeps a name with an empty value', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          fields_attributes: [
+            { name: '', value: '' },
+            { name: '  ', value: ' ' },
+            { name: 'Pronouns', value: '' }
+          ]
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ fields: [{ name: 'Pronouns', value: '' }] })
+    )
+    updateActor.mockRestore()
+  })
+
   it('accepts an empty JSON body as a no-op (200)', async () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const req = new NextRequest(

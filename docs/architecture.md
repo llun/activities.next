@@ -1548,8 +1548,11 @@ legacy shape left to copy.
   carried in the job so a retried job resends the same Update.
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
-  (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter: a value
-  that is a single http(s) URL becomes Mastodon's link markup (the link has
+  (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a
+  deliberate subset of Mastodon's TextFormatter: only a value that is exactly
+  one http(s) URL becomes a link (what `rel="me"` verification needs; URLs,
+  mentions and hashtags inside other text stay plain text), in Mastodon's link
+  markup (the link has
   `rel="nofollow noopener me"`, the scheme and `www.` sit in a leading
   `invisible` span, an address over 30 characters is cut with `ellipsis`),
   anything else is HTML-escaped text.
