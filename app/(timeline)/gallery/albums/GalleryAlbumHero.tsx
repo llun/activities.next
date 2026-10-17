@@ -12,7 +12,7 @@ interface Props {
   dateRange: string
   // Set when the visible places are all in one country.
   countryName: string | null
-  /** The cover is the page's likely largest contentful paint: fetch it first. */
+  /** The cover is the page's likely largest contentful paint: reveal it without the hydration fade. */
   prioritizeCover?: boolean
 }
 

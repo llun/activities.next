@@ -40,7 +40,8 @@ interface Props {
   statuses: Status[]
   /**
    * The list's first picture is the page's likely largest contentful paint:
-   * load it eagerly at high priority. Off by default, because most pages put
+   * reveal it without the hydration fade (and load it eagerly only where it
+   * would otherwise be lazy). Off by default, because most pages put
    * something else (a cover image, filters, a header) above the list; only the
    * surface whose list is the first visible content opts in.
    */
@@ -114,7 +115,7 @@ export const Posts: FC<Props> = ({
   } | null>(null)
   // Reply/quote/edit share one inline composer owned here, so every surface
   // that renders <Posts> offers the identical action set without re-wiring it.
-  const composer = useInlineComposer(Boolean(currentActor))
+  const composer = useInlineComposer(Boolean(currentActor) && showActions)
 
   // Stable so memoized rows don't re-render when this list's state changes.
   const openStatus = useCallback(

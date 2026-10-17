@@ -1793,7 +1793,8 @@ legacy shape left to copy.
     primary content (they mount only after a click), so they render nothing on
     the server. The composer chunk is preloaded at idle for a signed-in viewer
     (`useInlineComposer(canCompose)`, where `canCompose` is a required
-    boolean) and never for an anonymous one; the picker chunk is preloaded at idle
+    boolean; feeds pass `Boolean(currentActor) && showActions`, so a feed that
+    renders no action row never downloads it) and never for an anonymous one; the picker chunk is preloaded at idle
     when a signed-in viewer's reaction button renders, and when
     its trigger is hovered or focused, or when the compact row's ⋯ menu opens
     (`preloadReactionPicker`). Both are wrapped in `LazyChunkBoundary`, so a
@@ -1809,7 +1810,13 @@ legacy shape left to copy.
     compiler needs the inline options object) and passes it with `load` to
     `createPreloadable` (`lib/components/lazy/createPreloadable.tsx`), which
     returns `{ Component, preload }`: `Component` renders the dynamic component
-    until `preload()` has resolved, then the loaded component directly. Start
+    until `preload()` has resolved, then the loaded component directly. Each
+    mounted instance picks its implementation once (`useState`) and keeps it: a
+    preload resolving while an instance is mounted never swaps it, because that
+    would remount it and drop its state (gallery pagination, an open viewer, a
+    composer draft); only instances that mount afterwards use the preloaded
+    component. `preload()` shares an in-flight or successful load across calls
+    (each reaction button calls it) and retries only after a failure. Start
     preloads from an event handler or an effect (`runWhenIdle`), never at
     module top level, so the server render and hydration still use the dynamic
     (SSR'd) path and cannot mismatch. The composer and reaction picker preload
@@ -1820,7 +1827,9 @@ legacy shape left to copy.
     detail and a media-only profile's gallery are the page's primary content,
     so they stay in the server HTML. `FitnessStatusDetail` shows a skeleton
     while it loads on a client-side navigation; the gallery panels are
-    preloaded when the profile tab bar is hovered or focused.
+    preloaded when the profile tab bar is hovered or focused. All of them sit
+    inside a `LazyChunkBoundary`, so a failed chunk renders the inline message
+    rather than the route error page.
   - **The rule: a lazily loaded component keeps SSR whenever it can be the
     primary content of some page.** Use `ssr: false` only for UI that cannot
     exist before an interaction.

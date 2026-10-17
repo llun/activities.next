@@ -81,7 +81,8 @@ export interface PostProps {
   focused?: boolean
   /**
    * This row's first picture is the first visible media of its page region:
-   * load it eagerly at high priority. A `focused` post always does.
+   * reveal it without the hydration fade (eager only where it would otherwise
+   * be lazy). A `focused` post always does.
    */
   prioritizeMedia?: boolean
 }

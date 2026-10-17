@@ -70,7 +70,7 @@ interface PostBodyProps {
   postLineLimit?: PostLineLimit
   onOpenStatus?: (status: Status) => void
   onShowAttachment?: OnMediaSelectedHandle
-  /** Load this post's first picture eagerly at high priority. */
+  /** Reveal this post's first picture without the hydration fade (eager only where it would otherwise be lazy). */
   prioritizeMedia?: boolean
 }
 

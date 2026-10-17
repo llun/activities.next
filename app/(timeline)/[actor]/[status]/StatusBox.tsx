@@ -7,6 +7,7 @@ import { FC, useState } from 'react'
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
@@ -91,23 +92,25 @@ export const StatusBox: FC<Props> = ({
   if (shouldRenderFitnessDetail) {
     return (
       <>
-        <FitnessStatusDetail
-          host={host}
-          mapProvider={mapProvider}
-          currentTime={currentTime}
-          currentActor={currentActor}
-          status={actualStatus as StatusNote}
-          replies={replies}
-          isMediaUploadEnabled={isMediaUploadEnabled}
-          initialFitnessFiles={fitnessFiles}
-          onShowAttachment={(allMedias, index) => {
-            setModalMedias({
-              medias: allMedias,
-              tags: actualStatus.tags,
-              initialSelection: index
-            })
-          }}
-        />
+        <LazyChunkBoundary>
+          <FitnessStatusDetail
+            host={host}
+            mapProvider={mapProvider}
+            currentTime={currentTime}
+            currentActor={currentActor}
+            status={actualStatus as StatusNote}
+            replies={replies}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            initialFitnessFiles={fitnessFiles}
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias({
+                medias: allMedias,
+                tags: actualStatus.tags,
+                initialSelection: index
+              })
+            }}
+          />
+        </LazyChunkBoundary>
         <OwnPostMediasModal
           medias={modalMedias?.medias ?? null}
           tags={modalMedias?.tags ?? null}

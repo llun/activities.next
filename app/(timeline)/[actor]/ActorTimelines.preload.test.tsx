@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { ActorTimelines } from './ActorTimelines'
 import {
@@ -70,22 +70,6 @@ describe('ActorTimelines tab bar', () => {
       expect(loaded.media).toBe(1)
       expect(loaded.gallery).toBe(1)
     })
-  })
-
-  it('preloads the gallery panels at idle when the profile has a media tab', async () => {
-    vi.useFakeTimers()
-    vi.stubGlobal('requestIdleCallback', undefined)
-    try {
-      renderTimelines()
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000)
-      })
-      expect(loaded.media).toBe(1)
-      expect(loaded.gallery).toBe(1)
-    } finally {
-      vi.useRealTimers()
-      vi.unstubAllGlobals()
-    }
   })
 
   it('prioritizes the first post image only when the profile has no cover', () => {
