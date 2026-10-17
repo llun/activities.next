@@ -94,8 +94,9 @@ const verifyTarget = async ({
 // Like Mastodon's `move_in_progress` key, one Move per origin is processed
 // every 7 days, and the claim is released when verification fails. The job
 // verifies once, records `movedTo`, then publishes one MoveFollowerJob per
-// accepted local follower, each with a deterministic id, so a retry or a
-// redelivery of the same Move never abandons or duplicates a follower.
+// accepted local follower, each with a deterministic id, so a retry never
+// abandons or duplicates a follower. Once all of them are published the claim
+// is marked `queued` and a redelivery of the same Move does nothing.
 export const moveActorJob: JobHandle = createJobHandle(
   MOVE_ACTOR_JOB_NAME,
   async (database, message) => {
@@ -164,15 +165,27 @@ export const moveActorJob: JobHandle = createJobHandle(
         return
       }
 
+      const held = (await database.getActorSettings({ actorId: origin.id }))
+        ?.moveProcessing
+      // Every follower job of this Move was already published: nothing is left.
+      if (
+        held?.queued &&
+        held.activityId === message.id &&
+        held.target === targetId
+      ) {
+        span.setAttribute('alreadyQueued', true)
+        return
+      }
+
       let recorded = false
       try {
-        // A retry of a Move this activity already verified and recorded skips
-        // the verification: a target that is temporarily unreachable must not
-        // leave the followers unqueued. It uses the stored target.
-        const held = (await database.getActorSettings({ actorId: origin.id }))
-          ?.moveProcessing
+        // A retry of a Move this activity already verified and recorded, but
+        // did not finish queuing, skips the verification: a target that is
+        // temporarily unreachable must not leave the followers unqueued. It
+        // uses the stored target.
         const storedTarget =
           held?.verified &&
+          !held.queued &&
           held.activityId === message.id &&
           held.target === targetId &&
           origin.movedTo &&
@@ -239,6 +252,10 @@ export const moveActorJob: JobHandle = createJobHandle(
         if (failures > 0) {
           throw new Error(`Move: ${failures} follower(s) could not be queued`)
         }
+        await database.markActorMoveQueued({
+          actorId: origin.id,
+          activityId: message.id
+        })
       } finally {
         // Verification failed before anything was recorded (or threw): release
         // the claim so a correct Move, or this one's retry, is not blocked.

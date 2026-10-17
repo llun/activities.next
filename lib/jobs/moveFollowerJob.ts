@@ -102,8 +102,10 @@ export const moveFollowerJob: JobHandle = createJobHandle(
       if (oldFollow.status === FollowStatus.enum.Undo) {
         // The previous run flipped the origin follow but may have died before
         // the Undo reached the queue. A follow row with this job's own id,
-        // whatever its status since, proves this job did the flip (it only
-        // flips after creating that row), so this check comes before the
+        // whatever its status since, shows this job most likely did the flip
+        // (it only flips after creating that row). A manual unfollow in between
+        // can also lead here; the result is a harmless duplicate Undo. This
+        // check comes before the
         // `movedTo` check: a profile refresh may have cleared `movedTo` after
         // the flip. The lists were finished before the flip (the flip itself
         // removed the origin from them), so only the Undo is left. The job id

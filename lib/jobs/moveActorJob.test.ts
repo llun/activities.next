@@ -167,16 +167,29 @@ describe('moveActorJob', () => {
     expect(stored?.at).toBeGreaterThanOrEqual(before)
   })
 
-  it('queues the same job ids when the same Move is redelivered or retried', async () => {
+  it('queues nothing when the same Move is replayed after a completed fan-out', async () => {
     await moveActorJob(database, message())
-    const firstRun = publishedFollowerJobs().map(({ id }) => id)
+    expect(publishedFollowerJobs()).toHaveLength(1)
+    expect((await claim())?.queued).toBe(true)
     mockPublish.mockClear()
+    vi.mocked(getActorPerson).mockClear()
 
     await moveActorJob(database, message())
 
-    expect(firstRun).toHaveLength(1)
-    expect(publishedFollowerJobs().map(({ id }) => id)).toEqual(firstRun)
+    expect(mockPublish).not.toHaveBeenCalled()
+    expect(getActorPerson).not.toHaveBeenCalled()
     expect((await claim())?.activityId).toBe('inbox-move-1')
+  })
+
+  it('does not mark the claim queued while a follower could not be queued', async () => {
+    mockPublish.mockRejectedValueOnce(new Error('queue down'))
+    await expect(moveActorJob(database, message())).rejects.toThrow(
+      'could not be queued'
+    )
+
+    const stored = await claim()
+    expect(stored?.verified).toBe(true)
+    expect(stored?.queued).toBeUndefined()
   })
 
   it('does not abandon followers when a retry finds movedTo already set', async () => {
@@ -214,6 +227,25 @@ describe('moveActorJob', () => {
       TARGET
     )
     expect((await claim())?.verified).toBe(true)
+    expect((await claim())?.queued).toBe(true)
+  })
+
+  it('verifies again when the origin movedTo was cleared before the retry', async () => {
+    mockPublish.mockRejectedValueOnce(new Error('queue down'))
+    await expect(moveActorJob(database, message())).rejects.toThrow(
+      'could not be queued'
+    )
+    await database.updateActor({ actorId: ORIGIN, movedTo: null })
+    mockPublish.mockClear()
+    vi.mocked(getActorPerson).mockClear()
+
+    await moveActorJob(database, message())
+
+    expect(getActorPerson).toHaveBeenCalled()
+    expect(publishedFollowerJobs()).toHaveLength(1)
+    expect((await database.getActorFromId({ id: ORIGIN }))?.movedTo).toBe(
+      TARGET
+    )
   })
 
   it('refuses a different Move of the same origin within 7 days', async () => {
@@ -236,15 +268,14 @@ describe('moveActorJob', () => {
 
   it('keeps a verified claim when a replay of the same Move fails verification', async () => {
     await moveActorJob(database, message())
-    const firstRun = publishedFollowerJobs().map(({ id }) => id)
     expect((await claim())?.verified).toBe(true)
     mockPublish.mockClear()
     vi.mocked(getActorPerson).mockResolvedValue(targetPerson([ACTOR2_ID]))
 
     await moveActorJob(database, message())
 
-    // The replay is not verified again; it only queues the same follower jobs.
-    expect(publishedFollowerJobs().map(({ id }) => id)).toEqual(firstRun)
+    // The replay is not verified again and queues nothing.
+    expect(mockPublish).not.toHaveBeenCalled()
     expect((await claim())?.activityId).toBe('inbox-move-1')
     expect((await claim())?.verified).toBe(true)
 
@@ -275,6 +306,22 @@ describe('moveActorJob', () => {
 
     expect(publishedFollowerJobs()).toHaveLength(1)
     expect((await claim())?.activityId).toBe('inbox-move-2')
+  })
+
+  it('verifies the same activity again after the 7 days', async () => {
+    const now = Date.now()
+    await moveActorJob(database, message())
+    expect((await claim())?.queued).toBe(true)
+    mockPublish.mockClear()
+    vi.spyOn(Date, 'now').mockReturnValue(now + 7 * DAY + 1000)
+    vi.mocked(getActorPerson).mockReset().mockResolvedValue(null)
+
+    await moveActorJob(database, message())
+
+    // The expired claim was replaced whole, so neither flag carried over.
+    expect(getActorPerson).toHaveBeenCalled()
+    expect(publishedFollowerJobs()).toEqual([])
+    expect(await claim()).toBeUndefined()
   })
 
   it('still refuses a different Move just inside the 7 days', async () => {

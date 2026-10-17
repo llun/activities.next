@@ -15,6 +15,7 @@ import type {
   ClearActorMoveParams,
   CreateActorParams,
   DeleteActorParams,
+  MarkActorMoveQueuedParams,
   MarkActorMoveVerifiedParams,
   MarkActorProfileFieldsVerifiedParams,
   ScheduleActorDeletionParams,
@@ -491,6 +492,42 @@ export const markActorMoveVerified = async (
         settings: JSON.stringify({
           ...settings,
           moveProcessing: { ...held, verified: true }
+        })
+      })
+      .where('id', '=', actorId)
+      .execute()
+  })
+}
+
+// Recorded once every follower job of a verified Move was published: a later
+// run of the same activity then has nothing left to do. Only the claim of this
+// activity is touched, so an expired claim replaced by a new one is not marked.
+export const markActorMoveQueued = async (
+  db: Db,
+  { actorId, activityId }: MarkActorMoveQueuedParams
+): Promise<void> => {
+  await inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (!row) return
+    const settings = getCompatibleJSON<ActorSettings>(
+      row.settings as string | ActorSettings
+    )
+    const held = settings.moveProcessing
+    if (!held || held.activityId !== activityId || !held.verified) return
+    if (held.queued) return
+    await trx
+      .updateTable('actors')
+      .set({
+        settings: JSON.stringify({
+          ...settings,
+          moveProcessing: { ...held, queued: true }
         })
       })
       .where('id', '=', actorId)

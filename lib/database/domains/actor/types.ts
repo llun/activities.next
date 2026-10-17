@@ -106,6 +106,10 @@ export type MarkActorMoveVerifiedParams = {
   actorId: string
   activityId: string
 }
+export type MarkActorMoveQueuedParams = {
+  actorId: string
+  activityId: string
+}
 export type UpdateActorParams = {
   actorId: string
   type?: ActorType
@@ -247,6 +251,7 @@ export interface ActorDatabase {
   clearActorMove(params: ClearActorMoveParams): Promise<void>
   // Marks the claim of `activityId` as verified: it can no longer be released.
   markActorMoveVerified(params: MarkActorMoveVerifiedParams): Promise<void>
+  markActorMoveQueued(params: MarkActorMoveQueuedParams): Promise<void>
   markActorProfileFieldsVerified(
     params: MarkActorProfileFieldsVerifiedParams
   ): Promise<void>

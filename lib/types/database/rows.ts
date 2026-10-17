@@ -35,12 +35,15 @@ export interface ActorSettings {
   // Internal: never federated and never in the API.
   // `verified` is set once the target was verified and `movedTo` recorded: a
   // verified claim is never released, so a later replay that fails cannot free
-  // the 7-day window.
+  // the 7-day window. `queued` is set once every follower job was published, so
+  // a replay of the same Move after that does nothing (Mastodon's
+  // `move_in_progress`).
   moveProcessing?: {
     at: number
     activityId: string
     target: string
     verified?: boolean
+    queued?: boolean
   }
   // Custom emoji tags in display name/bio.
   tags?: { type: 'emoji'; name: string; value: string }[]

@@ -783,7 +783,10 @@ describe('FollowDatabase', () => {
           status: FollowStatus.enum.Requested
         })
 
-        // Both calls read Requested; only one write can still match it.
+        // SQLite serializes the two calls, so the second one returns false
+        // through the same-status check. The conditional-miss branch (the
+        // status changed between the read and the write) is only a real race
+        // on PostgreSQL.
         const results = await Promise.all([
           database.updateFollowStatus({
             followId: follow.id,

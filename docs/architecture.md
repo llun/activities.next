@@ -1613,7 +1613,11 @@ legacy shape left to copy.
   itself. Once `movedTo` is recorded the claim is marked `verified`
   (`markActorMoveVerified`) and `clearActorMove` refuses to clear it, so a
   verified move holds the 7-day claim even if a later replay of the same Move
-  fails verification. The target is fetched with a signed request
+  fails verification. After every follower job was published
+  (`markActorMoveQueued`) the claim is also marked `queued`, and a later run of
+  the same activity returns without doing anything; the verification-skipping
+  retry applies only to a verified claim that is not yet queued, and a claim
+  older than 7 days is replaced whole, with neither flag. The target is fetched with a signed request
   when a federation signing actor is configured. Only then does the job store
   the origin's `movedTo`, and, unless the target has itself moved (the `movedTo`
   is still recorded, but nobody is rewired, as Mastodon does not follow a moved
