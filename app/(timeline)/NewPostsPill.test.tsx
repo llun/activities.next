@@ -1,7 +1,14 @@
 /**
  * @vitest-environment jsdom
  */
-import { createUnseenAboveStore } from './NewPostsPill'
+import '@testing-library/jest-dom'
+import { fireEvent, render, screen } from '@testing-library/react'
+
+import {
+  NewPostsPill,
+  TimelineScrollToTopButton,
+  createUnseenAboveStore
+} from './NewPostsPill'
 
 describe('createUnseenAboveStore', () => {
   let originalRect: typeof HTMLElement.prototype.getBoundingClientRect
@@ -81,5 +88,116 @@ describe('createUnseenAboveStore', () => {
     store.clear()
     expect(store.getCount()).toBe(0)
     expect(listener).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('NewPostsPill', () => {
+  it('renders nothing when total is 0 and isScrolledDown is false', () => {
+    const store = createUnseenAboveStore()
+    const { container } = render(
+      <NewPostsPill
+        store={store}
+        polledCount={0}
+        isScrolledDown={false}
+        onJump={vi.fn()}
+      />
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('renders "Back to top" when total is 0 and isScrolledDown is true, and invokes onJump on click', () => {
+    const store = createUnseenAboveStore()
+    const onJump = vi.fn()
+    render(
+      <NewPostsPill
+        store={store}
+        polledCount={0}
+        isScrolledDown={true}
+        onJump={onJump}
+      />
+    )
+    const button = screen.getByRole('button', { name: 'Back to top' })
+    expect(button).toBeInTheDocument()
+    expect(button).not.toHaveAttribute('aria-busy')
+    fireEvent.click(button)
+    expect(onJump).toHaveBeenCalledTimes(1)
+  })
+
+  it('sets aria-busy="true" on "Back to top" when isScrolledDown and isRefreshing are true', () => {
+    const store = createUnseenAboveStore()
+    render(
+      <NewPostsPill
+        store={store}
+        polledCount={0}
+        isScrolledDown={true}
+        isRefreshing={true}
+        onJump={vi.fn()}
+      />
+    )
+    const button = screen.getByRole('button', { name: 'Back to top' })
+    expect(button).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('renders "2 new posts" when total > 0 even if isScrolledDown is true', () => {
+    const store = createUnseenAboveStore()
+    render(
+      <NewPostsPill
+        store={store}
+        polledCount={2}
+        isScrolledDown={true}
+        isRefreshing={true}
+        onJump={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: '2 new posts' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Back to top' })
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('TimelineScrollToTopButton', () => {
+  it('hides the floating Scroll to top button when isScrolledDown is true (so the header pill takes over)', () => {
+    const store = createUnseenAboveStore()
+    const originalScrollY = window.scrollY
+    Object.defineProperty(window, 'scrollY', {
+      value: 500,
+      configurable: true,
+      writable: true
+    })
+
+    try {
+      const { rerender } = render(
+        <TimelineScrollToTopButton
+          store={store}
+          polledCount={0}
+          isScrolledDown={false}
+          isLoadMoreVisible={false}
+        />
+      )
+      expect(
+        screen.getByRole('button', { name: 'Scroll to top' })
+      ).toBeInTheDocument()
+
+      rerender(
+        <TimelineScrollToTopButton
+          store={store}
+          polledCount={0}
+          isScrolledDown={true}
+          isLoadMoreVisible={false}
+        />
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Scroll to top' })
+      ).not.toBeInTheDocument()
+    } finally {
+      Object.defineProperty(window, 'scrollY', {
+        value: originalScrollY,
+        configurable: true,
+        writable: true
+      })
+    }
   })
 })

@@ -419,10 +419,16 @@ export const getOfflineTimeline = async (params: {
       lastRefreshedAt: persisted.lastRefreshedAt,
       // The cache is capped, so an anchor saved deeper than it keeps (or one
       // whose status is gone) cannot be restored; drop it instead of letting
-      // the page jump to it later.
+      // the page jump to it later. Also drop an anchor on the very first post
+      // with offsetTop > 80, which was recorded while the reader was still at
+      // the top of the timeline above or inside the composer.
       scrollAnchor:
         persisted.scrollAnchor &&
-        allStatuses.some((s) => s.id === persisted.scrollAnchor?.statusId)
+        allStatuses.some((s) => s.id === persisted.scrollAnchor?.statusId) &&
+        !(
+          allStatuses[0]?.id === persisted.scrollAnchor.statusId &&
+          persisted.scrollAnchor.offsetTop > 80
+        )
           ? persisted.scrollAnchor
           : null
     }
