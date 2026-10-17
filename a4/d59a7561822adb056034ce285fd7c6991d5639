@@ -1,0 +1,28 @@
+app/(timeline)/MainPageTimeline.refresh.test.tsx
+  h_580a04e334fef4 673,675,684,686,688,715,875-922
+app/(timeline)/MainPageTimeline.test.tsx
+  h_580a04e334fef4 1061-1357
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 76,153-160,164-175,270-288,303-308,397-411,414-415,417,420,422-423,435-439,445-448,467,474-475,477-483,498-499,501,508-518,525-538,543,546,558-561,563-576,588-591,595-598,600-601,606-607,610-615,617,627-650,853-854,910-929,932,940,943-946,958-961,971,1008,1010,1014-1032,1094,1149-1173,1176,1178,1180-1183,1189-1190,1212-1215,1297,1311,1334-1335
+app/(timeline)/NewPostsPill.test.tsx
+  h_580a04e334fef4 4-7,89-155
+app/(timeline)/NewPostsPill.tsx
+  h_580a04e334fef4 3,71-72,96-99,104-107,112-113,117-130,136,139-147,155,163,170
+docs/architecture.md
+  h_580a04e334fef4 820,2708
+lib/client/offline/offlineDb.test.ts
+  h_580a04e334fef4 300,306-310,334-380
+lib/client/offline/offlineDb.ts
+  h_580a04e334fef4 422-424,427-431
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a4d59a7561822adb056034ce285fd7c6991d5639",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
