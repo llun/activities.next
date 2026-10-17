@@ -10,7 +10,7 @@ import {
   MapPin,
   Tag
 } from 'lucide-react'
-import { FC, useId, useState } from 'react'
+import { FC, ReactNode, useId, useMemo, useState } from 'react'
 
 import {
   ActorDisplayName,
@@ -79,8 +79,28 @@ const collapsedClass = (index: number) => {
 }
 
 const TITLE_LIMIT = 200
-const clip = (text: string) =>
-  text.length > TITLE_LIMIT ? `${text.slice(0, TITLE_LIMIT)}…` : text
+const clip = (text: string) => {
+  if (text.length <= TITLE_LIMIT) return text
+  // Do not cut a surrogate pair in half.
+  const last = text.charCodeAt(TITLE_LIMIT - 1)
+  const end = last >= 0xd800 && last <= 0xdbff ? TITLE_LIMIT - 1 : TITLE_LIMIT
+  return `${text.slice(0, end)}…`
+}
+
+// Everything a field needs to draw, worked out once per props so that a
+// "+N more" toggle only changes classes and never re-sanitizes a value.
+interface FieldView {
+  key: string
+  Icon: LucideIcon
+  verified: boolean
+  showLabel: boolean
+  isLink: boolean
+  /** Both the label and the value have text, so a separator reads right. */
+  separated: boolean
+  name: string
+  title: string
+  value: ReactNode
+}
 
 const MORE_CLASS =
   'cursor-pointer rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
@@ -96,15 +116,58 @@ const MORE_CLASS =
 export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
   const [expanded, setExpanded] = useState(false)
   const listId = useId()
-  const rows = fields.filter((field) => field.name.trim() || field.value.trim())
-  if (rows.length === 0) return null
-
-  const emojiTags = (tags ?? []).flatMap((tag) =>
-    tag.type === 'emoji' && toEmojiShortcodeToken(tag.name)
-      ? [{ type: 'emoji' as const, name: tag.name, value: tag.value }]
-      : []
+  const emojiTagList = useMemo(
+    () =>
+      (tags ?? []).flatMap((tag) =>
+        tag.type === 'emoji' && toEmojiShortcodeToken(tag.name)
+          ? [{ type: 'emoji' as const, name: tag.name, value: tag.value }]
+          : []
+      ),
+    [tags]
   )
-
+  const rows = useMemo<FieldView[]>(
+    () =>
+      fields
+        .filter((field) => field.name.trim() || field.value.trim())
+        .map((field, index) => {
+          const verifiedDate = field.verifiedAt
+            ? formatVerifiedDate(field.verifiedAt)
+            : null
+          // Sanitized once: the icon, the title and the rendered value all use it.
+          const html = sanitizeText(field.value)
+          const choice = chooseProfileFieldIcon(field.name, html)
+          const label = clip(field.name.trim())
+          const text = clip(htmlToPlainText(html))
+          const named = [label, text].filter(Boolean).join(': ')
+          return {
+            key: `${index}-${field.name}`,
+            Icon: ICONS[choice.kind],
+            verified: Boolean(field.verifiedAt),
+            showLabel: choice.kind === 'text',
+            isLink: choice.isLink,
+            separated: Boolean(label && text),
+            name: field.name,
+            title: field.verifiedAt
+              ? [
+                  named,
+                  `Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : named,
+            value: cleanClassName(
+              sanitizeTrustedStatusText(
+                convertEmojisToImages(html, emojiTagList)
+              ),
+              // Keep the link the person entered (target and rel="me").
+              { rewriteProfileLinks: false }
+            )
+          }
+        }),
+    [fields, emojiTagList]
+  )
+  if (rows.length === 0) return null
+  const emojiTags = emojiTagList
   const hiddenOnPhone = Math.max(0, rows.length - PHONE_VISIBLE)
   const hiddenOnDesktop = Math.max(0, rows.length - DESKTOP_VISIBLE)
 
@@ -134,25 +197,11 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
         className="contents"
       >
         {rows.map((field, index) => {
-          const verifiedDate = field.verifiedAt
-            ? formatVerifiedDate(field.verifiedAt)
-            : null
-          const verified = Boolean(field.verifiedAt)
-          // Sanitized once: the icon, the title and the rendered value all use it.
-          const html = sanitizeText(field.value)
-          const choice = chooseProfileFieldIcon(field.name, html)
-          const Icon = ICONS[choice.kind]
-          const showLabel = choice.kind === 'text'
-          const label = clip(field.name.trim())
-          const text = clip(htmlToPlainText(html))
+          const { Icon, verified, showLabel } = field
           return (
             <li
-              key={`${index}-${field.name}`}
-              title={
-                verified
-                  ? `${label ? `${label}: ` : ''}${text} · Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
-                  : `${label ? `${label}: ` : ''}${text}`
-              }
+              key={field.key}
+              title={field.title}
               className={cn(
                 'inline-flex max-w-full shrink-0 items-center gap-1.5',
                 !expanded && collapsedClass(index)
@@ -176,29 +225,25 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
                 )}
               >
                 <ActorDisplayName text={field.name} tags={emojiTags} />
-                {showLabel ? '' : ': '}
+                {showLabel || !field.separated ? '' : ': '}
               </span>
-              {showLabel ? <span className="sr-only">: </span> : null}
+              {showLabel && field.separated ? (
+                <span className="sr-only">: </span>
+              ) : null}
               <span
                 className={cn(
                   // `pr-px` keeps sub-pixel text widths from tripping the ellipsis.
                   'min-w-0 truncate pr-px',
                   verified
                     ? VERIFIED_LINK_CLASS
-                    : choice.isLink
+                    : field.isLink
                       ? LINK_CLASS
                       : showLabel
                         ? 'text-foreground'
                         : 'text-muted-foreground'
                 )}
               >
-                {cleanClassName(
-                  sanitizeTrustedStatusText(
-                    convertEmojisToImages(html, emojiTags)
-                  ),
-                  // Keep the link the person entered (target and rel="me").
-                  { rewriteProfileLinks: false }
-                )}
+                {field.value}
               </span>
             </li>
           )

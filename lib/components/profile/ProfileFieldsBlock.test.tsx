@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ProfileFieldsBlock } from './ProfileFieldsBlock'
 
@@ -29,6 +30,12 @@ const four = [
   },
   { name: 'Based in', value: 'Lisbon, Portugal' }
 ]
+
+vi.mock('@/lib/utils/text/sanitizeText', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/utils/text/sanitizeText')>()
+  return { ...actual, sanitizeText: vi.fn(actual.sanitizeText) }
+})
 
 describe('ProfileFieldsBlock', () => {
   it('renders nothing without fields', () => {
@@ -241,6 +248,15 @@ describe('ProfileFieldsBlock', () => {
       expect(button.parentElement).toHaveClass('sm:hidden')
     })
 
+    it('does not sanitize again when toggling', () => {
+      render(<ProfileFieldsBlock fields={four} />)
+      vi.mocked(sanitizeText).mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: '+2 more' }))
+
+      expect(sanitizeText).not.toHaveBeenCalled()
+    })
+
     it('counts per breakpoint with 4 fields', () => {
       render(<ProfileFieldsBlock fields={four} />)
 
@@ -300,6 +316,32 @@ describe('ProfileFieldsBlock hostile and hydrated input', () => {
     )
     const title = screen.getByRole('listitem').getAttribute('title') ?? ''
     expect(title).toBe(`${'L'.repeat(200)}…: ${'v'.repeat(200)}…`)
+  })
+
+  it('cuts the title before a surrogate pair instead of through it', () => {
+    render(
+      <ProfileFieldsBlock
+        fields={[{ name: 'Web', value: `${'a'.repeat(199)}😀tail` }]}
+      />
+    )
+    const title = screen.getByRole('listitem').getAttribute('title') ?? ''
+    expect(title).toBe(`Web: ${'a'.repeat(199)}…`)
+  })
+
+  it('writes no separator for a blank label or value', () => {
+    render(
+      <ProfileFieldsBlock
+        fields={[
+          { name: '', value: 'only value' },
+          { name: 'Only label', value: '' }
+        ]}
+      />
+    )
+    const [first, second] = screen.getAllByRole('listitem')
+    expect(first).toHaveAttribute('title', 'only value')
+    expect(second).toHaveAttribute('title', 'Only label')
+    expect(first).not.toHaveTextContent(':')
+    expect(second).not.toHaveTextContent(':')
   })
 
   it('hydrates four fields without a mismatch', async () => {

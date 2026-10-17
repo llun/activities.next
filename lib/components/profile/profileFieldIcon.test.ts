@@ -33,6 +33,14 @@ describe('chooseProfileFieldIcon', () => {
     expect(chooseProfileFieldIcon('Web', 'a.example').isLink).toBe(false)
   })
 
+  it('uses the first anchor that has an href', () => {
+    const result = chooseProfileFieldIcon(
+      'Me',
+      '<a name="x">a</a> <a href="https://www.strava.com/me">b</a>'
+    )
+    expect(result).toEqual({ kind: 'activity', isLink: true })
+  })
+
   it('reads the href attribute, not an href= inside another value', () => {
     expect(
       chooseProfileFieldIcon(

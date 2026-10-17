@@ -26,13 +26,14 @@ const isPixelfedHost = (host: string) =>
   host.split('.').slice(0, -1).includes('pixelfed')
 
 // Linear on its input. sanitize-html always double-quotes attribute values, so
-// walk the opening tag's attributes in order and take the one named `href`; an
-// `href=` inside another attribute's value is never read.
+// walk each opening tag's attributes in order and take the one named `href`; an
+// `href=` inside another attribute's value is never read. The first anchor that
+// has an href wins.
 const hrefOf = (value: string) => {
-  const tag = /<a\s[^>]*>/i.exec(value)?.[0]
-  if (!tag) return null
-  for (const [, name, attrValue] of tag.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
-    if (name.toLowerCase() === 'href') return attrValue
+  for (const [tag] of value.matchAll(/<a\s[^>]*>/gi)) {
+    for (const [, name, attrValue] of tag.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
+      if (name.toLowerCase() === 'href') return attrValue
+    }
   }
   return null
 }
