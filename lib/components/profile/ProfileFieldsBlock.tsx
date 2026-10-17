@@ -167,7 +167,6 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
     [fields, emojiTagList]
   )
   if (rows.length === 0) return null
-  const emojiTags = emojiTagList
   const hiddenOnPhone = Math.max(0, rows.length - PHONE_VISIBLE)
   const hiddenOnDesktop = Math.max(0, rows.length - DESKTOP_VISIBLE)
 
@@ -224,7 +223,7 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
                   showLabel ? 'text-muted-foreground' : 'sr-only'
                 )}
               >
-                <ActorDisplayName text={field.name} tags={emojiTags} />
+                <ActorDisplayName text={field.name} tags={emojiTagList} />
                 {showLabel || !field.separated ? '' : ': '}
               </span>
               {showLabel && field.separated ? (
