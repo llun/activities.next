@@ -467,6 +467,62 @@ describe('POST /api/inbox', () => {
     )
   })
 
+  it('queues remote reports (Flag) signed by the reporting instance actor', async () => {
+    const actor = 'https://mastodon.example/actor'
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = actor
+    mockActivityBody = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: 'https://mastodon.example/flag-1',
+      type: 'Flag',
+      actor,
+      content: 'Spam',
+      object: [
+        'https://allowed.test/users/a',
+        'https://allowed.test/users/a/statuses/1'
+      ]
+    }
+
+    const response = await POST(createRequest(actor), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'ReceiveFlagJob',
+        verifiedSenderActorId: actor,
+        data: expect.objectContaining({
+          actor,
+          object: [
+            'https://allowed.test/users/a',
+            'https://allowed.test/users/a/statuses/1'
+          ],
+          content: 'Spam'
+        })
+      })
+    )
+  })
+
+  it('does not queue a Flag whose actor differs from the verified signer', async () => {
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = 'https://mastodon.example/actor'
+    mockActivityBody = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: 'https://mastodon.example/flag-2',
+      type: 'Flag',
+      actor: 'https://other.example/actor',
+      object: 'https://allowed.test/users/a'
+    }
+
+    const response = await POST(createRequest('https://other.example/actor'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
   it('acknowledges with 202 without queueing when Create Note inner object actor does not match the verified sender', async () => {
     const actor = 'https://allowed.test/users/a'
     mockCanFederateWithDomain.mockResolvedValue(true)

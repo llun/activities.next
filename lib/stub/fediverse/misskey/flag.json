@@ -1,0 +1,16 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "misskey": "https://misskey-hub.net/ns#",
+      "_misskey_content": "misskey:_misskey_content"
+    }
+  ],
+  "id": "https://misskey.test/flags/9tjwl4bvxw-1",
+  "type": "Flag",
+  "actor": "https://misskey.test/users/9tjwl4bvxw",
+  "content": "Harassment in replies",
+  "_misskey_content": "Harassment in replies",
+  "object": "https://llun.test/users/test1"
+}

@@ -6,6 +6,7 @@ import {
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   LIKE_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
+  RECEIVE_FLAG_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
@@ -694,6 +695,70 @@ describe('getJobMessage', () => {
       )
 
       expect(result).toBeNull()
+    })
+  })
+
+  describe('Flag (remote reports)', () => {
+    const instanceActor = 'https://mastodon.example/actor'
+    const flag = {
+      id: 'https://mastodon.example/flag-1',
+      type: 'Flag',
+      actor: instanceActor,
+      content: 'Spam links',
+      object: [
+        'https://llun.test/users/test1',
+        { id: 'https://llun.test/users/test1/statuses/post-1' }
+      ]
+    }
+
+    it('routes a Flag to the receive-flag job with ids and comment only', () => {
+      const result = getJobMessage(
+        { ...flag, to: ['x'] } as never,
+        instanceActor
+      )
+
+      expect(result).toEqual({
+        id: getInboxJobId(flag.id),
+        name: RECEIVE_FLAG_JOB_NAME,
+        verifiedSenderActorId: instanceActor,
+        data: {
+          id: flag.id,
+          actor: instanceActor,
+          object: [
+            'https://llun.test/users/test1',
+            'https://llun.test/users/test1/statuses/post-1'
+          ],
+          content: 'Spam links'
+        }
+      })
+    })
+
+    it('accepts a single object id and a missing comment', () => {
+      const result = getJobMessage(
+        {
+          ...flag,
+          object: 'https://llun.test/users/test1',
+          content: undefined
+        } as never,
+        instanceActor
+      )
+
+      expect(result?.data).toMatchObject({
+        object: ['https://llun.test/users/test1'],
+        content: ''
+      })
+    })
+
+    it('rejects a Flag whose actor is not the verified signer', () => {
+      expect(
+        getJobMessage(flag as never, 'https://evil.test/users/mallory')
+      ).toBeNull()
+    })
+
+    it('rejects a Flag without an id', () => {
+      expect(
+        getJobMessage({ ...flag, id: undefined } as never, instanceActor)
+      ).toBeNull()
     })
   })
 

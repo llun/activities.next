@@ -664,6 +664,31 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   idempotent (a Like delivered to both inboxes is stored once and notifies
   once). A group's `Announce(Like)` (Lemmy) is still dropped.
 
+  **Inbound `Flag` (a report another server forwards) is a local report.**
+  Both inboxes route a `Flag` to `ReceiveFlagJob` (`lib/jobs/receiveFlagJob.ts`),
+  which mirrors Mastodon's `ActivityPub::Activity::Flag`. The `Flag`'s `actor`
+  must be the verified signer (Mastodon signs with its instance actor, an
+  `Application`, so the reporter is an actor row, not a person). `object` is one
+  id or an array. The local accounts it names are reported: one report is filed
+  per LOCAL account (up to 20), skipping suspended ones as Mastodon does, and
+  each report keeps only the LOCAL statuses owned by that account. A `Flag`
+  naming no local account is ignored; Mastodon also accepts reports about
+  remote accounts whose posts reply to local accounts, this server does not.
+  Lemmy `Flag`s name only posts and communities, so they never match. A
+  reporter whose domain has a domain block with `reject_reports` is ignored,
+  whatever the block's severity. The report is stored through `createReport`
+  with the sending actor as reporter, category `other` and the `content`
+  (capped at 5000 characters, as Mastodon does) as the comment, so it appears
+  in `/api/v1/admin/reports` and the admin reports queue like any other. The
+  reports table has no origin column: a report whose reporter is a remote actor
+  is a forwarded one. There is no notification or push alert for new reports of
+  either origin. Redelivery is absorbed by the queue job id (derived from the
+  `Flag`'s id) and by skipping an unresolved report with the same reporter,
+  target, comment and statuses, so identical reports from one server collapse
+  into one while the first is unresolved (a deliberate deviation: Mastodon
+  would file each). A `Flag` delivered by
+  inbox forwarding (signer is not the actor) is dropped.
+
   **Outbound, a reaction is emitted as a Misskey-style `Like`** — the emoji on
   both `content` and `_misskey_reaction`, plus an `Emoji` tag for a custom one —
   because that is the only spelling every server family renders something for.

@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.example/c5b1d9e4-7a1f-4f27-8b32-5b9a6d3f0a11",
+  "type": "Flag",
+  "actor": "https://mastodon.example/actor",
+  "content": "Repeatedly posts spam links",
+  "object": [
+    "https://llun.test/users/test1",
+    "https://llun.test/users/test1/statuses/post-1"
+  ]
+}

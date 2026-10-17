@@ -46,6 +46,7 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+  RECEIVE_FLAG_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   RELAY_ANNOUNCE_JOB_NAME,
   RESOLVE_MEDIA_PLACE_JOB_NAME,
@@ -72,6 +73,7 @@ import {
 import { processFitnessFileJob } from './processFitnessFileJob'
 import { processForwardedActivityJob } from './processForwardedActivityJob'
 import { publishScheduledStatusJob } from './publishScheduledStatusJob'
+import { receiveFlagJob } from './receiveFlagJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { resolveMediaPlaceJob } from './resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from './resolveMediaSubjectJob'
@@ -217,6 +219,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [LIKE_JOB_NAME]() {
     return likeJob
+  },
+  get [RECEIVE_FLAG_JOB_NAME]() {
+    return receiveFlagJob
   },
   get [EMOJI_REACTION_JOB_NAME]() {
     return emojiReactionJob
