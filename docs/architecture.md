@@ -1588,8 +1588,75 @@ legacy shape left to copy.
   origin is suspended or the target is suspended or deleted/being deleted
   (Mastodon parity). Stored `alsoKnownAs` keeps only
   http(s) URLs, at most 20, and an inbound `movedTo` that is not an http(s) URL
-  is dropped. Outbound `alsoKnownAs` and `movedTo` are not emitted: local aliases and account
-  migration do not exist yet.
+  is dropped. Outbound `alsoKnownAs` and `movedTo` are not emitted: local aliases and outbound
+  account migration do not exist yet (see the inbound `Move` bullet below).
+- **An inbound `Move` (account migration) goes to `MoveActorJob` from both
+  inboxes, and nothing in its body is trusted beyond three ids.**
+  `getJobMessage` queues it only when the HTTP signer, `actor` and `object` are
+  the same account (the origin) and `target` is a different one; the job id
+  is `getInboxJobId(activity.id)`, which only some queue backends dedupe, so
+  the claim below is what makes a redelivery safe. The job
+  (`lib/jobs/moveActorJob.ts`, Mastodon's `ActivityPub::Activity::Move` plus
+  `MoveWorker`) works in this order. It ignores a local or suspended origin and
+  a Move where either domain fails `canFederateWithDomain`. A local target is
+  refused for now: local accounts cannot have aliases yet, so no local target
+  could verify. It then claims the origin with Mastodon's
+  `move_in_progress:<account_id>` cooldown: `claimActorMove` stores
+  `moveProcessing: { at, activityId, target }` in the origin actor's settings JSON (no
+  migration), under a row lock, and any other Move of the same origin within 7
+  days is refused. Only a retry with the same activity id and the same target
+  may claim again, so a reused activity id cannot move an account elsewhere. A
+  failed verification releases the claim (`clearActorMove`: the target cannot be
+  fetched, is not the fetched document, does not list the origin in
+  `alsoKnownAs`, or is suspended or deleted/being deleted), so the 7-day limit
+  applies to verified moves; a retry of the same Move is never blocked by
+  itself. Once `movedTo` is recorded the claim is marked `verified`
+  (`markActorMoveVerified`) and `clearActorMove` refuses to clear it, so a
+  verified move holds the 7-day claim even if a later replay of the same Move
+  fails verification. The target is fetched with a signed request
+  when a federation signing actor is configured. Only then does the job store
+  the origin's `movedTo`, and, unless the target has itself moved (the `movedTo`
+  is still recorded, but nobody is rewired, as Mastodon does not follow a moved
+  account), publish one `MoveFollowerJob` per accepted local follower of the
+  origin. Each has a deterministic id from the origin follow id and the target
+  id. Cloud Tasks and NoQueue do not dedupe by job id (only some backends do),
+  so the id only helps where the queue honours it; the follower job protects
+  itself instead (below), and a retry or redelivery may run a follower twice
+  without harm.
+  `MoveFollowerJob` (`UnfollowFollowWorker` plus `FollowMigrationService`)
+  re-checks its own state and is safe to retry or to run twice at once. It
+  stops if the origin follow is no longer `Accepted` or the origin's `movedTo`
+  is not that target. It checks the target again (not suspended, not deleted,
+  `canFederateWithDomain`, not itself moved) and leaves the origin follow if it
+  is unavailable, or if the follower and the target block each other or the
+  follower blocks the target's domain. The follow it makes has a deterministic
+  id derived from `originFollowId/move/targetId` (a UUID), and `createFollow`
+  inserts it with a conflict-ignoring insert on the primary key, so two
+  concurrent runs cannot leave two rows. Only a follow with that id is the
+  job's own leftover: if it is `Requested`, the Follow is sent again for that
+  row (a failed send keeps the row, as Mastodon does, instead of undoing it, so
+  a late Accept never leaves two Accepted follows); if it is `Accepted`, the
+  move is finished. Any other follow of the target, `Requested` or `Accepted`,
+  is the user's own: as in `FollowMigrationService` only
+  `reblogs`/`notify`/`languages` are copied (a language filter the origin does
+  not have is left alone), the target is added to the lists that hold the
+  origin, and the origin follow and the origin in those lists are kept.
+  Otherwise the job creates a `Requested` follow with the origin's options
+  (and stops if that row turns out to be ended already), sends the Follow,
+  adds the target to the follower's lists that hold the origin, marks the
+  origin follow `Undo` (which drops the origin from those lists in the same
+  transaction, so an `Accepted` origin never leaves a list early) and only then
+  queues `SendUndoFollowJob` (deterministic id). The flip must come first:
+  `SendUndoFollowJob` does nothing unless the stored follow is already `Undo`,
+  and NoQueue runs the handler inline inside `publish()`. This is the order
+  `applyBlock` and `acceptFollowRequest` use. If it crashed before the flip the
+  retry repeats the idempotent steps; if it crashed after, the retry only
+  repeats the Undo job: when the origin follow is already `Undo`, `movedTo` is
+  that target and the job's own follow exists, the lists were finished before
+  the flip. A Follow that cannot be delivered keeps the origin
+  follow and throws for a retry. Only accepted local followers are moved.
+  Not done, unlike Mastodon: account notes, mutes and blocks are not carried
+  over yet.
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
   (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a

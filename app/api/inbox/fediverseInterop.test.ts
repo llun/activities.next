@@ -9,6 +9,7 @@ import {
   CREATE_NOTE_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   LIKE_JOB_NAME,
+  MOVE_ACTOR_JOB_NAME,
   RECEIVE_FLAG_JOB_NAME
 } from '@/lib/jobs/names'
 import type { JobMessage } from '@/lib/services/queue/type'
@@ -318,6 +319,31 @@ describe('fediverse interop: shared inbox', () => {
     expect(
       await database.getStatus({ statusId: activity.object.object })
     ).toBeNull()
+  })
+
+  describe('account migration', () => {
+    it('mastodon Move routes to the move job', async () => {
+      const message = await deliver(FEDIVERSE_ACTIVITIES.mastodonMove)
+
+      expect(message).toMatchObject({
+        name: MOVE_ACTOR_JOB_NAME,
+        data: {
+          actor: FEDIVERSE_ACTIVITIES.mastodonMove.actor,
+          object: FEDIVERSE_ACTIVITIES.mastodonMove.object,
+          target: FEDIVERSE_ACTIVITIES.mastodonMove.target
+        },
+        verifiedSenderActorId: FEDIVERSE_ACTIVITIES.mastodonMove.actor
+      })
+    })
+
+    it('drops a Move whose object is not the signer', async () => {
+      const message = await deliver({
+        ...FEDIVERSE_ACTIVITIES.mastodonMove,
+        object: 'https://mastodon.test/users/bob'
+      })
+
+      expect(message).toBeUndefined()
+    })
   })
 
   describe('favourites', () => {

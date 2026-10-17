@@ -11,8 +11,11 @@ import {
 } from '@/lib/database/domains/actor/rows'
 import type {
   CancelActorDeletionParams,
+  ClaimActorMoveParams,
+  ClearActorMoveParams,
   CreateActorParams,
   DeleteActorParams,
+  MarkActorMoveVerifiedParams,
   MarkActorProfileFieldsVerifiedParams,
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
@@ -388,6 +391,106 @@ export const markActorProfileFieldsVerified = async (
           ...settings,
           ...(changed ? { fields } : null),
           linksCheckedAt: checkedAt
+        })
+      })
+      .where('id', '=', actorId)
+      .execute()
+  })
+}
+
+// Mastodon's `move_in_progress:<account_id>` key: stores the claim in the
+// actor's settings JSON (no schema change). The row is read under a lock, so
+// two concurrent Moves cannot both claim. A claim older than `windowMs` is
+// expired, and the activity that holds the claim may claim again for the same
+// target, which is what lets a retry of the same Move run.
+export const claimActorMove = async (
+  db: Db,
+  { actorId, activityId, target, now, windowMs }: ClaimActorMoveParams
+): Promise<boolean> =>
+  inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (!row) return false
+    const settings = getCompatibleJSON<ActorSettings>(
+      row.settings as string | ActorSettings
+    )
+    const held = settings.moveProcessing
+    const live = held !== undefined && now - held.at < windowMs
+    // Within the window only a retry of the same Move (same activity and same
+    // target) gets in; the same activity id cannot be reused for another target.
+    if (live && (held.activityId !== activityId || held.target !== target)) {
+      return false
+    }
+    // A retry keeps the original time so it cannot extend the window.
+    const claim = live ? held : { at: now, activityId, target }
+    await trx
+      .updateTable('actors')
+      .set({ settings: JSON.stringify({ ...settings, moveProcessing: claim }) })
+      .where('id', '=', actorId)
+      .execute()
+    return true
+  })
+
+export const clearActorMove = async (
+  db: Db,
+  { actorId, activityId }: ClearActorMoveParams
+): Promise<void> => {
+  await inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (!row) return
+    const settings = getCompatibleJSON<ActorSettings>(
+      row.settings as string | ActorSettings
+    )
+    if (settings.moveProcessing?.activityId !== activityId) return
+    // A verified move holds its 7-day claim even if a replay fails later.
+    if (settings.moveProcessing.verified) return
+    delete settings.moveProcessing
+    await trx
+      .updateTable('actors')
+      .set({ settings: JSON.stringify(settings) })
+      .where('id', '=', actorId)
+      .execute()
+  })
+}
+
+export const markActorMoveVerified = async (
+  db: Db,
+  { actorId, activityId }: MarkActorMoveVerifiedParams
+): Promise<void> => {
+  await inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (!row) return
+    const settings = getCompatibleJSON<ActorSettings>(
+      row.settings as string | ActorSettings
+    )
+    const held = settings.moveProcessing
+    if (!held || held.activityId !== activityId || held.verified) return
+    await trx
+      .updateTable('actors')
+      .set({
+        settings: JSON.stringify({
+          ...settings,
+          moveProcessing: { ...held, verified: true }
         })
       })
       .where('id', '=', actorId)

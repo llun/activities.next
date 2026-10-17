@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.test/users/alice#moves/1",
+  "type": "Move",
+  "actor": "https://mastodon.test/users/alice",
+  "object": "https://mastodon.test/users/alice",
+  "target": "https://newhome.test/users/alice",
+  "to": "https://mastodon.test/users/alice/followers"
+}

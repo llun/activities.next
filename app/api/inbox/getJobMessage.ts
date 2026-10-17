@@ -12,6 +12,7 @@ import {
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   LIKE_JOB_NAME,
+  MOVE_ACTOR_JOB_NAME,
   RECEIVE_FLAG_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
@@ -461,6 +462,37 @@ export const getJobMessage = (
       id: deduplicationId,
       name: HANDLE_QUOTE_REQUEST_JOB_NAME,
       data: activity,
+      verifiedSenderActorId
+    })
+  }
+
+  // Mastodon-style account migration: `Move` with `actor` and `object` both
+  // the origin account and `target` the new one. Only the origin may announce
+  // its own move, so the signer, `actor` and `object` must be one id. The job
+  // re-fetches the target and requires its `alsoKnownAs` to name the origin;
+  // nothing in this payload is trusted beyond the three ids.
+  if (isMatch(activity, { type: 'Move' })) {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+    const moveActivity: Record<string, unknown> = { ...activity }
+    const origin = normalizeActorId(extractActivityPubId(moveActivity.actor))
+    const object = normalizeActorId(extractActivityPubId(moveActivity.object))
+    const target = normalizeActorId(extractActivityPubId(moveActivity.target))
+    if (
+      !origin ||
+      !object ||
+      !target ||
+      object !== origin ||
+      target === origin
+    ) {
+      return null
+    }
+
+    return createJobMessage({
+      id: deduplicationId,
+      name: MOVE_ACTOR_JOB_NAME,
+      data: { actor: origin, object, target },
       verifiedSenderActorId
     })
   }

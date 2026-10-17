@@ -108,6 +108,7 @@ export const getAcceptedOrRequestedFollow = async (
 export const createFollow = async (
   db: Db,
   {
+    id,
     actorId,
     targetActorId,
     status,
@@ -118,6 +119,10 @@ export const createFollow = async (
     languages = null
   }: CreateFollowParams
 ): Promise<Follow> => {
+  if (id) {
+    const sameId = await getFollowFromId(db, { followId: id })
+    if (sameId) return sameId
+  }
   const existingFollow = await getAcceptedOrRequestedFollow(db, {
     actorId,
     targetActorId
@@ -126,7 +131,7 @@ export const createFollow = async (
 
   const currentTime = new Date()
   const follow: Follow = {
-    id: crypto.randomUUID(),
+    id: id ?? crypto.randomUUID(),
     actorId,
     actorHost: new URL(actorId).host,
     targetActorId,
@@ -140,16 +145,19 @@ export const createFollow = async (
     createdAt: currentTime.getTime(),
     updatedAt: currentTime.getTime()
   }
-  await inTransaction(db, async (trx) => {
-    await trx
-      .insertInto('follows')
-      .values({
-        ...follow,
-        languages: storedLanguages(languages),
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      .execute()
+  const created = await inTransaction(db, async (trx) => {
+    const insert = trx.insertInto('follows').values({
+      ...follow,
+      languages: storedLanguages(languages),
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    // A caller-chosen id is the idempotency key: a concurrent insert of the
+    // same id leaves the first row in place and counts nothing twice.
+    const result = await (
+      id ? insert.onConflict((oc) => oc.column('id').doNothing()) : insert
+    ).executeTakeFirst()
+    if (id && Number(result?.numInsertedOrUpdatedRows ?? 0) === 0) return false
 
     if (status === FollowStatus.enum.Accepted) {
       await increaseCounterValue(
@@ -165,7 +173,12 @@ export const createFollow = async (
         currentTime
       )
     }
+    return true
   })
+  if (!created && id) {
+    // Lost the race for this id: return the row the winner inserted.
+    return (await getFollowFromId(db, { followId: id })) ?? follow
+  }
   return follow
 }
 
@@ -384,24 +397,33 @@ export const getFollowersInbox = async (
 export const updateFollowStatus = async (
   db: Db,
   { followId, status }: UpdateFollowStatusParams
-): Promise<void> => {
+): Promise<boolean> => {
   const currentTime = new Date()
-  await inTransaction(db, async (trx) => {
+  return inTransaction(db, async (trx) => {
     const existingFollow = await trx
       .selectFrom('follows')
       .selectAll()
       .where('id', '=', followId)
       .executeTakeFirst()
-    if (!existingFollow) return
+    if (!existingFollow) return false
     // The follow writers always set both ends; the columns are nullable.
     const actorId = existingFollow.actorId as string
     const targetActorId = existingFollow.targetActorId as string
 
-    await trx
+    // Conditional on the status read above: a concurrent flip that got there
+    // first leaves this one with nothing to do, so the counters (and the list
+    // clean-up below) are adjusted once per real transition.
+    // The status column is nullable, and `= null` never matches.
+    const updateQuery = trx
       .updateTable('follows')
       .set({ status, updatedAt: currentTime })
       .where('id', '=', followId)
-      .execute()
+    const updated = await (
+      existingFollow.status === null
+        ? updateQuery.where('status', 'is', null)
+        : updateQuery.where('status', '=', existingFollow.status)
+    ).executeTakeFirst()
+    if (Number(updated.numUpdatedRows ?? 0) === 0) return false
 
     const wasAccepted = existingFollow.status === FollowStatus.enum.Accepted
     const isAccepted = status === FollowStatus.enum.Accepted
@@ -513,6 +535,8 @@ export const updateFollowStatus = async (
         }
       }
     }
+    // A write of the status the row already had only refreshes updatedAt.
+    return existingFollow.status !== status
   })
 }
 

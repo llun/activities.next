@@ -66,7 +66,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
   .object({
     id: z.string().optional(),
-    type: z.enum(['Move', 'Add', 'Remove']),
+    type: z.enum(['Add', 'Remove']),
     actor: z.string()
   })
   .passthrough()
@@ -293,7 +293,7 @@ export const POST = traceApiRoute(
             }
 
             // Peers may deliver status-level activities (Create, Update, Delete,
-            // Announce, Undo of Announce) to personal inboxes. Route them through
+            // Announce, Undo of Announce, and account Moves) to personal inboxes. Route them through
             // the shared job queue just like the shared inbox does.
             const isStatusLevelActivity =
               isRecord(compactedActivity) &&
@@ -304,6 +304,7 @@ export const POST = traceApiRoute(
                 compactedActivity.type === 'Update' ||
                 compactedActivity.type === 'Delete' ||
                 compactedActivity.type === 'Announce' ||
+                compactedActivity.type === 'Move' ||
                 (compactedActivity.type === 'Undo' &&
                   isRecord(compactedActivity.object) &&
                   compactedActivity.object.type === 'Announce'))
