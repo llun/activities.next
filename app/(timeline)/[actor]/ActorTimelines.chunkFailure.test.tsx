@@ -22,13 +22,17 @@ vi.mock('@/lib/client', () => ({
   getActorStatuses: vi.fn()
 }))
 
-vi.mock('./ActorMediaGallery', () => {
-  throw new Error('Loading chunk failed')
-})
+vi.mock('./ActorMediaGallery', () => ({
+  get ActorMediaGallery(): never {
+    throw new Error('Loading chunk failed')
+  }
+}))
 
-vi.mock('./ProfileGalleryTab', () => {
-  throw new Error('Loading chunk failed')
-})
+vi.mock('./ProfileGalleryTab', () => ({
+  get ProfileGalleryTab(): never {
+    throw new Error('Loading chunk failed')
+  }
+}))
 
 describe('ActorTimelines when a gallery chunk fails to load', () => {
   beforeEach(() => {

@@ -22,9 +22,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() })
 }))
 
-vi.mock('./FitnessStatusDetail', () => {
-  throw new Error('Loading chunk failed')
-})
+vi.mock('./FitnessStatusDetail', () => ({
+  get FitnessStatusDetail(): never {
+    throw new Error('Loading chunk failed')
+  }
+}))
 
 describe('StatusBox when the fitness detail chunk fails to load', () => {
   beforeEach(() => {

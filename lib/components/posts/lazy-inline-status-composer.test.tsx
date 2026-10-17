@@ -13,9 +13,11 @@ vi.mock('next/dynamic', async () => ({
   default: (await import('next/dist/shared/lib/app-dynamic')).default
 }))
 
-vi.mock('@/lib/components/posts/inline-status-composer', () => {
-  throw new Error('Loading chunk failed')
-})
+vi.mock('@/lib/components/posts/inline-status-composer', () => ({
+  get InlineStatusComposer(): never {
+    throw new Error('Loading chunk failed')
+  }
+}))
 
 describe('lazy InlineStatusComposer', () => {
   it('shows an inline message instead of throwing when its chunk fails', async () => {

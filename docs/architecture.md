@@ -1997,7 +1997,7 @@ legacy shape left to copy.
   `lazy-inline-status-composer` (a `next/dynamic`, `ssr: false` wrapper that
   keeps `PostBox` out of anonymous first-load JS; `useInlineComposer(canCompose)`
   preloads the chunk at idle for signed-in viewers, never for anonymous ones).
-  Four pieces are split out of first-load JS, each with its own rule:
+  The pieces split out of first-load JS each have their own rule:
   - **Inline composer and reaction picker: `ssr: false`.** Neither can be
     primary content (they mount only after a click), so they render nothing on
     the server. The composer chunk is preloaded at idle for a signed-in viewer
@@ -2036,9 +2036,13 @@ legacy shape left to copy.
     detail and a media-only profile's gallery are the page's primary content,
     so they stay in the server HTML. `FitnessStatusDetail` shows a skeleton
     while it loads on a client-side navigation; the gallery panels are
-    preloaded when the profile tab bar is hovered or focused. All of them sit
-    inside a `LazyChunkBoundary`, so a failed chunk renders the inline message
-    rather than the route error page.
+    preloaded at idle once the profile has a media or gallery tab, and when the
+    profile tab bar is hovered or focused. All of them sit inside a
+    `LazyChunkBoundary`, so a failed chunk renders the inline message rather
+    than the route error page. The boundary catches only chunk-load failures
+    (`ChunkLoadError`, "Failed to load chunk", "Loading chunk", dynamic-import
+    failures) and rethrows every other render error, so real bugs still reach
+    the route error boundary.
   - **The rule: a lazily loaded component keeps SSR whenever it can be the
     primary content of some page.** Use `ssr: false` only for UI that cannot
     exist before an interaction.
