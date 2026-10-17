@@ -43,10 +43,10 @@ export interface CombinedPostListItemProps {
   /** The run's author posts in order, each with the replies tucked under it. */
   parts: CombinedPart[]
   /**
-   * Identifies the timeline row this belongs to (its root status id, which
-   * outlives replies being added), handed back to `onShowSeparate`.
+   * Every status id of the timeline row this belongs to, handed back to
+   * `onShowSeparate` so the choice survives the row's first post going away.
    */
-  rowKey: string
+  rowIds: string[]
   host: string
   currentTime: number
   currentActor?: ActorProfile
@@ -75,7 +75,7 @@ export interface CombinedPostListItemProps {
     actualStatus: StatusNote | StatusPoll
   ) => void
   /** The ⋯ menu's "Show as separate posts": render this row post by post. */
-  onShowSeparate: (rowKey: string) => void
+  onShowSeparate: (rowIds: string[]) => void
   onStatusCreated?: (status: Status) => void
   onReplyCreated?: (status: Status) => void
   onPostUpdated?: (status: Status) => void
@@ -248,7 +248,7 @@ const InsetReply: FC<InsetReplyProps> = ({
  */
 export const CombinedPostListItem = memo(function CombinedPostListItem({
   parts,
-  rowKey,
+  rowIds,
   host,
   currentTime,
   currentActor,
@@ -304,7 +304,10 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
     key: 'show-separate',
     icon: <Rows3 className="size-4" />,
     label: 'Show as separate posts',
-    onSelect: () => onShowSeparate(rowKey)
+    // The combined article unmounts on select; wait for the menu to close so
+    // focus is not restored to a trigger that is already gone.
+    deferUntilClosed: true,
+    onSelect: () => onShowSeparate(rowIds)
   }
 
   return (

@@ -131,6 +131,8 @@ const mockLikeStatus = vi.mocked(likeStatus)
 const chooseFromMenu = async (trigger: HTMLElement, item: string) => {
   fireEvent.keyDown(trigger, { key: 'ArrowDown' })
   fireEvent.click(await screen.findByRole('menuitem', { name: item }))
+  // Some items run only once the menu has closed.
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 }
 
 describe('TimelineFeed', () => {
@@ -488,11 +490,15 @@ describe('TimelineFeed', () => {
         'Show as separate posts'
       )
 
-      expect(actionBars()).toHaveLength(3)
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
       expect(screen.queryByText(/\d of 3/)).not.toBeInTheDocument()
       expect(
         screen.getByText('Thread part 2: The continuation')
       ).toBeInTheDocument()
+      // Focus moves to the row instead of falling to <body>.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByLabelText('Thread'))
+      )
     })
 
     it('replies to the latest post and acts on the first one', async () => {
@@ -625,7 +631,7 @@ describe('TimelineFeed', () => {
         }),
         'Show as separate posts'
       )
-      expect(actionBars()).toHaveLength(3)
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
 
       // A reply arrives (inline reply, paging): the row's key changes, the
       // viewer's choice does not.
@@ -639,6 +645,34 @@ describe('TimelineFeed', () => {
         screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
       )
       expect(actionBars()).toHaveLength(4)
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+    })
+
+    it('keeps the row as separate posts after its root post goes away', async () => {
+      const t1 = note('r1', 0, '')
+      const t2 = note('r2', MINUTE, t1.id)
+      const t3 = note('r3', 2 * MINUTE, t2.id)
+      const renderFeed = (statuses: Status[]) => (
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      const { rerender } = render(renderFeed([t3, t2, t1]))
+      await chooseFromMenu(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        'Show as separate posts'
+      )
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
+
+      // The root is deleted: the row now starts at r2 and stays separate.
+      rerender(renderFeed([t3, t2]))
+      expect(actionBars()).toHaveLength(2)
       expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
     })
 
@@ -839,6 +873,11 @@ describe('TimelineFeed', () => {
     )
 
     // Click reply on the second post
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('button', { name: /reply/i }).length
+      ).toBeGreaterThanOrEqual(3)
+    )
     const replyButtons = screen.getAllByRole('button', { name: /reply/i })
     expect(replyButtons.length).toBeGreaterThanOrEqual(3)
 

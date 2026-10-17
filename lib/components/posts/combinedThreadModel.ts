@@ -167,7 +167,10 @@ export const buildCombinedBlocks = (
       const repliesToRun =
         info.parentId !== null &&
         (info.parentId === last.status.id ||
-          run.pending.some(({ info: p }) => p.status.id === info.parentId))
+          run.pending.some(({ info: p }) => p.status.id === info.parentId) ||
+          run.parts.some((part) =>
+            part.insets.some((inset) => inset.status.id === info.parentId)
+          ))
       if (
         repliesToRun &&
         info.visibility === run.visibility &&

@@ -165,6 +165,17 @@ describe('buildCombinedBlocks', () => {
       expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual(['a1+b1 > a2'])
     })
 
+    it('lets the author reply to a reply already committed to the run', () => {
+      const a1 = note('a1', { at: 0 })
+      const b = note('b', { actor: mockBob, at: MINUTE, reply: a1.id })
+      const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
+      const a3 = note('a3', { at: 3 * MINUTE, reply: b.id })
+
+      expect(shape(buildCombinedBlocks([a1, b, a2, a3]))).toEqual([
+        'a1+b > a2 > a3'
+      ])
+    })
+
     it('tucks up to two replies', () => {
       const a1 = note('a1', { at: 0 })
       const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })

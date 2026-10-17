@@ -1,7 +1,16 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, Fragment, ReactNode, useCallback, useMemo, useState } from 'react'
+import {
+  FC,
+  Fragment,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
@@ -124,13 +133,36 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   )
 
   // Rows the viewer switched from the combined layout back to separate posts
-  // (the combined post's "Show as separate posts" menu item), keyed by the
-  // row's root status id. `row.key` lists every id in the row, so it changes
-  // whenever a reply is added, deleted or paged in, and would flip the row back.
+  // (the combined post's "Show as separate posts" menu item). Every status id
+  // of the row is stored, because `row.key` changes whenever a reply is added,
+  // deleted or paged in and the row's first id can disappear (the root deleted,
+  // or an older parent paged in); any remaining id still finds the choice.
   const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
-  const showRowSeparate = useCallback((rootId: string) => {
-    setSeparateRows((prev) => new Set(prev).add(rootId))
+  const isRowSeparate = (entryIds: string[]) =>
+    entryIds.some((id) => separateRows.has(id))
+  const focusAfterSeparate = useRef<string | null>(null)
+  const showRowSeparate = useCallback((entryIds: string[]) => {
+    focusAfterSeparate.current = entryIds[0] ?? null
+    setSeparateRows((prev) => {
+      const next = new Set(prev)
+      entryIds.forEach((id) => next.add(id))
+      return next
+    })
   }, [])
+  // The combined article that held focus is gone once the row splits: move
+  // focus to the row's first post instead of letting it fall to <body>.
+  useEffect(() => {
+    const id = focusAfterSeparate.current
+    if (!id) return
+    focusAfterSeparate.current = null
+    const rows = document.querySelectorAll<HTMLElement>('[data-row-status-ids]')
+    for (const row of rows) {
+      if (row.dataset.rowStatusIds?.split(' ').includes(id)) {
+        row.focus()
+        return
+      }
+    }
+  }, [separateRows])
 
   const toggleThreadExpanded = (key: string) => {
     setExpandedThreads((prev) => {
@@ -257,11 +289,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     }
   }
 
-  const renderCombinedBlocks = (
-    rowRootId: string,
-    entryIds: string[],
-    blocks: CombinedBlock[]
-  ) =>
+  const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
     blocks.map((block, index) => {
       const lead =
         index === 0
@@ -286,7 +314,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         <CombinedPostListItem
           key={block.key}
           parts={block.parts}
-          rowKey={rowRootId}
+          rowIds={entryIds}
           host={host}
           currentTime={currentTime}
           currentActor={currentActor}
@@ -370,7 +398,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
             const isExpanded = expandedThreads.has(row.key)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
             const combinedBlocks =
-              shouldCollapse || separateRows.has(row.entryIds[0])
+              shouldCollapse || isRowSeparate(row.entryIds)
                 ? undefined
                 : combinedBlocksByRow.get(row.key)
 
@@ -380,17 +408,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 data-status-id={threadStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
                 aria-label="Thread"
+                tabIndex={-1}
                 className={cn(
-                  'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
+                  'min-h-0 min-w-0 bg-muted/30 focus:outline-none dark:bg-muted/15',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
                 {combinedBlocks ? (
-                  renderCombinedBlocks(
-                    row.entryIds[0],
-                    row.entryIds,
-                    combinedBlocks
-                  )
+                  renderCombinedBlocks(row.entryIds, combinedBlocks)
                 ) : shouldCollapse ? (
                   <>
                     {/* First post */}
@@ -462,7 +487,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             if (convStatuses.length === 0) return null
             rowStatusIds = convStatuses.map((s) => s.id)
-            const combinedBlocks = separateRows.has(row.entryIds[0])
+            const combinedBlocks = isRowSeparate(row.entryIds)
               ? undefined
               : combinedBlocksByRow.get(row.key)
 
@@ -472,17 +497,14 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 data-status-id={convStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
                 aria-label="Conversation"
+                tabIndex={-1}
                 className={cn(
-                  'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
+                  'min-h-0 min-w-0 bg-muted/30 focus:outline-none dark:bg-muted/15',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
                 {combinedBlocks
-                  ? renderCombinedBlocks(
-                      row.entryIds[0],
-                      row.entryIds,
-                      combinedBlocks
-                    )
+                  ? renderCombinedBlocks(row.entryIds, combinedBlocks)
                   : convStatuses.map((status, index) => {
                       const isFirst = index === 0
                       const replyTarget = isFirst
