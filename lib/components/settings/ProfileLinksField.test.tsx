@@ -23,6 +23,23 @@ const renderField = (
   )
 
 describe('ProfileLinksField', () => {
+  it('names the group from the row label', () => {
+    render(
+      <form>
+        <span id="links-label">Profile links</span>
+        <ProfileLinksField
+          fields={[]}
+          profileUrl={PROFILE_URL}
+          labelledBy="links-label"
+        />
+      </form>
+    )
+
+    expect(
+      screen.getByRole('group', { name: 'Profile links' })
+    ).toBeInTheDocument()
+  })
+
   it('renders four label and content pairs with their form names', () => {
     renderField()
 

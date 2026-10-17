@@ -1563,8 +1563,10 @@ legacy shape left to copy.
   raw). The profile page reads the attachments for local and remote actors
   alike and renders them through `ProfileFieldsBlock`, which sanitizes. Both
   the settings form (`parseProfileFieldsForm`) and `update_credentials` cap
-  them at four rows, label 255 and content 2047 characters; the settings form
-  drops an empty row and refuses a half-filled one. `verified_at` stays `null`
+  them at four rows, label 255 and content 2047 characters. Both drop a row
+  whose label and content are both blank; `update_credentials` keeps a
+  half-filled row (as Mastodon does), which the settings form refuses and flags
+  on load. `verified_at` stays `null`
   until link verification exists; `ProfileFieldsBlock` already styles a row
   that carries `verifiedAt`.
 - **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,

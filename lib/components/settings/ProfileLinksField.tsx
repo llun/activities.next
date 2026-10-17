@@ -18,6 +18,8 @@ interface Props {
   profileUrl: string
   /** The row's hint id (the `FormRow` render prop), read by every input. */
   describedBy?: string
+  /** The row's label id (the `FormRow` render prop), naming the group. */
+  labelledBy?: string
 }
 
 interface Row {
@@ -38,7 +40,8 @@ const isHalfFilled = (row: Row) =>
 export const ProfileLinksField: FC<Props> = ({
   fields,
   profileUrl,
-  describedBy
+  describedBy,
+  labelledBy
 }) => {
   const [rows, setRows] = useState<Row[]>(() =>
     Array.from({ length: PROFILE_FIELD_LIMIT }, (_, index) => ({
@@ -77,7 +80,7 @@ export const ProfileLinksField: FC<Props> = ({
     setShown((current) => current.map((flag, i) => flag || i === index))
 
   return (
-    <div className="space-y-2">
+    <div role="group" aria-labelledby={labelledBy} className="space-y-2">
       {rows.map((row, index) => {
         const invalid = shown[index] && isHalfFilled(row)
         const errorId = `profileField${index}Error`

@@ -132,11 +132,12 @@ const Page = async () => {
               hint="Up to 4. Shown on your profile and on other servers. Plain text works too."
               className="sm:items-start"
             >
-              {({ describedBy }) => (
+              {({ describedBy, labelledBy }) => (
                 <ProfileLinksField
                   fields={settings?.fields ?? []}
                   profileUrl={getActorProfileUrl(actor)}
                   describedBy={describedBy}
+                  labelledBy={labelledBy}
                 />
               )}
             </FormRow>
