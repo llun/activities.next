@@ -447,7 +447,7 @@ describe('moveFollowerJob', () => {
     vi.spyOn(database, 'getModerationStatesForActors').mockImplementation(
       async ({ actorIds }) =>
         new Map(
-          actorIds.includes(TARGET)
+          actorIds.some((id) => id === TARGET)
             ? [
                 [
                   TARGET,
