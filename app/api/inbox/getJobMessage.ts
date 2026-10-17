@@ -1,6 +1,7 @@
 import isMatch from 'lodash/isMatch'
 
 import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
+import { getReactionContent } from '@/lib/actions/emojiReaction'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
@@ -10,6 +11,7 @@ import {
   DELETE_OBJECT_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
+  LIKE_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
@@ -103,15 +105,19 @@ const extractActivityPubIds = (value: unknown): string[] => {
 
 // A reaction-bearing activity is either a litepub `EmojiReact` or a
 // Misskey-style `Like` whose emoji rides on `content`/`_misskey_reaction`. A
-// plain `Like` is NOT one: favourites are not routed from the shared inbox
-// today, and quietly starting to would change favourite semantics here.
+// plain `Like` is NOT one: it is a favourite and routes to the like job.
 const isReactionBearing = (value: unknown): boolean => {
   if (!isRecord(value)) return false
   if (value.type === ENTITY_TYPE_EMOJI_REACT) return true
   if (value.type !== ENTITY_TYPE_LIKE) return false
   return (
-    typeof value._misskey_reaction === 'string' ||
-    typeof value.content === 'string'
+    getReactionContent({
+      _misskey_reaction:
+        typeof value._misskey_reaction === 'string'
+          ? value._misskey_reaction
+          : undefined,
+      content: typeof value.content === 'string' ? value.content : undefined
+    }) !== null
   )
 }
 
@@ -369,7 +375,7 @@ export const getJobMessage = (
 
   // Emoji reactions delivered to the shared inbox (Pleroma-family delivery may
   // target it instead of the recipient's personal inbox). Both dialects and the
-  // Undo of each route to one job; a plain Like still falls through to `null`.
+  // Undo of each route to one job; a plain Like routes to the like job below.
   if (
     isReactionBearing(activity) ||
     (activity.type === UndoAction && isReactionBearing(activity.object))
@@ -381,6 +387,30 @@ export const getJobMessage = (
     return createJobMessage({
       id: deduplicationId,
       name: EMOJI_REACTION_JOB_NAME,
+      data: activity,
+      verifiedSenderActorId
+    })
+  }
+
+  // Plain favourites delivered to the shared inbox (GoToSocial, Pixelfed,
+  // Lemmy and Pleroma/Akkoma may target it), handled exactly as at the personal
+  // inbox. Reaction-bearing Likes were routed above; a community's
+  // `Announce(Like)` never gets here (the Announce branch drops it).
+  const rawActivity: unknown = activity
+  if (
+    isRecord(rawActivity) &&
+    (rawActivity.type === ENTITY_TYPE_LIKE ||
+      (rawActivity.type === UndoAction &&
+        isRecord(rawActivity.object) &&
+        rawActivity.object.type === ENTITY_TYPE_LIKE))
+  ) {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+
+    return createJobMessage({
+      id: deduplicationId,
+      name: LIKE_JOB_NAME,
       data: activity,
       verifiedSenderActorId
     })

@@ -4,6 +4,7 @@ import {
   CREATE_NOTE_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
+  LIKE_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME
@@ -653,8 +654,37 @@ describe('getJobMessage', () => {
         description: 'an Undo of a plain Like',
         activity: undoOf(plainLike)
       }
-    ])('leaves $description unrouted', ({ activity }) => {
-      expect(getJobMessage(activity as never, verifiedSenderActorId)).toBeNull()
+    ])('routes $description to the like job', ({ activity }) => {
+      const result = getJobMessage(activity as never, verifiedSenderActorId)
+
+      expect(result?.name).toBe(LIKE_JOB_NAME)
+      expect(result?.data).toEqual(activity)
+      expect(result?.verifiedSenderActorId).toBe(verifiedSenderActorId)
+    })
+
+    it.each([
+      { description: 'empty content', extra: { content: '' } },
+      { description: 'whitespace content', extra: { content: '  ' } },
+      {
+        description: 'empty content and reaction',
+        extra: { content: '', _misskey_reaction: '' }
+      }
+    ])('routes a Like with $description to the like job', ({ extra }) => {
+      const result = getJobMessage(
+        { ...plainLike, ...extra } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result?.name).toBe(LIKE_JOB_NAME)
+    })
+
+    it.each([
+      { description: 'a plain Like', activity: plainLike },
+      { description: 'an Undo of a plain Like', activity: undoOf(plainLike) }
+    ])('rejects $description from a different signer', ({ activity }) => {
+      expect(
+        getJobMessage(activity as never, 'https://evil.example/users/mallory')
+      ).toBeNull()
     })
 
     it('rejects a reaction whose actor differs from the verified sender', () => {

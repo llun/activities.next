@@ -7,7 +7,8 @@ import { JOBS } from '@/lib/jobs'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
-  EMOJI_REACTION_JOB_NAME
+  EMOJI_REACTION_JOB_NAME,
+  LIKE_JOB_NAME
 } from '@/lib/jobs/names'
 import type { JobMessage } from '@/lib/services/queue/type'
 import { seedDatabase } from '@/lib/stub/database'
@@ -318,7 +319,7 @@ describe('fediverse interop: shared inbox', () => {
     ).toBeNull()
   })
 
-  describe('activities the shared inbox acknowledges without a job', () => {
+  describe('favourites', () => {
     it.each([
       {
         description: 'lemmy vote Like',
@@ -331,7 +332,67 @@ describe('fediverse interop: shared inbox', () => {
       {
         description: 'gotosocial Like',
         activity: FEDIVERSE_ACTIVITIES.gotosocialLike
-      },
+      }
+    ])('$description becomes a favourite', async ({ activity }) => {
+      const message = await deliverAndRun(database, activity)
+      expect(message?.name).toBe(LIKE_JOB_NAME)
+
+      expect(
+        await database.isActorLikedStatus({
+          actorId: activity.actor,
+          statusId: LOCAL_POST_ID
+        })
+      ).toBe(true)
+      expect(await database.getLikeCount({ statusId: LOCAL_POST_ID })).toBe(1)
+    })
+
+    it('stores a Like once when it arrives at the shared inbox twice', async () => {
+      const activity = FEDIVERSE_ACTIVITIES.gotosocialLike
+      await deliverAndRun(database, activity)
+      await deliverAndRun(database, activity)
+
+      expect(await database.getLikeCount({ statusId: LOCAL_POST_ID })).toBe(1)
+    })
+
+    it('removes the favourite on Undo(Like)', async () => {
+      const like = FEDIVERSE_ACTIVITIES.pixelfedLike
+      await deliverAndRun(database, like)
+      await deliverAndRun(database, {
+        id: `${like.id}/undo`,
+        type: 'Undo',
+        actor: like.actor,
+        object: like
+      })
+
+      expect(
+        await database.isActorLikedStatus({
+          actorId: like.actor,
+          statusId: LOCAL_POST_ID
+        })
+      ).toBe(false)
+      expect(await database.getLikeCount({ statusId: LOCAL_POST_ID })).toBe(0)
+    })
+
+    it('ignores a Like of a remote object', async () => {
+      const remoteObject = 'https://lemmy.test/post/123'
+      const activity = {
+        ...FEDIVERSE_ACTIVITIES.lemmyLike,
+        object: remoteObject
+      }
+      await deliverAndRun(database, activity)
+
+      expect(await database.getLikeCount({ statusId: remoteObject })).toBe(0)
+      expect(
+        await database.isActorLikedStatus({
+          actorId: activity.actor,
+          statusId: remoteObject
+        })
+      ).toBe(false)
+    })
+  })
+
+  describe('activities the shared inbox acknowledges without a job', () => {
+    it.each([
       {
         description: 'pleroma ChatMessage',
         activity: FEDIVERSE_ACTIVITIES.pleromaCreateChatMessage
