@@ -4,8 +4,10 @@ import type { MockInstance } from 'vitest'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
+import { deleteObjectJob } from '@/lib/jobs/deleteObjectJob'
 import {
   CREATE_NOTE_JOB_NAME,
+  DELETE_OBJECT_JOB_NAME,
   FORWARD_ACTIVITY_JOB_NAME,
   UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
@@ -23,7 +25,7 @@ import {
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -84,6 +86,357 @@ describe('updateNoteJob', () => {
     expect(status.id).toEqual(note.id)
     expect(status.text).toEqual('<p>Hello Updated</p>')
     expect(status.type).toEqual(StatusType.enum.Note)
+  })
+
+  it('resyncs hashtags, mentions and emoji on an edit', async () => {
+    const id = `${EXTERNAL_ACTOR1}/statuses/tag-resync`
+    const emoji = {
+      type: 'Emoji' as const,
+      name: ':blob:',
+      icon: { type: 'Image' as const, url: 'https://llun.dev/emoji/blob.png' }
+    }
+    const note = MockMastodonActivityPubNote({
+      id,
+      from: EXTERNAL_ACTOR1,
+      content: '<p>#old #keep :blob:</p>',
+      tags: [
+        { type: 'Hashtag', name: '#old', href: 'https://llun.dev/tags/old' },
+        { type: 'Hashtag', name: 'keep' },
+        {
+          type: 'Mention',
+          name: '@old@llun.dev',
+          href: 'https://llun.dev/users/old'
+        },
+        emoji
+      ]
+    })
+    await createNoteJob(database, {
+      id: 'tag-resync-create',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+    let status = (await database.getStatus({ statusId: id })) as StatusNote
+    expect(status.tags.map((t) => t.name).sort()).toEqual(
+      [':blob:', '#keep', '#old', '@old@llun.dev'].sort()
+    )
+
+    await updateNoteJob(database, {
+      id: 'tag-resync-update',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: {
+        ...note,
+        content: '<p>#keep #new</p>',
+        tag: [
+          { type: 'Hashtag', name: 'keep', href: 'https://llun.dev/tags/keep' },
+          { type: 'Hashtag', name: '#new', href: 'https://llun.dev/tags/new' },
+          {
+            type: 'Mention',
+            name: '@new@llun.dev',
+            href: 'https://llun.dev/users/new'
+          }
+        ]
+      },
+      verifiedSenderActorId: EXTERNAL_ACTOR1
+    })
+
+    status = (await database.getStatus({ statusId: id })) as StatusNote
+    expect(status.tags.map((t) => t.name).sort()).toEqual([
+      '#keep',
+      '#new',
+      '@new@llun.dev'
+    ])
+    // The removed emoji and mention are gone by name.
+    expect(status.tags.some((t) => t.name === ':blob:')).toBe(false)
+    expect(status.tags.some((t) => t.name === '@old@llun.dev')).toBe(false)
+    expect(status.tags.find((t) => t.name === '#new')?.value).toEqual(
+      'https://llun.dev/tags/new'
+    )
+  })
+
+  describe('hashtag counters and tag rules on an edit', () => {
+    const createRemote = async (
+      id: string,
+      names: string[],
+      audience: { to?: string[]; cc?: string[] } = {}
+    ) => {
+      const note = MockMastodonActivityPubNote({
+        id,
+        from: EXTERNAL_ACTOR1,
+        content: '<p>tags</p>',
+        tags: names.map((name) => ({ type: 'Hashtag' as const, name })),
+        ...audience
+      })
+      await createNoteJob(database, {
+        id: `create-${id}`,
+        name: CREATE_NOTE_JOB_NAME,
+        data: note
+      })
+      return note
+    }
+    const edit = (
+      note: ReturnType<typeof MockMastodonActivityPubNote>,
+      names: string[]
+    ) =>
+      updateNoteJob(database, {
+        id: `edit-${note.id}-${names.join('-')}`,
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...note,
+          tag: names.map((name) => ({ type: 'Hashtag', name }))
+        },
+        verifiedSenderActorId: EXTERNAL_ACTOR1
+      })
+    const counter = (hashtag: string) => database.getHashtagCounter({ hashtag })
+
+    it('moves counters for added and removed hashtags of a public note', async () => {
+      const stamp = Date.now()
+      const [keep, drop, add] = [
+        `ckeep${stamp}`,
+        `cdrop${stamp}`,
+        `cadd${stamp}`
+      ]
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-public-${stamp}`,
+        [keep, drop]
+      )
+      expect(await counter(keep)).toBe(1)
+      expect(await counter(drop)).toBe(1)
+
+      await edit(note, [keep, add])
+      expect(await counter(keep)).toBe(1)
+      expect(await counter(drop)).toBe(0)
+      expect(await counter(add)).toBe(1)
+    })
+
+    it('still decrements and reindexes a stored name the current rule rejects', async () => {
+      const stamp = Date.now()
+      const keep = `lkeep${stamp}`
+      // All digits: Mastodon's rule rejects it, but an older row may hold it.
+      const legacy = `${stamp}`
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-legacy-${stamp}`,
+        [keep]
+      )
+      await database.createTag({
+        statusId: note.id,
+        name: `#${legacy}`,
+        value: '',
+        type: 'hashtag'
+      })
+      await database.increaseHashtagCounter({ hashtag: legacy })
+      expect(await counter(legacy)).toBe(1)
+
+      await edit(note, [keep])
+      expect(await counter(legacy)).toBe(0)
+      expect(await counter(keep)).toBe(1)
+      const status = (await database.getStatus({
+        statusId: note.id
+      })) as StatusNote
+      expect(status.tags.map((tag) => tag.name)).toEqual([`#${keep}`])
+    })
+
+    it('does not move counters for a followers-only note', async () => {
+      const stamp = Date.now()
+      const [keep, add] = [`pkeep${stamp}`, `padd${stamp}`]
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-private-${stamp}`,
+        [keep],
+        { to: [`${EXTERNAL_ACTOR1}/followers`], cc: [] }
+      )
+      await edit(note, [add])
+      expect(await counter(keep)).toBe(0)
+      expect(await counter(add)).toBe(0)
+      const status = (await database.getStatus({
+        statusId: note.id
+      })) as StatusNote
+      expect(status.tags.map((tag) => tag.name)).toEqual([`#${add}`])
+    })
+
+    it('moves no counters for a stored legacy bare `Public` row', async () => {
+      const stamp = Date.now()
+      const [keep, add] = [`bkeep${stamp}`, `badd${stamp}`]
+      // Makes sure the remote actor exists.
+      await createRemote(`${EXTERNAL_ACTOR1}/statuses/bare-seed-${stamp}`, [])
+      const id = `${EXTERNAL_ACTOR1}/statuses/bare-public-${stamp}`
+      // Stored before inbound recipients were canonicalised.
+      await database.createNote({
+        id,
+        url: id,
+        actorId: EXTERNAL_ACTOR1,
+        to: ['Public'],
+        cc: [],
+        text: '<p>tags</p>',
+        createdAt: Date.now()
+      })
+      await database.createTag({
+        statusId: id,
+        name: `#${keep}`,
+        value: '',
+        type: 'hashtag'
+      })
+
+      await edit(
+        MockMastodonActivityPubNote({
+          id,
+          from: EXTERNAL_ACTOR1,
+          content: '<p>tags</p>'
+        }),
+        [add]
+      )
+      expect(await counter(keep)).toBe(0)
+      expect(await counter(add)).toBe(0)
+      const status = (await database.getStatus({
+        statusId: id
+      })) as StatusNote
+      expect(status.tags.map((tag) => tag.name)).toEqual([`#${add}`])
+    })
+
+    it('counts previous rows that differ only in case once each', async () => {
+      const stamp = Date.now()
+      const name = `multi${stamp}`
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-multiset-${stamp}`,
+        []
+      )
+      // A delete decrements once per stored row, so two rows hold two counts.
+      for (const stored of [`#${name}`, `#${name.toUpperCase()}`]) {
+        await database.createTag({
+          statusId: note.id,
+          name: stored,
+          value: '',
+          type: 'hashtag'
+        })
+        await database.increaseHashtagCounter({ hashtag: name })
+      }
+      expect(await counter(name)).toBe(2)
+
+      // One row replaces the two: the counter follows the rows.
+      await edit(note, [name])
+      expect(await counter(name)).toBe(1)
+
+      await edit(note, [])
+      expect(await counter(name)).toBe(0)
+    })
+
+    it('moves counters for an unlisted note', async () => {
+      const stamp = Date.now()
+      const add = `uadd${stamp}`
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-unlisted-${stamp}`,
+        [],
+        { to: [`${EXTERNAL_ACTOR1}/followers`], cc: [ACTIVITY_STREAM_PUBLIC] }
+      )
+      await edit(note, [add])
+      expect(await counter(add)).toBe(1)
+    })
+
+    it('treats case variants as the same hashtag', async () => {
+      const stamp = Date.now()
+      const lower = `casevariant${stamp}`
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-case-${stamp}`,
+        [lower, lower.toUpperCase()]
+      )
+      expect(await counter(lower)).toBe(1)
+
+      // Same tag, different case: nothing was added or removed.
+      await edit(note, [`#${lower.toUpperCase()}`])
+      expect(await counter(lower)).toBe(1)
+      const status = (await database.getStatus({
+        statusId: note.id
+      })) as StatusNote
+      expect(status.tags).toHaveLength(1)
+    })
+
+    it('leaves the tags and counters of a local status untouched', async () => {
+      const stamp = Date.now()
+      const localId = `${ACTOR1_ID}/statuses/local-tags-${stamp}`
+      const hashtag = `localtag${stamp}`
+      await database.createNote({
+        id: localId,
+        url: localId,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: `<p>#${hashtag}</p>`,
+        createdAt: Date.now()
+      })
+      await database.createTag({
+        statusId: localId,
+        name: `#${hashtag}`,
+        value: '',
+        type: 'hashtag'
+      })
+
+      await updateNoteJob(database, {
+        id: `edit-${localId}`,
+        name: UPDATE_NOTE_JOB_NAME,
+        data: MockMastodonActivityPubNote({
+          id: localId,
+          from: ACTOR1_ID,
+          content: '<p>edited</p>',
+          tags: [{ type: 'Hashtag', name: 'replaced' }]
+        }),
+        verifiedSenderActorId: ACTOR1_ID
+      })
+
+      const status = (await database.getStatus({
+        statusId: localId
+      })) as StatusNote
+      expect(status.tags.map((tag) => tag.name)).toEqual([`#${hashtag}`])
+      expect(await counter('replaced')).toBe(0)
+    })
+
+    it('ends at zero after a Create, an Update and a Delete', async () => {
+      const stamp = Date.now()
+      const [first, second, shared] = [
+        `lifea${stamp}`,
+        `lifeb${stamp}`,
+        `lifec${stamp}`
+      ]
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/counter-lifecycle-${stamp}`,
+        [first, shared]
+      )
+      expect(await counter(first)).toBe(1)
+      expect(await counter(shared)).toBe(1)
+
+      await edit(note, [second, shared])
+      expect(await counter(first)).toBe(0)
+      expect(await counter(second)).toBe(1)
+      expect(await counter(shared)).toBe(1)
+
+      await deleteObjectJob(database, {
+        id: `delete-${note.id}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { type: 'Tombstone', id: note.id },
+        verifiedSenderActorId: EXTERNAL_ACTOR1
+      })
+      await expect(
+        database.getStatus({ statusId: note.id, withReplies: false })
+      ).resolves.toBeNull()
+      expect(await counter(first)).toBe(0)
+      expect(await counter(second)).toBe(0)
+      expect(await counter(shared)).toBe(0)
+    })
+
+    it('drops invalid hashtag names on an edit without failing the job', async () => {
+      const stamp = Date.now()
+      const keep = `invkeep${stamp}`
+      const note = await createRemote(
+        `${EXTERNAL_ACTOR1}/statuses/invalid-edit-${stamp}`,
+        [keep]
+      )
+      await edit(note, ['12345', 'has space', 'a'.repeat(300)])
+      const status = (await database.getStatus({
+        statusId: note.id
+      })) as StatusNote
+      // The all-digit and the too-long names are skipped and the job completes;
+      // 'has space' is normalised to `#hasspace` (the space is stripped). The
+      // edit replaces the set, as in Mastodon.
+      expect(status.tags.map((tag) => tag.name)).toEqual(['#hasspace'])
+      expect(await counter(keep)).toBe(0)
+    })
   })
 
   it.each([

@@ -7,12 +7,11 @@ import {
   getLanguage,
   getReply,
   getSummary,
-  getTags,
   getUrl
 } from '@/lib/activities/note'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
-import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -23,6 +22,7 @@ import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
+import { persistNoteTags } from './noteTags'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createPollJob = createJobHandle(
@@ -128,59 +128,26 @@ export const createPollJob = createJobHandle(
       declaredLanguage: language
     })
 
-    const tags = getTags(question)
-    const seenHashtags = new Set<string>()
-    const affectedHashtags: string[] = []
-    await Promise.all([
+    const [, affectedHashtags] = await Promise.all([
       addStatusToTimelines(database, status),
-      ...tags.map(async (item) => {
-        if (item.type === 'Emoji') {
-          return database.createTag({
-            statusId: question.id,
-            name: item.name,
-            value: item.icon.url,
-            type: 'emoji'
-          })
-        }
-        if (item.type === 'Hashtag') {
-          const hashtagName = (item.name || '').trim()
-          const hashtagHref = (item.href || '').trim()
-          if (!hashtagName || !hashtagHref) return
-          const normalizedKey = hashtagName.toLowerCase()
-          if (seenHashtags.has(normalizedKey)) return
-          seenHashtags.add(normalizedKey)
-          affectedHashtags.push(hashtagName)
-
-          await database.createTag({
-            statusId: question.id,
-            name: hashtagName,
-            value: hashtagHref,
-            type: 'hashtag',
-            skipSearchIndex: true
-          })
-          const tagName = hashtagName.startsWith('#')
-            ? hashtagName.slice(1)
-            : hashtagName
-          // The count is served to anonymous /tags/<tag> visitors; a
-          // followers-only or direct poll must not move it.
-          if (
-            isPublicOrUnlisted({
-              to: toRecipientArray(question.to),
-              cc: toRecipientArray(question.cc)
-            })
-          ) {
-            await database.increaseHashtagCounter({ hashtag: tagName })
-          }
-          return
-        }
-        return database.createTag({
-          statusId: question.id,
-          name: item.name || '',
-          value: item.href,
-          type: 'mention'
-        })
+      persistNoteTags({
+        database,
+        statusId: question.id,
+        note: question
       })
     ])
+    // The count is served to anonymous /tags/<tag> visitors; a followers-only
+    // or direct poll must not move it.
+    if (
+      isPubliclyAddressed({
+        to: toRecipientArray(question.to),
+        cc: toRecipientArray(question.cc)
+      })
+    ) {
+      for (const hashtag of affectedHashtags) {
+        await database.increaseHashtagCounter({ hashtag: hashtag.slice(1) })
+      }
+    }
     if (affectedHashtags.length > 0) {
       await database.indexHashtagSearchDocuments({
         hashtags: affectedHashtags

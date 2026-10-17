@@ -444,6 +444,114 @@ describe('createNoteJob', () => {
     )
   })
 
+  it('stores a bare `Public` recipient with the canonical public URI', async () => {
+    const noteId = `https://${actor1!.domain}/notes/bare-public-${Date.now()}`
+    await createNoteJob(database, {
+      id: 'id-bare-public',
+      name: CREATE_NOTE_JOB_NAME,
+      data: MockMastodonActivityPubNote({
+        id: noteId,
+        content: '<p>Hello</p>',
+        to: ['Public'],
+        cc: []
+      })
+    })
+    const status = (await database.getStatus({ statusId: noteId })) as Status
+    expect(status.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+  })
+
+  it('returns the hashtag counter to its start value when a bare `Public` note is deleted', async () => {
+    const noteId = `https://${actor1!.domain}/notes/bare-public-count-${Date.now()}`
+    const before = await database.getHashtagCounter({ hashtag: 'barepublic' })
+    await createNoteJob(database, {
+      id: 'id-bare-public-count',
+      name: CREATE_NOTE_JOB_NAME,
+      data: MockMastodonActivityPubNote({
+        id: noteId,
+        content: '<p>Hello #barepublic</p>',
+        to: ['Public'],
+        cc: [],
+        tags: [{ type: 'Hashtag', name: 'barepublic' }]
+      })
+    })
+    expect(await database.getHashtagCounter({ hashtag: 'barepublic' })).toBe(
+      before + 1
+    )
+
+    await database.deleteStatus({ statusId: noteId })
+    expect(await database.getHashtagCounter({ hashtag: 'barepublic' })).toBe(
+      before
+    )
+  })
+
+  it('accepts content: [] as a status with empty text, or with its source', async () => {
+    const stamp = Date.now()
+    const emptyId = `https://${actor1!.domain}/notes/empty-content-${stamp}`
+    const sourceId = `https://${actor1!.domain}/notes/source-content-${stamp}`
+    const base = (id: string) => ({
+      ...MockMastodonActivityPubNote({ id, content: 'x' }),
+      contentMap: undefined
+    })
+    await createNoteJob(database, {
+      id: 'id-empty-content',
+      name: CREATE_NOTE_JOB_NAME,
+      data: { ...base(emptyId), content: [] } as never
+    })
+    await createNoteJob(database, {
+      id: 'id-source-content',
+      name: CREATE_NOTE_JOB_NAME,
+      data: {
+        ...base(sourceId),
+        content: [],
+        source: { content: 'from source', mediaType: 'text/markdown' }
+      } as never
+    })
+    const empty = (await database.getStatus({
+      statusId: emptyId
+    })) as StatusNote
+    expect(empty).toBeDefined()
+    expect(empty.text).toEqual('')
+    const fromSource = (await database.getStatus({
+      statusId: sourceId
+    })) as StatusNote
+    expect(fromSource.text).toEqual('<p>from source</p>')
+  })
+
+  it('skips invalid and over-long hashtags and keeps the rest', async () => {
+    const noteId = `https://${actor1!.domain}/notes/bad-tags-${Date.now()}`
+    await createNoteJob(database, {
+      id: 'id-bad-tags',
+      name: CREATE_NOTE_JOB_NAME,
+      data: MockMastodonActivityPubNote({
+        id: noteId,
+        content: '<p>Hello</p>',
+        tags: [
+          { type: 'Hashtag', name: '#good_tag' },
+          { type: 'Hashtag', name: '#12345' },
+          { type: 'Hashtag', name: '#12_' },
+          { type: 'Hashtag', name: '#trailing·' },
+          { type: 'Hashtag', name: '#has space' },
+          { type: 'Hashtag', name: '#_leading' },
+          { type: 'Hashtag', name: `#${'a'.repeat(300)}` },
+          {
+            type: 'Hashtag',
+            name: '#long_href',
+            href: `https://somewhere.test/${'a'.repeat(300)}`
+          }
+        ]
+      })
+    })
+    const tags = await database.getTags({ statusId: noteId })
+    // Mastodon accepts a leading underscore and strips characters outside the
+    // allowed set ("has space" becomes "hasspace"); it rejects all-digit names
+    // and names ending in a separator.
+    expect(tags.map((tag) => tag.name).sort()).toEqual([
+      '#_leading',
+      '#good_tag',
+      '#hasspace'
+    ])
+  })
+
   it('recovers a concurrent duplicate insert without re-running tag or hashtag side effects', async () => {
     const noteId = `https://${actor1!.domain}/notes/dup-recovery-${Date.now()}`
     const note = MockMastodonActivityPubNote({

@@ -140,6 +140,28 @@ describe('createPollJob', () => {
     expect(status?.cc).toEqual(question.cc)
   })
 
+  it('stores a hashtag without # or href and counts it, like a note', async () => {
+    const question = MockActivityPubQuestion({
+      tags: [{ type: 'Hashtag', name: 'looseolltag' }]
+    })
+    const before = await database.getHashtagCounter({
+      hashtag: 'looseolltag'
+    })
+    await createPollJob(database, {
+      id: 'id-loose-poll-tag',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    const tags = await database.getTags({ statusId: question.id })
+    expect(tags.map((tag) => [tag.name, tag.type])).toEqual([
+      ['#looseolltag', 'hashtag']
+    ])
+    expect(await database.getHashtagCounter({ hashtag: 'looseolltag' })).toBe(
+      before + 1
+    )
+  })
+
   it('falls back to the question id when its url is not http(s)', async () => {
     const question = {
       ...MockActivityPubQuestion({
