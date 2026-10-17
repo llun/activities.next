@@ -57,6 +57,18 @@ export const APActor = z.object({
   manuallyApprovesFollowers: z.boolean().optional(),
   discoverable: z.boolean().optional(),
   indexable: z.boolean().optional(),
+  // Mastodon 4.4+: domains allowed to credit this actor as an author.
+  // A single domain can compact to a bare string, and a peer can send junk:
+  // accept a string or strings, keep the strings, and never reject the actor.
+  attributionDomains: z
+    .union([z.string(), z.array(z.unknown())])
+    .transform((value) =>
+      (Array.isArray(value) ? value : [value]).filter(
+        (item): item is string => typeof item === 'string'
+      )
+    )
+    .optional()
+    .catch(undefined),
   memorial: z.boolean().optional(),
   suspended: z.boolean().optional(),
   devices: z.string().url().optional(),
@@ -65,10 +77,16 @@ export const APActor = z.object({
   // fallback preserves whatever the peer sent). Accept either shape and
   // normalise to an array so consumers see one consistent type.
   alsoKnownAs: z
-    .union([z.string(), z.array(z.string())])
-    .transform((value) => (Array.isArray(value) ? value : [value]))
-    .optional(),
-  movedTo: z.string().optional(),
+    .union([z.string(), z.array(z.unknown())])
+    .transform((value) =>
+      (Array.isArray(value) ? value : [value]).filter(
+        (item): item is string => typeof item === 'string'
+      )
+    )
+    .optional()
+    .catch(undefined),
+  // Liberal but safe: a non-URL value is dropped rather than failing the actor.
+  movedTo: z.string().url().optional().catch(undefined),
   // A peer may publish several keys (FEP-521a style arrays, or a key per
   // algorithm); the output stays the single key the rest of the codebase
   // verifies against.

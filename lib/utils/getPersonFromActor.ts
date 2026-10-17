@@ -17,6 +17,17 @@ export const getActorProfileUrl = (
     ? actor.id
     : `https://${actor.domain}/@${actor.username}`
 
+const HOSTNAME_LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/
+
+const isValidAttributionDomain = (value: string) => {
+  const domain = value.trim().toLowerCase()
+  return (
+    domain.length > 0 &&
+    domain.length <= 253 &&
+    domain.split('.').every((label) => HOSTNAME_LABEL.test(label))
+  )
+}
+
 export const getPersonFromActor = (
   actor: Actor
 ): ActivityPubActor & { '@context': (string | Record<string, unknown>)[] } => {
@@ -66,6 +77,11 @@ export const getPersonFromActor = (
       value: formatProfileFieldValue(field.value)
     }))
 
+  // Mastodon 4.4+ author attribution: only valid hostnames are federated.
+  const attributionDomains = (actor.attributionDomains ?? []).filter(
+    isValidAttributionDomain
+  )
+
   const person = ActivityPubActor.parse({
     id: actor.id,
     type: actorType,
@@ -83,6 +99,12 @@ export const getPersonFromActor = (
     // Mastodon, Misskey and GoToSocial read this to show a locked account and
     // to expect a follow request rather than an immediate Accept.
     manuallyApprovesFollowers: actor.manuallyApprovesFollowers ?? false,
+    // Both are opt-in on the wire, as in Mastodon's ActorSerializer
+    // (`discoverable || false`): an unset flag federates as false, so users
+    // who never opted in are not advertised to remote servers.
+    discoverable: actor.discoverable === true,
+    indexable: actor.indexable === true,
+    ...(attributionDomains.length > 0 ? { attributionDomains } : null),
     publicKey: {
       id: `${actor.id}#main-key`,
       owner: actor.id,
@@ -105,9 +127,19 @@ export const getPersonFromActor = (
         // Not in the ActivityStreams context document; Mastodon declares it
         // the same way so compacting peers keep the term.
         manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
-        ...(emojiTags.length > 0
-          ? { toot: 'http://joinmastodon.org/ns#', Emoji: 'toot:Emoji' }
+        toot: 'http://joinmastodon.org/ns#',
+        discoverable: 'toot:discoverable',
+        indexable: 'toot:indexable',
+        ...(attributionDomains.length > 0
+          ? {
+              attributionDomains: {
+                '@id': 'toot:attributionDomains',
+                '@type': '@id',
+                '@container': '@set'
+              }
+            }
           : null),
+        ...(emojiTags.length > 0 ? { Emoji: 'toot:Emoji' } : null),
         // Mastodon declares the schema prefix with the non-standard
         // `http://schema.org#` base; the inbound canonical context uses the
         // same IRI, so keep it.

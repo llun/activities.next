@@ -43,7 +43,7 @@ export const asSQLActor = (row: object) => row as SQLActor
 const optionalTime = (value: number | Date | string | null | undefined) =>
   value != null ? getCompatibleTime(value) : null
 
-const getSettings = (sqlActor: SQLActor) =>
+export const getSettings = (sqlActor: SQLActor) =>
   getCompatibleJSON<ActorSettings>(sqlActor.settings)
 
 export const getConfiguredActorDomain = () => {
@@ -144,6 +144,19 @@ export const getActor = (
       : null),
     manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
     ...(settings.tags ? { tags: settings.tags } : null),
+    ...(settings.discoverable !== undefined
+      ? { discoverable: settings.discoverable }
+      : null),
+    ...(settings.indexable !== undefined
+      ? { indexable: settings.indexable }
+      : null),
+    ...(settings.movedTo ? { movedTo: settings.movedTo } : null),
+    ...(settings.alsoKnownAs?.length
+      ? { alsoKnownAs: settings.alsoKnownAs }
+      : null),
+    ...(settings.attributionDomains?.length
+      ? { attributionDomains: settings.attributionDomains }
+      : null),
     ...(settings.fields?.length ? { fields: settings.fields } : null),
     // Booleans use !== undefined so a persisted `false` survives the
     // row-to-domain round-trip (a truthy spread would drop it).
@@ -183,7 +196,9 @@ export const getActor = (
 // notifications, search, reactions, favourited_by, …) flips through here.
 export const getMastodonAccountFromSQLActor = (
   sqlActor: SQLActor,
-  counters: ActorCounters
+  counters: ActorCounters,
+  // The account a remote actor moved to, when its row is stored here.
+  moved?: Mastodon.Account
 ) => {
   const settings = getSettings(sqlActor)
   const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
@@ -295,6 +310,7 @@ export const getMastodonAccountFromSQLActor = (
 
     followers_count: counters.followersCount,
     following_count: counters.followingCount,
-    statuses_count: counters.statusCount
+    statuses_count: counters.statusCount,
+    ...(moved ? { moved } : null)
   })
 }

@@ -101,6 +101,21 @@ export const getActorEmojiTags = (
   })
 }
 
+const MAX_STORED_ALIASES = 20
+
+// Keep only http(s) URL strings, capped, so a hostile profile cannot bloat the
+// stored settings.
+const isHttpUrl = (value: string) => {
+  try {
+    return /^https?:$/.test(new URL(value).protocol)
+  } catch {
+    return false
+  }
+}
+
+const getStoredAliases = (aliases: string[] = []) =>
+  aliases.filter(isHttpUrl).slice(0, MAX_STORED_ALIASES)
+
 // The remote profile data persisted whenever a remote actor is recorded or
 // refreshed (recordActorIfNeeded here, plus the web profile page), so
 // Mastodon clients see the actor's real display name, bio, images, metadata
@@ -122,6 +137,10 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     inboxUrl: person.inbox,
     sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
     publicKey: person.publicKey?.publicKeyPem || '',
+    // A refresh that no longer carries them clears a recorded move/aliases.
+    movedTo:
+      person.movedTo && isHttpUrl(person.movedTo) ? person.movedTo : null,
+    alsoKnownAs: getStoredAliases(person.alsoKnownAs),
     ...(tags.length > 0 ? { tags } : {})
   }
 }

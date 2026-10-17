@@ -73,6 +73,8 @@ export const createActor = async (
     manuallyApprovesFollowers,
     fields,
     tags,
+    movedTo,
+    alsoKnownAs,
     followersUrl,
     inboxUrl,
     sharedInboxUrl,
@@ -104,7 +106,11 @@ export const createActor = async (
       ? { manuallyApprovesFollowers }
       : null),
     ...(fields !== undefined ? { fields } : null),
-    ...(resolvedTags && resolvedTags.length > 0 ? { tags: resolvedTags } : null)
+    ...(resolvedTags && resolvedTags.length > 0
+      ? { tags: resolvedTags }
+      : null),
+    ...(movedTo ? { movedTo } : null),
+    ...(alsoKnownAs && alsoKnownAs.length > 0 ? { alsoKnownAs } : null)
   }
   const actor = {
     id: actorId,
@@ -148,6 +154,8 @@ export const updateActor = async (
     indexable,
     hideCollections,
     attributionDomains,
+    movedTo,
+    alsoKnownAs,
     defaultPrivacy,
     defaultSensitive,
     defaultLanguage,
@@ -224,6 +232,8 @@ export const updateActor = async (
     ...(indexable !== undefined ? { indexable } : null),
     ...(hideCollections !== undefined ? { hideCollections } : null),
     ...(attributionDomains !== undefined ? { attributionDomains } : null),
+    ...(movedTo ? { movedTo } : null),
+    ...(alsoKnownAs && alsoKnownAs.length > 0 ? { alsoKnownAs } : null),
     ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
     ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
     ...(defaultLanguage !== undefined ? { defaultLanguage } : null),
@@ -260,6 +270,8 @@ export const updateActor = async (
   const applyExplicitClears = (target: ActorSettings): ActorSettings => {
     if (iconUrl === null) delete target.iconUrl
     if (headerImageUrl === null) delete target.headerImageUrl
+    if (movedTo === null) delete target.movedTo
+    if (alsoKnownAs?.length === 0) delete target.alsoKnownAs
     return target
   }
 

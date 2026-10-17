@@ -272,6 +272,133 @@ describe('ActorDatabase mastodon actors', () => {
         ])
       })
 
+      it('stores movedTo and alsoKnownAs and sets moved to a stored target', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const create = (name: string, extra: object = {}) =>
+          database.createActor({
+            actorId: `https://remote-${suffix}.example/users/${name}`,
+            username: name,
+            domain: `remote-${suffix}.example`,
+            followersUrl: `https://remote-${suffix}.example/users/${name}/followers`,
+            inboxUrl: `https://remote-${suffix}.example/users/${name}/inbox`,
+            sharedInboxUrl: `https://remote-${suffix}.example/inbox`,
+            publicKey: `${name}PublicKey`,
+            createdAt: Date.now(),
+            ...extra
+          })
+        const oldId = `https://remote-${suffix}.example/users/old`
+        const newId = `https://remote-${suffix}.example/users/new`
+        const created = await create('old', {
+          movedTo: newId,
+          alsoKnownAs: [newId]
+        })
+        expect(created?.movedTo).toBe(newId)
+        expect(created?.alsoKnownAs).toEqual([newId])
+
+        // Target not stored yet: no `moved`.
+        expect(
+          (await database.getMastodonActorFromId({ id: oldId }))?.moved
+        ).toBeFalsy()
+
+        await create('new')
+        const account = await database.getMastodonActorFromId({ id: oldId })
+        expect(account?.moved?.uri).toBe(newId)
+        expect(account?.moved).not.toHaveProperty('moved')
+        expect(
+          (await database.getMastodonActorFromId({ id: newId }))?.moved
+        ).toBeFalsy()
+
+        // A refresh without them clears the move.
+        await database.updateActor({
+          actorId: oldId,
+          movedTo: null,
+          alsoKnownAs: []
+        })
+        const cleared = await database.getActorFromId({ id: oldId })
+        expect(cleared?.movedTo).toBeUndefined()
+        expect(cleared?.alsoKnownAs).toBeUndefined()
+        expect(
+          (await database.getMastodonActorFromId({ id: oldId }))?.moved
+        ).toBeFalsy()
+      })
+
+      it('batches moved accounts, reusing loaded rows and counting the target', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const host = `remote-b-${suffix}.example`
+        const create = (name: string, extra: object = {}) =>
+          database.createActor({
+            actorId: `https://${host}/users/${name}`,
+            username: name,
+            domain: host,
+            followersUrl: `https://${host}/users/${name}/followers`,
+            inboxUrl: `https://${host}/users/${name}/inbox`,
+            sharedInboxUrl: `https://${host}/inbox`,
+            publicKey: `${name}PublicKey`,
+            createdAt: Date.now(),
+            ...extra
+          })
+        const oldId = `https://${host}/users/old`
+        const newId = `https://${host}/users/new`
+        await create('old', { movedTo: newId })
+        await create('new')
+        const accounts = await database.getMastodonActorsFromIds({
+          ids: [oldId, newId]
+        })
+        expect(accounts).toHaveLength(2)
+        expect(accounts[0].moved?.uri).toBe(newId)
+        expect(accounts[0].moved?.followers_count).toBe(
+          accounts[1].followers_count
+        )
+        expect(accounts[0].moved?.statuses_count).toBe(
+          accounts[1].statuses_count
+        )
+        expect(accounts[1].moved).toBeFalsy()
+      })
+
+      it('hides moved for a suspended origin or a suspended target', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const host = `remote-s-${suffix}.example`
+        const create = (name: string, extra: object = {}) =>
+          database.createActor({
+            actorId: `https://${host}/users/${name}`,
+            username: name,
+            domain: host,
+            followersUrl: `https://${host}/users/${name}/followers`,
+            inboxUrl: `https://${host}/users/${name}/inbox`,
+            sharedInboxUrl: `https://${host}/inbox`,
+            publicKey: `${name}PublicKey`,
+            createdAt: Date.now(),
+            ...extra
+          })
+        const id = (name: string) => `https://${host}/users/${name}`
+        await create('target')
+        await create('origin', { movedTo: id('target') })
+        expect(
+          (await database.getMastodonActorFromId({ id: id('origin') }))?.moved
+            ?.uri
+        ).toBe(id('target'))
+
+        await database.setActorSuspended({
+          actorId: id('origin'),
+          suspended: true
+        })
+        expect(
+          (await database.getMastodonActorFromId({ id: id('origin') }))?.moved
+        ).toBeFalsy()
+        await database.setActorSuspended({
+          actorId: id('origin'),
+          suspended: false
+        })
+
+        await database.setActorSuspended({
+          actorId: id('target'),
+          suspended: true
+        })
+        expect(
+          (await database.getMastodonActorFromId({ id: id('origin') }))?.moved
+        ).toBeFalsy()
+      })
+
       it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)

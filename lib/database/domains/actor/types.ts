@@ -24,6 +24,9 @@ export type CreateActorParams = {
   // Mastodon profile metadata fields (name/value pairs).
   fields?: { name: string; value: string }[]
   tags?: { type: 'emoji'; name: string; value: string }[]
+  // Remote actors: where they moved to, and their claimed aliases.
+  movedTo?: string | null
+  alsoKnownAs?: string[]
 
   inboxUrl: string
   sharedInboxUrl: string
@@ -92,6 +95,9 @@ export type UpdateActorParams = {
   indexable?: boolean
   hideCollections?: boolean
   attributionDomains?: string[]
+  // Remote actors: `null` clears a recorded move, `[]` clears the aliases.
+  movedTo?: string | null
+  alsoKnownAs?: string[]
   defaultPrivacy?: 'public' | 'unlisted' | 'private' | 'direct'
   defaultSensitive?: boolean
   defaultLanguage?: string

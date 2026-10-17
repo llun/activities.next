@@ -5,7 +5,8 @@ import { getActorCountersByActorId } from '@/lib/database/domains/actor/counters
 import {
   EMPTY_ACTOR_COUNTERS,
   asSQLActor,
-  getMastodonAccountFromSQLActor
+  getMastodonAccountFromSQLActor,
+  getSettings
 } from '@/lib/database/domains/actor/rows'
 import type {
   GetActorFromIdParams,
@@ -33,9 +34,54 @@ export const getMastodonActors = async (
   if (rows.length === 0) return []
 
   const sqlActorById = new Map(rows.map((row) => [row.id, asSQLActor(row)]))
-  const countersByActorId = await getActorCountersByActorId(
-    db,
-    rows.map((row) => row.id)
+
+  // Remote actors that moved: serialize the target only when its row is
+  // already stored here (no remote fetch). A target is not followed further.
+  const movedToById = new Map<string, string>()
+  for (const sqlActor of sqlActorById.values()) {
+    const movedTo = getSettings(sqlActor).movedTo
+    if (movedTo && movedTo !== sqlActor.id && !sqlActor.suspendedAt) {
+      movedToById.set(sqlActor.id, movedTo)
+    }
+  }
+  // Reuse rows already loaded for the batch; query only the missing targets.
+  const missingTargetIds = [...new Set(movedToById.values())].filter(
+    (targetId) => !sqlActorById.has(targetId)
+  )
+  const extraTargetRows =
+    missingTargetIds.length > 0
+      ? await db
+          .selectFrom('actors')
+          .selectAll()
+          .$narrowType<{ id: string }>()
+          .where('id', 'in', missingTargetIds)
+          .execute()
+      : []
+  const targetSqlActorById = new Map(sqlActorById)
+  for (const row of extraTargetRows) {
+    targetSqlActorById.set(row.id, asSQLActor(row))
+  }
+
+  const countersByActorId = await getActorCountersByActorId(db, [
+    ...sqlActorById.keys(),
+    ...extraTargetRows.map((row) => row.id)
+  ])
+  const movedAccountById = new Map(
+    [...new Set(movedToById.values())].flatMap((targetId) => {
+      const target = targetSqlActorById.get(targetId)
+      // Mastodon hides `moved` for a suspended or deleted target.
+      return target && !target.suspendedAt && !target.deletionStatus
+        ? [
+            [
+              targetId,
+              getMastodonAccountFromSQLActor(
+                target,
+                countersByActorId.get(targetId) ?? EMPTY_ACTOR_COUNTERS
+              )
+            ] as const
+          ]
+        : []
+    })
   )
 
   return actorIds.flatMap((id) => {
@@ -43,7 +89,8 @@ export const getMastodonActors = async (
     if (!sqlActor) return []
     return getMastodonAccountFromSQLActor(
       sqlActor,
-      countersByActorId.get(id) ?? EMPTY_ACTOR_COUNTERS
+      countersByActorId.get(id) ?? EMPTY_ACTOR_COUNTERS,
+      movedAccountById.get(movedToById.get(id) ?? '')
     )
   })
 }
