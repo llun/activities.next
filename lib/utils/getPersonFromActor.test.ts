@@ -1,4 +1,7 @@
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { MockActor } from '@/lib/stub/actor'
+import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
+import { getActorProfileFields } from '@/lib/utils/activitypubActor'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 describe('getPersonFromActor', () => {
@@ -79,4 +82,63 @@ describe('getPersonFromActor', () => {
       expect(getPersonFromActor(actor).manuallyApprovesFollowers).toBe(expected)
     }
   )
+
+  describe('profile fields', () => {
+    const fields = [
+      { name: 'Web', value: 'https://example.com/me' },
+      { name: 'Pronouns', value: 'they <3 them' }
+    ]
+
+    it('omits attachment and the schema terms when there are no fields', () => {
+      const person = getPersonFromActor(MockActor({}))
+      expect(person).not.toHaveProperty('attachment')
+      expect(JSON.stringify(person['@context'])).not.toContain('PropertyValue')
+    })
+
+    it('ignores a row with neither label nor content', () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        fields: [{ name: ' ', value: '' }]
+      })
+      expect(person).not.toHaveProperty('attachment')
+    })
+
+    it('emits a PropertyValue per field with an HTML value', () => {
+      const person = getPersonFromActor({ ...MockActor({}), fields })
+      expect(person.attachment).toEqual([
+        {
+          type: 'PropertyValue',
+          name: 'Web',
+          value:
+            '<a href="https://example.com/me" target="_blank" rel="nofollow noopener me" translate="no"><span class="invisible">https://</span><span class="">example.com/me</span><span class="invisible"></span></a>'
+        },
+        { type: 'PropertyValue', name: 'Pronouns', value: 'they &lt;3 them' }
+      ])
+    })
+
+    it('declares the schema terms in the context only when there are fields', () => {
+      const person = getPersonFromActor({ ...MockActor({}), fields })
+      expect(person['@context']).toContainEqual({
+        manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+        schema: 'http://schema.org#',
+        PropertyValue: 'schema:PropertyValue',
+        value: 'schema:value'
+      })
+    })
+
+    it('survives the inbound compaction and actor parsing', async () => {
+      const person = getPersonFromActor({ ...MockActor({}), fields })
+      const compacted = await compactActivityPub(
+        JSON.parse(JSON.stringify(person))
+      )
+      const parsed = ActivityPubActor.parse(compacted)
+      expect(getActorProfileFields(parsed)).toEqual([
+        {
+          name: 'Web',
+          value: expect.stringContaining('href="https://example.com/me"')
+        },
+        { name: 'Pronouns', value: 'they &lt;3 them' }
+      ])
+    })
+  })
 })

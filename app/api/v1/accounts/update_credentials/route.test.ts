@@ -582,7 +582,18 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(data.role).toEqual(
       expect.objectContaining({ id: expect.any(String) })
     )
+    // `fields[].value` is HTML (a URL becomes Mastodon's link markup);
+    // `source.fields` keeps what was typed.
     expect(data.fields).toEqual([
+      {
+        name: 'Website',
+        value:
+          '<a href="https://example.com" target="_blank" rel="nofollow noopener me" translate="no"><span class="invisible">https://</span><span class="">example.com</span><span class="invisible"></span></a>',
+        verified_at: null
+      },
+      { name: 'Pronouns', value: 'they/them', verified_at: null }
+    ])
+    expect(data.source.fields).toEqual([
       { name: 'Website', value: 'https://example.com', verified_at: null },
       { name: 'Pronouns', value: 'they/them', verified_at: null }
     ])
@@ -725,6 +736,35 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       expect.objectContaining({
         fields: [{ name: 'Site', value: 'https://a.test' }]
       })
+    )
+    updateActor.mockRestore()
+  })
+
+  it('drops blank profile field rows but keeps a name with an empty value', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          fields_attributes: [
+            { name: '', value: '' },
+            { name: '  ', value: ' ' },
+            { name: 'Pronouns', value: '' }
+          ]
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ fields: [{ name: 'Pronouns', value: '' }] })
     )
     updateActor.mockRestore()
   })

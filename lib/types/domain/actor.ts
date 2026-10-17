@@ -20,6 +20,14 @@ export const ActorEmojiTag = z.object({
 })
 export type ActorEmojiTag = z.infer<typeof ActorEmojiTag>
 
+// One profile metadata field ("link"): the label and the raw value the owner
+// typed. Federation and the Mastodon API turn the value into HTML.
+export const ActorProfileField = z.object({
+  name: z.string(),
+  value: z.string()
+})
+export type ActorProfileField = z.infer<typeof ActorProfileField>
+
 export const ActorProfile = z.object({
   id: z.string(),
   publicId: z.string().nullable().optional(),
@@ -49,6 +57,7 @@ export const ActorProfile = z.object({
 export type ActorProfile = z.infer<typeof ActorProfile>
 
 export const Actor = ActorProfile.extend({
+  fields: ActorProfileField.array().optional(),
   privateKey: z.string().optional(),
   publicKey: z.string(),
   account: Account.optional(),

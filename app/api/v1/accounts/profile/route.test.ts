@@ -159,6 +159,56 @@ describe('POST /api/v1/accounts/profile', () => {
     })
   })
 
+  describe('profile links', () => {
+    it('saves the filled rows and drops the empty ones', async () => {
+      const response = await post({
+        'fields[0][name]': ' Blog ',
+        'fields[0][value]': ' https://blog.example ',
+        'fields[1][name]': '',
+        'fields[1][value]': '',
+        'fields[2][name]': 'Pronouns',
+        'fields[2][value]': 'they/them'
+      })
+
+      expect(response.status).toBe(307)
+      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: [
+            { name: 'Blog', value: 'https://blog.example' },
+            { name: 'Pronouns', value: 'they/them' }
+          ]
+        })
+      )
+    })
+
+    it('clears the stored links when every row is emptied', async () => {
+      await post({ 'fields[0][name]': '', 'fields[0][value]': '' })
+
+      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect.objectContaining({ fields: [] })
+      )
+    })
+
+    it('leaves the stored links alone when the form sends none', async () => {
+      await post({ name: 'New name' })
+
+      expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
+        'fields'
+      )
+    })
+
+    it('refuses an invalid row without writing or federating anything', async () => {
+      const response = await post({
+        name: 'New name',
+        'fields[0][name]': 'Blog'
+      })
+
+      expect(response.status).toBe(422)
+      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+  })
+
   describe('a URL the actor already has stored', () => {
     // `/settings` is ONE form around name, summary, both images and privacy,
     // and `ImageUploadField` resubmits the stored URL untouched. Without this,

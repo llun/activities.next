@@ -234,7 +234,7 @@ describe('ActorDatabase', () => {
         })
       })
 
-      it('sanitizes the HTML note and field values but keeps source raw', async () => {
+      it('sanitizes the HTML note, escapes a local field value as text and keeps source raw', async () => {
         const username = `xss-note-${crypto.randomUUID().slice(0, 8)}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`
         await createSigningAccount(database, username)
@@ -252,13 +252,16 @@ describe('ActorDatabase', () => {
         const actor = await database.getMastodonActorFromId({ id: actorId })
         if (!actor) throw new Error('actor not found')
         expect(actor.note).toBe('<p>hi<a>x</a></p>')
+        // A local field value is plain text, so markup in it is shown as text.
         expect(actor.fields).toEqual([
           {
             name: 'Site',
-            value: '<a href="https://example.com">site</a>',
+            value:
+              '&lt;a href=&quot;https://example.com&quot; onclick=&quot;alert(4)&quot;&gt;site&lt;/a&gt;&lt;img src=x onerror=alert(5)&gt;',
             verified_at: null
           }
         ])
+        expect(actor.fields[0].value).not.toContain('<')
         // `source` is the plain editing copy the owner round-trips.
         expect(actor.source.note).toBe(rawNote)
         expect(actor.source.fields[0].value).toBe(rawFieldValue)

@@ -139,4 +139,61 @@ describe('/settings', () => {
       screen.getByRole('heading', { name: 'Appearance' })
     )
   })
+
+  describe('profile links', () => {
+    it('puts the row after Summary and before the image uploads, inside the profile form', async () => {
+      getActorSettings.mockResolvedValue(null)
+
+      render(await Page())
+
+      const profile = screen.getByRole('group', { name: 'Profile' })
+      const summary = screen.getByLabelText('Summary')
+      const links = screen.getByLabelText('Link 1 label')
+      const upload = screen.getAllByTestId('image-upload')[0]
+      expect(profile).toContainElement(links)
+      expect(
+        summary.compareDocumentPosition(links) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        links.compareDocumentPosition(upload) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        (links as HTMLInputElement).form ===
+          (summary as HTMLTextAreaElement).form
+      ).toBe(true)
+      expect(
+        screen.getByText(
+          'Up to 4. Shown on your profile and on other servers. Plain text works too.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('posts the saved fields with the profile form', async () => {
+      getActorSettings.mockResolvedValue({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      })
+
+      render(await Page())
+
+      const form = (screen.getByLabelText('Summary') as HTMLTextAreaElement)
+        .form as HTMLFormElement
+      const data = new FormData(form)
+      expect(data.get('fields[0][name]')).toBe('Blog')
+      expect(data.get('fields[0][value]')).toBe('https://blog.example')
+      expect(data.get('fields[3][name]')).toBe('')
+    })
+
+    it('shows the rel me snippet with the real profile URL', async () => {
+      getActorSettings.mockResolvedValue(null)
+
+      render(await Page())
+
+      expect(
+        screen.getByText(
+          '<a rel="me" href="https://llun.test/@anna">Activities.next</a>'
+        ).tagName
+      ).toBe('CODE')
+    })
+  })
 })

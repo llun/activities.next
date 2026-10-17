@@ -6,16 +6,22 @@ import {
   getLocalActorOutboxId
 } from '@/lib/utils/activitypubId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { formatProfileFieldValue } from '@/lib/utils/text/formatProfileFieldValue'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
+
+// The public profile page URL that `url` carries (a service actor's is its id).
+export const getActorProfileUrl = (
+  actor: Pick<Actor, 'id' | 'type' | 'domain' | 'username'>
+) =>
+  (actor.type ?? 'Person') === 'Service'
+    ? actor.id
+    : `https://${actor.domain}/@${actor.username}`
 
 export const getPersonFromActor = (
   actor: Actor
 ): ActivityPubActor & { '@context': (string | Record<string, unknown>)[] } => {
   const actorType = actor.type ?? 'Person'
-  const profileUrl =
-    actorType === 'Service'
-      ? actor.id
-      : `https://${actor.domain}/@${actor.username}`
+  const profileUrl = getActorProfileUrl(actor)
   const icon = actor.iconUrl
     ? {
         icon: {
@@ -51,6 +57,15 @@ export const getPersonFromActor = (
       }
     })
 
+  // Mastodon profile metadata: one PropertyValue per field with an HTML value.
+  const profileFields = (actor.fields ?? [])
+    .filter((field) => field.name.trim() || field.value.trim())
+    .map((field) => ({
+      type: 'PropertyValue' as const,
+      name: field.name,
+      value: formatProfileFieldValue(field.value)
+    }))
+
   const person = ActivityPubActor.parse({
     id: actor.id,
     type: actorType,
@@ -78,7 +93,8 @@ export const getPersonFromActor = (
     },
     ...icon,
     ...headerImage,
-    ...(emojiTags.length > 0 ? { tag: emojiTags } : null)
+    ...(emojiTags.length > 0 ? { tag: emojiTags } : null),
+    ...(profileFields.length > 0 ? { attachment: profileFields } : null)
   })
 
   return {
@@ -91,6 +107,16 @@ export const getPersonFromActor = (
         manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
         ...(emojiTags.length > 0
           ? { toot: 'http://joinmastodon.org/ns#', Emoji: 'toot:Emoji' }
+          : null),
+        // Mastodon declares the schema prefix with the non-standard
+        // `http://schema.org#` base; the inbound canonical context uses the
+        // same IRI, so keep it.
+        ...(profileFields.length > 0
+          ? {
+              schema: 'http://schema.org#',
+              PropertyValue: 'schema:PropertyValue',
+              value: 'schema:value'
+            }
           : null)
       }
     ],

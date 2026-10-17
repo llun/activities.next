@@ -1544,13 +1544,36 @@ legacy shape left to copy.
   `PATCH /api/v1/accounts/update_credentials`, `PATCH /api/v1/profile`, the web
   settings form `POST /api/v1/accounts/profile`, and
   `DELETE /api/v1/profile/{avatar,header}`.** A new route that writes `name`,
-  `summary`, `iconUrl`, `headerImageUrl` or `manuallyApprovesFollowers` must
-  call it too, or remote servers keep the old profile until their own periodic
+  `summary`, `iconUrl`, `headerImageUrl`, `manuallyApprovesFollowers` or
+  `fields` (the profile links) must call it too, or remote servers keep the old profile until their own periodic
   re-fetch. Queueing is best effort and never fails the request: the profile is
   already saved. The object is `getPersonFromActor`, the same document the actor
   URL serves, and the audience is follower inboxes plus accepted relays, as in
   Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
   carried in the job so a retried job resends the same Update.
+- **Profile links (`fields`) are plain text in storage and HTML everywhere
+  they leave.** `formatProfileFieldValue`
+  (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a
+  deliberate subset of Mastodon's TextFormatter: only a value that is exactly
+  one http(s) URL becomes a link (what `rel="me"` verification needs; URLs,
+  mentions and hashtags inside other text stay plain text), in Mastodon's link
+  markup (the link has
+  `rel="nofollow noopener me"`, the scheme and `www.` sit in a leading
+  `invisible` span, an address over 30 characters is cut with `ellipsis`),
+  anything else is HTML-escaped text.
+  `getPersonFromActor` emits the result as `PropertyValue` attachments (and the
+  `schema`/`PropertyValue`/`value` terms in `@context`, only when there are
+  fields), and the Account entity uses it for a local actor's `fields[].value`
+  (a remote actor's stored HTML is sanitized instead; `source.fields` stays
+  raw). The profile page reads the attachments for local and remote actors
+  alike and renders them through `ProfileFieldsBlock`, which sanitizes. Both
+  the settings form (`parseProfileFieldsForm`) and `update_credentials` cap
+  them at four rows, label 255 and content 2047 characters. Both drop a row
+  whose label and content are both blank; `update_credentials` keeps a
+  half-filled row (as Mastodon does), which the settings form refuses and flags
+  on load. `verified_at` stays `null`
+  until link verification exists; `ProfileFieldsBlock` already styles a row
+  that carries `verifiedAt`.
 - **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,
   while the row is still `scheduled`: after the due-time checks and BEFORE
   `startActorDeletion`.** The Delete must be signed with the actor's key, and

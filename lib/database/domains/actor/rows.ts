@@ -20,6 +20,7 @@ import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getClientActorId } from '@/lib/utils/publicId'
+import { formatProfileFieldValue } from '@/lib/utils/text/formatProfileFieldValue'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
@@ -143,6 +144,7 @@ export const getActor = (
       : null),
     manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
     ...(settings.tags ? { tags: settings.tags } : null),
+    ...(settings.fields?.length ? { fields: settings.fields } : null),
     // Booleans use !== undefined so a persisted `false` survives the
     // row-to-domain round-trip (a truthy spread would drop it).
     ...(settings.readingExpandMedia !== undefined
@@ -216,9 +218,15 @@ export const getMastodonAccountFromSQLActor = (
   // its server sent. Sanitize here — the single Account emission point — so
   // no embedded account can carry scriptable HTML to a client. `source` keeps
   // the raw values: it is the plain-text editing copy (and feeds Profile).
+  // A local actor's field is plain text, so it is formatted as the HTML the
+  // actor document carries (see formatProfileFieldValue, which escapes it); a
+  // remote actor's stored value is already HTML and is sanitized.
+  const hostsActor = Boolean(sqlActor.privateKey)
   const profileFields = sourceFields.map((field) => ({
     ...field,
-    value: sanitizeText(field.value)
+    value: hostsActor
+      ? formatProfileFieldValue(field.value)
+      : sanitizeText(field.value)
   }))
   const note = sanitizeText(sourceNote)
   const lastStatusAt = optionalTime(sqlActor.lastStatusAt)
