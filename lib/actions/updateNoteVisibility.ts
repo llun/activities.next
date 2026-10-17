@@ -4,6 +4,7 @@ import {
 } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
@@ -58,6 +59,13 @@ export const updateNoteVisibilityFromUserInput = async ({
           })
         : null
 
+      // Keep (or gain) the community when going public/unlisted
+      const communityActorId = await getCommunityForNewReply({
+        database,
+        replyStatus,
+        visibility
+      })
+
       const to = statusRecipientsTo(
         currentActor,
         mentions,
@@ -68,7 +76,9 @@ export const updateNoteVisibilityFromUserInput = async ({
         currentActor,
         mentions,
         replyStatus,
-        visibility
+        visibility,
+        undefined,
+        communityActorId
       )
       const updatedStatus = await database.updateNoteVisibility({
         statusId,

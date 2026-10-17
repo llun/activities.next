@@ -8,6 +8,7 @@ import {
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -106,6 +107,12 @@ export const createPollFromUserInput = async ({
         ? explicitMentions
         : mentions
 
+    const communityActorId = await getCommunityForNewReply({
+      database,
+      replyStatus,
+      visibility: effectiveVisibility
+    })
+
     const to = statusRecipientsTo(
       currentActor,
       recipientMentions,
@@ -118,7 +125,8 @@ export const createPollFromUserInput = async ({
       recipientMentions,
       replyStatus,
       effectiveVisibility,
-      replyVisibility
+      replyVisibility,
+      communityActorId
     )
     const mentionTags = getMentionTagsForStatus({
       mentions,

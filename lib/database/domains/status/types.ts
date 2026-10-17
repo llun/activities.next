@@ -40,6 +40,23 @@ export type GetStatusFromUrlHashParams = {
 export interface GetStatusIdByPublicIdParams {
   publicId: string
 }
+export interface GetStatusThreadStepParams {
+  statusId: string
+}
+/**
+ * The few columns a walk up a reply chain needs from one status: no
+ * hydration, two queries (the row joined to its actor, then its recipients).
+ */
+export interface StatusThreadStep {
+  id: string
+  // The parent status id, or null for a status that is not a reply.
+  reply: string | null
+  actorId: string
+  // True when the author is an actor of this instance (has an account).
+  isLocalActor: boolean
+  to: string[]
+  cc: string[]
+}
 export interface GetStatusIdsByPublicIdsParams {
   publicIds: string[]
 }
@@ -438,6 +455,11 @@ export interface StatusLookupDatabase {
   getStatusIdByPublicId(
     params: GetStatusIdByPublicIdParams
   ): Promise<string | null>
+  // One step of a walk up a reply chain without hydrating the status. Null
+  // when the status does not exist.
+  getStatusThreadStep(
+    params: GetStatusThreadStepParams
+  ): Promise<StatusThreadStep | null>
   // publicId -> status URI, for the batch id resolver. One query per request
   // instead of one per id.
   getStatusIdsByPublicIds(

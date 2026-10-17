@@ -107,6 +107,11 @@ export const BaseContent = z.object({
 
   inReplyTo: z.string().nullish(),
 
+  // FEP-1b12: the community (Group actor) the object belongs to. Remote
+  // servers send an id, a list or an embedded actor and nothing reads it
+  // inbound, so accept anything; we only emit the id.
+  audience: z.unknown().optional(),
+
   summary: z.string().describe('Note short summary').nullish(),
   summaryMap: z
     .record(z.string(), z.string())

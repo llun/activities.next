@@ -214,11 +214,14 @@ interface SendUpdateNoteParams {
   currentActor: Actor
   inbox: string
   status: Status
+  // FEP-1b12 community actor id the note belongs to
+  audience?: string | null
 }
 export const sendUpdateNote = async ({
   currentActor,
   inbox,
-  status
+  status,
+  audience
 }: SendUpdateNoteParams) =>
   withSpan(
     'activity',
@@ -228,7 +231,7 @@ export const sendUpdateNote = async ({
       inbox
     },
     async (span) => {
-      const note = getNoteFromStatus(status, { includeUpdated: true })
+      const note = getNoteFromStatus(status, { includeUpdated: true, audience })
       if (!note) {
         return
       }
@@ -244,6 +247,7 @@ export const sendUpdateNote = async ({
         published: getISOTimeUTC(status.updatedAt),
         to: note.to,
         cc: note.cc,
+        ...(audience ? { audience } : null),
         object: note
       }
       const statusCode = await postActivityToInbox({

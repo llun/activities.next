@@ -4,6 +4,7 @@ import { sendUpdateNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { getStatusCommunityActorId } from '@/lib/services/federation/replyCommunity'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
 import { StatusType } from '@/lib/types/domain/status'
@@ -43,6 +44,7 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
         return
       }
 
+      const audience = await getStatusCommunityActorId({ database, status })
       const uniqueInboxes = await getFederatedStatusDeliveryInboxes({
         database,
         currentActor: actor,
@@ -55,7 +57,8 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
             await sendUpdateNote({
               currentActor: actor,
               inbox,
-              status
+              status,
+              audience
             })
           } catch (e) {
             // Delivery errors never change follow state; the follow stays and

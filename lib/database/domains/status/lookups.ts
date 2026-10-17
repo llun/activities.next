@@ -7,8 +7,10 @@ import type {
   GetStatusIdByPublicIdParams,
   GetStatusIdsByPublicIdsParams,
   GetStatusPublicIdsParams,
+  GetStatusThreadStepParams,
   HasActorAnnouncedStatusParams,
-  StatusHydration
+  StatusHydration,
+  StatusThreadStep
 } from '@/lib/database/domains/status/types'
 import type { Db } from '@/lib/database/kysely'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
@@ -77,6 +79,51 @@ export const getStatusIdByPublicId = async (
     .limit(1)
     .executeTakeFirst()
   return row?.id ?? null
+}
+
+const recipientsOfType = (
+  rows: { actorId: string | null; type: string | null }[],
+  type: 'to' | 'cc'
+) =>
+  rows
+    .filter((item) => item.type === type)
+    .flatMap((item) => (item.actorId ? [item.actorId] : []))
+
+// The columns of one status that a walk up its reply chain needs (parent id,
+// author, whether the author is local, to/cc), in two queries and with no
+// hydration. A hydrated getStatus costs ten or more per status.
+export const getStatusThreadStep = async (
+  db: Db,
+  { statusId }: GetStatusThreadStepParams
+): Promise<StatusThreadStep | null> => {
+  const row = await db
+    .selectFrom('statuses')
+    .leftJoin('actors', 'actors.id', 'statuses.actorId')
+    .select([
+      'statuses.id as id',
+      'statuses.reply as reply',
+      'statuses.actorId as actorId',
+      'actors.accountId as accountId'
+    ])
+    .where('statuses.id', '=', statusId)
+    .limit(1)
+    .executeTakeFirst()
+  if (!row) return null
+
+  const recipients = await db
+    .selectFrom('recipients')
+    .select(['actorId', 'type'])
+    .where('statusId', '=', statusId)
+    .execute()
+
+  return {
+    id: row.id,
+    reply: row.reply || null,
+    actorId: row.actorId as string,
+    isLocalActor: Boolean(row.accountId),
+    to: recipientsOfType(recipients, 'to'),
+    cc: recipientsOfType(recipients, 'cc')
+  }
 }
 
 // Batch counterpart of getStatusIdByPublicId, so a request carrying an array

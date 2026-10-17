@@ -339,6 +339,93 @@ describe('StatusDatabase lookups', () => {
       })
     })
 
+    describe('getStatusThreadStep', () => {
+      const remoteActorId = 'https://thread-step.test/users/remote'
+      const localEmail = `thread-step@${TEST_DOMAIN}`
+      let localActorId = ''
+
+      beforeAll(async () => {
+        await database.createActor({
+          actorId: remoteActorId,
+          username: 'remote',
+          domain: 'thread-step.test',
+          followersUrl: `${remoteActorId}/followers`,
+          inboxUrl: `${remoteActorId}/inbox`,
+          sharedInboxUrl: 'https://thread-step.test/inbox',
+          publicKey: 'thread-step-public-key',
+          createdAt: Date.now()
+        })
+        await database.createAccount({
+          email: localEmail,
+          username: 'thread-step-local',
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: 'private-thread-step',
+          publicKey: 'public-thread-step'
+        })
+        const actor = await database.getActorFromEmail({ email: localEmail })
+        if (!actor) throw new Error('failed to seed actor')
+        localActorId = actor.id
+      })
+
+      it('returns the parent id, author, locality and recipients of a local reply', async () => {
+        const id = `${localActorId}/statuses/thread-step-local`
+        const parentId = `${remoteActorId}/statuses/thread-step-parent`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: localActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${localActorId}/followers`, remoteActorId],
+          text: 'Local reply',
+          reply: parentId
+        })
+
+        const step = await database.getStatusThreadStep({ statusId: id })
+        expect(step).toMatchObject({
+          id,
+          reply: parentId,
+          actorId: localActorId,
+          isLocalActor: true,
+          to: [ACTIVITY_STREAM_PUBLIC]
+        })
+        expect([...(step?.cc ?? [])].sort()).toEqual(
+          [`${localActorId}/followers`, remoteActorId].sort()
+        )
+      })
+
+      it('marks a remote author non-local and a root post as having no parent', async () => {
+        const id = `${remoteActorId}/statuses/thread-step-root`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: remoteActorId,
+          to: [],
+          cc: [ACTIVITY_STREAM_PUBLIC],
+          text: 'Remote root'
+        })
+
+        await expect(
+          database.getStatusThreadStep({ statusId: id })
+        ).resolves.toEqual({
+          id,
+          reply: null,
+          actorId: remoteActorId,
+          isLocalActor: false,
+          to: [],
+          cc: [ACTIVITY_STREAM_PUBLIC]
+        })
+      })
+
+      it('returns null for an unknown status', async () => {
+        await expect(
+          database.getStatusThreadStep({
+            statusId: `${remoteActorId}/statuses/thread-step-missing`
+          })
+        ).resolves.toBeNull()
+      })
+    })
+
     describe('getStatusesByIds', () => {
       const createVisibilityActor = async ({
         name,

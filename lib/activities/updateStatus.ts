@@ -17,6 +17,8 @@ export interface UpdateStatus extends BaseActivity, ContextEntity {
   published: string
   to?: string | string[] | null
   cc?: string | string[] | null
+  // FEP-1b12 community actor id, mirrors the object's audience
+  audience?: string
   object:
     Note | Question | ImageContent | PageContent | ArticleContent | VideoContent
   signature?: Signature
