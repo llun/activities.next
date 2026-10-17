@@ -5,6 +5,7 @@ import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { getStatusCommunityActorId } from '@/lib/services/federation/replyCommunity'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
@@ -72,12 +73,17 @@ export const sendNoteJob: JobHandle = createJobHandle(
         return
       }
 
-      const note = getNoteFromStatus(status)
       if (
-        !note ||
-        (status.type !== StatusType.enum.Note &&
-          status.type !== StatusType.enum.Poll)
+        status.type !== StatusType.enum.Note &&
+        status.type !== StatusType.enum.Poll
       ) {
+        span.recordException(new Error('Failed to get note from status'))
+        return
+      }
+
+      const audience = await getStatusCommunityActorId({ database, status })
+      const note = getNoteFromStatus(status, { audience })
+      if (!note) {
         span.recordException(new Error('Failed to get note from status'))
         return
       }
@@ -98,6 +104,7 @@ export const sendNoteJob: JobHandle = createJobHandle(
         published: note.published,
         to: note.to,
         cc: note.cc,
+        ...(audience ? { audience } : null),
         object: note
       }
 

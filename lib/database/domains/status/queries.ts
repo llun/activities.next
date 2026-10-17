@@ -37,7 +37,8 @@ import {
   getStatusFromUrlHash,
   getStatusIdByPublicId,
   getStatusIdsByPublicIds,
-  getStatusPublicIds
+  getStatusPublicIds,
+  getStatusThreadStep
 } from '@/lib/database/domains/status/lookups'
 import {
   getPinnedStatusIds,
@@ -121,6 +122,7 @@ export const createStatusQueries = (
   getStatusFromUrlHash: (db: Db, params: GetStatusFromUrlHashParams) =>
     getStatusFromUrlHash(db, hydrationFor(db), params),
   getStatusIdByPublicId,
+  getStatusThreadStep,
   getStatusIdsByPublicIds,
   getStatusFromPublicId: (db: Db, params: GetStatusFromPublicIdParams) =>
     getStatusFromPublicId(db, hydrationFor(db), params),

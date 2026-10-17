@@ -22,6 +22,8 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 interface GetNoteFromStatusOptions {
   includeUpdated?: boolean
+  // FEP-1b12 community actor id the note belongs to
+  audience?: string | null
 }
 
 export const getNoteFromStatus = (
@@ -47,6 +49,7 @@ export const getNoteFromStatus = (
     to: actualStatus.to,
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
+    ...(options.audience ? { audience: options.audience } : null),
     content: addQuoteFallbackToContent(
       convertMarkdownText(getConfig().host)(actualStatus.text),
       actualStatus.quote

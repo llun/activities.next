@@ -380,3 +380,58 @@ describe('getExplicitRecipientInboxes', () => {
     expect(getAcceptedRelays).not.toHaveBeenCalled()
   })
 })
+
+describe('reply delivery to a parent author and its community', () => {
+  it('delivers a public reply to the parent author and the community shared inboxes', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const author = makeActor('https://lemmy.test/u/picard', {
+      sharedInboxUrl: 'https://lemmy.test/inbox'
+    })
+    const community = makeActor('https://other.test/c/tenforward', {
+      type: 'Group',
+      sharedInboxUrl: 'https://other.test/inbox'
+    })
+    const database = makeDatabase({
+      getActorsFromIds: vi.fn().mockResolvedValue([author, community])
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({
+        to: [ACTIVITY_STREAM_PUBLIC, currentActor.followersUrl],
+        cc: [currentActor.followersUrl, author.id, community.id]
+      })
+    })
+
+    expect(inboxes).toEqual(
+      expect.arrayContaining([
+        'https://lemmy.test/inbox',
+        'https://other.test/inbox'
+      ])
+    )
+  })
+
+  it('delivers a followers-only reply to the parent author only', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const author = makeActor('https://lemmy.test/u/picard')
+    const database = makeDatabase({
+      getActorsFromIds: vi.fn().mockResolvedValue([author])
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({
+        to: [currentActor.followersUrl, author.id],
+        cc: []
+      })
+    })
+
+    expect(inboxes).toEqual([author.sharedInboxUrl])
+  })
+})

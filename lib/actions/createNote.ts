@@ -6,6 +6,7 @@ import {
 } from '@/lib/jobs/names'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
+import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { appendSubjectHashtags } from '@/lib/services/gallery/subjectHashtags'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
@@ -262,9 +263,17 @@ export const statusRecipientsCC = (
   visibility: MastodonVisibility = 'public',
   replyVisibility: MastodonVisibility | null = getVisibilityFromReplyStatus(
     replyStatus
-  )
+  ),
+  communityActorId: string | null = null
 ): string[] => {
   const mentionHrefs = mentions.map((item) => item.href)
+  // A reply in a community (FEP-1b12) is also addressed to the community actor
+  // so its inbox gets it and the group can redistribute it. Never for
+  // followers-only or direct replies: those must not reach a public group.
+  const communityHrefs =
+    communityActorId && (visibility === 'public' || visibility === 'unlisted')
+      ? [communityActorId]
+      : []
 
   if (visibility === 'direct') {
     return replyStatus && replyVisibility === 'direct'
@@ -279,11 +288,13 @@ export const statusRecipientsCC = (
 
   // For unlisted, put Public in cc instead of to
   if (visibility === 'unlisted') {
-    return [ACTIVITY_STREAM_PUBLIC, ...mentionHrefs]
+    return [
+      ...new Set([ACTIVITY_STREAM_PUBLIC, ...communityHrefs, ...mentionHrefs])
+    ]
   }
 
   // For public, followers in cc along with mentions
-  return [actor.followersUrl, ...mentionHrefs]
+  return [...new Set([actor.followersUrl, ...communityHrefs, ...mentionHrefs])]
 }
 
 /**
@@ -453,6 +464,14 @@ export const createNoteFromUserInput = async ({
         replyVisibility !== 'direct'
       )
 
+    // Replies to a community's post stay in that community (public and
+    // unlisted only; see statusRecipientsCC).
+    const communityActorId = await getCommunityForNewReply({
+      database,
+      replyStatus,
+      visibility: effectiveVisibility
+    })
+
     const to = statusRecipientsTo(
       currentActor,
       recipientMentions,
@@ -465,7 +484,8 @@ export const createNoteFromUserInput = async ({
       recipientMentions,
       replyStatus,
       effectiveVisibility,
-      replyVisibility
+      replyVisibility,
+      communityActorId
     )
     const mentionTags = getMentionTagsForStatus({
       mentions,
