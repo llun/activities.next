@@ -91,6 +91,21 @@ export type MarkActorProfileFieldsVerifiedParams = {
   // When the check ran; stored as `linksCheckedAt` even if `values` is empty.
   checkedAt: number
 }
+export type ClaimActorMoveParams = {
+  actorId: string
+  // The inbound Move activity (job message id) claiming the actor.
+  activityId: string
+  // The account it moves to; the claim is bound to it.
+  target: string
+  now: number
+  // How long a claim blocks other Moves of the same actor.
+  windowMs: number
+}
+export type ClearActorMoveParams = { actorId: string; activityId: string }
+export type MarkActorMoveVerifiedParams = {
+  actorId: string
+  activityId: string
+}
 export type UpdateActorParams = {
   actorId: string
   type?: ActorType
@@ -224,6 +239,14 @@ export interface ActorDatabase {
     params: GetLocalActorsParams
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
+  // Atomically claims the actor for one inbound Move (Mastodon's nx key):
+  // false when a different activity claimed it within `windowMs`.
+  claimActorMove(params: ClaimActorMoveParams): Promise<boolean>
+  // Releases the claim, only when `activityId` still holds it and it is not
+  // verified.
+  clearActorMove(params: ClearActorMoveParams): Promise<void>
+  // Marks the claim of `activityId` as verified: it can no longer be released.
+  markActorMoveVerified(params: MarkActorMoveVerifiedParams): Promise<void>
   markActorProfileFieldsVerified(
     params: MarkActorProfileFieldsVerifiedParams
   ): Promise<void>

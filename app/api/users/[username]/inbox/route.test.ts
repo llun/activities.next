@@ -417,7 +417,7 @@ describe('POST /api/users/[username]/inbox', () => {
     })
   })
 
-  it.each(['Move', 'Add', 'Remove'])(
+  it.each(['Add', 'Remove'])(
     'accepts verified %s activities without treating them as malformed',
     async (activityType) => {
       const response = await POST(
@@ -436,7 +436,7 @@ describe('POST /api/users/[username]/inbox', () => {
     }
   )
 
-  it.each(['Move', 'Add', 'Remove'])(
+  it.each(['Add', 'Remove'])(
     'accepts transient %s activities without an id with 202 Accepted',
     async (activityType) => {
       mockActivityBody = {
@@ -897,6 +897,73 @@ describe('POST /api/users/[username]/inbox', () => {
           name: 'DeleteObjectJob'
         })
       )
+    })
+
+    it('routes a Move signed by the origin to the move job with 202', async () => {
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: 'https://remote.test/users/alice#moves/1',
+            type: 'Move',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://remote.test/users/alice',
+            target: 'https://newhome.test/users/alice'
+          })
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'MoveActorJob',
+          data: {
+            actor: 'https://remote.test/users/alice',
+            object: 'https://remote.test/users/alice',
+            target: 'https://newhome.test/users/alice'
+          },
+          verifiedSenderActorId: 'https://remote.test/users/alice'
+        })
+      )
+    })
+
+    it('acknowledges a Move that names another account as its object without queueing it', async () => {
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: 'https://remote.test/users/alice#moves/2',
+            type: 'Move',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://remote.test/users/bob',
+            target: 'https://newhome.test/users/alice'
+          })
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('does not queue a Move whose actor is not the verified signer', async () => {
+      mockActivityBody = {
+        id: 'https://remote.test/users/mallory#moves/1',
+        type: 'Move',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://remote.test/users/mallory',
+        target: 'https://newhome.test/users/mallory'
+      }
+      const response = await POST(createActorInboxActivityRequest('Move'), {
+        params: Promise.resolve({ username: 'llun' })
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
     })
 
     it('routes Undo Announce activities delivered to personal inbox to the job queue with 202', async () => {

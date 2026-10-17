@@ -24,6 +24,7 @@ import lemmyPage from './lemmy/page.json'
 import lemmyPerson from './lemmy/person.json'
 import mastodonFlag from './mastodon/flag.json'
 import mastodonInstanceActor from './mastodon/instance-actor.json'
+import mastodonMove from './mastodon/move.json'
 import misskeyCreateNote from './misskey/create-note.json'
 import misskeyFlag from './misskey/flag.json'
 import misskeyFollow from './misskey/follow.json'
@@ -153,7 +154,8 @@ export const FEDIVERSE_ACTIVITIES = {
   gotosocialCreateNote,
   gotosocialLike,
   funkwhaleCreateAudio,
-  mobilizonCreateEvent
+  mobilizonCreateEvent,
+  mastodonMove
 }
 
 // Follows of the seeded local actor `https://llun.test/users/test1`.
