@@ -391,6 +391,21 @@ describe('activities', () => {
       expect(body.id).toEqual(result.followActivityId)
       expect(result.ok).toBe(true)
     })
+
+    it.each([201, 204])(
+      'accepts any 2xx (%i) from the relay',
+      async (status) => {
+        fetchMock.mockResponseOnce(async () => ({ status }))
+        const result = await followRelay(mockRelay(), MockActor({}))
+        expect(result.ok).toBe(true)
+      }
+    )
+
+    it('rejects non-2xx responses', async () => {
+      fetchMock.mockResponseOnce('', { status: 403 })
+      const result = await followRelay(mockRelay(), MockActor({}))
+      expect(result.ok).toBe(false)
+    })
   })
 
   describe('unfollowRelay', () => {

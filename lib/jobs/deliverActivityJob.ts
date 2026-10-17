@@ -110,9 +110,9 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         throw error
       }
 
-      // Network errors (DNS failure, self-signed certificate, ...) never touch
-      // follow state: the classification below retries them through the
-      // queue's normal backoff, like Mastodon does.
+      // Network errors (DNS failures, timeouts, resets, TLS certificate errors)
+      // never touch follow state: the classification below retries them
+      // through the queue's normal backoff, like Mastodon does.
       const classification = classifyDeliveryError({ error })
       if (classification.disposition === DeliveryDisposition.SALVAGEABLE) {
         const errMessage = `Delivery to ${inbox} encountered network failure: ${(error as Error).message}`

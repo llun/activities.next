@@ -231,15 +231,20 @@ describe('deliverActivityJob', () => {
       err.code = code
       vi.mocked(request).mockRejectedValue(err)
 
-      await deliverActivityJob(mockDatabase, {
-        id: 'msg-network',
-        name: 'DeliverActivityJob',
-        data: {
-          inbox: 'https://bad-cert.example/inbox',
-          actorId: 'https://activities.local/users/alice',
-          activity: { type: 'Create', id: 'https://activities.local/status/1' }
-        }
-      }).catch(() => undefined)
+      await expect(
+        deliverActivityJob(mockDatabase, {
+          id: 'msg-network',
+          name: 'DeliverActivityJob',
+          data: {
+            inbox: 'https://bad-cert.example/inbox',
+            actorId: 'https://activities.local/users/alice',
+            activity: {
+              type: 'Create',
+              id: 'https://activities.local/status/1'
+            }
+          }
+        })
+      ).rejects.toBeInstanceOf(SalvageableDeliveryError)
 
       expect(mockDatabase.getLocalFollowsFromInboxUrl).not.toHaveBeenCalled()
       expect(mockDatabase.updateFollowStatus).not.toHaveBeenCalled()

@@ -14,7 +14,13 @@ export const SALVAGEABLE_NETWORK_ERROR_CODES = new Set([
   'ENOTFOUND',
   'EAI_AGAIN',
   'UND_ERR_CONNECT_TIMEOUT',
-  'UND_ERR_HEADERS_TIMEOUT'
+  'UND_ERR_HEADERS_TIMEOUT',
+  // TLS certificate errors: Mastodon lets these raise so Sidekiq retries
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'CERT_HAS_EXPIRED',
+  'ERR_TLS_CERT_ALTNAME_INVALID'
 ])
 
 export const isSalvageableStatusCode = (statusCode: number): boolean => {

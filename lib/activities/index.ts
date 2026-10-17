@@ -700,7 +700,7 @@ export const unfollow = async (
 // Public collection (the LitePub convention) to the relay's inbox, signed by
 // the instance/federation signing actor. Returns the generated Follow id (to
 // persist so the relay's Accept can be matched back) and whether the relay
-// inbox accepted delivery (HTTP 200/202). The relay confirms the subscription
+// inbox accepted delivery (any 2xx). The relay confirms the subscription
 // asynchronously with its own Accept.
 export const followRelay = async (
   relay: Relay,
