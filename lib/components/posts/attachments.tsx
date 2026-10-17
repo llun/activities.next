@@ -454,9 +454,7 @@ export const Attachments: FC<Props> = ({
               <Media
                 className="h-full w-full object-cover rounded-2xl"
                 attachment={attachment}
-                {...(attachment.id === prioritizedId
-                  ? { loading: 'eager', fetchPriority: 'high' }
-                  : {})}
+                revealImmediately={attachment.id === prioritizedId}
               />
             </button>
           )}
@@ -563,9 +561,7 @@ export const Attachments: FC<Props> = ({
                           loading={
                             attachment.id === prioritizedId ? 'eager' : 'lazy'
                           }
-                          fetchPriority={
-                            attachment.id === prioritizedId ? 'high' : undefined
-                          }
+                          revealImmediately={attachment.id === prioritizedId}
                         />
                       </button>
                     )}

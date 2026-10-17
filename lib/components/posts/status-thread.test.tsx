@@ -852,7 +852,15 @@ describe('StatusThread', () => {
     const withPhoto = <T extends { id: string; actorId: string }>(
       note: T,
       name: string
-    ) => ({ ...note, attachments: [createMockPhoto(note, name)] })
+    ) => ({
+      ...note,
+      attachments: [
+        {
+          ...createMockPhoto(note, name),
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        }
+      ]
+    })
 
     const root = withPhoto(
       createMockNote({
@@ -897,7 +905,8 @@ describe('StatusThread', () => {
       />
     )
 
-    const priority = document.querySelectorAll('img[fetchpriority="high"]')
+    expect(document.querySelector('[fetchpriority]')).toBeNull()
+    const priority = document.querySelectorAll('img.opacity-100')
     expect(priority).toHaveLength(1)
     expect(screen.getByTestId('focused-status')).toContainElement(
       priority[0] as HTMLElement

@@ -44,15 +44,15 @@ describe('Attachments prioritizeMedia', () => {
     expect(image).not.toHaveAttribute('loading')
   })
 
-  it('loads a single image eagerly at high priority', () => {
+  it('reveals a single image immediately, keeping the browser default loading', () => {
     const { container } = renderAttachments([picture()], true)
     const image = container.querySelector('img')!
-    expect(image).toHaveAttribute('loading', 'eager')
-    expect(image).toHaveAttribute('fetchpriority', 'high')
+    expect(image).not.toHaveAttribute('loading')
+    expect(image).not.toHaveAttribute('fetchpriority')
     expect(image).toHaveClass('opacity-100')
   })
 
-  it('prioritizes only the first image of a strip', () => {
+  it('reveals only the first image of a strip, eager only on that tile', () => {
     const { container } = renderAttachments(
       [picture(), picture(), picture()],
       true
@@ -63,11 +63,10 @@ describe('Attachments prioritizeMedia', () => {
       'lazy',
       'lazy'
     ])
-    expect(images.map((image) => image.getAttribute('fetchpriority'))).toEqual([
-      'high',
-      null,
-      null
-    ])
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    expect(
+      images.map((image) => image.classList.contains('opacity-100'))
+    ).toEqual([true, false, false])
   })
 
   it('keeps every strip image lazy when not asked', () => {

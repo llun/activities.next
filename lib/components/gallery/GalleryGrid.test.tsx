@@ -13,18 +13,18 @@ vi.mock('@/lib/components/posts/media', () => ({
   Media: ({
     attachment,
     loading,
-    fetchPriority
+    revealImmediately
   }: {
     attachment?: Attachment
     loading?: 'lazy' | 'eager'
-    fetchPriority?: 'high' | 'low' | 'auto'
+    revealImmediately?: boolean
   }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={attachment?.url}
       alt=""
       loading={loading}
-      fetchPriority={fetchPriority}
+      data-reveal={revealImmediately ? 'true' : undefined}
     />
   )
 }))
@@ -109,7 +109,7 @@ describe('GalleryGrid', () => {
   it('keeps every tile lazy unless the first is prioritized', () => {
     const items = [buildGalleryItem('a'), buildGalleryItem('b')]
     const { container, rerender } = render(<GalleryGrid items={items} />)
-    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    expect(container.querySelector('[data-reveal]')).toBeNull()
     expect(
       Array.from(container.querySelectorAll('img')).map((i) =>
         i.getAttribute('loading')
@@ -122,8 +122,9 @@ describe('GalleryGrid', () => {
       'eager',
       'lazy'
     ])
-    expect(images.map((i) => i.getAttribute('fetchpriority'))).toEqual([
-      'high',
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    expect(images.map((i) => i.getAttribute('data-reveal'))).toEqual([
+      'true',
       null
     ])
   })

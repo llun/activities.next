@@ -200,24 +200,32 @@ describe('PublicGalleryAlbumView', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
   })
 
-  it('fetches the cover first and leaves the grid lazy when there is a cover', () => {
-    const { container } = renderView()
-    const high = container.querySelectorAll('img[fetchpriority="high"]')
-    expect(high).toHaveLength(1)
-    expect(high[0]).toHaveAttribute('loading', 'eager')
+  it('reveals the cover immediately and leaves the grid lazy when there is a cover', () => {
+    const cover = buildGalleryItem('cover-1')
+    cover.attachment.blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+    const { container } = renderView(
+      buildAlbumView({
+        album: buildAlbumCard('a1', { title: 'Kruger', cover })
+      })
+    )
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    const revealed = container.querySelectorAll('img.opacity-100')
+    expect(revealed).toHaveLength(1)
+    expect(revealed[0]).toHaveAttribute('loading', 'eager')
     expect(screen.getByTestId('grid')).toHaveAttribute(
       'data-prioritize-first',
       'false'
     )
   })
 
-  it('prioritizes the first grid tile when there is no cover', () => {
+  it('hands the first grid tile the reveal when there is no cover', () => {
     const { container } = renderView(
       buildAlbumView({
         album: buildAlbumCard('a1', { title: 'No cover', cover: null })
       })
     )
-    expect(container.querySelector('img[fetchpriority="high"]')).toBeNull()
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    expect(container.querySelector('img.opacity-100')).toBeNull()
     expect(screen.getByTestId('grid')).toHaveAttribute(
       'data-prioritize-first',
       'true'

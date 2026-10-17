@@ -51,7 +51,7 @@ export const GalleryAlbumHero: FC<Props> = ({
         item={cover}
         loading="eager"
         quality="full"
-        fetchPriority={prioritizeCover ? 'high' : undefined}
+        revealImmediately={prioritizeCover}
       />
       <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 via-black/30 to-transparent p-4 text-white sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">
