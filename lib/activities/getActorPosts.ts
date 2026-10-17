@@ -301,7 +301,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             }
 
             // The outbox is fetched signed by the instance actor, which may follow
-            // this author (collection ingest does exactly that), so a server that
+            // this author (follows left by the removed collection ingest), so a server that
             // filters its outbox by signer can hand us followers-only and direct
             // notes. Every caller serves these to some local viewer the remote
             // never authorised, so only public and unlisted notes come back.

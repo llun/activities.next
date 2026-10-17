@@ -433,6 +433,12 @@ can be revisited on demand — file an issue if you need one.
   not compute)
 - Async refreshes — `/api/v1_alpha/async_refreshes`
 - The out-of-band redirect flow — `urn:ietf:wg:oauth:2.0:oob`
+- Collections — `/api/v1/collections/*`, `/api/v1/accounts/:id/collections`,
+  `/api/v1/accounts/:id/in_collections` and `/api/v1/timelines/collection/:id`
+  were removed and answer 404; the `read:collections` and `write:collections`
+  scopes are still accepted at sign-in.
+- Streaming API — `/api/v1/streaming` is not implemented and not planned;
+  `configuration.urls.streaming` stays empty, so clients poll.
 
 ## Extensions
 

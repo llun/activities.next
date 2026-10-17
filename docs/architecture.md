@@ -654,6 +654,11 @@ Other tables: sessions, notifications, medias, gallery_gears,
               oauthConsent (better-auth OAuth provider)
 ```
 
+Notification rows of the retired `added_to_collection` and `collection_update`
+types may remain; every notification read or count in
+`lib/database/domains/notification/queries.ts` must exclude
+`RETIRED_NOTIFICATION_TYPES`.
+
 ## Technology Stack
 
 | Layer                | Technology                                                                                                                            |
