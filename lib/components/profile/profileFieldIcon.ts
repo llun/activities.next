@@ -9,7 +9,8 @@ export interface ProfileFieldIconChoice {
 
 // Label keywords are word-bounded; link hosts are matched against explicit
 // domain lists (the host itself or a subdomain), never by keyword.
-const LOCATION = /\b(location|based|hometown|city|lives?|living)\b/
+const LOCATION =
+  /\b(location|based in|lives in|living in|hometown|home town|city)\b/
 const IMAGE = /\b(photo|photos|photography|gallery|flickr|pixelfed|instagram)\b/
 const ACTIVITY = /\b(strava|fitness|run|running|ride|riding|garmin|activity)\b/
 const MAIL = /\b(mail|email|e-mail)\b/
@@ -24,12 +25,16 @@ const inDomains = (host: string, domains: string[]) =>
 const isPixelfedHost = (host: string) =>
   host.split('.').slice(0, -1).includes('pixelfed')
 
-// Linear on its input: first the opening tag, then the attribute inside it.
+// Linear on its input. sanitize-html always double-quotes attribute values, so
+// walk the opening tag's attributes in order and take the one named `href`; an
+// `href=` inside another attribute's value is never read.
 const hrefOf = (value: string) => {
   const tag = /<a\s[^>]*>/i.exec(value)?.[0]
   if (!tag) return null
-  const match = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag)
-  return match ? (match[1] ?? match[2] ?? match[3] ?? '') : null
+  for (const [, name, attrValue] of tag.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
+    if (name.toLowerCase() === 'href') return attrValue
+  }
+  return null
 }
 
 const hostOf = (href: string) => {

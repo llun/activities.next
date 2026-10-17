@@ -2395,6 +2395,7 @@ legacy shape left to copy.
 - Radii are `rounded-lg` frames, `rounded-md` controls and tiles, `rounded-xl` dialogs only; no `rounded-2xl`, no panel `shadow-*`.
 - Headings, labels and buttons are sentence case; colours are theme tokens (`success`, `warning`, `info`, `destructive`, `primary`), never raw palette utilities.
 - Every list, post lists included, is one frame with `divide-y`, not separate cards.
+  - Exception: the profile fields on the profile page are an unframed inline line under the bio (like the software line), not a framed list.
 - Settings rows are label-and-hint left, control right, stacked on a phone; the save button says "Save"; instant-save controls show `SavedIndicator`.
 - Loading draws skeleton bars in the final layout's shape, no "Loading…" text; messages and page-level errors are an `Alert` with the right tone and Retry where it helps.
 - The counts in `surfaceKitUsage.test.ts` only go down.

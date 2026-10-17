@@ -78,6 +78,10 @@ const collapsedClass = (index: number) => {
   return undefined
 }
 
+const TITLE_LIMIT = 200
+const clip = (text: string) =>
+  text.length > TITLE_LIMIT ? `${text.slice(0, TITLE_LIMIT)}…` : text
+
 const MORE_CLASS =
   'cursor-pointer rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
@@ -139,8 +143,8 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
           const choice = chooseProfileFieldIcon(field.name, html)
           const Icon = ICONS[choice.kind]
           const showLabel = choice.kind === 'text'
-          const label = field.name.trim()
-          const text = htmlToPlainText(html)
+          const label = clip(field.name.trim())
+          const text = clip(htmlToPlainText(html))
           return (
             <li
               key={`${index}-${field.name}`}

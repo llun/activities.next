@@ -7,6 +7,8 @@ describe('chooseProfileFieldIcon', () => {
     ['Location', 'Lisbon', 'location'],
     ['Based in', 'Lisbon, Portugal', 'location'],
     ['Lives in', 'Bangkok', 'location'],
+    ['Living in', 'Bangkok', 'location'],
+    ['Home town', 'Bangkok', 'location'],
     ['Photos', link('https://photos.example/@me'), 'image'],
     ['Me', link('https://www.flickr.com/people/me'), 'image'],
     ['Gram', link('https://instagram.com/me'), 'image'],
@@ -24,33 +26,38 @@ describe('chooseProfileFieldIcon', () => {
     expect(chooseProfileFieldIcon('LOCATION', 'x').kind).toBe('location')
   })
 
-  it('reports whether the value is a link, quoted or not', () => {
+  it('reports whether the value is a link', () => {
     expect(
       chooseProfileFieldIcon('Web', link('https://a.example')).isLink
-    ).toBe(true)
-    expect(
-      chooseProfileFieldIcon('Web', '<a href=https://a.example>a</a>').isLink
     ).toBe(true)
     expect(chooseProfileFieldIcon('Web', 'a.example').isLink).toBe(false)
   })
 
-  it('uses the host of an unquoted href', () => {
+  it('reads the href attribute, not an href= inside another value', () => {
     expect(
-      chooseProfileFieldIcon('Me', '<a href=https://www.flickr.com/me>x</a>')
-        .kind
-    ).toBe('image')
+      chooseProfileFieldIcon(
+        'Me',
+        '<a rel=" href=https://flickr.com" href="https://evil.example">x</a>'
+      ).kind
+    ).toBe('link')
   })
 
   it('does not match keywords inside other words', () => {
     expect(chooseProfileFieldIcon('Pride', 'x').kind).toBe('text')
   })
 
-  it.each(['Homepage', 'Home page', 'Home', 'Livestream', 'Runbook', 'Rider'])(
-    '%s is not a keyword match',
-    (label) => {
-      expect(chooseProfileFieldIcon(label, 'x').kind).toBe('text')
-    }
-  )
+  it.each([
+    'Homepage',
+    'Home page',
+    'Home',
+    'Live',
+    'Plant-based',
+    'Livestream',
+    'Runbook',
+    'Rider'
+  ])('%s is not a keyword match', (label) => {
+    expect(chooseProfileFieldIcon(label, 'x').kind).toBe('text')
+  })
 
   it.each([
     'https://runkit.com/me',
@@ -79,5 +86,26 @@ describe('chooseProfileFieldIcon', () => {
       chooseProfileFieldIcon('Me', '<a data-href="https://strava.com/x">x</a>')
         .isLink
     ).toBe(false)
+  })
+
+  it.each([
+    ['text', () => '&lt;'.repeat(500_000)],
+    ['anchors', () => '<a href="https://a.example">x</a>'.repeat(60_000)],
+    [
+      'spaces before href',
+      () => `<a${' '.repeat(1_900_000)}href="https://a.example">x</a>`
+    ],
+    ['repeated href', () => ' href'.repeat(380_000)]
+  ])('stays linear on a 2 MB %s value', (_name, make) => {
+    const value = make()
+    const started = performance.now()
+    chooseProfileFieldIcon('Web', value)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
+  it('stays linear on a 2 MB label', () => {
+    const started = performance.now()
+    chooseProfileFieldIcon('a'.repeat(2_000_000), 'x')
+    expect(performance.now() - started).toBeLessThan(1000)
   })
 })
