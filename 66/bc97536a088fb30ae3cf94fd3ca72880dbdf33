@@ -1,0 +1,19 @@
+docs/mastodon-api-compatibility.md
+  s_e7789e1c14278a::t_a57a6da35b3878 1239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66bc97536a088fb30ae3cf94fd3ca72880dbdf33",
+  "prompts": {},
+  "sessions": {
+    "s_e7789e1c14278a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a146a2-c2c0-7a80-8293-5ba48c1e62a1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
