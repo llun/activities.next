@@ -485,6 +485,7 @@ describe('Posts', () => {
             mediaType: 'image/jpeg',
             url: `https://activities.local/media/${id}.jpg`,
             name: id,
+            blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
             width: 800,
             height: 600,
             createdAt: 0,
@@ -515,6 +516,7 @@ describe('Posts', () => {
       const { container } = renderRows([photoNote('p1')], false)
       expect(container.querySelector('img')).not.toBeNull()
       expect(container.querySelector('[fetchpriority]')).toBeNull()
+      expect(container.querySelector('img.opacity-100')).toBeNull()
       expect(container.querySelector('img[loading="eager"]')).toBeNull()
     })
 
@@ -524,10 +526,11 @@ describe('Posts', () => {
         photoNote('p1'),
         photoNote('p2')
       ])
-      const eager = container.querySelectorAll('img[fetchpriority="high"]')
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      const eager = container.querySelectorAll('img.opacity-100')
       expect(eager).toHaveLength(1)
       expect(eager[0]).toHaveAttribute('src', expect.stringContaining('p1.jpg'))
-      expect(eager[0]).toHaveAttribute('loading', 'eager')
+      expect(eager[0]).not.toHaveAttribute('loading')
     })
 
     it('resolves boosts to the boosted post', () => {
@@ -543,7 +546,8 @@ describe('Posts', () => {
         photoNote('cw', { summary: 'Spoilers' }),
         photoNote('p2')
       ])
-      const eager = container.querySelectorAll('img[fetchpriority="high"]')
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      const eager = container.querySelectorAll('img.opacity-100')
       expect(eager).toHaveLength(1)
       expect(eager[0]).toHaveAttribute('src', expect.stringContaining('p2.jpg'))
     })
@@ -558,6 +562,7 @@ describe('Posts', () => {
       expect(getPrioritizedRowIndex(statuses)).toBe(-1)
       const { container } = renderRows(statuses)
       expect(container.querySelector('[fetchpriority]')).toBeNull()
+      expect(container.querySelector('img.opacity-100')).toBeNull()
     })
   })
 })

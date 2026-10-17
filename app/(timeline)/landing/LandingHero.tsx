@@ -36,7 +36,6 @@ export const LandingHero: FC<LandingHeroProps> = ({ serviceName }) => {
         width={540}
         height={540}
         loading="eager"
-        fetchPriority="high"
         className="pointer-events-none absolute -bottom-32 -right-32 h-auto w-[360px] select-none opacity-[0.12] sm:w-[540px]"
       />
 

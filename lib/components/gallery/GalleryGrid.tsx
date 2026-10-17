@@ -197,7 +197,7 @@ export const GalleryGrid: FC<Props> = ({
                       : item.attachment
                   }
                   loading={isPriorityTile ? 'eager' : 'lazy'}
-                  fetchPriority={isPriorityTile ? 'high' : undefined}
+                  revealImmediately={isPriorityTile}
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
                 {item.inGallery === false ? (

@@ -2758,9 +2758,10 @@ legacy shape left to copy.
   and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
-- **One image per page is the exception: the first visible media loads eagerly
-  at `fetchPriority="high"`; everything else stays lazy.** It is the likely
-  largest contentful paint, and only one image per page may claim it.
+- **One image per page is the exception: the first visible media is revealed
+  immediately (`revealImmediately`) and, where it would otherwise be lazy,
+  loads eagerly; everything else stays lazy.** It is the likely largest
+  contentful paint, and only one image per page may claim it.
   `Posts` takes `prioritizeFirstMedia` (default `false`) and the surface whose
   list is its first visible content opts in: the landing feed, the hashtag
   page, the public collection page, and the profile Posts tab only when the
@@ -2768,10 +2769,17 @@ legacy shape left to copy.
   is the first ordinary image (not a video or animation, not behind a content
   warning) among the list's first three rows. A `focused` status (the status
   detail page) always prioritizes its first image. A public album page
-  prioritizes its hero cover; `GalleryGrid` gets `prioritizeFirst` only when
-  the album has no cover. Search, gear, fitness and other pages with content
-  above the list never opt in. `fetchPriority="high"` on `Media` also skips its
-  opacity-until-hydration gate.
+  reveals its hero cover; `GalleryGrid` gets `prioritizeFirst` only when
+  the album has no cover. `loading="eager"` is set only where the image would
+  be lazy (the first tile of a multi-attachment strip, grid tile 0); a single
+  image keeps the browser default. Search, gear, fitness and other pages with content
+  above the list never opt in. `revealImmediately` on `Media` (and, as before,
+  `fetchPriority="high"`, used by the activity map preview) skips its
+  opacity-until-hydration gate: the real LCP win is that paint gate, not fetch
+  order. Do not add `fetchPriority="high"` to post or album images: those are
+  already eager with a preload link, so it brings no fetch speedup, and it makes
+  Lighthouse's simulated LCP count the large image, inflating modeled mobile
+  LCP. The landing hero watermark is likewise `loading="eager"` only.
 - The counter names the 1-based card the strip is on. At the end of the strip
   it is the last card, so it reads `N / N` exactly when the forward arrow is
   disabled. Otherwise it is the first card whose left edge has reached the

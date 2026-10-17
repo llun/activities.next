@@ -112,6 +112,24 @@ describe('Media', () => {
     expect(canvas.className).toContain('opacity-0')
   })
 
+  it('revealImmediately renders the image at opacity-100 without fetchPriority', () => {
+    render(
+      <Media
+        attachment={{
+          ...baseAttachment,
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        }}
+        revealImmediately
+      />
+    )
+
+    const img = screen.getByRole('img')
+    expect(img).not.toHaveAttribute('fetchpriority')
+    expect(img.className).toContain('opacity-100')
+    expect(img.className).not.toContain('opacity-0')
+    expect(img.className).not.toContain('transition-opacity')
+  })
+
   it('renders high fetch priority image at opacity-100 above visible blurhash until load completes', () => {
     const attachmentWithBlurhash: Attachment = {
       ...baseAttachment,
@@ -142,7 +160,7 @@ describe('Media', () => {
     expect(canvas.className).toContain('opacity-0')
   })
 
-  it('keeps standard fade transition when loading="eager" is used without fetchPriority="high"', () => {
+  it('keeps standard fade transition when loading="eager" is used without fetchPriority="high" or revealImmediately', () => {
     const attachmentWithBlurhash: Attachment = {
       ...baseAttachment,
       blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
