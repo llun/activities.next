@@ -121,7 +121,7 @@ const postActivityToInbox = async ({
 }
 
 const isAcceptedStatusCode = (statusCode?: number): boolean =>
-  statusCode === 200 || statusCode === 202
+  statusCode !== undefined && statusCode >= 200 && statusCode < 300
 
 interface GetNoteParams {
   statusId: string

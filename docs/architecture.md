@@ -204,6 +204,10 @@ Incoming HTTP deliveries to `/api/inbox` and `/api/users/:username/inbox` are gu
   - **`Create` / `Update` / `Delete`** activities carry unverified payloads: the embedded object is discarded and the activity is routed to `ProcessForwardedActivityJob` to verify the object against its origin server via re-fetch before applying any state changes.
   - **Non-status activities** (`Follow`, `Accept`, `Reject`, `Like`, `Undo`) lack an origin re-fetch verification path and are acknowledged with `202 Accepted` and dropped without side effects (Mastodon parity).
 
+#### Outbound Delivery Outcomes
+
+`DeliverActivityJob` (`lib/jobs/deliverActivityJob.ts`) treats any 2xx response as delivered (some Pleroma, Akkoma, GoToSocial and Misskey setups answer 201 or 204). A salvageable failure (5xx, 408/425/429, network errors such as `ENOTFOUND`, `ETIMEDOUT` or a self-signed certificate; see `classifyDeliveryError`) is thrown as `SalvageableDeliveryError` so the queue retries it with its normal backoff; other 4xx responses (for example 410 Gone) are logged and discarded. Delivery errors never change follow state: a DNS blip or short outage must not drop follow relationships, matching Mastodon, which retries and only marks a domain unavailable after sustained failure. `sendUpdateNoteJob` follows the same rule.
+
 #### Outbound Inbox Forwarding (W3C ActivityPub §7.1.2)
 
 When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (default: `false`), the instance fans out verified public replies and mentions targeting local users to those users' remote followers:

@@ -6,9 +6,7 @@ import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
-import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { withSpan } from '@/lib/utils/trace'
 
 /**
@@ -60,23 +58,10 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
               status
             })
           } catch (e) {
-            const nodeError = e as NodeJS.ErrnoException
-            span.recordException(nodeError)
+            // Delivery errors never change follow state; the follow stays and
+            // later deliveries retry (Mastodon behaves the same way).
+            span.recordException(e as Error)
             span.setAttribute('error.inbox', inbox)
-            if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
-              const follows = await database.getLocalFollowsFromInboxUrl({
-                followerInboxUrl: inbox,
-                targetActorId: actor.id
-              })
-              await Promise.all(
-                follows.map((follow) =>
-                  database.updateFollowStatus({
-                    followId: follow.id,
-                    status: FollowStatus.enum.Rejected
-                  })
-                )
-              )
-            }
           }
         })
       )

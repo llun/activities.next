@@ -199,45 +199,50 @@ describe('deliverActivityJob', () => {
     expect(eventNames).toContain('delivery_unsalvageable_discarded')
   })
 
-  it('rejects local follow when delivery fails with UNFOLLOW_NETWORK_ERROR_CODES', async () => {
-    const err = new Error('Self signed certificate') as NodeJS.ErrnoException
-    err.code = 'DEPTH_ZERO_SELF_SIGNED_CERT'
-    vi.mocked(request).mockRejectedValue(err)
-    vi.mocked(mockDatabase.getLocalFollowsFromInboxUrl).mockResolvedValue([
-      { id: 'follow-1' } as any
-    ])
-    vi.mocked(mockDatabase.updateFollowStatus).mockResolvedValue(
-      undefined as any
-    )
-
-    const message = {
-      id: 'msg-unfollow',
-      name: 'DeliverActivityJob',
-      data: {
-        inbox: 'https://bad-cert.example/inbox',
-        actorId: 'https://activities.local/users/alice',
-        activity: { type: 'Create', id: 'https://activities.local/status/1' }
-      }
-    }
+  it.each([200, 201, 202, 204])('treats %i as delivered', async (code) => {
+    vi.mocked(request).mockResolvedValue({
+      statusCode: code,
+      body: '',
+      headers: {}
+    })
 
     await expect(
-      deliverActivityJob(mockDatabase, message)
+      deliverActivityJob(mockDatabase, {
+        id: `msg-${code}`,
+        name: 'DeliverActivityJob',
+        data: {
+          inbox: 'https://remote.example/inbox',
+          actorId: 'https://activities.local/users/alice',
+          activity: { type: 'Create', id: 'https://activities.local/status/1' }
+        }
+      })
     ).resolves.toBeUndefined()
-
-    expect(mockDatabase.getLocalFollowsFromInboxUrl).toHaveBeenCalledWith({
-      followerInboxUrl: 'https://bad-cert.example/inbox',
-      targetActorId: 'https://activities.local/users/alice'
-    })
-    expect(mockDatabase.updateFollowStatus).toHaveBeenCalledWith({
-      followId: 'follow-1',
-      status: 'Rejected'
-    })
 
     const span = harness.recordedSpans.find(
       (s) => s.name === 'job.DeliverActivityJob'
     )
-    expect(span?.events.map((e) => e.name)).toContain(
-      'delivery_follower_unfollowed'
-    )
+    expect(span?.events.map((e) => e.name)).toContain('delivery_success')
   })
+
+  it.each(['ENOTFOUND', 'DEPTH_ZERO_SELF_SIGNED_CERT'])(
+    'keeps follows and does not reject them on %s',
+    async (code) => {
+      const err = new Error('network failure') as NodeJS.ErrnoException
+      err.code = code
+      vi.mocked(request).mockRejectedValue(err)
+
+      await deliverActivityJob(mockDatabase, {
+        id: 'msg-network',
+        name: 'DeliverActivityJob',
+        data: {
+          inbox: 'https://bad-cert.example/inbox',
+          actorId: 'https://activities.local/users/alice',
+          activity: { type: 'Create', id: 'https://activities.local/status/1' }
+        }
+      }).catch(() => undefined)
+
+      expect(mockDatabase.getLocalFollowsFromInboxUrl).not.toHaveBeenCalled()
+      expect(mockDatabase.updateFollowStatus).not.toHaveBeenCalled()
+    }
+  )
 })
