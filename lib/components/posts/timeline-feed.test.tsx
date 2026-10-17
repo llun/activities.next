@@ -28,6 +28,7 @@ import { Status } from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
+import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
 import { TimelineFeed } from './timeline-feed'
 
 const mockPush = vi.fn()
@@ -150,9 +151,11 @@ const chooseFromMenu = async (trigger: HTMLElement, item: string) => {
   // Some items run only once the menu has closed.
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 }
-// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+// The inline composer is loaded lazily; preload it so it renders synchronously.
 beforeAll(async () => {
   await import('./inline-status-composer')
+  preloadInlineStatusComposer()
+  await new Promise((resolve) => setTimeout(resolve, 0))
 })
 
 describe('TimelineFeed', () => {

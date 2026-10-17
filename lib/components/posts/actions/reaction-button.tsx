@@ -145,7 +145,10 @@ export const ReactionButton: FC<Props> = ({
           chunk fails to load, the message is absolutely positioned under the
           action row (`relative`), so it adds no flex item either. */}
       {isPicking && (
-        <LazyChunkBoundary className="absolute top-full left-0 z-50 mt-1 w-72 max-w-full bg-background">
+        <LazyChunkBoundary
+          data-row-overlay
+          className="absolute top-full left-0 z-50 mt-1 w-72 max-w-full bg-background"
+        >
           <ReactionPicker
             anchorRef={triggerRef}
             // Focus goes back to the trigger on close, so dismissing the picker

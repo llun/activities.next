@@ -8,6 +8,12 @@ interface Props {
   children: ReactNode
   /** Classes for the inline message, for a spot that needs it positioned. */
   className?: string
+  /**
+   * The message is an overlay that leaves its row's box, so the row must not
+   * clip it (see `data-row-overlay` in globals.css). Applied only while the
+   * message shows.
+   */
+  'data-row-overlay'?: boolean
 }
 
 interface State {
@@ -29,10 +35,16 @@ export class LazyChunkBoundary extends Component<Props, State> {
 
   render() {
     if (!this.state.hasFailed) return this.props.children
-    return (
+    const alert = (
       <Alert title="Couldn't load" className={this.props.className}>
         Reload the page to try again.
       </Alert>
+    )
+    if (!this.props['data-row-overlay']) return alert
+    return (
+      <div className="contents" data-row-overlay>
+        {alert}
+      </div>
     )
   }
 }
