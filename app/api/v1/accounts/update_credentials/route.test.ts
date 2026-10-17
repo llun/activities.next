@@ -582,7 +582,18 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(data.role).toEqual(
       expect.objectContaining({ id: expect.any(String) })
     )
+    // `fields[].value` is HTML (a URL becomes Mastodon's link markup);
+    // `source.fields` keeps what was typed.
     expect(data.fields).toEqual([
+      {
+        name: 'Website',
+        value:
+          '<a href="https://example.com" target="_blank" rel="nofollow noopener me" translate="no"><span class="invisible">https://</span><span class="">example.com</span><span class="invisible"></span></a>',
+        verified_at: null
+      },
+      { name: 'Pronouns', value: 'they/them', verified_at: null }
+    ])
+    expect(data.source.fields).toEqual([
       { name: 'Website', value: 'https://example.com', verified_at: null },
       { name: 'Pronouns', value: 'they/them', verified_at: null }
     ])

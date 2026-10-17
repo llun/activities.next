@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { parseProfileFieldsForm } from '@/lib/services/accounts/profileFields'
 import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
@@ -75,6 +76,11 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
 
+    const profileFields = parseProfileFieldsForm(json)
+    if (profileFields.status === 'invalid') {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+
     let manuallyApprovesFollowers: boolean | undefined
     if (rawValue === 'on') {
       manuallyApprovesFollowers = true
@@ -103,7 +109,10 @@ export const POST = traceApiRoute(
       ...(manuallyApprovesFollowers !== undefined
         ? { manuallyApprovesFollowers }
         : null),
-      ...(postLineLimit !== undefined ? { postLineLimit } : null)
+      ...(postLineLimit !== undefined ? { postLineLimit } : null),
+      ...(profileFields.status === 'ok'
+        ? { fields: profileFields.fields }
+        : null)
     })
     await publishActorUpdate({ actorId: currentActor.id })
 

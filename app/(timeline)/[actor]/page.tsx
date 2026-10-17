@@ -17,6 +17,7 @@ import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
+import { ProfileFieldsBlock } from '@/lib/components/profile/ProfileFieldsBlock'
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -29,6 +30,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
+import { getActorProfileFields } from '@/lib/utils/activitypubActor'
 import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -377,6 +379,13 @@ const Page: FC<Props> = async ({ params }) => {
               <span>{formattedSoftware}</span>
             </div>
           )}
+
+          {/* A local actor's document already carries each value as HTML, so
+              both kinds go through the same sanitizer in the block. */}
+          <ProfileFieldsBlock
+            fields={getActorProfileFields(person)}
+            tags={getActorEmojiTags(person)}
+          />
 
           <FeaturedTagsBlock tags={featuredTags} />
         </div>

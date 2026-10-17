@@ -209,6 +209,69 @@ describe('ActorDatabase mastodon actors', () => {
         ])
       })
 
+      it('emits a local actor field value as linkified HTML and keeps source.fields raw', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `profile-links-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.updateActor({
+          actorId,
+          fields: [
+            { name: 'Web', value: 'https://example.com/me' },
+            { name: 'Pronouns', value: 'they <3 & them' }
+          ]
+        })
+
+        const account = await database.getMastodonActorFromId({ id: actorId })
+        expect(account?.fields).toEqual([
+          {
+            name: 'Web',
+            value:
+              '<a href="https://example.com/me" target="_blank" rel="nofollow noopener me" translate="no"><span class="invisible">https://</span><span class="">example.com/me</span><span class="invisible"></span></a>',
+            verified_at: null
+          },
+          {
+            name: 'Pronouns',
+            value: 'they &lt;3 &amp; them',
+            verified_at: null
+          }
+        ])
+        expect(account?.source.fields).toEqual([
+          { name: 'Web', value: 'https://example.com/me', verified_at: null },
+          { name: 'Pronouns', value: 'they <3 & them', verified_at: null }
+        ])
+      })
+
+      it('sanitizes a remote actor field value instead of linkifying it', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const actorId = `https://remote-${suffix}.example/users/linker`
+        await database.createActor({
+          actorId,
+          username: 'linker',
+          domain: `remote-${suffix}.example`,
+          followersUrl: `${actorId}/followers`,
+          inboxUrl: `${actorId}/inbox`,
+          sharedInboxUrl: `${actorId}/inbox`,
+          publicKey: 'linkerPublicKey',
+          fields: [
+            { name: 'Plain', value: 'https://plain.example' },
+            {
+              name: 'Link',
+              value:
+                '<a href="https://blog.example/">blog</a><script>x</script>'
+            }
+          ],
+          createdAt: Date.now()
+        })
+
+        const account = await database.getMastodonActorFromId({ id: actorId })
+        expect(account?.fields.map((field) => field.value)).toEqual([
+          'https://plain.example',
+          '<a href="https://blog.example/">blog</a>'
+        ])
+      })
+
       it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)

@@ -429,3 +429,75 @@ describe('[actor] page header handle link', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+describe('[actor] page profile links', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue(null)
+    mockIsLocalFederationDomain.mockResolvedValue(false)
+  })
+
+  const profileData = (attachment?: unknown[]) => ({
+    person: {
+      id: 'https://remote.example/users/alice',
+      type: 'Person',
+      preferredUsername: 'alice',
+      name: 'Alice',
+      summary: 'Bio text',
+      ...(attachment ? { attachment } : null)
+    } as unknown as Actor,
+    statuses: [],
+    statusesCount: 0,
+    statusPagination: { nextPageUrl: null, prevPageUrl: null },
+    attachments: [],
+    followingCount: 0,
+    followersCount: 0,
+    isInternalAccount: false,
+    hasFitnessData: false,
+    hasGalleryMedia: false,
+    gallerySubviews: [],
+    isPixelfed: false
+  })
+
+  it('shows the actor PropertyValue attachments after the bio', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profileData([
+        { type: 'PropertyValue', name: 'Pronouns', value: 'they/them' },
+        { type: 'Image', url: 'https://remote.example/not-a-field.png' }
+      ])
+    )
+
+    render(
+      await Page({
+        params: Promise.resolve({ actor: '@alice@remote.example' })
+      })
+    )
+
+    const block = document.querySelector('[data-slot="profile-fields"]')
+    const term = screen.getByText('Pronouns')
+    expect(block).toContainElement(term)
+    expect(block?.querySelectorAll('dt')).toHaveLength(1)
+    expect(block).toHaveTextContent('they/them')
+    expect(
+      screen.getByText('Bio text').compareDocumentPosition(term) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('shows no links block when the actor has none', async () => {
+    mockGetProfileData.mockResolvedValue(profileData())
+
+    render(
+      await Page({
+        params: Promise.resolve({ actor: '@alice@remote.example' })
+      })
+    )
+
+    expect(
+      document.querySelector('[data-slot="profile-fields"]')
+    ).not.toBeInTheDocument()
+  })
+})

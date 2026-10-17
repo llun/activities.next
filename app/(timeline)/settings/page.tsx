@@ -6,6 +6,7 @@ import { AppearanceSection } from '@/lib/components/settings/AppearanceSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { NativeFormSaveBar } from '@/lib/components/settings/NativeFormSaveBar'
+import { ProfileLinksField } from '@/lib/components/settings/ProfileLinksField'
 import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
@@ -18,6 +19,7 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { getActorProfileUrl } from '@/lib/utils/getPersonFromActor'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,6 +124,17 @@ const Page = async () => {
                 id="summaryInput"
                 defaultValue={profile.summary || ''}
                 placeholder="A brief description about yourself"
+              />
+            </FormRow>
+            <FormRow
+              label="Profile links"
+              htmlFor="profileField0Name"
+              hint="Up to 4. Shown on your profile and on other servers. Plain text works too."
+              className="sm:items-start"
+            >
+              <ProfileLinksField
+                fields={settings?.fields ?? []}
+                profileUrl={getActorProfileUrl(actor)}
               />
             </FormRow>
             <ImageUploadField
