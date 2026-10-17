@@ -97,7 +97,6 @@ const buildDatabase = (notifications: Notification[]) => ({
   getNotificationsCount: vi.fn().mockResolvedValue(notifications.length),
   getMastodonActorFromId: vi.fn().mockResolvedValue(null),
   getStatus: vi.fn().mockResolvedValue(null),
-  getCollectionById: vi.fn().mockResolvedValue(null),
   getFollowFromId: vi.fn().mockResolvedValue(acceptedFollow),
   getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue(null)
 })

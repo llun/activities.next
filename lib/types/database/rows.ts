@@ -55,8 +55,6 @@ export interface ActorSettings {
     emoji_reaction?: boolean
     activity_import?: boolean
     gear_service_due?: boolean
-    added_to_collection?: boolean
-    collection_update?: boolean
   }
   pushNotifications?: {
     follow_request?: boolean
@@ -70,8 +68,6 @@ export interface ActorSettings {
     emoji_reaction?: boolean
     activity_import?: boolean
     gear_service_due?: boolean
-    added_to_collection?: boolean
-    collection_update?: boolean
   }
   // Mastodon notification policy. Each value is 'accept' | 'filter' | 'drop'.
   // Structurally compatible with NotificationPolicy in database/operations.ts

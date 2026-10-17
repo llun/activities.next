@@ -8,7 +8,6 @@ describe('getPersonFromActor', () => {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         'https://w3id.org/security/v1',
-        'https://w3id.org/fep/7aa9',
         { manuallyApprovesFollowers: 'as:manuallyApprovesFollowers' }
       ],
       id: 'https://chat.llun.dev/users/me',
@@ -19,7 +18,6 @@ describe('getPersonFromActor', () => {
       outbox: `https://chat.llun.dev/users/me/outbox`,
       featured: `https://chat.llun.dev/users/me/collections/featured`,
       featuredTags: `https://chat.llun.dev/users/me/collections/tags`,
-      featuredCollections: `https://chat.llun.dev/users/me/collections/featured-collections`,
       preferredUsername: 'me',
       name: '',
       summary: '',

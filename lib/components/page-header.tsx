@@ -35,7 +35,7 @@ interface PageHeaderProps {
   back?: PageHeaderBack
   /**
    * A short section title for the mobile bar when the page's own heading is
-   * longer or more specific (a list's name, a collection's title). The page
+   * longer or more specific (a list's name). The page
    * heading then stays visible in the content below the bar. Not rendered in
    * section mode, where the section layout's bar carries the section name.
    */
@@ -188,7 +188,7 @@ export const PageHeader = ({
         'text-xl font-semibold tracking-tight',
         // Beside the desktop arrow the title truncates on one line, as it did
         // inside the old heading; below `md` it is the content's own heading
-        // under the Back row, and a long list or collection name wraps.
+        // under the Back row, and a long list name wraps.
         back && 'min-w-0 truncate max-md:whitespace-normal max-md:break-words',
         hidesTitleOnMobile && 'max-md:hidden'
       )}

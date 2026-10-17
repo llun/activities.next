@@ -10,11 +10,11 @@ import { mainTimelineRule } from './main'
 import { notifyRemoteReplyAndMention } from './mentionNotification'
 import { Timeline } from './types'
 
-// The list and collection feeds are materialized, rebuildable projections of
+// The list feed is a materialized, rebuildable projection of
 // the `statuses` table (the same membership-driven fan-out the live query once
 // scanned; lists even ship a `backfill_list_timelines` migration). The status
 // row and its core home/mention/direct timelines are the source of truth. A
-// failure here — e.g. a database mid-migration where the `collection_*`/`list_*`
+// failure here — e.g. a database mid-migration where the `list_*`
 // tables do not exist yet, or a transient DB error — must NOT abort status
 // creation and lose the post itself, which would orphan imported fitness files
 // (no status, no page link). Log and continue; the projection can be rebuilt.
@@ -95,12 +95,6 @@ export const addStatusToTimelines = async (
       await materializeAuxiliaryFeed('list timelines', status, () =>
         database.addStatusToListTimelines({ status })
       )
-      // Likewise fan the post into the capped feed of every collection whose
-      // membership includes its author. The owner/public projections (and the
-      // public-only visibility filter) are applied at read time. Best-effort.
-      await materializeAuxiliaryFeed('collection timelines', status, () =>
-        database.addStatusToCollectionTimelines({ status })
-      )
 
       const isDirect = isDirectStatus(status)
       if (isDirect) {
@@ -141,7 +135,7 @@ export const addStatusToTimelines = async (
             // Side effect only: create reply/mention notifications for inbound
             // remote statuses (the "mention" timeline itself was removed). The
             // local-actor path is handled in createNote.ts. Best-effort, like
-            // the list/collection fan-out above: a notification failure must not
+            // the list fan-out above: a notification failure must not
             // abort home-timeline materialization (or lose the status).
             notifyRemoteReplyAndMention({
               currentActor: actor,

@@ -52,7 +52,7 @@ describe('PageHeader', () => {
       const { container } = render(
         wrap(
           <PageHeader
-            title="Lists & Collections"
+            title="Lists"
             description="Private curated timelines"
             stackActionsOnMobile
             actions={<button type="button">New list</button>}

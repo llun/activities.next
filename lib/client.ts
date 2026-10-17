@@ -20,7 +20,6 @@ export * from './client/serverAnnouncements'
 export * from './client/serverRules'
 
 // --- Social & Statuses ---
-export * from './client/collections'
 export * from './client/conversations'
 export * from './client/customEmojis'
 export * from './client/directMessages'

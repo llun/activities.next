@@ -21,8 +21,6 @@ type MastodonNotificationType =
   | 'favourite'
   | 'poll'
   | 'update'
-  | 'added_to_collection'
-  | 'collection_update'
   | 'admin.sign_up'
   | 'admin.report'
   // Ecosystem dialect (Pleroma/Akkoma), not core Mastodon.
@@ -35,7 +33,7 @@ export interface MastodonNotification {
   // The stable grouping key. For already-grouped input it is the key the
   // grouping step computed. For raw (ungrouped) rows it is the stored groupKey
   // only when the type is groupable by default (like/reblog/follow), otherwise
-  // `ungrouped-<id>` — so mentions/replies/collections, whose stored groupKey
+  // `ungrouped-<id>` — so mentions/replies, whose stored groupKey
   // is an internal key, report the same `ungrouped-<id>` the v2 grouped API does.
   group_key: string
   account: Mastodon.Account
@@ -137,10 +135,6 @@ const mapNotificationType = (
     case 'activity_import':
     case 'gear_service_due':
       return 'status'
-    case 'added_to_collection':
-      return 'added_to_collection'
-    case 'collection_update':
-      return 'collection_update'
     case 'emoji_reaction':
       return 'pleroma:emoji_reaction'
     default:

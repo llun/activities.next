@@ -6,7 +6,7 @@ import { NotificationType } from '@/lib/types/database/operations'
 
 // The block/mute gate of the single notification-creation seam. Every path
 // that raises a notification (remote reply/mention fan-out, follow and follow
-// request, quote, collection) goes through here, so the gate must hold for
+// request, quote) goes through here, so the gate must hold for
 // every type, not only the like/reblog/reaction paths that check it upstream.
 describe('createNotificationWithPolicy block and mute suppression', () => {
   let database: Database
@@ -48,8 +48,7 @@ describe('createNotificationWithPolicy block and mute suppression', () => {
     NotificationType.enum.follow_request,
     NotificationType.enum.mention,
     NotificationType.enum.reply,
-    NotificationType.enum.quote,
-    NotificationType.enum.added_to_collection
+    NotificationType.enum.quote
   ])(
     'drops a %s notification from an account the recipient muted',
     async (type) => {

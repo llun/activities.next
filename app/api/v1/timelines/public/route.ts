@@ -71,7 +71,7 @@ export const GET = traceApiRoute(
       const maxStatusId = resolvedCursors.maxStatusId
       // `min_id` and `since_id` both express a lower-bound cursor; the timeline
       // query takes a single min cursor, so collapse them with `min_id`-wins
-      // precedence (matching the list/collection timelines). Both return the
+      // precedence (matching the list timelines). Both return the
       // newest page above the bound, like every other timeline route here.
       const minStatusId =
         resolvedCursors.minStatusId ?? resolvedCursors.sinceStatusId

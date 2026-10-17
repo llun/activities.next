@@ -27,7 +27,7 @@ interface Props {
 
 /**
  * The single inline composer shared by every post surface (timeline, profile,
- * lists, favourites, bookmarks, hashtags, collections, search, status detail).
+ * lists, favourites, bookmarks, hashtags, search, status detail).
  * It renders beneath the target post so reply, quote, and edit behave
  * identically everywhere. Reply uses the compact `StatusReplyBox`; quote and
  * edit use the full `PostBox` in the matching mode. On success it bubbles the

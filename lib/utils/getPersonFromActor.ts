@@ -2,11 +2,9 @@ import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import {
   getLocalActorFeaturedCollectionId,
-  getLocalActorFeaturedCollectionsId,
   getLocalActorFeaturedTagsCollectionId,
   getLocalActorOutboxId
 } from '@/lib/utils/activitypubId'
-import { FEP_7AA9_CONTEXT_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
 
@@ -62,7 +60,6 @@ export const getPersonFromActor = (
     outbox: getLocalActorOutboxId(actor.id),
     featured: getLocalActorFeaturedCollectionId(actor.id),
     featuredTags: getLocalActorFeaturedTagsCollectionId(actor.id),
-    featuredCollections: getLocalActorFeaturedCollectionsId(actor.id),
     preferredUsername: actor.username,
     name: actor.name || '',
     summary: actor.summary || '',
@@ -85,12 +82,9 @@ export const getPersonFromActor = (
   })
 
   return {
-    // FEP-7aa9 context is added so the `featuredCollections` term resolves for
-    // peers that JSON-LD-compact the actor document.
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
-      FEP_7AA9_CONTEXT_URL,
       {
         // Not in the ActivityStreams context document; Mastodon declares it
         // the same way so compacting peers keep the term.

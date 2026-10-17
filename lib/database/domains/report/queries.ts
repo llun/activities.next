@@ -21,7 +21,6 @@ const COLUMNS = [
   'forward',
   'statusIds',
   'ruleIds',
-  'collectionIds',
   'actionTaken',
   'assignedActorId',
   'actionTakenAt',
@@ -40,7 +39,6 @@ type Row = {
   // JSON arrays in `text` columns, which the driver hands back unparsed.
   statusIds: string
   ruleIds: string
-  collectionIds: string
   actionTaken: boolean
   assignedActorId: string | null
   actionTakenAt: number | null
@@ -61,7 +59,6 @@ const toReport = (row: Row): Report => ({
   forward: row.forward,
   statusIds: parseIds(row.statusIds),
   ruleIds: parseIds(row.ruleIds),
-  collectionIds: parseIds(row.collectionIds),
   actionTaken: row.actionTaken,
   assignedActorId: row.assignedActorId,
   actionTakenAt: row.actionTakenAt,
@@ -79,8 +76,7 @@ export const createReport = async (
     comment = '',
     forward = false,
     statusIds = [],
-    ruleIds = [],
-    collectionIds = []
+    ruleIds = []
   }: CreateReportParams
 ): Promise<Report> => {
   const currentTime = new Date()
@@ -93,7 +89,6 @@ export const createReport = async (
     forward,
     statusIds: JSON.stringify(statusIds),
     ruleIds: JSON.stringify(ruleIds),
-    collectionIds: JSON.stringify(collectionIds),
     actionTaken: false,
     assignedActorId: null,
     actionTakenAt: null,

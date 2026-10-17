@@ -5,7 +5,7 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 import { ReactNode } from 'react'
 
-import { CollectionSummary, ListSummary, ListsIndex } from './ListsIndex'
+import { ListSummary, ListsIndex } from './ListsIndex'
 
 vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
@@ -35,24 +35,9 @@ const baseList = (overrides: Partial<ListSummary>): ListSummary => ({
   ...overrides
 })
 
-const baseCollection = (
-  overrides: Partial<CollectionSummary>
-): CollectionSummary => ({
-  id: 'col-1',
-  title: 'Fediverse builders',
-  description: null,
-  topic: null,
-  language: null,
-  visibility: 'public',
-  feed_enabled: true,
-  size: 2,
-  memberCount: 5,
-  ...overrides
-})
-
 describe('ListsIndex', () => {
-  it('renders the empty state with both create calls to action', () => {
-    render(<ListsIndex lists={[]} collections={[]} />)
+  it('renders the empty state with a create call to action', () => {
+    render(<ListsIndex lists={[]} />)
 
     expect(
       screen.getByRole('heading', { name: 'Nothing here yet' })
@@ -61,56 +46,37 @@ describe('ListsIndex', () => {
       screen.getAllByRole('link', { name: /new list/i })[0]
     ).toHaveAttribute('href', '/lists/new')
     expect(
-      screen.getAllByRole('link', { name: /new collection/i })[0]
-    ).toHaveAttribute('href', '/collections/new')
+      screen.queryByRole('link', { name: /new collection/i })
+    ).not.toBeInTheDocument()
   })
 
-  it('puts the create actions in the empty state itself, not only in the header', () => {
-    render(<ListsIndex lists={[]} collections={[]} />)
+  it('puts the create action in the empty state itself, not only in the header', () => {
+    render(<ListsIndex lists={[]} />)
 
     const empty = screen
       .getByRole('heading', { name: 'Nothing here yet' })
       .closest('[data-slot="empty-state"]') as HTMLElement
     expect(
-      within(empty).getByRole('link', { name: /new collection/i })
-    ).toHaveAttribute('href', '/collections/new')
-    expect(
       within(empty).getByRole('link', { name: /new list/i })
     ).toHaveAttribute('href', '/lists/new')
   })
 
-  it('shows only the groups that have something, each as one list of rows', () => {
-    const { rerender } = render(
-      <ListsIndex lists={[baseList({})]} collections={[]} />
-    )
+  it('shows the lists as one list of rows', () => {
+    render(<ListsIndex lists={[baseList({})]} />)
 
     expect(
       screen.queryByRole('heading', { name: 'Nothing here yet' })
-    ).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Lists' })).toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: 'Collections' })
     ).not.toBeInTheDocument()
     expect(
       within(screen.getByRole('list', { name: 'Lists' })).getAllByRole(
         'listitem'
       )
     ).toHaveLength(1)
-
-    rerender(<ListsIndex lists={[]} collections={[baseCollection({})]} />)
-
-    expect(
-      screen.getByRole('heading', { name: 'Collections' })
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: 'Lists' })
-    ).not.toBeInTheDocument()
   })
 
   it('links each list row to its timeline and summarizes membership', () => {
     render(
       <ListsIndex
-        collections={[]}
         lists={[
           baseList({ id: 'a', title: 'Running club', memberCount: 3 }),
           baseList({
@@ -131,35 +97,5 @@ describe('ListsIndex', () => {
     expect(screen.getByText('3 members')).toBeInTheDocument()
     expect(screen.getByText('3 members · Hidden from Home')).toBeInTheDocument()
     expect(screen.getByText('No members yet')).toBeInTheDocument()
-  })
-
-  it('links each collection row to its detail and summarizes featured count', () => {
-    render(
-      <ListsIndex
-        lists={[]}
-        collections={[
-          baseCollection({
-            id: 'x',
-            title: 'Fediverse builders',
-            memberCount: 5,
-            size: 2
-          }),
-          baseCollection({
-            id: 'y',
-            title: 'Empty collection',
-            memberCount: 0,
-            size: 0
-          })
-        ]}
-      />
-    )
-
-    expect(
-      screen.getByRole('link', { name: /Fediverse builders/ })
-    ).toHaveAttribute('href', '/collections/x')
-    expect(
-      screen.getByText('5 people · 2 featured publicly')
-    ).toBeInTheDocument()
-    expect(screen.getByText('No one yet')).toBeInTheDocument()
   })
 })

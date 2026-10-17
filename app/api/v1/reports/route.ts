@@ -27,7 +27,7 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // Upper bound on how many statuses a single report may cite. Mastodon does not
 // document a cap; this matches the other batch ceilings in the API surface
-// (MAX_BATCH_STATUSES, MAX_COLLECTION_ACCOUNT_IDS). An over-cap body fails
+// (MAX_BATCH_STATUSES). An over-cap body fails
 // safeParse, which this route already answers with a 422. Exported so the
 // route test can exercise the cap.
 export const MAX_REPORT_STATUS_IDS = 100
@@ -43,10 +43,7 @@ const CreateReportBody = z.object({
   comment: z.string().max(1000).optional(),
   forward: Booleanish.optional(),
   category: ReportCategory.optional(),
-  rule_ids: z.union([z.array(z.string().min(1)), z.string().min(1)]).optional(),
-  collection_ids: z
-    .union([z.array(z.string().min(1)), z.string().min(1)])
-    .optional()
+  rule_ids: z.union([z.array(z.string().min(1)), z.string().min(1)]).optional()
 })
 
 const toArray = (value: string[] | string | undefined): string[] => {
@@ -72,16 +69,13 @@ const buildFormReport = (
   }
   const statusIds = collectStrings(getAll('status_ids[]'))
   const ruleIds = collectStrings(getAll('rule_ids[]'))
-  const collectionIds = collectStrings(getAll('collection_ids[]'))
   return {
     account_id: scalar('account_id'),
     status_ids: statusIds.length > 0 ? statusIds : scalar('status_ids'),
     comment: scalar('comment'),
     forward: scalar('forward'),
     category: scalar('category'),
-    rule_ids: ruleIds.length > 0 ? ruleIds : scalar('rule_ids'),
-    collection_ids:
-      collectionIds.length > 0 ? collectionIds : scalar('collection_ids')
+    rule_ids: ruleIds.length > 0 ? ruleIds : scalar('rule_ids')
   }
 }
 
@@ -144,7 +138,6 @@ export const POST = traceApiRoute(
         toArray(parsed.data.status_ids)
       )
       const ruleIds = toArray(parsed.data.rule_ids)
-      const collectionIds = toArray(parsed.data.collection_ids)
 
       const report = await database.createReport({
         actorId: currentActor.id,
@@ -153,8 +146,7 @@ export const POST = traceApiRoute(
         comment: parsed.data.comment ?? '',
         forward: parsed.data.forward ?? false,
         statusIds,
-        ruleIds,
-        collectionIds
+        ruleIds
       })
 
       // forward=true federates a Flag to the reported actor's origin inbox so

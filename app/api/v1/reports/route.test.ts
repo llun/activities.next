@@ -76,8 +76,7 @@ describe('POST /api/v1/reports', () => {
       forward: input.forward,
       createdAt: Date.now(),
       statusIds: input.statusIds,
-      ruleIds: input.ruleIds,
-      collectionIds: input.collectionIds ?? []
+      ruleIds: input.ruleIds
     }))
   })
 
@@ -257,38 +256,6 @@ describe('POST /api/v1/reports', () => {
 
     expect(response.status).toBe(404)
     expect(mockDatabase.createReport).not.toHaveBeenCalled()
-  })
-
-  it('persists and echoes collection_ids', async () => {
-    const response = await POST(
-      createJsonRequest({
-        account_id: 'acc1',
-        collection_ids: ['collection-1', 'collection-2']
-      }),
-      { params: Promise.resolve({}) }
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockDatabase.createReport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collectionIds: ['collection-1', 'collection-2']
-      })
-    )
-    const data = await response.json()
-    expect(data.collection_ids).toEqual(['collection-1', 'collection-2'])
-  })
-
-  it('parses repeated collection_ids[] from a urlencoded body', async () => {
-    const response = await POST(
-      createFormRequest(
-        'account_id=acc1&collection_ids[]=c1&collection_ids[]=c2'
-      ),
-      { params: Promise.resolve({}) }
-    )
-
-    expect(response.status).toBe(200)
-    const call = mockDatabase.createReport.mock.calls[0][0]
-    expect(call.collectionIds).toEqual(['c1', 'c2'])
   })
 
   it('federates a Flag job when forward=true', async () => {

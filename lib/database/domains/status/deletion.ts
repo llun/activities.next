@@ -593,11 +593,8 @@ const executeStatusDeletion = async ({
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('timelines').where('statusId', 'in', chunk).execute()
   )
-  // Mirror the `timelines` cleanup for the collection fan-out feed so deleting
-  // a status does not leave orphaned rows in the high-row-count
-  // `collection_timeline` table (matching the materialized-timeline pattern
-  // rather than a DB foreign key, which the sibling `timelines` table also
-  // does not use).
+  // The retired collections feed: purge so deleted ids don't linger until the
+  // table is dropped (like `timelines`, it has no foreign key to cascade).
   await deleteByStatusIds((chunk) =>
     trx
       .deleteFrom('collection_timeline')

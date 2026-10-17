@@ -15,7 +15,6 @@ export type Report = {
   forward: boolean
   statusIds: string[]
   ruleIds: string[]
-  collectionIds: string[]
   actionTaken: boolean
   // Workflow columns (Admin moderation API). Actor ids in URL form.
   assignedActorId: string | null
@@ -32,7 +31,6 @@ export type CreateReportParams = {
   forward?: boolean
   statusIds?: string[]
   ruleIds?: string[]
-  collectionIds?: string[]
 }
 
 export type GetAdminReportsParams = {

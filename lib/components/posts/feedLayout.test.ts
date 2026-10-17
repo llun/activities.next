@@ -2,7 +2,6 @@ import {
   MOBILE_FEED_SURFACE_CLASS,
   MOBILE_INSET_CARD_CLASS,
   MOBILE_INSET_CARD_FRAME_CLASS,
-  MOBILE_INSET_FEED_CLASS,
   MOBILE_INSET_STACK_CLASS
 } from './feedLayout'
 
@@ -17,8 +16,7 @@ describe('mobile inset card contract', () => {
     for (const value of [
       MOBILE_INSET_STACK_CLASS,
       MOBILE_INSET_CARD_FRAME_CLASS,
-      MOBILE_INSET_CARD_CLASS,
-      MOBILE_INSET_FEED_CLASS
+      MOBILE_INSET_CARD_CLASS
     ]) {
       tokens(value).forEach((token) => expect(token).toMatch(/^max-md:/))
     }

@@ -5,8 +5,6 @@ import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
   TimelineRequestError,
-  getCollectionFeed,
-  getCollectionTimeline,
   getHashtagTimeline,
   getListTimeline,
   getTimeline
@@ -337,133 +335,6 @@ describe('client timelines module', () => {
     })
   })
 
-  describe('getCollectionTimeline', () => {
-    it('fetches collection timeline with encoded id', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-col' }],
-          nextMaxStatusId: 'next-c',
-          prevMinStatusId: 'prev-c'
-        }),
-        { status: 200 }
-      )
-
-      const res = await getCollectionTimeline({
-        collectionId: 'col-123',
-        limit: 5
-      })
-
-      expect(res).toEqual({
-        statuses: [{ id: 'status-col' }],
-        nextMaxStatusId: 'next-c',
-        prevMinStatusId: 'prev-c'
-      })
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://llun.test/api/v1/timelines/collection/col-123?format=activities_next&limit=5',
-        expect.objectContaining({
-          method: 'GET',
-          headers: { Accept: 'application/json' }
-        })
-      )
-    })
-
-    it('returns empty result on non-200 response', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      const res = await getCollectionTimeline({ collectionId: 'err-col' })
-      expect(res).toEqual({
-        statuses: [],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
-      })
-    })
-
-    it('forwards signal to fetch', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-col' }],
-          nextMaxStatusId: null,
-          prevMinStatusId: null
-        }),
-        { status: 200 }
-      )
-
-      const controller = new AbortController()
-      await getCollectionTimeline({
-        collectionId: 'col-1',
-        signal: controller.signal
-      })
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/timelines/collection/col-1'),
-        expect.objectContaining({ signal: controller.signal })
-      )
-    })
-  })
-
-  describe('getCollectionFeed', () => {
-    it('fetches public collection feed with encoded id', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-feed' }],
-          nextMaxStatusId: 'next-f',
-          prevMinStatusId: 'prev-f'
-        }),
-        { status: 200 }
-      )
-
-      const res = await getCollectionFeed({
-        collectionId: 'col-456'
-      })
-
-      expect(res).toEqual({
-        statuses: [{ id: 'status-feed' }],
-        nextMaxStatusId: 'next-f',
-        prevMinStatusId: 'prev-f'
-      })
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://llun.test/api/v1/collections/col-456/feed?format=activities_next',
-        expect.objectContaining({
-          method: 'GET',
-          headers: { Accept: 'application/json' }
-        })
-      )
-    })
-
-    it('returns empty result on non-200 response', async () => {
-      fetchMock.mockResponseOnce('', { status: 404 })
-
-      const res = await getCollectionFeed({ collectionId: 'err-feed' })
-      expect(res).toEqual({
-        statuses: [],
-        nextMaxStatusId: null,
-        prevMinStatusId: null
-      })
-    })
-
-    it('forwards signal to fetch', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({
-          statuses: [{ id: 'status-feed' }],
-          nextMaxStatusId: null,
-          prevMinStatusId: null
-        }),
-        { status: 200 }
-      )
-
-      const controller = new AbortController()
-      await getCollectionFeed({
-        collectionId: 'col-1',
-        signal: controller.signal
-      })
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/collections/col-1/feed'),
-        expect.objectContaining({ signal: controller.signal })
-      )
-    })
-  })
-
   // Cursors travel in a query param, where the accept side (decodeCursor →
   // safeIdToUrl, or the publicId fast path) takes every client-facing id form
   // verbatim. Re-encoding here would turn a publicId cursor into `<uuid>:`,
@@ -485,7 +356,7 @@ describe('client timelines module', () => {
       minStatusId: 'remote.example:users:a:statuses:newer'
     }
   ])(
-    'sends $description cursor unchanged for the timeline and feed helpers',
+    'sends $description cursor unchanged for the list timeline helper',
     async ({ maxStatusId, minStatusId }) => {
       fetchMock.mockResponse(
         JSON.stringify({
@@ -503,21 +374,11 @@ describe('client timelines module', () => {
           fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string
         )
 
-      await getCollectionTimeline({
-        collectionId: 'c1',
-        maxStatusId,
-        minStatusId
-      })
+      await getListTimeline({ listId: 'l1', maxStatusId, minStatusId })
       const timelineUrl = lastRequestUrl()
-      expect(timelineUrl.pathname).toBe('/api/v1/timelines/collection/c1')
+      expect(timelineUrl.pathname).toBe('/api/v1/timelines/list/l1')
       expect(timelineUrl.searchParams.get('max_id')).toBe(maxStatusId)
       expect(timelineUrl.searchParams.get('min_id')).toBe(minStatusId)
-
-      await getCollectionFeed({ collectionId: 'c1', maxStatusId, minStatusId })
-      const feedUrl = lastRequestUrl()
-      expect(feedUrl.pathname).toBe('/api/v1/collections/c1/feed')
-      expect(feedUrl.searchParams.get('max_id')).toBe(maxStatusId)
-      expect(feedUrl.searchParams.get('min_id')).toBe(minStatusId)
     }
   )
 })

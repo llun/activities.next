@@ -22,7 +22,7 @@ export const createNotificationWithPolicy = async (
 ): Promise<Notification | null> => {
   // Blocks (either direction) and a mute with notifications on suppress every
   // notification from that account, whichever path raised it — reply/mention
-  // fan-out, follows, quotes, collections. Self-addressed notifications
+  // fan-out, follows, quotes. Self-addressed notifications
   // (activity_import, gear_service_due, a poll's own author) are exempt.
   if (
     params.sourceActorId !== params.actorId &&

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // Upper bound on how many notification requests a single bulk accept/dismiss
 // may name. Mastodon does not document a cap; this matches the other batch
-// ceilings in the API surface (MAX_BATCH_STATUSES, MAX_COLLECTION_ACCOUNT_IDS)
+// ceilings in the API surface (MAX_BATCH_STATUSES)
 // so one request can't drive an unbounded number of lookups. An over-cap body
 // fails safeParse, which the routes answer with a 422.
 export const MAX_BULK_NOTIFICATION_REQUEST_IDS = 100

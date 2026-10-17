@@ -54,26 +54,6 @@ describe('ReportDatabase', () => {
     })
   })
 
-  it('persists collection ids and defaults them to empty', async () => {
-    await withFreshDatabase(async (database) => {
-      const withCollections = await database.createReport({
-        actorId: REPORTER,
-        targetActorId: TARGET,
-        collectionIds: ['collection-1', 'collection-2']
-      })
-      expect(withCollections.collectionIds).toEqual([
-        'collection-1',
-        'collection-2'
-      ])
-
-      const withoutCollections = await database.createReport({
-        actorId: REPORTER,
-        targetActorId: TARGET
-      })
-      expect(withoutCollections.collectionIds).toEqual([])
-    })
-  })
-
   describe('getAdminReports', () => {
     it('filters by resolved and by reporter/target', async () => {
       await withFreshDatabase(async (database) => {

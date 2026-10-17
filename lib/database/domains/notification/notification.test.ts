@@ -846,6 +846,97 @@ describe('Notification Database', () => {
       })
     })
 
+    describe('retired notification types', () => {
+      const retired = ['added_to_collection', 'collection_update'] as const
+      const recipient = 'https://example.com/users/retired-recipient'
+      const kept = 'https://example.com/users/retired-kept'
+      const hidden = 'https://example.com/users/retired-hidden'
+
+      // The retired types are no longer in the NotificationType enum, so rows
+      // are written the way an older release left them: past the type check.
+      const createRetired = (
+        type: (typeof retired)[number],
+        params: Partial<CreateNotificationParams> = {}
+      ) =>
+        database.createNotification({
+          actorId: recipient,
+          type: type as unknown as NotificationType,
+          sourceActorId: hidden,
+          ...params
+        })
+
+      beforeEach(async () => {
+        const existing = await database.getNotifications({
+          actorId: recipient,
+          limit: 100,
+          includeFiltered: true
+        })
+        for (const notif of existing) {
+          await database.deleteNotification(notif.id)
+        }
+      })
+
+      it('never returns or counts rows of a retired type', async () => {
+        const like = await database.createNotification({
+          actorId: recipient,
+          type: NotificationType.enum.like,
+          sourceActorId: kept,
+          groupKey: 'retired-group'
+        })
+        for (const type of retired) {
+          await createRetired(type, { groupKey: 'retired-group' })
+          await createRetired(type, { filtered: true })
+        }
+
+        const listed = await database.getNotifications({
+          actorId: recipient,
+          limit: 100,
+          includeFiltered: true
+        })
+        expect(listed.map((item) => item.id)).toEqual([like.id])
+
+        expect(
+          await database.getNotificationsCount({ actorId: recipient })
+        ).toBe(1)
+        expect(
+          await database.getNotificationsCount({
+            actorId: recipient,
+            onlyUnread: true,
+            includeFiltered: true
+          })
+        ).toBe(1)
+        expect(
+          await database.getNotificationsCount({
+            actorId: recipient,
+            filteredOnly: true
+          })
+        ).toBe(0)
+
+        expect(
+          await database.getNotificationRequests({
+            actorId: recipient,
+            limit: 40
+          })
+        ).toEqual([])
+        expect(
+          await database.getNotificationRequestsCount({ actorId: recipient })
+        ).toBe(0)
+        expect(
+          await database.getNotificationRequest({
+            actorId: recipient,
+            sourceActorId: hidden
+          })
+        ).toBeNull()
+
+        const grouped = await database.getNotificationsForGroupKey({
+          actorId: recipient,
+          groupKey: 'retired-group',
+          includeFiltered: true
+        })
+        expect(grouped.map((item) => item.id)).toEqual([like.id])
+      })
+    })
+
     describe('queries only touch their own rows', () => {
       const at = (second: number) => Date.UTC(2031, 0, 1) + second * 1000
       const source = (n: number) =>

@@ -14,7 +14,7 @@ type ModeratedStatusesBuilder = ExpressionBuilder<
 // Drops the statuses of accounts the viewer blocks, is blocked by, or mutes
 // (while the mute is active) from a query over `statuses`, as pure NOT EXISTS
 // clauses, so they compose with the other timeline filters and run before
-// LIMIT (no short pages, no backfill loop). The list and collection timelines
+// LIMIT (no short pages, no backfill loop). The list timelines
 // read through it; it mirrors the filtering the home feed applies after the
 // fetch (filterBlockedStatuses and filterMutedStatuses):
 // - Blocks go both ways: an author the viewer blocks or who blocks the viewer

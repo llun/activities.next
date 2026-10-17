@@ -9,7 +9,6 @@ import { adminQueries } from '@/lib/database/domains/admin/queries'
 import { announcementQueries } from '@/lib/database/domains/announcement/queries'
 import { blockQueries } from '@/lib/database/domains/block/queries'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
-import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
 import { createConversationQueries } from '@/lib/database/domains/conversation/queries'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
@@ -85,7 +84,7 @@ export const getSQLDatabase = (
 ): Database => {
   const kysely = () => db
   const statusDatabase = bindDb(kysely, statusQueries)
-  // The list, collection and timeline feeds hydrate through the status
+  // The list and timeline feeds hydrate through the status
   // facade's getStatusesByIds (on the root Kysely instance), outside their
   // domains' transactions. currentActorId hydrates the viewer's action
   // state: each feed already enforces visibility on its own query (before
@@ -144,7 +143,6 @@ export const getSQLDatabase = (
     ...bindDb(kysely, idempotencyQueries),
     ...bindDb(kysely, translationCacheQueries),
     ...bindDb(kysely, statusDetectedLanguageQueries),
-    ...bindDb(kysely, createCollectionQueries(getStatusesByIds)),
     ...bindDb(kysely, createListQueries(getStatusesByIds)),
     ...bindDb(kysely, filterQueries),
     ...bindDb(kysely, serverFilterQueries),
