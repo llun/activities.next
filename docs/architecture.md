@@ -1605,9 +1605,7 @@ legacy shape left to copy.
     overwritten. The job also stamps `linksCheckedAt` (epoch ms, in `settings`)
     on every run, whatever the outcome; `updateActor` carries it over. Like
     `verifiedAt` it is local state: `getPersonFromActor` never emits it (a test
-    pins this), and it is not in the API. `verifiedAt` is
-    local state: `getPersonFromActor` never emits it (a test pins this), and
-    receiving servers verify for themselves.
+    pins this), and it is not in the API. Receiving servers verify for themselves.
   - **When:** `queueProfileLinkVerification`
     (`lib/services/profile-links/queueProfileLinkVerification.ts`) queues the
     job, best effort like `publishActorUpdate`, whenever any field is verifiable

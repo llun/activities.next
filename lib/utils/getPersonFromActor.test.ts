@@ -128,6 +128,16 @@ describe('getPersonFromActor', () => {
       expect(JSON.stringify(withVerification)).not.toMatch(/verif/i)
     })
 
+    it('does not federate linksCheckedAt', () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        fields,
+        linksCheckedAt: 1700000000000
+      })
+
+      expect(JSON.stringify(person)).not.toContain('linksCheckedAt')
+    })
+
     it('declares the schema terms in the context only when there are fields', () => {
       const person = getPersonFromActor({ ...MockActor({}), fields })
       expect(person['@context']).toContainEqual({
