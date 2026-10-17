@@ -298,14 +298,28 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const activeProfileIdRef = useRef<string>(profile.id)
   activeProfileIdRef.current = profile.id
   const segmentsActorIdRef = useRef<string>(profile.id)
+  const hydratedOnceForActorRef = useRef<string | null>(
+    initialSegments && initialSegments.length > 0 ? profile.id : null
+  )
   const lastReconciledAtRef = useRef<number>(0)
   const restoredAnchorRef = useRef<string | null>(null)
   const scrollAnchorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   )
+  const scrollingToTopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
   const isScrollingToTopRef = useRef<boolean>(false)
   const lastJumpScrollYRef = useRef<number>(0)
   const scrollResetRevisionRef = useRef<number>(0)
+
+  const clearScrollingToTop = useCallback(() => {
+    isScrollingToTopRef.current = false
+    if (scrollingToTopTimeoutRef.current) {
+      clearTimeout(scrollingToTopTimeoutRef.current)
+      scrollingToTopTimeoutRef.current = null
+    }
+  }, [])
 
   const gapAfterStatusIds = useMemo(() => {
     const map: Record<string, number> = {}
@@ -381,6 +395,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   // IndexedDB Hydration on mount for profile.id
   useEffect(() => {
     if (initialSegments && initialSegments.length > 0) {
+      hydratedOnceForActorRef.current = profile.id
+      return
+    }
+    if (hydratedOnceForActorRef.current === profile.id) {
       return
     }
     let isCancelled = false
@@ -404,10 +422,14 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
                 })
               : null
           const nextSegments = merged ? merged.segments : cached.segments
+          const cachedFirstId =
+            cached.statuses[0]?.id ?? cached.segments[0]?.statuses[0]?.id
           const firstId = nextSegments[0]?.statuses[0]?.id
-          const validAnchor = isTopOfFeedAnchor(cached.scrollAnchor, firstId)
-            ? null
-            : (cached.scrollAnchor ?? null)
+          const validAnchor =
+            isTopOfFeedAnchor(cached.scrollAnchor, cachedFirstId) ||
+            isTopOfFeedAnchor(cached.scrollAnchor, firstId)
+              ? null
+              : (cached.scrollAnchor ?? null)
 
           if (
             cachedCount > statuses.length ||
@@ -444,6 +466,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         // offline read errors are silently ignored
       } finally {
         if (!isCancelled && activeProfileIdRef.current === profile.id) {
+          hydratedOnceForActorRef.current = profile.id
           setHydratedActorId(profile.id)
         }
       }
@@ -510,7 +533,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           window.scrollY <= VIEW_TOP_EDGE ||
           window.scrollY > lastJumpScrollYRef.current
         ) {
-          isScrollingToTopRef.current = false
+          clearScrollingToTop()
         } else {
           lastJumpScrollYRef.current = window.scrollY
           return
@@ -523,11 +546,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         const el = elements[i]
         const rect = el.getBoundingClientRect()
         if (rect.bottom > VIEW_TOP_EDGE) {
-          if (
-            i === 0 &&
-            rect.top > VIEW_TOP_EDGE &&
-            window.scrollY <= VIEW_TOP_EDGE
-          ) {
+          if (i === 0 && rect.top > VIEW_TOP_EDGE) {
             currentScrollAnchorRef.current = null
             void saveOfflineScrollAnchor({
               actorId,
@@ -540,7 +559,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           if (statusId) {
             const anchor: ScrollAnchorState = {
               statusId,
-              offsetTop: Math.min(Math.round(rect.top), VIEW_TOP_EDGE),
+              offsetTop: Math.round(rect.top),
               updatedAt: Date.now()
             }
             currentScrollAnchorRef.current = anchor
@@ -556,7 +575,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
 
     const cancelSmoothScrollToTop = () => {
-      isScrollingToTopRef.current = false
+      clearScrollingToTop()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (['ArrowDown', 'PageDown', 'End', ' '].includes(event.key)) {
+        clearScrollingToTop()
+      }
     }
 
     const handleScroll = () => {
@@ -565,7 +590,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           window.scrollY <= VIEW_TOP_EDGE ||
           window.scrollY > lastJumpScrollYRef.current
         ) {
-          isScrollingToTopRef.current = false
+          clearScrollingToTop()
         } else {
           lastJumpScrollYRef.current = window.scrollY
           return
@@ -589,6 +614,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     window.addEventListener('touchmove', cancelSmoothScrollToTop, {
       passive: true
     })
+    window.addEventListener('pointerdown', cancelSmoothScrollToTop, {
+      passive: true
+    })
+    window.addEventListener('keydown', handleKeyDown)
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
@@ -596,12 +625,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         clearTimeout(scrollAnchorTimeoutRef.current)
         scrollAnchorTimeoutRef.current = null
       }
+      clearScrollingToTop()
       window.removeEventListener('scroll', handleScroll)
       window.removeEventListener('wheel', cancelSmoothScrollToTop)
       window.removeEventListener('touchmove', cancelSmoothScrollToTop)
+      window.removeEventListener('pointerdown', cancelSmoothScrollToTop)
+      window.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [])
+  }, [clearScrollingToTop])
 
   // Recount whenever the list changes (once any pending anchor restore above
   // has put the reading spot back) and as the reader scrolls, so the pill
@@ -629,7 +661,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             window.scrollY <= VIEW_TOP_EDGE ||
             window.scrollY > lastJumpScrollYRef.current
           ) {
-            isScrollingToTopRef.current = false
+            clearScrollingToTop()
           } else {
             setIsScrolledDown(false)
             return
@@ -655,7 +687,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       window.removeEventListener('scroll', handleScroll)
       if (frame !== null) window.cancelAnimationFrame(frame)
     }
-  }, [unseenAbove])
+  }, [clearScrollingToTop, unseenAbove])
 
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
@@ -927,9 +959,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       }
 
       const resetRevisionAtStart = scrollResetRevisionRef.current
+      const previousFirstId = currentStatusesRef.current[0]?.id
       let capturedAnchor: { statusId: string; offsetTop: number } | null = null
-      const shouldPreserve =
-        options?.preserveScroll ?? isCurrentlyScrolledDown()
+      const shouldPreserve = isScrollingToTopRef.current
+        ? false
+        : (options?.preserveScroll ?? isCurrentlyScrolledDown())
 
       if (shouldPreserve && typeof document !== 'undefined') {
         const elements =
@@ -942,7 +976,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             if (statusId) {
               capturedAnchor = {
                 statusId,
-                offsetTop: Math.min(Math.round(rect.top), VIEW_TOP_EDGE)
+                offsetTop: Math.round(rect.top)
               }
             }
             break
@@ -1005,11 +1039,27 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         setNewerPostsCount(0)
         lastFailedFetchRef.current = null
 
-        if (effectivePreserve && capturedAnchor) {
+        const firstMergedId = merged.segments[0]?.statuses[0]?.id
+        const hasNewerPrepended =
+          Boolean(firstMergedId) && firstMergedId !== previousFirstId
+        const isCapturedTopOfFeed =
+          capturedAnchor !== null &&
+          isTopOfFeedAnchor(
+            {
+              statusId: capturedAnchor.statusId,
+              offsetTop: capturedAnchor.offsetTop,
+              updatedAt: now
+            },
+            firstMergedId
+          )
+
+        if (effectivePreserve && capturedAnchor && !isCapturedTopOfFeed) {
           restoredAnchorRef.current = null
           const nextAnchor: ScrollAnchorState = {
             statusId: capturedAnchor.statusId,
-            offsetTop: capturedAnchor.offsetTop,
+            offsetTop: hasNewerPrepended
+              ? Math.min(capturedAnchor.offsetTop, VIEW_TOP_EDGE)
+              : capturedAnchor.offsetTop,
             updatedAt: now
           }
           currentScrollAnchorRef.current = nextAnchor
@@ -1164,12 +1214,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     })
     const startScrollY = typeof window !== 'undefined' ? window.scrollY : 0
     lastJumpScrollYRef.current = startScrollY
-    isScrollingToTopRef.current = startScrollY > VIEW_TOP_EDGE
+    clearScrollingToTop()
+    if (startScrollY > VIEW_TOP_EDGE) {
+      isScrollingToTopRef.current = true
+      scrollingToTopTimeoutRef.current = setTimeout(() => {
+        isScrollingToTopRef.current = false
+        scrollingToTopTimeoutRef.current = null
+      }, 1000)
+    }
     scrollPageToTop()
     if (typeof window !== 'undefined' && window.scrollY <= VIEW_TOP_EDGE) {
-      isScrollingToTopRef.current = false
+      clearScrollingToTop()
     }
-  }, [profile.id, unseenAbove])
+  }, [clearScrollingToTop, profile.id, unseenAbove])
 
   const handleCleanTopSnapshot = useCallback(async () => {
     setNewerPostsCount(0)

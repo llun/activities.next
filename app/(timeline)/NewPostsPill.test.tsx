@@ -4,7 +4,11 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-import { NewPostsPill, createUnseenAboveStore } from './NewPostsPill'
+import {
+  NewPostsPill,
+  TimelineScrollToTopButton,
+  createUnseenAboveStore
+} from './NewPostsPill'
 
 describe('createUnseenAboveStore', () => {
   let originalRect: typeof HTMLElement.prototype.getBoundingClientRect
@@ -151,5 +155,49 @@ describe('NewPostsPill', () => {
     expect(
       screen.queryByRole('button', { name: 'Back to top' })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('TimelineScrollToTopButton', () => {
+  it('hides the floating Scroll to top button when isScrolledDown is true (so the header pill takes over)', () => {
+    const store = createUnseenAboveStore()
+    const originalScrollY = window.scrollY
+    Object.defineProperty(window, 'scrollY', {
+      value: 500,
+      configurable: true,
+      writable: true
+    })
+
+    try {
+      const { rerender } = render(
+        <TimelineScrollToTopButton
+          store={store}
+          polledCount={0}
+          isScrolledDown={false}
+          isLoadMoreVisible={false}
+        />
+      )
+      expect(
+        screen.getByRole('button', { name: 'Scroll to top' })
+      ).toBeInTheDocument()
+
+      rerender(
+        <TimelineScrollToTopButton
+          store={store}
+          polledCount={0}
+          isScrolledDown={true}
+          isLoadMoreVisible={false}
+        />
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Scroll to top' })
+      ).not.toBeInTheDocument()
+    } finally {
+      Object.defineProperty(window, 'scrollY', {
+        value: originalScrollY,
+        configurable: true,
+        writable: true
+      })
+    }
   })
 })

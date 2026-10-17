@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getTimeline } from '@/lib/client'
+import { clearAllOfflineData } from '@/lib/client/offline'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Attachment } from '@/lib/types/domain/attachment'
 
@@ -69,7 +70,8 @@ describe('MainPageTimeline', () => {
     installIntersectionObserver()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await clearAllOfflineData()
     vi.mocked(getTimeline).mockReset()
     resetIntersectionObserver()
   })
@@ -535,7 +537,7 @@ describe('MainPageTimeline', () => {
       beforeEach(() => {
         vi.useFakeTimers()
         originalScrollTo = window.scrollTo
-        scrollToMock.mockClear()
+        scrollToMock.mockReset()
         window.scrollTo = scrollToMock
       })
 
@@ -682,8 +684,8 @@ describe('MainPageTimeline', () => {
     beforeEach(() => {
       originalScrollTo = window.scrollTo
       originalScrollBy = window.scrollBy
-      scrollToMock.mockClear()
-      scrollByMock.mockClear()
+      scrollToMock.mockReset()
+      scrollByMock.mockReset()
       window.scrollTo = scrollToMock
       window.scrollBy = scrollByMock
       originalRect = HTMLElement.prototype.getBoundingClientRect
@@ -919,6 +921,36 @@ describe('MainPageTimeline', () => {
       expect(
         await screen.findByRole('button', { name: '1 new post' })
       ).toBeInTheDocument()
+    })
+
+    it('does not scroll down when preserveScroll refresh at the top of the timeline returns 0 new posts', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      rowTops = { [post1.id]: 310 }
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: post1.id
+      })
+
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+
+      expect(scrollByMock).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: /new post|Back to top/ })
+      ).not.toBeInTheDocument()
     })
   })
 
