@@ -5,6 +5,7 @@ import {
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   LIKE_JOB_NAME,
+  MOVE_ACTOR_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   RECEIVE_FLAG_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
@@ -960,5 +961,65 @@ describe('getJobMessage', () => {
 
       expect(result?.name).toBe(CREATE_ANNOUNCE_JOB_NAME)
     })
+  })
+})
+
+describe('getJobMessage: Move', () => {
+  const origin = 'https://mastodon.test/users/alice'
+  const target = 'https://newhome.test/users/alice'
+  const move = (overrides: Record<string, unknown> = {}) =>
+    ({
+      id: `${origin}#moves/1`,
+      type: 'Move',
+      actor: origin,
+      object: origin,
+      target,
+      ...overrides
+    }) as unknown as Parameters<typeof getJobMessage>[0]
+
+  it('routes a Move signed by the origin to the move job, deduped by activity id', () => {
+    expect(getJobMessage(move(), origin)).toEqual({
+      id: getInboxJobId(`${origin}#moves/1`),
+      name: MOVE_ACTOR_JOB_NAME,
+      data: { actor: origin, object: origin, target },
+      verifiedSenderActorId: origin
+    })
+  })
+
+  it('reads the target from an embedded object', () => {
+    expect(
+      getJobMessage(move({ target: { id: target, type: 'Person' } }), origin)
+        ?.data
+    ).toMatchObject({ target })
+  })
+
+  it.each([
+    {
+      title: 'the signer is not the actor',
+      activity: move(),
+      sender: 'https://evil.test/users/mallory'
+    },
+    {
+      title: 'the object is another account',
+      activity: move({ object: 'https://mastodon.test/users/bob' }),
+      sender: origin
+    },
+    {
+      title: 'the target is missing',
+      activity: move({ target: undefined }),
+      sender: origin
+    },
+    {
+      title: 'the target is the origin',
+      activity: move({ target: origin }),
+      sender: origin
+    },
+    {
+      title: 'the activity has no id',
+      activity: move({ id: undefined }),
+      sender: origin
+    }
+  ])('drops a Move when $title', ({ activity, sender }) => {
+    expect(getJobMessage(activity, sender)).toBeNull()
   })
 })

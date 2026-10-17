@@ -27,6 +27,24 @@ export interface ActorSettings {
   // outcome. Bounds how often a remote profile render re-queues the check.
   // Internal: never federated and never in the API.
   linksCheckedAt?: number
+  // Remote actors only: the inbound `Move` this server is processing (or has
+  // processed) for the actor, and when it claimed it (epoch ms). It is
+  // Mastodon's `move_in_progress:<account_id>` key (set with nx for 7 days,
+  // cleared when verification fails). `activityId` is the job message id, so a
+  // retry of the same activity can tell itself from a second Move.
+  // Internal: never federated and never in the API.
+  // `verified` is set once the target was verified and `movedTo` recorded: a
+  // verified claim is never released, so a later replay that fails cannot free
+  // the 7-day window. `queued` is set once every follower job was published, so
+  // a replay of the same Move after that does nothing (Mastodon's
+  // `move_in_progress`).
+  moveProcessing?: {
+    at: number
+    activityId: string
+    target: string
+    verified?: boolean
+    queued?: boolean
+  }
   // Custom emoji tags in display name/bio.
   tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags. `bot` marks an automated account;

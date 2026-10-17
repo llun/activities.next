@@ -30,8 +30,12 @@ import {
 } from '@/lib/database/domains/actor/mastodon'
 import {
   cancelActorDeletion,
+  claimActorMove,
+  clearActorMove,
   createActor,
   deleteActor,
+  markActorMoveQueued,
+  markActorMoveVerified,
   markActorProfileFieldsVerified,
   scheduleActorDeletion,
   startActorDeletion,
@@ -58,6 +62,10 @@ export const actorQueries = {
   getLocalMastodonActors,
   getMastodonActors,
   updateActor,
+  claimActorMove,
+  clearActorMove,
+  markActorMoveVerified,
+  markActorMoveQueued,
   markActorProfileFieldsVerified,
   deleteActor,
   setActorCounters,

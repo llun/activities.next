@@ -5,6 +5,9 @@ import type { Actor } from '@/lib/types/domain/actor'
 import type { Follow, FollowStatus } from '@/lib/types/domain/follow'
 
 export type CreateFollowParams = {
+  // A caller-chosen id (a deterministic one makes the insert idempotent: when a
+  // row with that id exists it is returned unchanged). Random when omitted.
+  id?: string
   actorId: string
   targetActorId: string
   status: FollowStatus
@@ -102,7 +105,9 @@ export interface FollowDatabase {
     params: GetAcceptedFollowTargetActorIdsParams
   ): Promise<string[]>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
-  updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
+  // Resolves to whether the status actually changed: false for a missing
+  // follow, a concurrent writer that got there first, or the same status.
+  updateFollowStatus(params: UpdateFollowStatusParams): Promise<boolean>
   // New method for getting following with pagination
   getFollowing(params: GetFollowingParams): Promise<Follow[]>
   getFollowers(params: GetFollowersParams): Promise<Follow[]>

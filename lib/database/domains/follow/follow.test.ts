@@ -649,6 +649,29 @@ describe('FollowDatabase', () => {
         })
         expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
       })
+
+      it('returns the existing row for an explicit id and counts nothing twice', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const id = crypto.randomUUID()
+        const params = {
+          id,
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
+        }
+        const first = await database.createFollow(params)
+        const second = await database.createFollow(params)
+
+        expect(first.id).toEqual(id)
+        expect(second.id).toEqual(id)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
+        expect(
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
+      })
     })
 
     describe('updateFollow', () => {
@@ -724,6 +747,97 @@ describe('FollowDatabase', () => {
           following_count: 1
         })
         expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
+      })
+
+      it('returns true once for a real transition and adjusts the counters once', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const follow = await database.createFollow({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Requested
+        })
+
+        expect(
+          await database.updateFollowStatus({
+            followId: follow.id,
+            status: FollowStatus.enum.Accepted
+          })
+        ).toBe(true)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
+        expect(
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
+      })
+
+      it('returns false and leaves the counters when a concurrent call wins', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const follow = await database.createFollow({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Requested
+        })
+
+        // SQLite serializes the two calls, so the second one returns false
+        // through the same-status check. The conditional-miss branch (the
+        // status changed between the read and the write) is only a real race
+        // on PostgreSQL.
+        const results = await Promise.all([
+          database.updateFollowStatus({
+            followId: follow.id,
+            status: FollowStatus.enum.Accepted
+          }),
+          database.updateFollowStatus({
+            followId: follow.id,
+            status: FollowStatus.enum.Accepted
+          })
+        ])
+
+        expect(results.filter(Boolean)).toHaveLength(1)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
+        expect(
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
+      })
+
+      it('returns false for a missing follow', async () => {
+        expect(
+          await database.updateFollowStatus({
+            followId: crypto.randomUUID(),
+            status: FollowStatus.enum.Accepted
+          })
+        ).toBe(false)
+      })
+
+      it('refreshes updatedAt for the same status without moving the counters', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const follow = await database.createFollow({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
+        })
+        await new Promise((resolve) => setTimeout(resolve, 10))
+
+        await database.updateFollowStatus({
+          followId: follow.id,
+          status: FollowStatus.enum.Accepted
+        })
+
+        const after = await database.getFollowFromId({ followId: follow.id })
+        expect(after?.status).toEqual(FollowStatus.enum.Accepted)
+        expect(after?.updatedAt).toBeGreaterThan(follow.updatedAt)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
+        expect(
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
       })
     })
 
