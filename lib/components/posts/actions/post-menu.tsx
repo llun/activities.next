@@ -20,7 +20,17 @@ import {
   VolumeX
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, RefObject, useEffect, useRef, useState } from 'react'
+import {
+  ElementType,
+  FC,
+  Fragment,
+  ReactNode,
+  RefObject,
+  useEffect,
+  useId,
+  useRef,
+  useState
+} from 'react'
 
 import {
   getRelationship,
@@ -34,6 +44,7 @@ import { useTranslationContext } from '@/lib/components/posts/translation-contex
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -357,6 +368,12 @@ export const PostMenu: FC<Props> = ({
     }
   }
 
+  const groupLabelId = useId()
+  const postLabelId = useId()
+  // With scope labels, everything under the "First post" heading is one
+  // labelled group; without them the menu renders exactly as before.
+  const PostSection: ElementType = scopeLabels ? DropdownMenuGroup : Fragment
+  const postSectionProps = scopeLabels ? { 'aria-labelledby': postLabelId } : {}
   const groupItems = scopeLabels
     ? (extraItems ?? []).filter((item) => item.group)
     : []
@@ -477,192 +494,199 @@ export const PostMenu: FC<Props> = ({
         >
           {scopeLabels && groupItems.length > 0 ? (
             <>
-              <DropdownMenuLabel>{scopeLabels.group}</DropdownMenuLabel>
-              {groupItems.map(renderExtraItem)}
+              <DropdownMenuGroup aria-labelledby={groupLabelId}>
+                <DropdownMenuLabel id={groupLabelId}>
+                  {scopeLabels.group}
+                </DropdownMenuLabel>
+                {groupItems.map(renderExtraItem)}
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
             </>
           ) : null}
-          {scopeLabels ? (
-            <DropdownMenuLabel>{scopeLabels.post}</DropdownMenuLabel>
-          ) : null}
-          {postItems.length > 0 ? (
-            <>
-              {postItems.map(renderExtraItem)}
-              <DropdownMenuSeparator />
-            </>
-          ) : null}
-          {onQuote ? (
-            <>
-              <DropdownMenuItem onSelect={() => onQuote(status)}>
-                <MessageSquareQuote className="size-4" />
-                Quote post
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          ) : null}
-          {isOwner ? (
-            <>
-              {canEdit ? (
-                <DropdownMenuItem
-                  onSelect={() => onEdit?.(status as EditableStatus)}
-                >
-                  <Pencil className="size-4" />
-                  Edit post
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Globe className="size-4" />
-                  Change visibility
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-52">
-                  {VISIBILITY_OPTIONS.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value}
-                      disabled={visibilitySaving}
-                      onSelect={() => {
-                        // Let the menu close on select so a failure's inline
-                        // error isn't hidden behind the open (portaled) menu.
-                        void handleVisibilityChange(option.value)
-                      }}
-                    >
-                      {option.icon}
-                      <span className="flex-1">{option.label}</span>
-                      {option.value === visibility ? (
-                        <Check className="size-4 text-primary" />
-                      ) : null}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
+          <PostSection {...postSectionProps}>
+            {scopeLabels ? (
+              <DropdownMenuLabel id={postLabelId}>
+                {scopeLabels.post}
+              </DropdownMenuLabel>
+            ) : null}
+            {postItems.map(renderExtraItem)}
+            {postItems.length > 0 ? <DropdownMenuSeparator /> : null}
+            {onQuote ? (
+              <>
+                <DropdownMenuItem onSelect={() => onQuote(status)}>
                   <MessageSquareQuote className="size-4" />
-                  Change who can quote
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-52">
-                  {QUOTE_POLICY_OPTIONS.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value}
-                      disabled={quotePolicySaving}
-                      onSelect={() => {
-                        void handleQuotePolicyChange(option.value)
-                      }}
+                  Quote post
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
+            {isOwner ? (
+              <>
+                {canEdit ? (
+                  <DropdownMenuItem
+                    onSelect={() => onEdit?.(status as EditableStatus)}
+                  >
+                    <Pencil className="size-4" />
+                    Edit post
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Globe className="size-4" />
+                    Change visibility
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-52">
+                    {VISIBILITY_OPTIONS.map((option) => (
+                      <DropdownMenuItem
+                        key={option.value}
+                        disabled={visibilitySaving}
+                        onSelect={() => {
+                          // Let the menu close on select so a failure's inline
+                          // error isn't hidden behind the open (portaled) menu.
+                          void handleVisibilityChange(option.value)
+                        }}
+                      >
+                        {option.icon}
+                        <span className="flex-1">{option.label}</span>
+                        {option.value === visibility ? (
+                          <Check className="size-4 text-primary" />
+                        ) : null}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <MessageSquareQuote className="size-4" />
+                    Change who can quote
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-52">
+                    {QUOTE_POLICY_OPTIONS.map((option) => (
+                      <DropdownMenuItem
+                        key={option.value}
+                        disabled={quotePolicySaving}
+                        onSelect={() => {
+                          void handleQuotePolicyChange(option.value)
+                        }}
+                      >
+                        {option.icon}
+                        <span className="flex-1">{option.label}</span>
+                        {option.value === quotePolicy ? (
+                          <Check className="size-4 text-primary" />
+                        ) : null}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem onSelect={() => onReply?.(status)}>
+                  <AtSign className="size-4" />
+                  <span
+                    className="min-w-0 truncate"
+                    title={`Mention ${mention}`}
+                  >
+                    Mention {mention}
+                  </span>
+                </DropdownMenuItem>
+                {relationship?.muting ? (
+                  <DropdownMenuItem onSelect={() => void handleUnmute()}>
+                    <VolumeX className="size-4" />
+                    <span
+                      className="min-w-0 truncate"
+                      title={`Unmute ${actorName}`}
                     >
-                      {option.icon}
-                      <span className="flex-1">{option.label}</span>
-                      {option.value === quotePolicy ? (
-                        <Check className="size-4 text-primary" />
-                      ) : null}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </>
-          ) : (
-            <>
-              <DropdownMenuItem onSelect={() => onReply?.(status)}>
-                <AtSign className="size-4" />
-                <span className="min-w-0 truncate" title={`Mention ${mention}`}>
-                  Mention {mention}
-                </span>
-              </DropdownMenuItem>
-              {relationship?.muting ? (
-                <DropdownMenuItem onSelect={() => void handleUnmute()}>
-                  <VolumeX className="size-4" />
-                  <span
-                    className="min-w-0 truncate"
-                    title={`Unmute ${actorName}`}
-                  >
-                    Unmute {actorName}
-                  </span>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onSelect={() => setDialog('mute')}>
-                  <VolumeX className="size-4" />
-                  <span
-                    className="min-w-0 truncate"
-                    title={`Mute ${actorName}`}
-                  >
-                    Mute {actorName}
-                  </span>
-                </DropdownMenuItem>
-              )}
-              {relationship?.blocking ? (
-                <DropdownMenuItem onSelect={() => void handleUnblock()}>
-                  <Ban className="size-4" />
-                  <span
-                    className="min-w-0 truncate"
-                    title={`Unblock ${actorName}`}
-                  >
-                    Unblock {actorName}
-                  </span>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onSelect={() => setDialog('block')}>
-                  <Ban className="size-4" />
-                  <span
-                    className="min-w-0 truncate"
-                    title={`Block ${actorName}`}
-                  >
-                    Block {actorName}
-                  </span>
-                </DropdownMenuItem>
-              )}
-            </>
-          )}
+                      Unmute {actorName}
+                    </span>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => setDialog('mute')}>
+                    <VolumeX className="size-4" />
+                    <span
+                      className="min-w-0 truncate"
+                      title={`Mute ${actorName}`}
+                    >
+                      Mute {actorName}
+                    </span>
+                  </DropdownMenuItem>
+                )}
+                {relationship?.blocking ? (
+                  <DropdownMenuItem onSelect={() => void handleUnblock()}>
+                    <Ban className="size-4" />
+                    <span
+                      className="min-w-0 truncate"
+                      title={`Unblock ${actorName}`}
+                    >
+                      Unblock {actorName}
+                    </span>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => setDialog('block')}>
+                    <Ban className="size-4" />
+                    <span
+                      className="min-w-0 truncate"
+                      title={`Block ${actorName}`}
+                    >
+                      Block {actorName}
+                    </span>
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
 
-          <DropdownMenuSeparator />
-          {translation?.canManualTranslate && translation.state === 'idle' ? (
+            <DropdownMenuSeparator />
+            {translation?.canManualTranslate && translation.state === 'idle' ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  translation.request()
+                }}
+              >
+                <Languages className="size-4" />
+                Translate…
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem
-              onSelect={() => {
-                translation.request()
+              onSelect={(e) => {
+                e.preventDefault()
+                void copyLink()
               }}
             >
-              <Languages className="size-4" />
-              Translate…
+              {copied ? (
+                <Check className="size-4 text-primary" />
+              ) : (
+                <LinkIcon className="size-4" />
+              )}
+              {copied ? 'Link copied' : 'Copy link to post'}
             </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault()
-              void copyLink()
-            }}
-          >
-            {copied ? (
-              <Check className="size-4 text-primary" />
-            ) : (
-              <LinkIcon className="size-4" />
-            )}
-            {copied ? 'Link copied' : 'Copy link to post'}
-          </DropdownMenuItem>
-          {showOpenOriginal ? (
-            <DropdownMenuItem asChild>
-              <a href={statusUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="size-4" />
-                Open original
-              </a>
-            </DropdownMenuItem>
-          ) : null}
+            {showOpenOriginal ? (
+              <DropdownMenuItem asChild>
+                <a href={statusUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-4" />
+                  Open original
+                </a>
+              </DropdownMenuItem>
+            ) : null}
 
-          <DropdownMenuSeparator />
-          {isOwner ? (
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setDialog('delete')}
-            >
-              <Trash2 className="size-4" />
-              Delete post
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setDialog('report')}
-            >
-              <TriangleAlert className="size-4" />
-              Report post
-            </DropdownMenuItem>
-          )}
+            <DropdownMenuSeparator />
+            {isOwner ? (
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setDialog('delete')}
+              >
+                <Trash2 className="size-4" />
+                Delete post
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setDialog('report')}
+              >
+                <TriangleAlert className="size-4" />
+                Report post
+              </DropdownMenuItem>
+            )}
+          </PostSection>
         </DropdownMenuContent>
       </DropdownMenu>
 

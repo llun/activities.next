@@ -10,8 +10,10 @@ import {
 } from './timelineModel'
 
 /**
- * The longest gap between two neighbouring posts of a combined run. Exactly ten
- * minutes still combines; one millisecond more starts a new block.
+ * The longest gap that still lets a post join a combined run: the author's next
+ * post is measured from the post it replies to, a tucked-in reply from someone
+ * else from the last waiting reply (or, with none, the run's latest post).
+ * Exactly ten minutes still combines; one millisecond more starts a new block.
  */
 export const COMBINE_MAX_GAP_MS = 10 * 60 * 1000
 
@@ -76,8 +78,9 @@ const canTuck = (status: Status): boolean => {
  * one combined post, and every other status stays a plain `post`.
  *
  * A run is two or more posts by one author where each post after the first
- * replies to the previous one (or to a reply tucked into the run), neighbouring
- * posts are at most `COMBINE_MAX_GAP_MS` apart and all share one visibility.
+ * replies to the previous one (or to a reply tucked into the run), each post is
+ * at most `COMBINE_MAX_GAP_MS` after the post it replies to and all share one
+ * visibility.
  * Someone else's reply to a run post stays inside the run as an inset when the
  * run carries at most `COMBINE_MAX_INSETS` of them, the reply has nothing but
  * text and the author's next post follows it; otherwise the run splits there and
@@ -200,6 +203,7 @@ export const buildCombinedBlocks = (
       if (
         partIndex >= 0 &&
         insetCount < COMBINE_MAX_INSETS &&
+        // Measured from the last waiting reply, else the run's latest post.
         isWithinGap(info.createdAt, previous.createdAt)
       ) {
         run.pending.push({ info, partIndex, index })

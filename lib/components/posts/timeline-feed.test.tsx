@@ -628,6 +628,23 @@ describe('TimelineFeed', () => {
       )
       expect(await screen.findByText('Post group')).toBeInTheDocument()
       expect(screen.getByText('First post')).toBeInTheDocument()
+      const groupSection = screen.getByRole('group', { name: 'Post group' })
+      const firstPostSection = screen.getByRole('group', {
+        name: 'First post'
+      })
+      const groupNames = within(groupSection)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+      const firstPostNames = within(firstPostSection)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+      expect(groupNames).toEqual(
+        expect.arrayContaining(['Show as separate posts'])
+      )
+      expect(firstPostNames.join('|')).toMatch(/Copy link/)
+      expect(firstPostNames).not.toContain('Show as separate posts')
+      expect(groupNames.join('|')).not.toMatch(/Copy link/)
+      expect(firstPostNames).not.toContain('Show as separate posts')
       expect(
         screen.getByRole('menuitem', { name: 'Show as separate posts' })
       ).toBeInTheDocument()
