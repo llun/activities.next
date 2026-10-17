@@ -156,7 +156,10 @@ export const planNoteTags = (note: BaseNote): PlannedTag[] => {
 
 /**
  * Stores planned tags. One tag that cannot be stored is logged and skipped, and
- * never fails the rest. Returns the hashtag names that were stored.
+ * never fails the rest. Returns the hashtag names that were stored, in the
+ * order the note lists them: the inserts run concurrently and finish in any
+ * order (PostgreSQL's pool does not preserve it), so the result is gathered by
+ * position rather than pushed as each insert completes.
  */
 export const storePlannedTags = async ({
   database,
@@ -167,9 +170,8 @@ export const storePlannedTags = async ({
   statusId: string
   tags: PlannedTag[]
 }): Promise<string[]> => {
-  const stored: string[] = []
-  await Promise.all(
-    tags.map(async (tag) => {
+  const results = await Promise.all(
+    tags.map(async (tag): Promise<string | null> => {
       try {
         await database.createTag({
           statusId,
@@ -178,7 +180,7 @@ export const storePlannedTags = async ({
           type: tag.type,
           ...(tag.type === 'hashtag' ? { skipSearchIndex: true } : undefined)
         })
-        if (tag.type === 'hashtag') stored.push(tag.name)
+        return tag.type === 'hashtag' ? tag.name : null
       } catch (error) {
         logger.warn({
           message: 'Skipping a remote note tag that could not be stored',
@@ -187,10 +189,11 @@ export const storePlannedTags = async ({
           tagName: tag.name,
           error: error instanceof Error ? error.message : String(error)
         })
+        return null
       }
     })
   )
-  return stored
+  return results.filter((name): name is string => name !== null)
 }
 
 /**
