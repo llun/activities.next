@@ -102,4 +102,108 @@ describe('likeJob', () => {
       await database.isActorLikedStatus({ actorId: OTHER_ACTOR, statusId })
     ).toBe(false)
   })
+
+  it('creates exactly one like notification, even on redelivery', async () => {
+    const statusId = statuses.primary.postWithAttachments
+    const liker = 'https://remote.test/users/notifier'
+    const likeNotifications = async () =>
+      (
+        await database.getNotifications({
+          actorId: statuses.primary.post.split('/statuses/')[0],
+          limit: 50,
+          sourceActorId: liker
+        })
+      ).filter((n) => n.type === 'like' && n.statusId === statusId)
+
+    await run(like(statusId, liker), liker)
+    expect(await likeNotifications()).toHaveLength(1)
+
+    await run(like(statusId, liker), liker)
+    expect(await likeNotifications()).toHaveLength(1)
+  })
+
+  it('does not let another actor undo a stored like', async () => {
+    const statusId = statuses.primary.secondPost
+    const owner = 'https://remote.test/users/owner'
+    await database.createLike({ actorId: owner, statusId })
+
+    await run(
+      {
+        id: 'https://other.test/undo/1',
+        type: 'Undo',
+        actor: OTHER_ACTOR,
+        object: like(statusId, owner)
+      },
+      OTHER_ACTOR
+    )
+
+    expect(
+      await database.isActorLikedStatus({ actorId: owner, statusId })
+    ).toBe(true)
+  })
+
+  it('ignores an Undo whose actor is not the verified sender', async () => {
+    const statusId = statuses.primary.secondPost
+    const owner = 'https://remote.test/users/owner2'
+    await database.createLike({ actorId: owner, statusId })
+
+    await run(
+      {
+        id: 'https://other.test/undo/2',
+        type: 'Undo',
+        actor: owner,
+        object: like(statusId, owner)
+      },
+      OTHER_ACTOR
+    )
+
+    expect(
+      await database.isActorLikedStatus({ actorId: owner, statusId })
+    ).toBe(true)
+  })
+
+  describe('stored remote status', () => {
+    const friend = 'https://somewhere.test/actors/friend'
+    const remoteStatusId = `${friend}/statuses/liked-remote`
+
+    beforeAll(async () => {
+      await database.createNote({
+        id: remoteStatusId,
+        url: remoteStatusId,
+        actorId: friend,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [],
+        text: 'A remote post that is stored locally'
+      })
+    })
+
+    it('does not count a Like of it', async () => {
+      await run(like(remoteStatusId))
+
+      expect(await database.getLikeCount({ statusId: remoteStatusId })).toBe(0)
+      expect(
+        await database.isActorLikedStatus({
+          actorId: REMOTE_ACTOR,
+          statusId: remoteStatusId
+        })
+      ).toBe(false)
+    })
+
+    it('treats an Undo of it as a no-op', async () => {
+      await database.createLike({
+        actorId: REMOTE_ACTOR,
+        statusId: remoteStatusId
+      })
+      const activity = like(remoteStatusId)
+
+      await run({
+        id: `${activity.id}/undo`,
+        type: 'Undo',
+        actor: REMOTE_ACTOR,
+        object: activity
+      })
+
+      expect(await database.getLikeCount({ statusId: remoteStatusId })).toBe(1)
+    })
+  })
 })

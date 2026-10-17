@@ -1,6 +1,7 @@
 import isMatch from 'lodash/isMatch'
 
 import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
+import { getReactionContent } from '@/lib/actions/emojiReaction'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
@@ -110,8 +111,13 @@ const isReactionBearing = (value: unknown): boolean => {
   if (value.type === ENTITY_TYPE_EMOJI_REACT) return true
   if (value.type !== ENTITY_TYPE_LIKE) return false
   return (
-    typeof value._misskey_reaction === 'string' ||
-    typeof value.content === 'string'
+    getReactionContent({
+      _misskey_reaction:
+        typeof value._misskey_reaction === 'string'
+          ? value._misskey_reaction
+          : undefined,
+      content: typeof value.content === 'string' ? value.content : undefined
+    }) !== null
   )
 }
 
@@ -369,7 +375,7 @@ export const getJobMessage = (
 
   // Emoji reactions delivered to the shared inbox (Pleroma-family delivery may
   // target it instead of the recipient's personal inbox). Both dialects and the
-  // Undo of each route to one job; a plain Like still falls through to `null`.
+  // Undo of each route to one job; a plain Like routes to the like job below.
   if (
     isReactionBearing(activity) ||
     (activity.type === UndoAction && isReactionBearing(activity.object))

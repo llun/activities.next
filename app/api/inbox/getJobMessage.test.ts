@@ -663,6 +663,22 @@ describe('getJobMessage', () => {
     })
 
     it.each([
+      { description: 'empty content', extra: { content: '' } },
+      { description: 'whitespace content', extra: { content: '  ' } },
+      {
+        description: 'empty content and reaction',
+        extra: { content: '', _misskey_reaction: '' }
+      }
+    ])('routes a Like with $description to the like job', ({ extra }) => {
+      const result = getJobMessage(
+        { ...plainLike, ...extra } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result?.name).toBe(LIKE_JOB_NAME)
+    })
+
+    it.each([
       { description: 'a plain Like', activity: plainLike },
       { description: 'an Undo of a plain Like', activity: undoOf(plainLike) }
     ])('rejects $description from a different signer', ({ activity }) => {

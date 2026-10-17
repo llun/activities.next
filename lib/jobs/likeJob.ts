@@ -18,12 +18,13 @@ const LikeUndo = z.object({
  * Shared-inbox path for plain favourites. GoToSocial, Pixelfed, Lemmy and
  * Pleroma/Akkoma may deliver a `Like` (or its `Undo`) to the shared inbox
  * instead of the recipient's personal one, where it is handled by
- * `likeRequest` / `deleteLike`. This job applies the very same operations, so a
- * favourite behaves identically whichever inbox it arrives at. Reaction-bearing
- * Likes never reach it (they route to the emoji reaction job).
+ * `likeRequest` / `deleteLike`. This job reuses those operations but stores or
+ * undoes likes of LOCAL statuses only, matching Mastodon; the personal inbox
+ * also records likes of stored remote statuses. Reaction-bearing Likes never
+ * reach it (they route to the emoji reaction job).
  *
- * Only likes of LOCAL statuses are kept: the shared inbox is not addressed to
- * anyone, so a Like of a remote object is not ours to count. Redelivery (also
+ * The shared inbox is not addressed to anyone, so a Like of a remote object is
+ * not ours to count. Redelivery (also
  * to both inboxes) is idempotent: `createLike` returns false for an existing
  * row, which also suppresses a second notification.
  */
