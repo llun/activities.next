@@ -28,6 +28,9 @@ import { actorMatchesVerifiedSender } from './verifiedSender'
 const getVerifiedSenderActorId = (actorId?: string) =>
   normalizeActorId(actorId) ?? undefined
 
+const isAnnounceType = (type: unknown): boolean =>
+  Array.isArray(type) ? type.includes('Announce') : type === 'Announce'
+
 // Extract a possible stamp uri from the Delete object (a bare id string or an
 // object with an id, e.g. a Tombstone/QuoteAuthorization).
 const getStampUri = (data: unknown): string | null => {
@@ -178,45 +181,85 @@ export const deleteObjectJob = createJobHandle(
         }
       }
 
-      if (typeof data === 'string') {
-        // Pleroma/Akkoma, GoToSocial and Lemmy delete a post with a bare id
-        // (`object: "https://host/objects/<id>"`) instead of a Tombstone, so a
-        // string is only an ACCOUNT delete when it names no stored status. The
-        // status delete stays scoped to the verified sender, so naming someone
-        // else's status deletes nothing.
+      // Mastodon names the target by id whatever shape `object` has (a bare
+      // id, or an embedded object of any type), and an id equal to the Delete's
+      // actor is that actor's account delete. So the verified sender is checked
+      // first; any other id is looked up as a status. Pleroma/Akkoma,
+      // GoToSocial and Lemmy send a bare post id. The status delete stays
+      // scoped to the verified sender, so naming someone else's status deletes
+      // nothing.
+      const deleteById = async (id: string, tombStone?: Tombstone) => {
+        // A message without a verified sender (only legacy queued ones) keeps
+        // its old order: status first, then the actor delete.
+        if (
+          message.verifiedSenderActorId &&
+          actorMatchesVerifiedSender(id, message)
+        ) {
+          span.setAttribute('actorId', id)
+          await database.deleteActor({ actorId: id })
+          return
+        }
+
         const existingStatus = await database.getStatus({
-          statusId: data,
+          statusId: id,
           withReplies: false
         })
         if (existingStatus) {
+          const sender = message.verifiedSenderActorId
+          if (
+            sender &&
+            normalizeActorId(sender) !==
+              normalizeActorId(existingStatus.actorId)
+          ) {
+            // Someone tried to delete a status they do not own; the scoped
+            // delete below removes nothing.
+            span.setAttribute('senderMismatch', true)
+          }
           await deleteStatusFromTombstone(
             database,
             message,
             span,
-            { type: 'Tombstone', id: data },
+            tombStone ?? { type: 'Tombstone', id },
             existingStatus
           )
           return
         }
 
-        if (!actorMatchesVerifiedSender(data, message)) {
-          // Not a mismatch when we just revoked: `senderMismatch` means someone
-          // tried to delete something they do not own, and the quoted author
-          // deleting their own stamp is the opposite of that.
-          if (!revokedQuote) span.setAttribute('senderMismatch', true)
+        if (!message.verifiedSenderActorId) {
+          span.setAttribute('actorId', id)
+          await database.deleteActor({ actorId: id })
           return
         }
 
-        span.setAttribute('actorId', data)
-        await database.deleteActor({
-          actorId: data
+        // `getStatus` finds nothing for a row whose original is gone (an
+        // orphan Announce), so the sender-scoped delete still runs: it removes
+        // that sender's own row and nothing else, and does nothing for an
+        // unknown id.
+        await database.deleteStatus({
+          statusId: id,
+          actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
         })
+        // Not found is not a mismatch. After a quote revocation the id is the
+        // stamp uri, so this not-found path suppresses `objectNotFound`.
+        if (!revokedQuote) span.setAttribute('objectNotFound', true)
+      }
+
+      if (typeof data === 'string') {
+        await deleteById(data)
         return
       }
 
       const tombStoneResult = Tombstone.safeParse(data)
       if (tombStoneResult.success) {
         const tombStone = tombStoneResult.data
+        // Mastodon treats a Tombstone like any other embedded object: its id
+        // names a status, or the sender's own account. That needs a verified
+        // sender; a legacy queued message without one keeps its old
+        // status-only delete.
+        if (message.verifiedSenderActorId) {
+          await deleteById(tombStone.id, tombStone)
+          return
+        }
         await deleteStatusFromTombstone(
           database,
           message,
@@ -251,6 +294,25 @@ export const deleteObjectJob = createJobHandle(
           statusId: announce.id,
           actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
         })
+        return
+      }
+
+      // Any other embedded object with a string `id` (a full Note or Page, an
+      // actor, or a type we do not know, such as BookWyrm's) is handled by its
+      // id exactly like a bare id, as Mastodon does. Two exclusions: an
+      // Announce (Undo(Announce) is routed to this job and must never delete an
+      // account or a status by id), and a message with no verified sender (only
+      // legacy queued messages), which must not reach the actor delete or an
+      // unscoped status delete through this newer path.
+      if (
+        message.verifiedSenderActorId &&
+        data &&
+        typeof data === 'object' &&
+        !isAnnounceType((data as { type?: unknown }).type) &&
+        typeof (data as { id?: unknown }).id === 'string' &&
+        (data as { id: string }).id
+      ) {
+        await deleteById((data as { id: string }).id)
         return
       }
 

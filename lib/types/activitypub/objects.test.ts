@@ -1,4 +1,7 @@
+import { BaseNote, getTags } from '@/lib/activities/note'
 import {
+  Emoji,
+  HashTag,
   ImageContent,
   Note,
   Question,
@@ -196,5 +199,79 @@ describe('Note audience fields', () => {
       cc: null
     })
     expect(parsedWithNull.success).toBe(true)
+  })
+})
+
+describe('lenient tags', () => {
+  it('accepts a hashtag without # or href (Misskey, Pleroma)', () => {
+    expect(
+      HashTag.safeParse({ type: 'Hashtag', name: 'fediverse' }).success
+    ).toBe(true)
+    expect(
+      HashTag.safeParse({
+        type: 'Hashtag',
+        name: '#fediverse',
+        href: 'https://misskey.example/tags/fediverse'
+      }).success
+    ).toBe(true)
+  })
+
+  it('accepts an emoji without updated', () => {
+    expect(
+      Emoji.safeParse({
+        type: 'Emoji',
+        name: ':blob:',
+        icon: { type: 'Image', url: 'https://misskey.example/emoji/blob.png' }
+      }).success
+    ).toBe(true)
+  })
+
+  it('keeps a hashtag without # or href when a Note is parsed', () => {
+    const result = Note.safeParse({
+      id: 'https://misskey.example/notes/2',
+      type: 'Note',
+      attributedTo: 'https://misskey.example/users/a',
+      content: '<p>hi</p>',
+      published: '2026-01-01T00:00:00Z',
+      tag: [{ type: 'Hashtag', name: 'fediverse' }]
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(getTags(result.data as BaseNote)).toEqual([
+      { type: 'Hashtag', name: 'fediverse' }
+    ])
+  })
+
+  it('does not fail the whole Note when one tag is malformed, and getTags drops it', () => {
+    const result = Note.safeParse({
+      id: 'https://misskey.example/notes/1',
+      type: 'Note',
+      attributedTo: 'https://misskey.example/users/a',
+      content: '<p>hi</p>',
+      published: '2026-01-01T00:00:00Z',
+      tag: [
+        { type: 'Hashtag', name: 'ok' },
+        { type: 'Emoji', name: ':broken:' },
+        { type: 'Hashtag' }
+      ]
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(getTags(result.data as BaseNote)).toEqual([
+      { type: 'Hashtag', name: 'ok' }
+    ])
+  })
+
+  it('keeps mediaType and source on a Note', () => {
+    const result = Note.safeParse({
+      id: 'https://peertube.example/videos/1',
+      type: 'Note',
+      attributedTo: 'https://peertube.example/a',
+      mediaType: 'text/markdown',
+      source: { content: 'hi', mediaType: 'text/markdown' },
+      content: 'hi',
+      published: '2026-01-01T00:00:00Z'
+    })
+    expect(result.success && result.data.mediaType).toBe('text/markdown')
   })
 })

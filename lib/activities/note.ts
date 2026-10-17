@@ -18,6 +18,10 @@ import {
 } from '@/lib/types/activitypub'
 import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
+import {
+  isMarkdownMediaType,
+  renderRemoteMarkdown
+} from '@/lib/utils/text/renderRemoteMarkdown'
 
 export type BaseNote =
   | Note
@@ -456,26 +460,51 @@ const getEventDetails = (object: BaseNote): string[] => {
   return details
 }
 
+// Mastodon always treats `content` as HTML. PeerTube is the exception: it sends
+// markdown in `content` and says so with `mediaType: text/markdown`. A note with
+// no `content` at all may still carry its text in `source` (GoToSocial, Lemmy);
+// that is only used when it is markdown or plain text, never as HTML.
+const toHtmlContent = (object: BaseNote, content: string): string =>
+  isMarkdownMediaType(object.mediaType)
+    ? renderRemoteMarkdown(content)
+    : content
+
+const getSourceContent = (object: BaseNote): string => {
+  const source = object.source
+  if (!source || typeof source === 'string') return ''
+  if (typeof source.content !== 'string' || !source.content.trim()) return ''
+  const mediaType = source.mediaType ?? ''
+  if (
+    isMarkdownMediaType(mediaType) ||
+    mediaType.toLowerCase().startsWith('text/plain')
+  ) {
+    return renderRemoteMarkdown(source.content)
+  }
+  return ''
+}
+
 export const getContent = (object: BaseNote) => {
   let content = ''
   if (object.content) {
     // Wordpress uses array in contentMap instead of locale map.
     // This is a temporary fixed to support it.
     if (Array.isArray(object.content)) {
-      content = object.content[0]
+      content = object.content[0] ?? ''
     } else {
       content = object.content
     }
+    content = toHtmlContent(object, content)
   } else if (object.contentMap) {
     if (Array.isArray(object.contentMap)) {
-      content = object.contentMap[0]
+      content = toHtmlContent(object, object.contentMap[0] ?? '')
     } else {
       const keys = Object.keys(object.contentMap)
       if (keys.length > 0) {
-        content = object.contentMap[keys[0]]
+        content = toHtmlContent(object, object.contentMap[keys[0]])
       }
     }
   }
+  if (content === '') content = getSourceContent(object)
 
   if (
     TITLED_TYPES.has(object.type) &&

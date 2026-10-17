@@ -173,7 +173,7 @@ describe('getRemoteStatus', () => {
         id: STATUS_ID,
         type: 'Note',
         attributedTo: ACTOR_ID,
-        content: [],
+        content: { malformed: true },
         to: [PUBLIC_STREAM],
         cc: [],
         published: new Date('2026-04-30T12:00:00.000Z').toISOString()
