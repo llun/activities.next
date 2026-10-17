@@ -1,10 +1,12 @@
 import { BaseNote } from '@/lib/activities/note'
+import { Database } from '@/lib/database/types'
 
 import {
   isValidHashtagName,
   matchesHashtagName,
   normalizeHashtagName,
-  planNoteTags
+  planNoteTags,
+  storePlannedTags
 } from './noteTags'
 
 describe('normalizeHashtagName', () => {
@@ -143,5 +145,46 @@ describe('planNoteTags', () => {
       ['#three', ''],
       ['#four', '']
     ])
+  })
+})
+
+describe('storePlannedTags', () => {
+  it('returns hashtag names in planned order whatever order the inserts finish', async () => {
+    // The first insert is the slowest, as can happen on a PostgreSQL pool.
+    const delays: Record<string, number> = { '#one': 30, '#two': 0 }
+    const createTag = vi.fn(async ({ name }: { name: string }) => {
+      await new Promise((resolve) => setTimeout(resolve, delays[name] ?? 0))
+    })
+    const database = { createTag } as unknown as Database
+
+    const stored = await storePlannedTags({
+      database,
+      statusId: 'status-1',
+      tags: [
+        { name: '#one', value: '', type: 'hashtag' },
+        { name: ':emoji:', value: 'https://example.com/e.png', type: 'emoji' },
+        { name: '#two', value: '', type: 'hashtag' }
+      ]
+    })
+
+    expect(stored).toEqual(['#one', '#two'])
+  })
+
+  it('leaves out a tag that could not be stored', async () => {
+    const createTag = vi.fn(async ({ name }: { name: string }) => {
+      if (name === '#bad') throw new Error('boom')
+    })
+    const database = { createTag } as unknown as Database
+
+    const stored = await storePlannedTags({
+      database,
+      statusId: 'status-1',
+      tags: [
+        { name: '#bad', value: '', type: 'hashtag' },
+        { name: '#good', value: '', type: 'hashtag' }
+      ]
+    })
+
+    expect(stored).toEqual(['#good'])
   })
 })
