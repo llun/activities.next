@@ -13,7 +13,7 @@ import NewListLoading from './new/loading'
 // as shimmer bars, with one polite "Loading" for assistive tech and no other
 // text on screen.
 describe.each([
-  ['lists', ListsLoading, 'Loading lists and collections'],
+  ['lists', ListsLoading, 'Loading lists'],
   ['lists/[id]', ListTimelineLoading, 'Loading list'],
   ['lists/new', NewListLoading, 'Loading list editor'],
   ['lists/[id]/edit', ListEditLoading, 'Loading list editor']

@@ -4,9 +4,8 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 
-// The lists index's shape while it loads: the header with its two create
-// buttons, then a heading bar over a frame of rows (icon tile, name, summary)
-// for each of the two groups.
+// The lists index's shape while it loads: the header with its create button,
+// then a heading bar over a frame of rows (icon tile, name, summary).
 const GroupSkeleton: FC<{ rows: number }> = ({ rows }) => (
   <div className="space-y-3">
     <div className="space-y-2">
@@ -31,20 +30,14 @@ const GroupSkeleton: FC<{ rows: number }> = ({ rows }) => (
 export const ListsLoading: FC = () => (
   <div aria-busy="true" className="space-y-6">
     <span role="status" className="sr-only">
-      Loading lists and collections
+      Loading lists
     </span>
     <PageHeader
       title={<SkeletonBar className="h-7 w-52" />}
       description={<SkeletonBar className="h-4 w-80 max-w-full" />}
       stackActionsOnMobile
-      actions={
-        <div className="flex items-center gap-2">
-          <SkeletonBar className="h-9 w-24" />
-          <SkeletonBar className="h-9 w-36" />
-        </div>
-      }
+      actions={<SkeletonBar className="h-9 w-28" />}
     />
-    <GroupSkeleton rows={2} />
     <GroupSkeleton rows={3} />
   </div>
 )

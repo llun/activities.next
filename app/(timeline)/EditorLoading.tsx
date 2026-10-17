@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * The shape of a list or collection editor while it loads, for a `loading.tsx`:
+ * The shape of a list editor while it loads, for a `loading.tsx`:
  * the page header with its title and description as bars, then the editor's
  * sections as heading bars over frames of form rows.
  */

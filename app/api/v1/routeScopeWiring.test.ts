@@ -118,11 +118,6 @@ const EXPECTED: Array<{
     scopes: ['write', 'write:accounts']
   },
   {
-    module: '@/app/api/v1/accounts/[id]/collections/route',
-    scopes: ['read', 'read:collections'],
-    guard: 'OptionalOAuthGuard:any'
-  },
-  {
     module: '@/app/api/v1/accounts/[id]/endorse/route',
     scopes: ['write', 'write:accounts']
   },
@@ -145,10 +140,6 @@ const EXPECTED: Array<{
     module: '@/app/api/v1/accounts/[id]/following/route',
     scopes: ['read', 'read:follows'],
     guard: 'OptionalOAuthGuard:any'
-  },
-  {
-    module: '@/app/api/v1/accounts/[id]/in_collections/route',
-    scopes: ['read', 'read:collections']
   },
   {
     module: '@/app/api/v1/accounts/[id]/lists/route',
@@ -663,46 +654,6 @@ const EXPECTED: Array<{
     scopes: ['read', 'read:filters', 'write:filters'],
     guard: { DELETE: 'OAuthGuard' }
   },
-  // collections
-  {
-    module: '@/app/api/v1/collections/route',
-    scopes: ['read', 'read:collections', 'write:collections'],
-    guard: { POST: 'OAuthGuard' }
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/route',
-    scopes: ['read', 'read:collections', 'write:collections'],
-    guard: {
-      GET: 'OptionalOAuthGuard:any',
-      PATCH: 'OAuthGuard',
-      DELETE: 'OAuthGuard'
-    }
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/feed/route',
-    scopes: ['read'],
-    guard: 'OptionalOAuthGuard:all'
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/items/route',
-    scopes: ['read', 'read:collections', 'write:collections'],
-    guard: { POST: 'OAuthGuard', DELETE: 'OAuthGuard' }
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/items/[item_id]/route',
-    scopes: ['write:collections'],
-    guard: 'OAuthGuard'
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/items/[item_id]/approve/route',
-    scopes: ['write:collections'],
-    guard: 'OAuthGuard'
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/items/[item_id]/revoke/route',
-    scopes: ['write:collections'],
-    guard: 'OAuthGuard'
-  },
   // lists
   {
     module: '@/app/api/v1/lists/route',
@@ -801,10 +752,6 @@ const EXPECTED: Array<{
   {
     module: '@/app/api/v1/timelines/[timeline]/route',
     scopes: ['read', 'read:statuses']
-  },
-  {
-    module: '@/app/api/v1/timelines/collection/[id]/route',
-    scopes: ['read', 'read:collections']
   },
   {
     module: '@/app/api/v1/timelines/list/[list_id]/route',
@@ -1069,29 +1016,6 @@ const MULTI_METHOD: Array<{
     methods: {
       GET: ['read', 'read:filters'],
       DELETE: ['write:filters']
-    }
-  },
-  {
-    module: '@/app/api/v1/collections/route',
-    methods: {
-      GET: ['read', 'read:collections'],
-      POST: ['write:collections']
-    }
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/route',
-    methods: {
-      GET: ['read', 'read:collections'],
-      PATCH: ['write:collections'],
-      DELETE: ['write:collections']
-    }
-  },
-  {
-    module: '@/app/api/v1/collections/[id]/items/route',
-    methods: {
-      GET: ['read', 'read:collections'],
-      POST: ['write:collections'],
-      DELETE: ['write:collections']
     }
   },
   {

@@ -74,8 +74,6 @@ export type MastodonNotificationType =
   | 'favourite'
   | 'poll'
   | 'update'
-  | 'added_to_collection'
-  | 'collection_update'
   | 'admin.sign_up'
   | 'admin.report'
   // Ecosystem dialect (Pleroma/Akkoma), not core Mastodon.
@@ -108,10 +106,6 @@ export const internalTypeToMastodon = (
     case 'activity_import':
     case 'gear_service_due':
       return 'status'
-    case 'added_to_collection':
-      return 'added_to_collection'
-    case 'collection_update':
-      return 'collection_update'
     case 'emoji_reaction':
       return 'pleroma:emoji_reaction'
     default:

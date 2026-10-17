@@ -127,9 +127,9 @@ export const createGalleryGearWithinLimit = (
   inTransaction(
     db,
     async (trx): Promise<CreateGalleryGearWithinLimitResult> => {
-      // Serialise one actor's gear creates on their actor row, as
-      // `createCollection` does. SQLite's single writer connection already
-      // serialises transactions, so the lock is PostgreSQL-only.
+      // Serialise one actor's gear creates on their actor row. SQLite's single
+      // writer connection already serialises transactions, so the lock is
+      // PostgreSQL-only.
       await forUpdate(
         trx,
         trx.selectFrom('actors').select('id').where('id', '=', params.actorId)

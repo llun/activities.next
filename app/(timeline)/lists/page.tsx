@@ -3,11 +3,10 @@ import { redirect } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getMastodonCollection } from '@/lib/services/mastodon/getMastodonCollection'
 import { getMastodonList } from '@/lib/services/mastodon/getMastodonList'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-import { CollectionSummary, ListSummary, ListsIndex } from './ListsIndex'
+import { ListSummary, ListsIndex } from './ListsIndex'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -36,30 +35,6 @@ const Page = async () => {
     listIds: lists.map((list) => list.id)
   })
 
-  const collections = await database.getCollections({ actorId: actor.id })
-  const collectionIds = collections.map((collection) => collection.id)
-  // Approved (public) and total member counts are each a single grouped query.
-  // The collection entity's `size` carries the approved count; `memberCount`
-  // carries the total shown in the index row ("N people · M featured publicly").
-  const [approvedCounts, totalCounts] = await Promise.all([
-    database.getCollectionMemberCounts({
-      actorId: actor.id,
-      collectionIds,
-      approvedOnly: true
-    }),
-    database.getCollectionMemberCounts({
-      actorId: actor.id,
-      collectionIds,
-      approvedOnly: false
-    })
-  ])
-  const collectionSummaries: CollectionSummary[] = collections.map(
-    (collection) => ({
-      ...getMastodonCollection(collection, approvedCounts[collection.id] ?? 0),
-      memberCount: totalCounts[collection.id] ?? 0
-    })
-  )
-
   // Member counts are batched in one grouped query above; the avatar previews
   // need the hydrated accounts, so fetch a tiny page per list. Lists are few
   // per account, so this stays a small bounded number of queries.
@@ -82,7 +57,7 @@ const Page = async () => {
     })
   )
 
-  return <ListsIndex lists={summaries} collections={collectionSummaries} />
+  return <ListsIndex lists={summaries} />
 }
 
 export default Page

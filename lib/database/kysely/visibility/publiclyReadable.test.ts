@@ -11,8 +11,7 @@ import {
 // "Publicly readable" has two Kysely forms, and they must never disagree.
 //
 // `publiclyReadableStatus` tests one row, correlated to it. That is what lets
-// a LIMIT bound the scan, so the local public timeline and the public
-// collection feed read through it. `publiclyReadableStatusIds` materialises
+// a LIMIT bound the scan, so the local public timeline reads through it. `publiclyReadableStatusIds` materialises
 // the readable ids of a target set, which suits a caller with no ordered bound
 // to stop early on: `getActorStatusesCount` (a COUNT touches every row anyway,
 // and the correlated form costs a recursive CTE instantiation per Announce)

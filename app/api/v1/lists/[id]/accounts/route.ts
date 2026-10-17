@@ -27,7 +27,7 @@ const MAX_LIMIT = 80
 const DEFAULT_LIMIT = 40
 // Upper bound on how many accounts a single add/remove may name. Mastodon does
 // not document a cap; this matches the other batch ceilings in the API surface
-// (MAX_COLLECTION_ACCOUNT_IDS, MAX_BATCH_STATUSES). Every id joins the follow
+// (MAX_BATCH_STATUSES). Every id joins the follow
 // check and the feed backfill on add, so an unbounded list is unbounded work —
 // and the cap is also what keeps those lookups' IN lists inside SQLite's
 // bound-parameter limit. Over-cap requests are rejected with the route's

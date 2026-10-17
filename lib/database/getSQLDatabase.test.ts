@@ -1,7 +1,6 @@
 import type { Kysely } from 'kysely'
 
 import { actorQueries } from '@/lib/database/domains/actor/queries'
-import { createCollectionQueries } from '@/lib/database/domains/collection/queries'
 import { createListQueries } from '@/lib/database/domains/list/queries'
 import { statusQueries } from '@/lib/database/domains/status/queries'
 import { createTimelineQueries } from '@/lib/database/domains/timeline/queries'
@@ -18,23 +17,12 @@ vi.mock('@/lib/database/domains/like/queries', () => ({
   isActorLikedStatus: vi.fn()
 }))
 
-// The list, collection and timeline factories run for real; the spies record
+// The list and timeline factories run for real; the spies record
 // the status hydration the facade injects into each.
 vi.mock('@/lib/database/domains/list/queries', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/database/domains/list/queries')>()
   return { ...original, createListQueries: vi.fn(original.createListQueries) }
-})
-
-vi.mock('@/lib/database/domains/collection/queries', async (importOriginal) => {
-  const original =
-    await importOriginal<
-      typeof import('@/lib/database/domains/collection/queries')
-    >()
-  return {
-    ...original,
-    createCollectionQueries: vi.fn(original.createCollectionQueries)
-  }
 })
 
 vi.mock('@/lib/database/domains/timeline/queries', async (importOriginal) => {
@@ -69,7 +57,6 @@ vi.mock('@/lib/database/domains/actor/queries', async (importOriginal) => {
 
 describe('getSQLDatabase', () => {
   const createListQueriesMock = vi.mocked(createListQueries)
-  const createCollectionQueriesMock = vi.mocked(createCollectionQueries)
   const createTimelineQueriesMock = vi.mocked(createTimelineQueries)
   const mutableStatusQueries = statusQueries as unknown as Record<
     string,
@@ -152,7 +139,6 @@ describe('getSQLDatabase', () => {
 
   it.each([
     { feed: 'list', factory: () => createListQueriesMock },
-    { feed: 'collection', factory: () => createCollectionQueriesMock },
     { feed: 'timeline', factory: () => createTimelineQueriesMock }
   ])(
     'hydrates the $feed feeds through the status facade',

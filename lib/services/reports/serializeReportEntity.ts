@@ -32,6 +32,5 @@ export const serializeReportEntity = ({
     (id) => statusPublicIds?.get(id) ?? urlToId(id)
   ),
   rule_ids: report.ruleIds,
-  collection_ids: report.collectionIds,
   target_account: targetAccount
 })

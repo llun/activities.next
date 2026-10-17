@@ -20,7 +20,6 @@ import { importStravaActivityJob } from './importStravaActivityJob'
 import { importStravaArchiveJob } from './importStravaArchiveJob'
 import { importWahooActivityJob } from './importWahooActivityJob'
 import { importWahooHistoryJob } from './importWahooHistoryJob'
-import { ingestCollectionMemberJob } from './ingestCollectionMemberJob'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
@@ -42,7 +41,6 @@ import {
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
   IMPORT_WAHOO_ACTIVITY_JOB_NAME,
   IMPORT_WAHOO_HISTORY_JOB_NAME,
-  INGEST_COLLECTION_MEMBER_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
@@ -209,9 +207,6 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [PUBLISH_SCHEDULED_STATUS_JOB_NAME]() {
     return publishScheduledStatusJob
-  },
-  get [INGEST_COLLECTION_MEMBER_JOB_NAME]() {
-    return ingestCollectionMemberJob
   },
   get [EMOJI_REACTION_JOB_NAME]() {
     return emojiReactionJob

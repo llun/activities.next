@@ -95,7 +95,7 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
     href: '/lists',
     label: 'Lists',
     icon: List,
-    blurb: 'Curated timelines and collections'
+    blurb: 'Private curated timelines'
   },
   fitness: {
     // Overridden by `fitnessUrl`; the account-scoped section has no fixed path.

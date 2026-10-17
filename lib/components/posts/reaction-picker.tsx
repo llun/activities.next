@@ -82,15 +82,12 @@ const VIEWPORT_MARGIN = 8
 // row, which meant ANY ancestor with `overflow-hidden` clipped it — and the
 // cards that wrap posts have it for their rounded corners. That was fixed
 // container-by-container three times and kept reappearing somewhere else (the
-// status detail cards, the fitness header card, the search results section,
-// the collection detail card), so the panel now escapes them all by
-// construction. Three of those four have since dropped the clip for the sake
-// of the overlays that cannot portal — both status detail cards and the
-// fitness header card — and the collection detail card's surviving
-// `overflow-hidden` is on its highlighted-accounts roster, a sibling of its
-// `Posts`, not an ancestor. That leaves the search results section as the only
-// one still clipping a post, and any new card may join it — so this must stay
-// independent of what any ancestor does.
+// status detail cards, the fitness header card, the search results section),
+// so the panel now escapes them all by construction. Two of those three have
+// since dropped the clip for the sake of the overlays that cannot portal —
+// both status detail cards and the fitness header card. That leaves the search
+// results section as the only one still clipping a post, and any new card may
+// join it — so this must stay independent of what any ancestor does.
 const usePanelPosition = (
   anchorRef: RefObject<HTMLButtonElement | null>,
   panel: HTMLElement | null

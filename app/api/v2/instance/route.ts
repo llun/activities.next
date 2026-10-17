@@ -84,7 +84,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         mastodon: MASTODON_INSTANCE_API_VERSION
       },
       configuration: {
-        // No streaming API yet: keep the documented key present but empty so
+        // No streaming API: keep the documented key present but empty so
         // JS clients treat it as falsy and fall back to REST polling instead
         // of opening a WebSocket that would fail.
         urls: {

@@ -176,7 +176,7 @@ describe('getMastodonNotification', () => {
     })
 
     it('reports ungrouped-<id> for a non-groupable type with a stored internal groupKey', async () => {
-      // Mentions/replies/collections carry an internal stored groupKey (e.g.
+      // Mentions/replies carry an internal stored groupKey (e.g.
       // `mention:<statusId>`) that is not a Mastodon group_key. A raw row of a
       // non-groupable type must report `ungrouped-<id>` — the same value the v2
       // grouped API emits — rather than leaking the internal key.

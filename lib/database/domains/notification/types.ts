@@ -24,15 +24,16 @@ export const NotificationType = z.enum([
   // A piece of fitness gear (or one of a bike's components) has passed the
   // distance the owner asked to be reminded at. Self-addressed: the recipient
   // is also the source actor, and it carries no status.
-  'gear_service_due',
-  // Mastodon 4.6 Collections: a member was added to a collection
-  // (`added_to_collection`) or a collection they're in had its metadata changed
-  // (`collection_update`).
-  'added_to_collection',
-  'collection_update'
+  'gear_service_due'
 ])
 
 export type NotificationType = z.infer<typeof NotificationType>
+
+// Types of a retired feature; rows may remain in the table and are never read.
+export const RETIRED_NOTIFICATION_TYPES = [
+  'added_to_collection',
+  'collection_update'
+] as const
 
 export interface Notification {
   id: string

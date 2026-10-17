@@ -37,21 +37,6 @@ export const LIST_OWNER_BACKFILL_MAX_POSTS = 200
 export const LIST_MEMBER_BACKFILL_MAX_POSTS = 1000
 export const LIST_MEMBER_BACKFILL_BATCH_SIZE = 250
 
-// Collections do NOT share the `timelines` table; their feed lives in the
-// dedicated `collection_timeline` table (compact bigint keys). The materialized
-// feed is capped per collection so storage stays bounded regardless of how many
-// posts the members produce — the most recent COLLECTION_FEED_MAX_ROWS entries
-// are kept; older ones are trimmed. Mirrors Mastodon's capped home/list feeds.
-export const COLLECTION_FEED_MAX_ROWS = 1000
-// Trim only once a collection overshoots the cap by this slack, so eviction is
-// batched (one DELETE per overshoot) rather than paid on every single insert.
-export const COLLECTION_FEED_TRIM_SLACK = 100
-// When a remote actor is added to a collection the instance actor follows them
-// and backfills at most this many of their most recent posts, so the feed shows
-// history immediately instead of waiting for new activity to federate in. Bounds
-// the one-off federation traffic (and, under the in-process NoQueue, latency).
-export const COLLECTION_BACKFILL_MAX_POSTS = 40
-
 export interface TimelineRuleParams {
   database: Database
   currentActor: Actor

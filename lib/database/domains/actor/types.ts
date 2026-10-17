@@ -111,8 +111,6 @@ export type UpdateActorParams = {
     emoji_reaction?: boolean
     activity_import?: boolean
     gear_service_due?: boolean
-    added_to_collection?: boolean
-    collection_update?: boolean
   }
   pushNotifications?: {
     follow_request?: boolean
@@ -124,8 +122,6 @@ export type UpdateActorParams = {
     emoji_reaction?: boolean
     activity_import?: boolean
     gear_service_due?: boolean
-    added_to_collection?: boolean
-    collection_update?: boolean
   }
   fitness?: {
     strava?: {

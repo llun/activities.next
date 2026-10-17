@@ -2,7 +2,6 @@ import {
   Activity,
   AtSign,
   Heart,
-  Library,
   type LucideIcon,
   PencilLine,
   Quote,
@@ -10,7 +9,6 @@ import {
   Reply,
   Smile,
   UserPlus,
-  Users,
   Wrench
 } from 'lucide-react'
 
@@ -126,18 +124,6 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
     badgeTone: PRIMARY_BADGE,
     verb: 'Your gear is due for service',
     kind: 'plain'
-  },
-  added_to_collection: {
-    icon: Users,
-    badgeTone: RELATIONSHIP_BADGE,
-    verb: 'added you to a collection',
-    kind: 'relationship'
-  },
-  collection_update: {
-    icon: Library,
-    badgeTone: RELATIONSHIP_BADGE,
-    verb: 'updated a collection you’re in',
-    kind: 'relationship'
   }
 }
 

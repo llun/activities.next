@@ -1,17 +1,18 @@
 import { type ExpressionBuilder, type Selectable } from 'kysely'
 
-import type {
-  CreateNotificationParams,
-  GetNotificationRequestParams,
-  GetNotificationRequestsParams,
-  GetNotificationsCountParams,
-  GetNotificationsParams,
-  MarkNotificationsReadParams,
-  Notification,
-  NotificationGroupKeyParams,
-  NotificationRequest,
-  NotificationType,
-  ResolveNotificationRequestsParams
+import {
+  type CreateNotificationParams,
+  type GetNotificationRequestParams,
+  type GetNotificationRequestsParams,
+  type GetNotificationsCountParams,
+  type GetNotificationsParams,
+  type MarkNotificationsReadParams,
+  type Notification,
+  type NotificationGroupKeyParams,
+  type NotificationRequest,
+  type NotificationType,
+  RETIRED_NOTIFICATION_TYPES,
+  type ResolveNotificationRequestsParams
 } from '@/lib/database/domains/notification/types'
 import type { DB, Db } from '@/lib/database/kysely'
 import type { Notifications } from '@/lib/database/kysely/db'
@@ -139,6 +140,7 @@ export const getNotifications = async (
     .selectFrom('notifications')
     .selectAll()
     .where('actorId', '=', actorId)
+    .where('type', 'not in', [...RETIRED_NOTIFICATION_TYPES])
     .limit(limit)
 
   // By default hide policy-filtered notifications (they live in the requests
@@ -249,7 +251,10 @@ export const getNotificationsCount = async (
     filteredOnly
   }: GetNotificationsCountParams
 ): Promise<number> => {
-  let query = db.selectFrom('notifications').where('actorId', '=', actorId)
+  let query = db
+    .selectFrom('notifications')
+    .where('actorId', '=', actorId)
+    .where('type', 'not in', [...RETIRED_NOTIFICATION_TYPES])
 
   if (filteredOnly) {
     query = query.where('filtered', '=', true)
@@ -318,6 +323,7 @@ const buildNotificationRequest = async (
     .selectFrom('notifications')
     .selectAll()
     .where('actorId', '=', actorId)
+    .where('type', 'not in', [...RETIRED_NOTIFICATION_TYPES])
     .where('filtered', '=', true)
     .where('sourceActorId', '=', sourceActorId)
     .orderBy('createdAt', 'desc')
@@ -340,6 +346,7 @@ const requestGroups = (db: Db, actorId: string) =>
   db
     .selectFrom('notifications')
     .where('actorId', '=', actorId)
+    .where('type', 'not in', [...RETIRED_NOTIFICATION_TYPES])
     .where('filtered', '=', true)
     .groupBy('sourceActorId')
     .select('sourceActorId')
@@ -438,6 +445,7 @@ export const getNotificationRequestsCount = async (
     .selectFrom('notifications')
     .select((eb) => eb.fn.count('sourceActorId').distinct().as('count'))
     .where('actorId', '=', actorId)
+    .where('type', 'not in', [...RETIRED_NOTIFICATION_TYPES])
     .where('filtered', '=', true)
     .executeTakeFirst()
   return Math.min(Number(result?.count ?? 0), MAX_REQUESTS_COUNT)
@@ -486,6 +494,7 @@ export const getNotificationsForGroupKey = async (
     .selectFrom('notifications')
     .selectAll()
     .where('actorId', '=', actorId)
+    .where('type', 'not in', [...RETIRED_NOTIFICATION_TYPES])
     .where((eb) => matchesGroupKey(eb, groupKey))
     .orderBy('createdAt', 'desc')
     .orderBy('id', 'desc')

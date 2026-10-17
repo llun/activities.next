@@ -98,11 +98,6 @@ export const resolveBackDestination = (
   if (first === 'lists') {
     return second && second !== 'new' ? backTo('list') : sectionBack('lists')
   }
-  if (first === 'collections') {
-    return second && second !== 'new'
-      ? backTo('collection')
-      : sectionBack('lists')
-  }
   if (first === 'tags') {
     return second && !third ? backTo(`#${second}`) : PREVIOUS_PAGE_BACK
   }

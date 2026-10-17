@@ -333,39 +333,6 @@ export type {
 } from '@/lib/database/domains/list/types'
 
 // ============================================================================
-// Collection Database
-// ============================================================================
-
-export type {
-  AddCollectionMembersParams,
-  AddStatusToCollectionTimelinesParams,
-  ApprovedCollectionMember,
-  CollectionDatabase,
-  CollectionItemRow,
-  CollectionMembersPage,
-  CountCollectionItemsParams,
-  CreateCollectionParams,
-  DeleteCollectionParams,
-  GetAccountCollectionsParams,
-  GetApprovedCollectionMembersParams,
-  GetCollectionByIdParams,
-  GetCollectionItemByAccountParams,
-  GetCollectionItemParams,
-  GetCollectionItemsParams,
-  GetCollectionMemberCountsParams,
-  GetCollectionMembersParams,
-  GetCollectionParams,
-  GetCollectionsFeaturingAccountParams,
-  GetCollectionsParams,
-  GetCollectionTimelineParams,
-  GetPublicCollectionTimelineParams,
-  RemoveCollectionItemByIdParams,
-  RemoveCollectionMembersParams,
-  SetOwnCollectionMembershipStateParams,
-  UpdateCollectionParams
-} from '@/lib/database/domains/collection/types'
-
-// ============================================================================
 // Followed Tag Database
 // ============================================================================
 
