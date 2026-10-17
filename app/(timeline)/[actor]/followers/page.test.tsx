@@ -110,6 +110,7 @@ describe('[actor] followers page', () => {
       statusesCount: 0,
       attachments: [],
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],
@@ -190,6 +191,7 @@ describe('[actor] followers page', () => {
       followingCount: 0,
       followersCount: 0,
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: []
@@ -231,6 +233,7 @@ describe('[actor] followers page', () => {
       followingCount: 0,
       followersCount: 42,
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: []
@@ -271,6 +274,7 @@ describe('[actor] followers page', () => {
       followingCount: 0,
       followersCount: 42,
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: []
@@ -310,6 +314,7 @@ describe('[actor] followers page', () => {
       statusesCount: 5,
       attachments: [],
       isInternalAccount: false,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: [],

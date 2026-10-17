@@ -5,11 +5,26 @@ import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 const LINK_DISPLAY_LENGTH = 30
 const URL_PREFIX_PATTERN = /^https?:\/\/(www\.)?/i
 
-const getHttpUrl = (value: string): string | null => {
+/** The value when it is exactly one http(s) URL (no whitespace), else null. */
+export const getProfileFieldHttpUrl = (value: string): string | null => {
   if (/\s/.test(value)) return null
   try {
     const { protocol } = new URL(value)
     return protocol === 'http:' || protocol === 'https:' ? value : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The value when it is exactly one https URL, else null. Only these are
+ * verifiable: the page fetch (`safeRemoteFetch`) refuses plain http.
+ */
+export const getProfileFieldHttpsUrl = (value: string): string | null => {
+  const url = getProfileFieldHttpUrl(value)
+  if (!url) return null
+  try {
+    return new URL(url).protocol === 'https:' ? url : null
   } catch {
     return null
   }
@@ -32,7 +47,7 @@ const getHttpUrl = (value: string): string | null => {
  */
 export const formatProfileFieldValue = (rawValue: string): string => {
   const value = rawValue.trim()
-  const url = getHttpUrl(value)
+  const url = getProfileFieldHttpUrl(value)
   if (!url) return escapeHtml(value)
 
   const prefix = url.match(URL_PREFIX_PATTERN)?.[0] ?? ''

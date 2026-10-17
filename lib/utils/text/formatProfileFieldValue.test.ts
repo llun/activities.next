@@ -1,4 +1,7 @@
-import { formatProfileFieldValue } from '@/lib/utils/text/formatProfileFieldValue'
+import {
+  formatProfileFieldValue,
+  getProfileFieldHttpsUrl
+} from '@/lib/utils/text/formatProfileFieldValue'
 
 describe('formatProfileFieldValue', () => {
   it('turns an https URL into Mastodon link markup with the scheme hidden', () => {
@@ -76,5 +79,16 @@ describe('formatProfileFieldValue', () => {
     expect(hidden).toBe('tail/path')
     expect(`https://${display}${hidden}`).toBe(url)
     expect(html).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/)
+  })
+})
+
+describe('getProfileFieldHttpsUrl', () => {
+  it('accepts one https URL only', () => {
+    expect(getProfileFieldHttpsUrl('https://example.com/a')).toBe(
+      'https://example.com/a'
+    )
+    expect(getProfileFieldHttpsUrl('http://example.com')).toBeNull()
+    expect(getProfileFieldHttpsUrl('https://a.example b')).toBeNull()
+    expect(getProfileFieldHttpsUrl('they/them')).toBeNull()
   })
 })

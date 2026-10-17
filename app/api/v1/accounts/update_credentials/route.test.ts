@@ -6,6 +6,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -14,6 +15,10 @@ import { PATCH } from './route'
 
 vi.mock('@/lib/services/actors/actorUpdate', () => ({
   publishActorUpdate: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/profile-links/queueProfileLinkVerification', () => ({
+  queueProfileLinkVerification: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@/lib/services/medias', () => ({
@@ -240,6 +245,46 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       })
     )
     updateActor.mockRestore()
+  })
+
+  it('ignores a verifiedAt or verified_at sent in a JSON field', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          fields_attributes: [
+            {
+              name: 'Blog',
+              value: 'https://forged.example',
+              verifiedAt: 1700000000000
+            },
+            {
+              name: 'Site',
+              value: 'https://forged2.example',
+              verified_at: '2023-11-14T22:13:20.000Z'
+            }
+          ]
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const stored = await database.getActorFromId({ id: ACTOR1_ID })
+    expect(stored?.fields).toEqual([
+      { name: 'Blog', value: 'https://forged.example' },
+      { name: 'Site', value: 'https://forged2.example' }
+    ])
+    const data = await response.json()
+    expect(
+      data.fields.map((f: { verified_at: unknown }) => f.verified_at)
+    ).toEqual([null, null])
   })
 
   it('rejects malformed JSON body with 400', async () => {
@@ -542,6 +587,33 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(response.status).toBe(422)
     expect(updateActor).not.toHaveBeenCalled()
     updateActor.mockRestore()
+  })
+
+  it('queues the link check when fields_attributes are sent', async () => {
+    const form = new FormData()
+    form.set('fields_attributes[0][name]', 'Website')
+    form.set('fields_attributes[0][value]', 'https://queued.example')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: ACTOR1_ID,
+        after: [{ name: 'Website', value: 'https://queued.example' }]
+      })
+    )
+  })
+
+  it('does not queue the link check when no fields are sent', async () => {
+    const form = new FormData()
+    form.set('display_name', 'Someone')
+
+    await PATCH(createRequest(form), { params: Promise.resolve({}) })
+
+    expect(queueProfileLinkVerification).not.toHaveBeenCalled()
   })
 
   it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {

@@ -13,6 +13,7 @@ import type {
   CancelActorDeletionParams,
   CreateActorParams,
   DeleteActorParams,
+  MarkActorProfileFieldsVerifiedParams,
   ScheduleActorDeletionParams,
   StartActorDeletionParams,
   UpdateActorParams
@@ -30,6 +31,7 @@ import type {
 } from '@/lib/types/database/operations'
 import type { ActorSettings } from '@/lib/types/database/rows'
 import type { Actor } from '@/lib/types/domain/actor'
+import { carryOverFieldVerification } from '@/lib/utils/profileFieldVerification'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 
@@ -225,7 +227,6 @@ export const updateActor = async (
     ...(manuallyApprovesFollowers !== undefined
       ? { manuallyApprovesFollowers }
       : null),
-    ...(fields !== undefined ? { fields } : null),
     ...(resolvedTags !== undefined ? { tags: resolvedTags } : null),
     ...(bot !== undefined ? { bot } : null),
     ...(discoverable !== undefined ? { discoverable } : null),
@@ -284,44 +285,42 @@ export const updateActor = async (
   }
 
   await inTransaction(db, async (trx) => {
+    // Re-read the settings inside the transaction (with a row lock on
+    // PostgreSQL; SQLite runs one connection, so the read is already atomic
+    // with the write) and build the result on that row, not on the snapshot
+    // read before the transaction. A job that committed in between, such as
+    // markActorProfileFieldsVerified, would otherwise be overwritten with the
+    // stale values, and every key this call does not set (`linksCheckedAt`,
+    // verification of unchanged fields) is carried over from the fresh row.
+    const freshActor = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    const freshSettings = freshActor
+      ? getCompatibleJSON<ActorSettings>(
+          freshActor.settings as string | ActorSettings
+        )
+      : persistedSettings
     let settings = applyExplicitClears({
-      ...persistedSettings,
-      ...settingsUpdates
+      ...freshSettings,
+      ...settingsUpdates,
+      ...(fields !== undefined
+        ? { fields: carryOverFieldVerification(fields, freshSettings.fields) }
+        : null)
     })
 
     if (appendNotificationAcceptedSenders !== undefined) {
-      // Re-read inside the transaction (with a row lock on PostgreSQL) to
-      // merge accepted senders atomically and avoid lost-update races.
-      const freshActor = await forUpdate(
-        trx,
-        trx
-          .selectFrom('actors')
-          .select('settings')
-          .where('id', '=', actorId)
-          .limit(1)
-      ).executeTakeFirst()
-      if (freshActor) {
-        const freshSettings = getCompatibleJSON<ActorSettings>(
-          freshActor.settings as string | ActorSettings
-        )
-        const existing = new Set(
-          freshSettings?.notificationAcceptedSenders ?? []
-        )
-        const toAdd = appendNotificationAcceptedSenders.filter(
-          (id) => !existing.has(id)
-        )
-        // Base the merge on freshSettings so all settings fields (policy,
-        // email/push notifications, etc.) come from the locked row, not the
-        // stale pre-transaction snapshot. This prevents concurrent settings
-        // changes from being clobbered by this write. Re-apply this call's
-        // own explicit settingsUpdates on top so they are not lost when an
-        // append is combined with other settings changes in the same call,
-        // then re-clear any explicitly-nulled fields.
-        settings = applyExplicitClears({
-          ...freshSettings,
-          ...settingsUpdates,
-          notificationAcceptedSenders: [...existing, ...toAdd]
-        })
+      const existing = new Set(freshSettings?.notificationAcceptedSenders ?? [])
+      const toAdd = appendNotificationAcceptedSenders.filter(
+        (id) => !existing.has(id)
+      )
+      settings = {
+        ...settings,
+        notificationAcceptedSenders: [...existing, ...toAdd]
       }
     }
 
@@ -344,6 +343,56 @@ export const updateActor = async (
     })
   })
   return getActorFromId(db, { id: actorId })
+}
+
+// Stamps `verifiedAt` on the stored profile fields whose value is one of
+// `values`, the values the verification job checked, and `linksCheckedAt` with
+// `checkedAt` on every call, whatever the outcome. The row is re-read under
+// a lock and only fields that still hold such a value and are not verified yet
+// change, so a profile edited while the job ran keeps its newer fields as they
+// are. Only the settings JSON is written: `updatedAt` is the remote refresh
+// clock and the profile text did not change, so it does not move.
+export const markActorProfileFieldsVerified = async (
+  db: Db,
+  {
+    actorId,
+    values,
+    verifiedAt,
+    checkedAt
+  }: MarkActorProfileFieldsVerifiedParams
+): Promise<void> => {
+  await inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('actors')
+        .select('settings')
+        .where('id', '=', actorId)
+        .limit(1)
+    ).executeTakeFirst()
+    if (!row) return
+    const settings = getCompatibleJSON<ActorSettings>(
+      row.settings as string | ActorSettings
+    )
+    const checked = new Set(values)
+    let changed = false
+    const fields = (settings.fields ?? []).map((field) => {
+      if (field.verifiedAt || !checked.has(field.value)) return field
+      changed = true
+      return { ...field, verifiedAt }
+    })
+    await trx
+      .updateTable('actors')
+      .set({
+        settings: JSON.stringify({
+          ...settings,
+          ...(changed ? { fields } : null),
+          linksCheckedAt: checkedAt
+        })
+      })
+      .where('id', '=', actorId)
+      .execute()
+  })
 }
 
 export const updateNotificationPolicy = async (

@@ -9,7 +9,7 @@ import { PROFILE_LINK_ERROR, ProfileLinksField } from './ProfileLinksField'
 const PROFILE_URL = 'https://llun.test/@anna'
 
 const renderField = (
-  fields: { name: string; value: string }[] = [],
+  fields: { name: string; value: string; verifiedAt?: number | null }[] = [],
   describedBy?: string
 ) =>
   render(
@@ -156,5 +156,72 @@ describe('ProfileLinksField', () => {
       'aria-describedby',
       'hint-id profileField0Error'
     )
+  })
+
+  describe('verification status', () => {
+    const BLOG = { name: 'Blog', value: 'https://blog.example' }
+
+    it('shows Verified with a check for a saved URL that was checked', () => {
+      renderField([{ ...BLOG, verifiedAt: 1700000000000 }])
+
+      const status = screen.getByText('Verified')
+      expect(status).toHaveAttribute('data-slot', 'profile-link-status')
+      expect(status.querySelector('svg')).toBeInTheDocument()
+      expect(status).toHaveClass('text-success-text')
+      expect(screen.queryByText('Not verified')).not.toBeInTheDocument()
+    })
+
+    it('shows muted Not verified for a saved URL that was not checked', () => {
+      renderField([BLOG])
+
+      const status = screen.getByText('Not verified')
+      expect(status).toHaveClass('text-muted-foreground')
+      expect(status.querySelector('svg')).not.toBeInTheDocument()
+    })
+
+    it('shows no status for an http link, which cannot be verified', () => {
+      renderField([{ name: 'Old', value: 'http://old.example' }])
+
+      expect(screen.queryByText('Verified')).not.toBeInTheDocument()
+      expect(screen.queryByText('Not verified')).not.toBeInTheDocument()
+    })
+
+    it('shows no status for plain text, an empty row or a half-filled row', () => {
+      renderField([
+        { name: 'Pronouns', value: 'they/them', verifiedAt: 1700000000000 },
+        { name: '', value: '' }
+      ])
+
+      expect(screen.queryByText('Verified')).not.toBeInTheDocument()
+      expect(screen.queryByText('Not verified')).not.toBeInTheDocument()
+    })
+
+    it('adds the status to the content input description only', () => {
+      renderField([{ ...BLOG, verifiedAt: 1700000000000 }], 'row-hint')
+
+      const status = screen.getByText('Verified')
+      expect(screen.getByLabelText('Link 1 content')).toHaveAttribute(
+        'aria-describedby',
+        `row-hint ${status.id}`
+      )
+      expect(screen.getByLabelText('Link 1 label')).toHaveAttribute(
+        'aria-describedby',
+        'row-hint'
+      )
+    })
+
+    it('hides the status once the content is edited, since it describes the saved value', () => {
+      renderField([{ ...BLOG, verifiedAt: 1700000000000 }])
+
+      fireEvent.change(screen.getByLabelText('Link 1 content'), {
+        target: { value: 'https://other.example' }
+      })
+
+      expect(screen.queryByText('Verified')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Link 1 content')).not.toHaveAttribute(
+        'aria-describedby',
+        expect.stringContaining('Status')
+      )
+    })
   })
 })

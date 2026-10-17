@@ -6,6 +6,7 @@ import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import {
   POST_LINE_LIMIT_VALUES,
   PostLineLimit
@@ -115,6 +116,14 @@ export const POST = traceApiRoute(
         : null)
     })
     await publishActorUpdate({ actorId: currentActor.id })
+    if (profileFields.status === 'ok') {
+      await queueProfileLinkVerification({
+        actorId: currentActor.id,
+        before: currentActor.fields,
+        after: profileFields.fields,
+        remote: false
+      })
+    }
 
     const host = headerHost(req.headers)
     const url = new URL('/settings', `https://${host}`)

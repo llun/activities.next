@@ -184,6 +184,25 @@ describe('/settings', () => {
       expect(data.get('fields[3][name]')).toBe('')
     })
 
+    it('shows each saved link\u2019s verification next to its inputs', async () => {
+      getActorSettings.mockResolvedValue({
+        fields: [
+          {
+            name: 'Blog',
+            value: 'https://blog.example',
+            verifiedAt: 1700000000000
+          },
+          { name: 'Site', value: 'https://site.example' },
+          { name: 'Pronouns', value: 'they/them' }
+        ]
+      })
+
+      render(await Page())
+
+      expect(screen.getAllByText('Verified')).toHaveLength(1)
+      expect(screen.getAllByText('Not verified')).toHaveLength(1)
+    })
+
     it('shows the rel me snippet with the real profile URL', async () => {
       getActorSettings.mockResolvedValue(null)
 

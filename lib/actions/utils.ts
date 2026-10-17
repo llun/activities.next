@@ -4,6 +4,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
@@ -22,7 +23,7 @@ interface RecordActorIfNeededParams {
   forceRefresh?: boolean
 }
 
-const REMOTE_ACTOR_REFRESH_INTERVAL_MS = 3 * 86_400_000
+export const REMOTE_ACTOR_REFRESH_INTERVAL_MS = 3 * 86_400_000
 
 export class BlockedFederationDomainError extends Error {
   constructor(actorId: string) {
@@ -299,12 +300,19 @@ export const recordActorIfNeeded = async ({
       })
       return
     }
+    const persistableProfile = getPersistableProfile(person)
     const actor = await database.createActor({
       actorId: person.id,
       username: handle.username,
       domain: handle.domain,
-      ...getPersistableProfile(person),
+      ...persistableProfile,
       createdAt: new Date(person.published ?? Date.now()).getTime()
+    })
+    await queueProfileLinkVerification({
+      actorId: person.id,
+      before: undefined,
+      after: persistableProfile.fields,
+      remote: true
     })
     await syncActorCollectionCounts(
       database,
@@ -356,9 +364,18 @@ export const recordActorIfNeeded = async ({
     }
     return existingActor
   }
+  const persistableProfile = getPersistableProfile(person)
   const actor = await database.updateActor({
     actorId,
-    ...getPersistableProfile(person)
+    ...persistableProfile
+  })
+  // A refresh that happened re-checks only links that are verifiable and not
+  // yet verified; a profile whose links are all verified sends no request.
+  await queueProfileLinkVerification({
+    actorId,
+    before: existingActor.fields,
+    after: persistableProfile.fields,
+    remote: true
   })
   await syncActorCollectionCounts(
     database,

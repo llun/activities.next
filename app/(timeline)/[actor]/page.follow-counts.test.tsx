@@ -132,6 +132,7 @@ describe('[actor] page follow counts display', () => {
         statusPagination: { nextPageUrl: null, prevPageUrl: null },
         attachments: [],
         isInternalAccount,
+        profileFields: [],
         hasFitnessData: false,
         hasGalleryMedia: false,
         gallerySubviews: []
@@ -169,6 +170,7 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: []
@@ -216,6 +218,7 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
+      profileFields: [],
       hasFitnessData: false,
       hasGalleryMedia: false,
       gallerySubviews: []

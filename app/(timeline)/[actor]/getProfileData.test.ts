@@ -16,6 +16,7 @@ import {
   isPeerTubeActor,
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -42,6 +43,9 @@ vi.mock('@/lib/services/federation/serverSoftware', () => ({
   isPixelfedActor: vi.fn().mockResolvedValue(false),
   isPeerTubeActor: vi.fn().mockResolvedValue(false),
   getServerSoftwareInfo: vi.fn().mockResolvedValue(null)
+}))
+vi.mock('@/lib/services/profile-links/queueProfileLinkVerification', () => ({
+  queueProfileLinkVerification: vi.fn()
 }))
 vi.mock('@/lib/utils/getPersonFromActor')
 vi.mock('@/lib/utils/logger', () => ({
@@ -200,6 +204,36 @@ describe('getProfileData', () => {
       // Should not call remote APIs
       expect(getWebfingerSelf).not.toHaveBeenCalled()
       expect(getActorPerson).not.toHaveBeenCalled()
+    })
+
+    it('returns the stored links as HTML with their verification as ISO time', async () => {
+      ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue({
+        ...mockLocalActor,
+        fields: [
+          {
+            name: 'Blog',
+            value: 'https://blog.example',
+            verifiedAt: Date.UTC(2026, 9, 17, 12, 30)
+          },
+          { name: 'Pronouns', value: 'they <3 them' }
+        ]
+      })
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@example.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result?.profileFields).toEqual([
+        {
+          name: 'Blog',
+          value: expect.stringContaining('href="https://blog.example"'),
+          verifiedAt: '2026-10-17T12:30:00.000Z'
+        },
+        { name: 'Pronouns', value: 'they &lt;3 them', verifiedAt: null }
+      ])
     })
 
     it('should return profile data for anonymous user', async () => {
@@ -800,6 +834,112 @@ describe('getProfileData', () => {
       expect(getActorPerson).toHaveBeenCalledWith({
         actorId: 'https://remote.com/users/remoteuser',
         signingActor: mockFederationSigningActor
+      })
+    })
+
+    describe('profile links', () => {
+      const LINKED_URL = 'https://blog.example/'
+      const linkedValue = `<a href="${LINKED_URL}">${LINKED_URL}</a>`
+      const personWithLinks = (value: string): Actor => ({
+        ...mockPerson,
+        attachment: [{ type: 'PropertyValue', name: 'Blog', value }]
+      })
+
+      it('takes the verification from the stored field with the same name and value', async () => {
+        ;(getActorPerson as jest.Mock).mockResolvedValue(
+          personWithLinks(linkedValue)
+        )
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+          id: mockPerson.id,
+          fields: [
+            {
+              name: 'Blog',
+              value: linkedValue,
+              verifiedAt: Date.UTC(2026, 9, 17, 12, 30)
+            }
+          ]
+        })
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result?.profileFields).toEqual([
+          {
+            name: 'Blog',
+            value: linkedValue,
+            verifiedAt: '2026-10-17T12:30:00.000Z'
+          }
+        ])
+      })
+
+      it('shows a changed value as not verified', async () => {
+        ;(getActorPerson as jest.Mock).mockResolvedValue(
+          personWithLinks(linkedValue)
+        )
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+          id: mockPerson.id,
+          fields: [{ name: 'Blog', value: 'old', verifiedAt: 1700000000000 }]
+        })
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result?.profileFields).toEqual([
+          { name: 'Blog', value: linkedValue, verifiedAt: null }
+        ])
+      })
+
+      it('queues the link check with the stored and the fetched fields', async () => {
+        ;(getActorPerson as jest.Mock).mockResolvedValue(
+          personWithLinks(linkedValue)
+        )
+        const stored = [{ name: 'Blog', value: 'old' }]
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+          id: mockPerson.id,
+          fields: stored
+        })
+
+        await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+          currentActor: null
+        })
+
+        expect(queueProfileLinkVerification).toHaveBeenCalledWith({
+          actorId: mockPerson.id,
+          before: stored,
+          after: [{ name: 'Blog', value: linkedValue }],
+          remote: true,
+          renderCheckedAt: null
+        })
+      })
+
+      it('passes the stored linksCheckedAt so a recent check suppresses the queue', async () => {
+        ;(getActorPerson as jest.Mock).mockResolvedValue(
+          personWithLinks(linkedValue)
+        )
+        const checkedAt = Date.now() - 60_000
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+          id: mockPerson.id,
+          fields: [{ name: 'Blog', value: linkedValue }],
+          // updatedAt is old, but only linksCheckedAt is the gate.
+          updatedAt: Date.now() - 10 * 86_400_000,
+          linksCheckedAt: checkedAt
+        })
+
+        await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+          currentActor: null
+        })
+
+        expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+          expect.objectContaining({ remote: true, renderCheckedAt: checkedAt })
+        )
       })
     })
 

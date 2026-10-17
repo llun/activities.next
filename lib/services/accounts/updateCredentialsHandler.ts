@@ -24,6 +24,7 @@ import {
   MediaStorageSaveFileOutput
 } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
+import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { Scope } from '@/lib/types/database/operations'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -430,6 +431,14 @@ export const updateCredentialsHandler = (
           : null)
       })
       await publishActorUpdate({ actorId: currentActor.id })
+      if (fields !== undefined) {
+        await queueProfileLinkVerification({
+          actorId: currentActor.id,
+          before: currentActor.fields,
+          after: fields,
+          remote: false
+        })
+      }
 
       const [account, followRequestsCount] = await Promise.all([
         database.getMastodonActorFromId({ id: currentActor.id }),

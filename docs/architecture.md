@@ -787,6 +787,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
 - Web Push delivery (`web-push`) is the one outbound POST to a URL a client chose. The subscribe routes refuse any endpoint `isAllowedPushEndpoint` rejects (`lib/services/notifications/pushEndpoint.ts`: HTTPS, no credentials, no local names, public addresses only), delivery skips a stored endpoint `isDeliverablePushEndpoint` rejects and connects through `pushDeliveryAgent`, whose lookup refuses a restricted address at connect time (so a rebound record is caught), with a per-request timeout. `createPushSubscription` keeps at most `MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR` per actor (oldest dropped), which bounds the per-notification fan-out.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
+- **Profile link verification fetches the page a profile link points at** (any public HTTPS site the owner typed, or a remote actor's server sent) through `safeRemoteFetch` in `lib/services/profile-links/verifyProfileLink.ts`, from `VerifyProfileLinksJob`: 5 s connect + 5 s read per hop (about 30 s for a link with two redirects), a 1 MiB body that fails instead of truncating, HTML only, two redirects. See [Actor Profile & Deletion Federation](#agents-actor-profile-deletion-federation).
 - **Gallery lookups call two public services, both through `safeRemoteFetch` with `allowCrossHostRedirects: false`, in `lib/services/gallery/lookups/`.** `gbif.ts` talks to the GBIF API (`ACTIVITIES_GALLERY_GBIF_ENDPOINT`; taxon match, taxon, IUCN category and species search) and `nominatim.ts` to Nominatim (`ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT`; reverse geocoding). Both go through `lookupGet`, which sends `User-Agent: activities.next/<version> (+https://<host>)` (Nominatim's usage policy requires one) and `Accept-Language`, applies a 5 s total / 2 s connect timeout and a body cap, and never forwards the vision API key. A self-hosted endpoint must resolve to a public address, because `safeRemoteFetch` refuses private ones.
   - **Only the snapped cell centre leaves for geocoding.** `reverseGeocode` receives the 0.05 degree grid centre (about 5 km, the same grid as the public `area` precision), never the stored point, for every GPS upload, including photos whose precision is `hidden`, so the media details dialog can prefill the place name. The subject lookup sends the subject's name or scientific name to GBIF and nothing about the photo.
   - **Limits are per process.** Each provider has a minimum-interval and concurrency limiter (Nominatim: one request at a time, at least 1100 ms apart; GBIF: four at a time) and a circuit breaker: after a timeout, a 5xx or a 429 the provider is "down" for its `Retry-After` or five minutes and calls fail fast as `failed`, so an air-gapped server adds at most one 2 s connect timeout per provider per five minutes to an upload. With several instances behind one queue the cache below is the protection that is actually shared; a busy instance should run its own Nominatim.
@@ -1609,9 +1610,80 @@ legacy shape left to copy.
   them at four rows, label 255 and content 2047 characters. Both drop a row
   whose label and content are both blank; `update_credentials` keeps a
   half-filled row (as Mastodon does), which the settings form refuses and flags
-  on load. `verified_at` stays `null`
-  until link verification exists; `ProfileFieldsBlock` already styles a row
-  that carries `verifiedAt`.
+  on load.
+- **Profile links are verified with `rel="me"`, as on Mastodon, by
+  `VerifyProfileLinksJob` (`lib/jobs/verifyProfileLinksJob.ts`).** A field is
+  checked only when its value is a single https URL: the raw value for a local
+  actor, and for a remote actor the href of the one `<a>` whose text equals its
+  href (or a bare URL), as Mastodon's `extract_url_from_html` reads it
+  (`getVerifiableFieldUrl`, `lib/services/profile-links/html.ts`). The job
+  fetches the page through `verifyProfileLink` (`safeRemoteFetch`: HTTPS only,
+  SSRF guard, 5 s connect + 5 s read per hop, 1 MiB body that fails rather than
+  truncates, `200` and `text/html` or `application/xhtml+xml` only, two
+  redirects, which are followed for the page itself) and tokenizes it with
+  `htmlparser2`'s `Parser` (linear, no tree) looking for an `<a>` or `<link>`
+  whose `rel` has the token `me` and whose `href` equals, case-insensitively,
+  the profile URL (`https://<domain>/@<username>`, `getActorProfileUrl`) or the
+  actor id. The link back itself is never fetched or resolved. Every failure is
+  just "not verified". A remote actor's own `url` is not stored, so its profile
+  URL is derived the same way (`/@username`) plus its id, and at most four
+  fields are checked.
+  - **Storage:** `verifiedAt` (epoch ms) on each entry of `settings.fields`
+    (a JSON column, so no migration). `updateActor` keeps it for a field whose
+    value is unchanged and drops it for a changed value
+    (`carryOverFieldVerification`, `lib/utils/profileFieldVerification.ts`), so
+    every write path gets "edit the link, lose the check" for free; a
+    `verifiedAt` in the incoming fields (for example in `update_credentials`
+    JSON) is ignored, only the stored row decides. The job
+    writes through `markActorProfileFieldsVerified`, which re-reads the row
+    under a lock and stamps only fields that still hold a checked value, and
+    leaves `updatedAt` alone (it is the remote refresh clock). `updateActor`
+    re-reads `settings` under the same lock inside its transaction and builds
+    the result on that row, so a mark that committed meanwhile is not
+    overwritten. The job also stamps `linksCheckedAt` (epoch ms, in `settings`)
+    on every run, whatever the outcome; `updateActor` carries it over. Like
+    `verifiedAt` it is local state: `getPersonFromActor` never emits it (a test
+    pins this), and it is not in the API. Receiving servers verify for themselves.
+  - **When:** `queueProfileLinkVerification`
+    (`lib/services/profile-links/queueProfileLinkVerification.ts`) queues the
+    job, best effort like `publishActorUpdate`, whenever any field is verifiable
+    (`getVerifiableFieldUrl`, with the local or remote flag) and has no
+    `verifiedAt` after the stored check is carried over. A changed verifiable
+    value is always unverified, so this also covers a changed list; it is
+    Mastodon's `requires_verification?` test in `check_links`. So saving the
+    same link again after adding `<a rel="me">` to the site re-checks it, while
+    a profile whose links are all verified, empty, plain text or http queues
+    nothing. It is called after the settings form, `update_credentials` and
+    `PATCH /api/v1/profile` (the last two share `updateCredentialsHandler`)
+    save links, and after a remote actor is created or refreshed
+    (`recordActorIfNeeded`, `getProfileData`). `getProfileData` runs on every
+    render of a remote profile, so there the call passes `renderCheckedAt` (the
+    actor's `linksCheckedAt`; `updatedAt` moves on every render, so it cannot
+    be the gate) and nothing is queued while the last check is newer than 1
+    hour for a changed value, or 3 days for an unchanged unverified one. That
+    bounds the fetches even when a hostile remote serves different values on
+    every request. The local saves and `recordActorIfNeeded` (inbox
+    `Update(Person)`, real refreshes) ignore the stamp and always queue. The job id is a hash of the actor id, the sorted
+    field values and a 30 second window, so concurrent queues of the same state
+    collapse (the database queue ignores a second job under a taken id, and
+    QStash deduplicates by id) but a save a minute later runs again. A verified
+    link is never checked again until its value changes. `http:` links are not
+    verifiable, as in Mastodon (`Account::Field` accepts only `https`), and
+    `safeRemoteFetch` refuses plain http anyway, so they get no status in Settings or on the profile and are never
+    queued. On `NoQueue` the job runs inside `publish`, so the request that
+    saved the links waits for the check (about 30 s per link with two redirects, and up to four links run at once), and for a
+    remote actor it also runs inside the `getProfileData` render that
+    created or refreshed it, so that page waits for the check too (`NoQueue`
+    does not deduplicate).
+  - **Where it shows:** `fields[].verified_at` and `source.fields[].verified_at`
+    of the Account entity (ISO time or `null`); `ProfileFieldsBlock` (the
+    profile page passes `profileFields` from `getProfileData`: a local actor's
+    stored field, or a remote document's field matched by name and value to the
+    stored row); and the settings "Profile links" row, which shows a green
+    "Verified" or a muted "Not verified" under each saved URL row (nothing for
+    an empty or text row, and nothing once the content input was edited,
+    because the status describes the saved value), wired into the content
+    input's `aria-describedby`. There is deliberately no "Checking" state.
 - **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,
   while the row is still `scheduled`: after the due-time checks and BEFORE
   `startActorDeletion`.** The Delete must be signed with the actor's key, and
