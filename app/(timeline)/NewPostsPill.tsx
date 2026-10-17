@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp, RefreshCw } from 'lucide-react'
 import { FC, useSyncExternalStore } from 'react'
 
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
@@ -68,7 +68,8 @@ export const createUnseenAboveStore = (): UnseenAboveStore => {
           .split(' ')
           .filter((id) => unseen.has(id))
         if (ids.length === 0) continue
-        if (rows[i].getBoundingClientRect().bottom <= VIEW_TOP_EDGE) {
+        const rect = rows[i].getBoundingClientRect()
+        if (rect.bottom > rect.top && rect.bottom <= VIEW_TOP_EDGE) {
           for (const id of ids) stillAbove.add(id)
         }
       }
@@ -92,30 +93,58 @@ interface NewPostsPillProps {
   store: UnseenAboveStore
   /** Newer posts the poll found that are not loaded yet. */
   polledCount: number
+  /** Whether the reader is scrolled down below the top of the feed. */
+  isScrolledDown?: boolean
+  /** Whether a background timeline refresh is currently in flight. */
+  isRefreshing?: boolean
   onJump: () => void
 }
 
 /**
- * The floating "N new posts" pill under the timeline header: the posts loaded
- * above the reader plus the polled ones. It counts down as the reader scrolls
- * up through them.
+ * The floating pill under the timeline header: shows "N new posts" for posts
+ * loaded above the reader plus the polled ones (counting down as the reader
+ * scrolls up through them), or "Back to top" when the reader is scrolled down
+ * with no unseen posts above.
  */
 export const NewPostsPill: FC<NewPostsPillProps> = ({
   store,
   polledCount,
+  isScrolledDown = false,
+  isRefreshing = false,
   onJump
 }) => {
   const total = useUnseenAboveCount(store) + polledCount
-  if (total === 0) return null
+  if (total === 0 && !isScrolledDown) return null
+  if (total > 0) {
+    return (
+      <Button
+        type="button"
+        variant="pill"
+        onClick={onJump}
+        className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
+      >
+        <ArrowUp className="text-muted-foreground" aria-hidden="true" />
+        {total} new {total === 1 ? 'post' : 'posts'}
+      </Button>
+    )
+  }
   return (
     <Button
       type="button"
       variant="pill"
       onClick={onJump}
+      aria-busy={isRefreshing || undefined}
       className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
     >
-      <ArrowUp className="text-muted-foreground" aria-hidden="true" />
-      {total} new {total === 1 ? 'post' : 'posts'}
+      {isRefreshing ? (
+        <RefreshCw
+          className="animate-spin text-muted-foreground"
+          aria-hidden="true"
+        />
+      ) : (
+        <ArrowUp className="text-muted-foreground" aria-hidden="true" />
+      )}
+      Back to top
     </Button>
   )
 }
@@ -123,6 +152,7 @@ export const NewPostsPill: FC<NewPostsPillProps> = ({
 interface TimelineScrollToTopButtonProps {
   store: UnseenAboveStore
   polledCount: number
+  isScrolledDown?: boolean
   isLoadMoreVisible: boolean
 }
 
@@ -130,13 +160,14 @@ interface TimelineScrollToTopButtonProps {
 export const TimelineScrollToTopButton: FC<TimelineScrollToTopButtonProps> = ({
   store,
   polledCount,
+  isScrolledDown = false,
   isLoadMoreVisible
 }) => {
   const total = useUnseenAboveCount(store) + polledCount
   return (
     <ScrollToTopButton
       isLoadMoreVisible={isLoadMoreVisible}
-      isHidden={total > 0}
+      isHidden={total > 0 || Boolean(isScrolledDown)}
     />
   )
 }

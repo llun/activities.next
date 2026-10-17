@@ -297,12 +297,17 @@ describe('offlineDb storage layer', () => {
 
   describe('scroll anchor state', () => {
     it('persists and updates scroll anchor in timeline', async () => {
+      const s0 = mockStatus('s0')
       const s1 = mockStatus('s1')
       await saveOfflineTimeline({
         actorId: 'https://llun.test/users/alice',
         timeline: 'home',
         segments: [
-          { statuses: [s1], nextMaxStatusId: null, prevMinStatusId: s1.id }
+          {
+            statuses: [s0, s1],
+            nextMaxStatusId: null,
+            prevMinStatusId: s0.id
+          }
         ]
       })
 
@@ -324,6 +329,53 @@ describe('offlineDb storage layer', () => {
         statusId: 's1',
         offsetTop: 150,
         updatedAt: 7777
+      })
+    })
+
+    it('drops a scroll anchor on the very first status when offsetTop > 80 and keeps <= 80', async () => {
+      const s1 = mockStatus('s1')
+      await saveOfflineTimeline({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home',
+        segments: [
+          { statuses: [s1], nextMaxStatusId: null, prevMinStatusId: s1.id }
+        ]
+      })
+
+      await saveOfflineScrollAnchor({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home',
+        scrollAnchor: {
+          statusId: 's1',
+          offsetTop: 150,
+          updatedAt: 7777
+        }
+      })
+
+      const dropped = await getOfflineTimeline({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home'
+      })
+      expect(dropped?.scrollAnchor).toBeNull()
+
+      await saveOfflineScrollAnchor({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home',
+        scrollAnchor: {
+          statusId: 's1',
+          offsetTop: 80,
+          updatedAt: 8888
+        }
+      })
+
+      const keptAtBoundary = await getOfflineTimeline({
+        actorId: 'https://llun.test/users/alice',
+        timeline: 'home'
+      })
+      expect(keptAtBoundary?.scrollAnchor).toEqual({
+        statusId: 's1',
+        offsetTop: 80,
+        updatedAt: 8888
       })
     })
   })

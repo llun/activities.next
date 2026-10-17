@@ -670,7 +670,9 @@ describe('MainPageTimeline', () => {
 
   describe('posts loaded above the reading spot', () => {
     const scrollToMock = vi.fn()
+    const scrollByMock = vi.fn()
     let originalScrollTo: typeof window.scrollTo
+    let originalScrollBy: typeof window.scrollBy
     let originalRect: typeof HTMLElement.prototype.getBoundingClientRect
     let originalRaf: typeof window.requestAnimationFrame
     // Where each feed row sits on screen, by status id: a row whose bottom is
@@ -679,8 +681,11 @@ describe('MainPageTimeline', () => {
 
     beforeEach(() => {
       originalScrollTo = window.scrollTo
+      originalScrollBy = window.scrollBy
       scrollToMock.mockClear()
+      scrollByMock.mockClear()
       window.scrollTo = scrollToMock
+      window.scrollBy = scrollByMock
       originalRect = HTMLElement.prototype.getBoundingClientRect
       rowTops = {}
       HTMLElement.prototype.getBoundingClientRect = function () {
@@ -707,6 +712,7 @@ describe('MainPageTimeline', () => {
 
     afterEach(() => {
       window.scrollTo = originalScrollTo
+      window.scrollBy = originalScrollBy
       HTMLElement.prototype.getBoundingClientRect = originalRect
       window.requestAnimationFrame = originalRaf
     })
@@ -865,6 +871,54 @@ describe('MainPageTimeline', () => {
       expect(
         screen.queryByRole('button', { name: /new post/ })
       ).not.toBeInTheDocument()
+    })
+
+    it('clamps capturedAnchor offsetTop to VIEW_TOP_EDGE (80px) so new posts prepended above the first post do not fall into the PostBox blind spot', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const newA = createStatus('https://activities.local/users/llun/s/new-a')
+      // post1 starts at 310px (below the header and composer).
+      rowTops = { [post1.id]: 310 }
+
+      // Simulate window.scrollBy shifting all rows' viewport top by -diff.
+      scrollByMock.mockImplementation((opts?: ScrollToOptions | number) => {
+        const delta =
+          typeof opts === 'object' && opts !== null ? (opts.top ?? 0) : 0
+        for (const key of Object.keys(rowTops)) {
+          rowTops[key] -= delta
+        }
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newA, post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: newA.id
+      })
+      // When newA (250px tall) is prepended above post1 before scroll adjustment:
+      rowTops = { [newA.id]: 310, [post1.id]: 560 }
+
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+
+      // Because capturedAnchor.offsetTop was clamped to 80px, scrollBy shifts by
+      // 560 - 80 = 480px, placing post1 at 80px and newA at -170px (bottom -70 <= 80).
+      expect(scrollByMock).toHaveBeenCalledWith({
+        top: 480,
+        behavior: 'instant'
+      })
+      expect(
+        await screen.findByRole('button', { name: '1 new post' })
+      ).toBeInTheDocument()
     })
   })
 

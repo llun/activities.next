@@ -1058,6 +1058,303 @@ describe('MainPageTimeline', () => {
         expect(scrollBy).not.toHaveBeenCalled()
         scrollBy.mockRestore()
       })
+
+      it('does not anchor or scroll down on refreshOnMount when at the top of the timeline', async () => {
+        const scrollBy = vi
+          .spyOn(window, 'scrollBy')
+          .mockImplementation(() => undefined)
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const post0 = createStatus('https://activities.local/users/llun/s/0')
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [post0, post1],
+          nextMaxStatusId: null,
+          prevMinStatusId: post0.id
+        })
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1]}
+            initialSegments={[
+              {
+                statuses: [post1],
+                nextMaxStatusId: null,
+                prevMinStatusId: post1.id
+              }
+            ]}
+            initialScrollAnchor={{
+              statusId: post1.id,
+              offsetTop: 310,
+              updatedAt: 1
+            }}
+            refreshOnMount={true}
+          />
+        )
+
+        await waitFor(() => {
+          expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
+        })
+        expect(scrollBy).not.toHaveBeenCalled()
+        expect(
+          screen.queryByRole('button', { name: /new post|Back to top/ })
+        ).not.toBeInTheDocument()
+        scrollBy.mockRestore()
+      })
+
+      it('saves scrollAnchor: null when at the top of the timeline with first post at or below header', () => {
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const originalRect = HTMLElement.prototype.getBoundingClientRect
+        HTMLElement.prototype.getBoundingClientRect = function () {
+          return {
+            top: 310,
+            bottom: 410,
+            left: 0,
+            right: 0,
+            width: 0,
+            height: 100,
+            x: 0,
+            y: 310,
+            toJSON: () => ({})
+          } as DOMRect
+        }
+
+        try {
+          render(
+            <MainPageTimeline
+              host="activities.local"
+              currentTime={FIXED_CURRENT_TIME}
+              profile={profile}
+              isMediaUploadEnabled={false}
+              statuses={[post1]}
+            />
+          )
+
+          vi.mocked(saveOfflineScrollAnchor).mockClear()
+          Object.defineProperty(document, 'visibilityState', {
+            value: 'hidden',
+            configurable: true
+          })
+          fireEvent(document, new Event('visibilitychange'))
+
+          expect(saveOfflineScrollAnchor).toHaveBeenCalledWith({
+            actorId: profile.id,
+            timeline: 'home',
+            scrollAnchor: null
+          })
+        } finally {
+          HTMLElement.prototype.getBoundingClientRect = originalRect
+          Object.defineProperty(document, 'visibilityState', {
+            value: 'visible',
+            configurable: true
+          })
+        }
+      })
+
+      it('renders "Back to top" pill when restored to a mid-feed scroll anchor and clears it on click', async () => {
+        const scrollBy = vi
+          .spyOn(window, 'scrollBy')
+          .mockImplementation(() => undefined)
+        const scrollTo = vi
+          .spyOn(window, 'scrollTo')
+          .mockImplementation(() => undefined)
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const post2 = createStatus('https://activities.local/users/llun/s/2')
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1, post2]}
+            initialSegments={[
+              {
+                statuses: [post1, post2],
+                nextMaxStatusId: null,
+                prevMinStatusId: post1.id
+              }
+            ]}
+            initialScrollAnchor={{
+              statusId: post2.id,
+              offsetTop: 80,
+              updatedAt: 1
+            }}
+          />
+        )
+
+        const pill = await screen.findByRole('button', { name: 'Back to top' })
+        expect(pill).toBeInTheDocument()
+
+        vi.mocked(saveOfflineScrollAnchor).mockClear()
+        fireEvent.click(pill)
+
+        expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+        expect(saveOfflineScrollAnchor).toHaveBeenCalledWith({
+          actorId: profile.id,
+          timeline: 'home',
+          scrollAnchor: null
+        })
+        expect(
+          screen.queryByRole('button', { name: 'Back to top' })
+        ).not.toBeInTheDocument()
+
+        scrollBy.mockRestore()
+        scrollTo.mockRestore()
+      })
+
+      it('restores a cached scrollAnchor from a single-page offline cache without overwriting it on mount', async () => {
+        const scrollBy = vi
+          .spyOn(window, 'scrollBy')
+          .mockImplementation(() => undefined)
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const post2 = createStatus('https://activities.local/users/llun/s/2')
+
+        vi.mocked(getOfflineTimeline).mockResolvedValueOnce({
+          actorId: profile.id,
+          timeline: 'home',
+          filterKey: 'all',
+          statuses: [post1, post2],
+          segments: [
+            {
+              statuses: [post1, post2],
+              nextMaxStatusId: null,
+              prevMinStatusId: post1.id
+            }
+          ],
+          ancestorsById: {},
+          nextMaxStatusId: null,
+          lastRefreshedAt: FIXED_CURRENT_TIME,
+          scrollAnchor: {
+            statusId: post2.id,
+            offsetTop: 80,
+            updatedAt: 1
+          }
+        })
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1, post2]}
+          />
+        )
+
+        const pill = await screen.findByRole('button', { name: 'Back to top' })
+        expect(pill).toBeInTheDocument()
+        expect(scrollBy).toHaveBeenCalledWith({
+          top: -80,
+          behavior: 'instant'
+        })
+        expect(saveOfflineTimeline).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: profile.id,
+            timeline: 'home',
+            scrollAnchor: expect.objectContaining({
+              statusId: post2.id,
+              offsetTop: 80
+            })
+          })
+        )
+
+        scrollBy.mockRestore()
+      })
+
+      it('ignores an in-flight refresh capture and intermediate smooth-scroll events after clicking "Back to top"', async () => {
+        const scrollBy = vi
+          .spyOn(window, 'scrollBy')
+          .mockImplementation(() => undefined)
+        const scrollTo = vi
+          .spyOn(window, 'scrollTo')
+          .mockImplementation(() => undefined)
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const post2 = createStatus('https://activities.local/users/llun/s/2')
+        const post0 = createStatus('https://activities.local/users/llun/s/0')
+
+        const deferred = createDeferred<GetTimelineResult>()
+        vi.mocked(getTimeline).mockReturnValueOnce(deferred.promise)
+
+        const originalScrollY = window.scrollY
+        Object.defineProperty(window, 'scrollY', {
+          value: 400,
+          configurable: true,
+          writable: true
+        })
+
+        try {
+          render(
+            <MainPageTimeline
+              host="activities.local"
+              currentTime={FIXED_CURRENT_TIME}
+              profile={profile}
+              isMediaUploadEnabled={false}
+              statuses={[post1, post2]}
+              initialSegments={[
+                {
+                  statuses: [post1, post2],
+                  nextMaxStatusId: null,
+                  prevMinStatusId: post1.id
+                }
+              ]}
+              initialScrollAnchor={{
+                statusId: post2.id,
+                offsetTop: 80,
+                updatedAt: 1
+              }}
+            />
+          )
+
+          const pill = await screen.findByRole('button', {
+            name: 'Back to top'
+          })
+          scrollBy.mockClear()
+
+          // Trigger an online refresh while scrolled down at scrollY = 400
+          fireEvent(window, new Event('online'))
+
+          // User clicks "Back to top" while refresh is still in flight
+          fireEvent.click(pill)
+          expect(
+            screen.queryByRole('button', { name: /new post|Back to top/ })
+          ).not.toBeInTheDocument()
+
+          // Simulate intermediate smooth-scroll event still above 80px moving upward
+          Object.defineProperty(window, 'scrollY', {
+            value: 250,
+            configurable: true,
+            writable: true
+          })
+          fireEvent.scroll(window)
+
+          // Settle the in-flight refresh with a newer post
+          deferred.resolve({
+            statuses: [post0, post1, post2],
+            nextMaxStatusId: null,
+            prevMinStatusId: post0.id
+          })
+
+          await waitFor(() => {
+            expect(screen.getByTestId('post-' + post0.id)).toBeInTheDocument()
+          })
+
+          expect(scrollBy).not.toHaveBeenCalled()
+          expect(
+            screen.queryByRole('button', { name: /new post|Back to top/ })
+          ).not.toBeInTheDocument()
+        } finally {
+          Object.defineProperty(window, 'scrollY', {
+            value: originalScrollY,
+            configurable: true,
+            writable: true
+          })
+          scrollBy.mockRestore()
+          scrollTo.mockRestore()
+        }
+      })
     })
 
     it('uses partition key timeline: "home" when loading and persisting offline timeline', async () => {
