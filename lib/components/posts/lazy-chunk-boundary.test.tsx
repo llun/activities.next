@@ -3,7 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
-import { Suspense, lazy } from 'react'
+import { Component, ReactNode, Suspense, lazy } from 'react'
 
 import { LazyChunkBoundary } from './lazy-chunk-boundary'
 
@@ -43,5 +43,47 @@ describe('LazyChunkBoundary', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent("Couldn't load")
     expect(alert).toHaveTextContent('Reload the page to try again.')
+  })
+
+  it('shows the alert for a ChunkLoadError by name', async () => {
+    const error = new Error('boom')
+    error.name = 'ChunkLoadError'
+    const Lazy = lazy(() => Promise.reject(error))
+    render(
+      <LazyChunkBoundary>
+        <Suspense fallback={null}>
+          <Lazy />
+        </Suspense>
+      </LazyChunkBoundary>
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load")
+  })
+
+  it('rethrows an ordinary render error to the outer boundary', () => {
+    class Outer extends Component<{ children: ReactNode }, { error?: Error }> {
+      state: { error?: Error } = {}
+      static getDerivedStateFromError(error: Error) {
+        return { error }
+      }
+      render() {
+        return this.state.error ? (
+          <p data-testid="outer">{this.state.error.message}</p>
+        ) : (
+          this.props.children
+        )
+      }
+    }
+    const Broken = () => {
+      throw new Error('real bug')
+    }
+    render(
+      <Outer>
+        <LazyChunkBoundary>
+          <Broken />
+        </LazyChunkBoundary>
+      </Outer>
+    )
+    expect(screen.getByTestId('outer')).toHaveTextContent('real bug')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

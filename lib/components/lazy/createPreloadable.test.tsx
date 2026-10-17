@@ -63,9 +63,10 @@ describe('createPreloadable', () => {
         </button>
       )
     }
+    const Dynamic: ComponentType<Props> = (props) => <Counter {...props} />
     const { Component, preload } = createPreloadable(
       () => Promise.resolve(Counter),
-      Counter
+      Dynamic
     )
     const { rerender } = render(<Component label="a" />)
     act(() => screen.getByTestId('counter').click())

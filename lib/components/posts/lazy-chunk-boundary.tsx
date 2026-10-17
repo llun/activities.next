@@ -17,24 +17,42 @@ interface Props {
 }
 
 interface State {
-  hasFailed: boolean
+  error: unknown
+}
+
+// Webpack and Turbopack name the error `ChunkLoadError`; the messages cover
+// Turbopack ("Failed to load chunk"), webpack, and browser dynamic-import
+// failures.
+const CHUNK_LOAD_MESSAGE =
+  /Loading chunk|Loading CSS chunk|Failed to load chunk|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
+
+const isChunkLoadError = (error: unknown) => {
+  if (typeof error !== 'object' || error === null) return false
+  const { name, message } = error as { name?: unknown; message?: unknown }
+  return (
+    name === 'ChunkLoadError' ||
+    (typeof message === 'string' && CHUNK_LOAD_MESSAGE.test(message))
+  )
 }
 
 /**
  * Catches a lazily loaded chunk that fails to download (usually a deploy
  * changed its file name under an open tab) and says so inline, so the failure
  * stays with the control that needed it instead of replacing the whole route
- * with its error page.
+ * with its error page. Any other render error is rethrown to the route's
+ * error boundary.
  */
 export class LazyChunkBoundary extends Component<Props, State> {
-  state: State = { hasFailed: false }
+  state: State = { error: null }
 
-  static getDerivedStateFromError(): State {
-    return { hasFailed: true }
+  static getDerivedStateFromError(error: unknown): State {
+    return { error: error ?? new Error('Unknown render error') }
   }
 
   render() {
-    if (!this.state.hasFailed) return this.props.children
+    const { error } = this.state
+    if (error === null) return this.props.children
+    if (!isChunkLoadError(error)) throw error
     const alert = (
       <Alert title="Couldn't load" className={this.props.className}>
         Reload the page to try again.

@@ -73,8 +73,9 @@ interface Props {
 const PRIORITY_ROW_WINDOW = 3
 
 /**
- * The row whose first picture should load at high priority: the first of the
- * list's first rows whose post shows an ordinary image outright. Content
+ * The row whose first picture is prioritized: revealed without the hydration
+ * fade, and eager only where it would otherwise be lazy. It is the first of
+ * the list's first rows whose post shows an ordinary image outright. Content
  * warning posts keep their media collapsed, so they are skipped.
  */
 export const getPrioritizedRowIndex = (statuses: Status[]) =>
