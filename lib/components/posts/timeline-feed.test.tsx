@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +45,22 @@ vi.mock('./post', async (importOriginal) => {
         (postRenders.get(props.status.id) ?? 0) + 1
       )
       return <actual.Post {...props} />
+    }
+  }
+})
+
+// Counts how often a combined row's post bodies render, keyed by status id.
+const bodyRenders = vi.hoisted(() => new Map<string, number>())
+vi.mock('./post-body', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./post-body')>()
+  return {
+    ...actual,
+    PostBody: (props: React.ComponentProps<typeof actual.PostBody>) => {
+      bodyRenders.set(
+        props.status.id,
+        (bodyRenders.get(props.status.id) ?? 0) + 1
+      )
+      return <actual.PostBody {...props} />
     }
   }
 })
@@ -119,6 +141,15 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
 const mockLikeStatus = vi.mocked(likeStatus)
+
+// Radix opens its menu via pointer events jsdom can't lay out, so drive it from
+// the keyboard (as the post menu's own tests do).
+const chooseFromMenu = async (trigger: HTMLElement, item: string) => {
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: item }))
+  // Some items run only once the menu has closed.
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+}
 
 describe('TimelineFeed', () => {
   beforeEach(() => {
@@ -333,6 +364,553 @@ describe('TimelineFeed', () => {
     ).not.toBeInTheDocument()
   })
 
+  describe('combined self-replies', () => {
+    const MINUTE = 60 * 1000
+    const note = (name: string, at: number, reply: string, actor = mockAlice) =>
+      createMockNote({
+        id: `https://activities.local/users/${actor.username}/statuses/${name}`,
+        actor,
+        createdAt: BASE_TIME + at,
+        text: `Text of ${name}`,
+        reply
+      })
+    const actionBars = () =>
+      screen.queryAllByRole('group', { name: 'Post actions' })
+
+    it('keeps the collapsed long thread as it was and combines it once expanded', () => {
+      const t1 = note('c1', 0, '')
+      const t2 = note('c2', MINUTE, t1.id)
+      const t3 = note('c3', 2 * MINUTE, t2.id)
+      const t4 = note('c4', 3 * MINUTE, t3.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[t4, t3, t2, t1]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      // Collapsed: first post, expander, last post, each a post of its own.
+      expect(screen.getByText('Text of c1')).toBeInTheDocument()
+      expect(screen.getByText('Text of c4')).toBeInTheDocument()
+      expect(screen.queryByText('Text of c2')).not.toBeInTheDocument()
+      expect(screen.queryByText(/\d of 4/)).not.toBeInTheDocument()
+      expect(actionBars()).toHaveLength(2)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
+      )
+
+      // Expanded: one combined post with one action bar and numbered parts.
+      expect(actionBars()).toHaveLength(1)
+      for (const name of ['c1', 'c2', 'c3', 'c4']) {
+        expect(screen.getByText(`Text of ${name}`)).toBeInTheDocument()
+      }
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 4/ })
+      ).toHaveTextContent('2 of 4 · 9m')
+      expect(
+        screen.getByRole('button', { name: /Open part 4 of 4/ })
+      ).toHaveTextContent('4 of 4 · 7m')
+      expect(screen.queryByText(/1 of 4/)).not.toBeInTheDocument()
+    })
+
+    it('combines a thread of up to three posts straight away', () => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      expect(screen.getByLabelText('Thread')).toBeInTheDocument()
+      expect(actionBars()).toHaveLength(1)
+      expect(screen.getAllByRole('article')).toHaveLength(1)
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 3/ })
+      ).toHaveTextContent('2 of 3 · 2m')
+      // The header shows the span from the first post to the last.
+      expect(
+        screen.getByRole('button', { name: /Open status by Alice Smith/ })
+      ).toHaveTextContent('3m – 1m')
+      for (const text of [
+        'Thread part 1: The introduction',
+        'Thread part 2: The continuation',
+        'Thread part 3: The conclusion'
+      ]) {
+        expect(screen.getByText(text)).toBeInTheDocument()
+      }
+    })
+
+    it('opens the detail page of the part whose label is clicked', async () => {
+      mockGetStatusDetailPathClient.mockResolvedValue('/@alice/thread-2')
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /Open part 2 of 3/ }))
+
+      await waitFor(() =>
+        expect(mockPush).toHaveBeenCalledWith('/@alice/thread-2')
+      )
+      expect(mockGetStatusDetailPathClient).toHaveBeenCalledWith(
+        selfThreadScenario.reply1
+      )
+    })
+
+    it('leaves posts more than ten minutes apart as separate posts', () => {
+      const t1 = note('g1', 0, '')
+      const t2 = note('g2', 10 * MINUTE + 1, t1.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 30 * MINUTE}
+          statuses={[t2, t1]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      expect(screen.getByLabelText('Thread')).toBeInTheDocument()
+      expect(actionBars()).toHaveLength(2)
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+    })
+
+    it('shows the row as separate posts again from the menu', async () => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      expect(actionBars()).toHaveLength(1)
+
+      await chooseFromMenu(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        'Show as separate posts'
+      )
+
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
+      expect(screen.queryByText(/\d of 3/)).not.toBeInTheDocument()
+      expect(
+        screen.getByText('Thread part 2: The continuation')
+      ).toBeInTheDocument()
+      // Focus moves to the row instead of falling to <body>.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByLabelText('Thread'))
+      )
+    })
+
+    it('replies to the latest post and acts on the first one', async () => {
+      mockLikeStatus.mockResolvedValue(true)
+      const onLikeChanged = vi.fn()
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+          onLikeChanged={onLikeChanged}
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reply to the latest post' })
+      )
+      const composer = screen.getByTestId('inline-composer')
+      expect(composer).toHaveAttribute('data-mode', 'reply')
+      expect(composer).toHaveAttribute(
+        'data-status',
+        selfThreadScenario.reply2.id
+      )
+      // Under the combined post, not somewhere else in the feed.
+      expect(screen.getByRole('article')).toContainElement(composer)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Like the first post' })
+      )
+      await waitFor(() =>
+        expect(onLikeChanged).toHaveBeenCalledWith(
+          expect.objectContaining({ id: selfThreadScenario.root.id }),
+          true
+        )
+      )
+      expect(mockLikeStatus).toHaveBeenCalledWith({
+        statusId: selfThreadScenario.root.id
+      })
+      for (const name of [
+        'Repost the first post',
+        'Bookmark the first post',
+        'Add reaction to the first post',
+        'More actions for this post group'
+      ]) {
+        expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      }
+    })
+
+    it('offers every part its own menu, own or not', async () => {
+      const { rerender } = render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      expect(
+        screen.getByRole('button', { name: 'More actions for part 2 of 3' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'More actions for part 3 of 3' })
+      ).toBeInTheDocument()
+
+      rerender(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      // Another author's parts keep a menu too (quote, copy link, report, …).
+      const partMenu = screen.getByRole('button', {
+        name: 'More actions for part 2 of 3'
+      })
+      expect(
+        screen.getByRole('button', { name: 'More actions for part 3 of 3' })
+      ).toBeInTheDocument()
+      fireEvent.keyDown(partMenu, { key: 'ArrowDown' })
+      expect(
+        await screen.findByRole('menuitem', { name: /Copy link/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: 'Edit post' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('says in the group menu that post items act on the first post', async () => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      fireEvent.keyDown(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        { key: 'ArrowDown' }
+      )
+      expect(await screen.findByText('Post group')).toBeInTheDocument()
+      expect(screen.getByText('First post')).toBeInTheDocument()
+      const groupSection = screen.getByRole('group', { name: 'Post group' })
+      const firstPostSection = screen.getByRole('group', {
+        name: 'First post'
+      })
+      const groupNames = within(groupSection)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+      const firstPostNames = within(firstPostSection)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+      expect(groupNames).toEqual(
+        expect.arrayContaining(['Show as separate posts'])
+      )
+      expect(firstPostNames.join('|')).toMatch(/Copy link/)
+      expect(firstPostNames).not.toContain('Show as separate posts')
+      expect(groupNames.join('|')).not.toMatch(/Copy link/)
+      expect(firstPostNames).not.toContain('Show as separate posts')
+      expect(
+        screen.getByRole('menuitem', { name: 'Show as separate posts' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('menuitem', { name: /Copy link/ })
+      ).toBeInTheDocument()
+    })
+
+    it('combines a run that starts with a reply to someone else', () => {
+      const b0 = note('r0', 0, '', mockBob)
+      const a1 = note('r1', MINUTE, b0.id)
+      const a2 = note('r2', 2 * MINUTE, a1.id)
+      const a3 = note('r3', 3 * MINUTE, a2.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[a3, a2, a1, b0]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      expect(screen.getByLabelText('Conversation')).toBeInTheDocument()
+      // Bob's post on its own, then Alice's three replies as one post.
+      expect(actionBars()).toHaveLength(2)
+      expect(screen.getAllByRole('article')).toHaveLength(2)
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 3/ })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/1 of 3/)).not.toBeInTheDocument()
+      expect(screen.getByText('Text of r0')).toBeInTheDocument()
+    })
+
+    it('keeps the row as separate posts after a reply is added to it', async () => {
+      const t1 = note('s1', 0, '')
+      const t2 = note('s2', MINUTE, t1.id)
+      const t3 = note('s3', 2 * MINUTE, t2.id)
+      const renderFeed = (statuses: Status[]) => (
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      const { rerender } = render(renderFeed([t3, t2, t1]))
+      expect(actionBars()).toHaveLength(1)
+
+      await chooseFromMenu(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        'Show as separate posts'
+      )
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
+
+      // A reply arrives (inline reply, paging): the row's key changes, the
+      // viewer's choice does not.
+      const t4 = note('s4', 3 * MINUTE, t3.id)
+      rerender(renderFeed([t4, t3, t2, t1]))
+
+      // Four posts collapse behind the expander, as separate posts do.
+      expect(screen.getByText('Text of s4')).toBeInTheDocument()
+      expect(actionBars()).toHaveLength(2)
+      fireEvent.click(
+        screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
+      )
+      expect(actionBars()).toHaveLength(4)
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+    })
+
+    it('keeps the row as separate posts after its root post goes away', async () => {
+      const t1 = note('r1', 0, '')
+      const t2 = note('r2', MINUTE, t1.id)
+      const t3 = note('r3', 2 * MINUTE, t2.id)
+      const renderFeed = (statuses: Status[]) => (
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+      const { rerender } = render(renderFeed([t3, t2, t1]))
+      await chooseFromMenu(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        'Show as separate posts'
+      )
+      await waitFor(() => expect(actionBars()).toHaveLength(3))
+
+      // The root is deleted: the row now starts at r2 and stays separate.
+      rerender(renderFeed([t3, t2]))
+      expect(actionBars()).toHaveLength(2)
+      expect(screen.queryByText(/\d of \d/)).not.toBeInTheDocument()
+    })
+
+    it('keeps the composer when a collapsed thread is expanded into one post', () => {
+      const t1 = note('x1', 0, '')
+      const t2 = note('x2', MINUTE, t1.id)
+      const t3 = note('x3', 2 * MINUTE, t2.id)
+      const t4 = note('x4', 3 * MINUTE, t3.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[t4, t3, t2, t1]}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      // Reply on the last post, which is visible in the collapsed thread.
+      const [, lastReply] = screen.getAllByRole('button', { name: /^Reply to/ })
+      fireEvent.click(lastReply)
+      expect(screen.getByTestId('inline-composer')).toHaveAttribute(
+        'data-status',
+        t4.id
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /Show 2 earlier posts in thread/i })
+      )
+
+      expect(actionBars()).toHaveLength(1)
+      expect(screen.getAllByTestId('inline-composer')).toHaveLength(1)
+      expect(screen.getByRole('article')).toContainElement(
+        screen.getByTestId('inline-composer')
+      )
+    })
+
+    describe('edit history of later parts', () => {
+      const edited = (name: string, at: number, reply: string) =>
+        createMockNote({
+          id: `https://activities.local/users/alice/statuses/${name}`,
+          actor: mockAlice,
+          createdAt: BASE_TIME + at,
+          text: `Text of ${name}`,
+          reply,
+          edits: [
+            { text: `Old text of ${name}`, createdAt: BASE_TIME + at - 1000 }
+          ]
+        })
+
+      it('shows the edit history of a part that was edited', () => {
+        const e1 = note('e1', 0, '')
+        const e2 = edited('e2', MINUTE, e1.id)
+        const e3 = note('e3', 2 * MINUTE, e2.id)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[e3, e2, e1]}
+            currentActor={mockBob}
+            showActions
+          />
+        )
+
+        // Only the edited part has one, and the first post's bar has none.
+        const button = screen.getByRole('button', {
+          name: 'Show edit history of part 2 of 3, 1 edit'
+        })
+        expect(
+          screen.getAllByRole('button', { name: /Show edit history/ })
+        ).toHaveLength(1)
+
+        fireEvent.click(button)
+        const panel = screen.getByRole('region', { name: 'Edit history' })
+        expect(panel).toHaveTextContent('Old text of e2')
+        expect(panel).toHaveAttribute('data-row-overlay')
+      })
+
+      it('names the first post on the bar’s own edit history button', () => {
+        const f1 = edited('f1', 0, '')
+        const f2 = edited('f2', MINUTE, f1.id)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[f2, f1]}
+            currentActor={mockBob}
+            showActions
+          />
+        )
+
+        expect(
+          screen.getByRole('button', {
+            name: 'Show edit history of the first post, 1 edit'
+          })
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('button', {
+            name: 'Show edit history of part 2 of 2, 1 edit'
+          })
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('leaves a conversation without self-replies as separate posts', () => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={multiAuthorConversationScenario.statuses}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      expect(screen.getByLabelText('Conversation')).toBeInTheDocument()
+      expect(actionBars()).toHaveLength(3)
+    })
+
+    it('tucks someone else’s reply into a combined conversation', async () => {
+      const a1 = note('v1', 0, '')
+      const b1 = note('v2', MINUTE, a1.id, mockBob)
+      const a2 = note('v3', 2 * MINUTE, a1.id)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[a2, b1, a1]}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      expect(screen.getByLabelText('Conversation')).toBeInTheDocument()
+      expect(actionBars()).toHaveLength(1)
+      const inset = screen.getByRole('group', { name: 'Reply by Bob Jones' })
+      expect(inset).toHaveTextContent('Text of v2')
+      // The inset carries just reply and like on its face.
+      expect(
+        within(inset).getByRole('button', {
+          name: /Reply to Bob Jones’s reply|Reply to Bob Jones's reply/
+        })
+      ).toBeInTheDocument()
+      expect(
+        within(inset).getByRole('button', { name: /Like Bob Jones's reply/ })
+      ).toBeInTheDocument()
+      expect(within(inset).queryByRole('button', { name: /Repost/ })).toBeNull()
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 2/ })
+      ).toBeInTheDocument()
+      // Everything else is in the card's own ⋯ menu.
+      fireEvent.keyDown(
+        within(inset).getByRole('button', {
+          name: /More actions for Bob Jones's reply/
+        }),
+        { key: 'ArrowDown' }
+      )
+      expect(
+        await screen.findByRole('menuitem', { name: /Copy link/ })
+      ).toBeInTheDocument()
+    })
+  })
+
   it('renders a multi-author conversation with Conversation label', () => {
     render(
       <TimelineFeed
@@ -356,7 +934,7 @@ describe('TimelineFeed', () => {
     ).toBeInTheDocument()
   })
 
-  it('targets the correct status when replying from a thread post', () => {
+  it('targets the correct status when replying from a separate thread post', async () => {
     render(
       <TimelineFeed
         host="activities.local"
@@ -370,7 +948,17 @@ describe('TimelineFeed', () => {
     // Initially no composer is open
     expect(screen.queryByTestId('inline-composer')).not.toBeInTheDocument()
 
+    await chooseFromMenu(
+      screen.getByRole('button', { name: 'More actions for this post group' }),
+      'Show as separate posts'
+    )
+
     // Click reply on the second post
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('button', { name: /reply/i }).length
+      ).toBeGreaterThanOrEqual(3)
+    )
     const replyButtons = screen.getAllByRole('button', { name: /reply/i })
     expect(replyButtons.length).toBeGreaterThanOrEqual(3)
 
@@ -401,10 +989,7 @@ describe('TimelineFeed', () => {
       />
     )
 
-    const likeButtons = screen.getAllByRole('button', { name: /like/i })
-    expect(likeButtons.length).toBeGreaterThanOrEqual(3)
-
-    fireEvent.click(likeButtons[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Like the first post' }))
     await waitFor(() => {
       expect(onLikeChanged).toHaveBeenCalledWith(
         expect.objectContaining({ id: selfThreadScenario.root.id }),
@@ -646,7 +1231,10 @@ describe('TimelineFeed', () => {
     const rendered = (list: Status[] = rows) =>
       list.filter((row) => postRenders.get(row.id))
 
-    beforeEach(() => postRenders.clear())
+    beforeEach(() => {
+      postRenders.clear()
+      bodyRenders.clear()
+    })
 
     it('leaves the other rows alone when the composer opens, moves and closes', () => {
       renderList()
@@ -700,6 +1288,36 @@ describe('TimelineFeed', () => {
       const liked = { ...rows[7], totalLikes: 1 } as Status
       view.rerender(rows.map((row, index) => (index === 7 ? liked : row)))
       expect(rendered(rows).map((row) => row.id)).toEqual([rows[7].id])
+    })
+
+    it('leaves a combined row alone when an unrelated row changes', () => {
+      const first = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/combo-1',
+        actor: mockAlice,
+        createdAt: BASE_TIME + 500000,
+        text: 'Combo 1'
+      })
+      const second = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/combo-2',
+        actor: mockAlice,
+        createdAt: BASE_TIME + 501000,
+        text: 'Combo 2',
+        reply: first.id
+      })
+      const plain = rows[7]
+      const list = [second, first, plain]
+      const view = renderList(list)
+      expect(screen.getByText('Combo 2')).toBeInTheDocument()
+      expect(bodyRenders.get(first.id)).toBeGreaterThan(0)
+
+      bodyRenders.clear()
+      postRenders.clear()
+      const liked = { ...plain, totalLikes: 1 } as Status
+      view.rerender([second, first, liked])
+
+      expect(postRenders.get(plain.id)).toBeGreaterThan(0)
+      expect(bodyRenders.get(first.id)).toBeUndefined()
+      expect(bodyRenders.get(second.id)).toBeUndefined()
     })
 
     it('leaves other rows alone when a thread expands', () => {

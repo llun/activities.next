@@ -1,7 +1,16 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, Fragment, ReactNode, useCallback, useMemo, useState } from 'react'
+import {
+  FC,
+  Fragment,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
@@ -21,6 +30,12 @@ import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { TimelineGapRow } from './TimelineGapRow'
 import { BoostCarousel } from './boost-carousel'
+import { CombinedPostListItem } from './combined-post-list-item'
+import {
+  CombinedBlock,
+  buildCombinedBlocks,
+  hasCombinedRun
+} from './combinedThreadModel'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { PostListItem } from './post-list-item'
 import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
@@ -117,6 +132,38 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     () => new Set()
   )
 
+  // Rows the viewer switched from the combined layout back to separate posts
+  // (the combined post's "Show as separate posts" menu item). Every status id
+  // of the row is stored, because `row.key` changes whenever a reply is added,
+  // deleted or paged in and the row's first id can disappear (the root deleted,
+  // or an older parent paged in); any remaining id still finds the choice.
+  const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
+  const isRowSeparate = (entryIds: string[]) =>
+    entryIds.some((id) => separateRows.has(id))
+  const focusAfterSeparate = useRef<string | null>(null)
+  const showRowSeparate = useCallback((entryIds: string[]) => {
+    focusAfterSeparate.current = entryIds[0] ?? null
+    setSeparateRows((prev) => {
+      const next = new Set(prev)
+      entryIds.forEach((id) => next.add(id))
+      return next
+    })
+  }, [])
+  // The combined article that held focus is gone once the row splits: move
+  // focus to the row's first post instead of letting it fall to <body>.
+  useEffect(() => {
+    const id = focusAfterSeparate.current
+    if (!id) return
+    focusAfterSeparate.current = null
+    const rows = document.querySelectorAll<HTMLElement>('[data-row-status-ids]')
+    for (const row of rows) {
+      if (row.dataset.rowStatusIds?.split(' ').includes(id)) {
+        row.focus()
+        return
+      }
+    }
+  }, [separateRows])
+
   const toggleThreadExpanded = (key: string) => {
     setExpandedThreads((prev) => {
       const next = new Set(prev)
@@ -142,6 +189,21 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       groupBoosts: readingGroupBoosts
     })
   }, [statuses, readingGroupBoosts])
+
+  // A thread or conversation row's quick self-replies, combined into runs. A
+  // row with no run is absent, so it renders post by post exactly as before.
+  const combinedBlocksByRow = useMemo(() => {
+    const byRow = new Map<string, CombinedBlock[]>()
+    for (const row of rows) {
+      if (row.kind !== 'thread' && row.kind !== 'conversation') continue
+      const rowStatuses = row.entryIds
+        .map((id) => statusMap.get(id))
+        .filter((s): s is Status => Boolean(s))
+      const blocks = buildCombinedBlocks(rowStatuses)
+      if (hasCombinedRun(blocks)) byRow.set(row.key, blocks)
+    }
+    return byRow
+  }, [rows, statusMap])
 
   // Stable so memoized rows don't re-render when this list's state changes.
   const openStatus = useCallback(
@@ -214,6 +276,76 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     />
   )
 
+  // The reply context a thread or conversation shows above its first post: the
+  // post it answers, when that is not part of the row.
+  const getLeadContext = (first: Status, entryIds: string[]) => {
+    const replyTarget = getStatusReplyTargetId(getActualStatus(first))
+    return {
+      showReplyContext:
+        Boolean(replyTarget) && !entryIds.includes(replyTarget!),
+      parentPreview: replyTarget
+        ? timelineContext?.ancestorsById?.[replyTarget]
+        : undefined
+    }
+  }
+
+  const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
+    blocks.map((block, index) => {
+      const lead =
+        index === 0
+          ? getLeadContext(
+              block.kind === 'run' ? block.parts[0].status : block.status,
+              entryIds
+            )
+          : { showReplyContext: false, parentPreview: undefined }
+      if (block.kind === 'post') return renderPostItem(block.status, lead)
+
+      // The composer may be anchored to any post of the run: a reply opened on
+      // the visible last post of a collapsed thread stays open when the thread
+      // expands into one combined post.
+      const composerAnchored =
+        composer.active !== null &&
+        block.parts.some(
+          (part) =>
+            part.status.id === composer.active?.anchorId ||
+            part.insets.some((inset) => inset.id === composer.active?.anchorId)
+        )
+      return (
+        <CombinedPostListItem
+          key={block.key}
+          parts={block.parts}
+          rowIds={entryIds}
+          host={host}
+          currentTime={currentTime}
+          currentActor={currentActor}
+          showActions={showActions}
+          showReadOnlyStats={showReadOnlyStats}
+          postLineLimit={postLineLimit}
+          showReplyContext={lead.showReplyContext}
+          parentPreview={lead.parentPreview}
+          canCompose={canCompose}
+          activeComposer={
+            currentActor && composerAnchored ? composer.active : null
+          }
+          isMediaUploadEnabled={isMediaUploadEnabled}
+          openReply={composer.openReply}
+          openQuote={composer.openQuote}
+          openEdit={composer.openEdit}
+          close={composer.close}
+          onOpenStatus={openStatus}
+          onShowMedia={showMedia}
+          onShowSeparate={showRowSeparate}
+          onStatusCreated={onStatusCreated}
+          onReplyCreated={onReplyCreated}
+          onPostUpdated={onPostUpdated}
+          onPostDeleted={onPostDeleted}
+          onBookmarkChanged={onBookmarkChanged}
+          onLikeChanged={onLikeChanged}
+          onReactionsChanged={onReactionsChanged}
+        />
+      )
+    })
+
   return (
     <>
       <section
@@ -265,19 +397,27 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             const isExpanded = expandedThreads.has(row.key)
             const shouldCollapse = threadStatuses.length > 3 && !isExpanded
+            const combinedBlocks =
+              shouldCollapse || isRowSeparate(row.entryIds)
+                ? undefined
+                : combinedBlocksByRow.get(row.key)
 
             rowContent = (
               <div
                 key={row.key}
                 data-status-id={threadStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
+                role="group"
                 aria-label="Thread"
+                tabIndex={-1}
                 className={cn(
-                  'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
+                  'min-h-0 min-w-0 bg-muted/30 focus:outline-none dark:bg-muted/15',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
-                {shouldCollapse ? (
+                {combinedBlocks ? (
+                  renderCombinedBlocks(row.entryIds, combinedBlocks)
+                ) : shouldCollapse ? (
                   <>
                     {/* First post */}
                     {renderPostItem(threadStatuses[0], {
@@ -348,34 +488,42 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
             if (convStatuses.length === 0) return null
             rowStatusIds = convStatuses.map((s) => s.id)
+            const combinedBlocks = isRowSeparate(row.entryIds)
+              ? undefined
+              : combinedBlocksByRow.get(row.key)
 
             rowContent = (
               <div
                 key={row.key}
                 data-status-id={convStatuses[0]?.id}
                 data-row-status-ids={rowStatusIds.join(' ')}
+                role="group"
                 aria-label="Conversation"
+                tabIndex={-1}
                 className={cn(
-                  'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
+                  'min-h-0 min-w-0 bg-muted/30 focus:outline-none dark:bg-muted/15',
                   framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
-                {convStatuses.map((status, index) => {
-                  const isFirst = index === 0
-                  const replyTarget = isFirst
-                    ? getStatusReplyTargetId(getActualStatus(status))
-                    : null
-                  const showReplyContext =
-                    Boolean(replyTarget) && !row.entryIds.includes(replyTarget!)
-                  const parentPreview = replyTarget
-                    ? timelineContext?.ancestorsById?.[replyTarget]
-                    : undefined
+                {combinedBlocks
+                  ? renderCombinedBlocks(row.entryIds, combinedBlocks)
+                  : convStatuses.map((status, index) => {
+                      const isFirst = index === 0
+                      const replyTarget = isFirst
+                        ? getStatusReplyTargetId(getActualStatus(status))
+                        : null
+                      const showReplyContext =
+                        Boolean(replyTarget) &&
+                        !row.entryIds.includes(replyTarget!)
+                      const parentPreview = replyTarget
+                        ? timelineContext?.ancestorsById?.[replyTarget]
+                        : undefined
 
-                  return renderPostItem(status, {
-                    showReplyContext,
-                    parentPreview
-                  })
-                })}
+                      return renderPostItem(status, {
+                        showReplyContext,
+                        parentPreview
+                      })
+                    })}
               </div>
             )
           } else if (row.kind === 'boosts') {

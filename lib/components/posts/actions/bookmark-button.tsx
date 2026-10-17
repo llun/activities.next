@@ -7,14 +7,20 @@ import {
 } from '@/lib/components/posts/actions/actionButtonShared'
 import { cn } from '@/lib/utils'
 
-import { BookmarkState } from './useBookmarkState'
+import { BookmarkState, getBookmarkLabel } from './useBookmarkState'
 
 interface BookmarkButtonProps {
   state: BookmarkState
+  /** Names the post when the row's buttons act on different ones. */
+  targetLabel?: string
 }
 
-export const BookmarkButton: FC<BookmarkButtonProps> = ({ state }) => {
-  const { isBookmarked, isLoading, error, label, toggle } = state
+export const BookmarkButton: FC<BookmarkButtonProps> = ({
+  state,
+  targetLabel
+}) => {
+  const { isBookmarked, isLoading, error, toggle } = state
+  const label = getBookmarkLabel(isBookmarked, targetLabel)
 
   return (
     <span className="relative inline-flex items-center justify-center">
