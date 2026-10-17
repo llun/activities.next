@@ -12,7 +12,7 @@ const makeStatus = (id: string) =>
 
 describe('useInlineComposer', () => {
   it('starts with no active composer', () => {
-    const { result } = renderHook(() => useInlineComposer())
+    const { result } = renderHook(() => useInlineComposer(false))
     expect(result.current.active).toBeNull()
   })
 
@@ -21,7 +21,7 @@ describe('useInlineComposer', () => {
     { description: 'quote', mode: 'quote' },
     { description: 'edit', mode: 'edit' }
   ])('opens the $description composer for a status', ({ mode }) => {
-    const { result } = renderHook(() => useInlineComposer())
+    const { result } = renderHook(() => useInlineComposer(false))
     const status = makeStatus('status-1')
 
     act(() => {
@@ -36,7 +36,7 @@ describe('useInlineComposer', () => {
   it('anchors on the given row id, independent of the status id', () => {
     // A boost row: the reply target is the original status, but the composer
     // must anchor to the boost row so it renders under that row only.
-    const { result } = renderHook(() => useInlineComposer())
+    const { result } = renderHook(() => useInlineComposer(false))
     const original = makeStatus('original-1')
 
     act(() => result.current.openReply(original, 'announce-row-9'))
@@ -49,7 +49,7 @@ describe('useInlineComposer', () => {
   })
 
   it('replaces the active composer when another opens', () => {
-    const { result } = renderHook(() => useInlineComposer())
+    const { result } = renderHook(() => useInlineComposer(false))
 
     act(() => result.current.openReply(makeStatus('status-1'), 'row-1'))
     act(() => result.current.openQuote(makeStatus('status-2'), 'row-2'))
@@ -60,7 +60,7 @@ describe('useInlineComposer', () => {
   })
 
   it('closes the active composer', () => {
-    const { result } = renderHook(() => useInlineComposer())
+    const { result } = renderHook(() => useInlineComposer(false))
 
     act(() => result.current.openEdit(makeStatus('status-1'), 'row-1'))
     act(() => result.current.close())

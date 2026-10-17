@@ -1784,7 +1784,61 @@ legacy shape left to copy.
   action set on every surface. A page turns actions on with `currentActor` +
   `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
   `onEdit`), hide individual actions, or build a bespoke post/action row.
-  Reply/quote/edit use the shared `InlineStatusComposer`; pages pass only
+  Reply/quote/edit use the shared `InlineStatusComposer`, imported from
+  `lazy-inline-status-composer` (a `next/dynamic`, `ssr: false` wrapper that
+  keeps `PostBox` out of anonymous first-load JS; `useInlineComposer(canCompose)`
+  preloads the chunk at idle for signed-in viewers, never for anonymous ones).
+  The pieces split out of first-load JS each have their own rule:
+  - **Inline composer and reaction picker: `ssr: false`.** Neither can be
+    primary content (they mount only after a click), so they render nothing on
+    the server. The composer chunk is preloaded at idle for a signed-in viewer
+    (`useInlineComposer(canCompose)`, where `canCompose` is a required
+    boolean; feeds pass `Boolean(currentActor) && showActions`, so a feed that
+    renders no action row never downloads it) and never for an anonymous one; the picker chunk is preloaded at idle
+    when a signed-in viewer's reaction button renders, and when
+    its trigger is hovered or focused, or when the compact row's ⋯ menu opens
+    (`preloadReactionPicker`). Both are wrapped in `LazyChunkBoundary`, so a
+    chunk that fails to download (deploy skew) shows an inline `Alert`
+    ("Couldn't load. Reload the page to try again.") instead of reaching the
+    route error boundary.
+  - **Preloaded splits render synchronously (`createPreloadable`).** A
+    `next/dynamic` component is a `React.lazy`, which suspends on the first
+    render of each lazy instance even when its module is already loaded, and
+    React then holds the Suspense reveal for ~300ms after a fallback commits.
+    So preloading with `import()` alone still leaves a ~300ms first open. Each
+    split therefore keeps its module-scope `dynamic(load, {...})` call (Next's
+    compiler needs the inline options object) and passes it with `load` to
+    `createPreloadable` (`lib/components/lazy/createPreloadable.tsx`), which
+    returns `{ Component, preload }`: `Component` renders the dynamic component
+    until `preload()` has resolved, then the loaded component directly. Each
+    mounted instance picks its implementation once (`useState`) and keeps it: a
+    preload resolving while an instance is mounted never swaps it, because that
+    would remount it and drop its state (gallery pagination, an open viewer, a
+    composer draft); only instances that mount afterwards use the preloaded
+    component. `preload()` shares an in-flight or successful load across calls
+    (each reaction button calls it) and retries only after a failure. Start
+    preloads from an event handler or an effect (`runWhenIdle`), never at
+    module top level, so the server render and hydration still use the dynamic
+    (SSR'd) path and cannot mismatch. The composer and reaction picker preload
+    at idle for signed-in viewers; the gallery panels at idle once the profile
+    has a media or gallery tab, and on tab-bar hover or focus.
+  - **`FitnessStatusDetail` (status page) and the profile gallery panels
+    (`ActorMediaGallery`, `ProfileGalleryTab`): SSR kept.** A fitness post's
+    detail and a media-only profile's gallery are the page's primary content,
+    so they stay in the server HTML. `FitnessStatusDetail` shows a skeleton
+    while it loads on a client-side navigation; the gallery panels are
+    preloaded at idle once the profile has a media or gallery tab, and when the
+    profile tab bar is hovered or focused. All of them sit inside a
+    `LazyChunkBoundary`, so a failed chunk renders the inline message rather
+    than the route error page. The boundary catches only chunk-load failures
+    (`ChunkLoadError`, "Failed to load chunk", "Loading chunk", dynamic-import
+    failures) and rethrows every other render error, so real bugs still reach
+    the route error boundary.
+  - **The rule: a lazily loaded component keeps SSR whenever it can be the
+    primary content of some page.** Use `ssr: false` only for UI that cannot
+    exist before an interaction.
+
+  Pages pass only
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
@@ -1812,6 +1866,7 @@ legacy shape left to copy.
     post while every other control acts on the bar's `status`, and each button's
     accessible name says which ("Reply to the latest post", "Like the first
     post"). It changes which post a control reaches, never what a post offers (the one exception, the combined post's per-part and per-reply ⋯ menus, is in **Status Posts & Actions**).
+
 - **Timeline grouping and nested status threads.**
   - `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`).
   - **Combined self-replies.** Inside a thread or conversation row, a run of quick self-replies renders as one feed row (`CombinedPostListItem`, `lib/components/posts/combined-post-list-item.tsx`) instead of one row per post. `buildCombinedBlocks` (`combinedThreadModel.ts`, pure) decides the runs from the row's chain-ordered statuses: two or more posts by the same author where each replies to the previous one (or to a reply tucked into the run), the author's next post is at most `COMBINE_MAX_GAP_MS` (10 minutes, inclusive) after the post it replies to (not after a reply that happens to be waiting in between), a tucked-in reply is at most that after the last tucked-in reply still waiting, or after the run's latest post when none is waiting, and all posts share one visibility. Someone else's reply to a run post is tucked into the run as an inset card when the run carries at most two of them, the reply is text only (no media, poll, quote or fitness activity) and the author's next post follows it; otherwise the run splits there, that reply renders as an ordinary post, and it is re-scanned and may start a run of its own. The author may also reply to a tucked-in reply, whether it is still waiting or already part of the run. A long thread (more than three posts) keeps its collapsed first post, expander and last post exactly as before and combines once expanded; threads of two or three posts and conversations combine straight away. The combined post shows the first post's header with the span "first – last", a thread rail down the avatar column with a dot and a "2 of 4 · 15m" label (a button to that post's detail page, with an edit-history button for an edited part) per later post, and one action bar. Reply acts on the latest post; Boost, Like, Bookmark and React act on the first (see `splitTargets` above). Every later part and every tucked-in reply keeps its own ⋯ menu (the same `PostMenu` a single post has, named "More actions for part 2 of 4" / "More actions for Mira Park's reply"), so quote, copy link, mute, block, report, translate and edit/delete-own work on the post they belong to; a tucked-in reply also has its own Reply and Like. The group ⋯ menu ("More actions for this post group") has a "Post group" heading over "Show as separate posts" and a "First post" heading over the items that act on the first post only. The ⋯ menu's "Show as separate posts" turns the row back to one row per post (run after the menu closes, then focus moves to the row). The choice is kept per page view as every status id of the row, so it survives replies being added, the root post being deleted or an older parent paging in. Only the timeline combines; the status page (`StatusThread`) is unchanged. `PostHeader` and `PostBody` are the header and body halves of `Post`, shared with the combined post.
@@ -2507,6 +2562,28 @@ legacy shape left to copy.
   and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
+- **One image per page is the exception: the first visible media is revealed
+  immediately (`revealImmediately`) and, where it would otherwise be lazy,
+  loads eagerly; everything else stays lazy.** It is the likely largest
+  contentful paint, and only one image per page may claim it.
+  `Posts` takes `prioritizeFirstMedia` (default `false`) and the surface whose
+  list is its first visible content opts in: the landing feed, the hashtag
+  page, the public collection page, and the profile Posts tab only when the
+  profile has no cover image (the cover is then the LCP). The prioritized image
+  is the first ordinary image (not a video or animation, not behind a content
+  warning) among the list's first three rows. A `focused` status (the status
+  detail page) always prioritizes its first image. A public album page
+  reveals its hero cover; `GalleryGrid` gets `prioritizeFirst` only when
+  the album has no cover. `loading="eager"` is set only where the image would
+  be lazy (the first tile of a multi-attachment strip, grid tile 0); a single
+  image keeps the browser default. Search, gear, fitness and other pages with content
+  above the list never opt in. `revealImmediately` on `Media` (and, as before,
+  `fetchPriority="high"`, used by the activity map preview) skips its
+  opacity-until-hydration gate: the real LCP win is that paint gate, not fetch
+  order. Do not add `fetchPriority="high"` to post or album images: those are
+  already eager with a preload link, so it brings no fetch speedup, and it makes
+  Lighthouse's simulated LCP count the large image, inflating modeled mobile
+  LCP. The landing hero watermark is likewise `loading="eager"` only.
 - The counter names the 1-based card the strip is on. At the end of the strip
   it is the last card, so it reads `N / N` exactly when the forward arrow is
   disabled. Otherwise it is the first card whose left edge has reached the

@@ -5,7 +5,10 @@ import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
-import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
+import {
+  getProfileData,
+  getProfileIdentity
+} from '@/app/(timeline)/[actor]/getProfileData'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
@@ -50,7 +53,8 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
 }))
 
 vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
-  getProfileData: vi.fn()
+  getProfileData: vi.fn(),
+  getProfileIdentity: vi.fn()
 }))
 
 vi.mock('@/app/(timeline)/[actor]/FollowList', () => ({
@@ -78,6 +82,7 @@ vi.mock('@/app/(timeline)/[actor]/getFollowListBlockedActorIds', () => ({
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
 const mockIsLocalFederationDomain = vi.mocked(isLocalFederationDomain)
+const mockGetProfileIdentity = vi.mocked(getProfileIdentity)
 const mockGetProfileData = vi.mocked(getProfileData)
 const mockNotFound = vi.mocked(notFound)
 
@@ -87,7 +92,7 @@ describe('FollowListPage', () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorFromSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(false)
-    mockGetProfileData.mockResolvedValue(null)
+    mockGetProfileIdentity.mockResolvedValue(null)
   })
 
   describe('redirect handling', () => {
@@ -119,6 +124,9 @@ describe('FollowListPage', () => {
         'href',
         'https://pouet.chapril.org/@clairenony/followers'
       )
+      // The redirect is decided before any profile is loaded.
+      expect(mockGetProfileIdentity).not.toHaveBeenCalled()
+      expect(mockGetProfileData).not.toHaveBeenCalled()
     })
 
     it('renders ActorRedirectCard for non-local actor on following direction', async () => {
@@ -147,6 +155,8 @@ describe('FollowListPage', () => {
         'href',
         'https://pouet.chapril.org/@clairenony/following'
       )
+      expect(mockGetProfileIdentity).not.toHaveBeenCalled()
+      expect(mockGetProfileData).not.toHaveBeenCalled()
     })
   })
 
@@ -161,7 +171,7 @@ describe('FollowListPage', () => {
 
     it('calls notFound when profile is not found', async () => {
       mockIsLocalFederationDomain.mockResolvedValue(true)
-      mockGetProfileData.mockResolvedValue(null)
+      mockGetProfileIdentity.mockResolvedValue(null)
 
       await FollowListPage({
         params: Promise.resolve({ actor: '@someone@llun.social' }),
@@ -169,6 +179,47 @@ describe('FollowListPage', () => {
       })
       expect(mockNotFound).toHaveBeenCalled()
     })
+  })
+
+  describe('profile loading', () => {
+    const viewer = { id: 'https://llun.social/users/viewer' }
+
+    it.each(['followers', 'following'] as const)(
+      'loads only the profile identity, never the full profile data, on the %s page',
+      async (direction) => {
+        mockGetServerAuthSession.mockResolvedValue({
+          user: { email: 'viewer@llun.social' }
+        } as never)
+        mockGetActorFromSession.mockResolvedValue(viewer as never)
+        mockIsLocalFederationDomain.mockResolvedValue(true)
+        mockGetProfileIdentity.mockResolvedValue({
+          person: {
+            id: 'https://llun.social/users/someone',
+            preferredUsername: 'someone'
+          } as never,
+          followersCount: 3,
+          followingCount: 4,
+          isInternalAccount: true
+        })
+        mockDatabase.getFollowers.mockResolvedValue([])
+        mockDatabase.getFollowing.mockResolvedValue([])
+        mockDatabase.getActorsFromIds.mockResolvedValue([])
+
+        await FollowListPage({
+          params: Promise.resolve({ actor: '@someone@llun.social' }),
+          direction
+        })
+
+        expect(mockGetProfileIdentity).toHaveBeenCalledWith(
+          mockDatabase,
+          '@someone@llun.social',
+          true,
+          { currentActor: viewer }
+        )
+        expect(mockGetProfileData).not.toHaveBeenCalled()
+        expect(mockNotFound).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('public and authenticated shell', () => {
@@ -184,7 +235,7 @@ describe('FollowListPage', () => {
 
     it('renders unauthenticated shell (no sticky PageHeader) for logged-out visitor', async () => {
       mockIsLocalFederationDomain.mockResolvedValue(true)
-      mockGetProfileData.mockResolvedValue(mockProfile as never)
+      mockGetProfileIdentity.mockResolvedValue(mockProfile as never)
       mockDatabase.getFollowers.mockResolvedValue([])
       mockDatabase.getActorsFromIds.mockResolvedValue([])
 
@@ -210,7 +261,7 @@ describe('FollowListPage', () => {
     // Back beside the title it always was, with no compact bar.
     it('keeps the logged-out header as it always was: icon Back beside the title', async () => {
       mockIsLocalFederationDomain.mockResolvedValue(true)
-      mockGetProfileData.mockResolvedValue(mockProfile as never)
+      mockGetProfileIdentity.mockResolvedValue(mockProfile as never)
       mockDatabase.getFollowers.mockResolvedValue([])
       mockDatabase.getActorsFromIds.mockResolvedValue([])
 
@@ -246,7 +297,7 @@ describe('FollowListPage', () => {
           user: { email: 'viewer@llun.social' }
         } as never)
         mockIsLocalFederationDomain.mockResolvedValue(true)
-        mockGetProfileData.mockResolvedValue({
+        mockGetProfileIdentity.mockResolvedValue({
           ...mockProfile,
           person: { ...mockProfile.person, name }
         } as never)
@@ -270,7 +321,7 @@ describe('FollowListPage', () => {
         user: { email: 'viewer@llun.social' }
       } as never)
       mockIsLocalFederationDomain.mockResolvedValue(true)
-      mockGetProfileData.mockResolvedValue(mockProfile as never)
+      mockGetProfileIdentity.mockResolvedValue(mockProfile as never)
       mockDatabase.getFollowing.mockResolvedValue([])
       mockDatabase.getActorsFromIds.mockResolvedValue([])
 

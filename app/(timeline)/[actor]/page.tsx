@@ -401,6 +401,7 @@ const Page: FC<Props> = async ({ params }) => {
         key={person.id}
         host={host}
         actorId={person.id}
+        hasHeaderImage={Boolean(headerImageUrl)}
         currentTime={Date.now()}
         statuses={statuses}
         attachments={attachments}

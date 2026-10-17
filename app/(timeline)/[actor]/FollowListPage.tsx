@@ -7,7 +7,10 @@ import { FC } from 'react'
 import { ActorRedirectCard } from '@/app/(timeline)/[actor]/ActorRedirectCard'
 import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
 import { getFollowListBlockedActorIds } from '@/app/(timeline)/[actor]/getFollowListBlockedActorIds'
-import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
+import {
+  ProfileIdentity,
+  getProfileIdentity
+} from '@/app/(timeline)/[actor]/getProfileData'
 import { getNonLocalActorRedirectTarget } from '@/app/(timeline)/[actor]/resolveActorRedirect'
 import {
   profileBack,
@@ -21,8 +24,6 @@ import { Actor, ActorProfile } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
-type ProfileData = NonNullable<Awaited<ReturnType<typeof getProfileData>>>
-
 export type FollowListDirection = 'followers' | 'following'
 
 interface DirectionConfig {
@@ -30,7 +31,7 @@ interface DirectionConfig {
   subpath: '/followers' | '/following'
   emptyMessage: string
   emptyHint: string
-  getCount: (profile: ProfileData) => number | null | undefined
+  getCount: (profile: ProfileIdentity) => number | null | undefined
   getFollows: (
     database: NonNullable<ReturnType<typeof getDatabase>>,
     targetActorId: string
@@ -140,7 +141,7 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
     )
   }
 
-  const actorProfile = await getProfileData(
+  const actorProfile = await getProfileIdentity(
     database,
     decodedActorHandle,
     isLoggedIn,

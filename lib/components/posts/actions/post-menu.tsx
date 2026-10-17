@@ -187,6 +187,8 @@ interface Props {
    */
   triggerRef?: RefObject<HTMLButtonElement | null>
   extraItems?: PostMenuExtraItem[]
+  /** The menu just opened; lets the row warm up whatever an item will mount. */
+  onMenuOpen?: () => void
   /** Layout classes from the row that owns the menu (e.g. `ml-auto`). */
   className?: string
   /** Classes for the ⋯ trigger, to size it for a denser row (e.g. `size-6`). */
@@ -218,6 +220,7 @@ export const PostMenu: FC<Props> = ({
   canEdit,
   triggerRef,
   extraItems,
+  onMenuOpen,
   className,
   triggerClassName,
   targetLabel,
@@ -461,7 +464,10 @@ export const PostMenu: FC<Props> = ({
         open={menuOpen}
         onOpenChange={(open) => {
           setMenuOpen(open)
-          if (open) void loadRelationship()
+          if (open) {
+            onMenuOpen?.()
+            void loadRelationship()
+          }
         }}
       >
         <DropdownMenuTrigger asChild>

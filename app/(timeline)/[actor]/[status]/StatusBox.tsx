@@ -1,14 +1,18 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
+import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
+import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -21,8 +25,25 @@ import { Tag } from '@/lib/types/domain/tag'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
-import { FitnessStatusDetail } from './FitnessStatusDetail'
 import { StatusLikes } from './StatusLikes'
+
+// Only fitness posts render this (large) detail view. SSR stays on because it is
+// the primary content there; other status pages never download it. The
+// fallback only shows on a client-side navigation: the title block and the map.
+const FitnessStatusDetail = dynamic(
+  () =>
+    import('./FitnessStatusDetail').then(
+      (module) => module.FitnessStatusDetail
+    ),
+  {
+    loading: () => (
+      <div className="space-y-4">
+        <SectionSkeleton sections={[]} />
+        <SkeletonBar className="aspect-video h-auto w-full rounded-md" />
+      </div>
+    )
+  }
+)
 
 interface Props {
   host: string
@@ -58,7 +79,7 @@ export const StatusBox: FC<Props> = ({
   } | null>(null)
   // Reply/quote/edit share the same inline composer used by every feed so the
   // status detail page offers the identical action set.
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor))
   const actualStatus =
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)
@@ -71,23 +92,25 @@ export const StatusBox: FC<Props> = ({
   if (shouldRenderFitnessDetail) {
     return (
       <>
-        <FitnessStatusDetail
-          host={host}
-          mapProvider={mapProvider}
-          currentTime={currentTime}
-          currentActor={currentActor}
-          status={actualStatus as StatusNote}
-          replies={replies}
-          isMediaUploadEnabled={isMediaUploadEnabled}
-          initialFitnessFiles={fitnessFiles}
-          onShowAttachment={(allMedias, index) => {
-            setModalMedias({
-              medias: allMedias,
-              tags: actualStatus.tags,
-              initialSelection: index
-            })
-          }}
-        />
+        <LazyChunkBoundary>
+          <FitnessStatusDetail
+            host={host}
+            mapProvider={mapProvider}
+            currentTime={currentTime}
+            currentActor={currentActor}
+            status={actualStatus as StatusNote}
+            replies={replies}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            initialFitnessFiles={fitnessFiles}
+            onShowAttachment={(allMedias, index) => {
+              setModalMedias({
+                medias: allMedias,
+                tags: actualStatus.tags,
+                initialSelection: index
+              })
+            }}
+          />
+        </LazyChunkBoundary>
         <OwnPostMediasModal
           medias={modalMedias?.medias ?? null}
           tags={modalMedias?.tags ?? null}

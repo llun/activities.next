@@ -1,13 +1,16 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
+import { runWhenIdle } from '@/lib/components/lazy/createPreloadable'
 import {
   EditableStatus,
   Status,
   StatusNote,
   StatusPoll
 } from '@/lib/types/domain/status'
+
+import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
 
 export type StatusComposerMode = 'reply' | 'quote' | 'edit'
 
@@ -40,8 +43,17 @@ export interface InlineComposerControls {
  * `anchorId`) and render `InlineStatusComposer` under the row whose id matches
  * `active.anchorId`.
  */
-export const useInlineComposer = (): InlineComposerControls => {
+export const useInlineComposer = (
+  canCompose: boolean
+): InlineComposerControls => {
   const [active, setActive] = useState<ActiveStatusComposer | null>(null)
+
+  // The composer chunk is lazy; fetch it once the page is idle for viewers who
+  // can open it. Anonymous viewers never download it.
+  useEffect(() => {
+    if (!canCompose) return
+    return runWhenIdle(preloadInlineStatusComposer)
+  }, [canCompose])
 
   // `onReply`/`onQuote` reach us with the already-resolved note/poll (the post
   // action row unwraps Announce before invoking them), so the cast is safe.

@@ -28,12 +28,18 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
-    albumsOwnerId
+    albumsOwnerId,
+    prioritizeFirst
   }: {
     items: { mediaId: string }[]
     albumsOwnerId?: string | null
+    prioritizeFirst?: boolean
   }) => (
-    <ul data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
+    <ul
+      data-testid="grid"
+      data-albums-owner={albumsOwnerId ?? 'none'}
+      data-prioritize-first={String(Boolean(prioritizeFirst))}
+    >
       {items.map((item) => (
         <li key={item.mediaId}>{item.mediaId}</li>
       ))}
@@ -192,6 +198,38 @@ describe('PublicGalleryAlbumView', () => {
     )
     expect(writeText).toHaveBeenCalledWith(PAGE_URL)
     expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
+  })
+
+  it('reveals the cover immediately and leaves the grid lazy when there is a cover', () => {
+    const cover = buildGalleryItem('cover-1')
+    cover.attachment.blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+    const { container } = renderView(
+      buildAlbumView({
+        album: buildAlbumCard('a1', { title: 'Kruger', cover })
+      })
+    )
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    const revealed = container.querySelectorAll('img.opacity-100')
+    expect(revealed).toHaveLength(1)
+    expect(revealed[0]).toHaveAttribute('loading', 'eager')
+    expect(screen.getByTestId('grid')).toHaveAttribute(
+      'data-prioritize-first',
+      'false'
+    )
+  })
+
+  it('hands the first grid tile the reveal when there is no cover', () => {
+    const { container } = renderView(
+      buildAlbumView({
+        album: buildAlbumCard('a1', { title: 'No cover', cover: null })
+      })
+    )
+    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    expect(container.querySelector('img.opacity-100')).toBeNull()
+    expect(screen.getByTestId('grid')).toHaveAttribute(
+      'data-prioritize-first',
+      'true'
+    )
   })
 
   it('shows a plain heading when no photo is visible to use as a cover', () => {

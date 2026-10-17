@@ -1082,6 +1082,9 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    - `ACTIVITIES_HOST` must match the port the dev server actually serves on (the
      mock actor's domain is `config.host`). If port 3000 is taken, pick a free
      port and set both `ACTIVITIES_HOST` and `yarn dev --port` to it.
+   - For repeatable public-page performance measurements, seed the deterministic
+     fixture set instead (see **Create Web Vitals Fixtures** in
+     [docs/maintenance.md](docs/maintenance.md#create-web-vitals-fixtures)).
 
 2. Install deps, migrate, and seed mock data:
 

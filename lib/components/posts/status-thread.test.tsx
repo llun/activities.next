@@ -4,7 +4,15 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from 'vitest'
 
 import { createNote } from '@/lib/client'
 import {
@@ -60,6 +68,11 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 }))
 
 const mockCreateNote = vi.mocked(createNote)
+
+// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('./inline-status-composer')
+})
 
 describe('StatusThread', () => {
   const host = 'activities.local'
@@ -239,7 +252,7 @@ describe('StatusThread', () => {
     expect(focusedRow).not.toHaveClass('border-b-0')
   })
 
-  it('swaps the empty state for the reply composer until it is cancelled', () => {
+  it('swaps the empty state for the reply composer until it is cancelled', async () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/lonely',
       actor: mockBob,
@@ -262,7 +275,9 @@ describe('StatusThread', () => {
 
     fireEvent.click(screen.getByLabelText(/Reply/i))
 
-    expect(screen.getByPlaceholderText(/Reply to Bob/i)).toBeInTheDocument()
+    expect(
+      await screen.findByPlaceholderText(/Reply to Bob/i)
+    ).toBeInTheDocument()
     expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -831,5 +846,74 @@ describe('StatusThread', () => {
         'none'
       )
     })
+  })
+
+  it('prioritizes only the focused post image, not ancestors or replies', () => {
+    const withPhoto = <T extends { id: string; actorId: string }>(
+      note: T,
+      name: string
+    ) => ({
+      ...note,
+      attachments: [
+        {
+          ...createMockPhoto(note, name),
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        }
+      ]
+    })
+
+    const root = withPhoto(
+      createMockNote({
+        id: 'https://activities.local/users/alice/statuses/root',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Ancestor Root',
+        createdAt: BASE_TIME
+      }),
+      'root-photo'
+    )
+    const focused = withPhoto(
+      createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: root.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME + 60000
+      }),
+      'focused-photo'
+    )
+    const descendant = withPhoto(
+      createMockNote({
+        id: 'https://activities.local/users/bob/statuses/reply1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: focused.id,
+        text: 'Reply',
+        createdAt: BASE_TIME + 120000
+      }),
+      'reply-photo'
+    )
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        descendants={[descendant]}
+        currentTime={BASE_TIME + 200000}
+      />
+    )
+
+    expect(document.querySelector('[fetchpriority]')).toBeNull()
+    const priority = document.querySelectorAll('img.opacity-100')
+    expect(priority).toHaveLength(1)
+    expect(screen.getByTestId('focused-status')).toContainElement(
+      priority[0] as HTMLElement
+    )
+    expect(priority[0]).toHaveAttribute(
+      'src',
+      expect.stringContaining('focused-photo')
+    )
   })
 })

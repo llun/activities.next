@@ -1,18 +1,42 @@
 'use client'
 
 import { SmilePlus } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { FC, useEffect, useRef } from 'react'
 
+import {
+  createPreloadable,
+  runWhenIdle
+} from '@/lib/components/lazy/createPreloadable'
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError
 } from '@/lib/components/posts/actions/actionButtonShared'
-import { ReactionPicker } from '@/lib/components/posts/reaction-picker'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import {
   ReactionState,
   formatReactionCount
 } from '@/lib/components/posts/useReactionState'
 import { cn } from '@/lib/utils'
+
+const loadReactionPicker = () =>
+  import('@/lib/components/posts/reaction-picker').then(
+    (module) => module.ReactionPicker
+  )
+
+// Mounted only while open, so the emoji dataset behind it stays out of every
+// post list's first-load bundle. The trigger preloads the chunk on hover/focus.
+const DynamicReactionPicker = dynamic(loadReactionPicker, { ssr: false })
+
+// Renders synchronously once preloaded; see `createPreloadable`.
+const { Component: ReactionPicker, preload } = createPreloadable(
+  loadReactionPicker,
+  DynamicReactionPicker
+)
+
+export const preloadReactionPicker = () => {
+  void preload()
+}
 
 const getReactionButtonLabel = (total: number, targetLabel?: string) => {
   const verb = targetLabel ? `Add reaction to ${targetLabel}` : 'Add reaction'
@@ -63,6 +87,10 @@ export const ReactionButton: FC<Props> = ({
   const isPickingRef = useRef(isPicking)
   isPickingRef.current = isPicking
 
+  // The button only renders for a signed-in viewer, so warm the picker chunk at
+  // idle; hover/focus still preload it sooner.
+  useEffect(() => runWhenIdle(preloadReactionPicker), [])
+
   useEffect(() => {
     // The element the picker hangs off moves between this button and the ⋯
     // trigger when the row crosses its width threshold. The panel is placed
@@ -96,6 +124,8 @@ export const ReactionButton: FC<Props> = ({
               mine ? 'text-primary-text' : 'hover:text-primary-text',
               isBusy && 'cursor-not-allowed opacity-50'
             )}
+            onPointerEnter={preloadReactionPicker}
+            onFocus={preloadReactionPicker}
             onClick={(event) => {
               event.stopPropagation()
               if (isBusy) return
@@ -113,24 +143,31 @@ export const ReactionButton: FC<Props> = ({
           {error}
         </span>
       )}
-      {/* Portalled and viewport-positioned, so it lays nothing out here. */}
+      {/* Portalled and viewport-positioned, so it lays nothing out here. If its
+          chunk fails to load, the message is absolutely positioned under the
+          action row (`relative`), so it adds no flex item either. */}
       {isPicking && (
-        <ReactionPicker
-          anchorRef={triggerRef}
-          // Focus goes back to the trigger on close, so dismissing the picker
-          // with Escape or an outside click does not dump a keyboard user on
-          // <body>. On a pick the chip that appears is the natural next target,
-          // but the trigger is still the element that was activated.
-          onClose={() => {
-            setIsPicking(false)
-            focusTrigger()
-          }}
-          onPick={(name) => {
-            setIsPicking(false)
-            focusTrigger()
-            void state.toggle(name, 'add')
-          }}
-        />
+        <LazyChunkBoundary
+          data-row-overlay
+          className="absolute top-full left-0 z-50 mt-1 w-72 max-w-full bg-background"
+        >
+          <ReactionPicker
+            anchorRef={triggerRef}
+            // Focus goes back to the trigger on close, so dismissing the picker
+            // with Escape or an outside click does not dump a keyboard user on
+            // <body>. On a pick the chip that appears is the natural next target,
+            // but the trigger is still the element that was activated.
+            onClose={() => {
+              setIsPicking(false)
+              focusTrigger()
+            }}
+            onPick={(name) => {
+              setIsPicking(false)
+              focusTrigger()
+              void state.toggle(name, 'add')
+            }}
+          />
+        </LazyChunkBoundary>
       )}
     </>
   )

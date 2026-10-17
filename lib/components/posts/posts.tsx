@@ -1,19 +1,26 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useState } from 'react'
+import { FC, useCallback, useMemo, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
+import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
+import { getPrioritizedAttachment } from './attachments'
 import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { PostListItem } from './post-list-item'
 import { useInlineComposer } from './useInlineComposer'
@@ -31,6 +38,14 @@ interface Props {
   showReadOnlyStats?: boolean
   currentTime: number
   statuses: Status[]
+  /**
+   * The list's first picture is the page's likely largest contentful paint:
+   * reveal it without the hydration fade (and load it eagerly only where it
+   * would otherwise be lazy). Off by default, because most pages put
+   * something else (a cover image, filters, a header) above the list; only the
+   * surface whose list is the first visible content opts in.
+   */
+  prioritizeFirstMedia?: boolean
   isMediaUploadEnabled?: boolean
   postLineLimit?: PostLineLimit
   /**
@@ -53,6 +68,26 @@ interface Props {
   ) => void
 }
 
+// Rows past this are below the fold on any viewport, so they never get the
+// first-visible-media priority.
+const PRIORITY_ROW_WINDOW = 3
+
+/**
+ * The row whose first picture is prioritized: revealed without the hydration
+ * fade, and eager only where it would otherwise be lazy. It is the first of
+ * the list's first rows whose post shows an ordinary image outright. Content
+ * warning posts keep their media collapsed, so they are skipped.
+ */
+export const getPrioritizedRowIndex = (statuses: Status[]) =>
+  statuses.slice(0, PRIORITY_ROW_WINDOW).findIndex((status) => {
+    const actual = getActualStatus(status)
+    return (
+      actual.type === StatusType.enum.Note &&
+      !actual.summary?.trim() &&
+      getPrioritizedAttachment(actual.attachments) !== undefined
+    )
+  })
+
 export const Posts: FC<Props> = ({
   host,
   className,
@@ -61,6 +96,7 @@ export const Posts: FC<Props> = ({
   showReadOnlyStats = false,
   currentTime,
   statuses,
+  prioritizeFirstMedia = false,
   isMediaUploadEnabled,
   postLineLimit,
   onStatusCreated,
@@ -80,7 +116,7 @@ export const Posts: FC<Props> = ({
   } | null>(null)
   // Reply/quote/edit share one inline composer owned here, so every surface
   // that renders <Posts> offers the identical action set without re-wiring it.
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor) && showActions)
 
   // Stable so memoized rows don't re-render when this list's state changes.
   const openStatus = useCallback(
@@ -108,6 +144,11 @@ export const Posts: FC<Props> = ({
     [currentActor]
   )
 
+  const prioritizedRowIndex = useMemo(
+    () => (prioritizeFirstMedia ? getPrioritizedRowIndex(statuses) : -1),
+    [prioritizeFirstMedia, statuses]
+  )
+
   if (statuses.length === 0) return null
 
   // Authoring actions require a signed-in actor and an interactive feed. When
@@ -128,11 +169,12 @@ export const Posts: FC<Props> = ({
           className
         )}
       >
-        {statuses.map((status) => (
+        {statuses.map((status, index) => (
           <PostListItem
             key={status.id}
             className="first:rounded-t-lg last:rounded-b-lg"
             status={status}
+            prioritizeMedia={index === prioritizedRowIndex}
             host={host}
             currentTime={currentTime}
             currentActor={currentActor}
