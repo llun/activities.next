@@ -25,6 +25,7 @@ import {
   runWhenIdle
 } from '@/lib/components/lazy/createPreloadable'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -604,13 +605,15 @@ export const ActorTimelines: FC<Props> = ({
     return (
       <div className="space-y-4">
         {hasLoadedMedia ? (
-          <ActorMediaGallery
-            actorId={actorId}
-            initialAttachments={attachments}
-            statuses={currentStatuses}
-            isPixelfed={isPixelfed}
-            isMediaOnly={isMediaOnly}
-          />
+          <LazyChunkBoundary>
+            <ActorMediaGallery
+              actorId={actorId}
+              initialAttachments={attachments}
+              statuses={currentStatuses}
+              isPixelfed={isPixelfed}
+              isMediaOnly={isMediaOnly}
+            />
+          </LazyChunkBoundary>
         ) : (
           <EmptyState icon={Images} title="No media yet">
             Photos and videos show up here.
@@ -655,22 +658,26 @@ export const ActorTimelines: FC<Props> = ({
         renderFeed(replyStatuses, noReplies)}
 
       {effectiveActiveTab === 'media' && hasMedia && (
-        <ActorMediaGallery
-          actorId={actorId}
-          initialAttachments={mediaAttachments}
-          statuses={currentStatuses}
-          isPixelfed={false}
-        />
+        <LazyChunkBoundary>
+          <ActorMediaGallery
+            actorId={actorId}
+            initialAttachments={mediaAttachments}
+            statuses={currentStatuses}
+            isPixelfed={false}
+          />
+        </LazyChunkBoundary>
       )}
 
       {effectiveActiveTab === 'gallery' && showGalleryTab && (
-        <ProfileGalleryTab
-          actorId={actorId}
-          handle={handle}
-          subviews={gallerySubviews}
-          isCurrentUser={isCurrentUser}
-          mapProvider={mapProvider}
-        />
+        <LazyChunkBoundary>
+          <ProfileGalleryTab
+            actorId={actorId}
+            handle={handle}
+            subviews={gallerySubviews}
+            isCurrentUser={isCurrentUser}
+            mapProvider={mapProvider}
+          />
+        </LazyChunkBoundary>
       )}
 
       {effectiveActiveTab === 'fitness' && showFitnessTab && (

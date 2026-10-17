@@ -320,7 +320,8 @@ interface Props {
   onMediaSelected: OnMediaSelectedHandle
   /**
    * The first picture is likely the page's largest contentful paint: load it
-   * eagerly at high priority. Only that one image; the rest stay lazy.
+   * revealed without the hydration fade (eager only where it would otherwise
+   * be lazy). Only that one image; the rest stay lazy.
    */
   prioritizeMedia?: boolean
 }

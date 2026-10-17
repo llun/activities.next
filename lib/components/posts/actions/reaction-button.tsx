@@ -4,8 +4,10 @@ import { SmilePlus } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { FC, useEffect, useRef } from 'react'
 
-import { createPreloadable } from '@/lib/components/lazy/createPreloadable'
-import { runWhenIdle } from '@/lib/components/lazy/createPreloadable'
+import {
+  createPreloadable,
+  runWhenIdle
+} from '@/lib/components/lazy/createPreloadable'
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError

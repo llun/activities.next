@@ -51,8 +51,9 @@ interface Props {
    */
   onAlbumsChanged?: (albumIds: string[]) => void
   /**
-   * The grid is the page's primary content: its first tile loads eagerly at
-   * high priority (the likely largest contentful paint) and the rest stay lazy.
+   * The grid is the page's primary content: its first tile is revealed
+   * without the hydration fade (eager only where it would otherwise be lazy)
+   * and the rest stay lazy.
    */
   prioritizeFirst?: boolean
   className?: string

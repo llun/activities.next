@@ -64,4 +64,19 @@ describe('Posts composer preload', () => {
     })
     expect(preloadInlineStatusComposer).not.toHaveBeenCalled()
   })
+
+  it('does not preload it when the feed offers no actions', () => {
+    render(
+      <Posts
+        host="activities.local"
+        currentTime={0}
+        statuses={[note]}
+        currentActor={{ id: mockAlice.id, username: 'alice' } as ActorProfile}
+      />
+    )
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(preloadInlineStatusComposer).not.toHaveBeenCalled()
+  })
 })
