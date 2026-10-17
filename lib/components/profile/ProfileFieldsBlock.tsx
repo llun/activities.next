@@ -10,7 +10,7 @@ import {
   MapPin,
   Tag
 } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useId, useState } from 'react'
 
 import {
   ActorDisplayName,
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 import {
   sanitizeText,
   sanitizeTrustedStatusText
@@ -70,34 +71,6 @@ const ICONS: Record<ProfileFieldIconKind, LucideIcon> = {
 const PHONE_VISIBLE = 2
 const DESKTOP_VISIBLE = 3
 
-const NAMED_ENTITIES: Record<string, string> = {
-  nbsp: ' ',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  amp: '&'
-}
-
-// The text of a field value for a title: drops script and style elements with
-// their contents, then the tags, then decodes entities. No DOM needed.
-export const plainText = (html: string) =>
-  html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(
-      /&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi,
-      (entity, dec, hex, name) => {
-        if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? entity
-        try {
-          return String.fromCodePoint(dec ? Number(dec) : parseInt(hex, 16))
-        } catch {
-          return entity
-        }
-      }
-    )
-    .trim()
-
 // The class that hides item `index` while the list is collapsed.
 const collapsedClass = (index: number) => {
   if (index >= DESKTOP_VISIBLE) return 'hidden'
@@ -118,6 +91,7 @@ const MORE_CLASS =
 // and its custom emoji show.
 export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
   const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   const rows = fields.filter((field) => field.name.trim() || field.value.trim())
   if (rows.length === 0) return null
 
@@ -134,6 +108,7 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
     <button
       type="button"
       aria-expanded={expanded}
+      aria-controls={listId}
       onClick={() => setExpanded((value) => !value)}
       className={cn(MORE_CLASS, className)}
     >
@@ -143,19 +118,29 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-      {/* `contents` lets the items and the toggle share one wrapping line; the
-          role keeps the list semantics that `display: contents` can drop. */}
-      <ul data-slot="profile-fields" role="list" className="contents">
+      {/* `contents` lets the items and the toggle share one wrapping line. The
+          explicit role="list" is because Safari drops the list semantics of a
+          list-style:none list; Safari before about 17.4 also drops
+          display:contents elements from the accessibility tree, which we
+          accept. */}
+      <ul
+        id={listId}
+        data-slot="profile-fields"
+        role="list"
+        className="contents"
+      >
         {rows.map((field, index) => {
           const verifiedDate = field.verifiedAt
             ? formatVerifiedDate(field.verifiedAt)
             : null
           const verified = Boolean(field.verifiedAt)
-          const choice = chooseProfileFieldIcon(field.name, field.value)
+          // Sanitized once: the icon, the title and the rendered value all use it.
+          const html = sanitizeText(field.value)
+          const choice = chooseProfileFieldIcon(field.name, html)
           const Icon = ICONS[choice.kind]
           const showLabel = choice.kind === 'text'
           const label = field.name.trim()
-          const text = plainText(field.value)
+          const text = htmlToPlainText(html)
           return (
             <li
               key={`${index}-${field.name}`}
@@ -205,7 +190,7 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
               >
                 {cleanClassName(
                   sanitizeTrustedStatusText(
-                    convertEmojisToImages(sanitizeText(field.value), emojiTags)
+                    convertEmojisToImages(html, emojiTags)
                   ),
                   // Keep the link the person entered (target and rel="me").
                   { rewriteProfileLinks: false }

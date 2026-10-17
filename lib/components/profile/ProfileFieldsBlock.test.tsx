@@ -4,7 +4,9 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
-import { ProfileFieldsBlock, plainText } from './ProfileFieldsBlock'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
+
+import { ProfileFieldsBlock } from './ProfileFieldsBlock'
 
 const link = (href: string, text: string) =>
   `<a href="${href}" target="_blank" rel="nofollow noopener me">${text}</a>`
@@ -181,7 +183,9 @@ describe('ProfileFieldsBlock', () => {
         'title',
         'Web: example.com · Ownership of this link was checked on Mar 4, 2026'
       )
-      expect(item.innerHTML).toContain('text-success-text')
+      expect(screen.getByRole('link').parentElement).toHaveClass(
+        '[&_a]:text-success-text'
+      )
     })
 
     it('shows no verified mark on an unverified item', () => {
@@ -197,6 +201,18 @@ describe('ProfileFieldsBlock', () => {
   })
 
   describe('+N more', () => {
+    it('points every toggle at the list it expands', () => {
+      render(<ProfileFieldsBlock fields={four} />)
+
+      const list = document.querySelector('[data-slot="profile-fields"]')
+      expect(list?.id).toBeTruthy()
+      screen
+        .getAllByRole('button')
+        .forEach((button) =>
+          expect(button).toHaveAttribute('aria-controls', list?.id)
+        )
+    })
+
     it('has no button when everything fits', () => {
       render(<ProfileFieldsBlock fields={four.slice(0, 2)} />)
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
@@ -267,20 +283,39 @@ describe('ProfileFieldsBlock', () => {
   })
 })
 
-describe('plainText', () => {
-  it('drops script and style contents along with tags', () => {
-    expect(
-      plainText('a<script>alert(1)</script><style>p{}</style><b>b</b>')
-    ).toBe('ab')
-  })
+describe('ProfileFieldsBlock hostile and hydrated input', () => {
+  it.each([
+    ['100 KB of <', '<'.repeat(100_000)],
+    ['33,000 unclosed anchors', '<a '.repeat(33_000)]
+  ])(
+    'renders %s in linear time (the old regexes took seconds)',
+    (_name, value) => {
+      const started = performance.now()
+      render(<ProfileFieldsBlock fields={[{ name: 'Web', value }]} />)
+      expect(performance.now() - started).toBeLessThan(1000)
+    }
+  )
 
-  it('decodes named and numeric entities', () => {
-    expect(plainText('Tom &amp; Jerry&#x27;s &#8230; &lt;3 &#39;x&#39;')).toBe(
-      "Tom & Jerry's … <3 'x'"
+  it('hydrates four fields without a mismatch', async () => {
+    const { container, onRecoverableError, unmount } = await hydrateServerHtml(
+      <ProfileFieldsBlock
+        fields={[
+          ...four.slice(0, 1).map((field) => ({
+            ...field,
+            verifiedAt: '2026-03-04T10:00:00.000Z'
+          })),
+          ...four.slice(1)
+        ]}
+      />
     )
-  })
-
-  it('leaves an invalid code point as it is', () => {
-    expect(plainText('&#99999999;')).toBe('&#99999999;')
+    const warn = vi.spyOn(console, 'error')
+    try {
+      expect(onRecoverableError).not.toHaveBeenCalled()
+      expect(warn).not.toHaveBeenCalled()
+      expect(container.querySelectorAll('li')).toHaveLength(4)
+    } finally {
+      warn.mockRestore()
+      unmount()
+    }
   })
 })

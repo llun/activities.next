@@ -52,9 +52,32 @@ describe('chooseProfileFieldIcon', () => {
     }
   )
 
-  it('does not match a keyword inside a host name', () => {
+  it.each([
+    'https://runkit.com/me',
+    'https://app.run.app/me',
+    'https://example.com/u/running',
+    'https://example.com/photos/me',
+    'https://notstrava.com/me',
+    'not a url'
+  ])('does not take %s for an image or activity host', (href) => {
+    expect(chooseProfileFieldIcon('Me', link(href)).kind).toBe('link')
+  })
+
+  it.each([
+    ['https://www.strava.com/athletes/1', 'activity'],
+    ['https://connect.garmin.com/u/me', 'activity'],
+    ['https://garmin.com/me', 'activity'],
+    ['https://pixelfed.social/me', 'image'],
+    ['https://www.flickr.com/me', 'image'],
+    ['https://500px.com/me', 'image']
+  ])('takes the host of %s for %s', (href, kind) => {
+    expect(chooseProfileFieldIcon('Me', link(href)).kind).toBe(kind)
+  })
+
+  it('ignores a data-href attribute', () => {
     expect(
-      chooseProfileFieldIcon('Me', link('https://runkit.com/me')).kind
-    ).toBe('link')
+      chooseProfileFieldIcon('Me', '<a data-href="https://strava.com/x">x</a>')
+        .isLink
+    ).toBe(false)
   })
 })
