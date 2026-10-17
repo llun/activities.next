@@ -109,20 +109,25 @@ const samePartList = (a: readonly CombinedPart[], b: readonly CombinedPart[]) =>
       sameStatusList(part.insets, b[index].insets)
   )
 
-// `parts` is rebuilt whenever the feed's statuses change, so the default
-// shallow comparison would re-render every combined row each time. Compare the
-// statuses inside it instead; every other prop is a plain value or a stable
-// callback, like `PostListItem`'s.
+// `parts` and `rowIds` are rebuilt whenever the feed's statuses change, so the
+// default shallow comparison would re-render every combined row each time.
+// Compare their contents instead; every other prop is a plain value or a
+// stable callback, like `PostListItem`'s.
 const arePropsEqual = (
   prev: CombinedPostListItemProps,
   next: CombinedPostListItemProps
 ) => {
   if (!samePartList(prev.parts, next.parts)) return false
+  if (
+    prev.rowIds.length !== next.rowIds.length ||
+    !prev.rowIds.every((id, index) => id === next.rowIds[index])
+  )
+    return false
   const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<
     keyof CombinedPostListItemProps
   >
   for (const key of keys) {
-    if (key === 'parts') continue
+    if (key === 'parts' || key === 'rowIds') continue
     if (!Object.is(prev[key], next[key])) return false
   }
   return true

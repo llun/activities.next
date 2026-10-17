@@ -49,6 +49,22 @@ vi.mock('./post', async (importOriginal) => {
   }
 })
 
+// Counts how often a combined row's post bodies render, keyed by status id.
+const bodyRenders = vi.hoisted(() => new Map<string, number>())
+vi.mock('./post-body', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./post-body')>()
+  return {
+    ...actual,
+    PostBody: (props: React.ComponentProps<typeof actual.PostBody>) => {
+      bodyRenders.set(
+        props.status.id,
+        (bodyRenders.get(props.status.id) ?? 0) + 1
+      )
+      return <actual.PostBody {...props} />
+    }
+  }
+})
+
 vi.mock('./collapsible-content', () => ({
   CollapsibleContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
@@ -1150,7 +1166,10 @@ describe('TimelineFeed', () => {
     const rendered = (list: Status[] = rows) =>
       list.filter((row) => postRenders.get(row.id))
 
-    beforeEach(() => postRenders.clear())
+    beforeEach(() => {
+      postRenders.clear()
+      bodyRenders.clear()
+    })
 
     it('leaves the other rows alone when the composer opens, moves and closes', () => {
       renderList()
@@ -1204,6 +1223,36 @@ describe('TimelineFeed', () => {
       const liked = { ...rows[7], totalLikes: 1 } as Status
       view.rerender(rows.map((row, index) => (index === 7 ? liked : row)))
       expect(rendered(rows).map((row) => row.id)).toEqual([rows[7].id])
+    })
+
+    it('leaves a combined row alone when an unrelated row changes', () => {
+      const first = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/combo-1',
+        actor: mockAlice,
+        createdAt: BASE_TIME + 500000,
+        text: 'Combo 1'
+      })
+      const second = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/combo-2',
+        actor: mockAlice,
+        createdAt: BASE_TIME + 501000,
+        text: 'Combo 2',
+        reply: first.id
+      })
+      const plain = rows[7]
+      const list = [second, first, plain]
+      const view = renderList(list)
+      expect(screen.getByText('Combo 2')).toBeInTheDocument()
+      expect(bodyRenders.get(first.id)).toBeGreaterThan(0)
+
+      bodyRenders.clear()
+      postRenders.clear()
+      const liked = { ...plain, totalLikes: 1 } as Status
+      view.rerender([second, first, liked])
+
+      expect(postRenders.get(plain.id)).toBeGreaterThan(0)
+      expect(bodyRenders.get(first.id)).toBeUndefined()
+      expect(bodyRenders.get(second.id)).toBeUndefined()
     })
 
     it('leaves other rows alone when a thread expands', () => {
