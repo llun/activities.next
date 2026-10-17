@@ -25,9 +25,9 @@ export type CreateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
   manuallyApprovesFollowers?: boolean
-  // Mastodon profile metadata fields. A field without `verifiedAt` keeps the
-  // verification of a stored field that has the same value (see
-  // carryOverFieldVerification); a changed value starts unverified.
+  // Mastodon profile metadata fields. A field keeps the verification of a
+  // stored field that has the same value (see carryOverFieldVerification), a
+  // changed value starts unverified, and any `verifiedAt` passed in is ignored.
   fields?: ActorSettingsField[]
   tags?: { type: 'emoji'; name: string; value: string }[]
 
@@ -95,9 +95,9 @@ export type UpdateActorParams = {
   iconUrl?: string | null
   headerImageUrl?: string | null
   manuallyApprovesFollowers?: boolean
-  // Mastodon profile metadata fields. A field without `verifiedAt` keeps the
-  // verification of a stored field that has the same value (see
-  // carryOverFieldVerification); a changed value starts unverified.
+  // Mastodon profile metadata fields. A field keeps the verification of a
+  // stored field that has the same value (see carryOverFieldVerification), a
+  // changed value starts unverified, and any `verifiedAt` passed in is ignored.
   fields?: ActorSettingsField[]
   tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags and `source.*` posting defaults.

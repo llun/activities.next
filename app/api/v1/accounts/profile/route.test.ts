@@ -215,7 +215,8 @@ describe('POST /api/v1/accounts/profile', () => {
       expect(queueProfileLinkVerification).toHaveBeenCalledWith({
         actorId: mockCurrentActor.id,
         before: [{ name: 'Blog', value: 'https://old.example' }],
-        after: [{ name: 'Blog', value: 'https://blog.example' }]
+        after: [{ name: 'Blog', value: 'https://blog.example' }],
+        remote: false
       })
     })
 

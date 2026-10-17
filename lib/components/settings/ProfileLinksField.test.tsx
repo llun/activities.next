@@ -179,6 +179,13 @@ describe('ProfileLinksField', () => {
       expect(status.querySelector('svg')).not.toBeInTheDocument()
     })
 
+    it('shows no status for an http link, which cannot be verified', () => {
+      renderField([{ name: 'Old', value: 'http://old.example' }])
+
+      expect(screen.queryByText('Verified')).not.toBeInTheDocument()
+      expect(screen.queryByText('Not verified')).not.toBeInTheDocument()
+    })
+
     it('shows no status for plain text, an empty row or a half-filled row', () => {
       renderField([
         { name: 'Pronouns', value: 'they/them', verifiedAt: 1700000000000 },

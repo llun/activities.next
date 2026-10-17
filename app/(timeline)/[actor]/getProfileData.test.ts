@@ -914,8 +914,30 @@ describe('getProfileData', () => {
         expect(queueProfileLinkVerification).toHaveBeenCalledWith({
           actorId: mockPerson.id,
           before: stored,
-          after: [{ name: 'Blog', value: linkedValue }]
+          after: [{ name: 'Blog', value: linkedValue }],
+          remote: true,
+          recheckUnverified: false
         })
+      })
+
+      it('re-checks an unchanged unverified link only once the stored row is old', async () => {
+        ;(getActorPerson as jest.Mock).mockResolvedValue(
+          personWithLinks(linkedValue)
+        )
+        const stored = [{ name: 'Blog', value: linkedValue }]
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+          id: mockPerson.id,
+          fields: stored,
+          updatedAt: Date.now() - 4 * 86_400_000
+        })
+
+        await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+          currentActor: null
+        })
+
+        expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+          expect.objectContaining({ remote: true, recheckUnverified: true })
+        )
       })
     })
 

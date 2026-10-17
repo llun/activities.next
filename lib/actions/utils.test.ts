@@ -152,7 +152,8 @@ describe('recordActorIfNeeded', () => {
     expect(mockQueueProfileLinkVerification).toHaveBeenCalledWith({
       actorId,
       before: undefined,
-      after: [{ name: 'Web', value: 'https://example.com' }]
+      after: [{ name: 'Web', value: 'https://example.com' }],
+      remote: true
     })
   })
 
@@ -180,7 +181,8 @@ describe('recordActorIfNeeded', () => {
     expect(mockQueueProfileLinkVerification).toHaveBeenCalledWith({
       actorId,
       before: [{ name: 'Web', value: 'https://one.example' }],
-      after: [{ name: 'Web', value: 'https://two.example' }]
+      after: [{ name: 'Web', value: 'https://two.example' }],
+      remote: true
     })
   })
 

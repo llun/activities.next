@@ -23,7 +23,8 @@ describe('queueProfileLinkVerification', () => {
     await queueProfileLinkVerification({
       actorId: ACTOR_ID,
       before: [{ value: 'https://a.example' }],
-      after: [{ value: 'https://b.example' }]
+      after: [{ value: 'https://b.example' }],
+      remote: false
     })
 
     expect(publish).toHaveBeenCalledWith(
@@ -38,17 +39,19 @@ describe('queueProfileLinkVerification', () => {
     await queueProfileLinkVerification({
       actorId: ACTOR_ID,
       before: undefined,
-      after: [{ value: 'https://a.example' }]
+      after: [{ value: 'https://a.example' }],
+      remote: false
     })
 
     expect(publish).toHaveBeenCalledTimes(1)
   })
 
-  it('queues nothing when the values are unchanged', async () => {
+  it('queues nothing when the values are unchanged and not verifiable', async () => {
     await queueProfileLinkVerification({
       actorId: ACTOR_ID,
-      before: [{ value: 'https://a.example' }],
-      after: [{ value: 'https://a.example' }]
+      before: [{ value: 'plain text' }],
+      after: [{ value: 'plain text' }],
+      remote: false
     })
 
     expect(publish).not.toHaveBeenCalled()
@@ -58,7 +61,8 @@ describe('queueProfileLinkVerification', () => {
     await queueProfileLinkVerification({
       actorId: ACTOR_ID,
       before: [{ value: 'https://a.example' }],
-      after: []
+      after: [],
+      remote: false
     })
 
     expect(publish).not.toHaveBeenCalled()
@@ -71,8 +75,132 @@ describe('queueProfileLinkVerification', () => {
       queueProfileLinkVerification({
         actorId: ACTOR_ID,
         before: undefined,
-        after: [{ value: 'https://a.example' }]
+        after: [{ value: 'https://a.example' }],
+        remote: false
       })
     ).resolves.toBeUndefined()
+  })
+})
+
+describe('queueProfileLinkVerification re-checks', () => {
+  beforeEach(() => {
+    publish.mockReset()
+    publish.mockResolvedValue(undefined)
+    vi.mocked(getQueue).mockReturnValue({
+      runsInline: false,
+      publish,
+      handle: vi.fn()
+    } as unknown as ReturnType<typeof getQueue>)
+  })
+
+  it('queues when unchanged values are verifiable but not verified', async () => {
+    const fields = [{ name: 'Blog', value: 'https://a.example' }]
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: fields,
+      after: fields,
+      remote: false
+    })
+
+    expect(publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues nothing when unchanged values are all verified', async () => {
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: [{ name: 'Blog', value: 'https://a.example', verifiedAt: 1 }],
+      after: [{ name: 'Blog', value: 'https://a.example' }],
+      remote: false
+    })
+
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('queues for a changed value even when another field is verified', async () => {
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: [{ name: 'Blog', value: 'https://a.example', verifiedAt: 1 }],
+      after: [
+        { name: 'Blog', value: 'https://a.example' },
+        { name: 'Site', value: 'https://b.example' }
+      ],
+      remote: false
+    })
+
+    expect(publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues nothing for empty, plain-text or http values', async () => {
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: undefined,
+      after: [
+        { name: 'Pronouns', value: 'they/them' },
+        { name: 'Old', value: 'http://a.example' },
+        { name: 'Blank', value: '' }
+      ],
+      remote: false
+    })
+
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('reads a remote value as HTML', async () => {
+    const html = '<a href="https://a.example/" rel="me">https://a.example/</a>'
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: [{ name: 'Web', value: html }],
+      after: [{ name: 'Web', value: html }],
+      remote: true
+    })
+    expect(publish).toHaveBeenCalledTimes(1)
+
+    publish.mockClear()
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: undefined,
+      after: [{ name: 'Web', value: 'https://a.example/' }],
+      remote: false
+    })
+    expect(publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('limits a render-time call to changed values with recheckUnverified: false', async () => {
+    const fields = [{ name: 'Blog', value: 'https://a.example' }]
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: fields,
+      after: fields,
+      remote: true,
+      recheckUnverified: false
+    })
+    expect(publish).not.toHaveBeenCalled()
+
+    await queueProfileLinkVerification({
+      actorId: ACTOR_ID,
+      before: fields,
+      after: [{ name: 'Blog', value: 'https://b.example' }],
+      remote: false,
+      recheckUnverified: false
+    })
+    expect(publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the same state the same id within a window, another state another', async () => {
+    const fields = [{ name: 'Blog', value: 'https://a.example' }]
+    const run = (after: { name: string; value: string }[]) =>
+      queueProfileLinkVerification({
+        actorId: ACTOR_ID,
+        before: undefined,
+        after,
+        remote: false
+      })
+    await run(fields)
+    await run(fields)
+    await run([{ name: 'Blog', value: 'https://b.example' }])
+
+    const ids = publish.mock.calls.map(([message]) => message.id)
+    expect(ids[0]).toBe(ids[1])
+    expect(ids[2]).not.toBe(ids[0])
   })
 })

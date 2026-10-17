@@ -86,6 +86,13 @@ describe('getLinkFromFieldHtml', () => {
     ).toBeNull()
   })
 
+  it('refuses an http link: the fetch only reaches https', () => {
+    expect(
+      getLinkFromFieldHtml('<a href="http://a.example/">http://a.example/</a>')
+    ).toBeNull()
+    expect(getLinkFromFieldHtml('http://a.example/')).toBeNull()
+  })
+
   it('refuses plain text, and a link that is not http(s)', () => {
     expect(getLinkFromFieldHtml('they/them')).toBeNull()
     expect(
@@ -99,6 +106,12 @@ describe('getVerifiableFieldUrl', () => {
     expect(
       getVerifiableFieldUrl(' https://example.com ', { remote: false })
     ).toBe('https://example.com')
+  })
+
+  it('does not verify a local http value', () => {
+    expect(
+      getVerifiableFieldUrl('http://example.com', { remote: false })
+    ).toBeNull()
   })
 
   it('does not read a local value as HTML', () => {

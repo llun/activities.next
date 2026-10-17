@@ -247,6 +247,46 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('ignores a verifiedAt or verified_at sent in a JSON field', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/update_credentials',
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({
+          fields_attributes: [
+            {
+              name: 'Blog',
+              value: 'https://forged.example',
+              verifiedAt: 1700000000000
+            },
+            {
+              name: 'Site',
+              value: 'https://forged2.example',
+              verified_at: '2023-11-14T22:13:20.000Z'
+            }
+          ]
+        })
+      }
+    )
+
+    const response = await PATCH(req, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    const stored = await database.getActorFromId({ id: ACTOR1_ID })
+    expect(stored?.fields).toEqual([
+      { name: 'Blog', value: 'https://forged.example' },
+      { name: 'Site', value: 'https://forged2.example' }
+    ])
+    const data = await response.json()
+    expect(
+      data.fields.map((f: { verified_at: unknown }) => f.verified_at)
+    ).toEqual([null, null])
+  })
+
   it('rejects malformed JSON body with 400', async () => {
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',

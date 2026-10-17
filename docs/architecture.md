@@ -1575,7 +1575,7 @@ legacy shape left to copy.
   on load.
 - **Profile links are verified with `rel="me"`, as on Mastodon, by
   `VerifyProfileLinksJob` (`lib/jobs/verifyProfileLinksJob.ts`).** A field is
-  checked only when its value is a single http(s) URL: the raw value for a local
+  checked only when its value is a single https URL: the raw value for a local
   actor, and for a remote actor the href of the one `<a>` whose text equals its
   href (or a bare URL), as Mastodon's `extract_url_from_html` reads it
   (`getVerifiableFieldUrl`, `lib/services/profile-links/html.ts`). The job
@@ -1594,7 +1594,9 @@ legacy shape left to copy.
     (a JSON column, so no migration). `updateActor` keeps it for a field whose
     value is unchanged and drops it for a changed value
     (`carryOverFieldVerification`, `lib/utils/profileFieldVerification.ts`), so
-    every write path gets "edit the link, lose the check" for free. The job
+    every write path gets "edit the link, lose the check" for free; a
+    `verifiedAt` in the incoming fields (for example in `update_credentials`
+    JSON) is ignored, only the stored row decides. The job
     writes through `markActorProfileFieldsVerified`, which re-reads the row
     under a lock and stamps only fields that still hold a checked value, and
     leaves `updatedAt` alone (it is the remote refresh clock). `verifiedAt` is
@@ -1602,16 +1604,32 @@ legacy shape left to copy.
     receiving servers verify for themselves.
   - **When:** `queueProfileLinkVerification`
     (`lib/services/profile-links/queueProfileLinkVerification.ts`) queues the
-    job, best effort like `publishActorUpdate`, only when the list of field
-    values differs from the stored one and is not empty. It is called after the
-    settings form, `update_credentials` and `PATCH /api/v1/profile` (the last
-    two share `updateCredentialsHandler`) save links, and after a remote actor is
-    created or refreshed with changed links (`recordActorIfNeeded` and
-    `getProfileData`). A refresh that changed nothing sends no request to the
-    linked sites. Nothing re-checks later: a link that failed stays "not
-    verified" until its value is edited, and a verified one stays verified, as
-    on Mastodon. On `NoQueue` the job runs inside `publish`, so the request that
-    saved the links waits for the check (at most about ten seconds).
+    job, best effort like `publishActorUpdate`, whenever any field is verifiable
+    (`getVerifiableFieldUrl`, with the local or remote flag) and has no
+    `verifiedAt` after the stored check is carried over. A changed verifiable
+    value is always unverified, so this also covers a changed list; it is
+    Mastodon's `requires_verification?` test in `check_links`. So saving the
+    same link again after adding `<a rel="me">` to the site re-checks it, while
+    a profile whose links are all verified, empty, plain text or http queues
+    nothing. It is called after the settings form, `update_credentials` and
+    `PATCH /api/v1/profile` (the last two share `updateCredentialsHandler`)
+    save links, and after a remote actor is created or refreshed
+    (`recordActorIfNeeded`, `getProfileData`). `getProfileData` runs on every
+    render of a remote profile, so there a link that is still unverified and
+    unchanged is re-queued only when the stored row is older than the remote
+    refresh interval (3 days, `REMOTE_ACTOR_REFRESH_INTERVAL_MS`); a changed
+    value is queued at once. The job id is a hash of the actor id, the sorted
+    field values and a 30 second window, so concurrent queues of the same state
+    collapse (the database queue ignores a second job under a taken id, and
+    QStash deduplicates by id) but a save a minute later runs again. A verified
+    link is never checked again until its value changes. `http:` links are not
+    verifiable here (Mastodon does fetch them): `safeRemoteFetch` refuses plain
+    http, so they get no status in Settings or on the profile and are never
+    queued. On `NoQueue` the job runs inside `publish`, so the request that
+    saved the links waits for the check (at most about ten seconds), and for a
+    remote actor it also runs inside the `getProfileData` render that
+    created or refreshed it, so that page waits for the check too (`NoQueue`
+    does not deduplicate).
   - **Where it shows:** `fields[].verified_at` and `source.fields[].verified_at`
     of the Account entity (ISO time or `null`); `ProfileFieldsBlock` (the
     profile page passes `profileFields` from `getProfileData`: a local actor's

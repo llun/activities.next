@@ -15,12 +15,14 @@ const JobData = z.object({
 
 /**
  * Mastodon's rel="me" verification: for each profile link that is a single
- * http(s) URL and not yet verified, fetch the page and look for a rel="me"
+ * https URL and not yet verified, fetch the page and look for a rel="me"
  * link back to the profile. A link back is the profile page URL or the actor
  * id. Only a field whose value still equals the one that was checked gets
- * `verifiedAt` (the write re-reads the row under a lock). Nothing is
- * re-checked later: a failed link stays "not verified" until its value is
- * edited, as on Mastodon.
+ * `verifiedAt` (the write re-reads the row under a lock). A verified
+ * link is not checked again, but a failed one is tried again whenever the
+ * profile is saved or a remote profile is refreshed
+ * (`queueProfileLinkVerification`), as on Mastodon, so adding the link back
+ * to the site and saving again verifies it.
  */
 export const verifyProfileLinksJob: JobHandle = createJobHandle(
   VERIFY_PROFILE_LINKS_JOB_NAME,

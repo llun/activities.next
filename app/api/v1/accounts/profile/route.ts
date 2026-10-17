@@ -120,7 +120,8 @@ export const POST = traceApiRoute(
       await queueProfileLinkVerification({
         actorId: currentActor.id,
         before: currentActor.fields,
-        after: profileFields.fields
+        after: profileFields.fields,
+        remote: false
       })
     }
 

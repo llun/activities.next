@@ -23,7 +23,7 @@ interface RecordActorIfNeededParams {
   forceRefresh?: boolean
 }
 
-const REMOTE_ACTOR_REFRESH_INTERVAL_MS = 3 * 86_400_000
+export const REMOTE_ACTOR_REFRESH_INTERVAL_MS = 3 * 86_400_000
 
 export class BlockedFederationDomainError extends Error {
   constructor(actorId: string) {
@@ -292,7 +292,8 @@ export const recordActorIfNeeded = async ({
     await queueProfileLinkVerification({
       actorId: person.id,
       before: undefined,
-      after: persistableProfile.fields
+      after: persistableProfile.fields,
+      remote: true
     })
     await syncActorCollectionCounts(
       database,
@@ -349,12 +350,13 @@ export const recordActorIfNeeded = async ({
     actorId,
     ...persistableProfile
   })
-  // Only a changed value is checked again; a refresh that changed nothing
-  // sends no request to the linked sites.
+  // A refresh that happened re-checks only links that are verifiable and not
+  // yet verified; a profile whose links are all verified sends no request.
   await queueProfileLinkVerification({
     actorId,
     before: existingActor.fields,
-    after: persistableProfile.fields
+    after: persistableProfile.fields,
+    remote: true
   })
   await syncActorCollectionCounts(
     database,

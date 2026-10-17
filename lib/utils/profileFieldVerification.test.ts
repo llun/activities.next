@@ -29,18 +29,20 @@ describe('carryOverFieldVerification', () => {
     ).toEqual([{ name: 'Blog', value: 'https://other.example' }])
   })
 
-  it('keeps an explicit verifiedAt and drops an explicit null', () => {
+  it('never trusts a verifiedAt on the incoming field', () => {
     expect(
       carryOverFieldVerification(
         [
           { name: 'A', value: 'a', verifiedAt: 5 },
-          { name: 'B', value: 'b', verifiedAt: null }
+          { name: 'B', value: 'b', verifiedAt: null },
+          { name: 'Blog', value: 'https://blog.example', verifiedAt: 9 }
         ],
         previous
       )
     ).toEqual([
-      { name: 'A', value: 'a', verifiedAt: 5 },
-      { name: 'B', value: 'b' }
+      { name: 'A', value: 'a' },
+      { name: 'B', value: 'b' },
+      { name: 'Blog', value: 'https://blog.example', verifiedAt: 1000 }
     ])
   })
 

@@ -17,6 +17,20 @@ export const getProfileFieldHttpUrl = (value: string): string | null => {
 }
 
 /**
+ * The value when it is exactly one https URL, else null. Only these are
+ * verifiable: the page fetch (`safeRemoteFetch`) refuses plain http.
+ */
+export const getProfileFieldHttpsUrl = (value: string): string | null => {
+  const url = getProfileFieldHttpUrl(value)
+  if (!url) return null
+  try {
+    return new URL(url).protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * The HTML form of one profile metadata field value, for the actor's
  * `PropertyValue` attachment and the Account entity's `fields[].value`.
  *

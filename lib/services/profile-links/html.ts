@@ -1,6 +1,6 @@
 import { Parser } from 'htmlparser2'
 
-import { getProfileFieldHttpUrl } from '@/lib/utils/text/formatProfileFieldValue'
+import { getProfileFieldHttpsUrl } from '@/lib/utils/text/formatProfileFieldValue'
 
 type TopLevelNode = { tag: string | null; href?: string; text: string }
 
@@ -8,7 +8,8 @@ type TopLevelNode = { tag: string | null; href?: string; text: string }
  * The URL Mastodon's `extract_url_from_html` finds in a remote actor's field
  * value: the whole value must be one `<a>` whose href equals its text content
  * (the markup Mastodon builds for a bare URL, which hides the scheme in a
- * nested span), or a bare URL. Anything else is not verifiable.
+ * nested span), or a bare URL, and it must be https (`safeRemoteFetch` refuses plain http,
+ * which Mastodon would fetch). Anything else is not verifiable.
  */
 export const getLinkFromFieldHtml = (html: string): string | null => {
   const nodes: TopLevelNode[] = []
@@ -42,21 +43,21 @@ export const getLinkFromFieldHtml = (html: string): string | null => {
   const content = nodes.filter((node) => node.tag || node.text.trim())
   if (content.length !== 1) return null
   const [node] = content
-  if (node.tag === null) return getProfileFieldHttpUrl(node.text.trim())
+  if (node.tag === null) return getProfileFieldHttpsUrl(node.text.trim())
   if (node.tag !== 'a' || !node.href || node.href !== node.text) return null
-  return getProfileFieldHttpUrl(node.href)
+  return getProfileFieldHttpsUrl(node.href)
 }
 
 /**
  * The URL to verify for a stored field value, or null when it is not a single
- * http(s) URL. A local actor's value is the raw text the owner typed; a remote
+ * https URL. A local actor's value is the raw text the owner typed; a remote
  * actor's is the HTML its server sent.
  */
 export const getVerifiableFieldUrl = (
   value: string,
   { remote }: { remote: boolean }
 ): string | null =>
-  remote ? getLinkFromFieldHtml(value) : getProfileFieldHttpUrl(value.trim())
+  remote ? getLinkFromFieldHtml(value) : getProfileFieldHttpsUrl(value.trim())
 
 /**
  * Whether the page has an `<a>` or `<link>` whose `rel` has the token `me`

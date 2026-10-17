@@ -1,24 +1,21 @@
 import type { ActorSettingsField } from '@/lib/types/database/rows'
 
 type FieldInput = { name: string; value: string; verifiedAt?: number | null }
+// `verifiedAt` on the input is accepted only so callers can pass stored rows
+// through; it is never trusted.
 
 /**
- * The fields to store when a profile is saved: a field that arrives without
- * `verifiedAt` keeps the verification of a stored field with the same value
- * (the check is about the link, not the label), and a changed value starts
- * unverified. A field that arrives with `verifiedAt` set (the verification job
- * writing its result) is kept as given.
+ * The fields to store when a profile is saved: a field keeps the verification
+ * of a stored field with the same value (the check is about the link, not the
+ * label), and a changed value starts unverified. `verifiedAt` is always read
+ * from the stored row, never from the input, so a client cannot mark a link
+ * verified; only the verification job writes it.
  */
 export const carryOverFieldVerification = (
   next: FieldInput[],
   previous: ActorSettingsField[] | undefined
 ): ActorSettingsField[] =>
   next.map((field) => {
-    if (field.verifiedAt !== undefined) {
-      return field.verifiedAt === null
-        ? { name: field.name, value: field.value }
-        : { ...field, verifiedAt: field.verifiedAt }
-    }
     const verifiedAt = (previous ?? []).find(
       (stored) => stored.value === field.value && stored.verifiedAt
     )?.verifiedAt

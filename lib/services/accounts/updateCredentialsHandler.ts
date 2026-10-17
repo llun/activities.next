@@ -435,7 +435,8 @@ export const updateCredentialsHandler = (
         await queueProfileLinkVerification({
           actorId: currentActor.id,
           before: currentActor.fields,
-          after: fields
+          after: fields,
+          remote: false
         })
       }
 

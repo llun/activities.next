@@ -9,7 +9,7 @@ import {
   PROFILE_FIELD_NAME_MAX_LENGTH,
   PROFILE_FIELD_VALUE_MAX_LENGTH
 } from '@/lib/services/accounts/profileFieldLimits'
-import { getProfileFieldHttpUrl } from '@/lib/utils/text/formatProfileFieldValue'
+import { getProfileFieldHttpsUrl } from '@/lib/utils/text/formatProfileFieldValue'
 
 export const PROFILE_LINK_ERROR =
   'Fill in both the label and the content, or clear both.'
@@ -30,10 +30,11 @@ interface Row {
   value: string
 }
 
-// The saved URL of a row, or null when the row is empty or plain text. A row
+// The saved URL of a row, or null when the row is empty, plain text or not
+// https (those cannot be verified). A row
 // has a status only while its content is still the saved one.
 const getSavedUrl = (saved: { value: string } | undefined, current: string) => {
-  const url = saved ? getProfileFieldHttpUrl(saved.value.trim()) : null
+  const url = saved ? getProfileFieldHttpsUrl(saved.value.trim()) : null
   return url && saved?.value.trim() === current.trim() ? url : null
 }
 

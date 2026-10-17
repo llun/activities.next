@@ -1,4 +1,5 @@
 import {
+  REMOTE_ACTOR_REFRESH_INTERVAL_MS,
   getPersistableActorPerson,
   getPersistableProfile
 } from '@/lib/actions/utils'
@@ -359,7 +360,13 @@ export const getProfileData = async (
     await queueProfileLinkVerification({
       actorId: persistablePerson.id,
       before: storedActor.fields,
-      after: persistableProfile.fields
+      after: persistableProfile.fields,
+      remote: true,
+      // This runs on every render of a remote profile. A changed value is
+      // checked at once; a link still unverified is checked again only when the
+      // stored row is as old as recordActorIfNeeded's refresh interval.
+      recheckUnverified:
+        Date.now() - storedActor.updatedAt > REMOTE_ACTOR_REFRESH_INTERVAL_MS
     })
   } else if (persistablePerson && handle) {
     const persistableProfile = getPersistableProfile(persistablePerson)
@@ -378,7 +385,8 @@ export const getProfileData = async (
       await queueProfileLinkVerification({
         actorId: persistablePerson.id,
         before: undefined,
-        after: persistableProfile.fields
+        after: persistableProfile.fields,
+        remote: true
       })
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
