@@ -25,8 +25,7 @@ const ReactionUndo = z.object({
  * shared inbox rather than the recipient's personal one, so both spellings
  * (`EmojiReact` and a Misskey-style `Like` carrying the emoji) plus their
  * `Undo`s are routed here and handled by the same actions the per-user inbox
- * uses. A plain `Like` is not routed here at all — favourite semantics at the
- * shared inbox are unchanged.
+ * uses. A plain `Like` is a favourite and routes to `likeJob` instead.
  */
 export const emojiReactionJob: JobHandle = createJobHandle(
   EMOJI_REACTION_JOB_NAME,

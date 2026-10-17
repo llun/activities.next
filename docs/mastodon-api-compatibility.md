@@ -657,7 +657,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   Inbound federation accepts both dialects at the per-user **and** shared
   inboxes: the litepub `EmojiReact` of FEP-c0e0 and a Misskey-style `Like`
   carrying `content`/`_misskey_reaction`, plus the `Undo` of either. A **plain**
-  `Like` (no reaction content) remains an ordinary favourite.
+  `Like` (no reaction content) remains an ordinary favourite at both inboxes:
+  the shared inbox routes it, and its `Undo`, to `LikeJob`, which applies the
+  same `likeRequest`/`deleteLike` as the personal inbox. It keeps only likes of
+  local statuses, binds the Like's actor to the verified signer, and is
+  idempotent (a Like delivered to both inboxes is stored once and notifies
+  once). A group's `Announce(Like)` (Lemmy) is still dropped.
 
   **Outbound, a reaction is emitted as a Misskey-style `Like`** — the emoji on
   both `content` and `_misskey_reaction`, plus an `Emoji` tag for a custom one —
