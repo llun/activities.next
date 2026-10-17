@@ -10,6 +10,7 @@ import {
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { DELIVER_ACTIVITY_JOB_NAME } from './names'
@@ -141,7 +142,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         'delivery.salvageable': false
       })
       logger.warn(
-        { inbox, err: error, reason: classification.reason },
+        { inbox, err: toLoggableError(error), reason: classification.reason },
         'DeliverActivityJob: delivery failed unsalvageably, discarding'
       )
     }
