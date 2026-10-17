@@ -79,4 +79,28 @@ describe('getVisibility', () => {
   it('returns direct when to and cc are empty', () => {
     expect(getVisibility([], [])).toEqual('direct')
   })
+
+  it('returns public/unlisted for the bare Public term', () => {
+    expect(getVisibility(['Public'], [])).toEqual('public')
+    expect(getVisibility([], ['Public'])).toEqual('unlisted')
+  })
+
+  it('detects a followers collection that does not end in /followers', () => {
+    const followersUrl = 'https://friendica.example/followers/alice'
+    expect(getVisibility([followersUrl], [])).toEqual('direct')
+    expect(getVisibility([followersUrl], [], followersUrl)).toEqual('private')
+    expect(
+      getVisibility([], [followersUrl], 'https://friendica.example/other')
+    ).toEqual('direct')
+  })
+
+  it('keeps the /followers suffix as a fallback', () => {
+    expect(
+      getVisibility(
+        ['https://misskey.example/users/x/followers'],
+        [],
+        'https://misskey.example/different'
+      )
+    ).toEqual('private')
+  })
 })

@@ -896,6 +896,65 @@ describe('note entity utilities', () => {
   })
 
   describe('getContent', () => {
+    it('does not throw on empty array content and falls back to source', () => {
+      const note = {
+        type: 'Note',
+        mediaType: 'text/markdown',
+        content: [],
+        source: { content: 'from source', mediaType: 'text/markdown' }
+      } as unknown as BaseNote
+      expect(() => getContent(note)).not.toThrow()
+      expect(getContent(note)).toEqual('<p>from source</p>')
+    })
+
+    it('renders markdown content declared as text/markdown (PeerTube)', () => {
+      const video = {
+        type: 'Video',
+        mediaType: 'text/markdown',
+        content:
+          'Line one <script>alert(1)</script>\nsecond line\n\nSee [site](https://example.com/a?b=1) or https://example.org/x.'
+      } as unknown as BaseNote
+      expect(getContent(video)).toEqual(
+        '<p>Line one &lt;script&gt;alert(1)&lt;/script&gt;<br>second line</p>' +
+          '<p>See <a href="https://example.com/a?b=1" rel="nofollow noopener noreferrer" target="_blank">site</a> or <a href="https://example.org/x" rel="nofollow noopener noreferrer" target="_blank">https://example.org/x</a>.</p>'
+      )
+    })
+
+    it('does not link non-http markdown links', () => {
+      const note = {
+        type: 'Note',
+        mediaType: 'text/markdown',
+        content: '[x](javascript:alert(1))'
+      } as unknown as BaseNote
+      expect(getContent(note)).not.toContain('<a ')
+    })
+
+    it('keeps content as HTML when mediaType is text/html, ignoring source', () => {
+      const note = {
+        type: 'Note',
+        mediaType: 'text/html',
+        content: '<p>Hi *there*</p>',
+        source: { content: 'Hi *there*', mediaType: 'text/markdown' }
+      } as unknown as BaseNote
+      expect(getContent(note)).toEqual('<p>Hi *there*</p>')
+    })
+
+    it('falls back to markdown source when content is missing', () => {
+      const note = {
+        type: 'Note',
+        source: { content: 'from <source>', mediaType: 'text/markdown' }
+      } as unknown as BaseNote
+      expect(getContent(note)).toEqual('<p>from &lt;source&gt;</p>')
+    })
+
+    it('ignores Misskey MFM source', () => {
+      const note = {
+        type: 'Note',
+        source: { content: '$[x2 hi]', mediaType: 'text/x.misskeymarkdown' }
+      } as unknown as BaseNote
+      expect(getContent(note)).toEqual('')
+    })
+
     it('returns content string directly', () => {
       const note = {
         type: 'Note',

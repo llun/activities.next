@@ -11,10 +11,10 @@ import {
   getQuoteTargetId,
   getReply,
   getStatusUrl,
-  getSummary,
-  getTags
+  getSummary
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { createRemoteAttachments } from '@/lib/jobs/noteAttachments'
 import {
   getForwardActivityJobMessages,
@@ -29,7 +29,6 @@ import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
 } from '@/lib/services/quotes/persistInboundQuoteEdge'
-import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -54,6 +53,7 @@ import { logger } from '@/lib/utils/logger'
 import { createJobHandle } from './createJobHandle'
 import { createPollJob } from './createPollJob'
 import { CREATE_NOTE_JOB_NAME, CREATE_POLL_JOB_NAME } from './names'
+import { persistNoteTags } from './noteTags'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createNoteJob = createJobHandle(
@@ -213,62 +213,26 @@ export const createNoteJob = createJobHandle(
       })
     }
 
-    const tags = getTags(note)
-
     // Tags must be persisted before timeline rules run so that
     // notifyRemoteReplyAndMention can verify mentions via tags rather than text
     // content.
-    const seenHashtags = new Set<string>()
-    const affectedHashtags: string[] = []
-    await Promise.all(
-      tags.map(async (item) => {
-        if (item.type === 'Emoji') {
-          return database.createTag({
-            statusId: note.id,
-            name: item.name,
-            value: item.icon.url,
-            type: 'emoji'
-          })
-        }
-        if (item.type === 'Hashtag') {
-          const hashtagName = (item.name || '').trim()
-          const hashtagHref = (item.href || '').trim()
-          if (!hashtagName || !hashtagHref) return
-          const normalizedKey = hashtagName.toLowerCase()
-          if (seenHashtags.has(normalizedKey)) return
-          seenHashtags.add(normalizedKey)
-          affectedHashtags.push(hashtagName)
-
-          await database.createTag({
-            statusId: note.id,
-            name: hashtagName,
-            value: hashtagHref,
-            type: 'hashtag',
-            skipSearchIndex: true
-          })
-          const tagName = hashtagName.startsWith('#')
-            ? hashtagName.slice(1)
-            : hashtagName
-          // The count is served to anonymous /tags/<tag> visitors; a
-          // followers-only or direct note must not move it.
-          if (
-            isPublicOrUnlisted({
-              to: toRecipientArray(note.to),
-              cc: toRecipientArray(note.cc)
-            })
-          ) {
-            await database.increaseHashtagCounter({ hashtag: tagName })
-          }
-          return
-        }
-        return database.createTag({
-          statusId: note.id,
-          name: item.name || '',
-          value: item.href,
-          type: 'mention'
-        })
+    const affectedHashtags = await persistNoteTags({
+      database,
+      statusId: note.id,
+      note
+    })
+    // The count is served to anonymous /tags/<tag> visitors; a followers-only
+    // or direct note must not move it.
+    if (
+      isPubliclyAddressed({
+        to: toRecipientArray(note.to),
+        cc: toRecipientArray(note.cc)
       })
-    )
+    ) {
+      for (const hashtag of affectedHashtags) {
+        await database.increaseHashtagCounter({ hashtag: hashtag.slice(1) })
+      }
+    }
     if (affectedHashtags.length > 0) {
       await database.indexHashtagSearchDocuments({
         hashtags: affectedHashtags

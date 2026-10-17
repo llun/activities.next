@@ -18,6 +18,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
@@ -67,7 +68,7 @@ vi.mock('@/lib/utils/trace', async () => {
 })
 
 describe('deleteObjectJob', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
@@ -395,7 +396,7 @@ describe('deleteObjectJob', () => {
     await deleteObjectJob(database, {
       id: `invalid-data-job-${Date.now()}`,
       name: DELETE_OBJECT_JOB_NAME,
-      data: { id: 'https://remote.example/whatever', type: 'NotAThing' },
+      data: { type: 'NotAThing', name: 'no id here' },
       verifiedSenderActorId: 'https://remote.example/users/someone'
     })
 
@@ -458,6 +459,208 @@ describe('deleteObjectJob', () => {
     // Verify status is deleted
     status = await database.getStatus({ statusId, withReplies: false })
     expect(status).toBeNull()
+  })
+
+  describe('embedded objects are handled by their id, as Mastodon does', () => {
+    const createExternalActor = async (actorId: string) => {
+      await database.createActor({
+        actorId,
+        username: actorId.split('/').pop() as string,
+        domain: 'external.test',
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: 'https://external.test/inbox',
+        publicKey: 'public-key',
+        createdAt: Date.now()
+      })
+    }
+
+    it('deletes a status when the Delete embeds the full Note from its author', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${actor1.id}/statuses/embedded-note-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [],
+        text: 'Status deleted with an embedded object',
+        createdAt: Date.now()
+      })
+
+      await deleteObjectJob(database, {
+        id: 'job-embedded-note',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: {
+          id: statusId,
+          type: 'Note',
+          attributedTo: actor1.id,
+          content: '<p>Status deleted with an embedded object</p>'
+        },
+        verifiedSenderActorId: actor1.id
+      })
+
+      expect(
+        await database.getStatus({ statusId, withReplies: false })
+      ).toBeNull()
+    })
+
+    it('does not delete an embedded Note when the verified sender is another actor', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${actor1.id}/statuses/embedded-other-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [],
+        text: 'Not yours',
+        createdAt: Date.now()
+      })
+
+      // The payload claims the right author; only the verified sender counts.
+      await deleteObjectJob(database, {
+        id: 'job-embedded-other',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { id: statusId, type: 'Note', attributedTo: actor1.id },
+        verifiedSenderActorId: ACTOR2_ID
+      })
+
+      expect(
+        await database.getStatus({ statusId, withReplies: false })
+      ).not.toBeNull()
+    })
+
+    it('deletes the account when an embedded actor matches the verified sender', async () => {
+      const actorId = `https://external.test/users/embedded-actor-${Date.now()}`
+      await createExternalActor(actorId)
+
+      await deleteObjectJob(database, {
+        id: 'job-embedded-actor',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { id: actorId, type: 'Person', preferredUsername: 'gone' },
+        verifiedSenderActorId: actorId
+      })
+
+      await expect(database.getActorFromId({ id: actorId })).resolves.toBeNull()
+    })
+
+    it('does nothing when an embedded actor does not match the verified sender', async () => {
+      const actorId = `https://external.test/users/embedded-victim-${Date.now()}`
+      await createExternalActor(actorId)
+
+      await deleteObjectJob(database, {
+        id: 'job-embedded-actor-mismatch',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { id: actorId, type: 'Person' },
+        verifiedSenderActorId: `https://external.test/users/mallory-${Date.now()}`
+      })
+
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.not.toBeNull()
+      // The id names no stored status, so nothing was taken from anyone.
+      expect(recordedAttributes()).toHaveProperty('objectNotFound', true)
+      expect(recordedAttributes()).not.toHaveProperty('senderMismatch')
+    })
+
+    it('refuses an embedded object when there is no verified sender', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const stamp = Date.now()
+      const statusId = `${actor1.id}/statuses/unverified-embedded-${stamp}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [],
+        text: 'Local status',
+        createdAt: Date.now()
+      })
+      const actorId = `https://external.test/users/unverified-embedded-${stamp}`
+      await createExternalActor(actorId)
+
+      // A legacy queued message has no verifiedSenderActorId: neither the
+      // unscoped status delete nor the account delete may run.
+      for (const data of [
+        { id: statusId, type: 'Note' },
+        { id: actorId, type: 'Person' }
+      ]) {
+        await deleteObjectJob(database, {
+          id: `unverified-${data.type}-${stamp}`,
+          name: DELETE_OBJECT_JOB_NAME,
+          data
+        })
+      }
+
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.not.toBeNull()
+    })
+
+    it('never deletes an account for an Undo of an Announce whose id is the sender', async () => {
+      const actorId = `https://external.test/users/undo-announce-${Date.now()}`
+      await createExternalActor(actorId)
+
+      await deleteObjectJob(database, {
+        id: 'job-undo-announce-sender',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { id: actorId, type: 'Announce', object: 'not-a-valid-target' },
+        verifiedSenderActorId: actorId
+      })
+
+      await expect(
+        database.getActorFromId({ id: actorId })
+      ).resolves.not.toBeNull()
+    })
+
+    it('deletes the account when a Tombstone names the verified sender', async () => {
+      const actorId = `https://external.test/users/tombstone-actor-${Date.now()}`
+      await createExternalActor(actorId)
+
+      await deleteObjectJob(database, {
+        id: 'job-tombstone-actor',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { type: 'Tombstone', id: actorId },
+        verifiedSenderActorId: actorId
+      })
+
+      await expect(database.getActorFromId({ id: actorId })).resolves.toBeNull()
+    })
+
+    it('handles an unknown object type by its id', async () => {
+      const stamp = Date.now()
+      const author = `https://bookwyrm.test/user/review-${stamp}`
+      const statusId = `https://bookwyrm.test/user/review-${stamp}/review/1`
+      await seedQuotedStatus(author, statusId)
+
+      // Wrong sender first: the type is unknown, but scoping still applies.
+      await deleteObjectJob(database, {
+        id: `review-wrong-sender-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { id: statusId, type: 'Review', name: 'A book' },
+        verifiedSenderActorId: `https://bookwyrm.test/user/mallory-${stamp}`
+      })
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.not.toBeNull()
+
+      await deleteObjectJob(database, {
+        id: `review-right-sender-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { id: statusId, type: 'Review', name: 'A book' },
+        verifiedSenderActorId: author
+      })
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.toBeNull()
+    })
   })
 
   it('does not delete a status owned by a different verified sender', async () => {
@@ -528,6 +731,159 @@ describe('deleteObjectJob', () => {
     await expect(
       database.getStatus({ statusId, withReplies: false })
     ).resolves.not.toBeNull()
+  })
+
+  it('reports a sender mismatch when the status belongs to someone else', async () => {
+    const stamp = Date.now()
+    const statusId = `https://pleroma.test/objects/mismatch-${stamp}`
+    await seedQuotedStatus(
+      `https://pleroma.test/users/mismatch-owner-${stamp}`,
+      statusId
+    )
+
+    await deleteObjectJob(database, {
+      id: `mismatch-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: { type: 'Tombstone', id: statusId },
+      verifiedSenderActorId: `https://pleroma.test/users/mismatch-mallory-${stamp}`
+    })
+
+    await expect(
+      database.getStatus({ statusId, withReplies: false })
+    ).resolves.not.toBeNull()
+    expect(recordedAttributes()).toHaveProperty('senderMismatch', true)
+    expect(recordedAttributes()).not.toHaveProperty('objectNotFound')
+  })
+
+  describe('a Tombstone naming a row getStatus cannot read', () => {
+    const insertOrphanAnnounce = async (actorId: string, id: string) => {
+      await db
+        .insertInto('statuses')
+        .values({
+          id,
+          url: id,
+          urlHash: getHashFromString(id),
+          actorId,
+          type: 'Announce',
+          reply: '',
+          replyHash: null,
+          // The boosted original is not stored.
+          content: JSON.stringify({ id: `${id}/missing-original` }),
+          originalStatusId: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .execute()
+    }
+    const rowExists = async (id: string) =>
+      Boolean(
+        await db
+          .selectFrom('statuses')
+          .select('id')
+          .where('id', '=', id)
+          .executeTakeFirst()
+      )
+
+    it('deletes an orphan Announce row when its author sends the Tombstone', async () => {
+      const stamp = Date.now()
+      const author = `https://pleroma.test/users/orphan-booster-${stamp}`
+      const announceId = `https://pleroma.test/activities/orphan-${stamp}`
+      await seedQuotedStatus(author, `${announceId}/seed`)
+      await insertOrphanAnnounce(author, announceId)
+      await expect(
+        database.getStatus({ statusId: announceId, withReplies: false })
+      ).resolves.toBeNull()
+      expect(await rowExists(announceId)).toBe(true)
+
+      await deleteObjectJob(database, {
+        id: `orphan-announce-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { type: 'Tombstone', id: announceId },
+        verifiedSenderActorId: author
+      })
+
+      expect(await rowExists(announceId)).toBe(false)
+      expect(recordedExceptions()).toHaveLength(0)
+    })
+
+    it('does not delete an orphan Announce for another sender', async () => {
+      const stamp = Date.now()
+      const author = `https://pleroma.test/users/orphan-owner-${stamp}`
+      const announceId = `https://pleroma.test/activities/orphan-keep-${stamp}`
+      await seedQuotedStatus(author, `${announceId}/seed`)
+      await insertOrphanAnnounce(author, announceId)
+
+      await deleteObjectJob(database, {
+        id: `orphan-announce-other-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: { type: 'Tombstone', id: announceId },
+        verifiedSenderActorId: `https://pleroma.test/users/orphan-mallory-${stamp}`
+      })
+
+      expect(await rowExists(announceId)).toBe(true)
+    })
+
+    it('is harmless for a Tombstone with an unknown id', async () => {
+      const stamp = Date.now()
+      const author = `https://pleroma.test/users/unknown-${stamp}`
+      const keep = `https://pleroma.test/objects/unknown-keep-${stamp}`
+      await seedQuotedStatus(author, keep)
+
+      await deleteObjectJob(database, {
+        id: `unknown-tombstone-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: {
+          type: 'Tombstone',
+          id: `https://pleroma.test/objects/never-stored-${stamp}`
+        },
+        verifiedSenderActorId: author
+      })
+
+      expect(recordedExceptions()).toHaveLength(0)
+      expect(recordedAttributes()).toHaveProperty('objectNotFound', true)
+      expect(recordedAttributes()).not.toHaveProperty('senderMismatch')
+      expect(await rowExists(keep)).toBe(true)
+      await expect(
+        database.getActorFromId({ id: author })
+      ).resolves.not.toBeNull()
+    })
+  })
+
+  it('deletes a stored status named by bare id when the message has no verified sender', async () => {
+    // Legacy queued messages carry no verified sender: the status goes first,
+    // exactly as before the sender was recorded.
+    const stamp = Date.now()
+    const author = `https://pleroma.test/users/legacy-bare-${stamp}`
+    const statusId = `https://pleroma.test/objects/legacy-bare-${stamp}`
+    await seedQuotedStatus(author, statusId)
+
+    await deleteObjectJob(database, {
+      id: `legacy-bare-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: statusId
+    })
+
+    await expect(
+      database.getStatus({ statusId, withReplies: false })
+    ).resolves.toBeNull()
+    await expect(
+      database.getActorFromId({ id: author })
+    ).resolves.not.toBeNull()
+  })
+
+  it('deletes an actor named by bare id when the message has no verified sender', async () => {
+    const stamp = Date.now()
+    const actorId = `https://pleroma.test/users/legacy-actor-${stamp}`
+    await seedQuotedStatus(actorId, `${actorId}/statuses/1`)
+
+    await deleteObjectJob(database, {
+      id: `legacy-actor-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: actorId
+    })
+
+    await expect(database.getActorFromId({ id: actorId })).resolves.toBeNull()
+    expect(recordedAttributes()).toMatchObject({ actorId })
   })
 
   it('processes Announce data for deletion', async () => {

@@ -49,10 +49,13 @@ export const Mention = z.object({
 
 export type Mention = z.infer<typeof Mention>
 
+// Liberal on purpose: Misskey, Pleroma/Akkoma and others send hashtag names
+// without the leading `#` or omit `href` entirely (Mastodon only needs `name`).
+// Consumers normalise the name; storage falls back to an empty href.
 export const HashTag = z.object({
   type: z.literal('Hashtag'),
-  href: z.string().url(),
-  name: z.string().startsWith('#')
+  href: z.string().nullish(),
+  name: z.string().min(1)
 })
 
 export type HashTag = z.infer<typeof HashTag>
@@ -61,7 +64,8 @@ export const Emoji = z.object({
   type: z.literal('Emoji'),
   id: z.string().optional(),
   name: z.string(),
-  updated: z.string(),
+  // Mastodon sends `updated`, but Misskey and others omit it.
+  updated: z.string().nullish(),
   icon: Image
 })
 
@@ -117,6 +121,20 @@ export const BaseContent = z.object({
     .record(z.string(), z.string())
     .describe('Note short summary in each locale')
     .nullish(),
+
+  // `text/markdown` (PeerTube) marks `content` as markdown rather than HTML.
+  mediaType: z.string().nullish().catch(undefined),
+  // Original authoring source (Mastodon edits, GoToSocial, Lemmy, PeerTube).
+  source: z
+    .union([
+      z.string(),
+      z.looseObject({
+        content: z.string().nullish(),
+        mediaType: z.string().nullish()
+      })
+    ])
+    .nullish()
+    .catch(undefined),
 
   content: z
     .union([

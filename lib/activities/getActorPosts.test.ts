@@ -265,7 +265,7 @@ describe('getActorPosts', () => {
                   attributedTo: actorId,
                   to: [ACTIVITY_STREAM_PUBLIC],
                   cc: [],
-                  content: [],
+                  content: { malformed: true },
                   published: new Date(published).toISOString()
                 }
               }

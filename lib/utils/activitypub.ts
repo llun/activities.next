@@ -1,6 +1,7 @@
 import {
   ACTIVITY_STREAM_PUBLIC,
-  ACTIVITY_STREAM_PUBLIC_COMPACT
+  ACTIVITY_STREAM_PUBLIC_COMPACT,
+  ACTIVITY_STREAM_PUBLIC_TERM
 } from '@/lib/utils/activitystream'
 import { isRecord } from '@/lib/utils/typeGuards'
 
@@ -141,10 +142,12 @@ export const normalizeActivityPubRecipients = (
 }
 
 // JSON-LD compaction emits the public collection as the compact alias
-// `as:Public`; persist it as the full IRI so stored recipients have one
-// canonical form (matching locally-authored statuses).
+// `as:Public` and some servers send the bare `Public` term; persist both as the
+// full IRI so stored recipients have one canonical form (matching
+// locally-authored statuses).
 const canonicalizePublicRecipient = (recipient: string) =>
-  recipient === ACTIVITY_STREAM_PUBLIC_COMPACT
+  recipient === ACTIVITY_STREAM_PUBLIC_COMPACT ||
+  recipient === ACTIVITY_STREAM_PUBLIC_TERM
     ? ACTIVITY_STREAM_PUBLIC
     : recipient
 

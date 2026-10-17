@@ -7,6 +7,8 @@ import {
   getSummary
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
+import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
 import {
   getForwardActivityJobMessages,
@@ -51,6 +53,7 @@ import {
   buildRemoteAttachments,
   getRemoteAttachmentDocuments
 } from './noteAttachments'
+import { planNoteTags, storePlannedTags } from './noteTags'
 
 /**
  * Replaces the stored attachments of a remote note when the Update carries a
@@ -98,6 +101,79 @@ const syncRemoteAttachments = async ({
     statusId: status.id,
     attachments
   })
+}
+
+/**
+ * Replaces the stored emoji, hashtag and mention tags of a remote note with the
+ * ones the Update carries, as Mastodon does (an Update's `tag` is the new full
+ * set). Hashtag counters only move for hashtags that were added or removed, and
+ * only for publicly addressed notes, matching Create and Delete. Local statuses are left
+ * alone.
+ */
+const syncRemoteTags = async ({
+  database,
+  note,
+  status
+}: {
+  database: Database
+  note: BaseNote
+  status: Status
+}) => {
+  if (status.isLocalActor || status.type !== StatusType.enum.Note) return
+
+  // Built from the raw stored names, without re-validating them, as
+  // deleteStatus does: a legacy name the current rule rejects must still be
+  // decremented and reindexed. A multiset, because a delete decrements once
+  // per stored row, so rows that differ only in case count separately.
+  const previousCounts = new Map<string, number>()
+  for (const tag of status.tags) {
+    if (tag.type !== 'hashtag') continue
+    const name = normalizeHashtagSearchName(tag.name)
+    if (name) previousCounts.set(name, (previousCounts.get(name) ?? 0) + 1)
+  }
+
+  // The new set is planned and validated before any stored row is removed, so
+  // an invalid tag in the Update never leaves the note without its tags.
+  const planned = planNoteTags(note)
+  await Promise.all(
+    (['emoji', 'hashtag', 'mention'] as const).map((type) =>
+      database.deleteStatusTagsByType({ statusId: status.id, type })
+    )
+  )
+  const current = await storePlannedTags({
+    database,
+    statusId: status.id,
+    tags: planned
+  })
+
+  // Both sides are bare lowercase names, the way the counters are keyed. The
+  // stored rows are now `current` (one per name), so each counter moves by the
+  // difference to what the old rows had counted. The rule is the one Create and
+  // Delete use, so a legacy bare-`Public` row moves nothing.
+  const currentNames = [...new Set(current.map(normalizeHashtagSearchName))]
+  const currentSet = new Set(currentNames)
+  if (isPubliclyAddressed({ to: status.to, cc: status.cc })) {
+    for (const hashtag of currentNames) {
+      const delta = 1 - (previousCounts.get(hashtag) ?? 0)
+      for (let i = 0; i < delta; i++) {
+        await database.increaseHashtagCounter({ hashtag })
+      }
+      for (let i = 0; i > delta; i--) {
+        await database.decreaseHashtagCounter({ hashtag })
+      }
+    }
+    for (const [hashtag, count] of previousCounts) {
+      if (currentSet.has(hashtag)) continue
+      for (let i = 0; i < count; i++) {
+        await database.decreaseHashtagCounter({ hashtag })
+      }
+    }
+  }
+
+  const affected = [...new Set([...previousCounts.keys(), ...currentNames])]
+  if (affected.length > 0) {
+    await database.indexHashtagSearchDocuments({ hashtags: affected })
+  }
 }
 
 export const updateNoteJob = createJobHandle(
@@ -196,6 +272,7 @@ export const updateNoteJob = createJobHandle(
     })
 
     await syncRemoteAttachments({ database, note, status: existingStatus })
+    await syncRemoteTags({ database, note, status: existingStatus })
 
     // A quoter re-federates its note as an Update once the quoted author's
     // Accept hands it a `quoteAuthorization` stamp, so an Update is the second

@@ -547,8 +547,12 @@ export const getMastodonStatus = async (
 
   const visibility =
     status.type === StatusType.enum.Announce && status.originalStatus
-      ? getVisibility(status.originalStatus.to, status.originalStatus.cc)
-      : getVisibility(status.to, status.cc)
+      ? getVisibility(
+          status.originalStatus.to,
+          status.originalStatus.cc,
+          status.originalStatus.actor?.followersUrl
+        )
+      : getVisibility(status.to, status.cc, status.actor?.followersUrl)
 
   const reblogsCount =
     status.type !== StatusType.enum.Announce
@@ -631,7 +635,8 @@ export const getMastodonStatus = async (
 
     const originalVisibility = getVisibility(
       status.originalStatus.to,
-      status.originalStatus.cc
+      status.originalStatus.cc,
+      status.originalStatus.actor?.followersUrl
     )
 
     return Mastodon.Status.parse({

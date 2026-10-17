@@ -31,6 +31,9 @@ export type Tag = z.infer<typeof Tag>
 export const getMentionFromTag = (tag: Tag): ActivityPubTag | null => {
   if (tag.type === 'emoji') return null
   if (tag.type === 'hashtag') {
+    // A stored hashtag may lack an href (peers that omit it); an outgoing
+    // Hashtag without one is not useful, so it is not re-serialised.
+    if (!tag.value) return null
     const result = HashTag.safeParse({
       type: 'Hashtag',
       name: tag.name.startsWith('#') ? tag.name : `#${tag.name}`,
