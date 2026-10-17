@@ -500,7 +500,7 @@ describe('[actor] page profile links', () => {
     const block = document.querySelector('[data-slot="profile-fields"]')
     const term = screen.getByText('Pronouns')
     expect(block).toContainElement(term)
-    expect(block?.querySelectorAll('dt')).toHaveLength(1)
+    expect(block?.querySelectorAll('li')).toHaveLength(1)
     expect(block).toHaveTextContent('they/them')
     expect(
       screen.getByText('Bio text').compareDocumentPosition(term) &
@@ -529,7 +529,7 @@ describe('[actor] page profile links', () => {
     const block = document.querySelector('[data-slot="profile-fields"]')
     expect(block?.querySelectorAll('[aria-label="Verified"]')).toHaveLength(1)
     expect(
-      screen.getByText('https://remote.example').closest('dd')
+      screen.getByText('https://remote.example').closest('li')
     ).toContainElement(block!.querySelector('[aria-label="Verified"]'))
   })
 

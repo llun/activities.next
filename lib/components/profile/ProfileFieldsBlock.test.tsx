@@ -2,9 +2,40 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 import { ProfileFieldsBlock } from './ProfileFieldsBlock'
+
+const link = (href: string, text: string) =>
+  `<a href="${href}" target="_blank" rel="nofollow noopener me">${text}</a>`
+
+const four = [
+  {
+    name: 'Website',
+    value: link('https://testuser.example', 'testuser.example')
+  },
+  {
+    name: 'Photos',
+    value: link('https://photos.example/@testuser', 'photos.example/@testuser')
+  },
+  {
+    name: 'Strava',
+    value: link(
+      'https://fitness.example/athletes/testuser',
+      'fitness.example/athletes/testuser'
+    )
+  },
+  { name: 'Based in', value: 'Lisbon, Portugal' }
+]
+
+vi.mock('@/lib/utils/text/sanitizeText', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/utils/text/sanitizeText')>()
+  return { ...actual, sanitizeText: vi.fn(actual.sanitizeText) }
+})
 
 describe('ProfileFieldsBlock', () => {
   it('renders nothing without fields', () => {
@@ -19,27 +50,48 @@ describe('ProfileFieldsBlock', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('renders a labelled row per field in a framed, divided list', () => {
+  it('renders one item per field, in order, on one list', () => {
+    render(<ProfileFieldsBlock fields={four.slice(0, 2)} />)
+
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items[0]).toHaveTextContent('Website: testuser.example')
+    expect(items[1]).toHaveTextContent('Photos: photos.example/@testuser')
+    expect(document.querySelector('[data-slot="profile-fields"]')).toBe(
+      items[0].parentElement
+    )
+  })
+
+  it('keeps the label of a link field for screen readers and the title', () => {
+    render(<ProfileFieldsBlock fields={four.slice(0, 1)} />)
+
+    const label = screen.getByText('Website', { exact: false })
+    expect(label.closest('.sr-only')).not.toBeNull()
+    expect(screen.getByRole('listitem')).toHaveAttribute(
+      'title',
+      'Website: testuser.example'
+    )
+  })
+
+  it('hides the label of a text field the icon already names', () => {
+    render(<ProfileFieldsBlock fields={[four[3]]} />)
+
+    expect(
+      screen.getByText('Based in', { exact: false }).closest('.sr-only')
+    ).not.toBeNull()
+  })
+
+  it('shows the label of a text field no icon names', () => {
     render(
-      <ProfileFieldsBlock
-        fields={[
-          { name: 'Pronouns', value: 'they/them' },
-          { name: 'Location', value: 'Bangkok' }
-        ]}
-      />
+      <ProfileFieldsBlock fields={[{ name: 'Pronouns', value: 'they/them' }]} />
     )
 
-    const terms = screen.getAllByRole('term')
-    expect(terms.map((term) => term.textContent)).toEqual([
-      'Pronouns',
-      'Location'
-    ])
-    expect(screen.getAllByRole('definition').map((d) => d.textContent)).toEqual(
-      ['they/them', 'Bangkok']
+    const label = screen.getByText('Pronouns')
+    expect(label.closest('.sr-only')).toBeNull()
+    expect(label).toBeVisible()
+    expect(screen.getByRole('listitem')).toHaveTextContent(
+      'Pronouns: they/them'
     )
-    expect(
-      document.querySelector('[data-slot="profile-fields"]')
-    ).toContainElement(terms[0])
   })
 
   it('opens a link in a new tab with rel me and hides the invisible parts', () => {
@@ -55,14 +107,13 @@ describe('ProfileFieldsBlock', () => {
       />
     )
 
-    const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', 'https://example.com/me')
-    expect(link).toHaveAttribute('target', '_blank')
-    const rel = link.getAttribute('rel')?.split(' ')
-    expect(rel).toEqual(
+    const anchor = screen.getByRole('link')
+    expect(anchor).toHaveAttribute('href', 'https://example.com/me')
+    expect(anchor).toHaveAttribute('target', '_blank')
+    expect(anchor.getAttribute('rel')?.split(' ')).toEqual(
       expect.arrayContaining(['me', 'nofollow', 'noopener', 'noreferrer'])
     )
-    expect(link.querySelector('.hidden')).toHaveTextContent('https://')
+    expect(anchor.querySelector('.hidden')).toHaveTextContent('https://')
   })
 
   it('keeps the link the person entered instead of rewriting a bridged profile', () => {
@@ -78,14 +129,9 @@ describe('ProfileFieldsBlock', () => {
       />
     )
 
-    const link = screen.getByRole('link')
-    expect(link).toHaveAttribute(
+    expect(screen.getByRole('link')).toHaveAttribute(
       'href',
       'https://bsky.app/profile/anna.example'
-    )
-    expect(link).toHaveAttribute('target', '_blank')
-    expect(link.getAttribute('rel')?.split(' ')).toEqual(
-      expect.arrayContaining(['me', 'nofollow', 'noopener', 'noreferrer'])
     )
   })
 
@@ -95,7 +141,7 @@ describe('ProfileFieldsBlock', () => {
         fields={[{ name: 'Bad', value: 'ok<script>window.x=1</script>' }]}
       />
     )
-    expect(screen.getByRole('definition')).toHaveTextContent(/^ok/)
+    expect(screen.getByRole('listitem')).toHaveTextContent(/ok/)
     expect(document.querySelector('script')).toBeNull()
   })
 
@@ -113,18 +159,19 @@ describe('ProfileFieldsBlock', () => {
       />
     )
 
-    expect(
-      within(screen.getByRole('term')).getByAltText(':blobcat:')
-    ).toHaveAttribute('src', 'https://example.com/blobcat.png')
-    expect(
-      within(screen.getByRole('definition')).getByRole('img')
-    ).toHaveAttribute('src', 'https://example.com/blobcat.png')
+    const images = within(screen.getByRole('listitem')).getAllByAltText(
+      ':blobcat:'
+    )
+    expect(images).toHaveLength(2)
+    images.forEach((image) =>
+      expect(image).toHaveAttribute('src', 'https://example.com/blobcat.png')
+    )
   })
 
-  describe('verified rows', () => {
+  describe('verified items', () => {
     const verifiedAt = '2026-03-04T10:00:00.000Z'
 
-    it('marks the row verified and explains it in a title', () => {
+    it('marks the item verified, green, and explains it in a title', () => {
       render(
         <ProfileFieldsBlock
           fields={[
@@ -138,14 +185,17 @@ describe('ProfileFieldsBlock', () => {
       )
 
       expect(screen.getByLabelText('Verified')).toBeInTheDocument()
-      const definition = screen.getByRole('definition')
-      expect(definition).toHaveAttribute(
+      const item = screen.getByRole('listitem')
+      expect(item).toHaveAttribute(
         'title',
-        'Ownership of this link was checked on Mar 4, 2026'
+        'Web: example.com · Ownership of this link was checked on Mar 4, 2026'
+      )
+      expect(screen.getByRole('link').parentElement).toHaveClass(
+        '[&_a]:text-success-text'
       )
     })
 
-    it('shows no verified mark on an unverified row', () => {
+    it('shows no verified mark on an unverified item', () => {
       render(
         <ProfileFieldsBlock
           fields={[{ name: 'Web', value: 'x', verifiedAt: null }]}
@@ -153,7 +203,167 @@ describe('ProfileFieldsBlock', () => {
       )
 
       expect(screen.queryByLabelText('Verified')).not.toBeInTheDocument()
-      expect(screen.getByRole('definition')).not.toHaveAttribute('title')
+      expect(screen.getByRole('listitem')).toHaveAttribute('title', 'Web: x')
     })
+  })
+
+  describe('+N more', () => {
+    it('points every toggle at the list it expands', () => {
+      render(<ProfileFieldsBlock fields={four} />)
+
+      const list = document.querySelector('[data-slot="profile-fields"]')
+      expect(list?.id).toBeTruthy()
+      screen
+        .getAllByRole('button')
+        .forEach((button) =>
+          expect(button).toHaveAttribute('aria-controls', list?.id)
+        )
+    })
+
+    it('has no button when everything fits', () => {
+      render(<ProfileFieldsBlock fields={four.slice(0, 2)} />)
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('has only a phone button when exactly 3 fields', () => {
+      render(<ProfileFieldsBlock fields={four.slice(0, 3)} />)
+
+      const button = screen.getByRole('button', { name: '+1 more' })
+      expect(button.parentElement).toHaveClass('sm:hidden')
+      expect(screen.getAllByRole('listitem')).toHaveLength(3)
+      expect(screen.getAllByRole('listitem')[2]).toHaveClass(
+        'hidden',
+        'sm:inline-flex'
+      )
+    })
+
+    it('keeps one Show less button and the phone-only wrapper with 3 fields expanded', () => {
+      render(<ProfileFieldsBlock fields={four.slice(0, 3)} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '+1 more' }))
+
+      const button = screen.getByRole('button', { name: 'Show less' })
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+      expect(button).toHaveAttribute('aria-expanded', 'true')
+      expect(button.parentElement).toHaveClass('sm:hidden')
+    })
+
+    it('does not sanitize again when toggling', () => {
+      render(<ProfileFieldsBlock fields={four} />)
+      vi.mocked(sanitizeText).mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: '+2 more' }))
+
+      expect(sanitizeText).not.toHaveBeenCalled()
+    })
+
+    it('counts per breakpoint with 4 fields', () => {
+      render(<ProfileFieldsBlock fields={four} />)
+
+      const phone = screen.getByRole('button', { name: '+2 more' })
+      const desktop = screen.getByRole('button', { name: '+1 more' })
+      expect(phone).toHaveClass('sm:hidden')
+      expect(desktop).toHaveClass('max-sm:hidden')
+
+      const items = screen.getAllByRole('listitem')
+      expect(items).toHaveLength(4)
+      expect(items[0]).not.toHaveClass('hidden')
+      expect(items[1]).not.toHaveClass('hidden')
+      expect(items[2]).toHaveClass('hidden', 'sm:inline-flex')
+      expect(items[3]).toHaveClass('hidden')
+      expect(items[3]).not.toHaveClass('sm:inline-flex')
+    })
+
+    it('expands inline and collapses again', () => {
+      render(<ProfileFieldsBlock fields={four} />)
+
+      const phone = screen.getByRole('button', { name: '+2 more' })
+      expect(phone).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.click(phone)
+
+      const buttons = screen.getAllByRole('button', { name: 'Show less' })
+      expect(buttons).toHaveLength(2)
+      buttons.forEach((button) =>
+        expect(button).toHaveAttribute('aria-expanded', 'true')
+      )
+      screen
+        .getAllByRole('listitem')
+        .forEach((item) => expect(item).not.toHaveClass('hidden'))
+
+      fireEvent.click(buttons[0])
+      expect(screen.getByRole('button', { name: '+2 more' })).toHaveAttribute(
+        'aria-expanded',
+        'false'
+      )
+    })
+  })
+})
+
+describe('ProfileFieldsBlock hostile and hydrated input', () => {
+  it.each([
+    ['100 KB of <', '<'.repeat(100_000)],
+    ['33,000 unclosed anchors', '<a '.repeat(33_000)]
+  ])('renders %s without throwing', (_name, value) => {
+    render(<ProfileFieldsBlock fields={[{ name: 'Web', value }]} />)
+    expect(screen.getByRole('listitem')).toBeInTheDocument()
+  })
+
+  it('caps the label and the value in the title', () => {
+    render(
+      <ProfileFieldsBlock
+        fields={[{ name: 'L'.repeat(500), value: 'v'.repeat(5000) }]}
+      />
+    )
+    const title = screen.getByRole('listitem').getAttribute('title') ?? ''
+    expect(title).toBe(`${'L'.repeat(200)}…: ${'v'.repeat(200)}…`)
+  })
+
+  it('cuts the title before a surrogate pair instead of through it', () => {
+    render(
+      <ProfileFieldsBlock
+        fields={[{ name: 'Web', value: `${'a'.repeat(199)}😀tail` }]}
+      />
+    )
+    const title = screen.getByRole('listitem').getAttribute('title') ?? ''
+    expect(title).toBe(`Web: ${'a'.repeat(199)}…`)
+  })
+
+  it('writes no separator for a blank label or value', () => {
+    render(
+      <ProfileFieldsBlock
+        fields={[
+          { name: '', value: 'only value' },
+          { name: 'Only label', value: '' }
+        ]}
+      />
+    )
+    const [first, second] = screen.getAllByRole('listitem')
+    expect(first).toHaveAttribute('title', 'only value')
+    expect(second).toHaveAttribute('title', 'Only label')
+    expect(first).not.toHaveTextContent(':')
+    expect(second).not.toHaveTextContent(':')
+  })
+
+  it('hydrates four fields without a mismatch', async () => {
+    const warn = vi.spyOn(console, 'error')
+    const { container, onRecoverableError, unmount } = await hydrateServerHtml(
+      <ProfileFieldsBlock
+        fields={[
+          ...four.slice(0, 1).map((field) => ({
+            ...field,
+            verifiedAt: '2026-03-04T10:00:00.000Z'
+          })),
+          ...four.slice(1)
+        ]}
+      />
+    )
+    try {
+      expect(onRecoverableError).not.toHaveBeenCalled()
+      expect(warn).not.toHaveBeenCalled()
+      expect(container.querySelectorAll('li')).toHaveLength(4)
+    } finally {
+      warn.mockRestore()
+      unmount()
+    }
   })
 })

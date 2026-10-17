@@ -1,17 +1,30 @@
 'use client'
 
-import { Check } from 'lucide-react'
-import { FC } from 'react'
+import {
+  Activity,
+  Check,
+  Globe,
+  Image as ImageIcon,
+  type LucideIcon,
+  Mail,
+  MapPin,
+  Tag
+} from 'lucide-react'
+import { FC, ReactNode, useId, useMemo, useState } from 'react'
 
 import {
   ActorDisplayName,
   type CustomEmojiTextProps
 } from '@/lib/components/actors/ActorDisplayName'
-import { Frame } from '@/lib/components/surface/Frame'
+import {
+  type ProfileFieldIconKind,
+  chooseProfileFieldIcon
+} from '@/lib/components/profile/profileFieldIcon'
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 import {
   sanitizeText,
   sanitizeTrustedStatusText
@@ -45,80 +58,208 @@ const LINK_CLASS =
 const VERIFIED_LINK_CLASS =
   '[&_a]:font-medium [&_a]:text-success-text [&_a]:underline [&_a]:underline-offset-2'
 
-// The profile's metadata fields ("links") under the bio: a framed list with
-// the label in a muted left column and the value in the right two thirds from
-// `sm`, stacked on a phone. Hidden when there are none. The value goes through
-// the same sanitizer and emoji pipeline as the bio, so a remote actor's links
-// work and its custom emoji show.
+const ICONS: Record<ProfileFieldIconKind, LucideIcon> = {
+  location: MapPin,
+  image: ImageIcon,
+  activity: Activity,
+  mail: Mail,
+  link: Globe,
+  text: Tag
+}
+
+// Items shown before "+N more": the first 2 below `sm`, the first 3 from `sm`.
+const PHONE_VISIBLE = 2
+const DESKTOP_VISIBLE = 3
+
+// The class that hides item `index` while the list is collapsed.
+const collapsedClass = (index: number) => {
+  if (index >= DESKTOP_VISIBLE) return 'hidden'
+  if (index >= PHONE_VISIBLE) return 'hidden sm:inline-flex'
+  return undefined
+}
+
+const TITLE_LIMIT = 200
+const clip = (text: string) => {
+  if (text.length <= TITLE_LIMIT) return text
+  // Do not cut a surrogate pair in half.
+  const last = text.charCodeAt(TITLE_LIMIT - 1)
+  const end = last >= 0xd800 && last <= 0xdbff ? TITLE_LIMIT - 1 : TITLE_LIMIT
+  return `${text.slice(0, end)}…`
+}
+
+// Everything a field needs to draw, worked out once per props so that a
+// "+N more" toggle only changes classes and never re-sanitizes a value.
+interface FieldView {
+  key: string
+  Icon: LucideIcon
+  verified: boolean
+  showLabel: boolean
+  isLink: boolean
+  /** Both the label and the value have text, so a separator reads right. */
+  separated: boolean
+  name: string
+  title: string
+  value: ReactNode
+}
+
+const MORE_CLASS =
+  'cursor-pointer rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+
+// The profile's metadata fields ("links") on one wrapping line under the bio:
+// a muted icon and the value per field, folded behind "+N more" past the first
+// 2 (phone) or 3 (`sm` and up). The fold is CSS only, so the server render is
+// right without measuring. A link field hides its label from sight (it stays
+// for screen readers and the title); a text field the icons cannot name keeps
+// its label visible. Hidden when there are none. The value goes through the
+// same sanitizer and emoji pipeline as the bio, so a remote actor's links work
+// and its custom emoji show.
 export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
-  const rows = fields.filter((field) => field.name.trim() || field.value.trim())
-  if (rows.length === 0) return null
-
-  const emojiTags = (tags ?? []).flatMap((tag) =>
-    tag.type === 'emoji' && toEmojiShortcodeToken(tag.name)
-      ? [{ type: 'emoji' as const, name: tag.name, value: tag.value }]
-      : []
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
+  const emojiTagList = useMemo(
+    () =>
+      (tags ?? []).flatMap((tag) =>
+        tag.type === 'emoji' && toEmojiShortcodeToken(tag.name)
+          ? [{ type: 'emoji' as const, name: tag.name, value: tag.value }]
+          : []
+      ),
+    [tags]
   )
-
-  return (
-    <Frame className="mt-4 overflow-hidden">
-      <dl data-slot="profile-fields" className="divide-y">
-        {rows.map((field, index) => {
+  const rows = useMemo<FieldView[]>(
+    () =>
+      fields
+        .filter((field) => field.name.trim() || field.value.trim())
+        .map((field, index) => {
           const verifiedDate = field.verifiedAt
             ? formatVerifiedDate(field.verifiedAt)
             : null
-          const verified = Boolean(field.verifiedAt)
+          // Sanitized once: the icon, the title and the rendered value all use it.
+          const html = sanitizeText(field.value)
+          const choice = chooseProfileFieldIcon(field.name, html)
+          const label = clip(field.name.trim())
+          const text = clip(htmlToPlainText(html))
+          const named = [label, text].filter(Boolean).join(': ')
+          return {
+            key: `${index}-${field.name}`,
+            Icon: ICONS[choice.kind],
+            verified: Boolean(field.verifiedAt),
+            showLabel: choice.kind === 'text',
+            isLink: choice.isLink,
+            separated: Boolean(label && text),
+            name: field.name,
+            title: field.verifiedAt
+              ? [
+                  named,
+                  `Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : named,
+            value: cleanClassName(
+              sanitizeTrustedStatusText(
+                convertEmojisToImages(html, emojiTagList)
+              ),
+              // Keep the link the person entered (target and rel="me").
+              { rewriteProfileLinks: false }
+            )
+          }
+        }),
+    [fields, emojiTagList]
+  )
+  if (rows.length === 0) return null
+  const hiddenOnPhone = Math.max(0, rows.length - PHONE_VISIBLE)
+  const hiddenOnDesktop = Math.max(0, rows.length - DESKTOP_VISIBLE)
+
+  const toggle = (count: number, className: string) => (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={listId}
+      onClick={() => setExpanded((value) => !value)}
+      className={cn(MORE_CLASS, className)}
+    >
+      {expanded ? 'Show less' : `+${count} more`}
+    </button>
+  )
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+      {/* `contents` lets the items and the toggle share one wrapping line. The
+          explicit role="list" is because Safari drops the list semantics of a
+          list-style:none list; Safari before about 17.4 also drops
+          display:contents elements from the accessibility tree, which we
+          accept. */}
+      <ul
+        id={listId}
+        data-slot="profile-fields"
+        role="list"
+        className="contents"
+      >
+        {rows.map((field, index) => {
+          const { Icon, verified, showLabel } = field
           return (
-            <div
-              key={`${index}-${field.name}`}
+            <li
+              key={field.key}
+              title={field.title}
               className={cn(
-                'grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]',
-                verified && 'bg-success/10'
+                'inline-flex max-w-full shrink-0 items-center gap-1.5',
+                !expanded && collapsedClass(index)
               )}
             >
-              <dt
+              <Icon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
+              {verified ? (
+                <Check
+                  role="img"
+                  aria-label="Verified"
+                  className="size-3.5 shrink-0 text-success-text"
+                />
+              ) : null}
+              <span
                 className={cn(
-                  'px-4 pt-2.5 text-xs font-medium tracking-wide break-words text-muted-foreground uppercase sm:py-2.5 sm:leading-5',
-                  !verified && 'sm:bg-muted/40'
+                  'min-w-0 truncate',
+                  showLabel ? 'text-muted-foreground' : 'sr-only'
                 )}
               >
-                <ActorDisplayName text={field.name} tags={emojiTags} />
-              </dt>
-              <dd
-                title={
+                <ActorDisplayName text={field.name} tags={emojiTagList} />
+                {showLabel || !field.separated ? '' : ': '}
+              </span>
+              {showLabel && field.separated ? (
+                <span className="sr-only">: </span>
+              ) : null}
+              <span
+                className={cn(
+                  // `pr-px` keeps sub-pixel text widths from tripping the ellipsis.
+                  'min-w-0 truncate pr-px',
                   verified
-                    ? `Ownership of this link was checked${verifiedDate ? ` on ${verifiedDate}` : ''}`
-                    : undefined
-                }
-                className={cn(
-                  'flex min-w-0 items-start gap-1.5 px-4 pt-1 pb-2.5 text-sm [overflow-wrap:anywhere] sm:py-2.5',
-                  verified ? VERIFIED_LINK_CLASS : LINK_CLASS
+                    ? VERIFIED_LINK_CLASS
+                    : field.isLink
+                      ? LINK_CLASS
+                      : showLabel
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
                 )}
               >
-                {verified ? (
-                  <Check
-                    role="img"
-                    aria-label="Verified"
-                    className="mt-0.5 size-3.5 shrink-0 text-success-text"
-                  />
-                ) : null}
-                <div className="min-w-0">
-                  {cleanClassName(
-                    sanitizeTrustedStatusText(
-                      convertEmojisToImages(
-                        sanitizeText(field.value),
-                        emojiTags
-                      )
-                    ),
-                    // Keep the link the person entered (target and rel="me").
-                    { rewriteProfileLinks: false }
-                  )}
-                </div>
-              </dd>
-            </div>
+                {field.value}
+              </span>
+            </li>
           )
         })}
-      </dl>
-    </Frame>
+      </ul>
+      {hiddenOnPhone > 0 ? (
+        <span className={cn(hiddenOnDesktop === 0 && 'sm:hidden')}>
+          {hiddenOnDesktop > 0 ? (
+            <>
+              {toggle(hiddenOnPhone, 'sm:hidden')}
+              {toggle(hiddenOnDesktop, 'max-sm:hidden')}
+            </>
+          ) : (
+            toggle(hiddenOnPhone, '')
+          )}
+        </span>
+      ) : null}
+    </div>
   )
 }
