@@ -45,6 +45,16 @@ describe('deliveryError', () => {
       expect(isSalvageableNetworkError({ code: 'EAI_AGAIN' })).toBe(true)
     })
 
+    it.each([
+      'DEPTH_ZERO_SELF_SIGNED_CERT',
+      'SELF_SIGNED_CERT_IN_CHAIN',
+      'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      'CERT_HAS_EXPIRED',
+      'ERR_TLS_CERT_ALTNAME_INVALID'
+    ])('returns true for TLS certificate error %s', (code) => {
+      expect(isSalvageableNetworkError({ code })).toBe(true)
+    })
+
     it('returns false for non-network errors', () => {
       expect(isSalvageableNetworkError(new Error('Random syntax error'))).toBe(
         false

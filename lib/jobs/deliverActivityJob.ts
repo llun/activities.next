@@ -8,10 +8,8 @@ import {
   classifyDeliveryError
 } from '@/lib/services/federation/deliveryError'
 import { JobHandle } from '@/lib/services/queue/type'
-import { FollowStatus } from '@/lib/types/domain/follow'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
@@ -71,7 +69,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         body: JSON.stringify(activity)
       })
 
-      if (statusCode === 200 || statusCode === 202) {
+      if (statusCode !== undefined && statusCode >= 200 && statusCode < 300) {
         span?.addEvent('delivery_success', {
           'delivery.inbox': inbox,
           'delivery.status_code': statusCode
@@ -113,37 +111,9 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         throw error
       }
 
-      const nodeError = error as NodeJS.ErrnoException | null | undefined
-      if (
-        nodeError?.code &&
-        UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code)
-      ) {
-        try {
-          const follows = await database.getLocalFollowsFromInboxUrl({
-            followerInboxUrl: inbox,
-            targetActorId: actor.id
-          })
-          await Promise.all(
-            follows.map((follow) =>
-              database.updateFollowStatus({
-                followId: follow.id,
-                status: FollowStatus.enum.Rejected
-              })
-            )
-          )
-          span?.addEvent('delivery_follower_unfollowed', {
-            'delivery.inbox': inbox,
-            'delivery.unfollowed_count': follows.length,
-            'error.code': nodeError.code
-          })
-        } catch (unfollowError) {
-          logger.warn(
-            { inbox, err: toLoggableError(unfollowError) },
-            'DeliverActivityJob: failed to reject follow for failing inbox'
-          )
-        }
-      }
-
+      // Network errors (DNS failures, timeouts, resets, TLS certificate errors)
+      // never touch follow state: the classification below retries them
+      // through the queue's normal backoff, like Mastodon does.
       const classification = classifyDeliveryError({ error })
       if (classification.disposition === DeliveryDisposition.SALVAGEABLE) {
         const errMessage = `Delivery to ${inbox} encountered network failure: ${(error as Error).message}`
@@ -172,7 +142,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         'delivery.salvageable': false
       })
       logger.warn(
-        { inbox, err: error, reason: classification.reason },
+        { inbox, err: toLoggableError(error), reason: classification.reason },
         'DeliverActivityJob: delivery failed unsalvageably, discarding'
       )
     }
