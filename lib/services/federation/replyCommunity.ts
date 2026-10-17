@@ -73,9 +73,9 @@ const isOpen = (value: MastodonVisibility) =>
  * own parent, up the thread.
  *
  * The walk up our own posts uses `getStatusThreadStep` (two light queries per
- * level, no hydration). It stops with null at a local ancestor that is not
- * public or unlisted (a hidden post in the chain must not tie the reply to a
- * public group), at a loop, a missing ancestor, a thread that is not a reply
+ * level, no hydration). It stops with null at any ancestor, local or remote,
+ * that is not public or unlisted (a hidden post in the chain must not tie the
+ * reply to a public group), at a loop, a missing ancestor, a thread that is not a reply
  * or after MAX_THREAD_DEPTH posts. Only the remote post it ends on is fully
  * read, to rank its recipients.
  */
@@ -103,6 +103,8 @@ export const getReplyCommunityActorId = async ({
     if (seen.has(step.id) || seen.size >= MAX_THREAD_DEPTH) return null
     seen.add(step.id)
 
+    if (!isOpen(getVisibility(step.to, step.cc))) return null
+
     if (!step.isLocalActor) {
       // `first` is already hydrated; any other remote post is read once.
       const remote =
@@ -122,7 +124,6 @@ export const getReplyCommunityActorId = async ({
       })
     }
 
-    if (!isOpen(getVisibility(step.to, step.cc))) return null
     // Do not look up a parent the depth limit would discard
     if (!step.reply || seen.size >= MAX_THREAD_DEPTH) return null
     const parent = await database.getStatusThreadStep({

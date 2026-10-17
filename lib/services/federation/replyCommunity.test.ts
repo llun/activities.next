@@ -311,6 +311,25 @@ describe('community lookup from statuses', () => {
     expect(getStatus).not.toHaveBeenCalled()
   })
 
+  it('stops at a remote ancestor that is not public or unlisted', async () => {
+    const { database } = walkDatabase([
+      {
+        id: parent.id,
+        reply: null,
+        actorId: COMMUNITY,
+        isLocalActor: false,
+        to: [`${COMMUNITY}/followers`],
+        cc: []
+      }
+    ])
+    await expect(
+      getReplyCommunityActorId({
+        database,
+        replyStatus: localStatus(localStep(1, parent.id))
+      })
+    ).resolves.toBeNull()
+  })
+
   it('returns null for a local thread that loops or has no community', async () => {
     const loop = localStep(1, 'https://local.test/statuses/1')
     const { database } = walkDatabase([loop])
