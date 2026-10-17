@@ -841,6 +841,7 @@ describe('MainPageTimeline', () => {
     it('jumps to the newest post without reloading when every new post is loaded', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const newA = createStatus('https://activities.local/users/llun/s/new-a')
+      rowTops = { [post1.id]: 20 }
 
       render(
         <MainPageTimeline
@@ -852,12 +853,14 @@ describe('MainPageTimeline', () => {
         />
       )
 
-      vi.mocked(getTimeline).mockResolvedValueOnce({
-        statuses: [newA, post1],
-        nextMaxStatusId: null,
-        prevMinStatusId: newA.id
+      vi.mocked(getTimeline).mockImplementationOnce(async () => {
+        rowTops = { [newA.id]: -300, [post1.id]: 20 }
+        return {
+          statuses: [newA, post1],
+          nextMaxStatusId: null,
+          prevMinStatusId: newA.id
+        }
       })
-      rowTops = { [newA.id]: -300, [post1.id]: 120 }
       await act(async () => {
         window.dispatchEvent(new Event('online'))
       })
@@ -875,11 +878,13 @@ describe('MainPageTimeline', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('clamps capturedAnchor offsetTop to VIEW_TOP_EDGE (80px) so new posts prepended above the first post do not fall into the PostBox blind spot', async () => {
+    it('clamps capturedAnchor offsetTop to VIEW_TOP_EDGE (80px) when new posts are prepended above a mid-feed reading spot', async () => {
+      const post0 = createStatus('https://activities.local/users/llun/s/0')
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const newA = createStatus('https://activities.local/users/llun/s/new-a')
-      // post1 starts at 310px (below the header and composer).
-      rowTops = { [post1.id]: 310 }
+      // post0 has scrolled above the sticky header (bottom = -50 <= 80) and
+      // post1 starts at 120px (e.g. below a gap/divider after post0).
+      rowTops = { [post0.id]: -150, [post1.id]: 120 }
 
       // Simulate window.scrollBy shifting all rows' viewport top by -diff.
       scrollByMock.mockImplementation((opts?: ScrollToOptions | number) => {
@@ -896,26 +901,29 @@ describe('MainPageTimeline', () => {
           currentTime={FIXED_CURRENT_TIME}
           profile={profile}
           isMediaUploadEnabled={false}
-          statuses={[post1]}
+          statuses={[post0, post1]}
         />
       )
 
-      vi.mocked(getTimeline).mockResolvedValueOnce({
-        statuses: [newA, post1],
-        nextMaxStatusId: null,
-        prevMinStatusId: newA.id
+      vi.mocked(getTimeline).mockImplementationOnce(async () => {
+        // When newA (250px tall) is prepended above post0 before scroll adjustment:
+        rowTops = { [newA.id]: -150, [post0.id]: 100, [post1.id]: 370 }
+        return {
+          statuses: [newA, post0, post1],
+          nextMaxStatusId: null,
+          prevMinStatusId: newA.id
+        }
       })
-      // When newA (250px tall) is prepended above post1 before scroll adjustment:
-      rowTops = { [newA.id]: 310, [post1.id]: 560 }
 
       await act(async () => {
         window.dispatchEvent(new Event('online'))
       })
 
-      // Because capturedAnchor.offsetTop was clamped to 80px, scrollBy shifts by
-      // 560 - 80 = 480px, placing post1 at 80px and newA at -170px (bottom -70 <= 80).
+      // Because capturedAnchor.offsetTop (120px) was clamped to 80px, scrollBy
+      // shifts by 370 - 80 = 290px, placing post1 at 80px, post0 at -190px,
+      // and newA at -440px (bottom -340 <= 80).
       expect(scrollByMock).toHaveBeenCalledWith({
-        top: 480,
+        top: 290,
         behavior: 'instant'
       })
       expect(
@@ -947,6 +955,39 @@ describe('MainPageTimeline', () => {
         window.dispatchEvent(new Event('online'))
       })
 
+      expect(scrollByMock).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: /new post|Back to top/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not scroll down or show unseen pill when preserveScroll refresh at the top of the timeline prepends new posts', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const newA = createStatus('https://activities.local/users/llun/s/new-a')
+      rowTops = { [post1.id]: 310 }
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [newA, post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: newA.id
+      })
+      rowTops = { [newA.id]: 310, [post1.id]: 560 }
+
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+
+      expect(screen.getByTestId(`post-${newA.id}`)).toBeInTheDocument()
       expect(scrollByMock).not.toHaveBeenCalled()
       expect(
         screen.queryByRole('button', { name: /new post|Back to top/ })

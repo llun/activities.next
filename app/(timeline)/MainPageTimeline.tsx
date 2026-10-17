@@ -396,6 +396,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   useEffect(() => {
     if (initialSegments && initialSegments.length > 0) {
       hydratedOnceForActorRef.current = profile.id
+      setHydratedActorId(profile.id)
       return
     }
     if (hydratedOnceForActorRef.current === profile.id) {
@@ -999,10 +1000,35 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           incomingNextMaxStatusId: result.nextMaxStatusId,
           incomingPrevMinStatusId: result.prevMinStatusId
         })
+        const now = Date.now()
+        const firstMergedId = merged.segments[0]?.statuses[0]?.id
+        const hasNewerPrepended =
+          Boolean(firstMergedId) && firstMergedId !== previousFirstId
+        const isCapturedTopOfFeed =
+          capturedAnchor !== null &&
+          (isTopOfFeedAnchor(
+            {
+              statusId: capturedAnchor.statusId,
+              offsetTop: capturedAnchor.offsetTop,
+              updatedAt: now
+            },
+            previousFirstId
+          ) ||
+            isTopOfFeedAnchor(
+              {
+                statusId: capturedAnchor.statusId,
+                offsetTop: capturedAnchor.offsetTop,
+                updatedAt: now
+              },
+              firstMergedId
+            ))
+        const willPreserveAnchor =
+          effectivePreserve && capturedAnchor !== null && !isCapturedTopOfFeed
+
         // A refresh that keeps the reading spot loads the newer posts above
         // the reader. One that goes to the top (the pill, a fresh load)
         // shows them on screen.
-        if (effectivePreserve) {
+        if (willPreserveAnchor) {
           markNewAsUnseen(currentStatusesRef.current, merged.segments)
         }
         segmentsActorIdRef.current = profile.id
@@ -1034,26 +1060,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           }))
         }
 
-        const now = Date.now()
         setLastRefreshedAt(now)
         setNewerPostsCount(0)
         lastFailedFetchRef.current = null
 
-        const firstMergedId = merged.segments[0]?.statuses[0]?.id
-        const hasNewerPrepended =
-          Boolean(firstMergedId) && firstMergedId !== previousFirstId
-        const isCapturedTopOfFeed =
-          capturedAnchor !== null &&
-          isTopOfFeedAnchor(
-            {
-              statusId: capturedAnchor.statusId,
-              offsetTop: capturedAnchor.offsetTop,
-              updatedAt: now
-            },
-            firstMergedId
-          )
-
-        if (effectivePreserve && capturedAnchor && !isCapturedTopOfFeed) {
+        if (willPreserveAnchor && capturedAnchor) {
           restoredAnchorRef.current = null
           const nextAnchor: ScrollAnchorState = {
             statusId: capturedAnchor.statusId,
@@ -1064,12 +1075,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           }
           currentScrollAnchorRef.current = nextAnchor
           setPendingScrollAnchor(nextAnchor)
-        } else if (!effectivePreserve) {
+        } else if (!effectivePreserve || isCapturedTopOfFeed) {
           restoredAnchorRef.current = null
           currentScrollAnchorRef.current = null
           setPendingScrollAnchor(null)
-          setIsScrolledDown(false)
           if (
+            !effectivePreserve ||
+            typeof window === 'undefined' ||
+            window.scrollY <= VIEW_TOP_EDGE
+          ) {
+            setIsScrolledDown(false)
+          }
+          if (
+            !effectivePreserve &&
             !resetWasTriggered &&
             !isScrollingToTopRef.current &&
             typeof window !== 'undefined' &&
