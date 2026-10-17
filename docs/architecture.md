@@ -1568,6 +1568,27 @@ legacy shape left to copy.
   URL serves, and the audience is follower inboxes plus accepted relays, as in
   Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
   carried in the job so a retried job resends the same Update.
+- **Discovery flags and moved accounts.** `getPersonFromActor` emits Mastodon's
+  `discoverable` and `indexable` (declared as `toot:discoverable` and
+  `toot:indexable` in `@context`, next to `toot`), read from the actor's
+  settings (`update_credentials` `discoverable`/`indexable`). Both are opt-in
+  on the wire: an unset flag federates as `false`, as Mastodon's
+  ActorSerializer does (`discoverable || false`), so users who never opted in
+  are not advertised to remote servers (the local Account entity keeps its own
+  defaults). A non-empty `attributionDomains` setting (`update_credentials`
+  `attribution_domains`, Mastodon 4.4+) is emitted as `attributionDomains`
+  (declared `toot:attributionDomains` with `@type: @id` and `@container: @set`,
+  in `@context` and in the inbound canonical context), keeping only valid hostnames. Inbound,
+  `getPersistableProfile` stores a remote actor's `movedTo` and `alsoKnownAs`
+  in the actor `settings` JSON (a refresh without them clears them). The
+  Mastodon Account entity of a remote actor with `movedTo` carries `moved`: the
+  target account, but only when the target actor is already stored (no remote
+  fetch), and a target's own move is not followed. `moved` is hidden when the
+  origin is suspended or the target is suspended or deleted/being deleted
+  (Mastodon parity). Stored `alsoKnownAs` keeps only
+  http(s) URLs, at most 20, and an inbound `movedTo` that is not an http(s) URL
+  is dropped. Outbound `alsoKnownAs` and `movedTo` are not emitted: local aliases and account
+  migration do not exist yet.
 - **Profile links (`fields`) are plain text in storage and HTML everywhere
   they leave.** `formatProfileFieldValue`
   (`lib/utils/text/formatProfileFieldValue.ts`) is the one formatter, a

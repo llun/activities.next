@@ -166,6 +166,13 @@ const CANONICAL_CONTEXT = {
         '@type': '@id',
         '@container': '@set'
       },
+      // A set of domains — force an array so a single domain does not compact
+      // to a scalar string.
+      attributionDomains: {
+        '@id': 'toot:attributionDomains',
+        '@type': '@id',
+        '@container': '@set'
+      },
       featured: { '@id': 'toot:featured', '@type': '@id' },
       featuredTags: { '@id': 'toot:featuredTags', '@type': '@id' },
       devices: { '@id': 'toot:devices', '@type': '@id' },

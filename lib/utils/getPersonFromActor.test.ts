@@ -11,7 +11,12 @@ describe('getPersonFromActor', () => {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         'https://w3id.org/security/v1',
-        { manuallyApprovesFollowers: 'as:manuallyApprovesFollowers' }
+        {
+          manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+          toot: 'http://joinmastodon.org/ns#',
+          discoverable: 'toot:discoverable',
+          indexable: 'toot:indexable'
+        }
       ],
       id: 'https://chat.llun.dev/users/me',
       type: 'Person',
@@ -27,6 +32,8 @@ describe('getPersonFromActor', () => {
       url: `https://chat.llun.dev/@me`,
       published: expect.toBeString(),
       manuallyApprovesFollowers: false,
+      discoverable: false,
+      indexable: false,
       publicKey: {
         id: `https://chat.llun.dev/users/me#main-key`,
         owner: 'https://chat.llun.dev/users/me',
@@ -55,6 +62,8 @@ describe('getPersonFromActor', () => {
     expect(person['@context']).toContainEqual({
       manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
       toot: 'http://joinmastodon.org/ns#',
+      discoverable: 'toot:discoverable',
+      indexable: 'toot:indexable',
       Emoji: 'toot:Emoji'
     })
     expect(person.tag).toEqual([
@@ -120,6 +129,9 @@ describe('getPersonFromActor', () => {
       const person = getPersonFromActor({ ...MockActor({}), fields })
       expect(person['@context']).toContainEqual({
         manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+        toot: 'http://joinmastodon.org/ns#',
+        discoverable: 'toot:discoverable',
+        indexable: 'toot:indexable',
         schema: 'http://schema.org#',
         PropertyValue: 'schema:PropertyValue',
         value: 'schema:value'
@@ -138,6 +150,85 @@ describe('getPersonFromActor', () => {
           value: expect.stringContaining('href="https://example.com/me"')
         },
         { name: 'Pronouns', value: 'they &lt;3 them' }
+      ])
+    })
+  })
+
+  describe('discoverable and indexable', () => {
+    it('emits the owner opt-ins', () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        discoverable: false,
+        indexable: true
+      })
+      expect(person.discoverable).toBe(false)
+      expect(person.indexable).toBe(true)
+    })
+
+    it('federates unset flags as false, like Mastodon', () => {
+      const person = getPersonFromActor(MockActor({}))
+      expect(person.discoverable).toBe(false)
+      expect(person.indexable).toBe(false)
+    })
+
+    it('survives the inbound compaction and actor parsing', async () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        discoverable: true,
+        indexable: true
+      })
+      const compacted = await compactActivityPub(
+        JSON.parse(JSON.stringify(person))
+      )
+      const parsed = ActivityPubActor.parse(compacted)
+      expect(parsed.discoverable).toBe(true)
+      expect(parsed.indexable).toBe(true)
+    })
+  })
+
+  describe('attributionDomains', () => {
+    it('omits the property and the term when none are set', () => {
+      const person = getPersonFromActor(MockActor({}))
+      expect(person).not.toHaveProperty('attributionDomains')
+      expect(JSON.stringify(person['@context'])).not.toContain(
+        'attributionDomains'
+      )
+    })
+
+    it('emits only valid hostnames with the toot term', () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        attributionDomains: [
+          'blog.example.com',
+          'not a host',
+          'https://x.example',
+          '-bad.example',
+          ''
+        ]
+      })
+      expect(person.attributionDomains).toEqual(['blog.example.com'])
+      expect(person['@context']).toContainEqual(
+        expect.objectContaining({
+          attributionDomains: {
+            '@id': 'toot:attributionDomains',
+            '@type': '@id',
+            '@container': '@set'
+          }
+        })
+      )
+    })
+
+    it('survives the inbound compaction', async () => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        attributionDomains: ['blog.example.com', 'news.example.com']
+      })
+      const compacted = (await compactActivityPub(
+        JSON.parse(JSON.stringify(person))
+      )) as Record<string, unknown>
+      expect(compacted.attributionDomains).toEqual([
+        'blog.example.com',
+        'news.example.com'
       ])
     })
   })

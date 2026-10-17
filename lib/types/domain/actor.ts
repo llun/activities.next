@@ -40,6 +40,14 @@ export const ActorProfile = z.object({
   headerImageUrl: z.string().optional(),
   manuallyApprovesFollowers: z.boolean().optional(),
   tags: ActorEmojiTag.array().optional(),
+  // Mastodon `discoverable`/`indexable` opt-ins, only when the owner set them.
+  discoverable: z.boolean().optional(),
+  indexable: z.boolean().optional(),
+  // Remote actors: the account they moved to and their claimed aliases.
+  movedTo: z.string().optional(),
+  alsoKnownAs: z.string().array().optional(),
+  // Mastodon 4.4+ author attribution: domains allowed to credit this actor.
+  attributionDomains: z.string().array().optional(),
 
   followersUrl: z.string(),
   inboxUrl: z.string(),

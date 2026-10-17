@@ -1,8 +1,12 @@
 import fetchMock from 'jest-fetch-mock'
 
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { mockRequests } from '@/lib/stub/activities'
+import { MockActor } from '@/lib/stub/actor'
+import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
+import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import {
   BlockedFederationDomainError,
@@ -357,6 +361,7 @@ describe('recordActorIfNeeded', () => {
         preferredUsername: 'alice',
         name: 'Alice :blobcat:',
         inbox: 'https://remote.test/users/alice/inbox',
+        outbox: 'https://remote.test/users/alice/outbox',
         publicKey: {
           id: 'https://remote.test/users/alice#main-key',
           owner: 'https://remote.test/users/alice',
@@ -382,6 +387,158 @@ describe('recordActorIfNeeded', () => {
           value: 'https://remote.test/emojis/blobcat.png'
         }
       ])
+    })
+
+    it('carries movedTo and alsoKnownAs, and clears them when absent', () => {
+      const base = {
+        id: 'https://remote.test/users/alice',
+        type: 'Person' as const,
+        preferredUsername: 'alice',
+        inbox: 'https://remote.test/users/alice/inbox'
+      }
+      expect(
+        getPersistableProfile({
+          ...base,
+          movedTo: 'https://new.test/users/alice',
+          alsoKnownAs: ['https://old.test/users/alice']
+        } as never)
+      ).toMatchObject({
+        movedTo: 'https://new.test/users/alice',
+        alsoKnownAs: ['https://old.test/users/alice']
+      })
+      expect(getPersistableProfile(base as never)).toMatchObject({
+        movedTo: null,
+        alsoKnownAs: []
+      })
+    })
+
+    it('keeps only URL aliases, capped at 20, and drops a non-URL movedTo', () => {
+      const base = {
+        id: 'https://remote.test/users/alice',
+        type: 'Person' as const,
+        preferredUsername: 'alice',
+        inbox: 'https://remote.test/users/alice/inbox'
+      }
+      const aliases = Array.from(
+        { length: 30 },
+        (_, i) => `https://old.test/users/a${i}`
+      )
+      const profile = getPersistableProfile({
+        ...base,
+        alsoKnownAs: ['not a url', 'javascript:alert(1)', ...aliases]
+      } as never)
+      expect(profile.alsoKnownAs).toEqual(aliases.slice(0, 20))
+      expect(
+        ActivityPubActor.parse({
+          ...base,
+          outbox: `${base.id}/outbox`,
+          publicKey: { id: 'k', owner: base.id, publicKeyPem: 'pem' },
+          movedTo: 'garbage'
+        }).movedTo
+      ).toBeUndefined()
+    })
+
+    it('stores movedTo and alsoKnownAs from a compacted actor document', async () => {
+      const compacted = await compactActivityPub({
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          'https://w3id.org/security/v1',
+          {
+            movedTo: { '@id': 'as:movedTo', '@type': '@id' },
+            alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' }
+          }
+        ],
+        id: 'https://remote.test/users/alice',
+        type: 'Person',
+        preferredUsername: 'alice',
+        inbox: 'https://remote.test/users/alice/inbox',
+        outbox: 'https://remote.test/users/alice/outbox',
+        publicKey: {
+          id: 'https://remote.test/users/alice#main-key',
+          owner: 'https://remote.test/users/alice',
+          publicKeyPem: 'pem'
+        },
+        movedTo: 'https://new.test/users/alice',
+        alsoKnownAs: 'https://old.test/users/alice'
+      })
+      const profile = getPersistableProfile(ActivityPubActor.parse(compacted))
+      expect(profile.movedTo).toBe('https://new.test/users/alice')
+      expect(profile.alsoKnownAs).toEqual(['https://old.test/users/alice'])
+    })
+
+    describe('single-value sets and junk survive compaction', () => {
+      const id = 'https://remote.test/users/alice'
+      const remote = (extra: Record<string, unknown>) => ({
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          'https://w3id.org/security/v1',
+          {
+            toot: 'http://joinmastodon.org/ns#',
+            attributionDomains: {
+              '@id': 'toot:attributionDomains',
+              '@type': '@id'
+            },
+            alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' }
+          }
+        ],
+        id,
+        type: 'Person',
+        preferredUsername: 'alice',
+        inbox: `${id}/inbox`,
+        outbox: `${id}/outbox`,
+        publicKey: { id: `${id}#main-key`, owner: id, publicKeyPem: 'pem' },
+        ...extra
+      })
+
+      it('parses a Mastodon-style actor with one attribution domain', async () => {
+        const compacted = await compactActivityPub(
+          remote({ attributionDomains: ['blog.example.com'] })
+        )
+        const actor = ActivityPubActor.parse(compacted)
+        expect(actor.attributionDomains).toEqual(['blog.example.com'])
+      })
+
+      it('parses our own actor document with one attribution domain', async () => {
+        const person = getPersonFromActor({
+          ...MockActor({}),
+          attributionDomains: ['blog.example.com']
+        })
+        const compacted = await compactActivityPub(
+          JSON.parse(JSON.stringify(person))
+        )
+        expect(ActivityPubActor.parse(compacted).attributionDomains).toEqual([
+          'blog.example.com'
+        ])
+      })
+
+      it('parses one alsoKnownAs through compaction', async () => {
+        const compacted = await compactActivityPub(
+          remote({ alsoKnownAs: 'https://old.test/users/alice' })
+        )
+        expect(ActivityPubActor.parse(compacted).alsoKnownAs).toEqual([
+          'https://old.test/users/alice'
+        ])
+      })
+
+      it.each([{ a: 1 }, 42, [1, { a: 1 }]])(
+        'does not reject the actor over junk attributionDomains %j',
+        (junk) => {
+          const actor = ActivityPubActor.parse({
+            ...remote({}),
+            attributionDomains: junk,
+            alsoKnownAs: junk
+          })
+          expect(actor.id).toBe(id)
+        }
+      )
+
+      it('does not store a non-http movedTo', () => {
+        const profile = getPersistableProfile({
+          ...ActivityPubActor.parse(remote({})),
+          movedTo: 'javascript:alert(1)'
+        } as never)
+        expect(profile.movedTo).toBeNull()
+      })
     })
 
     it('handles single object person.tag or absent tag', () => {
