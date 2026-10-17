@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
+import {
+  HANDLE_QUOTE_REQUEST_JOB_NAME,
+  RECEIVE_FLAG_JOB_NAME
+} from '@/lib/jobs/names'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
 import { POST } from './route'
@@ -414,7 +417,7 @@ describe('POST /api/users/[username]/inbox', () => {
     })
   })
 
-  it.each(['Flag', 'Move', 'Add', 'Remove'])(
+  it.each(['Move', 'Add', 'Remove'])(
     'accepts verified %s activities without treating them as malformed',
     async (activityType) => {
       const response = await POST(
@@ -433,7 +436,7 @@ describe('POST /api/users/[username]/inbox', () => {
     }
   )
 
-  it.each(['Flag', 'Move', 'Add', 'Remove'])(
+  it.each(['Move', 'Add', 'Remove'])(
     'accepts transient %s activities without an id with 202 Accepted',
     async (activityType) => {
       mockActivityBody = {
@@ -457,6 +460,53 @@ describe('POST /api/users/[username]/inbox', () => {
       expect(mockCreateFollower).not.toHaveBeenCalled()
     }
   )
+
+  describe('Flag', () => {
+    const flag = {
+      id: 'https://remote.test/users/alice/activities/flag-1',
+      type: 'Flag',
+      actor: 'https://remote.test/users/alice',
+      content: 'Spam',
+      object: [
+        'https://activities.local/users/llun',
+        'https://activities.local/users/llun/statuses/post-1'
+      ]
+    }
+
+    const post = () =>
+      POST(createActorInboxActivityRequest('Flag'), {
+        params: Promise.resolve({ username: 'llun' })
+      })
+
+    it('queues a receive-flag job bound to the verified signer', async () => {
+      mockActivityBody = flag
+
+      const response = await post()
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: RECEIVE_FLAG_JOB_NAME,
+          verifiedSenderActorId: 'https://remote.test/users/alice',
+          data: {
+            id: flag.id,
+            actor: flag.actor,
+            object: flag.object,
+            content: 'Spam'
+          }
+        })
+      )
+    })
+
+    it('acknowledges without queueing when the actor is not the signer', async () => {
+      mockActivityBody = { ...flag, actor: 'https://evil.test/users/mallory' }
+
+      const response = await post()
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+  })
 
   it('dispatches verified QuoteRequest activities to the quote-request job', async () => {
     // The instrument-authorship check dereferences the remote note, so the

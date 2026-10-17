@@ -12,6 +12,7 @@ import {
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   LIKE_JOB_NAME,
+  RECEIVE_FLAG_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
@@ -36,6 +37,12 @@ import {
 import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getForwardedJobMessage } from './getForwardedJobMessage'
+
+// A Flag names the reported account(s) plus the reported statuses (the local
+// report form caps those at 100). Mastodon lists the accounts first, so the
+// cap is generous enough that a few accounts and 100 statuses all survive;
+// anything beyond is dropped here.
+const MAX_FLAG_OBJECT_IDS = 150
 
 const ENTITY_TYPE_IMAGE = 'Image'
 const ENTITY_TYPE_PAGE = 'Page'
@@ -412,6 +419,33 @@ export const getJobMessage = (
       id: deduplicationId,
       name: LIKE_JOB_NAME,
       data: activity,
+      verifiedSenderActorId
+    })
+  }
+
+  // A Flag is a remote moderation report (Mastodon "forward to remote server",
+  // Misskey, Pleroma/Akkoma, GoToSocial). Mastodon sends it to the
+  // shared inbox signed by its instance actor, which is the Flag's `actor`.
+  // The job keeps only the ids and the comment, never the sender's payload.
+  if (isMatch(activity, { type: 'Flag' })) {
+    if (activityActorMismatch(activity, verifiedSenderActorId)) {
+      return null
+    }
+
+    const flag: unknown = activity
+    const record = isRecord(flag) ? flag : {}
+    return createJobMessage({
+      id: deduplicationId,
+      name: RECEIVE_FLAG_JOB_NAME,
+      data: {
+        id: activity.id,
+        actor: extractActivityPubId(activity.actor),
+        object: extractActivityPubIds(record.object).slice(
+          0,
+          MAX_FLAG_OBJECT_IDS
+        ),
+        content: typeof record.content === 'string' ? record.content : ''
+      },
       verifiedSenderActorId
     })
   }

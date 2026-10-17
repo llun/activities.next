@@ -66,7 +66,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
   .object({
     id: z.string().optional(),
-    type: z.enum(['Flag', 'Move', 'Add', 'Remove']),
+    type: z.enum(['Move', 'Add', 'Remove']),
     actor: z.string()
   })
   .passthrough()
@@ -298,6 +298,9 @@ export const POST = traceApiRoute(
             const isStatusLevelActivity =
               isRecord(compactedActivity) &&
               (compactedActivity.type === 'Create' ||
+                // A remote moderation report; the job decides whether it
+                // names a local account.
+                compactedActivity.type === 'Flag' ||
                 compactedActivity.type === 'Update' ||
                 compactedActivity.type === 'Delete' ||
                 compactedActivity.type === 'Announce' ||

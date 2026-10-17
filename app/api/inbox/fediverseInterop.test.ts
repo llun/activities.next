@@ -8,7 +8,8 @@ import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
-  LIKE_JOB_NAME
+  LIKE_JOB_NAME,
+  RECEIVE_FLAG_JOB_NAME
 } from '@/lib/jobs/names'
 import type { JobMessage } from '@/lib/services/queue/type'
 import { seedDatabase } from '@/lib/stub/database'
@@ -388,6 +389,63 @@ describe('fediverse interop: shared inbox', () => {
           statusId: remoteObject
         })
       ).toBe(false)
+    })
+  })
+
+  describe('remote reports (Flag)', () => {
+    it.each([
+      {
+        description: 'mastodon Flag from the instance actor',
+        activity: FEDIVERSE_ACTIVITIES.mastodonFlag,
+        comment: 'Repeatedly posts spam links',
+        statusIds: [LOCAL_POST_ID]
+      },
+      {
+        description: 'misskey Flag of an account',
+        activity: FEDIVERSE_ACTIVITIES.misskeyFlag,
+        comment: 'Harassment in replies',
+        statusIds: []
+      }
+    ])(
+      '$description becomes a local report',
+      async ({ activity, comment, statusIds }) => {
+        const message = await deliverAndRun(database, activity)
+        expect(message?.name).toBe(RECEIVE_FLAG_JOB_NAME)
+
+        const reports = await database.getAdminReports({
+          accountId: activity.actor
+        })
+        expect(reports).toHaveLength(1)
+        expect(reports[0]).toMatchObject({
+          actorId: activity.actor,
+          targetActorId: ACTOR1_ID,
+          category: 'other',
+          comment,
+          statusIds
+        })
+      }
+    )
+
+    it('a redelivered Flag does not create a second report', async () => {
+      const activity = FEDIVERSE_ACTIVITIES.mastodonFlag
+      await deliverAndRun(database, activity)
+      await deliverAndRun(database, activity)
+
+      expect(
+        await database.getAdminReports({ accountId: activity.actor })
+      ).toHaveLength(1)
+    })
+
+    it('a Flag of a remote account is acknowledged and ignored', async () => {
+      const activity = {
+        ...FEDIVERSE_ACTIVITIES.mastodonFlag,
+        object: ['https://pleroma.test/users/lanodan']
+      }
+      await deliverAndRun(database, activity)
+
+      expect(
+        await database.getAdminReports({ accountId: activity.actor })
+      ).toHaveLength(0)
     })
   })
 

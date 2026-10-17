@@ -22,7 +22,10 @@ import lemmyGroup from './lemmy/group.json'
 import lemmyLike from './lemmy/like.json'
 import lemmyPage from './lemmy/page.json'
 import lemmyPerson from './lemmy/person.json'
+import mastodonFlag from './mastodon/flag.json'
+import mastodonInstanceActor from './mastodon/instance-actor.json'
 import misskeyCreateNote from './misskey/create-note.json'
+import misskeyFlag from './misskey/flag.json'
 import misskeyFollow from './misskey/follow.json'
 import misskeyNote from './misskey/note.json'
 import misskeyOutboxPage from './misskey/outbox-page.json'
@@ -69,6 +72,7 @@ import pleromaUndoEmojiReact from './pleroma/undo-emoji-react.json'
 // `https://llun.test/users/test1/statuses/post-1`.
 
 export type FediverseSoftware =
+  | 'mastodon'
   | 'misskey'
   | 'lemmy'
   | 'peertube'
@@ -81,6 +85,8 @@ export type FediverseSoftware =
 type Document = { id: string } & Record<string, unknown>
 
 export const FEDIVERSE_ACTORS = {
+  // Mastodon's headless instance actor, which signs the Flags it forwards.
+  mastodonInstance: mastodonInstanceActor,
   misskey: misskeyPerson,
   lemmy: lemmyPerson,
   lemmyGroup: lemmyGroup,
@@ -122,6 +128,8 @@ export const FEDIVERSE_COLLECTIONS = {
 
 // Inbound activities, as each server delivers them to an inbox.
 export const FEDIVERSE_ACTIVITIES = {
+  mastodonFlag,
+  misskeyFlag,
   misskeyCreateNote,
   misskeyRenote,
   misskeyReaction,
