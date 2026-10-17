@@ -8,6 +8,7 @@ import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
+  EditableStatus,
   Status,
   StatusNote,
   StatusPoll,
@@ -141,6 +142,9 @@ interface InsetReplyProps {
   showActions?: boolean
   postLineLimit?: PostLineLimit
   onReply?: (status: Status) => void
+  onEdit?: (status: EditableStatus) => void
+  onQuote?: (status: Status) => void
+  onPostDeleted?: (status: Status) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   onOpenStatus: (status: Status) => void
   onShowMedia: (
@@ -153,7 +157,9 @@ interface InsetReplyProps {
 /**
  * Someone else's reply to one of the run's posts, kept inside the combined
  * post as a small card under the post it answers. It has no media (the model
- * only tucks text in) and offers just reply and like.
+ * only tucks text in). Reply and like sit on the card; everything else a post
+ * offers (quote, copy link, mute, block, report, translate, edit and delete
+ * when it is the viewer's own, …) is in its own ⋯ menu.
  */
 const InsetReply: FC<InsetReplyProps> = ({
   status,
@@ -163,11 +169,17 @@ const InsetReply: FC<InsetReplyProps> = ({
   showActions,
   postLineLimit,
   onReply,
+  onEdit,
+  onQuote,
+  onPostDeleted,
   onLikeChanged,
   onOpenStatus,
   onShowMedia
 }) => {
   const actualStatus = getActualStatus(status)
+  const isOwnPost =
+    Boolean(actualStatus.isLocalActor) &&
+    currentActor?.id === actualStatus.actorId
   const name = actualStatus.actor
     ? getActorDisplayName(actualStatus.actor) || actualStatus.actor.username
     : 'someone'
@@ -231,6 +243,18 @@ const InsetReply: FC<InsetReplyProps> = ({
                 status={actualStatus}
                 targetLabel={`${name}'s reply`}
                 onLikeChanged={onLikeChanged}
+              />
+              <PostMenu
+                className="ml-auto"
+                triggerClassName="size-6"
+                targetLabel={`${name}'s reply`}
+                status={actualStatus}
+                isOwner={isOwnPost}
+                canEdit={isOwnPost}
+                onReply={onReply}
+                onEdit={onEdit}
+                onQuote={onQuote}
+                onPostDeleted={onPostDeleted}
               />
             </div>
           ) : null}
@@ -312,6 +336,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
     // The combined article unmounts on select; wait for the menu to close so
     // focus is not restored to a trigger that is already gone.
     deferUntilClosed: true,
+    group: true,
     onSelect: () => onShowSeparate(rowIds)
   }
 
@@ -342,7 +367,6 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
               const actualStatus = getActualStatus(part.status)
               const label = `${index + 1} of ${parts.length}`
               const isOwnPost =
-                Boolean(showActions && currentActor) &&
                 Boolean(actualStatus.isLocalActor) &&
                 currentActor?.id === actualStatus.actorId
               const compactTime = formatCompactRelativeTime(
@@ -382,6 +406,9 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                       showActions={showActions}
                       postLineLimit={postLineLimit}
                       onReply={handleReply}
+                      onEdit={handleEdit}
+                      onQuote={handleQuote}
+                      onPostDeleted={onPostDeleted}
                       onLikeChanged={onLikeChanged}
                       onOpenStatus={onOpenStatus}
                       onShowMedia={onShowMedia}
@@ -460,11 +487,11 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                                 targetLabel={`part ${label}`}
                               />
                             ) : null}
-                            {isOwnPost ? (
+                            {showsActionRow ? (
                               <PostMenu
                                 status={actualStatus}
-                                isOwner
-                                canEdit
+                                isOwner={isOwnPost}
+                                canEdit={isOwnPost}
                                 triggerClassName="size-6"
                                 targetLabel={`part ${label}`}
                                 onReply={handleReply}
@@ -502,7 +529,8 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                 replyStatus: getOriginalStatus(lastStatus),
                 replyLabel: 'the latest post',
                 label: 'the first post',
-                menuLabel: 'this post group'
+                menuLabel: 'this post group',
+                menuHeadings: { group: 'Post group', post: 'First post' }
               }}
               onReply={handleReply}
               onEdit={handleEdit}

@@ -35,6 +35,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -117,6 +118,12 @@ interface PostMenuExtraItemBase {
    * action whose own write is in flight has to say so here instead.
    */
   disabled?: boolean
+  /**
+   * Belongs to the whole block the bar serves, not to the post the menu acts
+   * on (the combined post's "Show as separate posts"). Only matters with
+   * `scopeLabels`, which lifts these into a section of their own.
+   */
+  group?: boolean
 }
 
 /** An extra item that runs one action. */
@@ -175,6 +182,12 @@ interface Props {
   triggerClassName?: string
   /** Names the post when the row's buttons act on different ones. */
   targetLabel?: string
+  /**
+   * For the menu of a bar that serves several posts: a heading over the
+   * `group` extra items and one over the items that act on this post only
+   * (Quote, Edit, Copy link, Report, …), so the scope of each is announced.
+   */
+  scopeLabels?: { group: string; post: string }
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
@@ -197,6 +210,7 @@ export const PostMenu: FC<Props> = ({
   className,
   triggerClassName,
   targetLabel,
+  scopeLabels,
   onReply,
   onEdit,
   onQuote,
@@ -343,6 +357,75 @@ export const PostMenu: FC<Props> = ({
     }
   }
 
+  const groupItems = scopeLabels
+    ? (extraItems ?? []).filter((item) => item.group)
+    : []
+  const postItems = (extraItems ?? []).filter(
+    (item) => !groupItems.includes(item)
+  )
+
+  const renderExtraItem = (item: PostMenuExtraItem) =>
+    item.items ? (
+      <DropdownMenuSub key={item.key}>
+        {/* The trigger takes the same `disabled` prop its rows do
+                        — Radix routes `SubTrigger` through the very same
+                        `MenuItemImpl` — and it needs it: a submenu whose every
+                        row is disabled is still openable on its own, so an
+                        owner mid-write would find a menu of choices none of
+                        which respond. */}
+        <DropdownMenuSubTrigger disabled={item.disabled}>
+          {item.icon}
+          {item.label}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-60">
+          {item.items.map((subItem) => (
+            <DropdownMenuItem
+              key={subItem.key}
+              disabled={subItem.disabled}
+              // A pick-one list, like the visibility submenu below:
+              // the check mark is decorative, so `aria-checked` is
+              // the only thing announcing the current choice.
+              role="menuitemradio"
+              aria-checked={subItem.checked}
+              onSelect={subItem.onSelect}
+            >
+              <span
+                className={cn(
+                  'flex-1 truncate',
+                  subItem.muted && 'text-muted-foreground'
+                )}
+              >
+                {subItem.label}
+              </span>
+              {subItem.trailing ? (
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {subItem.trailing}
+                </span>
+              ) : null}
+              {subItem.checked ? (
+                <Check className="size-4 shrink-0 text-primary" />
+              ) : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    ) : (
+      <DropdownMenuItem
+        key={item.key}
+        disabled={item.disabled}
+        onSelect={() => {
+          if (!item.deferUntilClosed) {
+            item.onSelect()
+            return
+          }
+          deferredSelectRef.current = item.onSelect
+        }}
+      >
+        {item.icon}
+        {item.label}
+      </DropdownMenuItem>
+    )
+
   return (
     <div
       className={cn('relative', className)}
@@ -392,70 +475,19 @@ export const PostMenu: FC<Props> = ({
             deferred()
           }}
         >
-          {extraItems && extraItems.length > 0 ? (
+          {scopeLabels && groupItems.length > 0 ? (
             <>
-              {extraItems.map((item) =>
-                item.items ? (
-                  <DropdownMenuSub key={item.key}>
-                    {/* The trigger takes the same `disabled` prop its rows do
-                        — Radix routes `SubTrigger` through the very same
-                        `MenuItemImpl` — and it needs it: a submenu whose every
-                        row is disabled is still openable on its own, so an
-                        owner mid-write would find a menu of choices none of
-                        which respond. */}
-                    <DropdownMenuSubTrigger disabled={item.disabled}>
-                      {item.icon}
-                      {item.label}
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-60">
-                      {item.items.map((subItem) => (
-                        <DropdownMenuItem
-                          key={subItem.key}
-                          disabled={subItem.disabled}
-                          // A pick-one list, like the visibility submenu below:
-                          // the check mark is decorative, so `aria-checked` is
-                          // the only thing announcing the current choice.
-                          role="menuitemradio"
-                          aria-checked={subItem.checked}
-                          onSelect={subItem.onSelect}
-                        >
-                          <span
-                            className={cn(
-                              'flex-1 truncate',
-                              subItem.muted && 'text-muted-foreground'
-                            )}
-                          >
-                            {subItem.label}
-                          </span>
-                          {subItem.trailing ? (
-                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                              {subItem.trailing}
-                            </span>
-                          ) : null}
-                          {subItem.checked ? (
-                            <Check className="size-4 shrink-0 text-primary" />
-                          ) : null}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ) : (
-                  <DropdownMenuItem
-                    key={item.key}
-                    disabled={item.disabled}
-                    onSelect={() => {
-                      if (!item.deferUntilClosed) {
-                        item.onSelect()
-                        return
-                      }
-                      deferredSelectRef.current = item.onSelect
-                    }}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </DropdownMenuItem>
-                )
-              )}
+              <DropdownMenuLabel>{scopeLabels.group}</DropdownMenuLabel>
+              {groupItems.map(renderExtraItem)}
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          {scopeLabels ? (
+            <DropdownMenuLabel>{scopeLabels.post}</DropdownMenuLabel>
+          ) : null}
+          {postItems.length > 0 ? (
+            <>
+              {postItems.map(renderExtraItem)}
               <DropdownMenuSeparator />
             </>
           ) : null}

@@ -176,6 +176,28 @@ describe('buildCombinedBlocks', () => {
       ])
     })
 
+    it("measures the author's next post from the post it answers, not from a waiting reply", () => {
+      const a1 = note('a1', { at: 0 })
+      const a2 = note('a2', { at: 5 * MINUTE, reply: a1.id })
+      const b1 = note('b1', { actor: mockBob, at: 14 * MINUTE, reply: a1.id })
+      const a3 = note('a3', { at: 23 * MINUTE, reply: a2.id })
+
+      // a3 is 9 minutes after b1 but 18 after a2, the post it answers.
+      expect(shape(buildCombinedBlocks([a1, a2, b1, a3]))).toEqual([
+        'a1 > a2',
+        'b1',
+        'a3'
+      ])
+    })
+
+    it('still combines an author reply to a tucked-in reply within the gap', () => {
+      const a1 = note('a1', { at: 0 })
+      const b1 = note('b1', { actor: mockBob, at: 9 * MINUTE, reply: a1.id })
+      const a2 = note('a2', { at: 18 * MINUTE, reply: b1.id })
+
+      expect(shape(buildCombinedBlocks([a1, b1, a2]))).toEqual(['a1+b1 > a2'])
+    })
+
     it('tucks up to two replies', () => {
       const a1 = note('a1', { at: 0 })
       const b1 = note('b1', { actor: mockBob, at: MINUTE, reply: a1.id })

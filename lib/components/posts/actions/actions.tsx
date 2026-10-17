@@ -62,6 +62,12 @@ interface Props extends Omit<PostProps, 'currentTime'> {
      * for this post group") rather than just the first post's.
      */
     menuLabel?: string
+    /**
+     * Headings for the ⋯ menu: one over the block's own items ("Show as
+     * separate posts") and one over the items that act on `status` only, so
+     * the menu says which post Quote, Edit, Copy link and Report reach.
+     */
+    menuHeadings?: { group: string; post: string }
   }
   onShowEdits?: (status: Status) => void
 }
@@ -223,6 +229,7 @@ export const Actions: FC<Props> = ({
         // ⋯ to the post's right edge while the rest stay packed on the left.
         className="ml-auto"
         targetLabel={splitTargets?.menuLabel ?? targetLabel}
+        scopeLabels={splitTargets?.menuHeadings}
         status={actualStatus}
         isOwner={isOwner}
         canEdit={canEdit}

@@ -142,6 +142,7 @@ export const buildCombinedBlocks = (
   }
 
   const infos = statuses.map(infoOf)
+  const createdAtById = new Map(infos.map((i) => [i.status.id, i.createdAt]))
   let index = 0
   for (;;) {
     if (index >= infos.length) {
@@ -174,7 +175,12 @@ export const buildCombinedBlocks = (
       if (
         repliesToRun &&
         info.visibility === run.visibility &&
-        isWithinGap(info.createdAt, previous.createdAt)
+        // The author's post sits under the post it answers, so the gap is
+        // measured from that post, not from the last reply waiting in line.
+        isWithinGap(
+          info.createdAt,
+          createdAtById.get(info.parentId as string) ?? previous.createdAt
+        )
       ) {
         for (const { info: pending, partIndex } of run.pending) {
           run.parts[partIndex].insets.push(pending)

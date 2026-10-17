@@ -914,6 +914,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   instead of through `Posts`; it drives the same shared `useInlineComposer` /
   `InlineStatusComposer` internally — that is the shared layer doing the wiring,
   not a page opting into per-status callbacks.)
+  **Exception — the timeline's combined post** (`CombinedPostListItem`, a run of
+  quick self-replies shown as one row): repost, like, bookmark and react for the
+  parts live on its one shared action bar and act on the first post, and reply
+  goes to the latest post (`Actions`' `splitTargets`). Every later part and every
+  tucked-in reply still keeps its own `⋯` menu (the same `PostMenu`, so quote,
+  copy link, open original, mute, block, report, translate and edit/delete-own
+  all work on that post), and "Show as separate posts" gives each post its full
+  action bar. A new combined-style surface must not drop a post's `⋯` menu.
 - **The chip row and the action row both span the whole status.** Each is pulled
   `-ml-13` — 13 spacing steps, which is the `size-10` avatar column plus its
   `gap-3`, so the pull tracks the root font size the way those two do — and each

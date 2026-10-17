@@ -566,7 +566,7 @@ describe('TimelineFeed', () => {
       }
     })
 
-    it('offers each of the viewer’s own parts its own menu', () => {
+    it('offers every part its own menu, own or not', async () => {
       const { rerender } = render(
         <TimelineFeed
           host="activities.local"
@@ -593,9 +593,47 @@ describe('TimelineFeed', () => {
           showActions
         />
       )
+      // Another author's parts keep a menu too (quote, copy link, report, …).
+      const partMenu = screen.getByRole('button', {
+        name: 'More actions for part 2 of 3'
+      })
       expect(
-        screen.queryByRole('button', { name: /More actions for part/ })
+        screen.getByRole('button', { name: 'More actions for part 3 of 3' })
+      ).toBeInTheDocument()
+      fireEvent.keyDown(partMenu, { key: 'ArrowDown' })
+      expect(
+        await screen.findByRole('menuitem', { name: /Copy link/ })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: 'Edit post' })
       ).not.toBeInTheDocument()
+    })
+
+    it('says in the group menu that post items act on the first post', async () => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+        />
+      )
+
+      fireEvent.keyDown(
+        screen.getByRole('button', {
+          name: 'More actions for this post group'
+        }),
+        { key: 'ArrowDown' }
+      )
+      expect(await screen.findByText('Post group')).toBeInTheDocument()
+      expect(screen.getByText('First post')).toBeInTheDocument()
+      expect(
+        screen.getByRole('menuitem', { name: 'Show as separate posts' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('menuitem', { name: /Copy link/ })
+      ).toBeInTheDocument()
     })
 
     it('combines a run that starts with a reply to someone else', () => {
@@ -811,7 +849,7 @@ describe('TimelineFeed', () => {
       expect(actionBars()).toHaveLength(3)
     })
 
-    it('tucks someone else’s reply into a combined conversation', () => {
+    it('tucks someone else’s reply into a combined conversation', async () => {
       const a1 = note('v1', 0, '')
       const b1 = note('v2', MINUTE, a1.id, mockBob)
       const a2 = note('v3', 2 * MINUTE, a1.id)
@@ -830,7 +868,7 @@ describe('TimelineFeed', () => {
       expect(actionBars()).toHaveLength(1)
       const inset = screen.getByRole('group', { name: 'Reply by Bob Jones' })
       expect(inset).toHaveTextContent('Text of v2')
-      // The inset carries just reply and like.
+      // The inset carries just reply and like on its face.
       expect(
         within(inset).getByRole('button', {
           name: /Reply to Bob Jones’s reply|Reply to Bob Jones's reply/
@@ -842,6 +880,16 @@ describe('TimelineFeed', () => {
       expect(within(inset).queryByRole('button', { name: /Repost/ })).toBeNull()
       expect(
         screen.getByRole('button', { name: /Open part 2 of 2/ })
+      ).toBeInTheDocument()
+      // Everything else is in the card's own ⋯ menu.
+      fireEvent.keyDown(
+        within(inset).getByRole('button', {
+          name: /More actions for Bob Jones's reply/
+        }),
+        { key: 'ArrowDown' }
+      )
+      expect(
+        await screen.findByRole('menuitem', { name: /Copy link/ })
       ).toBeInTheDocument()
     })
   })
