@@ -168,5 +168,9 @@ describe('Actions compact reaction picker chunk failure', () => {
     await waitFor(() =>
       expect(screen.queryByText("Couldn't load")).not.toBeInTheDocument()
     )
+    // Closing from the menu must not strand focus on <body>.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus()
+    )
   })
 })

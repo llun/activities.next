@@ -2030,15 +2030,17 @@ legacy shape left to copy.
     module top level, so the server render and hydration still use the dynamic
     (SSR'd) path and cannot mismatch. The composer and reaction picker preload
     at idle for signed-in viewers; each gallery panel at idle and on tab-bar
-    hover or focus, but only when the profile has its tab (Media loads
-    `ActorMediaGallery`, Gallery loads `ProfileGalleryTab`).
+    hover or focus, but only when the profile has a panel that shows it (a Media
+    or Gallery tab, or the media-only gallery; Media loads `ActorMediaGallery`,
+    Gallery loads `ProfileGalleryTab`).
   - **`FitnessStatusDetail` (status page) and the profile gallery panels
     (`ActorMediaGallery`, `ProfileGalleryTab`): SSR kept.** A fitness post's
     detail and a media-only profile's gallery are the page's primary content,
     so they stay in the server HTML. `FitnessStatusDetail` shows a skeleton
     while it loads on a client-side navigation; each gallery panel is
     preloaded at idle, and when the profile tab bar is hovered or focused, only
-    if the profile has the tab that shows it. All of them sit inside a
+    if the profile has a panel that shows it (a Media or Gallery tab, or the
+    media-only gallery). All of them sit inside a
     `LazyChunkBoundary`, so a failed chunk renders the inline message rather
     than the route error page. The boundary catches only chunk-load failures
     (`ChunkLoadError`, "Failed to load chunk", "Loading chunk", dynamic-import
