@@ -22,6 +22,7 @@ import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 import { getFitnessPaceOrSpeed } from '@/lib/utils/fitness'
 import { type PublicMapProvider } from '@/lib/utils/mapProvider'
 
@@ -120,24 +121,53 @@ const ScrubbedAnalysisChart: FC<
 )
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
+const getAnalysisReservedHeightClass = ({
+  seriesCount,
+  hasLikelyLaps,
+  hasMap
+}: {
+  seriesCount: number
+  hasLikelyLaps: boolean
+  hasMap: boolean
+}): string => {
+  if (hasLikelyLaps) {
+    if (seriesCount >= 5) {
+      return hasMap
+        ? 'min-h-[551px] @min-[366px]:min-h-[513px] @min-[520px]:min-h-[497px] @min-[700px]:min-h-[557px]'
+        : 'min-h-[535px] @min-[366px]:min-h-[497px] @min-[700px]:min-h-[557px]'
+    }
+    return hasMap
+      ? 'min-h-[475px] @min-[520px]:min-h-[459px] @min-[700px]:min-h-[519px]'
+      : 'min-h-[459px] @min-[700px]:min-h-[519px]'
+  }
+  if (seriesCount >= 5) {
+    return hasMap
+      ? 'min-h-[494px] @min-[366px]:min-h-[456px] @min-[520px]:min-h-[440px] @min-[700px]:min-h-[500px]'
+      : 'min-h-[478px] @min-[366px]:min-h-[440px] @min-[700px]:min-h-[500px]'
+  }
+  return hasMap
+    ? 'min-h-[418px] @min-[520px]:min-h-[402px] @min-[700px]:min-h-[462px]'
+    : 'min-h-[402px] @min-[700px]:min-h-[462px]'
+}
+
 const ActivityAnalysisLoadingState: FC<{
   series: Array<{ key: string; label: string; widthClass: string }>
   hasLikelyLaps: boolean
-  error: string | null
-}> = ({ series, hasLikelyLaps, error }) => (
+  hasMap: boolean
+}> = ({ series, hasLikelyLaps, hasMap }) => (
   <div className="space-y-4">
     <div
-      role={error ? undefined : 'status'}
-      aria-label={error ? undefined : 'Loading activity analysis'}
+      role="status"
+      aria-label="Loading activity analysis"
       className="space-y-4"
     >
       <div data-testid="analysis-controls-skeleton">
         <Frame className="space-y-2.5 bg-card px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <SkeletonBar animated={!error} className="h-3 w-24" />
+            <SkeletonBar className="h-3 w-24" />
             <div className="flex gap-1">
-              <SkeletonBar animated={!error} className="h-7 w-20 rounded-md" />
-              <SkeletonBar animated={!error} className="h-7 w-20 rounded-md" />
+              <SkeletonBar className="h-7 w-20 rounded-md" />
+              <SkeletonBar className="h-7 w-20 rounded-md" />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -151,16 +181,18 @@ const ActivityAnalysisLoadingState: FC<{
                 className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
               >
                 <span className="size-2 shrink-0 rounded-full bg-muted" />
-                <SkeletonBar
-                  animated={!error}
-                  className={`h-5 ${widthClass}`}
-                />
+                <SkeletonBar className={`h-5 ${widthClass}`} />
               </div>
             ))}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-            <SkeletonBar animated={!error} className="h-4 w-48" />
-            <SkeletonBar animated={!error} className="h-4 w-20" />
+            <SkeletonBar
+              className={
+                hasMap
+                  ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
+                  : 'h-4 w-48'
+              }
+            />
           </div>
         </Frame>
       </div>
@@ -175,7 +207,6 @@ const ActivityAnalysisLoadingState: FC<{
                 {Array.from({ length: 3 }, (_, index) => (
                   <SkeletonBar
                     key={index}
-                    animated={!error}
                     className="h-10 min-w-36 flex-1 basis-0 rounded-md"
                   />
                 ))}
@@ -184,19 +215,15 @@ const ActivityAnalysisLoadingState: FC<{
           ) : null}
           <div className="space-y-2 px-4 pb-2.5 pt-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <SkeletonBar animated={!error} className="h-5 w-20" />
+              <SkeletonBar className="h-5 w-20" />
             </div>
             <div
               data-testid="analysis-plot-skeleton"
               className="relative h-[190px] w-full @min-[700px]:h-[250px]"
             >
-              {error ? (
-                <Alert tone="warning" title={error} />
-              ) : (
-                <SkeletonBar className="h-full w-full rounded-md" />
-              )}
+              <SkeletonBar className="h-full w-full rounded-md" />
             </div>
-            <SkeletonBar animated={!error} className="h-4 w-full rounded-md" />
+            <SkeletonBar className="h-4 w-full rounded-md" />
           </div>
         </Frame>
       </div>
@@ -833,8 +860,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           meta={overviewMeta}
           map={map}
           groups={overviewGroups}
-          reserveRows={isRouteAnalysisUnavailable}
-          isFailed={Boolean(route.error)}
+          reserveRows={route.isLoading}
         />
 
         {isRouteAnalysisUnavailable ||
@@ -847,13 +873,31 @@ export const FitnessStatusDetail: FC<Props> = ({
               !isRouteAnalysisUnavailable && analysis ? analysisMeta : undefined
             }
           >
-            {isRouteAnalysisUnavailable ? (
+            {route.error ? (
+              <Frame
+                className={cn(
+                  'p-4',
+                  getAnalysisReservedHeightClass({
+                    seriesCount: expectedAnalysisSeries.length,
+                    hasLikelyLaps:
+                      hasStructuredFitnessFormat &&
+                      hasSummarySensors &&
+                      durationSeconds > 0,
+                    hasMap: shouldRenderMap
+                  })
+                )}
+              >
+                <Alert tone="warning" title={route.error} />
+              </Frame>
+            ) : route.isLoading ? (
               <ActivityAnalysisLoadingState
                 series={expectedAnalysisSeries}
                 hasLikelyLaps={
-                  hasStructuredFitnessFormat && durationSeconds > 0
+                  hasStructuredFitnessFormat &&
+                  hasSummarySensors &&
+                  durationSeconds > 0
                 }
-                error={route.error}
+                hasMap={shouldRenderMap}
               />
             ) : analysis ? (
               <>
@@ -892,7 +936,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </Section>
         ) : null}
 
-        {isRouteAnalysisUnavailable ? (
+        {route.isLoading ? (
           (() => {
             const expectedDistributionCount =
               (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
@@ -906,10 +950,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                     meta="power"
                   >
                     <Frame className="p-3">
-                      <SkeletonBar
-                        animated={!route.error}
-                        className="h-12 w-full rounded-md"
-                      />
+                      <SkeletonBar className="h-12 w-full rounded-md" />
                     </Frame>
                   </Section>
                 ) : null}
@@ -922,14 +963,8 @@ export const FitnessStatusDetail: FC<Props> = ({
                       { length: expectedDistributionCount },
                       (_, index) => (
                         <Frame key={index} className="h-44 space-y-2 p-4">
-                          <SkeletonBar
-                            animated={!route.error}
-                            className="h-4 w-28"
-                          />
-                          <SkeletonBar
-                            animated={!route.error}
-                            className="h-28 w-full"
-                          />
+                          <SkeletonBar className="h-4 w-28" />
+                          <SkeletonBar className="h-28 w-full" />
                         </Frame>
                       )
                     )}

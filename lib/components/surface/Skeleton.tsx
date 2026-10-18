@@ -4,8 +4,6 @@ import { cn } from '@/lib/utils'
 
 interface BarProps {
   className?: string
-  /** Keep the placeholder shape without a shimmer after a request fails. */
-  animated?: boolean
 }
 
 /**
@@ -13,15 +11,11 @@ interface BarProps {
  * `prefers-reduced-motion`). Size it with classes to the shape it stands in
  * for: `h-5 w-32`, `aspect-square`, `h-[420px]`.
  */
-export const SkeletonBar: FC<BarProps> = ({ className, animated = true }) => (
+export const SkeletonBar: FC<BarProps> = ({ className }) => (
   <span
     aria-hidden="true"
     data-slot="skeleton-bar"
-    className={cn(
-      'block h-4 w-full rounded-md',
-      animated ? 'skeleton' : 'bg-(--skeleton)',
-      className
-    )}
+    className={cn('skeleton block h-4 w-full rounded-md', className)}
   />
 )
 

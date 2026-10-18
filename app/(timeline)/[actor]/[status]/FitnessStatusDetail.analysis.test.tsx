@@ -590,17 +590,25 @@ describe('FitnessStatusDetail analysis', () => {
 
   it('says so when the route data cannot be loaded', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
-    renderDetail()
+    renderDetail({
+      status: buildStatus({
+        fitness: { ...buildStatus().fitness, hasMapData: false }
+      } as Partial<StatusNote>)
+    })
 
-    const errorMessage = await screen.findByText(
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const alert = within(analysisSection).getByRole('alert')
+    expect(alert).toHaveTextContent(
       'Could not load route and analysis data for this activity.'
     )
-    const analysisSection = screen.getByRole('region', { name: 'Analysis' })
-    expect(within(analysisSection).getByRole('alert')).toContainElement(
-      errorMessage
-    )
+    const frames = analysisSection.querySelectorAll('[data-slot="frame"]')
+    expect(frames).toHaveLength(1)
+    expect(frames[0]).toContainElement(alert)
+    expect(frames[0]).toHaveClass('min-h-[402px]', '@min-[700px]:min-h-[462px]')
     expect(
-      within(analysisSection).getByTestId('analysis-plot-skeleton')
-    ).toBeInTheDocument()
+      within(analysisSection).queryByTestId('analysis-plot-skeleton')
+    ).not.toBeInTheDocument()
   })
 })

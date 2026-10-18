@@ -227,11 +227,16 @@ describe('FitnessStatusDetail', () => {
         .getAllByTestId('analysis-series-chip-placeholder')
         .map((chip) => chip.getAttribute('data-series'))
     ).toEqual(['elevation', 'speed', 'power', 'heart-rate', 'cadence', 'grade'])
+    expect(
+      within(screen.getByRole('region', { name: 'Analysis' })).getByTestId(
+        'analysis-laps-skeleton'
+      )
+    ).toBeInTheDocument()
     // The route data is asked for at once: every section reads it.
     expect(mockGetFitnessRouteData).toHaveBeenCalledWith('fit-1')
   })
 
-  it('reserves only sparse overview rows supported by the server summary', () => {
+  it('reserves only sparse overview rows and omits the lap band when the summary has no sensors', () => {
     mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
     const baseStatus = buildStatus()
     renderDetail({
@@ -271,6 +276,15 @@ describe('FitnessStatusDetail', () => {
         .getAllByTestId('analysis-series-chip-placeholder')
         .map((chip) => chip.getAttribute('data-series'))
     ).toEqual(['elevation', 'speed', 'grade'])
+    expect(
+      within(analysisSection).queryByTestId('analysis-laps-skeleton')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: 'Best efforts' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('analysis-distribution-skeleton')
+    ).not.toBeInTheDocument()
   })
 
   it('renders an analysis skeleton sized from summary metrics while route analysis is loading', async () => {
@@ -323,21 +337,36 @@ describe('FitnessStatusDetail', () => {
     ).toHaveClass('h-[190px]', '@min-[700px]:h-[250px]')
   })
 
-  it('keeps summary stats visible and route-failure space static when route data fails', async () => {
+  it('shows only real stats and one static analysis panel when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({
       status: buildStatus({
+        attachments: [
+          {
+            id: 'map',
+            type: 'Document',
+            name: 'Route map',
+            url: 'https://activities.local/map.png',
+            mediaType: 'image/png',
+            width: 800,
+            height: 600
+          }
+        ],
         fitness: {
           ...buildStatus().fitness,
+          hasMapData: true,
           avgPower: 215,
           maxPower: 580,
           avgHeartRate: 148,
           maxHeartRate: 172,
           totalWorkKj: 387
         }
-      } as Partial<StatusNote>)
+      } as unknown as Partial<StatusNote>)
     })
 
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
     const overview = screen.getByRole('region', { name: 'Overview' })
     const rideGroup = within(overview).getByTestId('overview-group-ride')
     expect(within(rideGroup).getByText('Elapsed time')).toBeInTheDocument()
@@ -345,43 +374,55 @@ describe('FitnessStatusDetail', () => {
     expect(within(overview).getByText('215 / 580 W')).toBeInTheDocument()
     expect(within(overview).getByText('387 kJ')).toBeInTheDocument()
     expect(within(overview).getByText('148 / 172 bpm')).toBeInTheDocument()
+    expect(
+      within(overview).queryByTestId('overview-placeholder-row')
+    ).not.toBeInTheDocument()
+    expect(
+      within(overview).queryByTestId('overview-group-cadence')
+    ).not.toBeInTheDocument()
 
-    const analysisSection = await screen.findByRole('region', {
-      name: 'Analysis'
-    })
-    const alert = within(analysisSection).getByRole('alert')
-    expect(alert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
-    expect(alert).not.toHaveClass('absolute', 'fixed', 'top-0', 'inset-x-0')
-    expect(
-      within(analysisSection).getByTestId('analysis-plot-skeleton')
-    ).toContainElement(alert)
-    expect(
-      within(analysisSection).getByTestId('analysis-controls-skeleton')
-    ).toBeInTheDocument()
-    expect(
-      within(analysisSection).getByTestId('analysis-plot-skeleton')
-    ).toBeInTheDocument()
-    const bestEffortsSection = screen.getByRole('region', {
-      name: 'Best efforts'
-    })
-    expect(bestEffortsSection).toBeInTheDocument()
-    expect(
-      screen.getByTestId('analysis-distribution-skeleton')
-    ).toBeInTheDocument()
+    const mapAlert = within(overview).getByRole('alert')
+    expect(mapAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
+    expect(mapAlert).toHaveClass('left-3', 'right-14', 'top-3')
+    expect(mapAlert).not.toHaveClass('inset-x-3')
 
-    expect(overview.querySelectorAll('.skeleton, .animate-pulse')).toHaveLength(
-      0
+    const analysisAlert = within(analysisSection).getByRole('alert')
+    expect(analysisAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
+    expect(analysisAlert).not.toHaveClass(
+      'absolute',
+      'fixed',
+      'top-0',
+      'inset-x-0'
+    )
+    const frames = analysisSection.querySelectorAll('[data-slot="frame"]')
+    expect(frames).toHaveLength(1)
+    expect(frames[0]).toContainElement(analysisAlert)
+    expect(frames[0]).toHaveClass(
+      'min-h-[551px]',
+      '@min-[366px]:min-h-[513px]',
+      '@min-[520px]:min-h-[497px]',
+      '@min-[700px]:min-h-[557px]'
     )
     expect(
-      bestEffortsSection.querySelectorAll('.skeleton, .animate-pulse')
-    ).toHaveLength(0)
+      within(analysisSection).queryByTestId('analysis-controls-skeleton')
+    ).not.toBeInTheDocument()
     expect(
-      analysisSection.querySelectorAll('.skeleton, .animate-pulse')
-    ).toHaveLength(0)
+      within(analysisSection).queryByTestId('analysis-laps-skeleton')
+    ).not.toBeInTheDocument()
     expect(
-      screen
-        .getByTestId('analysis-distribution-skeleton')
-        .querySelectorAll('.skeleton, .animate-pulse')
+      within(analysisSection).queryByTestId('analysis-plot-skeleton')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: 'Best efforts' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('analysis-distribution-skeleton')
+    ).not.toBeInTheDocument()
+
+    expect(
+      document.querySelectorAll(
+        '[data-slot="skeleton-bar"], .skeleton, .animate-pulse'
+      )
     ).toHaveLength(0)
   })
 

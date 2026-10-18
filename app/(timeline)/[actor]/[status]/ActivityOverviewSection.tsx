@@ -14,7 +14,7 @@ export interface OverviewRow {
   label: string
   /** Null hides the row: the file has nothing for it. */
   value: string | null
-  /** Whether to render a placeholder row while route data is pending or failed. */
+  /** Whether to render a placeholder row while route data is pending. */
   reserveWhenLoading?: boolean
 }
 
@@ -40,8 +40,7 @@ export const getVisibleOverviewGroups = (
 const OverviewGroupFrame: FC<{
   group: OverviewGroup
   reserveRows: boolean
-  isFailed: boolean
-}> = ({ group, reserveRows, isFailed }) => (
+}> = ({ group, reserveRows }) => (
   <div data-testid={`overview-group-${group.key}`}>
     <Frame className="overflow-hidden">
       <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -72,8 +71,8 @@ const OverviewGroupFrame: FC<{
               data-metric={row.label}
               className="flex items-center justify-between gap-2 px-3 py-[7px]"
             >
-              <SkeletonBar animated={!isFailed} className="h-5 w-20" />
-              <SkeletonBar animated={!isFailed} className="h-5 w-14" />
+              <SkeletonBar className="h-5 w-20" />
+              <SkeletonBar className="h-5 w-14" />
             </div>
           ) : null
         )}
@@ -89,7 +88,6 @@ export interface ActivityOverviewSectionProps {
   map: ReactNode | null
   groups: OverviewGroup[]
   reserveRows?: boolean
-  isFailed?: boolean
 }
 
 /**
@@ -102,8 +100,7 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
   meta,
   map,
   groups,
-  reserveRows = false,
-  isFailed = false
+  reserveRows = false
 }) => {
   const visibleGroups = reserveRows
     ? groups
@@ -132,7 +129,6 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
                 key={group.key}
                 group={group}
                 reserveRows={reserveRows}
-                isFailed={isFailed}
               />
             ))}
           </div>

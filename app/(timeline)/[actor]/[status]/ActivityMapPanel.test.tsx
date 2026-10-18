@@ -374,7 +374,7 @@ describe('ActivityMapPanel', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('renders route data error banner when routeDataError is passed', () => {
+    it('renders route data error banner clear of the expand button when routeDataError is passed', () => {
       render(
         <ActivityMapPanel
           routeSamples={[]}
@@ -384,7 +384,10 @@ describe('ActivityMapPanel', () => {
         />
       )
 
-      expect(screen.getByText('Could not load route data')).toBeInTheDocument()
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveTextContent('Could not load route data')
+      expect(alert).toHaveClass('left-3', 'right-14', 'top-3')
+      expect(alert).not.toHaveClass('inset-x-3')
     })
   })
 
