@@ -2,17 +2,23 @@ import Link from 'next/link'
 
 import { Logo } from '@/lib/components/layout/logo'
 import { Button } from '@/lib/components/ui/button'
+import { getDatabase } from '@/lib/database'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 // Public top bar shown to logged-out visitors in place of the app nav sidebar:
 // a slim sticky bar with the brand logo and Sign in / Create account links to
 // the real auth routes, matching the web-public design. The "Create account"
-// CTA is hidden when the server has closed registration.
+// CTA is hidden when sign-ups on the visited domain are closed.
 export const PublicTopBar = async () => {
-  const {
-    registrations: { open: registrationOpen }
-  } = await getResolvedServerSettings()
+  // Sign-ups of the domain this page is visited on: a domain whose sign-ups
+  // are closed hides the link even when the primary's are open. Without a
+  // database there are no domain rows, so the primary's settings answer.
+  const database = getDatabase()
+  const registrationOpen = database
+    ? (await getVisitedSignUpDomain(database)).open
+    : (await getResolvedServerSettings()).registrations.open
   // Absolute logo URL on the canonical origin (ACTIVITIES_HOST) so it resolves
   // even when this page is served on a CDN alias domain, matching PublicFooter.
   // In `next dev` it stays root-relative so it loads from the browser's origin.

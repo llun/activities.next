@@ -5,6 +5,7 @@ import type {
 
 import * as baseline from './20261014000000_baseline'
 import * as addFitnessFileRouteData from './20261015000000_add_fitness_file_route_data'
+import * as addDomains from './20261018170047_add_domains'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -16,5 +17,6 @@ import type { MigrationName } from './names'
 // list the same names).
 export const migrations: MigrationRegistry = {
   '20261014000000_baseline': baseline,
-  '20261015000000_add_fitness_file_route_data': addFitnessFileRouteData
+  '20261015000000_add_fitness_file_route_data': addFitnessFileRouteData,
+  '20261018170047_add_domains': addDomains
 } satisfies Record<MigrationName, MigrationModule>

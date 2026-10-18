@@ -37,6 +37,18 @@ const mockGetActorSettings = vi.fn()
 const mockGetUnattachedMedia = vi.fn()
 const mockLoggerError = vi.fn()
 
+// The page reads the sign-ups of the domain it is visited on, which needs a
+// request; these tests render the page directly, so answer for the primary.
+vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
+  getVisitedSignUpDomain: vi.fn(async () => ({
+    domain: 'test.llun.dev',
+    displayName: 'Activities',
+    source: 'primary',
+    open: true,
+    allowEmails: []
+  }))
+}))
+
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
     error: (...args: unknown[]) => mockLoggerError(...args),

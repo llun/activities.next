@@ -2,6 +2,18 @@ import { logger } from '@/lib/utils/logger'
 
 import Page, { generateMetadata } from './page'
 
+// The page reads the sign-ups of the domain it is visited on, which needs a
+// request; these tests render the page directly, so answer for the primary.
+vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
+  getVisitedSignUpDomain: vi.fn(async () => ({
+    domain: 'test.llun.dev',
+    displayName: 'Activities',
+    source: 'primary',
+    open: true,
+    allowEmails: []
+  }))
+}))
+
 vi.mock('@/lib/utils/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }))

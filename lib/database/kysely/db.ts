@@ -321,6 +321,21 @@ export interface DomainFederationRules {
   updatedAt: WithDefault<Nullable<Timestamp>>
 }
 
+export interface Domains {
+  allowExistingUsers: WithDefault<boolean>
+  allowedEmails: WithDefault<string>
+  createdAt: WithDefault<Timestamp>
+  domain: string
+  id: string
+  lastCheckResult: Nullable<string>
+  lastCheckStatus: Nullable<string>
+  lastCheckedAt: Nullable<Timestamp>
+  name: Nullable<string>
+  signupsOpen: WithDefault<boolean>
+  status: WithDefault<string>
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface Endorsements {
   actorHost: string
   actorId: string
@@ -1378,6 +1393,7 @@ export interface DB {
   direct_conversation_statuses: DirectConversationStatuses
   direct_conversations: DirectConversations
   domain_federation_rules: DomainFederationRules
+  domains: Domains
   endorsements: Endorsements
   featured_tags: FeaturedTags
   federated_timeline: FederatedTimeline

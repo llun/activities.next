@@ -163,7 +163,11 @@ describe('proxy', () => {
     }
   })
 
-  it('uses configured public host when X-Forwarded-Host would poison actor redirects', async () => {
+  // The proxy cannot read Admin › Domains, so a bare handle on a host the env
+  // does not list goes to the app, which redirects onto the visited domain
+  // when it is an active row and onto the primary host otherwise
+  // (app/api/handle-redirect). The untrusted host is never put in the path.
+  it('hands a bare handle on an untrusted X-Forwarded-Host to the app instead of echoing it', async () => {
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'GET',
       headers: {
@@ -175,8 +179,27 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@public.example.com'
+      'https://internal.example.com/api/handle-redirect?path=%2F%40alice&query='
     )
+    expect(response?.headers.get('x-middleware-rewrite')).not.toContain(
+      'evil.example.com'
+    )
+  })
+
+  it('passes the rest of the path and the query to the app redirect', async () => {
+    const request = new NextRequest(
+      'https://internal.example.com/@alice/123?tab=replies',
+      { method: 'GET', headers: { host: 'run.example.com' } }
+    )
+
+    const response = await proxy(request)
+
+    const rewrite = new URL(
+      response?.headers.get('x-middleware-rewrite') ?? 'https://invalid'
+    )
+    expect(rewrite.pathname).toBe('/api/handle-redirect')
+    expect(rewrite.searchParams.get('path')).toBe('/@alice/123')
+    expect(rewrite.searchParams.get('query')).toBe('?tab=replies')
   })
 
   // Next clones and buffers the body of every non-GET request the proxy runs
@@ -411,7 +434,7 @@ describe('proxy', () => {
     )
   })
 
-  it('falls back to runtime host when forwarded host is not trusted', async () => {
+  it('hands a bare handle to the app when the forwarded host is not trusted', async () => {
     process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
     process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
       'runtime-edge.example.com'
@@ -428,7 +451,7 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@runtime-public.example.com'
+      'https://internal.example.com/api/handle-redirect?path=%2F%40alice&query='
     )
   })
 
@@ -452,8 +475,10 @@ describe('proxy', () => {
 
     const response = await proxy(request)
 
+    // file-edge.example.com is only in the ignored config file, so it is not
+    // trusted: the app decides.
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@internal.example.com'
+      'https://internal.example.com/api/handle-redirect?path=%2F%40alice&query='
     )
   })
 
@@ -693,6 +718,21 @@ describe('proxy', () => {
   })
 
   it('rewrites actor handles on HEAD requests', async () => {
+    const request = new NextRequest('https://public.example.com/@alice', {
+      method: 'HEAD',
+      headers: {
+        host: 'public.example.com'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://public.example.com/@alice@public.example.com'
+    )
+  })
+
+  it('hands a bare handle on HEAD to the app when the host is not in the env', async () => {
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'HEAD',
       headers: {
@@ -703,7 +743,7 @@ describe('proxy', () => {
     const response = await proxy(request)
 
     expect(response?.headers.get('x-middleware-rewrite')).toBe(
-      'https://internal.example.com/@alice@public.example.com'
+      'https://internal.example.com/api/handle-redirect?path=%2F%40alice&query='
     )
   })
 
@@ -740,17 +780,17 @@ describe('proxy', () => {
 
     it('adds the host to a handle with none, keeping the album path', async () => {
       const request = new NextRequest(
-        'https://internal.example.com/@u/albums/abc',
+        'https://public.example.com/@u/albums/abc',
         {
           method: 'GET',
-          headers: { host: 'internal.example.com' }
+          headers: { host: 'public.example.com' }
         }
       )
 
       const response = await proxy(request)
 
       expect(response?.headers.get('x-middleware-rewrite')).toBe(
-        'https://internal.example.com/@u@public.example.com/albums/abc'
+        'https://public.example.com/@u@public.example.com/albums/abc'
       )
     })
   })

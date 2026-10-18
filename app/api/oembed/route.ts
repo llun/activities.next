@@ -7,6 +7,7 @@ import {
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServedDomains } from '@/lib/services/auth/servedDomains'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import { getMention, getMentionFromActorID } from '@/lib/types/domain/actor'
 import { getOriginalStatus } from '@/lib/types/domain/status'
@@ -87,7 +88,7 @@ export const GET = traceApiRoute('getOEmbed', async (req) => {
 
   const config = getConfig()
   const servedDomains = new Set(
-    getServedDomains(config).map((served) => served.domain)
+    getServedDomains(getServedHostConfig(config)).map((served) => served.domain)
   )
   const target = parseStatusPageUrl(query.data.url, servedDomains)
   if (!target) return apiCorsError(req, CORS_HEADERS, 404)

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import {
   OAuthAppGuard,
   corsErrorResponse,
@@ -13,7 +14,6 @@ import { getRedirectUrl } from '@/lib/services/guards/getRedirectUrl'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -148,7 +148,8 @@ const registerViaApi = OAuthAppGuard(
     // runs as a before_action) and the web-form path. registerAccount() also
     // re-checks registrationOpen, so the registration_closed result branch below
     // remains a defensive fallback.
-    if (!(await getResolvedServerSettings(database)).registrations.open) {
+    const host = headerHost(req.headers)
+    if (!(await resolveSignUpDomain(database, host)).open) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -210,7 +211,8 @@ const registerViaApi = OAuthAppGuard(
       username: form.username,
       email: form.email,
       password: form.password,
-      name: form.name
+      name: form.name,
+      host
     })
 
     if (result.type === 'registration_closed') {
@@ -304,7 +306,8 @@ export const POST = traceApiRoute(
     // registerAccount() also checks registrationOpen so it is safe to call as a
     // standalone service; the registration_closed branch in the result handler
     // below is a defensive fallback for that standalone-caller scenario.
-    if (!(await getResolvedServerSettings(database)).registrations.open) {
+    const host = headerHost(request.headers)
+    if (!(await resolveSignUpDomain(database, host)).open) {
       return apiResponse({
         req: request,
         allowedMethods: CORS_HEADERS,
@@ -345,7 +348,8 @@ export const POST = traceApiRoute(
       username: form.username,
       email: form.email,
       password: form.password,
-      name: form.name
+      name: form.name,
+      host
     })
 
     // Defensive fallback: the early gate above normally prevents this branch

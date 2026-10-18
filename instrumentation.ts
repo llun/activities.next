@@ -8,6 +8,12 @@ export async function register() {
     const { getDatabase, getKysely } = await import('@/lib/database')
     const database = getDatabase()
     if (database) {
+      // Host trust reads the active Admin › Domains rows from an in-process
+      // snapshot (synchronous callers cannot query); load it now and keep it
+      // fresh. See lib/services/domains/servedDomainSnapshot.ts.
+      const { startServedDomainRefresher } =
+        await import('@/lib/services/domains/servedDomainSnapshot')
+      startServedDomainRefresher(database)
       // Logs pending migrations and does not wait for the check: the app
       // starts either way (docs/maintenance.md).
       const { warnAboutPendingMigrations } =

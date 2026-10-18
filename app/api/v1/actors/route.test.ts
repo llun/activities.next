@@ -182,8 +182,9 @@ describe('POST /api/v1/actors', () => {
 
   // The allow-list is matched with the served-domain rules rather than a raw
   // `includes`: case and a trailing dot cannot make an allowed domain look
-  // foreign, a wildcard rule approves nothing (its subdomains, itself), and (
-  // anything that is not a bare domain) is never a domain to create on.
+  // foreign. A wildcard rule approves nothing, neither its subdomains nor the
+  // rule itself, and anything that is not a bare domain is never a domain to
+  // create on.
   it.each([
     {
       description: 'an allowed domain in another case',
@@ -381,6 +382,37 @@ describe('POST /api/v1/actors', () => {
       })
 
       expect(response.status).toBe(400)
+    }
+  )
+
+  // With allowActorDomains empty an added domain approves an actor only while
+  // it is on and "Existing users can add profiles here" is on.
+  it.each([
+    { domain: 'run.test', status: 'on', allowExistingUsers: true, ok: true },
+    {
+      domain: 'birds.test',
+      status: 'on',
+      allowExistingUsers: false,
+      ok: false
+    },
+    { domain: 'old.test', status: 'off', allowExistingUsers: true, ok: false }
+  ] as const)(
+    'answers $ok for an added domain that is $status with existing users $allowExistingUsers',
+    async ({ domain, status, allowExistingUsers, ok }) => {
+      mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+      await database.createServedDomain({ domain, status, allowExistingUsers })
+      try {
+        const response = await POST(
+          createRequest({ username: `added-${domain.split('.')[0]}`, domain }),
+          { params: Promise.resolve({}) }
+        )
+        const data = await response.json()
+        expect(response.status).toBe(ok ? 200 : 400)
+        if (ok) expect(data.domain).toBe(domain)
+        else expect(data.error).toBe('Domain is not allowed')
+      } finally {
+        await database.deleteServedDomain({ domain })
+      }
     }
   )
 })

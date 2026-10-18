@@ -18,6 +18,8 @@ interface LandingProps {
    * closed" notice. Defaults to open.
    */
   signupOpen?: boolean
+  /** The visited domain, named in the "sign-ups are closed" notice. */
+  domain?: string
 }
 
 /**
@@ -33,7 +35,8 @@ export const Landing: FC<LandingProps> = ({
   currentTime,
   statuses,
   serviceName,
-  signupOpen = true
+  signupOpen = true,
+  domain
 }) => {
   const hasPublicPosts = statuses.length > 0
   return (
@@ -50,7 +53,11 @@ export const Landing: FC<LandingProps> = ({
         )}
       </div>
       <div className="flex min-h-0 flex-col bg-background/80 md:overflow-y-auto">
-        <LandingAuthPanel serviceName={serviceName} signupOpen={signupOpen} />
+        <LandingAuthPanel
+          serviceName={serviceName}
+          signupOpen={signupOpen}
+          domain={domain}
+        />
       </div>
     </main>
   )

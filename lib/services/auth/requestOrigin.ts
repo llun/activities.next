@@ -4,6 +4,7 @@ import { type HostHeaders, selectHeaderHost } from '@/lib/utils/host'
 type AuthHostConfig = {
   host: string
   trustedHosts?: readonly string[] | null
+  servedDomains?: readonly string[] | null
 }
 
 // Resolve the base URL the auth instance should use for an incoming request.
@@ -22,7 +23,8 @@ export const resolveAuthBaseURL = (
 ): string => {
   const host = selectHeaderHost(headers, {
     host: config.host,
-    trustedHosts: config.trustedHosts ?? null
+    trustedHosts: config.trustedHosts ?? null,
+    servedDomains: config.servedDomains ?? null
   })
   return buildBaseURL(host)
 }

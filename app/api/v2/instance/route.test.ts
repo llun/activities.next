@@ -316,4 +316,25 @@ describe('GET /api/v2/instance', () => {
       peersSpy.mockRestore()
     }
   })
+
+  it('reports the registrations of the domain the request arrived on', async () => {
+    const request = () =>
+      new NextRequest('https://llun.test/api/v2/instance', {
+        headers: { host: 'alias.llun.test' }
+      })
+    // No row: an env domain's sign-ups are closed until an admin opens them.
+    const closed = await (await GET(request(), params)).json()
+    expect(closed.registrations.enabled).toBe(false)
+
+    await database.createServedDomain({
+      domain: 'alias.llun.test',
+      signupsOpen: true
+    })
+    try {
+      const open = await (await GET(request(), params)).json()
+      expect(open.registrations.enabled).toBe(true)
+    } finally {
+      await database.deleteServedDomain({ domain: 'alias.llun.test' })
+    }
+  })
 })

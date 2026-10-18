@@ -1,4 +1,7 @@
-import { buildTrustedOrigins } from './trustedOrigins'
+import {
+  buildTrustedOrigins,
+  createTrustedOriginsResolver
+} from './trustedOrigins'
 
 describe('buildTrustedOrigins', () => {
   // better-auth routes any pattern containing `*` through `wildcardMatch`, so
@@ -98,5 +101,40 @@ describe('buildTrustedOrigins', () => {
         'http://[oops'
       ])
     ).toEqual(['https://activities.local', 'https://alias.local'])
+  })
+})
+
+describe('createTrustedOriginsResolver', () => {
+  it('adds the active served domains to the env origins, per call', () => {
+    let domains: readonly string[] = ['run.example']
+    const resolve = createTrustedOriginsResolver(
+      'https://social.example',
+      ['club.example'],
+      () => domains
+    )
+    expect(resolve()).toEqual([
+      'https://social.example',
+      'https://club.example',
+      'https://run.example'
+    ])
+
+    // Turned off: gone on the next request.
+    domains = []
+    expect(resolve()).toEqual([
+      'https://social.example',
+      'https://club.example'
+    ])
+  })
+
+  it('never adds a wildcard and keeps a port', () => {
+    const resolve = createTrustedOriginsResolver(
+      'http://social.test:3000',
+      [],
+      () => ['*.evil.example', 'run.test:3000', 'social.test:3000']
+    )
+    expect(resolve()).toEqual([
+      'http://social.test:3000',
+      'http://run.test:3000'
+    ])
   })
 })

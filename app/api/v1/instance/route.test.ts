@@ -230,4 +230,41 @@ describe('GET /api/v1/instance', () => {
       rulesSpy.mockRestore()
     }
   })
+
+  // Sign-ups are per domain: the request's domain decides, and a served domain
+  // without open sign-ups of its own reports closed, whatever the primary says.
+  it('reports the registrations of the domain the request arrived on', async () => {
+    await database.createServedDomain({
+      domain: 'alias.llun.test',
+      signupsOpen: true
+    })
+    try {
+      const open = await (
+        await GET(
+          new NextRequest('https://llun.test/api/v1/instance', {
+            headers: { host: 'alias.llun.test' }
+          }),
+          params
+        )
+      ).json()
+      expect(open.registrations).toBe(true)
+
+      await database.updateServedDomain({
+        domain: 'alias.llun.test',
+        signupsOpen: false
+      })
+      const closed = await (
+        await GET(
+          new NextRequest('https://llun.test/api/v1/instance', {
+            headers: { host: 'alias.llun.test' }
+          }),
+          params
+        )
+      ).json()
+      expect(closed.uri).toBe('alias.llun.test')
+      expect(closed.registrations).toBe(false)
+    } finally {
+      await database.deleteServedDomain({ domain: 'alias.llun.test' })
+    }
+  })
 })

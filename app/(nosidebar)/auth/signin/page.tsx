@@ -12,7 +12,7 @@ import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
@@ -73,9 +73,8 @@ const Page: FC<Props> = async ({ searchParams }) => {
   }
 
   const { auth, serviceName } = getConfig()
-  const {
-    registrations: { open: registrationOpen }
-  } = await getResolvedServerSettings(database)
+  // Sign-ups of the domain this page is visited on (see resolveSignUpDomain).
+  const { open: registrationOpen } = await getVisitedSignUpDomain(database)
   const credentialEnabled = auth?.enableCredential !== false
 
   const signUpLine = registrationOpen ? (

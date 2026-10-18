@@ -5,7 +5,8 @@
 // exactly these: `yarn typecheck` fails when the two disagree.
 export const MIGRATION_NAMES = [
   '20261014000000_baseline',
-  '20261015000000_add_fitness_file_route_data'
+  '20261015000000_add_fitness_file_route_data',
+  '20261018170047_add_domains'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

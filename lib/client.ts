@@ -11,6 +11,7 @@ export * from './client/bootstrap'
 
 // --- Admin ---
 export * from './client/adminAccounts'
+export * from './client/adminDomains'
 export * from './client/adminReports'
 export * from './client/adminServerSettings'
 

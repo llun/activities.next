@@ -5,6 +5,18 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
 
+// The page reads the sign-ups of the domain it is visited on, which needs a
+// request; these tests render the page directly, so answer for the primary.
+vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
+  getVisitedSignUpDomain: vi.fn(async () => ({
+    domain: 'test.llun.dev',
+    displayName: 'Activities',
+    source: 'primary',
+    open: false,
+    allowEmails: []
+  }))
+}))
+
 vi.mock('@/lib/config')
 
 vi.mock('@/lib/database', () => ({

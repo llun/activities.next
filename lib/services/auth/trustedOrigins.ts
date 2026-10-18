@@ -65,3 +65,28 @@ export const buildTrustedOrigins = (
 
   return Array.from(new Set(origins))
 }
+
+/**
+ * better-auth's `trustedOrigins` as a function it calls per request: the env
+ * origins (built once, so a bad entry is warned about once) plus an origin for
+ * each active Admin › Domains row, on the base URL's scheme. The rows are
+ * plain normalised domains (never a wildcard), so a domain turned off drops
+ * out as soon as `getServedDomains` stops returning it, without rebuilding the
+ * cached better-auth instances.
+ */
+export const createTrustedOriginsResolver = (
+  baseURL: string,
+  trustedHosts: readonly string[],
+  getServedDomains: () => readonly string[]
+): (() => string[]) => {
+  const envOrigins = buildTrustedOrigins(baseURL, trustedHosts)
+  const protocol = new URL(baseURL).protocol
+  return () => [
+    ...new Set([
+      ...envOrigins,
+      ...getServedDomains()
+        .filter((domain) => domain && !domain.includes('*'))
+        .map((domain) => `${protocol}//${domain}`)
+    ])
+  ]
+}

@@ -5,7 +5,7 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
 import { isEmailAllowed, normalizeEmail } from '@/lib/utils/normalizeEmail'
@@ -30,6 +30,12 @@ export interface RegisterAccountParams {
   email: string
   password: string
   name?: string | null
+  /**
+   * The served host the sign-up arrived on (`headerHost`). The first actor is
+   * created on it, under that domain's sign-up settings (see
+   * `resolveSignUpDomain`). Omitted, it is the primary host.
+   */
+  host?: string | null
 }
 
 export const registerAccount = async ({
@@ -37,12 +43,13 @@ export const registerAccount = async ({
   username: rawUsername,
   email: rawEmail,
   password,
-  name
+  name,
+  host
 }: RegisterAccountParams): Promise<RegisterAccountResult> => {
   const config = getConfig()
-  const settings = await getResolvedServerSettings(database)
+  const signUpDomain = await resolveSignUpDomain(database, host ?? config.host)
 
-  if (!settings.registrations.open) {
+  if (!signUpDomain.open) {
     return { type: 'registration_closed' }
   }
 
@@ -55,9 +62,9 @@ export const registerAccount = async ({
   // than trust the request schema: the taken-check, the insert and the actor id
   // returned below must all see one canonical handle. See normalizeUsername.
   const username = normalizeUsername(rawUsername)
-  const domain = config.host
+  const domain = signUpDomain.domain
 
-  if (!isEmailAllowed(settings.registrations.allowEmails, email)) {
+  if (!isEmailAllowed(signUpDomain.allowEmails, email)) {
     return { type: 'email_not_allowed' }
   }
 
@@ -148,7 +155,11 @@ export const registerAccount = async ({
 
   if (verificationCode) {
     try {
-      await sendConfirmationEmail({ recipient: email, verificationCode })
+      await sendConfirmationEmail({
+        recipient: email,
+        verificationCode,
+        actorDomain: domain
+      })
     } catch (error) {
       logger.error(
         { to: email, err: toLoggableError(error) },

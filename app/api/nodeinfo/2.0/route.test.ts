@@ -77,4 +77,44 @@ describe('GET /nodeinfo/2.0', () => {
       mockDatabase = previous
     }
   })
+
+  it('reports openRegistrations for the domain the request arrived on', async () => {
+    const config =
+      await vi.importMock<typeof import('@/lib/config')>('@/lib/config')
+    vi.mocked(config.getConfig).mockReturnValue({
+      ...baseConfig,
+      trustedHosts: ['run.llun.test']
+    } as unknown as Config)
+    await database.createServedDomain({
+      domain: 'run.llun.test',
+      signupsOpen: true
+    })
+    try {
+      const run = await (
+        await GET(
+          new NextRequest('https://llun.test/nodeinfo/2.0', {
+            headers: { host: 'run.llun.test' }
+          }),
+          params
+        )
+      ).json()
+      expect(run.openRegistrations).toBe(true)
+
+      await database.updateServedDomain({
+        domain: 'run.llun.test',
+        signupsOpen: false
+      })
+      const closed = await (
+        await GET(
+          new NextRequest('https://llun.test/nodeinfo/2.0', {
+            headers: { host: 'run.llun.test' }
+          }),
+          params
+        )
+      ).json()
+      expect(closed.openRegistrations).toBe(false)
+    } finally {
+      await database.deleteServedDomain({ domain: 'run.llun.test' })
+    }
+  })
 })

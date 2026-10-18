@@ -23,7 +23,8 @@ vi.mock('@/lib/utils/logger', () => ({
 
 vi.mock('@/lib/config', async () => ({
   getConfig: vi.fn(),
-  getBaseURL: vi.fn().mockReturnValue('https://llun.test')
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  buildBaseURL: vi.fn((host: string) => `https://${host}`)
 }))
 
 vi.mock('@/lib/services/email', async () => ({
@@ -479,5 +480,166 @@ describe('registerAccount', () => {
       }),
       'Fail to send email'
     )
+  })
+})
+
+describe('registerAccount on another served domain', () => {
+  const EMAIL_CONFIG = {
+    ...DEFAULT_CONFIG,
+    trustedHosts: ['club.llun.test'],
+    email: { serviceFromAddress: 'noreply@llun.test' }
+  }
+
+  const rowFor = (
+    domain: string,
+    overrides: Partial<{
+      status: 'on' | 'off'
+      signupsOpen: boolean
+      allowedEmails: string[]
+    }> = {}
+  ) => ({
+    id: `row-${domain}`,
+    domain,
+    status: 'on' as const,
+    name: null,
+    signupsOpen: true,
+    allowedEmails: [] as string[],
+    allowExistingUsers: false,
+    lastCheckedAt: null,
+    lastCheckStatus: null,
+    lastCheckResult: null,
+    createdAt: 0,
+    updatedAt: 0,
+    ...overrides
+  })
+
+  const databaseWith = (row: ReturnType<typeof rowFor> | null) =>
+    ({
+      ...mockDatabase,
+      getServedDomain: vi.fn().mockResolvedValue(row)
+    }) as unknown as Database
+
+  beforeEach(() => {
+    vi.mocked(getConfig).mockReturnValue(EMAIL_CONFIG as never)
+    // The primary's own sign-ups are closed: another domain never falls back
+    // to them, in either direction.
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: false, allowEmails: ['boss@example.com'] })
+    )
+  })
+
+  it('creates the first actor on the visited domain, under its own settings', async () => {
+    const database = databaseWith(
+      rowFor('run.llun.test', { allowedEmails: ['ana@example.com'] })
+    )
+    const result = await registerAccount({
+      database,
+      username: 'Ana',
+      email: 'ANA@example.com',
+      password: 'password123',
+      host: 'run.llun.test'
+    })
+
+    expect(result).toMatchObject({
+      type: 'success',
+      username: 'ana',
+      actorId: 'https://run.llun.test/users/ana'
+    })
+    expect(database.isUsernameExists).toHaveBeenCalledWith({
+      username: 'ana',
+      domain: 'run.llun.test'
+    })
+    expect(database.createAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'run.llun.test' })
+    )
+  })
+
+  it('sends the confirmation link to the domain the visitor signed up on', async () => {
+    const { setServedDomainsForTests, resetServedDomainsForTests } =
+      await import('@/lib/services/domains/servedDomainSnapshot')
+    setServedDomainsForTests(['run.llun.test'])
+    try {
+      const { sendMail } = await vi.importMock<{ sendMail: jest.Mock }>(
+        '@/lib/services/email'
+      )
+      const result = await registerAccount({
+        database: databaseWith(rowFor('run.llun.test')),
+        username: 'ana',
+        email: 'ana@example.com',
+        password: 'password123',
+        host: 'run.llun.test'
+      })
+      expect(result.type).toBe('success')
+      const [{ content }] = sendMail.mock.calls[0]
+      expect(content.text).toContain('https://run.llun.test/auth/confirmation')
+    } finally {
+      resetServedDomainsForTests()
+    }
+  })
+
+  it('rejects an address the domain does not allow, even one the primary allows', async () => {
+    const result = await registerAccount({
+      database: databaseWith(
+        rowFor('run.llun.test', { allowedEmails: ['ana@example.com'] })
+      ),
+      username: 'boss',
+      email: 'boss@example.com',
+      password: 'password123',
+      host: 'run.llun.test'
+    })
+    expect(result).toEqual({ type: 'email_not_allowed' })
+  })
+
+  it.each([
+    ['sign-ups are off', rowFor('run.llun.test', { signupsOpen: false })],
+    ['the domain is off', rowFor('run.llun.test', { status: 'off' })],
+    ['the domain has no row', null]
+  ])('is closed when %s, with no fallback to the primary', async (_, row) => {
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: true, allowEmails: [] })
+    )
+    const database = databaseWith(row)
+    const result = await registerAccount({
+      database,
+      username: 'ana',
+      email: 'ana@example.com',
+      password: 'password123',
+      host: 'run.llun.test'
+    })
+    expect(result).toEqual({ type: 'registration_closed' })
+    expect(database.createAccount).not.toHaveBeenCalled()
+  })
+
+  it('uses the row of an ACTIVITIES_TRUSTED_HOSTS domain although it is stored off', async () => {
+    const result = await registerAccount({
+      database: databaseWith(rowFor('club.llun.test', { status: 'off' })),
+      username: 'kim',
+      email: 'kim@example.com',
+      password: 'password123',
+      host: 'club.llun.test'
+    })
+    expect(result).toMatchObject({
+      type: 'success',
+      actorId: 'https://club.llun.test/users/kim'
+    })
+  })
+
+  it('keeps the primary on the server settings', async () => {
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: true, allowEmails: [] })
+    )
+    const database = databaseWith(null)
+    const result = await registerAccount({
+      database,
+      username: 'ana',
+      email: 'ana@example.com',
+      password: 'password123',
+      host: 'LLUN.test'
+    })
+    expect(result).toMatchObject({
+      type: 'success',
+      actorId: 'https://llun.test/users/ana'
+    })
+    expect(database.getServedDomain).not.toHaveBeenCalled()
   })
 })

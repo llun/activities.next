@@ -1,6 +1,8 @@
 type ServedDomainsConfig = {
   host: string
   trustedHosts?: readonly string[] | null
+  // The active Admin › Domains rows (`getServedHostConfig`).
+  servedDomains?: readonly string[] | null
 }
 
 export type ServedDomain = {
@@ -31,7 +33,8 @@ const toHostname = (value: string): string | null => {
 }
 
 // The user-facing domains this instance serves, derived from ACTIVITIES_HOST
-// (the primary / home domain) and ACTIVITIES_TRUSTED_HOSTS. A WebAuthn passkey
+// (the primary / home domain), ACTIVITIES_TRUSTED_HOSTS and the active
+// Admin › Domains rows. A WebAuthn passkey
 // is bound to exactly one domain, so the add-passkey dialog offers this list and
 // each passkey row is labelled with its domain. The primary is always first and
 // never duplicated.
@@ -47,7 +50,10 @@ export const getServedDomains = (
     seen.add(primary)
   }
 
-  for (const raw of config.trustedHosts ?? []) {
+  for (const raw of [
+    ...(config.trustedHosts ?? []),
+    ...(config.servedDomains ?? [])
+  ]) {
     const hostname = toHostname(raw)
     if (!hostname || seen.has(hostname)) continue
     seen.add(hostname)

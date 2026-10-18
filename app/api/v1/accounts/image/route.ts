@@ -1,5 +1,5 @@
-import { getConfig } from '@/lib/config'
 import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -32,7 +32,7 @@ export const POST = traceApiRoute(
     // is treated as "no change" rather than re-validated.
     const iconUrl = parseProfileImageUrl(
       rawIconUrl,
-      getConfig(),
+      getServedHostConfig(),
       account.iconUrl
     )
     if (!iconUrl.valid) return invalidImageUrl()

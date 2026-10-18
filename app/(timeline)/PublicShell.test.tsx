@@ -6,6 +6,8 @@ import { render, screen, within } from '@testing-library/react'
 
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
+import { getDatabase } from '@/lib/database'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { PublicShell } from './PublicShell'
@@ -34,7 +36,17 @@ vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn()
 }))
 
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(() => null)
+}))
+
+vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
+  getVisitedSignUpDomain: vi.fn()
+}))
+
 const mockSettings = vi.mocked(getResolvedServerSettings)
+const mockGetDatabase = vi.mocked(getDatabase)
+const mockVisitedDomain = vi.mocked(getVisitedSignUpDomain)
 
 const mockRegistration = (open: boolean) =>
   mockSettings.mockResolvedValue({
@@ -47,6 +59,8 @@ const mockRegistration = (open: boolean) =>
 describe('PublicTopBar', () => {
   beforeEach(() => {
     mockSettings.mockReset()
+    mockVisitedDomain.mockReset()
+    mockGetDatabase.mockReturnValue(null)
   })
 
   it('shows the logo and both CTAs', async () => {
@@ -81,6 +95,25 @@ describe('PublicTopBar', () => {
     expect(
       within(banner).queryByRole('link', { name: 'Create account' })
     ).not.toBeInTheDocument()
+  })
+
+  it("follows the visited domain's sign-ups when there is a database", async () => {
+    // The primary is open, the visited domain is closed: the domain wins.
+    mockRegistration(true)
+    mockGetDatabase.mockReturnValue(
+      {} as unknown as ReturnType<typeof getDatabase>
+    )
+    mockVisitedDomain.mockResolvedValue({
+      open: false
+    } as Awaited<ReturnType<typeof getVisitedSignUpDomain>>)
+    const PublicTopBar = await loadPublicTopBar()
+    render(await PublicTopBar())
+
+    const banner = screen.getByRole('banner')
+    expect(
+      within(banner).queryByRole('link', { name: 'Create account' })
+    ).not.toBeInTheDocument()
+    expect(mockSettings).not.toHaveBeenCalled()
   })
 })
 

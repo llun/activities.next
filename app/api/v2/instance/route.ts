@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { resolveSignUpOpenSafely } from '@/lib/services/domains/signUpDomain'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   MASTODON_INSTANCE_API_VERSION,
@@ -49,11 +50,15 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
       })
     }
   }
-  const [stats, contactAccount, serverSettings] = await Promise.all([
-    getInstanceStats(database, domain),
-    getInstanceContactAccount(database),
-    getResolvedServerSettings(database)
-  ])
+  const [stats, contactAccount, serverSettings, signUpOpen] = await Promise.all(
+    [
+      getInstanceStats(database, domain),
+      getInstanceContactAccount(database),
+      getResolvedServerSettings(database),
+      // Sign-ups on the domain this request arrived on.
+      resolveSignUpOpenSafely(database, domain)
+    ]
+  )
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
@@ -122,7 +127,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         }
       },
       registrations: {
-        enabled: serverSettings.registrations.open,
+        enabled: signUpOpen ?? serverSettings.registrations.open,
         approval_required: false,
         message: null,
         url: null

@@ -61,6 +61,18 @@ ACTIVITIES_ALLOW_EMAILS='["your_email@example.com"]'
 
 > **Tip:** If `allowEmails` is set, only users with matching email addresses can register. This is recommended for personal or small-group instances.
 
+### Serving more than one domain (Optional)
+
+One server can serve profiles on several domains (`social.example`, `run.example`, …). Each domain needs its own route to this server before the app can use it:
+
+1. **DNS**: point the domain (an `A`/`AAAA` record or a `CNAME`) at the same public address as `ACTIVITIES_HOST`.
+2. **TLS**: issue a certificate for the domain on whatever terminates HTTPS (your proxy, load balancer or hosting platform).
+3. **Proxy**: route the domain to this server and keep the original `Host` header (or set `X-Forwarded-Host` to it). A proxy that rewrites the host to the primary domain makes every request look like it arrived on `ACTIVITIES_HOST`.
+4. **Add it in the app**: open **Admin › Domains › Add domain** and enter the domain. The server asks `https://<domain>/.well-known/activities-domain-check` for a proof only it can sign, and shows which of DNS, TLS and the Host header still needs work. The domain is saved as **Off**; **Turn on** runs the check again and only turns it on when it passes.
+5. **Sign-ups**: on the domain's page, open sign-ups (with an optional list of allowed email addresses) and choose whether people who already have an account can add a profile there. A new domain starts with sign-ups closed.
+
+Domains can still be pinned in the environment with `ACTIVITIES_TRUSTED_HOSTS`; those show in Admin › Domains as always on, and only their sign-up settings can be changed there. A wildcard entry such as `*.vercel.app` stays environment-only: it lets forwarded preview hosts sign in, but never serves profiles or sign-ups.
+
 ### Authentication Methods
 
 Activity.next uses [better-auth](https://www.better-auth.com/) for authentication and supports local email/password accounts, passkeys, and two-factor authentication.

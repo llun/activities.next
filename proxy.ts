@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getProxyHostConfig } from '@/lib/config/host'
+import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
-import { selectHeaderHost } from '@/lib/utils/host'
+import {
+  getTrustedHostRules,
+  isHostTrustedByRules,
+  normalizeHost,
+  selectHeaderHost
+} from '@/lib/utils/host'
 // Direct sub-path import required: the barrel re-exports cors.ts which pulls
 // @/lib/config (fs/path deps) into the middleware Edge Runtime bundle.
 import {
@@ -61,6 +67,28 @@ const isMediaFileRoutePath = (pathname: string): boolean => {
 const proxyHeaderHost = (headers: Headers): string => {
   return selectHeaderHost(headers, getProxyHostConfig())
 }
+
+// The header `selectHeaderHost` reads first, when it names a host the ENV does
+// not trust. The proxy has no database, so it cannot tell an active Admin ›
+// Domains row from an unknown host; for those it hands the decision to the app
+// (`/api/handle-redirect`) instead of rewriting onto the primary host. It never
+// puts the value in a path or header itself.
+const SELECTED_HOST_HEADERS = [ACTIVITIES_HOST, FORWARDED_HOST, 'host']
+const hasHostOutsideEnv = (headers: Headers): boolean => {
+  for (const name of SELECTED_HOST_HEADERS) {
+    const value = headers.get(name)
+    if (!value) continue
+    const normalized = normalizeHost(value, { allowWildcard: false })
+    if (!normalized) continue
+    return !isHostTrustedByRules(
+      normalized,
+      getTrustedHostRules(getProxyHostConfig())
+    )
+  }
+  return false
+}
+
+const HANDLE_REDIRECT_PATH = '/api/handle-redirect'
 
 const withContentSecurityPolicy = (
   response: NextResponse,
@@ -217,6 +245,22 @@ export async function proxy(request: NextRequest) {
       const totalAt = pathname.split('@').length - 1
       if (totalAt === 2) {
         return withContentSecurityPolicy(NextResponse.next(), request)
+      }
+
+      // On a host the env does not list (an added domain, or one we do not
+      // serve at all) the app decides which domain the bare handle is on and
+      // redirects to the full `/@user@domain` path.
+      if (hasHostOutsideEnv(request.headers)) {
+        const redirectUrl = request.nextUrl.clone()
+        redirectUrl.pathname = HANDLE_REDIRECT_PATH
+        redirectUrl.search = new URLSearchParams({
+          path: pathname,
+          query: request.nextUrl.search
+        }).toString()
+        return withContentSecurityPolicy(
+          NextResponse.rewrite(redirectUrl),
+          request
+        )
       }
 
       const host = proxyHeaderHost(request.headers) || request.nextUrl.host

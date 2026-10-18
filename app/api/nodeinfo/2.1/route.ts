@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   NODE_INFO_21_CONTENT_TYPE,
   buildNodeInfo21
@@ -15,7 +16,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute('nodeInfoV21', async (req: NextRequest) => {
-  const nodeInfo = await buildNodeInfo21()
+  const nodeInfo = await buildNodeInfo21(headerHost(req.headers))
   if (!nodeInfo) {
     return apiResponse({
       req,

@@ -76,12 +76,50 @@ describe('getAccountFromSession', () => {
 
   it('blocks an email that is not in the allowlist regardless of case', async () => {
     mockAllowEmails(['allowed@example.com'])
-    const getAccountFromEmail = vi.fn()
-    const result = await getAccountFromSession(
-      databaseWith(getAccountFromEmail),
-      { user: { email: 'Blocked@Example.com' } }
-    )
+    const getAccountFromEmail = vi.fn().mockResolvedValue(account)
+    const database = {
+      getAccountFromEmail,
+      getActorsForAccount: vi
+        .fn()
+        .mockResolvedValue([{ domain: 'test.llun.dev' }]),
+      getServedDomain: vi.fn().mockResolvedValue(null)
+    } as unknown as Database
+    const result = await getAccountFromSession(database, {
+      user: { email: 'Blocked@Example.com' }
+    })
     expect(result).toBeNull()
-    expect(getAccountFromEmail).not.toHaveBeenCalled()
+  })
+
+  it('returns null without looking further when there is no account', async () => {
+    mockAllowEmails(['allowed@example.com'])
+    const getActorsForAccount = vi.fn()
+    const database = {
+      getAccountFromEmail: vi.fn().mockResolvedValue(null),
+      getActorsForAccount
+    } as unknown as Database
+    await expect(
+      getAccountFromSession(database, { user: { email: 'nobody@example.com' } })
+    ).resolves.toBeNull()
+    expect(getActorsForAccount).not.toHaveBeenCalled()
+  })
+
+  // A person who joined another served domain under that domain's own
+  // allowed emails is not locked out by the primary's list.
+  it('allows an email that a domain of one of the account profiles allows', async () => {
+    mockAllowEmails(['allowed@example.com'])
+    const database = {
+      getAccountFromEmail: vi.fn().mockResolvedValue(account),
+      getActorsForAccount: vi
+        .fn()
+        .mockResolvedValue([{ domain: 'run.example' }]),
+      getServedDomain: vi.fn().mockResolvedValue({
+        domain: 'run.example',
+        status: 'on',
+        allowedEmails: ['user@example.com']
+      })
+    } as unknown as Database
+    await expect(
+      getAccountFromSession(database, { user: { email: 'user@example.com' } })
+    ).resolves.toEqual(account)
   })
 })

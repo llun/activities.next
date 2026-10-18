@@ -342,6 +342,21 @@ CREATE TABLE public.domain_federation_rules (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.domains (
+    id character varying(255) NOT NULL,
+    domain character varying(255) NOT NULL,
+    status character varying(16) DEFAULT 'off'::character varying NOT NULL,
+    name character varying(255),
+    "signupsOpen" boolean DEFAULT false NOT NULL,
+    "allowedEmails" text DEFAULT '[]'::text NOT NULL,
+    "allowExistingUsers" boolean DEFAULT false NOT NULL,
+    "lastCheckedAt" timestamp with time zone,
+    "lastCheckStatus" character varying(16),
+    "lastCheckResult" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.endorsements (
     id integer NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1595,6 +1610,12 @@ ALTER TABLE ONLY public.domain_federation_rules
 ALTER TABLE ONLY public.domain_federation_rules
     ADD CONSTRAINT domain_federation_rules_type_domain_unique UNIQUE (type, domain);
 
+ALTER TABLE ONLY public.domains
+    ADD CONSTRAINT domains_domain_key UNIQUE (domain);
+
+ALTER TABLE ONLY public.domains
+    ADD CONSTRAINT domains_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.endorsements
     ADD CONSTRAINT endorsements_actor_target_unique UNIQUE ("actorId", "targetActorId");
 
@@ -1992,6 +2013,8 @@ CREATE INDEX direct_participant_actor ON public.direct_conversation_participants
 CREATE INDEX domain_federation_rules_source_idx ON public.domain_federation_rules USING btree (source);
 
 CREATE INDEX domain_federation_rules_type_idx ON public.domain_federation_rules USING btree (type, "createdAt");
+
+CREATE INDEX domains_status_idx ON public.domains USING btree (status);
 
 CREATE INDEX featured_tags_name ON public.featured_tags USING btree ("nameNormalized");
 

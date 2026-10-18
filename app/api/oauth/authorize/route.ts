@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
 import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import {
   oauthLogger,
   sanitizeHeaders,
@@ -37,7 +37,7 @@ const logAuthorizeRequest = (
 export const GET = (req: NextRequest) => {
   const url = new URL(
     '/api/auth/oauth2/authorize',
-    resolveAuthBaseURL(req.headers, getConfig())
+    resolveAuthBaseURL(req.headers, getServedHostConfig())
   )
   url.search = req.nextUrl.search
   logAuthorizeRequest(req, url, 'GET')
@@ -47,7 +47,7 @@ export const GET = (req: NextRequest) => {
 export const POST = async (req: NextRequest) => {
   const url = new URL(
     '/api/auth/oauth2/authorize',
-    resolveAuthBaseURL(req.headers, getConfig())
+    resolveAuthBaseURL(req.headers, getServedHostConfig())
   )
   // Merge query string params
   req.nextUrl.searchParams.forEach((value, key) =>

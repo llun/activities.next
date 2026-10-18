@@ -6,13 +6,13 @@ import { OfflineCacheSeeder } from '@/lib/components/offline/OfflineCacheSeeder'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import {
   COMPOSER_MEDIA_QUERY_PARAM,
   getComposerPrefillAttachments,
   parseComposerMediaParam
 } from '@/lib/services/gallery/composerMedia'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   getFilteredStatusPage,
   getFilteredTimelinePage
@@ -48,9 +48,9 @@ const Page = async ({ searchParams }: PageProps = {}) => {
   if (!database) {
     throw new Error('Fail to load database')
   }
-  const {
-    registrations: { open: registrationOpen }
-  } = await getResolvedServerSettings(database)
+  // The sign-ups of the domain this page is visited on (the primary's are the
+  // server settings; another domain has its own, see resolveSignUpDomain).
+  const signUpDomain = await getVisitedSignUpDomain(database)
 
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
@@ -98,8 +98,13 @@ const Page = async ({ searchParams }: PageProps = {}) => {
         host={host}
         currentTime={Date.now()}
         statuses={publicStatuses.map((item) => cleanJson(item))}
-        serviceName={serviceName ?? 'Activities'}
-        signupOpen={registrationOpen}
+        serviceName={
+          signUpDomain.source === 'primary'
+            ? (serviceName ?? 'Activities')
+            : signUpDomain.displayName
+        }
+        signupOpen={signUpDomain.open}
+        domain={signUpDomain.domain}
       />
     )
   }

@@ -1,4 +1,5 @@
 import {
+  AtSign,
   BarChart,
   FileText,
   Filter,
@@ -32,6 +33,7 @@ export const ADMIN_ICONS = {
   emojis: Smile,
   federation: Globe,
   relays: Radio,
+  domains: AtSign,
   posts: FileText,
   network: LinkIcon,
   instance: Settings,

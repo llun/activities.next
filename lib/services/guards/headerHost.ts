@@ -1,6 +1,7 @@
 import { IncomingHttpHeaders } from 'http'
 
-import { type Config, getConfig } from '@/lib/config'
+import { type Config } from '@/lib/config'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import {
   getTrustedHostRules,
   isHostTrustedByRules,
@@ -9,15 +10,19 @@ import {
 
 type NextAuthHeaders = Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
 
-type HostConfig = Pick<Config, 'host' | 'trustedHosts'>
+type HostConfig = Pick<Config, 'host' | 'trustedHosts'> & {
+  servedDomains?: readonly string[] | null
+}
 
 export const isTrustedHeaderHost = (
   host: string | undefined | null,
-  config: HostConfig = getConfig()
+  config: HostConfig = getServedHostConfig()
 ) => isHostTrustedByRules(host, getTrustedHostRules(config))
 
 export function headerHost(
   headers: IncomingHttpHeaders | Headers | NextAuthHeaders
 ): string {
-  return selectHeaderHost(headers, getConfig())
+  // The env domains plus the active Admin › Domains rows (see
+  // `servedDomainSnapshot`); anything else falls back to the primary host.
+  return selectHeaderHost(headers, getServedHostConfig())
 }

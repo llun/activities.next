@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
 import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { getOpenIDConfiguration } from '@/lib/services/wellknown'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -20,7 +20,7 @@ export const GET = traceApiRoute(
     // (validated against trusted hosts) so a discovery-based relying party on a
     // served alias domain gets an `issuer` matching the id_token `iss`
     // better-auth signs for that same host.
-    const baseURL = resolveAuthBaseURL(req.headers, getConfig())
+    const baseURL = resolveAuthBaseURL(req.headers, getServedHostConfig())
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
