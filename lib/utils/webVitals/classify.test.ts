@@ -98,35 +98,31 @@ describe('getWebVitalsDevice', () => {
   })
 })
 
+const navigationTypeRows: [unknown, string][] = [
+  ['navigate', 'navigate'],
+  ['reload', 'reload'],
+  ['back-forward', 'back-forward'],
+  ['back-forward-cache', 'back-forward-cache'],
+  ['prerender', 'prerender'],
+  ['restore', 'restore'],
+  ['soft-navigation', 'soft-navigation'],
+  ['other', 'other'],
+  ['something-new', 'other'],
+  [undefined, 'other'],
+  [42, 'other']
+]
+
 describe('toWebVitalNavigationType', () => {
-  it.each([
-    ['navigate', 'navigate'],
-    ['reload', 'reload'],
-    ['back-forward', 'back-forward'],
-    ['back-forward-cache', 'back-forward-cache'],
-    ['prerender', 'prerender'],
-    ['restore', 'restore'],
-    ['soft-navigation', 'soft-navigation'],
-    ['other', 'other'],
-    ['something-new', 'other'],
-    [undefined, 'other'],
-    [42, 'other']
-  ])('maps %s to %s', (value, expected) => {
+  it.each(navigationTypeRows)('maps %s to %s', (value, expected) => {
     expect(toWebVitalNavigationType(value)).toBe(expected)
   })
 
-  it('has a row above for every navigation type', () => {
-    expect([...WEB_VITAL_NAVIGATION_TYPES].sort()).toEqual(
-      [
-        'navigate',
-        'reload',
-        'back-forward',
-        'back-forward-cache',
-        'prerender',
-        'restore',
-        'soft-navigation',
-        'other'
-      ].sort()
+  it('has an identity row for every navigation type', () => {
+    const identityRows = navigationTypeRows
+      .filter(([value, expected]) => value === expected)
+      .map(([value]) => value)
+    expect([...identityRows].sort()).toEqual(
+      [...WEB_VITAL_NAVIGATION_TYPES].sort()
     )
   })
 })

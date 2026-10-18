@@ -80,9 +80,9 @@ describe('sendWebVitalsReport', () => {
 
   it('swallows a rejected fetch', async () => {
     setBeacon(undefined)
-    const rejected = Promise.reject(new Error('offline'))
-    const catchSpy = vi.spyOn(rejected, 'catch')
-    globalThis.fetch = vi.fn().mockReturnValue(rejected)
+    // A plain function: vi.fn()/spyOn would chain onto the returned promise
+    // and mark the rejection handled, hiding a missing `.catch`.
+    globalThis.fetch = () => Promise.reject(new Error('offline'))
     const unhandled = vi.fn()
     process.on('unhandledRejection', unhandled)
 
@@ -93,7 +93,6 @@ describe('sendWebVitalsReport', () => {
       process.off('unhandledRejection', unhandled)
     }
 
-    expect(catchSpy).toHaveBeenCalledTimes(1)
     expect(unhandled).not.toHaveBeenCalled()
   })
 
