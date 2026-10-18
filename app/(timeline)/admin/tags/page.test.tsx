@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import Page from './page'
 
@@ -145,5 +145,82 @@ describe('/admin/tags', () => {
       'href',
       '/admin/tags?sort=count&page=3'
     )
+  })
+
+  it('switches to loading skeleton on sort tab click until new props arrive', async () => {
+    getAllHashtags.mockResolvedValue({
+      hashtags: [hashtag('#fediverse', 12, Date.UTC(2026, 9, 1, 8, 30))],
+      total: 1
+    })
+
+    const { rerender } = await renderPage()
+
+    expect(screen.getByRole('table', { name: 'Hashtags' })).toBeInTheDocument()
+    const recentLink = screen.getByRole('link', { name: 'Recently active' })
+    expect(recentLink).not.toHaveAttribute('aria-current')
+
+    fireEvent.click(recentLink)
+
+    expect(recentLink).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.queryByRole('table', { name: 'Hashtags' })
+    ).not.toBeInTheDocument()
+    const skeleton = screen.getByRole('status')
+    expect(skeleton).toHaveTextContent('Loading hashtags')
+    expect(
+      skeleton.querySelectorAll('[data-slot="skeleton-bar"]').length
+    ).toBeGreaterThan(0)
+
+    getAllHashtags.mockResolvedValue({
+      hashtags: [hashtag('#recenttag', 5, Date.UTC(2026, 9, 2, 8, 30))],
+      total: 1
+    })
+    rerender(await Page({ searchParams: Promise.resolve({ sort: 'recent' }) }))
+
+    expect(screen.getByRole('table', { name: 'Hashtags' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Recently active' })
+    ).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'recenttag' })).toBeInTheDocument()
+  })
+
+  it('switches to loading skeleton and advances page label on pagination click until new props arrive', async () => {
+    getAllHashtags.mockResolvedValue({
+      hashtags: [hashtag('#tag1', 10)],
+      total: 45
+    })
+
+    const { rerender } = await renderPage({ page: '1' })
+
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+    const nextLink = screen.getByRole('link', { name: /Next/ })
+    expect(nextLink).toBeInTheDocument()
+
+    fireEvent.click(nextLink)
+
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Next/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Next/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Previous/ })).toBeDisabled()
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    const skeleton = screen.getByRole('status')
+    expect(skeleton).toHaveTextContent('Loading hashtags')
+    expect(
+      skeleton.querySelectorAll('[data-slot="skeleton-bar"]').length
+    ).toBeGreaterThan(0)
+
+    getAllHashtags.mockResolvedValue({
+      hashtags: [hashtag('#tag21', 5)],
+      total: 45
+    })
+    rerender(await Page({ searchParams: Promise.resolve({ page: '2' }) }))
+
+    expect(screen.getByRole('table', { name: 'Hashtags' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Next/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Previous/ })).toBeInTheDocument()
   })
 })

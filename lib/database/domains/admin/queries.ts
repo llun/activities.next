@@ -1,4 +1,4 @@
-import { type Selectable } from 'kysely'
+import { type Selectable, sql } from 'kysely'
 import { randomUUID } from 'node:crypto'
 
 import type {
@@ -211,10 +211,18 @@ const publicHashtagTags = (db: Db) =>
   db
     .selectFrom('tags')
     .innerJoin('statuses', 'tags.statusId', 'statuses.id')
-    .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
     .where('tags.type', '=', 'hashtag')
-    .where('recipients.actorId', '=', ACTIVITY_STREAM_PUBLIC)
+    .where('tags.nameNormalized', 'is not', null)
     .where('statuses.type', 'in', [StatusType.enum.Note, StatusType.enum.Poll])
+    .where((eb) =>
+      eb.exists(
+        eb
+          .selectFrom('recipients')
+          .select(sql.lit(1).as('one'))
+          .whereRef('recipients.statusId', '=', 'statuses.id')
+          .where('recipients.actorId', '=', ACTIVITY_STREAM_PUBLIC)
+      )
+    )
 
 export const getAllHashtags = async (
   db: Db,
@@ -225,20 +233,28 @@ export const getAllHashtags = async (
     .select((eb) => [
       'tags.nameNormalized',
       eb.fn.count<number>('tags.statusId').distinct().as('postCount'),
-      eb.fn.max('statuses.createdAt').as('latestPostAt')
+      eb.fn.max('statuses.createdAt').as('latestPostAt'),
+      sql<number>`count(*) over ()`.as('totalCount')
     ])
     .$if(sort === 'recent', (qb) => qb.orderBy('latestPostAt', 'desc'))
     .$if(sort === 'count', (qb) => qb.orderBy('postCount', 'desc'))
     .orderBy('tags.nameNormalized', 'asc')
 
-  const [rows, total] = await Promise.all([
-    page.limit(limit).offset(offset).execute(),
-    publicHashtagTags(db)
+  const rows = await page.limit(limit).offset(offset).execute()
+
+  let total: number
+  if (rows.length > 0) {
+    total = Number(rows[0].totalCount)
+  } else if (offset === 0) {
+    total = 0
+  } else {
+    const totalRow = await publicHashtagTags(db)
       .select((eb) =>
         eb.fn.count<number>('tags.nameNormalized').distinct().as('count')
       )
       .executeTakeFirstOrThrow()
-  ])
+    total = Number(totalRow.count)
+  }
 
   const hashtags: AdminHashtag[] = rows.map((row) => ({
     // Preserve the full nameNormalized value as `name` so that routing
@@ -249,7 +265,7 @@ export const getAllHashtags = async (
     latestPostAt: toEpochMilliseconds(row.latestPostAt)
   }))
 
-  return { hashtags, total: Number(total.count) }
+  return { hashtags, total }
 }
 
 // Domain federation rules (blocks and allows)

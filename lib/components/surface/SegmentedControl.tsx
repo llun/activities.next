@@ -124,6 +124,18 @@ export const SegmentedControl = ({
               href={item.href}
               aria-current={active ? 'page' : undefined}
               className={classes}
+              onClick={(event) => {
+                if (
+                  event.button === 0 &&
+                  !event.defaultPrevented &&
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.shiftKey &&
+                  !event.altKey
+                ) {
+                  onValueChange?.(item.value)
+                }
+              }}
             >
               {content}
             </Link>

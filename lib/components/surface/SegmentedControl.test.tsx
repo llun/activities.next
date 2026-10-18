@@ -211,4 +211,28 @@ describe('SegmentedControl (asLinks)', () => {
     )
     expect(screen.queryByRole('radio')).toBeNull()
   })
+
+  it('calls onValueChange on a plain click of a link and ignores modifier clicks', () => {
+    const onValueChange = vi.fn()
+    render(
+      <SegmentedControl
+        asLinks
+        aria-label="Reports"
+        items={linkItems}
+        value="open"
+        onValueChange={onValueChange}
+      />
+    )
+    const link = screen.getByRole('link', { name: 'Closed' })
+    fireEvent.click(link, { metaKey: true })
+    expect(onValueChange).not.toHaveBeenCalled()
+    fireEvent.click(link, { ctrlKey: true })
+    expect(onValueChange).not.toHaveBeenCalled()
+    fireEvent.click(link, { shiftKey: true })
+    expect(onValueChange).not.toHaveBeenCalled()
+    fireEvent.click(link, { altKey: true })
+    expect(onValueChange).not.toHaveBeenCalled()
+    fireEvent.click(link, { button: 0 })
+    expect(onValueChange).toHaveBeenCalledWith('closed')
+  })
 })
