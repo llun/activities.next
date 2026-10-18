@@ -16,6 +16,11 @@ describe('isRenderableHashtagName', () => {
     expect(isRenderableHashtagName(name)).toBe(expected)
   })
 
+  it('refuses a name over the hashtag length limit', () => {
+    expect(isRenderableHashtagName('a'.repeat(255))).toBe(true)
+    expect(isRenderableHashtagName('a'.repeat(256))).toBe(false)
+  })
+
   it('returns quickly for a long name that is not renderable', () => {
     const start = performance.now()
     expect(isRenderableHashtagName(`${'a'.repeat(200_000)}!`)).toBe(false)

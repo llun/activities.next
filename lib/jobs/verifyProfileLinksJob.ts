@@ -44,7 +44,8 @@ export const verifyProfileLinksJob: JobHandle = createJobHandle(
       // serve the profile at /@username, and the actor id covers the rest.
       const linkBacks = [getActorProfileUrl(actor), actor.id]
 
-      // Mastodon keeps four fields, so a remote actor sending more is capped.
+      // Only the first four fields are checked, even for a remote actor that keeps
+      // more (Mastodon keeps 50): this bounds the outbound fetches per run.
       const candidates = actor.fields
         .slice(0, PROFILE_FIELD_LIMIT)
         .flatMap((field) => {

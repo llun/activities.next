@@ -71,6 +71,8 @@ const truncateCodePoints = (text: string, limit: number) => {
   return text.slice(0, end)
 }
 
+// Trimmed with `String#trim`, which also removes Unicode whitespace that
+// Ruby's `strip` (used by Mastodon) leaves.
 const capRemoteFieldText = (text: string) =>
   truncateCodePoints(text.trim(), REMOTE_PROFILE_FIELD_MAX_LENGTH)
 
@@ -86,13 +88,15 @@ const isPropertyValueType = (item: unknown) =>
 // (`getPersistableProfile`) and for the profile page (`getProfileData`), so it
 // applies Mastodon's remote caps in Mastodon's order: take the first 50
 // attachments typed PropertyValue, drop any whose name or value is not a
-// string, and strip and cut each name and value to 2047 characters. A value is
+// string, and trim (`String#trim`) and cut each name and value to 2047 characters. A value is
 // the remote server's raw HTML, so a cut can end inside a tag; every place that
 // shows it sanitizes it first (`sanitizeText`), which closes or drops the
 // broken markup, exactly as Mastodon sanitizes the cut value it serves.
 export const getActorProfileFields = (
   person: ActivityPubActor
 ): { name: string; value: string }[] => {
+  // Deliberately more lenient than Mastodon, which ignores an attachment that
+  // is not an array: a lone PropertyValue object is accepted here.
   const attachments = Array.isArray(person.attachment)
     ? person.attachment
     : person.attachment

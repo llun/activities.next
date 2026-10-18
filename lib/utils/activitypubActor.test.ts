@@ -144,6 +144,16 @@ describe('activitypubActor utils', () => {
       ).toEqual([{ name: 'Name 1', value: 'Value 1' }])
     })
 
+    it('takes 50 PropertyValues before validating, as Mastodon does', () => {
+      const malformed = Array.from({ length: 50 }, (_, i) => ({
+        type: 'PropertyValue',
+        name: `Bad ${i}`
+      }))
+      expect(
+        getActorProfileFields(personWith([...malformed, field(1)]))
+      ).toEqual([])
+    })
+
     it('reads a single attachment that is not in an array', () => {
       expect(getActorProfileFields(personWith(field(1)))).toEqual([
         { name: 'Name 1', value: 'Value 1' }

@@ -1688,7 +1688,7 @@ legacy shape left to copy.
   Mastodon's remote numbers: the first 50 attachments typed `PropertyValue`
   (`MAX_PROFILE_FIELDS` in `ActivityPub::ProcessAccountService`; other
   attachment types do not count), any whose name or value is not a string
-  dropped, and each name and value stripped and cut to 2047 characters
+  dropped, and each name and value trimmed (`String#trim`) and cut to 2047 characters
   (`Account::Field::MAX_CHARACTERS_COMPAT`, counted in code points). The value
   is the remote server's raw HTML, so a cut can end inside a tag; every surface
   sanitizes it before showing it, which closes or drops the broken markup. A
