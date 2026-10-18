@@ -34,6 +34,4 @@ export const InlineStatusComposer: FC<
   </LazyChunkBoundary>
 )
 
-export const preloadInlineStatusComposer = () => {
-  void preload()
-}
+export const preloadInlineStatusComposer = () => preload()

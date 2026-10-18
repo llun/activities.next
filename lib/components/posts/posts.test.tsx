@@ -17,6 +17,7 @@ import {
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
+import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
 import { Posts, getPrioritizedRowIndex } from './posts'
 
 // A boost (Announce) row wrapping the shared poll fixture as its original, with
@@ -125,9 +126,9 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 const mockVotePoll = vi.mocked(votePoll)
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
 
-// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+// The inline composer is loaded lazily; preload it so it renders synchronously.
 beforeAll(async () => {
-  await import('./inline-status-composer')
+  await preloadInlineStatusComposer()
 })
 
 describe('Posts', () => {

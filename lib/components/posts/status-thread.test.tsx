@@ -25,6 +25,8 @@ import {
 } from '@/lib/components/posts/__fixtures__/timeline-context'
 import { StatusThread } from '@/lib/components/posts/status-thread'
 
+import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
+
 const mockPush = vi.fn()
 const mockRefresh = vi.fn()
 
@@ -69,9 +71,9 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 
 const mockCreateNote = vi.mocked(createNote)
 
-// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+// The inline composer is loaded lazily; preload it so it renders synchronously.
 beforeAll(async () => {
-  await import('./inline-status-composer')
+  await preloadInlineStatusComposer()
 })
 
 describe('StatusThread', () => {

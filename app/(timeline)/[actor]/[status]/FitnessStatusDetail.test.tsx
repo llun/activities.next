@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 
+import { preloadInlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import type { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
@@ -120,9 +121,9 @@ vi.mock('@/lib/components/posts/BrandedDeviceLink', async () => ({
     .MockBrandedDeviceLink
 }))
 
-// The inline composer is loaded lazily (next/dynamic); resolve it before the tests.
+// The inline composer is loaded lazily; preload it so it renders synchronously.
 beforeAll(async () => {
-  await import('@/lib/components/posts/inline-status-composer')
+  await preloadInlineStatusComposer()
 })
 
 describe('FitnessStatusDetail', () => {

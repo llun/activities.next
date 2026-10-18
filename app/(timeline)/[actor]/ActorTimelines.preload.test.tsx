@@ -60,7 +60,7 @@ describe('ActorTimelines tab bar', () => {
     expect(wrapper.parentElement).toHaveClass('space-y-4')
   })
 
-  it('preloads the gallery panels when the tab bar is hovered or focused', async () => {
+  it('preloads only the media gallery when the tab bar is hovered (no Gallery tab)', async () => {
     renderTimelines()
     expect(loaded.media + loaded.gallery).toBe(0)
 
@@ -68,7 +68,7 @@ describe('ActorTimelines tab bar', () => {
     fireEvent.pointerEnter(tabs)
     await waitFor(() => {
       expect(loaded.media).toBe(1)
-      expect(loaded.gallery).toBe(1)
+      expect(loaded.gallery).toBe(0)
     })
   })
 

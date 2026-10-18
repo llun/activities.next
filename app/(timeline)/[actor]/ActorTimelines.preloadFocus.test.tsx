@@ -48,14 +48,14 @@ const renderTimelines = () =>
   )
 
 describe('ActorTimelines tab bar focus', () => {
-  it('preloads the gallery panels when a tab takes focus', async () => {
+  it('preloads only the media gallery when a tab takes focus (no Gallery tab)', async () => {
     renderTimelines()
     expect(loaded.media + loaded.gallery).toBe(0)
 
     fireEvent.focus(screen.getAllByRole('radio')[0])
     await waitFor(() => {
       expect(loaded.media).toBe(1)
-      expect(loaded.gallery).toBe(1)
+      expect(loaded.gallery).toBe(0)
     })
   })
 })

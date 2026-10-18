@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { render } from '@testing-library/react'
 
-import { Attachments } from './attachments'
+import { Attachments, getPrioritizedAttachment } from './attachments'
 import {
   BLURHASH,
   buildAttachment,
@@ -77,27 +77,34 @@ describe('Attachments prioritizeMedia', () => {
   })
 
   it('does not prioritize an animated GIF', () => {
-    const { container } = renderAttachments(
-      [
-        buildAttachment({
-          mediaType: 'image/gif',
-          width: 400,
-          height: 300
-        })
-      ],
-      true
-    )
-    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    const gif = buildAttachment({
+      mediaType: 'image/gif',
+      width: 400,
+      height: 300
+    })
+    const gifv = buildAttachment({
+      mediaType: 'video/mp4',
+      playbackType: 'gifv',
+      width: 400,
+      height: 300
+    })
+    expect(getPrioritizedAttachment([gif, picture()])).toBeUndefined()
+    expect(getPrioritizedAttachment([gifv, picture()])).toBeUndefined()
+    expect(getPrioritizedAttachment([picture()])).toBeDefined()
   })
 
   it('does not hand the priority to a later image when the first is a video', () => {
-    const { container } = renderAttachments(
-      [
-        buildAttachment({ mediaType: 'video/mp4', width: 400, height: 300 }),
-        picture()
-      ],
-      true
-    )
-    expect(container.querySelector('[fetchpriority]')).toBeNull()
+    const video = buildAttachment({
+      mediaType: 'video/mp4',
+      width: 400,
+      height: 300
+    })
+    const later = picture()
+    expect(getPrioritizedAttachment([video, later])).toBeUndefined()
+
+    const { container } = renderAttachments([video, later], true)
+    const image = container.querySelector('img')!
+    expect(image).toHaveAttribute('loading', 'lazy')
+    expect(image).not.toHaveClass('opacity-100')
   })
 })

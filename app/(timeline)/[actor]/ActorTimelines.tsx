@@ -74,11 +74,6 @@ const { Component: ActorMediaGallery, preload: preloadActorMediaGallery } =
 const { Component: ProfileGalleryTab, preload: preloadProfileGalleryTab } =
   createPreloadable(loadProfileGalleryTab, DynamicProfileGalleryTab)
 
-const preloadGalleryPanels = () => {
-  void preloadActorMediaGallery()
-  void preloadProfileGalleryTab()
-}
-
 interface Props {
   host: string
   actorId: string
@@ -256,13 +251,18 @@ export const ActorTimelines: FC<Props> = ({
     return tabs
   }, [showRepliesTab, hasMedia, showGalleryTab, showFitnessTab])
 
-  // Warm the gallery panels at idle once a tab can show them, so switching to
-  // it renders at once instead of waiting out the Suspense reveal throttle.
+  // Warm only the gallery panels this profile has a tab for, at idle, so
+  // switching to one renders at once instead of waiting out the Suspense reveal
+  // throttle.
   const hasGalleryPanelTab = hasMedia || showGalleryTab
+  const preloadGalleryPanels = useCallback(() => {
+    if (hasMedia) void preloadActorMediaGallery()
+    if (showGalleryTab) void preloadProfileGalleryTab()
+  }, [hasMedia, showGalleryTab])
   useEffect(() => {
     if (!hasGalleryPanelTab) return
     return runWhenIdle(preloadGalleryPanels)
-  }, [hasGalleryPanelTab])
+  }, [hasGalleryPanelTab, preloadGalleryPanels])
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     isMediaOnly ? 'media' : 'posts'
@@ -637,7 +637,10 @@ export const ActorTimelines: FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      <div onPointerEnter={preloadGalleryPanels} onFocus={preloadGalleryPanels}>
+      <div
+        onPointerEnter={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
+        onFocus={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
+      >
         <SegmentedControl
           aria-label="Profile sections"
           items={availableTabs.map((value) => ({

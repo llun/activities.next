@@ -49,7 +49,7 @@ const renderTimelines = (hasHeaderImage?: boolean) =>
   )
 
 describe('ActorTimelines idle preload', () => {
-  it('preloads the gallery panels at idle when the profile has a media tab', async () => {
+  it('preloads only the media gallery at idle when the profile has a media tab', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('requestIdleCallback', undefined)
     try {
@@ -58,7 +58,7 @@ describe('ActorTimelines idle preload', () => {
         await vi.advanceTimersByTimeAsync(2000)
       })
       expect(loaded.media).toBe(1)
-      expect(loaded.gallery).toBe(1)
+      expect(loaded.gallery).toBe(0)
     } finally {
       vi.useRealTimers()
       vi.unstubAllGlobals()

@@ -339,7 +339,7 @@ describe('StatusBox', () => {
       )
     })
 
-    it('offers others none on a fitness post’s photos', () => {
+    it('offers others none on a fitness post’s photos', async () => {
       render(
         <StatusBox
           host="activities.local"
@@ -354,7 +354,7 @@ describe('StatusBox', () => {
       )
 
       fireEvent.click(
-        screen.getByRole('button', { name: 'Open fitness photo' })
+        await screen.findByRole('button', { name: 'Open fitness photo' })
       )
 
       expect(screen.getByTestId('viewer')).toHaveAttribute(

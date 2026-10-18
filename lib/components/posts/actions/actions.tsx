@@ -132,7 +132,9 @@ export const Actions: FC<Props> = ({
           // The picker takes focus once it is placed, so it has to open after
           // the menu has finished handing focus back.
           deferUntilClosed: true,
-          onSelect: () => reactionState.setIsPicking(true)
+          // Toggles, like the trigger, so selecting it again closes the
+          // "Couldn't load" message a failed picker chunk leaves open.
+          onSelect: () => reactionState.setIsPicking((value) => !value)
         },
         {
           key: 'bookmark',
