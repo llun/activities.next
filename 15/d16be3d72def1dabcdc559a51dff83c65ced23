@@ -1,0 +1,37 @@
+app/api/v1/web-vitals/route.test.ts
+  s_326ec3e82e0e75::t_bd6f164a6ea13a 283-295
+app/api/v1/web-vitals/route.ts
+  s_326ec3e82e0e75::t_a1054ba38dd1e7 13,42
+docs/architecture.md
+  s_326ec3e82e0e75::t_c2920fe9b54d10 629,632-633
+docs/environment-variables.md
+  s_326ec3e82e0e75::t_64bc206bc1980d 465-468,470
+docs/maintenance.md
+  s_326ec3e82e0e75::t_8416ffe82d9424 48-49
+lib/components/web-vitals/webVitalsCollector.test.ts
+  s_326ec3e82e0e75::t_9b21bd6d9207cf 189-206,248-261
+lib/utils/webVitals/classify.test.ts
+  s_326ec3e82e0e75::t_a2f39695e64fad 23-29,52-53
+lib/utils/webVitals/classify.ts
+  s_326ec3e82e0e75::t_c801ab2b1c2e91 77-78
+lib/utils/webVitals/types.ts
+  s_326ec3e82e0e75::t_857673f19ab1fc 45
+scripts/maintenance/bundleReport.ts
+  s_326ec3e82e0e75::t_f5cb92cfa52d61 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "15d16be3d72def1dabcdc559a51dff83c65ced23",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
