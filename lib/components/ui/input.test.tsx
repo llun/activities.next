@@ -14,6 +14,8 @@ describe('Input', () => {
     expect(input).toHaveAttribute('data-slot', 'input')
     expect(input).toHaveClass('appearance-none')
     expect(input).toHaveClass('w-full')
+    expect(input).toHaveClass('bg-background', 'dark:bg-input/30')
+    expect(input).not.toHaveClass('bg-transparent')
   })
 
   it('preserves appearance-none for date inputs to avoid iOS Safari box-sizing overflow', () => {
