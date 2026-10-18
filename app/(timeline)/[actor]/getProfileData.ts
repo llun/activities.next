@@ -96,165 +96,240 @@ type ProfileDataOptions = {
   currentActor: DomainActor | null
 }
 
+// Just enough of a profile to title a page about the actor and show its
+// collection sizes, for the followers and following pages. It carries no
+// statuses, attachments or tab flags, so it discloses nothing the actor's
+// visibility rules would have to scope.
+export type ProfileIdentity = Pick<
+  ProfileData,
+  'person' | 'followersCount' | 'followingCount' | 'isInternalAccount'
+>
+
+// The actor this server hosts under the handle, or null when the handle names
+// no row or a row without an account. `getActorFromUsername` folds the
+// username's case itself.
+const findLocalProfileActor = async (
+  database: Database,
+  actorHandle: string
+): Promise<DomainActor | null> => {
+  const [username, domain] = actorHandle.split('@').slice(1)
+  const persistedActor = await database.getActorFromUsername({
+    username,
+    domain
+  })
+  return persistedActor?.account ? persistedActor : null
+}
+
 export const getProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean = true,
   options: ProfileDataOptions
 ): Promise<ProfileData | null> => {
-  const [username, domain] = actorHandle.split('@').slice(1)
-  const persistedActor = await database.getActorFromUsername({
-    username,
-    domain
-  })
+  const localActor = await findLocalProfileActor(database, actorHandle)
+  if (localActor) {
+    return getLocalProfileData(database, localActor, options)
+  }
+  return getRemoteProfileData(database, actorHandle, isLoggedIn, options)
+}
 
-  if (persistedActor?.account) {
-    const currentActor = options.currentActor
-
-    // Only the statuses and attachments queries are scoped by the viewer, so
-    // the audience lookup runs alongside the counts rather than in front
-    // of them — for a signed-in non-owner it costs a follow query, and making
-    // the whole fan-out wait on it would add that latency to a hot page.
-    const [audience, statusesCount, followingCount, followersCount] =
-      await Promise.all([
-        resolveActorStatusesAudience({
-          database,
-          targetActor: persistedActor,
-          currentActor
-        }),
-        database.getActorStatusesCount({ actorId: persistedActor.id }),
-        database.getActorFollowingCount({ actorId: persistedActor.id }),
-        database.getActorFollowersCount({ actorId: persistedActor.id })
-      ])
-
-    const visibilityScope = {
-      publicOnly: audience.publicOnly,
-      visibleToActorId: audience.visibleToActorId,
-      includeFollowersOnly: audience.includeFollowersOnly,
-      followersAudience: audience.followersAudience
-    }
-
-    // Scoped by the same audience as the statuses and attachments: whether the
-    // Fitness tab exists is itself a disclosure, so a viewer who cannot read
-    // any of this actor's fitness posts must not be told there are any. The
-    // owner's audience carries no filter, which keeps their own tab unchanged.
-    // The gallery asks the same question through its own scope (a posted,
-    // in-gallery photo on a status this viewer may read), so the Gallery tab
-    // is offered to exactly the viewers who would find something in it.
-    const galleryAudience = toGalleryAudience(audience)
-    const [scopedStatuses, attachments, hasFitnessData, hasGalleryMedia] =
-      await Promise.all([
-        database.getActorStatuses({
-          actorId: persistedActor.id,
-          currentActorId: currentActor?.id,
-          limit: PER_PAGE_LIMIT,
-          ...visibilityScope
-        }),
-        database.getAttachmentsForActor({
-          actorId: persistedActor.id,
-          ...visibilityScope
-        }),
-        database.getActorHasFitnessData({
-          actorId: persistedActor.id,
-          ...visibilityScope
-        }),
-        database.getActorHasGalleryMedia({
-          actorId: persistedActor.id,
-          audience: galleryAudience
-        })
-      ])
-
-    const gallerySubviews: GallerySubview[] = []
-    if (hasGalleryMedia) {
-      const [gallerySettings, hasGalleryAlbums] = await Promise.all([
-        database.getGallerySettings({ actorId: persistedActor.id }),
-        // The Albums chip, by the same audience: offered only to a viewer who
-        // can open at least one album, so it never hints at one they cannot.
-        // Asked only once there is gallery media at all, since an album is
-        // made of it.
-        database.getActorHasVisibleGalleryAlbums({
-          actorId: persistedActor.id,
-          audience: galleryAudience
-        })
-      ])
-      gallerySubviews.push('subjects', 'recent')
-      if (hasGalleryAlbums) gallerySubviews.push('albums')
-      if (audience.isOwner || gallerySettings.mapPublic) {
-        gallerySubviews.push('map')
-      }
-      if (audience.isOwner || gallerySettings.lifeListPublic) {
-        gallerySubviews.push('life-list')
-      }
-    }
-
-    // The SQL scope above filters on the status's own recipients, which cannot
-    // see through a boost: an Announce is public while the status it boosts may
-    // not be. `canActorReadStatus` follows that chain and is the authority,
-    // pairing a narrowed query with a per-status check the way
-    // `GET /api/v1/accounts/:id/statuses` and the outbox route do.
-    //
-    // `isFollower` covers this actor's own statuses. A boosted original belongs
-    // to someone else, so its follow state is looked up per status rather than
-    // prefetched into the `followerStateByActorId` map the statuses route
-    // builds — that route scans repeatedly and reuses the map across batches,
-    // where this renders one page. Bounded by page size and issued
-    // concurrently. Later pages come from `GET /api/v1/accounts/:id/statuses`,
-    // which runs the same checks.
-    const statuses = (
-      await Promise.all(
-        scopedStatuses.map(async (status) =>
-          (await canActorReadStatus({
-            database,
-            status,
-            currentActor,
-            isFollower: audience.isFollower
-          }))
-            ? status
-            : null
-        )
-      )
-    ).filter((status): status is Status => status !== null)
-
+// The followers and following pages render only the actor's name and handle
+// and its follower and following counts. For a local account those come off
+// the actor row `getActorFromUsername` already read, counters included (the
+// same counter keys `getActorFollowersCount`/`getActorFollowingCount` read),
+// so the first page of statuses, attachments, tab flags and gallery settings
+// `getProfileData` loads, and the per-status visibility checks on them, are
+// never asked for. Anything else takes `getProfileData`'s remote branch
+// unchanged: a logged-out visitor gets null, and a signed-in one the fetched
+// profile with its persistence and federation gates.
+export const getProfileIdentity = async (
+  database: Database,
+  actorHandle: string,
+  isLoggedIn: boolean,
+  options: Pick<ProfileDataOptions, 'currentActor'>
+): Promise<ProfileIdentity | null> => {
+  const localActor = await findLocalProfileActor(database, actorHandle)
+  if (localActor) {
     return {
-      person: getPersonFromActor(persistedActor),
-      // A local actor's stored value is the raw text; the page shows the HTML
-      // the actor document carries.
-      profileFields: (persistedActor.fields ?? []).map((field) => ({
-        name: field.name,
-        value: formatProfileFieldValue(field.value),
-        verifiedAt: toVerifiedAt(field.verifiedAt)
-      })),
-      statuses,
-      statusesCount,
-      statusPagination: {
-        nextPageUrl: null,
-        prevPageUrl: null,
-        // A full page may have more behind it. The cursor is the last status
-        // scanned, not the last one kept, so statuses this viewer cannot read
-        // at the end of the page are not scanned again.
-        nextMaxStatusId:
-          scopedStatuses.length >= PER_PAGE_LIMIT
-            ? scopedStatuses[scopedStatuses.length - 1].id
-            : null
-      },
-      attachments,
-      followingCount,
-      followersCount,
-      isInternalAccount: true,
-      hasFitnessData,
-      hasGalleryMedia,
-      gallerySubviews,
-      isPixelfed: false,
-      isPeerTube: false,
-      isMediaService: false,
-      serverSoftware: {
-        name: 'activities.next',
-        version: VERSION
-      },
-      isMediaOnly: false
+      person: getPersonFromActor(localActor),
+      followersCount: localActor.followersCount,
+      followingCount: localActor.followingCount,
+      isInternalAccount: true
     }
   }
 
+  const remoteProfile = await getRemoteProfileData(
+    database,
+    actorHandle,
+    isLoggedIn,
+    options
+  )
+  if (!remoteProfile) return null
+  return {
+    person: remoteProfile.person,
+    followersCount: remoteProfile.followersCount,
+    followingCount: remoteProfile.followingCount,
+    isInternalAccount: remoteProfile.isInternalAccount
+  }
+}
+
+const getLocalProfileData = async (
+  database: Database,
+  persistedActor: DomainActor,
+  options: ProfileDataOptions
+): Promise<ProfileData> => {
+  const currentActor = options.currentActor
+
+  // Only the statuses and attachments queries are scoped by the viewer, so
+  // the audience lookup runs alongside the counts rather than in front
+  // of them — for a signed-in non-owner it costs a follow query, and making
+  // the whole fan-out wait on it would add that latency to a hot page.
+  const [audience, statusesCount, followingCount, followersCount] =
+    await Promise.all([
+      resolveActorStatusesAudience({
+        database,
+        targetActor: persistedActor,
+        currentActor
+      }),
+      database.getActorStatusesCount({ actorId: persistedActor.id }),
+      database.getActorFollowingCount({ actorId: persistedActor.id }),
+      database.getActorFollowersCount({ actorId: persistedActor.id })
+    ])
+
+  const visibilityScope = {
+    publicOnly: audience.publicOnly,
+    visibleToActorId: audience.visibleToActorId,
+    includeFollowersOnly: audience.includeFollowersOnly,
+    followersAudience: audience.followersAudience
+  }
+
+  // Scoped by the same audience as the statuses and attachments: whether the
+  // Fitness tab exists is itself a disclosure, so a viewer who cannot read
+  // any of this actor's fitness posts must not be told there are any. The
+  // owner's audience carries no filter, which keeps their own tab unchanged.
+  // The gallery asks the same question through its own scope (a posted,
+  // in-gallery photo on a status this viewer may read), so the Gallery tab
+  // is offered to exactly the viewers who would find something in it.
+  const galleryAudience = toGalleryAudience(audience)
+  const [scopedStatuses, attachments, hasFitnessData, hasGalleryMedia] =
+    await Promise.all([
+      database.getActorStatuses({
+        actorId: persistedActor.id,
+        currentActorId: currentActor?.id,
+        limit: PER_PAGE_LIMIT,
+        ...visibilityScope
+      }),
+      database.getAttachmentsForActor({
+        actorId: persistedActor.id,
+        ...visibilityScope
+      }),
+      database.getActorHasFitnessData({
+        actorId: persistedActor.id,
+        ...visibilityScope
+      }),
+      database.getActorHasGalleryMedia({
+        actorId: persistedActor.id,
+        audience: galleryAudience
+      })
+    ])
+
+  const gallerySubviews: GallerySubview[] = []
+  if (hasGalleryMedia) {
+    const [gallerySettings, hasGalleryAlbums] = await Promise.all([
+      database.getGallerySettings({ actorId: persistedActor.id }),
+      // The Albums chip, by the same audience: offered only to a viewer who
+      // can open at least one album, so it never hints at one they cannot.
+      // Asked only once there is gallery media at all, since an album is
+      // made of it.
+      database.getActorHasVisibleGalleryAlbums({
+        actorId: persistedActor.id,
+        audience: galleryAudience
+      })
+    ])
+    gallerySubviews.push('subjects', 'recent')
+    if (hasGalleryAlbums) gallerySubviews.push('albums')
+    if (audience.isOwner || gallerySettings.mapPublic) {
+      gallerySubviews.push('map')
+    }
+    if (audience.isOwner || gallerySettings.lifeListPublic) {
+      gallerySubviews.push('life-list')
+    }
+  }
+
+  // The SQL scope above filters on the status's own recipients, which cannot
+  // see through a boost: an Announce is public while the status it boosts may
+  // not be. `canActorReadStatus` follows that chain and is the authority,
+  // pairing a narrowed query with a per-status check the way
+  // `GET /api/v1/accounts/:id/statuses` and the outbox route do.
+  //
+  // `isFollower` covers this actor's own statuses. A boosted original belongs
+  // to someone else, so its follow state is looked up per status rather than
+  // prefetched into the `followerStateByActorId` map the statuses route
+  // builds — that route scans repeatedly and reuses the map across batches,
+  // where this renders one page. Bounded by page size and issued
+  // concurrently. Later pages come from `GET /api/v1/accounts/:id/statuses`,
+  // which runs the same checks.
+  const statuses = (
+    await Promise.all(
+      scopedStatuses.map(async (status) =>
+        (await canActorReadStatus({
+          database,
+          status,
+          currentActor,
+          isFollower: audience.isFollower
+        }))
+          ? status
+          : null
+      )
+    )
+  ).filter((status): status is Status => status !== null)
+
+  return {
+    person: getPersonFromActor(persistedActor),
+    // A local actor's stored value is the raw text; the page shows the HTML
+    // the actor document carries.
+    profileFields: (persistedActor.fields ?? []).map((field) => ({
+      name: field.name,
+      value: formatProfileFieldValue(field.value),
+      verifiedAt: toVerifiedAt(field.verifiedAt)
+    })),
+    statuses,
+    statusesCount,
+    statusPagination: {
+      nextPageUrl: null,
+      prevPageUrl: null,
+      // A full page may have more behind it. The cursor is the last status
+      // scanned, not the last one kept, so statuses this viewer cannot read
+      // at the end of the page are not scanned again.
+      nextMaxStatusId:
+        scopedStatuses.length >= PER_PAGE_LIMIT
+          ? scopedStatuses[scopedStatuses.length - 1].id
+          : null
+    },
+    attachments,
+    followingCount,
+    followersCount,
+    isInternalAccount: true,
+    hasFitnessData,
+    hasGalleryMedia,
+    gallerySubviews,
+    isPixelfed: false,
+    isPeerTube: false,
+    isMediaService: false,
+    serverSoftware: {
+      name: 'activities.next',
+      version: VERSION
+    },
+    isMediaOnly: false
+  }
+}
+
+const getRemoteProfileData = async (
+  database: Database,
+  actorHandle: string,
+  isLoggedIn: boolean,
+  options: ProfileDataOptions
+): Promise<ProfileData | null> => {
   // Remote actors: only fetch if user is logged in
   if (!isLoggedIn) {
     return null

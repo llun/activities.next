@@ -10,7 +10,7 @@ import {
   within
 } from '@testing-library/react'
 import { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { likeStatus } from '@/lib/client'
 import {
@@ -28,6 +28,7 @@ import { Status } from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
+import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
 import { TimelineFeed } from './timeline-feed'
 
 const mockPush = vi.fn()
@@ -150,6 +151,12 @@ const chooseFromMenu = async (trigger: HTMLElement, item: string) => {
   // Some items run only once the menu has closed.
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 }
+// The inline composer is loaded lazily; preload it so it renders synchronously.
+beforeAll(async () => {
+  await import('./inline-status-composer')
+  preloadInlineStatusComposer()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
 
 describe('TimelineFeed', () => {
   beforeEach(() => {
@@ -965,7 +972,7 @@ describe('TimelineFeed', () => {
     // Click reply on post 2
     fireEvent.click(replyButtons[1])
 
-    const composer = screen.getByTestId('inline-composer')
+    const composer = await screen.findByTestId('inline-composer')
     expect(composer).toBeInTheDocument()
     expect(composer).toHaveAttribute('data-mode', 'reply')
     expect(composer).toHaveAttribute(

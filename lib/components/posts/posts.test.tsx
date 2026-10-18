@@ -17,7 +17,8 @@ import {
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
-import { Posts } from './posts'
+import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
+import { Posts, getPrioritizedRowIndex } from './posts'
 
 // A boost (Announce) row wrapping the shared poll fixture as its original, with
 // a distinct wrapper id per row.
@@ -124,6 +125,11 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 
 const mockVotePoll = vi.mocked(votePoll)
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
+
+// The inline composer is loaded lazily; preload it so it renders synchronously.
+beforeAll(async () => {
+  await preloadInlineStatusComposer()
+})
 
 describe('Posts', () => {
   beforeEach(() => {
@@ -300,7 +306,7 @@ describe('Posts', () => {
     })
   })
 
-  it('opens the shared inline composer from a post action row', () => {
+  it('opens the shared inline composer from a post action row', async () => {
     // Every signed-in feed passes the same action wiring, so using an action
     // (reply here) opens the shared composer for that post regardless of page.
     render(
@@ -317,7 +323,7 @@ describe('Posts', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Reply to post/ }))
 
-    const composer = screen.getByTestId('inline-composer')
+    const composer = await screen.findByTestId('inline-composer')
     expect(composer).toHaveAttribute('data-mode', 'reply')
     expect(composer).toHaveAttribute('data-status', pollStatusFixture.id)
   })
@@ -457,6 +463,107 @@ describe('Posts', () => {
       const liked = { ...rows[7], totalLikes: 1 } as Status
       view.rerender(rows.map((row, index) => (index === 7 ? liked : row)))
       expect(rendered().map((row) => row.id)).toEqual([rows[7].id])
+    })
+  })
+
+  describe('first visible media', () => {
+    const photoNote = (id: string, overrides: Partial<StatusNote> = {}) => {
+      const note = createMockNote({
+        id: `https://activities.local/users/alice/statuses/${id}`,
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: id,
+        ...overrides
+      })
+      return {
+        ...note,
+        attachments: [
+          {
+            id: `attachment-${id}`,
+            actorId: note.actorId,
+            statusId: note.id,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: `https://activities.local/media/${id}.jpg`,
+            name: id,
+            blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+            width: 800,
+            height: 600,
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
+      } as StatusNote
+    }
+    const textNote = (id: string) =>
+      createMockNote({
+        id: `https://activities.local/users/alice/statuses/${id}`,
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: id
+      })
+
+    const renderRows = (statuses: Status[], prioritizeFirstMedia = true) =>
+      render(
+        <Posts
+          host="activities.local"
+          currentTime={0}
+          statuses={statuses}
+          prioritizeFirstMedia={prioritizeFirstMedia}
+        />
+      )
+
+    it('keeps every image lazy unless the surface opts in', () => {
+      const { container } = renderRows([photoNote('p1')], false)
+      expect(container.querySelector('img')).not.toBeNull()
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      expect(container.querySelector('img.opacity-100')).toBeNull()
+      expect(container.querySelector('img[loading="eager"]')).toBeNull()
+    })
+
+    it('prioritizes only the first image row, skipping text-only rows', () => {
+      const { container } = renderRows([
+        textNote('t1'),
+        photoNote('p1'),
+        photoNote('p2')
+      ])
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      const eager = container.querySelectorAll('img.opacity-100')
+      expect(eager).toHaveLength(1)
+      expect(eager[0]).toHaveAttribute('src', expect.stringContaining('p1.jpg'))
+      expect(eager[0]).not.toHaveAttribute('loading')
+    })
+
+    it('resolves boosts to the boosted post', () => {
+      const boost = {
+        ...makeBoost('https://remote.example/boost-1'),
+        originalStatus: photoNote('boosted')
+      } as Status
+      expect(getPrioritizedRowIndex([textNote('t1'), boost])).toBe(1)
+    })
+
+    it('skips content-warning rows and renders no priority image for them', () => {
+      const { container } = renderRows([
+        photoNote('cw', { summary: 'Spoilers' }),
+        photoNote('p2')
+      ])
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      const eager = container.querySelectorAll('img.opacity-100')
+      expect(eager).toHaveLength(1)
+      expect(eager[0]).toHaveAttribute('src', expect.stringContaining('p2.jpg'))
+    })
+
+    it('only looks at the first three rows', () => {
+      const statuses = [
+        textNote('t1'),
+        textNote('t2'),
+        textNote('t3'),
+        photoNote('late')
+      ]
+      expect(getPrioritizedRowIndex(statuses)).toBe(-1)
+      const { container } = renderRows(statuses)
+      expect(container.querySelector('[fetchpriority]')).toBeNull()
+      expect(container.querySelector('img.opacity-100')).toBeNull()
     })
   })
 })

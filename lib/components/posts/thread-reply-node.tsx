@@ -3,7 +3,7 @@
 import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { FC } from 'react'
 
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
+import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import type { ThreadNode } from '@/lib/components/posts/threadModel'
 import type { InlineComposerControls } from '@/lib/components/posts/useInlineComposer'

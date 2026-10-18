@@ -6,7 +6,7 @@ import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
-import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
+import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { ReplyToast } from '@/lib/components/posts/reply-toast'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
@@ -66,7 +66,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
   onReplyCreated
 }) => {
   const router = useRouter()
-  const composer = useInlineComposer()
+  const composer = useInlineComposer(Boolean(currentActor))
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
     tags?: Tag[]

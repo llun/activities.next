@@ -23,6 +23,8 @@ export interface Props {
   showVideoControl?: boolean
   loading?: 'lazy' | 'eager'
   fetchPriority?: 'high' | 'low' | 'auto'
+  /** Paint the blurhash-branch image at full opacity from SSR, no fade. */
+  revealImmediately?: boolean
   onClick?: (event: MouseEvent) => void
   allowAutoplay?: boolean
   manuallyPaused?: boolean | null
@@ -37,13 +39,14 @@ export const Media: FC<Props> = ({
   showVideoControl = false,
   loading,
   fetchPriority,
+  revealImmediately = false,
   onClick,
   allowAutoplay = true,
   manuallyPaused = null,
   isPlaying: isPlayingProp,
   onPlayStateChange
 }) => {
-  const isPriority = fetchPriority === 'high'
+  const isPriority = revealImmediately || fetchPriority === 'high'
   const { autoplayGifs } = usePlaybackPreferences()
   const [isLoaded, setIsLoaded] = useState(false)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)

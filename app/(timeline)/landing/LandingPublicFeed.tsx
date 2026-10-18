@@ -62,6 +62,7 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
           host={host}
           currentTime={currentTime}
           statuses={statuses}
+          prioritizeFirstMedia
           showActions={false}
           showReadOnlyStats
         />

@@ -16,6 +16,8 @@ interface Props {
    * animation or a media with no still keeps its thumbnail.
    */
   quality?: 'thumbnail' | 'full'
+  /** Skip the blurhash paint gate for the page's likely LCP image. */
+  revealImmediately?: boolean
 }
 
 const FULL_SIZE_TYPES = /^image\/(?!gif$)/
@@ -25,7 +27,8 @@ export const GalleryAlbumThumb: FC<Props> = ({
   item,
   className,
   loading = 'lazy',
-  quality = 'thumbnail'
+  quality = 'thumbnail',
+  revealImmediately
 }) => (
   <Media
     attachment={
@@ -39,6 +42,7 @@ export const GalleryAlbumThumb: FC<Props> = ({
         : item.attachment
     }
     loading={loading}
+    revealImmediately={revealImmediately}
     className={cn('h-full w-full object-cover', className)}
   />
 )

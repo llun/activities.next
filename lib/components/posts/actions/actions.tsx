@@ -15,7 +15,7 @@ import { BookmarkButton } from './bookmark-button'
 import { EditHistoryButton } from './edit-history-button'
 import { LikeButton } from './like-button'
 import { PostMenu, PostMenuExtraItem } from './post-menu'
-import { ReactionButton } from './reaction-button'
+import { ReactionButton, preloadReactionPicker } from './reaction-button'
 import { ReplyButton } from './reply-button'
 import { RepostButton } from './repost-button'
 import { getBookmarkLabel, useBookmarkState } from './useBookmarkState'
@@ -132,7 +132,16 @@ export const Actions: FC<Props> = ({
           // The picker takes focus once it is placed, so it has to open after
           // the menu has finished handing focus back.
           deferUntilClosed: true,
-          onSelect: () => reactionState.setIsPicking(true)
+          // Toggles, like the trigger, so selecting it again closes the
+          // "Couldn't load" message a failed picker chunk leaves open. The
+          // menu does not restore focus on close, so closing hands it back to
+          // the trigger itself.
+          onSelect: () => {
+            if (!reactionState.isPicking)
+              return reactionState.setIsPicking(true)
+            reactionState.setIsPicking(false)
+            reactionState.focusTrigger()
+          }
         },
         {
           key: 'bookmark',
@@ -235,6 +244,8 @@ export const Actions: FC<Props> = ({
         canEdit={canEdit}
         triggerRef={isCompact ? reactionState.triggerRef : undefined}
         extraItems={extraItems}
+        // The compact row's "React to post" item mounts the lazy picker.
+        onMenuOpen={isCompact ? preloadReactionPicker : undefined}
         onReply={onReply}
         onEdit={onEdit}
         onQuote={onQuote}

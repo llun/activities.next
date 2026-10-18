@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   MessageCircle
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   FC,
@@ -19,7 +20,12 @@ import {
 } from 'react'
 
 import { getAccountStatusesPage, getActorStatuses } from '@/lib/client'
+import {
+  createPreloadable,
+  runWhenIdle
+} from '@/lib/components/lazy/createPreloadable'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -27,6 +33,7 @@ import {
 } from '@/lib/components/posts/statusArray'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import type { GallerySubview } from '@/lib/services/gallery/galleryEntities'
@@ -42,12 +49,39 @@ import {
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
-import { ActorMediaGallery } from './ActorMediaGallery'
-import { ProfileGalleryTab } from './ProfileGalleryTab'
+const loadActorMediaGallery = () =>
+  import('./ActorMediaGallery').then((module) => module.ActorMediaGallery)
+const loadProfileGalleryTab = () =>
+  import('./ProfileGalleryTab').then((module) => module.ProfileGalleryTab)
+
+// The default tab is posts, so the gallery panels (and the map behind the
+// gallery tab) load on demand. SSR stays on: a media-only profile renders the
+// gallery as its primary content. Hovering or focusing the tab bar preloads them.
+const galleryFallback = (
+  <SectionSkeleton sections={[3]} headings={false} descriptions={false} />
+)
+const DynamicActorMediaGallery = dynamic(loadActorMediaGallery, {
+  loading: () => galleryFallback
+})
+const DynamicProfileGalleryTab = dynamic(loadProfileGalleryTab, {
+  loading: () => galleryFallback
+})
+
+// Render synchronously once preloaded; see `createPreloadable`. On the server
+// and during hydration nothing is preloaded, so the SSR'd dynamic path renders.
+const { Component: ActorMediaGallery, preload: preloadActorMediaGallery } =
+  createPreloadable(loadActorMediaGallery, DynamicActorMediaGallery)
+const { Component: ProfileGalleryTab, preload: preloadProfileGalleryTab } =
+  createPreloadable(loadProfileGalleryTab, DynamicProfileGalleryTab)
 
 interface Props {
   host: string
   actorId: string
+  /**
+   * The profile shows a cover image above the tabs. That image is the likely
+   * largest contentful paint, so the posts list then keeps its media lazy.
+   */
+  hasHeaderImage?: boolean
   currentTime: number
   statuses: Status[]
   attachments: Attachment[]
@@ -153,7 +187,8 @@ export const ActorTimelines: FC<Props> = ({
   isPixelfed = false,
   isMediaService = false,
   isInternalAccount = true,
-  isMediaOnly: isMediaOnlyProp = false
+  isMediaOnly: isMediaOnlyProp = false,
+  hasHeaderImage = false
 }) => {
   const isMediaOnly = Boolean(isPixelfed || isMediaService || isMediaOnlyProp)
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
@@ -215,6 +250,19 @@ export const ActorTimelines: FC<Props> = ({
     }
     return tabs
   }, [showRepliesTab, hasMedia, showGalleryTab, showFitnessTab])
+
+  // Warm only the gallery panels this profile has a tab for, at idle, so
+  // switching to one renders at once instead of waiting out the Suspense reveal
+  // throttle.
+  const hasGalleryPanelTab = hasMedia || showGalleryTab
+  const preloadGalleryPanels = useCallback(() => {
+    if (hasMedia) void preloadActorMediaGallery()
+    if (showGalleryTab) void preloadProfileGalleryTab()
+  }, [hasMedia, showGalleryTab])
+  useEffect(() => {
+    if (!hasGalleryPanelTab) return
+    return runWhenIdle(preloadGalleryPanels)
+  }, [hasGalleryPanelTab, preloadGalleryPanels])
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     isMediaOnly ? 'media' : 'posts'
@@ -491,13 +539,15 @@ export const ActorTimelines: FC<Props> = ({
 
   const renderFeed = (
     feedStatuses: Status[],
-    empty: { icon: LucideIcon; title: string; hint: string }
+    empty: { icon: LucideIcon; title: string; hint: string },
+    prioritizeFirstMedia = false
   ) =>
     feedStatuses.length > 0 ? (
       <Posts
         host={host}
         currentTime={currentTime}
         statuses={feedStatuses}
+        prioritizeFirstMedia={prioritizeFirstMedia}
         currentActor={currentActor}
         showActions={showActions}
         showReadOnlyStats={!showActions}
@@ -555,13 +605,15 @@ export const ActorTimelines: FC<Props> = ({
     return (
       <div className="space-y-4">
         {hasLoadedMedia ? (
-          <ActorMediaGallery
-            actorId={actorId}
-            initialAttachments={attachments}
-            statuses={currentStatuses}
-            isPixelfed={isPixelfed}
-            isMediaOnly={isMediaOnly}
-          />
+          <LazyChunkBoundary>
+            <ActorMediaGallery
+              actorId={actorId}
+              initialAttachments={attachments}
+              statuses={currentStatuses}
+              isPixelfed={isPixelfed}
+              isMediaOnly={isMediaOnly}
+            />
+          </LazyChunkBoundary>
         ) : (
           <EmptyState icon={Images} title="No media yet">
             Photos and videos show up here.
@@ -576,7 +628,7 @@ export const ActorTimelines: FC<Props> = ({
   if (availableTabs.length <= 1) {
     return (
       <div className="space-y-4">
-        {renderFeed(postStatuses, noPosts)}
+        {renderFeed(postStatuses, noPosts, !hasHeaderImage)}
 
         {loadMoreControl}
       </div>
@@ -585,40 +637,50 @@ export const ActorTimelines: FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      <SegmentedControl
-        aria-label="Profile sections"
-        items={availableTabs.map((value) => ({
-          value,
-          label: PROFILE_TAB_LABELS[value]
-        }))}
-        value={effectiveActiveTab}
-        onValueChange={(value) => setActiveTab(value as ProfileTab)}
-        className="sm:w-fit"
-      />
+      <div
+        onPointerEnter={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
+        onFocus={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
+      >
+        <SegmentedControl
+          aria-label="Profile sections"
+          items={availableTabs.map((value) => ({
+            value,
+            label: PROFILE_TAB_LABELS[value]
+          }))}
+          value={effectiveActiveTab}
+          onValueChange={(value) => setActiveTab(value as ProfileTab)}
+          className="sm:w-fit"
+        />
+      </div>
 
-      {effectiveActiveTab === 'posts' && renderFeed(postStatuses, noPosts)}
+      {effectiveActiveTab === 'posts' &&
+        renderFeed(postStatuses, noPosts, !hasHeaderImage)}
 
       {effectiveActiveTab === 'replies' &&
         showRepliesTab &&
         renderFeed(replyStatuses, noReplies)}
 
       {effectiveActiveTab === 'media' && hasMedia && (
-        <ActorMediaGallery
-          actorId={actorId}
-          initialAttachments={mediaAttachments}
-          statuses={currentStatuses}
-          isPixelfed={false}
-        />
+        <LazyChunkBoundary>
+          <ActorMediaGallery
+            actorId={actorId}
+            initialAttachments={mediaAttachments}
+            statuses={currentStatuses}
+            isPixelfed={false}
+          />
+        </LazyChunkBoundary>
       )}
 
       {effectiveActiveTab === 'gallery' && showGalleryTab && (
-        <ProfileGalleryTab
-          actorId={actorId}
-          handle={handle}
-          subviews={gallerySubviews}
-          isCurrentUser={isCurrentUser}
-          mapProvider={mapProvider}
-        />
+        <LazyChunkBoundary>
+          <ProfileGalleryTab
+            actorId={actorId}
+            handle={handle}
+            subviews={gallerySubviews}
+            isCurrentUser={isCurrentUser}
+            mapProvider={mapProvider}
+          />
+        </LazyChunkBoundary>
       )}
 
       {effectiveActiveTab === 'fitness' && showFitnessTab && (

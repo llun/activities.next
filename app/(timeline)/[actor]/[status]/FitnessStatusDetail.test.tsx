@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 
+import { preloadInlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import type { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
@@ -119,6 +120,11 @@ vi.mock('@/lib/components/posts/BrandedDeviceLink', async () => ({
   BrandedDeviceLink: (await import('./FitnessStatusDetail.mocks'))
     .MockBrandedDeviceLink
 }))
+
+// The inline composer is loaded lazily; preload it so it renders synchronously.
+beforeAll(async () => {
+  await preloadInlineStatusComposer()
+})
 
 describe('FitnessStatusDetail', () => {
   beforeEach(() => {
@@ -689,7 +695,7 @@ describe('FitnessStatusDetail', () => {
       }
     })
 
-    it('opens the reply composer at the top of the replies and re-opens a hidden list', () => {
+    it('opens the reply composer at the top of the replies and re-opens a hidden list', async () => {
       renderDetail({ replies: [buildReply('reply-1')] })
       fireEvent.click(screen.getByRole('button', { name: /Replies \(1\)/ }))
 
@@ -698,7 +704,7 @@ describe('FitnessStatusDetail', () => {
       expect(
         screen.getByRole('button', { name: /Replies \(1\)/ })
       ).toHaveAttribute('aria-expanded', 'true')
-      const composer = screen.getByTestId('inline-status-composer')
+      const composer = await screen.findByTestId('inline-status-composer')
       expect(composer).toHaveAttribute('data-mode', 'reply')
       expect(composer).toHaveAttribute('data-status-id', buildStatus().id)
       // Above the first reply.

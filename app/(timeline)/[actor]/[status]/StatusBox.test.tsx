@@ -76,6 +76,11 @@ vi.mock('@/lib/utils/getStatusDetailPathClient', () => ({
 const mockVotePoll = vi.mocked(votePoll)
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
 
+// FitnessStatusDetail is loaded lazily (next/dynamic); resolve it before the tests.
+beforeAll(async () => {
+  await import('./FitnessStatusDetail')
+})
+
 describe('StatusBox', () => {
   beforeEach(() => {
     mockPush.mockClear()
@@ -310,7 +315,7 @@ describe('StatusBox', () => {
       )
     })
 
-    it('offers the author the pill from a fitness post’s photos too', () => {
+    it('offers the author the pill from a fitness post’s photos too', async () => {
       render(
         <StatusBox
           host="activities.local"
@@ -325,7 +330,7 @@ describe('StatusBox', () => {
       )
 
       fireEvent.click(
-        screen.getByRole('button', { name: 'Open fitness photo' })
+        await screen.findByRole('button', { name: 'Open fitness photo' })
       )
 
       expect(screen.getByTestId('viewer')).toHaveAttribute(
@@ -334,7 +339,7 @@ describe('StatusBox', () => {
       )
     })
 
-    it('offers others none on a fitness post’s photos', () => {
+    it('offers others none on a fitness post’s photos', async () => {
       render(
         <StatusBox
           host="activities.local"
@@ -349,7 +354,7 @@ describe('StatusBox', () => {
       )
 
       fireEvent.click(
-        screen.getByRole('button', { name: 'Open fitness photo' })
+        await screen.findByRole('button', { name: 'Open fitness photo' })
       )
 
       expect(screen.getByTestId('viewer')).toHaveAttribute(

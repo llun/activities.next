@@ -50,6 +50,12 @@ interface Props {
    * its albums pill changed, so a page that shows one of them can refresh.
    */
   onAlbumsChanged?: (albumIds: string[]) => void
+  /**
+   * The grid is the page's primary content: its first tile is revealed
+   * without the hydration fade (eager only where it would otherwise be lazy)
+   * and the rest stay lazy.
+   */
+  prioritizeFirst?: boolean
   className?: string
 }
 
@@ -92,6 +98,7 @@ export const GalleryGrid: FC<Props> = ({
   onItemsDeleted,
   onViewerClosed,
   onAlbumsChanged,
+  prioritizeFirst = false,
   className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
@@ -160,6 +167,8 @@ export const GalleryGrid: FC<Props> = ({
             .filter(Boolean)
             .join(' · ')
           const isSelected = selection?.selected.has(item.mediaId) ?? false
+          const isPriorityTile =
+            prioritizeFirst && index === 0 && !isVideo(item)
           return (
             <li key={item.mediaId} className="min-w-0">
               <button
@@ -188,7 +197,8 @@ export const GalleryGrid: FC<Props> = ({
                         }
                       : item.attachment
                   }
-                  loading="lazy"
+                  loading={isPriorityTile ? 'eager' : 'lazy'}
+                  revealImmediately={isPriorityTile}
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
                 {item.inGallery === false ? (
