@@ -51,6 +51,76 @@ describe('extractTagFromHref', () => {
   it('returns undefined for purely numeric tags', () => {
     expect(extractTagFromHref('/tags/12345')).toBeUndefined()
   })
+
+  describe('tag name check', () => {
+    // The previous, quadratic form of the check. The current one must accept
+    // exactly the same names.
+    const PREVIOUS_TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
+    const previous = (name: string) => {
+      const tag = name.toLowerCase()
+      return PREVIOUS_TAG_REGEX.test(tag) ? tag : undefined
+    }
+
+    it.each([
+      'a',
+      '_',
+      '1a',
+      'a1',
+      '123abc',
+      'abc123',
+      '1_2',
+      '__',
+      '9z9',
+      'Hello_World',
+      '0',
+      '42',
+      'a-b',
+      'a!',
+      '1!',
+      'abc def',
+      'a.b',
+      '1a!'
+    ])('treats %j as the previous check did', (name) => {
+      expect(extractTagFromHref(`/tags/${encodeURIComponent(name)}`)).toBe(
+        previous(name)
+      )
+    })
+
+    it('agrees with the previous check on random names', () => {
+      const alphabet = 'aZ_09-!.~'
+      // A fixed linear congruential generator, so a failure reproduces.
+      let seed = 12345
+      const next = () => {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        return seed
+      }
+      for (let run = 0; run < 5000; run++) {
+        const length = 1 + (next() % 12)
+        let name = ''
+        for (let index = 0; index < length; index++) {
+          name += alphabet[next() % alphabet.length]
+        }
+        expect(extractTagFromHref(`/tags/${name}`)).toBe(previous(name))
+      }
+    })
+
+    it.each([40_000, 200_000])(
+      'returns quickly for a %d-character name that is not a tag',
+      (length) => {
+        const href = `https://x.example/tags/${'a'.repeat(length)}!`
+        const start = performance.now()
+        expect(extractTagFromHref(href)).toBeUndefined()
+        expect(performance.now() - start).toBeLessThan(500)
+      }
+    )
+
+    it('accepts a name at the hashtag length limit and refuses a longer one', () => {
+      expect(extractTagFromHref(`/tags/${'a'.repeat(255)}`)).toBe(
+        'a'.repeat(255)
+      )
+      expect(extractTagFromHref(`/tags/${'a'.repeat(256)}`)).toBeUndefined()
+    })
+  })
 })
 
 describe('cleanClassName', () => {

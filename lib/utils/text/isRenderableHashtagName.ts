@@ -5,9 +5,10 @@
 // (`^[\p{L}\p{N}_]+$`, which also allows Unicode and all-numeric names). A name
 // that fails this can be created via the raw Mastodon API but cannot be linked
 // to /tags/<name> without 404ing, so callers should both block creating it and
-// avoid linking it.
-export const RENDERABLE_HASHTAG_NAME_REGEX =
-  /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
+// avoid linking it. Written with a digits-only prefix: the equivalent
+// `[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*` backtracks quadratically on a long name
+// that fails (see `extractTagFromHref` in `cleanClassName.ts`).
+export const RENDERABLE_HASHTAG_NAME_REGEX = /^[0-9]*[a-zA-Z_][a-zA-Z0-9_]*$/
 
 export const isRenderableHashtagName = (name: string): boolean =>
   RENDERABLE_HASHTAG_NAME_REGEX.test(name)

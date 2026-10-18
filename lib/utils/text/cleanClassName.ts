@@ -10,6 +10,7 @@ import React from 'react'
 import { Tag } from '@/lib/types/domain/tag'
 
 import { extractProfileHref } from './extractProfileHref'
+import { MAX_HASHTAG_NAME_LENGTH } from './mastodonHashtag'
 import {
   hasToken,
   isEllipsisClass,
@@ -24,7 +25,14 @@ interface replacingNode {
   }
 }
 
-const TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
+// An ASCII word with at least one letter or underscore. Written with a
+// digits-only prefix rather than `[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*`: the two
+// accept exactly the same strings, but the overlapping classes made the old
+// form backtrack quadratically on a long non-matching name (a remote hashtag
+// href with a 40k-character path took 1.7 s), and this runs while rendering
+// remote bios, posts and profile fields. A name longer than the stored
+// hashtag limit is not a tag either, and is refused before the regex runs.
+const TAG_REGEX = /^[0-9]*[a-zA-Z_][a-zA-Z0-9_]*$/
 
 export const extractTagFromHref = (
   href: string | undefined
@@ -35,6 +43,7 @@ export const extractTagFromHref = (
     const match = pathname.match(/\/tags\/([^/?#]+)/)
     if (!match) return undefined
     const tag = decodeURIComponent(match[1]).toLowerCase()
+    if (tag.length > MAX_HASHTAG_NAME_LENGTH) return undefined
     return TAG_REGEX.test(tag) ? tag : undefined
   } catch {
     return undefined
