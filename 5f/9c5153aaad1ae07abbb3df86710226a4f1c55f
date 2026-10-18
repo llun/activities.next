@@ -1,0 +1,22 @@
+docs/architecture.md
+  h_580a04e334fef4 1993
+lib/components/posts/actions/reaction-button.tsx
+  h_580a04e334fef4 148-151
+lib/components/posts/combined-post-list-item.tsx
+  h_580a04e334fef4 30
+lib/components/posts/lazy-chunk-boundary.tsx
+  h_580a04e334fef4 11-16,38,43-48
+lib/components/posts/timeline-feed.test.tsx
+  h_580a04e334fef4 31,154,157-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f9c5153aaad1ae07abbb3df86710226a4f1c55f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
