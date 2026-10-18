@@ -41,14 +41,16 @@ export const AdminHashtagsContent: FC<Props> = ({
   const [pendingTarget, setPendingTarget] = useState<{
     sort: HashtagSortOrder
     page: number
-    fromSort: HashtagSortOrder
-    fromPage: number
   } | null>(null)
+  const [prevProps, setPrevProps] = useState({ sort, page })
+
+  if (prevProps.sort !== sort || prevProps.page !== page) {
+    setPrevProps({ sort, page })
+    setPendingTarget(null)
+  }
 
   const isLoading =
     pendingTarget !== null &&
-    pendingTarget.fromSort === sort &&
-    pendingTarget.fromPage === page &&
     (pendingTarget.sort !== sort || pendingTarget.page !== page)
 
   const activeSort = isLoading ? pendingTarget.sort : sort
@@ -83,9 +85,7 @@ export const AdminHashtagsContent: FC<Props> = ({
           } else {
             setPendingTarget({
               sort: nextSort as HashtagSortOrder,
-              page: 1,
-              fromSort: sort,
-              fromPage: page
+              page: 1
             })
           }
         }}
@@ -174,17 +174,13 @@ export const AdminHashtagsContent: FC<Props> = ({
           onPreviousClick={() => {
             setPendingTarget({
               sort,
-              page: page - 1,
-              fromSort: sort,
-              fromPage: page
+              page: page - 1
             })
           }}
           onNextClick={() => {
             setPendingTarget({
               sort,
-              page: page + 1,
-              fromSort: sort,
-              fromPage: page
+              page: page + 1
             })
           }}
         />

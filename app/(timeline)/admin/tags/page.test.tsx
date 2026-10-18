@@ -183,6 +183,23 @@ describe('/admin/tags', () => {
       screen.getByRole('link', { name: 'Recently active' })
     ).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'recenttag' })).toBeInTheDocument()
+
+    // Simulating browser Back navigation: re-render with previous sort without a link click
+    getAllHashtags.mockResolvedValue({
+      hashtags: [hashtag('#fediverse', 12, Date.UTC(2026, 9, 1, 8, 30))],
+      total: 1
+    })
+    rerender(
+      await Page({ searchParams: Promise.resolve({ sort: 'alphabetical' }) })
+    )
+
+    expect(screen.getByRole('table', { name: 'Hashtags' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Alphabetical' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(screen.getByRole('link', { name: 'fediverse' })).toBeInTheDocument()
   })
 
   it('switches to loading skeleton and advances page label on pagination click until new props arrive', async () => {
