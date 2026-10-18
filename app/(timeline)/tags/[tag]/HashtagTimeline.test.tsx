@@ -22,6 +22,7 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
+    prioritizeFirstMedia,
     showActions,
     showReadOnlyStats,
     onPostDeleted,
@@ -31,6 +32,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
     onReactionsChanged
   }: {
     statuses: Status[]
+    prioritizeFirstMedia?: boolean
     showActions?: boolean
     showReadOnlyStats?: boolean
     onPostDeleted?: (status: Status) => void
@@ -41,6 +43,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
   }) => (
     <div
       data-testid="posts"
+      data-prioritize-first-media={String(prioritizeFirstMedia)}
       data-show-actions={String(Boolean(showActions))}
       data-read-only-stats={String(Boolean(showReadOnlyStats))}
     >
@@ -191,6 +194,7 @@ describe('HashtagTimeline', () => {
     render(<HashtagTimeline {...baseProps} currentActor={currentActor} />)
 
     const feed = screen.getByTestId('posts')
+    expect(feed).toHaveAttribute('data-prioritize-first-media', 'true')
     expect(feed).toHaveAttribute('data-show-actions', showActions)
     expect(feed).toHaveAttribute('data-read-only-stats', readOnlyStats)
   })

@@ -5,7 +5,9 @@ import zlib from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  PUBLIC_ROUTE_JS_BUDGETS,
   STATS_PATH,
+  checkRouteBudgets,
   compareRoutes,
   formatComparison,
   loadEarlierRoutes,
@@ -127,6 +129,72 @@ describe('bundleReport formatComparison', () => {
   })
 })
 
+describe('bundleReport checkRouteBudgets', () => {
+  const budgets = {
+    '/': { gzipBytes: 1000, rawBytes: 3000 },
+    '/[actor]': { gzipBytes: 800, rawBytes: 2400 }
+  }
+
+  it('passes when all budgeted routes are within raw and gzip ceilings', () => {
+    expect(
+      checkRouteBudgets(
+        [
+          { route: '/', gzipBytes: 1000, rawBytes: 3000 },
+          { route: '/[actor]', gzipBytes: 799, rawBytes: 2399 },
+          { route: '/unbudgeted', gzipBytes: 999999, rawBytes: 999999 }
+        ],
+        budgets
+      )
+    ).toEqual([])
+  })
+
+  it('reports gzip-over, raw-over and missing budgeted routes', () => {
+    const violations = checkRouteBudgets(
+      [
+        { route: '/', gzipBytes: 1001, rawBytes: 3000 },
+        { route: '/[actor]', gzipBytes: 800, rawBytes: 2405 }
+      ],
+      {
+        ...budgets,
+        '/tags/[tag]': { gzipBytes: 500, rawBytes: 1500 }
+      }
+    )
+    expect(violations).toEqual([
+      expect.objectContaining({
+        route: '/',
+        reason: 'gzip',
+        actualBytes: 1001,
+        budgetBytes: 1000,
+        message: expect.stringContaining('/:')
+      }),
+      expect.objectContaining({
+        route: '/[actor]',
+        reason: 'raw',
+        actualBytes: 2405,
+        budgetBytes: 2400,
+        message: expect.stringContaining('/[actor]:')
+      }),
+      expect.objectContaining({
+        route: '/tags/[tag]',
+        reason: 'missing',
+        message: '/tags/[tag]: missing from build'
+      })
+    ])
+  })
+
+  it('defines PUBLIC_ROUTE_JS_BUDGETS for the 7 public routes', () => {
+    expect(Object.keys(PUBLIC_ROUTE_JS_BUDGETS)).toEqual([
+      '/',
+      '/[actor]',
+      '/[actor]/[status]',
+      '/tags/[tag]',
+      '/[actor]/followers',
+      '/[actor]/following',
+      '/[actor]/albums/[id]'
+    ])
+  })
+})
+
 describe('bundleReport parseArgs', () => {
   it('parses --json and --compare in both spellings', () => {
     expect(parseArgs(['--json', 'a.json', '--compare=b.json'])).toMatchObject({
@@ -135,10 +203,13 @@ describe('bundleReport parseArgs', () => {
     })
   })
 
-  it('parses --limit and --root', () => {
-    expect(parseArgs(['--limit', '5', '--root', '/x'])).toMatchObject({
+  it('parses --limit, --root and --check', () => {
+    expect(
+      parseArgs(['--limit', '5', '--root', '/x', '--check'])
+    ).toMatchObject({
       limit: 5,
-      root: '/x'
+      root: '/x',
+      check: true
     })
   })
 
@@ -319,6 +390,32 @@ describe('bundleReport IO', () => {
         main(['--root', root, '--compare', earlier, '--json', json])
       ).toThrow('is not valid JSON')
       expect(fs.existsSync(json)).toBe(false)
+    })
+
+    it('returns 0 for --check when all budgeted routes are within limits', () => {
+      const log = printed()
+      write(
+        STATS_PATH,
+        JSON.stringify(
+          Object.keys(PUBLIC_ROUTE_JS_BUDGETS).map((route) => ({
+            route,
+            firstLoadUncompressedJsBytes: 100,
+            firstLoadChunkPaths: ['.next/static/chunks/a.js']
+          }))
+        )
+      )
+      expect(main(['--root', root, '--check'])).toBe(0)
+      const output = log.mock.calls.map((c) => c[0]).join('\n')
+      expect(output).toContain('All 7 budgeted routes within JS limits.')
+    })
+
+    it('prints violations and returns 1 for --check when a budget is violated', () => {
+      printed()
+      const err = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      expect(main(['--root', root, '--check'])).toBe(1)
+      const errOutput = err.mock.calls.map((c) => c[0]).join('\n')
+      expect(errOutput).toContain('Route JS budget violations')
+      expect(errOutput).toContain('/: missing from build')
     })
   })
 })

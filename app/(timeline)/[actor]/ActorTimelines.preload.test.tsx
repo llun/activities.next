@@ -86,4 +86,40 @@ describe('ActorTimelines tab bar', () => {
       'false'
     )
   })
+
+  it('prioritizes the first post image on the single-tab profile branch only when the profile has no cover', () => {
+    const renderSingleTab = (hasHeaderImage?: boolean) =>
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://mastodon.social/users/someone"
+          statuses={[createStatus('status-1')]}
+          attachments={[]}
+          isInternalAccount={false}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          hasHeaderImage={hasHeaderImage}
+          statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+        />
+      )
+
+    const { unmount } = renderSingleTab(false)
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Profile sections' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('posts')).toHaveAttribute(
+      'data-prioritize',
+      'true'
+    )
+    unmount()
+
+    renderSingleTab(true)
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Profile sections' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('posts')).toHaveAttribute(
+      'data-prioritize',
+      'false'
+    )
+  })
 })

@@ -45,18 +45,49 @@ export interface BundleComparison {
   totalDeltaGzipBytes: number
 }
 
+export interface RouteBudget {
+  gzipBytes: number
+  rawBytes: number
+}
+
+export interface RouteBudgetViolation {
+  route: string
+  reason: 'missing' | 'gzip' | 'raw'
+  actualBytes?: number
+  budgetBytes?: number
+  message: string
+}
+
 export interface ReportOptions {
   json?: string
   compare?: string
   root: string
   limit?: number
+  check: boolean
   help: boolean
 }
 
 export const STATS_PATH = '.next/diagnostics/route-bundle-stats.json'
 
+const kib = (n: number) => n * 1024
+
+// Current build plus 15 KiB gzip / 45 KiB raw rounded up to the next KiB: build-to-build variance of these numbers is 0 bytes over 5 identical builds, normal feature drift between recent commits was ~7.5 KiB gzip, and the smallest regression to catch (losing the composer/reaction-picker split on /tags/[tag]) is ~29 KiB gzip; profile/status splits ~74–82 KiB.
+export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
+  '/': { gzipBytes: kib(560), rawBytes: kib(1723) },
+  '/[actor]': { gzipBytes: kib(513), rawBytes: kib(1584) },
+  '/[actor]/[status]': { gzipBytes: kib(514), rawBytes: kib(1586) },
+  '/tags/[tag]': { gzipBytes: kib(510), rawBytes: kib(1573) },
+  '/[actor]/followers': { gzipBytes: kib(402), rawBytes: kib(1260) },
+  '/[actor]/following': { gzipBytes: kib(402), rawBytes: kib(1260) },
+  '/[actor]/albums/[id]': { gzipBytes: kib(397), rawBytes: kib(1257) }
+}
+
 export function parseArgs(args: string[]): ReportOptions {
-  const options: ReportOptions = { root: process.cwd(), help: false }
+  const options: ReportOptions = {
+    root: process.cwd(),
+    check: false,
+    help: false
+  }
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     const value = () => {
@@ -65,6 +96,7 @@ export function parseArgs(args: string[]): ReportOptions {
       return next
     }
     if (arg === '--help' || arg === '-h') options.help = true
+    else if (arg === '--check') options.check = true
     else if (arg === '--json') options.json = value()
     else if (arg.startsWith('--json=')) options.json = arg.slice(7)
     else if (arg === '--compare') options.compare = value()
@@ -197,6 +229,44 @@ export function formatComparison(c: BundleComparison): string {
   return lines.join('\n')
 }
 
+export function checkRouteBudgets(
+  routes: RouteSize[],
+  budgets: Record<string, RouteBudget> = PUBLIC_ROUTE_JS_BUDGETS
+): RouteBudgetViolation[] {
+  const byRoute = new Map(routes.map((r) => [r.route, r]))
+  const violations: RouteBudgetViolation[] = []
+  for (const [route, budget] of Object.entries(budgets)) {
+    const actual = byRoute.get(route)
+    if (!actual) {
+      violations.push({
+        route,
+        reason: 'missing',
+        message: `${route}: missing from build`
+      })
+      continue
+    }
+    if (actual.gzipBytes > budget.gzipBytes) {
+      violations.push({
+        route,
+        reason: 'gzip',
+        actualBytes: actual.gzipBytes,
+        budgetBytes: budget.gzipBytes,
+        message: `${route}: gzip ${kb(actual.gzipBytes)} KB exceeds budget ${kb(budget.gzipBytes)} KB (${signedKb(actual.gzipBytes - budget.gzipBytes)})`
+      })
+    }
+    if (actual.rawBytes > budget.rawBytes) {
+      violations.push({
+        route,
+        reason: 'raw',
+        actualBytes: actual.rawBytes,
+        budgetBytes: budget.rawBytes,
+        message: `${route}: raw ${kb(actual.rawBytes)} KB exceeds budget ${kb(budget.rawBytes)} KB (${signedKb(actual.rawBytes - budget.rawBytes)})`
+      })
+    }
+  }
+  return violations
+}
+
 function readJson(file: string, hint: string): unknown {
   let text: string
   try {
@@ -246,10 +316,11 @@ export function makeChunkSizer(root: string) {
   }
 }
 
-const USAGE = `Usage: yarn bundle:report [--json <file>] [--compare <file>] [--limit <n>] [--root <dir>]
+const USAGE = `Usage: yarn bundle:report [--check] [--json <file>] [--compare <file>] [--limit <n>] [--root <dir>]
 
 Prints first-load JavaScript per route (largest gzip first) from the last
-\`yarn build\`. --json writes the per-route results; --compare reads such a
+\`yarn build\`. --check verifies PUBLIC_ROUTE_JS_BUDGETS and exits non-zero on
+any violation. --json writes the per-route results; --compare reads such a
 file from an earlier build and prints the gzip change per route. --root sets
 the project directory that holds .next (default: the current directory).`
 
@@ -276,6 +347,18 @@ export function main(args: string[]): number {
   if (options.json) {
     fs.writeFileSync(options.json, `${JSON.stringify(summary, null, 2)}\n`)
     console.log(`\nWrote ${options.json}`)
+  }
+  if (options.check) {
+    const violations = checkRouteBudgets(summary.routes)
+    if (violations.length > 0) {
+      console.error(
+        `\nRoute JS budget violations (${violations.length}):\n${violations.map((v) => `  ${v.message}`).join('\n')}`
+      )
+      return 1
+    }
+    console.log(
+      `\nAll ${Object.keys(PUBLIC_ROUTE_JS_BUDGETS).length} budgeted routes within JS limits.`
+    )
   }
   return 0
 }

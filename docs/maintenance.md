@@ -35,6 +35,7 @@ A refused database is refused before anything is written: `yarn migrate` creates
 ```bash
 yarn build
 yarn bundle:report                       # every route, largest gzip first
+yarn bundle:report --check               # enforce PUBLIC_ROUTE_JS_BUDGETS (used in CI)
 yarn bundle:report --limit 15            # only the 15 largest
 yarn bundle:report --json before.json    # also save the per-route results
 # change the code, then:
@@ -530,6 +531,8 @@ node scripts/run.cjs scripts/mock/createWebVitalsFixtures.ts \
 - `--offline-map-tiles` (default on; `--no-offline-map-tiles` or `--offline-map-tiles=false` to disable) answers `https://tile.openstreetmap.org/z/x/y.png` inside the script's own process with a generated PNG so the stored static route map renders offline. While it is on, other non-loopback requests through `globalThis.fetch` are rejected, and only their origin and path (never the query string) are recorded in `blockedExternalRequests`. With it off no fetch wrapper is installed, so real OpenStreetMap tile requests go out over the network. The flag accepts only `true` or `false` after `=`.
 
 It refuses to run (before writing anything) unless the database client is `better-sqlite3` on an existing absolute file path (not `:memory:`), `ACTIVITIES_HOST` is loopback, media storage is local `fs` with an absolute path, the effective fitness storage is local `fs` with an absolute path inside the media storage path (so a fitness S3 or object-storage setting is refused), the job queue is inline (no `ACTIVITIES_QUEUE_*`), the map provider resolves to `osm`, and the database holds no accounts and no local public posts. Like the other mock scripts it does not load `.env.local`. See also [Local Manual / Browser Testing](../CONTRIBUTING.md#local-manual-browser-testing).
+
+In CI, `yarn bundle:report --check` runs right after `yarn build` to guard the public routes that these fixtures exercise against accidental client-bundle growth or lost code-splits. It checks each route's uncompressed and gzipped first-load JavaScript against the per-route byte ceilings in `PUBLIC_ROUTE_JS_BUDGETS` (`scripts/maintenance/bundleReport.ts`) and exits non-zero if any budgeted route exceeds its ceiling or is missing from the build. When a change intentionally ships more first-load client code on a budgeted public route, inspect the delta with `yarn bundle:report --compare` and update the route's entry in `PUBLIC_ROUTE_JS_BUDGETS` in the same PR (see [Bundle Size Report](#bundle-size-report)).
 
 ### Render Email Previews
 
