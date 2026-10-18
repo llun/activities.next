@@ -1,0 +1,127 @@
+lib/components/admin/domains/DomainSettings.tsx
+  s_e67afa7a51bb57::t_6dfbe8e5516bf7 3-4,31,289-290,297,312,314-320,332-339
+scripts/maintenance/importRemoteStatus.ts
+  s_e67afa7a51bb57::t_7e5f2fc2b564f0 22,183-184
+app/api/nodeinfo/2.1/route.ts
+  s_e67afa7a51bb57::t_991ca8546a6805 3,20-21
+app/api/v1/accounts/route.ts
+  s_e67afa7a51bb57::t_991ca8546a6805 7,152-154,313-314
+docs/environment-variables.md
+  s_e67afa7a51bb57::t_8178d16d79a2dc 449-453
+lib/services/domains/domainCheck.ts
+  s_e67afa7a51bb57::t_13eb198c279157 61
+  s_e67afa7a51bb57::t_c6bbb105f22286 9-13
+app/api/handle-redirect/route.ts
+  s_e67afa7a51bb57::t_3966b649123e7d 3,18-20,29-33
+app/api/nodeinfo/2.0/route.test.ts
+  s_e67afa7a51bb57::t_4d5c184399710b 5-9,125-151
+  s_e67afa7a51bb57::t_1af0bdec899969 152-153
+app/api/auth/[...all]/route.test.ts
+  s_e67afa7a51bb57::t_dacf0f26f2511b 1-53
+test/instrumentation.test.ts
+  s_e67afa7a51bb57::t_1d81e3a76b71b6 6,26-29,82-90,118
+proxy.ts
+  s_e67afa7a51bb57::t_c6bbb105f22286 6
+  s_e67afa7a51bb57::t_13eb198c279157 77
+docs/maintenance.md
+  s_e67afa7a51bb57::t_cbc6d2e76e8353 1594,1600
+lib/services/domains/signUpDomain.ts
+  s_e67afa7a51bb57::t_f910fbd227f810 5,7,71-80,82-85,109-114,119-140,144-146,155-162
+lib/services/domains/signUpDomain.test.ts
+  s_e67afa7a51bb57::t_af84aca14bacf4 201-229,242-277
+  s_e67afa7a51bb57::t_764f7b11708389 111-116,119-121,123-125,128
+  s_e67afa7a51bb57::t_3a06666cc94e16 5,9,110,117-118,122,126-127,129-131,178-200,230-241,278-288
+app/api/v2/instance/route.ts
+  s_e67afa7a51bb57::t_991ca8546a6805 5,35-36
+app/api/handle-redirect/route.test.ts
+  s_e67afa7a51bb57::t_3966b649123e7d 48-65,81-83
+lib/database/domains/servedDomain/servedDomain.test.ts
+  s_e67afa7a51bb57::t_af84aca14bacf4 83-99,101-109,111
+  s_e67afa7a51bb57::t_b6131a5d68ed3b 3,77-82,100,110
+  s_e67afa7a51bb57::t_f7cb9352bd3d1f 112-113
+app/api/v1/instance/route.ts
+  s_e67afa7a51bb57::t_991ca8546a6805 5,34-35
+app/api/v1/instance/route.test.ts
+  s_e67afa7a51bb57::t_48b11de48404ec 7-11,275-302
+  s_e67afa7a51bb57::t_91a9818e1e4e49 303-304
+scripts/maintenance/runQueueWorker.test.ts
+  s_e67afa7a51bb57::t_1d81e3a76b71b6 1-44
+lib/database/domains/servedDomain/queries.ts
+  s_e67afa7a51bb57::t_af84aca14bacf4 62-68
+  s_e67afa7a51bb57::t_b6131a5d68ed3b 16,18-20,24-26,28,30,47-61,69-72
+lib/services/domains/servedDomainSnapshot.ts
+  s_e67afa7a51bb57::t_cda2d73344c6dd 19,110-119
+  s_e67afa7a51bb57::t_18eb75cf72158d 120-121
+docs/fitness-file-storage.md
+  s_e67afa7a51bb57::t_5286846a6bde91 359
+lib/components/admin/domains/AddDomainForm.tsx
+  s_e67afa7a51bb57::t_ef64ae4c1a474d 169
+app/api/nodeinfo/2.0/route.ts
+  s_e67afa7a51bb57::t_991ca8546a6805 3,20-21
+app/api/v1/fitness/apple-maps-token/route.test.ts
+  s_e67afa7a51bb57::t_08f39e551491df 6-9,70-74,195-214
+  s_e67afa7a51bb57::t_9759b3efdfddf9 215-217
+app/api/v1/emails/confirmations/route.ts
+  s_e67afa7a51bb57::t_91aa0c4309ab3e 14,157-166
+app/api/v1/fitness/apple-maps-token/route.ts
+  s_e67afa7a51bb57::t_08f39e551491df 7-10,63-64,66-67,69,87
+lib/services/domains/adminDomains.ts
+  s_e67afa7a51bb57::t_cda2d73344c6dd 20,253,263,339
+lib/services/domains/localDomains.test.ts
+  s_e67afa7a51bb57::t_52f7f3d3547f68 2-5,56-65
+  s_e67afa7a51bb57::t_c7177e4d4ff086 66
+lib/services/auth/auth.test.ts
+  s_e67afa7a51bb57::t_0e4faf211b3e2b 1-62
+app/api/v1/accounts/route.test.ts
+  s_e67afa7a51bb57::t_52227ae68d3e03 8-13,66-81,371-380,382-418,441,828-898
+  s_e67afa7a51bb57::t_627d5a13e10f07 6,381,419-440,899
+  s_e67afa7a51bb57::t_7e825daf4379ce 442
+lib/components/admin/domains/AddDomainForm.test.tsx
+  s_e67afa7a51bb57::t_44db6dd3491d2e 8,154-173
+  s_e67afa7a51bb57::t_674ccbcfd5d34f 174-175
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_e67afa7a51bb57::t_af84aca14bacf4 246-249
+  s_e67afa7a51bb57::t_b2ae7eac9f7e73 6,9-10,228-245,250-254
+  s_e67afa7a51bb57::t_ecd9fcc7483ecb 255
+lib/utils/host.ts
+  s_e67afa7a51bb57::t_af84aca14bacf4 451-455
+  s_e67afa7a51bb57::t_13eb198c279157 449-450,456,463
+scripts/maintenance/backfillMissingLikeActors.ts
+  s_e67afa7a51bb57::t_7e5f2fc2b564f0 20,204-206
+lib/services/domains/adminDomainTypes.ts
+  s_e67afa7a51bb57::t_c6bbb105f22286 2-7,17-19
+scripts/backup/actorArchive.ts
+  s_e67afa7a51bb57::t_f3442975a0d097 21-24
+  s_e67afa7a51bb57::t_7e5f2fc2b564f0 958-961,1017,1088,1091
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_e67afa7a51bb57::t_0657d5d7a80959 3,13,133-166
+  s_e67afa7a51bb57::t_1b09bd41bcbd3b 167
+app/api/nodeinfo/2.1/route.test.ts
+  s_e67afa7a51bb57::t_4d5c184399710b 5-9,85-153
+app/api/v2/instance/route.test.ts
+  s_e67afa7a51bb57::t_48b11de48404ec 7-11,345-372
+  s_e67afa7a51bb57::t_261205b1ae88c4 373-374
+app/api/v1/emails/confirmations/route.test.ts
+  s_e67afa7a51bb57::t_0dee3da1f2338b 52,114,155-156,441-497,501-502
+  s_e67afa7a51bb57::t_91aa0c4309ab3e 498-500
+  s_e67afa7a51bb57::t_a0f21635aaf4d6 503
+lib/services/domains/adminDomains.test.ts
+  s_e67afa7a51bb57::t_c9b1b201c15ed4 5-6,18,21,25-26,75-77,80-81,87,90,93,145-163,211-235
+  s_e67afa7a51bb57::t_aeff4d54d17e1b 236-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4935c5fe566ea16c649107cbd50102297faace36",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
