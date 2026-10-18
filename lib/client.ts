@@ -58,5 +58,8 @@ export * from './client/wahoo'
 // --- Offline & Sync ---
 export * from './client/offline'
 
+// --- Telemetry ---
+export * from './client/webVitals'
+
 // --- HTTP & Base Utilities ---
 export * from './client/http'

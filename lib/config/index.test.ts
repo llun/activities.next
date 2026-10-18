@@ -148,6 +148,42 @@ describe('Config', () => {
     })
   })
 
+  describe('getWebVitalsConfig', () => {
+    it('logs one warning for an invalid sample rate and turns reporting off', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getWebVitalsConfig } = await import('./index')
+      delete process.env.NEXT_PHASE
+      process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE = '2'
+
+      expect(getWebVitalsConfig().sampleRate).toBe(0)
+      getWebVitalsConfig()
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith({
+        message: expect.stringContaining('ACTIVITIES_WEB_VITALS_SAMPLE_RATE')
+      })
+    })
+
+    it('stays quiet during the production build', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getWebVitalsConfig } = await import('./index')
+      process.env.NEXT_PHASE = 'phase-production-build'
+      process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE = 'nope'
+
+      expect(getWebVitalsConfig().sampleRate).toBe(0)
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+
+    it('reads the environment on every call', async () => {
+      const { getWebVitalsConfig } = await import('./index')
+      delete process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE
+      expect(getWebVitalsConfig().sampleRate).toBe(0)
+
+      process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE = '0.5'
+      expect(getWebVitalsConfig().sampleRate).toBe(0.5)
+    })
+  })
+
   describe('registrationOpen', () => {
     const loadConfig = async () => {
       process.env.ACTIVITIES_HOST = 'example.com'

@@ -13,16 +13,19 @@ import { Landing } from './Landing'
 vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     currentTime,
-    statuses
+    statuses,
+    prioritizeFirstMedia
   }: {
     currentTime: number
     statuses: Status[]
+    prioritizeFirstMedia?: boolean
   }) => (
     <div
       data-testid="posts"
       data-current-time={currentTime}
       data-current-time-type={typeof currentTime}
       data-count={statuses.length}
+      data-prioritize-first-media={String(prioritizeFirstMedia)}
     />
   )
 }))
@@ -63,6 +66,7 @@ describe('Landing', () => {
     const posts = screen.getByTestId('posts')
     expect(posts).toBeInTheDocument()
     expect(posts).toHaveAttribute('data-count', '2')
+    expect(posts).toHaveAttribute('data-prioritize-first-media', 'true')
     expect(screen.getByText('llun.social')).toBeInTheDocument()
     expect(screen.queryByText('happening next.')).not.toBeInTheDocument()
   })

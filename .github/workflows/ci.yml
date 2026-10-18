@@ -96,6 +96,8 @@ jobs:
             ${{ runner.os }}-nextjs-v1-${{ hashFiles('yarn.lock') }}-
       - name: Build
         run: yarn build
+      - name: Check route JS budgets
+        run: yarn bundle:report --check
 
   # The full Vitest suite accumulates V8 heap across its ~690 test files, so a
   # single-process run intermittently crashed a worker fork with "JavaScript

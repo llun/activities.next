@@ -2,6 +2,9 @@ const { MOCK_SECRET_PHASES } =
   await vi.importActual<typeof import('@/lib/stub/actor')>('@/lib/stub/actor')
 const { TEST_DOMAIN } =
   await vi.importActual<typeof import('@/lib/stub/const')>('@/lib/stub/const')
+const webVitals = await vi.importActual<
+  typeof import('@/lib/config/webVitals')
+>('@/lib/config/webVitals')
 const photoEditor = await vi.importActual<
   typeof import('@/lib/config/photoEditor')
 >('@/lib/config/photoEditor')
@@ -21,3 +24,5 @@ export const getBaseURL = vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`)
 export const getPhotoEditorConfig = vi.fn(() =>
   photoEditor.getPhotoEditorConfig()
 )
+
+export const getWebVitalsConfig = vi.fn(() => webVitals.getWebVitalsConfig())

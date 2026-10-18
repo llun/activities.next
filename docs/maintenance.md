@@ -35,6 +35,7 @@ A refused database is refused before anything is written: `yarn migrate` creates
 ```bash
 yarn build
 yarn bundle:report                       # every route, largest gzip first
+yarn bundle:report --check               # enforce PUBLIC_ROUTE_JS_BUDGETS (used in CI)
 yarn bundle:report --limit 15            # only the 15 largest
 yarn bundle:report --json before.json    # also save the per-route results
 # change the code, then:
@@ -43,6 +44,8 @@ yarn bundle:report --compare before.json # gzip change per route, added and remo
 ```
 
 Each route's size is the sum of its first-load chunks (gzip level 9 on the files in `.next/static/chunks`; the uncompressed figure is the one Next reports); the header line gives the chunks every route loads. For a per-module breakdown of one build, use `yarn analyze` (see [docs/setup.md](setup.md)).
+
+In CI, `yarn bundle:report --check` runs right after `yarn build` to guard the public routes against accidental client-bundle growth or lost code-splits. It checks each route's uncompressed and gzipped first-load JavaScript against the per-route byte ceilings in `PUBLIC_ROUTE_JS_BUDGETS` (`scripts/maintenance/bundleReport.ts`) and exits non-zero if any budgeted route exceeds its ceiling or is missing from the build. When a change intentionally ships more first-load client code on a budgeted public route, inspect the delta with `yarn bundle:report --compare` and update the route's entry in `PUBLIC_ROUTE_JS_BUDGETS` in the same PR.
 
 ## Database Queue Worker
 

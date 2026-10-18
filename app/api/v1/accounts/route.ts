@@ -292,7 +292,7 @@ export const POST = traceApiRoute(
 
     // Non-bearer API clients (JSON / non-HTML Accept) can't register: Mastodon
     // requires an app access token, which they did not send. Decline cleanly
-    // *before* creating anything — returning the web-form 307 redirect would
+    // *before* creating anything — returning the web-form 303 redirect would
     // leave them with an account they cannot authenticate.
     if (isApiClient(request)) {
       return apiResponse({
@@ -400,6 +400,6 @@ export const POST = traceApiRoute(
       })
     }
 
-    return Response.redirect(getRedirectUrl(request, '/auth/signin'), 307)
+    return Response.redirect(getRedirectUrl(request, '/auth/signin'), 303)
   }
 )

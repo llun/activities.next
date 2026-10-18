@@ -176,8 +176,13 @@ vi.mock('@/lib/config', async () => {
   const photoEditor = await vi.importActual<
     typeof import('@/lib/config/photoEditor')
   >('@/lib/config/photoEditor')
+  const webVitals = await vi.importActual<
+    typeof import('@/lib/config/webVitals')
+  >('@/lib/config/webVitals')
   return {
     getBaseURL: vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`),
+    // Reads the environment like the real one, without the warning.
+    getWebVitalsConfig: vi.fn(() => webVitals.getWebVitalsConfig()),
     // Reads the environment like the real one, without the warning.
     getPhotoEditorConfig: vi.fn(() =>
       photoEditor.getPhotoEditorConfig({

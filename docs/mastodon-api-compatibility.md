@@ -447,6 +447,10 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 
 - **Multi-actor management** — `/api/v1/actors` and friends (`switch`, `default`,
   `domains`, `delete`, `cancel-deletion`) let one account own multiple actors.
+- **Browser Web Vitals** — `POST /api/v1/web-vitals` takes a same-origin,
+  sampled report of LCP, CLS and INP from this app's own pages and writes it to
+  the server log; it is off (404) unless `ACTIVITIES_WEB_VITALS_SAMPLE_RATE` is
+  above zero. See [Browser Web Vitals](architecture.md#browser-web-vitals).
 - **Fitness tracking** — `/api/v1/fitness/*` (general settings, `.fit`/`.gpx`/`.tcx`
   imports, Strava sync) plus per-account fitness summaries, calendars, activity
   types, and route heatmaps under `/api/v1/accounts/:id/fitness-*`.

@@ -325,7 +325,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
     })
   })
 
-  it('redirects to /auth/signin with 307 on successful registration', async () => {
+  it('redirects to /auth/signin with 303 on successful registration', async () => {
     vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
       accountId: 'new-account-id',
@@ -341,7 +341,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
       }
     })
     const res = await POST(req, { params: Promise.resolve({}) })
-    expect(res.status).toBe(307)
+    expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('/auth/signin')
   })
 
@@ -361,7 +361,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
       }
     })
     const res = await POST(req, { params: Promise.resolve({}) })
-    expect(res.status).toBe(307)
+    expect(res.status).toBe(303)
     expect(registerAccount).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'alice.example@example.com' })
     )

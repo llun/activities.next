@@ -88,7 +88,7 @@ describe('POST /api/v1/accounts/profile', () => {
         headerImageUrl: HEADER_MEDIA_URL
       })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(mockDatabase.updateActor).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: mockCurrentActor.id,
@@ -177,7 +177,7 @@ describe('POST /api/v1/accounts/profile', () => {
         'fields[2][value]': 'they/them'
       })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(mockDatabase.updateActor).toHaveBeenCalledWith(
         expect.objectContaining({
           fields: [
@@ -250,7 +250,7 @@ describe('POST /api/v1/accounts/profile', () => {
       mockCurrentActor.iconUrl = STALE
       const response = await post({ name: 'New name', iconUrl: STALE })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       const params = mockDatabase.updateActor.mock.calls[0][0]
       expect(params).toMatchObject({ name: 'New name' })
       expect(params).not.toHaveProperty('iconUrl')
@@ -367,10 +367,10 @@ describe('POST /api/v1/accounts/profile', () => {
       }
     )
 
-    it('redirects back to the settings page it was submitted from', async () => {
+    it('redirects back to the settings page with 303 so the browser loads it with GET', async () => {
       const response = await post({ name: 'New name' })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(response.headers.get('location')).toBe(
         'https://llun.test/settings'
       )

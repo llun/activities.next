@@ -129,6 +129,8 @@ export const POST = traceApiRoute(
 
     const host = headerHost(req.headers)
     const url = new URL('/settings', `https://${host}`)
-    return Response.redirect(url.toString(), 307)
+    // 303 so the browser GETs /settings; a 307 would re-POST the form to the
+    // page, which answers 404
+    return Response.redirect(url.toString(), 303)
   })
 )
