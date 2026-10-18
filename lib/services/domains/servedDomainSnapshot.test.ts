@@ -143,6 +143,29 @@ describe('servedDomainSnapshot', () => {
     expect(getActiveServedDomainNames()).toEqual(['run.example'])
   })
 
+  // The sync read must honour the same back-off, or an outage costs a failing
+  // query (and an error log) per request.
+  it('getActiveServedDomainNames waits out the refresh interval after a failed load', async () => {
+    vi.useFakeTimers()
+    const getActiveServedDomains = vi
+      .fn()
+      .mockRejectedValue(new Error('database down'))
+    const database = { getActiveServedDomains } as unknown as Database
+    await refreshServedDomains(database)
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS - 1)
+    getActiveServedDomainNames()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(2)
+    getActiveServedDomainNames()
+    getActiveServedDomainNames()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+  })
+
   it('shares one load between concurrent refreshes', async () => {
     const { database, getActiveServedDomains } = databaseWith(['run.example'])
     await Promise.all([

@@ -125,8 +125,11 @@ export const refreshServedDomainsAfterWrite = async (
   return refreshServedDomains(database)
 }
 
-const isStale = (now: number) =>
-  now - state.snapshot.loadedAt > SERVED_DOMAIN_REFRESH_MS
+// Stale, and not tried within the last interval: a failed load also counts as
+// a try, so an outage does not start a failing query per request.
+const shouldRefresh = (now: number) =>
+  now - state.snapshot.loadedAt > SERVED_DOMAIN_REFRESH_MS &&
+  now - state.lastAttemptAt > SERVED_DOMAIN_REFRESH_MS
 
 /**
  * Awaits a refresh when the snapshot is older than the refresh interval. No
@@ -138,19 +141,18 @@ const isStale = (now: number) =>
 export const ensureServedDomainsFresh = async (): Promise<void> => {
   if (!state.registeredDatabase) return
   const now = Date.now()
-  if (!isStale(now)) return
-  if (now - state.lastAttemptAt <= SERVED_DOMAIN_REFRESH_MS) return
+  if (!shouldRefresh(now)) return
   await refreshServedDomains(state.registeredDatabase)
 }
 
 /**
  * The active database domains for a synchronous caller: the snapshot, or none
  * when it is past `SERVED_DOMAIN_MAX_STALE_MS`. Starts a background refresh
- * when it is older than the refresh interval.
+ * when it is older than the refresh interval and no load was tried within it.
  */
 export const getActiveServedDomainNames = (): readonly string[] => {
   const now = Date.now()
-  if (state.registeredDatabase && isStale(now) && !state.inflight) {
+  if (state.registeredDatabase && shouldRefresh(now) && !state.inflight) {
     void refreshServedDomains(state.registeredDatabase)
   }
   if (now - state.snapshot.loadedAt > SERVED_DOMAIN_MAX_STALE_MS) return []
