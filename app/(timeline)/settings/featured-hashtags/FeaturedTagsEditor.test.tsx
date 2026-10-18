@@ -182,6 +182,21 @@ describe('FeaturedTagsEditor', () => {
     expect(mockAddFeaturedTag).not.toHaveBeenCalled()
   })
 
+  it('rejects a name over the length limit with a length message', async () => {
+    render(<FeaturedTagsEditor />)
+    await screen.findByText('No featured hashtags yet')
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
+      target: { value: 'a'.repeat(256) }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(
+      screen.getByText('Hashtags can be up to 255 characters.')
+    ).toBeInTheDocument()
+    expect(mockAddFeaturedTag).not.toHaveBeenCalled()
+  })
+
   it('blocks an already-featured tag client-side', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
     render(<FeaturedTagsEditor />)

@@ -22,6 +22,7 @@ import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { cn } from '@/lib/utils'
 import { isRenderableHashtagName } from '@/lib/utils/text/isRenderableHashtagName'
+import { MAX_HASHTAG_NAME_LENGTH } from '@/lib/utils/text/mastodonHashtag'
 
 // Mastodon caps featured tags per account at FeaturedTag::LIMIT = 10.
 const FEATURED_TAGS_LIMIT = 10
@@ -199,6 +200,13 @@ export const FeaturedTagsEditor: FC = () => {
     if (submitting) return
     const name = raw.trim().replace(/^#+/, '')
     if (!name) return
+    if (name.length > MAX_HASHTAG_NAME_LENGTH) {
+      setMessage({
+        tone: 'error',
+        text: `Hashtags can be up to ${MAX_HASHTAG_NAME_LENGTH} characters.`
+      })
+      return
+    }
     if (!isRenderableHashtagName(name)) {
       setMessage({
         tone: 'error',

@@ -1,4 +1,7 @@
-import { isRenderableHashtagName } from './isRenderableHashtagName'
+import {
+  RENDERABLE_HASHTAG_NAME_REGEX,
+  isRenderableHashtagName
+} from './isRenderableHashtagName'
 
 describe('isRenderableHashtagName', () => {
   it.each([
@@ -24,6 +27,14 @@ describe('isRenderableHashtagName', () => {
   it('returns quickly for a long name that is not renderable', () => {
     const start = performance.now()
     expect(isRenderableHashtagName(`${'a'.repeat(200_000)}!`)).toBe(false)
+    expect(performance.now() - start).toBeLessThan(500)
+  })
+
+  it('runs the regex itself in linear time on a long non-matching name', () => {
+    const start = performance.now()
+    expect(RENDERABLE_HASHTAG_NAME_REGEX.test(`${'a'.repeat(200_000)}!`)).toBe(
+      false
+    )
     expect(performance.now() - start).toBeLessThan(500)
   })
 })

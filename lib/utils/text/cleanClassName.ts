@@ -32,7 +32,7 @@ interface replacingNode {
 // href with a 40k-character path took 1.7 s), and this runs while rendering
 // remote bios, posts and profile fields. A name longer than the stored
 // hashtag limit is not a tag either, and is refused before the regex runs.
-const TAG_REGEX = /^[0-9]*[a-zA-Z_][a-zA-Z0-9_]*$/
+export const TAG_REGEX = /^[0-9]*[a-zA-Z_][a-zA-Z0-9_]*$/
 
 export const extractTagFromHref = (
   href: string | undefined
