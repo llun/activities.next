@@ -8,6 +8,7 @@ import { getFilteredStatusPage } from '@/lib/services/timelines/getFilteredTimel
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { isRenderableHashtagName } from '@/lib/utils/text/isRenderableHashtagName'
 
 import { HashtagTimeline } from './HashtagTimeline'
 
@@ -21,18 +22,15 @@ export const generateMetadata = async ({
   params
 }: PageProps): Promise<Metadata> => {
   const { tag } = await params
-  if (!/^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/.test(tag))
-    return { title: 'Not Found' }
+  if (!isRenderableHashtagName(tag)) return { title: 'Not Found' }
   return {
     title: `#${tag}`
   }
 }
 
-const TAG_REGEX = /^[a-zA-Z0-9_]*[a-zA-Z_][a-zA-Z0-9_]*$/
-
 const Page = async ({ params }: PageProps) => {
   const { tag } = await params
-  if (!TAG_REGEX.test(tag)) return notFound()
+  if (!isRenderableHashtagName(tag)) return notFound()
   const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {

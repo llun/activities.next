@@ -141,6 +141,40 @@ describe('recordActorIfNeeded', () => {
     })
   })
 
+  it("stores at most Mastodon's 50 remote profile fields, each cut to 2047 characters", async () => {
+    const actorId = 'https://remote-many-fields.test/users/fields'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, {
+        attachment: [
+          {
+            type: 'PropertyValue',
+            name: 'n'.repeat(1024 * 1024),
+            value: `<p>${'v'.repeat(1024 * 1024)}</p>`
+          },
+          ...Array.from({ length: 59 }, (_, index) => ({
+            type: 'PropertyValue',
+            name: `Name ${index + 1}`,
+            value: `Value ${index + 1}`
+          }))
+        ]
+      })
+    )
+
+    await recordActorIfNeeded({ actorId, database })
+
+    const stored = await database.getActorFromId({ id: actorId })
+    expect(stored?.fields).toHaveLength(50)
+    expect(stored?.fields?.[0]).toEqual({
+      name: 'n'.repeat(2047),
+      value: `<p>${'v'.repeat(2044)}`
+    })
+    expect(stored?.fields?.[49]).toEqual({ name: 'Name 49', value: 'Value 49' })
+
+    const account = await database.getMastodonActorFromId({ id: actorId })
+    expect(account?.fields).toHaveLength(50)
+    expect(account?.fields[0].value).toBe(`<p>${'v'.repeat(2044)}</p>`)
+  })
+
   it('queues the profile link check for a new actor with links', async () => {
     const actorId = 'https://remote-links-new.test/users/linker'
     mockGetActorPerson.mockResolvedValue(
