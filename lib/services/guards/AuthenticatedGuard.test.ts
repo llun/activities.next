@@ -159,7 +159,7 @@ describe('AuthenticatedGuard', () => {
       const req = createRequest()
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(response.headers.get('location')).toContain('/auth/signin')
     })
 
@@ -172,7 +172,7 @@ describe('AuthenticatedGuard', () => {
       const req = createRequest()
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(response.headers.get('location')).toContain('/auth/signin')
     })
 
@@ -185,7 +185,7 @@ describe('AuthenticatedGuard', () => {
       const req = createRequest()
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(response.headers.get('location')).toContain('/auth/signin')
     })
   })
@@ -202,7 +202,7 @@ describe('AuthenticatedGuard', () => {
       const req = createRequest()
       const response = await guard(req, { params: Promise.resolve({}) })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(response.headers.get('location')).toContain('/auth/signin')
 
       mockDatabase = originalDb
@@ -647,7 +647,7 @@ describe('AuthenticatedGuard', () => {
       const req = createRequest()
       const response = await runGuardInSpan(guard, req)
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
       expect(mockHandler).not.toHaveBeenCalled()
       expect(harness.recordedSpans).toHaveLength(1)
       expect(

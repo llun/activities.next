@@ -135,6 +135,6 @@ describe('/api/v1/gallery/gears/[id]/retire', () => {
   it('redirects to sign-in without a session', async () => {
     mockGetServerSession.mockResolvedValue(null)
 
-    expect((await post('any', { retired: true })).status).toBe(307)
+    expect((await post('any', { retired: true })).status).toBe(303)
   })
 })

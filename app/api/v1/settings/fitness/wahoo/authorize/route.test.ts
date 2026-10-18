@@ -188,7 +188,7 @@ describe('GET /api/v1/settings/fitness/wahoo/authorize', () => {
 
     const response = await authorize()
 
-    expect(response.status).toBe(307)
+    expect(response.status).toBe(303)
     expect(response.headers.get('location')).toContain('/auth/signin')
     expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
   })

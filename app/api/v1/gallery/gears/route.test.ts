@@ -403,7 +403,7 @@ describe('/api/v1/gallery/gears', () => {
         params: Promise.resolve({})
       })
 
-      expect(response.status).toBe(307)
+      expect(response.status).toBe(303)
     })
   })
 })

@@ -105,7 +105,7 @@ describe('POST /api/v1/actors/delete', () => {
 
     const response = await POST(req, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(307)
+    expect(response.status).toBe(303)
     expect(cloneSpy).not.toHaveBeenCalled()
     expect(req.bodyUsed).toBe(false)
   })

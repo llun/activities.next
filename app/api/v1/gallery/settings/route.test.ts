@@ -230,7 +230,7 @@ describe('/api/v1/gallery/settings', () => {
     it('redirects to sign-in without a session', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      expect((await GET(getRequest(), context)).status).toBe(307)
+      expect((await GET(getRequest(), context)).status).toBe(303)
     })
   })
 

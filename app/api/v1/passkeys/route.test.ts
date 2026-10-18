@@ -61,7 +61,7 @@ describe('GET /api/v1/passkeys', () => {
 
     const response = await GET(createRequest(), { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(307)
+    expect(response.status).toBe(303)
   })
 
   it('returns the passkeys for the signed-in account scoped by userId', async () => {
