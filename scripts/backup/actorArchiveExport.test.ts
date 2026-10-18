@@ -27,6 +27,7 @@ import path from 'path'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
+import { resetServedDomainsForTests } from '@/lib/services/domains/servedDomainSnapshot'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 const SKIPPED_WARNING_PREFIX =
@@ -220,6 +221,9 @@ const runExport = async ({
     // connection pool. Cheaper to be unconditional than to reason about which
     // path threw.
     await database.destroy()
+    // The export loads the served-domain snapshot from (and registers) this
+    // database; the next run must not inherit it once it is destroyed.
+    resetServedDomainsForTests()
     nowSpy.mockRestore()
     logSpy.mockRestore()
     await fs.rm(outputDir, { force: true, recursive: true })

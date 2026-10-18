@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
 import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
+import {
+  SERVED_DOMAIN_REFRESH_MS,
+  refreshServedDomains,
+  resetServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 
 import { GET, POST } from './route'
 
@@ -82,4 +88,54 @@ describe('/api/oauth/authorize redirect host', () => {
     expect(url.searchParams.get('scope')).toBe('read write')
     expect(url.searchParams.get('response_type')).toBe('code')
   })
+})
+
+// The redirect host is resolved against the served domains, so a stale
+// snapshot has to be refreshed first or a domain an admin just turned on would
+// fall back to the primary.
+describe('/api/oauth/authorize served-domain refresh', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    resetServedDomainsForTests()
+  })
+
+  it.each([
+    {
+      method: 'GET',
+      handler: GET,
+      init: undefined
+    },
+    {
+      method: 'POST',
+      handler: POST,
+      init: { method: 'POST' }
+    }
+  ])(
+    '$method refreshes a stale snapshot before resolving the host',
+    async ({ handler, init }) => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      const getActiveServedDomains = vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([{ domain: 'run.example' }])
+      await refreshServedDomains({
+        getActiveServedDomains
+      } as unknown as Database)
+      vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
+
+      let servedDomains: readonly string[] | null | undefined
+      vi.mocked(resolveAuthBaseURL).mockImplementation((_headers, config) => {
+        servedDomains = config?.servedDomains
+        return 'https://run.example'
+      })
+      await handler(
+        new NextRequest(
+          'https://run.example/api/oauth/authorize?client_id=abc',
+          init
+        )
+      )
+
+      expect(servedDomains).toEqual(['run.example'])
+    }
+  )
 })

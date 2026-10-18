@@ -61,7 +61,7 @@ const toServedDomain = (row: Selectable<Domains>): ServedDomainData => {
     status: row.status === 'on' ? 'on' : 'off',
     name: row.name ?? null,
     signupsOpen: Boolean(allowedEmails && row.signupsOpen),
-    allowedEmails: allowedEmails ?? [],
+    allowedEmails,
     allowExistingUsers: Boolean(row.allowExistingUsers),
     lastCheckedAt: row.lastCheckedAt ?? null,
     lastCheckStatus:

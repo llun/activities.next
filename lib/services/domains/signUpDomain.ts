@@ -64,7 +64,8 @@ export const resolveSignUpDomain = async (
     displayName: row?.name || domain,
     source: kind === 'env' ? 'env' : row ? 'database' : 'other',
     open: Boolean(usable && row.signupsOpen),
-    allowEmails: usable ? row.allowedEmails : []
+    // An unreadable list leaves `open` false, so empty refuses everyone.
+    allowEmails: (usable && row.allowedEmails) || []
   }
 }
 
@@ -83,9 +84,11 @@ const isEmailAllowedOnDomain = (
  * `registrations.allowEmails` as before, or the allowed emails of a domain one
  * of the account's profiles lives on, so a person who joined run.example under
  * its own list is not locked out by the primary's. An empty list on the domain
- * the account signed up on lets it in even after sign-ups close there, as
- * closing sign-ups on the primary locks no member out; on any other profile
- * domain an empty list counts only while sign-ups are open.
+ * the account signed up on (`accounts.signUpDomain`, null for an account that
+ * predates it and so signed up on the primary) lets it in even after sign-ups
+ * close there, as closing sign-ups on the primary locks no member out; on any
+ * other profile domain an empty list counts only while sign-ups are open. A
+ * domain whose list cannot be read lets nobody in on its own say-so.
  */
 export const isEmailAllowedForAccount = async (
   database: Database,
@@ -96,11 +99,10 @@ export const isEmailAllowedForAccount = async (
   if (isEmailAllowed(settings.registrations.allowEmails, email)) return true
 
   const env = getEnvDomains()
+  const account = await database.getAccountFromId({ id: accountId })
+  if (!account) return false
+  const signUpDomain = normalizeServedDomainChoice(account.signUpDomain)
   const actors = await database.getActorsForAccount({ accountId })
-  // shortcut: the first actor stands for the sign-up domain, so if it was
-  // deleted the next-oldest profile's domain counts instead; store the sign-up
-  // domain on the account if that matters.
-  const signUpDomain = normalizeServedDomainChoice(actors[0]?.domain)
   const domains = [
     ...new Set(
       actors
@@ -115,6 +117,7 @@ export const isEmailAllowedForAccount = async (
       row && (getEnvDomainKind(domain, env) === 'env' || row.status === 'on')
     if (
       usable &&
+      row.allowedEmails &&
       isEmailAllowedOnDomain(
         row.allowedEmails,
         row.signupsOpen || domain === signUpDomain,

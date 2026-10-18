@@ -79,6 +79,7 @@ describe('getAccountFromSession', () => {
     const getAccountFromEmail = vi.fn().mockResolvedValue(account)
     const database = {
       getAccountFromEmail,
+      getAccountFromId: vi.fn().mockResolvedValue(account),
       getActorsForAccount: vi
         .fn()
         .mockResolvedValue([{ domain: 'test.llun.dev' }]),
@@ -109,6 +110,7 @@ describe('getAccountFromSession', () => {
     mockAllowEmails(['allowed@example.com'])
     const database = {
       getAccountFromEmail: vi.fn().mockResolvedValue(account),
+      getAccountFromId: vi.fn().mockResolvedValue(account),
       getActorsForAccount: vi
         .fn()
         .mockResolvedValue([{ domain: 'run.example' }]),

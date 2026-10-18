@@ -34,6 +34,7 @@ import {
   getLocalActorInboxId,
   getLocalActorSharedInboxId
 } from '@/lib/utils/activitypubId'
+import { normalizeServedDomainChoice } from '@/lib/utils/host'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -172,6 +173,10 @@ export const createAccount = async (
         // API, Decision 4): every account is approved at creation, so the
         // sign-in hook's approvedAt gate stays a no-op until such a mode lands.
         approvedAt: currentTime,
+        // The domain of the first actor, written with it: the sign-in
+        // allowed-emails gate reads this rather than the account's oldest
+        // remaining actor, which deleting the first one would change.
+        signUpDomain: normalizeServedDomainChoice(domain),
         createdAt: currentTime,
         updatedAt: currentTime
       })

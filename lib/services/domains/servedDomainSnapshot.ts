@@ -45,6 +45,8 @@ const EMPTY_SNAPSHOT: Snapshot = { domains: [], loadedAt: 0 }
 
 type SnapshotState = {
   snapshot: Snapshot
+  // When the last load finished, whether it succeeded or not.
+  lastAttemptAt: number
   registeredDatabase: Database | null
   inflight: Promise<void> | null
   refreshTimer: ReturnType<typeof setInterval> | null
@@ -60,6 +62,7 @@ const globalState = globalThis as typeof globalThis & {
 }
 const state: SnapshotState = (globalState[STATE_KEY] ??= {
   snapshot: EMPTY_SNAPSHOT,
+  lastAttemptAt: 0,
   registeredDatabase: null,
   inflight: null,
   refreshTimer: null
@@ -89,6 +92,8 @@ const loadSnapshot = async (database: Database): Promise<void> => {
       message: 'Failed to load the active served domains',
       err: toLoggableError(error)
     })
+  } finally {
+    state.lastAttemptAt = Date.now()
   }
 }
 
@@ -125,11 +130,17 @@ const isStale = (now: number) =>
 
 /**
  * Awaits a refresh when the snapshot is older than the refresh interval. No
- * query when it is fresh, and a no-op when no database is registered.
+ * query when it is fresh, and a no-op when no database is registered. After a
+ * failed load it waits out the refresh interval before trying again, so a
+ * database outage does not hold every request on a fresh failing query; the
+ * max-stale cutoff still counts from the last successful load.
  */
 export const ensureServedDomainsFresh = async (): Promise<void> => {
   if (!state.registeredDatabase) return
-  if (isStale(Date.now())) await refreshServedDomains(state.registeredDatabase)
+  const now = Date.now()
+  if (!isStale(now)) return
+  if (now - state.lastAttemptAt <= SERVED_DOMAIN_REFRESH_MS) return
+  await refreshServedDomains(state.registeredDatabase)
 }
 
 /**
@@ -195,6 +206,7 @@ export const setServedDomainsForTests = (domains: readonly string[]) => {
 /** Test helper: forgets the snapshot, the database and the timer. */
 export const resetServedDomainsForTests = () => {
   state.snapshot = EMPTY_SNAPSHOT
+  state.lastAttemptAt = 0
   state.registeredDatabase = null
   state.inflight = null
   if (state.refreshTimer) clearInterval(state.refreshTimer)

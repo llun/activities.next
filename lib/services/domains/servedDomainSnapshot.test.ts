@@ -121,6 +121,28 @@ describe('servedDomainSnapshot', () => {
     expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
   })
 
+  // A database outage must not hold every request on a fresh failing query.
+  it('ensureServedDomainsFresh waits out the refresh interval after a failed load', async () => {
+    vi.useFakeTimers()
+    const getActiveServedDomains = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('database down'))
+      .mockResolvedValue([{ domain: 'run.example' }])
+    const database = { getActiveServedDomains } as unknown as Database
+    await refreshServedDomains(database)
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+
+    await ensureServedDomainsFresh()
+    vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS - 1)
+    await ensureServedDomainsFresh()
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(2)
+    await ensureServedDomainsFresh()
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getActiveServedDomainNames()).toEqual(['run.example'])
+  })
+
   it('shares one load between concurrent refreshes', async () => {
     const { database, getActiveServedDomains } = databaseWith(['run.example'])
     await Promise.all([

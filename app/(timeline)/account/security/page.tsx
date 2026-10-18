@@ -16,7 +16,10 @@ import {
   ensureDomainListed,
   getServedDomains
 } from '@/lib/services/auth/servedDomains'
-import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
+import {
+  ensureServedDomainsFresh,
+  getServedHostConfig
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +47,7 @@ const Page = async () => {
   // Passkeys are scoped per domain; offer the domains this instance serves and
   // tell the manager which one the user is currently on so it can register here
   // directly and send cross-domain registrations to the right origin.
+  await ensureServedDomainsFresh()
   const servedHostConfig = getServedHostConfig(config)
   const currentDomain = new URL(
     resolveAuthBaseURL(await headers(), servedHostConfig)

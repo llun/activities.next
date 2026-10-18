@@ -76,7 +76,8 @@ describe('createServedDomain', () => {
 
 describe('getServedDomain', () => {
   // An empty list means "anyone may sign up", so a value that cannot be read
-  // as a list closes sign-ups instead of opening them.
+  // as a list closes sign-ups instead of opening them, and reads back as null
+  // rather than empty.
   it.each([
     { description: 'is not JSON', stored: 'not json' },
     { description: 'is not a list', stored: '{"ana@mail.example":true}' },
@@ -102,7 +103,7 @@ describe('getServedDomain', () => {
 
       await expect(
         testDb.database.getServedDomain({ domain: 'club.example' })
-      ).resolves.toMatchObject({ signupsOpen: false, allowedEmails: [] })
+      ).resolves.toMatchObject({ signupsOpen: false, allowedEmails: null })
       expect(loggerError).toHaveBeenCalledWith(
         expect.objectContaining({ domain: 'club.example' })
       )

@@ -60,7 +60,8 @@ CREATE TABLE public.accounts (
     role text,
     "twoFactorEnabled" boolean DEFAULT false NOT NULL,
     "disabledAt" timestamp with time zone,
-    "approvedAt" timestamp with time zone
+    "approvedAt" timestamp with time zone,
+    "signUpDomain" character varying(255)
 );
 
 CREATE TABLE public.actor_domain_blocks (

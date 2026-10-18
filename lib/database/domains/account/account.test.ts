@@ -121,6 +121,22 @@ describe('AccountDatabase', () => {
       })
     })
 
+    // The sign-in allowed-emails gate reads it rather than the oldest
+    // remaining actor (lib/services/domains/signUpDomain.ts).
+    it('stores the normalised domain of the first actor as the sign-up domain', async () => {
+      const suffix = crypto.randomUUID().slice(0, 8)
+      const accountId = await database.createAccount({
+        email: `signup-${suffix}@${TEST_DOMAIN}`,
+        username: `signup-${suffix}`,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: 'Run.Example',
+        privateKey: 'privateKey',
+        publicKey: 'publicKey'
+      })
+      const account = await database.getAccountFromId({ id: accountId })
+      expect(account?.signUpDomain).toBe('run.example')
+    })
+
     it('returns actor from getActor methods', async () => {
       const actor = await database.getActorFromEmail({
         email: seedActor1.email

@@ -35,7 +35,9 @@ export type ServedDomainData = {
   name: string | null
   signupsOpen: boolean
   // Same matching as `registrations.allowEmails`; empty allows any address.
-  allowedEmails: string[]
+  // Null when the stored value cannot be read as a list: not the same as
+  // empty, so no caller may treat it as "anyone" (`signupsOpen` is then false).
+  allowedEmails: string[] | null
   allowExistingUsers: boolean
   lastCheckedAt: number | null
   lastCheckStatus: 'passed' | 'failed' | null

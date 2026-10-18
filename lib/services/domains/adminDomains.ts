@@ -76,7 +76,8 @@ const toAdminDomain = (
   status: source === 'database' ? row.status : 'on',
   profiles,
   signupsOpen: row.signupsOpen,
-  allowedEmails: row.allowedEmails,
+  // An unreadable list shows as empty; its sign-ups are already closed.
+  allowedEmails: row.allowedEmails ?? [],
   allowExistingUsers: source === 'database' ? row.allowExistingUsers : true,
   lastCheckedAt: row.lastCheckedAt,
   lastCheck: row.lastCheckResult

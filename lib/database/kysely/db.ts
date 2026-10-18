@@ -81,6 +81,7 @@ export interface Accounts {
   passwordResetCode: Nullable<string>
   passwordResetCodeExpiresAt: Nullable<Timestamp>
   role: Nullable<string>
+  signUpDomain: Nullable<string>
   twoFactorEnabled: WithDefault<boolean>
   updatedAt: WithDefault<Nullable<Timestamp>>
   verificationCode: Nullable<string>

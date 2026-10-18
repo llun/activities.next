@@ -284,6 +284,103 @@ describe('signUpDomain', () => {
         isEmailAllowedForAccount(database, 'max@mail.example', accountId)
       ).resolves.toBe(false)
     })
+
+    // The sign-up domain is stored on the account, so deleting the first
+    // actor does not hand the exemption to another profile domain.
+    it('keeps the primary as the sign-up domain after the first actor is deleted', async () => {
+      const accountId = await database.createAccount({
+        email: 'dee@mail.example',
+        username: 'dee',
+        domain: 'social.example',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      const primaryActorId = (
+        await database.getActorsForAccount({ accountId })
+      )[0].id
+      await database.createActorForAccount({
+        accountId,
+        username: 'dee',
+        domain: 'reef.example',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await database.createServedDomain({
+        domain: 'reef.example',
+        status: 'on',
+        signupsOpen: false
+      })
+      await database.deleteActor({ actorId: primaryActorId })
+
+      await expect(
+        isEmailAllowedForAccount(database, 'dee@mail.example', accountId)
+      ).resolves.toBe(false)
+    })
+
+    // Every account created before the column signed up on the primary.
+    it('treats an account without a stored sign-up domain as a primary sign-up', async () => {
+      const accountId = await database.createAccount({
+        email: 'old@mail.example',
+        username: 'old',
+        domain: 'cove.example',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await testDb.db
+        .updateTable('accounts')
+        .set({ signUpDomain: null })
+        .where('id', '=', accountId)
+        .execute()
+      await database.createServedDomain({
+        domain: 'cove.example',
+        status: 'on',
+        signupsOpen: false
+      })
+      await expect(
+        isEmailAllowedForAccount(database, 'old@mail.example', accountId)
+      ).resolves.toBe(false)
+      await expect(
+        isEmailAllowedForAccount(database, 'boss@mail.example', accountId)
+      ).resolves.toBe(true)
+    })
+
+    // An unreadable list is not an empty one: the sign-up-domain exemption
+    // must not turn it into "anyone".
+    it('refuses everyone on its sign-up domain once that list is unreadable', async () => {
+      const accountId = await database.createAccount({
+        email: 'fay@mail.example',
+        username: 'fay',
+        domain: 'bay.example',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await database.createServedDomain({
+        domain: 'bay.example',
+        status: 'on',
+        signupsOpen: false,
+        allowedEmails: ['other@mail.example']
+      })
+      await expect(
+        isEmailAllowedForAccount(database, 'fay@mail.example', accountId)
+      ).resolves.toBe(false)
+
+      await testDb.db
+        .updateTable('domains')
+        .set({ allowedEmails: 'not json' })
+        .where('domain', '=', 'bay.example')
+        .execute()
+      const loggerError = vi.spyOn(logger, 'error')
+      try {
+        await expect(
+          isEmailAllowedForAccount(database, 'fay@mail.example', accountId)
+        ).resolves.toBe(false)
+      } finally {
+        loggerError.mockRestore()
+      }
+    })
   })
 
   describe('isEmailAllowedForSignUpDomain', () => {
