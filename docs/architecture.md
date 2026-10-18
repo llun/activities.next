@@ -2777,8 +2777,8 @@ legacy shape left to copy.
   contentful paint, and only one image per page may claim it.
   `Posts` takes `prioritizeFirstMedia` (default `false`) and the surface whose
   list is its first visible content opts in: the landing feed, the hashtag
-  page, the public collection page, and the profile Posts tab only when the
-  profile has no cover image (the cover is then the LCP). The prioritized image
+  page, and the profile Posts tab only when the profile has no cover image
+  (the cover is then the LCP). The prioritized image
   is the first ordinary image (not a video or animation, not behind a content
   warning) among the list's first three rows. A `focused` status (the status
   detail page) always prioritizes its first image. A public album page

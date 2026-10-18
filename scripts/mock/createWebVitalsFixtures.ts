@@ -14,8 +14,8 @@
  *     blurhash): single landscape / portrait / square / panorama, and 2-, 4-
  *     and 7-image posts; text-only posts; #vitalsphoto posts with a consistent
  *     hashtag counter
- *   - a public gallery album with 17 items, a public collection (public feed,
- *     4 approved local members with public posts)
+ *   - a public gallery album with 17 items, and public posts (one with a photo)
+ *     by 4 of the extra local actors
  *   - fitness posts imported through the real pipeline (saveFitnessFile +
  *     importFitnessFilesJob, public visibility): a dense TCX ride (3,700
  *     trackpoints, GPS/HR/cadence/power, 6 laps), a sparse ride (8 points), an
@@ -29,7 +29,7 @@
  * seed two separate database files + storage directories:
  *   --landing hero   fewer than 100 local public posts  -> brand hero
  *   --landing feed   at least 120 local public posts, images among the newest
- *                    15 (the main actor's list, then the collection members'
+ *                    15 (the main actor's list, then the extra actors'
  *                    photo posts)                        -> public feed
  *
  * OFFLINE MAP TILES (`--offline-map-tiles`, default ON; `--no-offline-map-tiles`
@@ -53,7 +53,7 @@
  * Determinism: every timestamp derives from FIXED_BASE_MS, post/actor names,
  * public ids, tokens and image/TCX bytes come from fixed values and a seeded
  * PRNG (identical bytes on identical sharp/libvips builds). Random by design
- * (database / storage layer): account, collection, album, heatmap and fitness
+ * (database / storage layer): account, album, heatmap and fitness
  * file UUIDs, the public ids of the three fitness posts, stored media file
  * names, and actor/account `createdAt`. They are listed in the manifest `ids`
  * and excluded from `identityHash`.
@@ -523,7 +523,7 @@ export interface PlannedPost {
 /**
  * The newest-first post plan for the main actor. The first seven entries are
  * the photo posts the pages are measured on; the landing feed's newest 15 are
- * this whole list, followed by the collection members' posts.
+ * this whole list, followed by the extra actors' posts.
  */
 export const buildMainPostPlan = (): PlannedPost[] => {
   const photo = (
@@ -1023,28 +1023,8 @@ async function main() {
   }
   log(`Created ${1 + extras.length} local accounts`)
 
-  // --- collection (before posts: the feed is materialised at post time) -----
+  // The extra actors whose own public posts follow the main actor's.
   const memberActors = extras.slice(0, 4)
-  const collection = await database.createCollection({
-    actorId: main.id,
-    title: 'Vitals Fixture Collection',
-    description: 'Local members with public posts, for the collection feed.',
-    visibility: 'public',
-    publicFeed: true
-  })
-  await database.addCollectionMembers({
-    id: collection.id,
-    actorId: main.id,
-    targetActorIds: memberActors.map((member) => member.id)
-  })
-  for (const member of memberActors) {
-    const approved = await database.setOwnCollectionMembershipState({
-      collectionId: collection.id,
-      actorId: member.id,
-      state: 'approved'
-    })
-    if (!approved) throw new Error(`Could not approve ${member.username}`)
-  }
 
   // --- posts -----------------------------------------------------------------
   let postSequence = 0
@@ -1584,17 +1564,6 @@ async function main() {
       }
     },
     {
-      key: 'collection',
-      core: true,
-      description: 'Public collection with a public feed',
-      path: `/collections/${collection.id}`,
-      markers: {
-        text: ['Vitals Fixture Collection', 'Sunrise ride along the river'],
-        mediaImagesMin: 4,
-        forbidText: forbidden
-      }
-    },
-    {
       key: 'followers',
       core: true,
       description: 'Followers list',
@@ -1691,12 +1660,11 @@ async function main() {
     ids: {
       accountId: main.account?.id,
       albumId: album.id,
-      collectionId: collection.id,
       heatmapId: heatmap.id,
       heatmapShareToken: HEATMAP_SHARE_TOKEN,
       hashtag: HASHTAG,
       fitness: fitnessResults,
-      collectionMemberPostPublicIds: memberPostIds
+      memberPostPublicIds: memberPostIds
     },
     counts: identity.counts,
     pyramid: pyramid
