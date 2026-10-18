@@ -1,5 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createRelayAnnounceJob } from '@/lib/jobs/createRelayAnnounceJob'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
@@ -131,6 +132,36 @@ describe('createRelayAnnounceJob', () => {
       timeline: Timeline.FEDERATED_PUBLIC
     })
     expect(federated.map((status) => status.id)).not.toContain(localNote)
+  })
+
+  // Every domain this server serves is ours, not just the primary host: a post
+  // on a concrete trusted host relayed back is never fetched from ourselves.
+  it('skips our own posts on a concrete trusted host without fetching them', async () => {
+    const config = getConfig()
+    vi.mocked(getConfig).mockReturnValue({
+      ...config,
+      trustedHosts: ['alias.llun.dev']
+    })
+    const aliasNote = 'https://alias.llun.dev/users/test1/statuses/alias-echo'
+
+    try {
+      await createRelayAnnounceJob(database, {
+        id: 'job-alias-echo',
+        name: RELAY_ANNOUNCE_JOB_NAME,
+        data: announceOf(aliasNote, `${RELAY_ACTOR}/announce/alias-echo`)
+      })
+    } finally {
+      vi.mocked(getConfig).mockReturnValue(config)
+    }
+
+    const calls = fetchMock.mock.calls.filter(
+      (call) => typeof call?.[0] === 'string' && call[0] === aliasNote
+    )
+    expect(calls).toHaveLength(0)
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(aliasNote)
   })
 
   it('accepts a minimal relay Announce that omits published and cc', async () => {

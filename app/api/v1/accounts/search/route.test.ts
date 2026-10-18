@@ -513,32 +513,32 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
-  // `federation.allowActorDomains` names domains this server hosts actors on,
-  // so an unknown handle there is not an account anywhere else either.
-  it('does not webfinger an unknown handle on an allowed actor domain', async () => {
+  // `federation.allowActorDomains` is not "our domains": in allowlist mode
+  // the admin form lists remote servers there, so an unknown handle on one is
+  // still resolved remotely.
+  it('webfingers an unknown handle on a remote server in allowActorDomains', async () => {
     mockGetAllServerSettings.mockResolvedValue([
       {
         key: 'federation.allowActorDomains',
-        value: ['llun.test', 'actors.example']
+        value: ['llun.test', 'mastodon.example']
       }
     ])
     mockSearchAccountIds.mockResolvedValue([])
     mockGetActorFromUsername.mockResolvedValue(null)
+    mockGetWebfingerSelf.mockResolvedValue(null)
 
     const response = await GET(
       new NextRequest(
-        'https://llun.test/api/v1/accounts/search?q=unknown%40actors.example&resolve=true',
+        'https://llun.test/api/v1/accounts/search?q=unknown%40mastodon.example&resolve=true',
         { headers: { Authorization: 'Bearer read-accounts-token' } }
       ),
       context
     )
 
     expect(response.status).toBe(200)
-    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
-      username: 'unknown',
-      domain: 'actors.example'
+    expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+      account: 'unknown@mastodon.example'
     })
-    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 
   it('rejects an over-long query with 400 before touching the database', async () => {

@@ -16,10 +16,13 @@ export const GET = traceApiRoute(
   AuthenticatedGuard(async (req: NextRequest, { database }) => {
     const config = getConfig()
     const { federation } = await getResolvedServerSettings(database)
+    const host = headerHost(req.headers)
     // Concrete domains only: a wildcard rule is not a domain to pick, though
-    // POST /api/v1/actors still accepts a domain it covers.
+    // POST /api/v1/actors still accepts a domain it covers — including the
+    // host this request arrived on, which is listed when the rules allow it.
     const allowedDomains = getActorDomainChoices(
-      getActorDomainRules(config, federation.allowActorDomains)
+      getActorDomainRules(config, federation.allowActorDomains),
+      host
     )
 
     return apiResponse({
@@ -27,7 +30,7 @@ export const GET = traceApiRoute(
       allowedMethods: ['GET'],
       data: {
         domains: allowedDomains,
-        host: headerHost(req.headers)
+        host
       }
     })
   })

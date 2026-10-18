@@ -1,9 +1,7 @@
-import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import {
-  getLocalDomainMatcher,
+  createLocalDomainMatcher,
   getServedLinkDomain,
   isLocalDomain
 } from './localDomains'
@@ -13,41 +11,35 @@ vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
-vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: vi.fn()
-}))
-
 const database = {} as Database
 
-const mockSources = ({
+const mockConfig = ({
   host = 'llun.test',
-  trustedHosts = ['alias.llun.test'] as string[],
-  allowActorDomains = [] as string[]
+  trustedHosts = ['alias.llun.test', '*.preview.example'] as string[]
 } = {}) => {
   mockGetConfig.mockReturnValue({ host, trustedHosts })
-  vi.mocked(getResolvedServerSettings).mockResolvedValue({
-    ...structuredClone(DEFAULT_SERVER_SETTINGS),
-    federation: { mode: 'open', allowActorDomains }
-  })
 }
 
 describe('isLocalDomain', () => {
   beforeEach(() => {
-    vi.mocked(getResolvedServerSettings).mockReset()
-    mockSources()
+    mockGetConfig.mockReset()
+    mockConfig()
   })
 
+  // Served domains are this server's federation identity: the primary host and
+  // the concrete trusted hosts. A wildcard trusted host only says which
+  // forwarded hosts to believe, so its subdomains are not ours.
   it.each([
     { description: 'the primary host', value: 'llun.test', expected: true },
     {
-      description: 'a trusted host',
+      description: 'a concrete trusted host',
       value: 'https://alias.llun.test/users/a',
       expected: true
     },
     {
-      description: 'an actor domain from the resolved setting',
-      value: 'https://actors.example/users/a',
-      expected: true
+      description: 'a subdomain of a wildcard trusted host',
+      value: 'https://pr-1.preview.example/users/a',
+      expected: false
     },
     {
       description: 'a remote domain',
@@ -55,42 +47,46 @@ describe('isLocalDomain', () => {
       expected: false
     }
   ])('answers $expected for $description', async ({ value, expected }) => {
-    mockSources({ allowActorDomains: ['actors.example'] })
     await expect(isLocalDomain(database, value)).resolves.toBe(expected)
   })
+})
 
-  it('resolves the settings once for a matcher used many times', async () => {
-    const isLocal = await getLocalDomainMatcher(database)
+describe('createLocalDomainMatcher', () => {
+  it('prepares one matcher per config object', () => {
+    const config = { host: 'llun.test', trustedHosts: ['alias.llun.test'] }
+    const isLocal = createLocalDomainMatcher(config)
 
+    expect(createLocalDomainMatcher(config)).toBe(isLocal)
     expect(isLocal('https://llun.test/inbox')).toBeTrue()
     expect(isLocal('https://alias.llun.test/inbox')).toBeTrue()
     expect(isLocal('https://remote.example/inbox')).toBeFalse()
-    expect(getResolvedServerSettings).toHaveBeenCalledTimes(1)
-    expect(getResolvedServerSettings).toHaveBeenCalledWith(database)
   })
 })
 
 describe('getServedLinkDomain', () => {
   beforeEach(() => {
-    vi.mocked(getResolvedServerSettings).mockReset()
-    mockSources({ allowActorDomains: ['llun.test', 'Actors.Example'] })
+    mockGetConfig.mockReset()
+    mockConfig()
   })
 
+  // Gated on the hosts better-auth trusts as origins (primary + trusted hosts,
+  // wildcards included), never on `federation.allowActorDomains`, which can
+  // name remote servers.
   it.each([
     {
-      description: 'an actor domain this server serves',
-      domain: 'actors.example',
-      expected: 'actors.example'
-    },
-    {
-      description: 'a served domain in another spelling',
-      domain: 'ACTORS.example.',
-      expected: 'actors.example'
-    },
-    {
-      description: 'a trusted host',
+      description: 'a concrete trusted host',
       domain: 'alias.llun.test',
       expected: 'alias.llun.test'
+    },
+    {
+      description: 'a trusted host in another spelling',
+      domain: 'ALIAS.llun.test.',
+      expected: 'alias.llun.test'
+    },
+    {
+      description: 'a subdomain of a wildcard trusted host',
+      domain: 'pr-1.preview.example',
+      expected: 'pr-1.preview.example'
     },
     {
       description: 'the primary host, which keeps the default link',
@@ -98,17 +94,17 @@ describe('getServedLinkDomain', () => {
       expected: null
     },
     {
-      description: 'a domain this server does not serve',
-      domain: 'remote.example',
+      description: 'a domain this server does not answer on',
+      domain: 'actors.example',
       expected: null
     },
     {
       description: 'a domain carrying a path',
-      domain: 'actors.example/evil',
+      domain: 'alias.llun.test/evil',
       expected: null
     },
     { description: 'a missing domain', domain: null, expected: null }
-  ])('returns $expected for $description', async ({ domain, expected }) => {
-    await expect(getServedLinkDomain(database, domain)).resolves.toBe(expected)
+  ])('returns $expected for $description', ({ domain, expected }) => {
+    expect(getServedLinkDomain(domain)).toBe(expected)
   })
 })

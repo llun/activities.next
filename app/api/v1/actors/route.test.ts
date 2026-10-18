@@ -259,24 +259,73 @@ describe('POST /api/v1/actors', () => {
     }
   )
 
-  it('allows a subdomain of a wildcard trusted host when allowActorDomains is not set', async () => {
+  // A wildcard trusted host exists to believe X-Forwarded-Host (preview
+  // deployments, say), so without allowActorDomains it approves no actor
+  // domain: only the primary host and concrete trusted hosts do.
+  it.each([
+    { domain: 'bob.alias.llun.test', status: 400 },
+    { domain: 'other.llun.test', status: 200 }
+  ])(
+    'answers $status for $domain beside a wildcard trusted host when allowActorDomains is not set',
+    async ({ domain, status }) => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['*.alias.llun.test', 'other.llun.test'],
+        allowEmails: []
+      })
+
+      const response = await POST(
+        createRequest({
+          username: `newactor-fallback-${status}`,
+          domain
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      const data = await response.json()
+      expect(response.status).toBe(status)
+      if (status === 200) {
+        expect(data.domain).toBe(domain)
+      } else {
+        expect(data.error).toBe('Domain is not allowed')
+      }
+    }
+  )
+
+  // Domains are stored normalised now, but an actor written earlier may carry
+  // the raw spelling the request used; that name is still taken.
+  it('rejects a username that exists under the raw requested domain spelling', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
-      trustedHosts: ['*.alias.llun.test'],
+      trustedHosts: ['legacy.llun.test'],
       allowEmails: []
+    })
+    const account = await database.getAccountFromEmail({
+      email: seedActor1.email
+    })
+    if (!account) throw new Error('seed account is missing')
+    await database.createActorForAccount({
+      accountId: account.id,
+      username: 'rawspelled',
+      domain: 'legacy.llun.test:443',
+      publicKey: 'public-key',
+      privateKey: 'private-key'
     })
 
     const response = await POST(
-      createRequest({
-        username: 'newactor-trusted-wildcard',
-        domain: 'bob.alias.llun.test'
-      }),
+      createRequest({ username: 'rawspelled', domain: 'legacy.llun.test:443' }),
       { params: Promise.resolve({}) }
     )
 
     const data = await response.json()
-    expect(response.status).toBe(200)
-    expect(data.domain).toBe('bob.alias.llun.test')
+    expect(response.status).toBe(400)
+    expect(data.error).toBe('Username already exists')
+    await expect(
+      database.isUsernameExists({
+        username: 'rawspelled',
+        domain: 'legacy.llun.test'
+      })
+    ).resolves.toBeFalse()
   })
 
   it('rejects the reserved federation signing actor username', async () => {

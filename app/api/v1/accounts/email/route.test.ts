@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
-import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
@@ -36,7 +35,6 @@ type MockDatabase = Pick<
   | 'getActorsForAccount'
   | 'getActorFromId'
   | 'requestEmailChange'
-  | 'getAllServerSettings'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -78,8 +76,7 @@ describe('POST /api/v1/accounts/email', () => {
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
     getActorFromId: vi.fn(),
-    requestEmailChange: vi.fn(),
-    getAllServerSettings: vi.fn()
+    requestEmailChange: vi.fn()
   }
 
   beforeAll(() => {
@@ -104,9 +101,6 @@ describe('POST /api/v1/accounts/email', () => {
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
     mockDb.requestEmailChange.mockResolvedValue(undefined)
-    mockDb.getAllServerSettings.mockResolvedValue([])
-    // The served-domain check caches resolved settings per database instance.
-    invalidateServerSettingsCache(mockDb as unknown as Database)
   })
 
   afterEach(() => {
@@ -211,40 +205,57 @@ describe('POST /api/v1/accounts/email', () => {
     )
   })
 
-  // The link opens on the account's actor domain when this server serves it.
-  it('links the verification on the actor domain this server serves', async () => {
-    mockDb.getAllServerSettings.mockResolvedValue([
-      {
-        key: 'federation.allowActorDomains',
-        value: ['llun.test', 'actors.example'],
-        createdAt: 0,
-        updatedAt: 0
-      }
-    ])
-    const secondDomainActor = {
-      ...actor,
-      id: `https://actors.example/users/${seedActor1.username}`,
-      domain: 'actors.example'
+  // The link opens on the account's actor domain when auth trusts that host
+  // (the primary host or an ACTIVITIES_TRUSTED_HOSTS entry), and on the
+  // primary host otherwise, so a stored actor domain cannot point it elsewhere.
+  it.each([
+    {
+      description: 'a trusted host',
+      actorDomain: 'actors.example',
+      expected: 'https://actors.example/account/verify-email?code='
+    },
+    {
+      description: 'a domain auth does not trust',
+      actorDomain: 'remote.example',
+      expected: 'https://llun.test/account/verify-email?code='
     }
-    mockDb.getActorsForAccount.mockResolvedValue([secondDomainActor])
-    mockDb.getActorFromId.mockResolvedValue(secondDomainActor)
-
-    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
-      method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://llun.test'
+  ])(
+    'links the verification for an actor on $description',
+    async ({ actorDomain, expected }) => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['actors.example'],
+        allowEmails: [],
+        email: {
+          serviceFromAddress: 'noreply@llun.test'
+        }
+      })
+      const secondDomainActor = {
+        ...actor,
+        id: `https://${actorDomain}/users/${seedActor1.username}`,
+        domain: actorDomain
       }
-    })
+      mockDb.getActorsForAccount.mockResolvedValue([secondDomainActor])
+      mockDb.getActorFromId.mockResolvedValue(secondDomainActor)
 
-    const response = await POST(request, { params: Promise.resolve({}) })
+      const request = new NextRequest(
+        'http://llun.test/api/v1/accounts/email',
+        {
+          method: 'POST',
+          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      )
 
-    expect(response.status).toBe(200)
-    expect(mockSendMail.mock.calls[0][0].content.text).toContain(
-      'https://actors.example/account/verify-email?code='
-    )
-  })
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockSendMail.mock.calls[0][0].content.text).toContain(expected)
+    }
+  )
 
   it.each(['development', 'production'])(
     'returns a configuration error without storing a pending change when email is disabled in %s',

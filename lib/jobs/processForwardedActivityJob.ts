@@ -4,7 +4,7 @@ import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
-import { getConfig } from '@/lib/config'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { ENTITY_TYPE_QUESTION, Tombstone } from '@/lib/types/activitypub'
@@ -104,8 +104,9 @@ export const processForwardedActivityJob = createJobHandle(
         span.setAttribute('outcome', 'cross_origin_object')
         return
       }
-      const { host } = getConfig()
-      if (new URL(objectId).host === host) {
+      // Never re-fetch our own object, on any domain this server serves (the
+      // primary host or a concrete trusted host), not just the primary one.
+      if (await isLocalDomain(database, objectId)) {
         span.setAttribute('outcome', 'local_object')
         return
       }

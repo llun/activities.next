@@ -153,6 +153,65 @@ describe('GET /api/v1/actors/domains', () => {
     expect(data.host).toBe('llun.test')
   })
 
+  // The host the request arrived on is a choice when the rules allow it, so a
+  // user on a subdomain an allowActorDomains wildcard approves can pick it;
+  // the wildcard itself is never listed.
+  it('lists the current request host when an allowActorDomains wildcard approves it', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['*.people.test'],
+      allowEmails: []
+    })
+    await database.setServerSettings([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['llun.test', '*.people.test']
+      }
+    ])
+    invalidateServerSettingsCache(database)
+
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/actors/domains', {
+          headers: { 'x-forwarded-host': 'Alice.People.Test' }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      const data = await response.json()
+      expect(response.status).toBe(200)
+      expect(data.domains).toEqual(['llun.test', 'alice.people.test'])
+    } finally {
+      await deleteServerSetting(db, {
+        key: 'federation.allowActorDomains'
+      })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
+  // Without allowActorDomains a wildcard trusted host (there to believe
+  // X-Forwarded-Host on preview deployments) approves no actor domain, so
+  // neither it nor a request host it covers is listed.
+  it('does not list a wildcard trusted host or a host it covers', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['alias.llun.test', '*.preview.test'],
+      allowEmails: []
+    })
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/actors/domains', {
+        headers: { 'x-forwarded-host': 'pr-1.preview.test' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.domains).toEqual(['llun.test', 'alias.llun.test'])
+    expect(data.host).toBe('pr-1.preview.test')
+  })
+
   it('returns host from request headers', async () => {
     mockGetConfig.mockReturnValue({
       host: 'main.test',

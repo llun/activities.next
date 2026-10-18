@@ -75,8 +75,10 @@ export const POST = traceApiRoute(
     const { username } = parsed.data
     const config = getConfig()
     const { federation } = await getResolvedServerSettings(database)
+    const requestedDomain =
+      parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
     const domain = resolveActorDomain(
-      parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers),
+      requestedDomain,
       getActorDomainRules(config, federation.allowActorDomains)
     )
 
@@ -89,7 +91,14 @@ export const POST = traceApiRoute(
       })
     }
 
-    const usernameExists = await database.isUsernameExists({ username, domain })
+    // Actors are stored on the normalised domain, but a row written before
+    // that may carry the raw spelling (`llun.social:443`, `Llun.Social`), so
+    // the name is taken if it exists under either.
+    const rawDomain = requestedDomain.trim()
+    const usernameExists =
+      (await database.isUsernameExists({ username, domain })) ||
+      (rawDomain !== domain &&
+        (await database.isUsernameExists({ username, domain: rawDomain })))
     if (usernameExists) {
       return apiResponse({
         req,

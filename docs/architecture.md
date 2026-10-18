@@ -1074,16 +1074,24 @@ legacy shape left to copy.
   dead or dangerous link, since remote actors control `status.url`. The one
   variation is the account's own domain: the confirmation and email-change
   links (`buildVerifyEmail`, `buildChangeEmail`) take an optional `domain` and
-  use `buildBaseURL(domain)` instead, so an account whose actor lives on a
-  second domain confirms there. The caller gets that domain from
+  use `buildBaseURL(domain)` instead. Registration's first confirmation email
+  passes none, so it always links to the primary host, where sign-up creates
+  the first actor. A resend (`POST /api/v1/emails/confirmations`) and an email
+  change (`POST /api/v1/accounts/email`) pass the selected actor's domain, and
+  the link uses it when auth trusts that host. The caller gets that domain from
   `getServedLinkDomain` (`lib/services/domains/localDomains.ts`), which returns
-  it only when this server serves it and null (the primary host) otherwise — a
-  template never takes a domain straight from a stored row.
+  it only when `isOwnInstanceHost` accepts it — the primary host or an
+  `ACTIVITIES_TRUSTED_HOSTS` entry, wildcards included, the same set
+  better-auth's trusted origins and `selectHeaderHost` use — and null (the
+  primary host) otherwise, never for a `federation.allowActorDomains` entry
+  alone, which can name a remote server. A template never takes a domain
+  straight from a stored row.
 - **The plain-text alternative is derived from the same block list**, never
   hand-written beside the HTML. Both used to be maintained by hand and had
   already drifted apart.
-- **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`.**
-  It shadows the global mock from `test/setup/vitest.setup.ts`, and because most email call
+- **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`,
+  and `buildBaseURL` too when the code under test can build an account-domain
+  link.** It shadows the global mock from `test/setup/vitest.setup.ts`, and because most email call
   sites deliberately catch delivery errors, omitting it does **not** fail loudly:
   the template throws, the catch swallows it, and the test keeps passing while
   the email silently stops sending. This has already happened twice
@@ -2665,7 +2673,8 @@ legacy shape left to copy.
   `ACTIVITIES_INSECURE_AUTH=true`.
 - The plain-text part is derived from the same block list, never hand-written
   alongside the HTML.
-- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL`.** It shadows
+- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL`** (and
+  `buildBaseURL` where an account-domain link can be built). It shadows
   the global mock, and because most email call sites catch delivery errors, an
   omission does not fail loudly: the template throws, the catch swallows it, and
   the test passes while the email silently stops sending. This has bitten twice.

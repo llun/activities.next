@@ -205,16 +205,18 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 
-  // `federation.allowActorDomains` names domains this server hosts actors on,
-  // so an unknown handle there is not an account anywhere else either.
-  it('does not remotely resolve handles for allowed actor domains', async () => {
+  // `federation.allowActorDomains` is not "our domains": in allowlist mode
+  // the admin form lists remote servers there, so an unknown handle on one is
+  // still resolved remotely.
+  it('remotely resolves handles on a remote server in allowActorDomains', async () => {
     mockGetAllServerSettings.mockResolvedValue([
       {
         key: 'federation.allowActorDomains',
-        value: ['llun.test', 'actors.example']
+        value: ['llun.test', 'mastodon.example']
       }
     ])
     mockGetActorFromUsername.mockResolvedValue(null)
+    mockGetWebfingerSelf.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: Date.now() + 60_000,
       referenceId: 'https://llun.test/users/oauth-user',
@@ -224,13 +226,15 @@ describe('GET /api/v1/accounts/lookup', () => {
 
     const response = await GET(
       new NextRequest(
-        'https://llun.test/api/v1/accounts/lookup?acct=missing@actors.example&resolve=true',
+        'https://llun.test/api/v1/accounts/lookup?acct=missing@mastodon.example&resolve=true',
         { headers: { Authorization: 'Bearer read-accounts-token' } }
       )
     )
 
     expect(response.status).toBe(404)
-    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+      account: 'missing@mastodon.example'
+    })
   })
 
   it('rejects handles with more than one username/domain separator', async () => {

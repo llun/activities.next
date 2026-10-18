@@ -290,16 +290,23 @@ export const isOwnInstanceHost = (
  * authority (`host` or `host:port`) is one of `rules`, a list of configured
  * host entries that may carry `*.example.com` wildcards and may be written as
  * URLs. Kept apart from `isOwnInstanceHost` so the served-domain check can
- * hand it more sources than `ACTIVITIES_HOST` and `ACTIVITIES_TRUSTED_HOSTS`
- * without a second matcher that disagrees with this one.
+ * hand it a different rule list without a second matcher that disagrees with
+ * this one. A caller that matches many hosts against one list builds the
+ * matcher once with `createHostRulesMatcher`.
  */
 export const isHostServedByRules = (
   host: string | undefined | null,
   rules: readonly string[]
-): boolean => {
-  const authority = getCanonicalAuthority(host)
-  if (!authority) return false
+): boolean => createHostRulesMatcher(rules)(host)
 
+/**
+ * `isHostServedByRules` with the rule list prepared once: the literal
+ * authorities and the normalised rules are computed here and closed over, so a
+ * fan-out loop does not rebuild them (or the rules cache key) per host.
+ */
+export const createHostRulesMatcher = (
+  rules: readonly string[]
+): ((host: string | undefined | null) => boolean) => {
   // A wildcard entry is never a literal authority. `new URL()` accepts `*` in
   // a host, so comparing `*.cdn.example` against itself would let a URL
   // spelling that authority pass as one of ours — the hole
@@ -308,35 +315,47 @@ export const isHostServedByRules = (
   //
   // This pass reads the RAW rules, so it needs its own skip: `normalizeHost`
   // refusing a misplaced `*` covers the rules pass, not this one.
-  if (
-    rules.some(
-      (rule) => !rule.includes('*') && getCanonicalAuthority(rule) === authority
-    )
-  ) {
-    return true
-  }
+  const literalAuthorities = new Set(
+    rules
+      .filter((rule) => !rule.includes('*'))
+      .map((rule) => getCanonicalAuthority(rule))
+      .filter(Boolean)
+  )
+  const normalizedRules = normalizeHostRules(rules)
 
-  return isHostTrustedByRules(host, rules)
+  return (host) => {
+    const authority = getCanonicalAuthority(host)
+    if (!authority) return false
+    if (literalAuthorities.has(authority)) return true
+
+    const normalizedHost = normalizeHost(host, { allowWildcard: false })
+    if (!normalizedHost) return false
+    return normalizedRules.some((rule) => hostMatchesRule(normalizedHost, rule))
+  }
 }
 
 /**
- * Every source of "a domain this server serves", as configuration hands them
- * over: the primary host (`ACTIVITIES_HOST`), the other hosts it answers on
- * (`ACTIVITIES_TRUSTED_HOSTS`) and the resolved `federation.allowActorDomains`
- * server setting. All three may carry `*.example.com` wildcards. A new source
- * (a database-backed domain list, say) becomes one more field here and one more
- * spread in `getServedDomainRules`, so every caller picks it up at once.
+ * The sources of "a domain this server serves" — this server's federation
+ * identity: the primary host (`ACTIVITIES_HOST`) and the CONCRETE entries of
+ * `ACTIVITIES_TRUSTED_HOSTS`. A wildcard trusted host (`*.vercel.app`, say)
+ * exists so `X-Forwarded-Host` can be believed on preview deployments; it is
+ * not a claim that every such subdomain is this server, so it is left out.
+ *
+ * `federation.allowActorDomains` is deliberately NOT a source. It lists the
+ * domains actors may be created on and the domains exempt from federation
+ * policy, and in allowlist mode the admin form presents it as "Allowed
+ * servers", so it can hold remote servers; treating those as ours would stop
+ * search, quotes, forwarding and emoji from reaching them. The federation
+ * policy adds it to its own exemption set (`domainPolicy.ts`).
+ *
+ * A new source (a database-backed domain list, say) becomes one more field
+ * here and one more spread in `getServedDomainRules`, so every caller picks it
+ * up at once.
  */
-export type ServedDomainSources = HostRuleConfig & {
-  allowActorDomains?: readonly string[] | null
-}
+export type ServedDomainSources = HostRuleConfig
 
-export const getServedDomainRules = (
-  sources: ServedDomainSources
-): string[] => [
-  ...getTrustedHostRules(sources),
-  ...(sources.allowActorDomains ?? [])
-]
+export const getServedDomainRules = (sources: ServedDomainSources): string[] =>
+  getTrustedHostRules(sources).filter((rule) => !rule.includes('*'))
 
 /**
  * The authority a URL or a bare host names, normalised for comparison: lower
@@ -399,11 +418,29 @@ export const normalizeServedDomainChoice = (
 }
 
 /**
+ * A matcher for URLs or hosts against `rules` (the served-domain rules, or the
+ * federation policy's wider local set), prepared once. Each value is reduced
+ * with `getServedAuthority` first, so an ActivityPub id, a key id or an inbox
+ * URL can be passed as is.
+ */
+export const createServedDomainMatcher = (
+  rules: readonly string[]
+): ((value: string | undefined | null) => boolean) => {
+  const matches = createHostRulesMatcher(rules)
+  return (value) => {
+    const authority = getServedAuthority(value)
+    if (!authority) return false
+    return matches(authority)
+  }
+}
+
+/**
  * THE answer to "is this domain one this server serves?" for a URL or a host:
- * the primary host, any `ACTIVITIES_TRUSTED_HOSTS` entry, or any
- * `federation.allowActorDomains` entry, wildcards included. Pure, so it runs
- * inside per-domain loops; the request-time callers get `sources` resolved
- * from `getLocalDomainMatcher` (`@/lib/services/domains/localDomains`).
+ * the primary host or a concrete `ACTIVITIES_TRUSTED_HOSTS` entry (see
+ * `ServedDomainSources` for why wildcards and `federation.allowActorDomains`
+ * are not). Pure; the request-time callers get a matcher from
+ * `getLocalDomainMatcher` (`@/lib/services/domains/localDomains`), which
+ * prepares the rules once for a loop.
  *
  * Every rule is operator configuration. Nothing a remote server sends can add
  * one, and an authority spelled with a `*` matches nothing, so a remote
@@ -412,11 +449,7 @@ export const normalizeServedDomainChoice = (
 export const isServedDomain = (
   value: string | undefined | null,
   sources: ServedDomainSources
-): boolean => {
-  const authority = getServedAuthority(value)
-  if (!authority) return false
-  return isHostServedByRules(authority, getServedDomainRules(sources))
-}
+): boolean => createServedDomainMatcher(getServedDomainRules(sources))(value)
 
 export const selectHeaderHost = (
   headers: HostHeaders,

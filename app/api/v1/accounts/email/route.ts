@@ -86,11 +86,11 @@ export const POST = traceApiRoute(
 
       // Send verification email
       try {
-        // Linked on the account's actor domain when this server serves it.
+        // Linked on the account's actor domain when this server answers on it.
         const email = buildChangeEmail({
           recipientEmail: newEmail,
           emailChangeCode,
-          domain: await getServedLinkDomain(database, currentActor.domain)
+          domain: getServedLinkDomain(currentActor.domain)
         })
         await sendMail({
           from: config.email.serviceFromAddress,

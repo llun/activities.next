@@ -3,6 +3,7 @@ import {
   getReactionContent,
   undoEmojiReactionRequest
 } from '@/lib/actions/emojiReaction'
+import { getConfig } from '@/lib/config'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -220,27 +221,42 @@ describe('emojiReactionRequest', () => {
     })
 
     // A sender on a domain this server serves is one of our own actors, so
-    // its shortcode names our own emoji table — on a second actor domain too,
-    // not only on the primary host.
+    // its shortcode names our own emoji table — on a concrete trusted host
+    // too, not only on the primary host. `federation.allowActorDomains` is not
+    // a served domain (it can list remote servers in allowlist mode), so a
+    // sender there is namespaced like any remote one.
     it.each([
       {
         description: 'the primary host',
         actor: `https://${TEST_DOMAIN}/users/primary-reactor`,
-        shortcode: 'primaryparrot'
+        shortcode: 'primaryparrot',
+        expected: 'primaryparrot'
       },
       {
-        description: 'an actor domain from the allow-list',
-        actor: 'https://actors.example/users/second-domain-reactor',
-        shortcode: 'seconddomainparrot'
+        description: 'a concrete trusted host',
+        actor: 'https://alias.example/users/trusted-host-reactor',
+        shortcode: 'aliasparrot',
+        expected: 'aliasparrot'
+      },
+      {
+        description: 'a remote server listed in allowActorDomains',
+        actor: 'https://listed.example/users/listed-reactor',
+        shortcode: 'listedparrot',
+        expected: 'listedparrot@listed.example'
       }
     ])(
-      'keeps a bare shortcode for a sender on $description',
-      async ({ actor, shortcode }) => {
+      'stores $expected for a sender on $description',
+      async ({ actor, shortcode, expected }) => {
         const statusId = statuses.primary.post
+        const config = getConfig()
+        vi.mocked(getConfig).mockReturnValue({
+          ...config,
+          trustedHosts: ['alias.example']
+        })
         await database.setServerSettings([
           {
             key: 'federation.allowActorDomains',
-            value: [TEST_DOMAIN, 'actors.example']
+            value: [TEST_DOMAIN, 'listed.example']
           }
         ])
         invalidateServerSettingsCache(database)
@@ -255,6 +271,7 @@ describe('emojiReactionRequest', () => {
             database
           })
         } finally {
+          vi.mocked(getConfig).mockReturnValue(config)
           await database.setServerSettings([
             { key: 'federation.allowActorDomains', value: [] }
           ])
@@ -266,7 +283,7 @@ describe('emojiReactionRequest', () => {
           reactors
             .filter((reactor) => reactor.actorId === actor)
             .map((reactor) => reactor.name)
-        ).toEqual([shortcode])
+        ).toEqual([expected])
       }
     )
 

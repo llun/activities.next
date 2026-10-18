@@ -140,15 +140,15 @@ describe('domainPolicy', () => {
     ).resolves.toBe(true)
   })
 
-  // One definition of "our domains": the trusted hosts this server answers on
-  // are as local as the primary host and the actor allow-list, for every
-  // policy decision — not only for `isOwnInstanceHost`.
-  it('treats trusted hosts, including wildcard ones, as local', async () => {
+  // The exemption set is the served domains (primary host and CONCRETE
+  // trusted hosts) plus `federation.allowActorDomains`. A wildcard trusted host
+  // only says which forwarded hosts to believe; it is not federation identity.
+  it('treats concrete trusted hosts as local, but not wildcard ones', async () => {
     mockFederation({
       mode: 'allowlist',
       trustedHosts: ['alias.test', '*.edge.test']
     })
-    const database = createDatabase({ blocks: ['alias.test'] })
+    const database = createDatabase({ blocks: ['alias.test', 'edge.test'] })
 
     await expect(
       isLocalFederationDomain(database, 'https://alias.test/users/a')
@@ -158,9 +158,9 @@ describe('domainPolicy', () => {
     ).resolves.toBe(true)
     await expect(
       isLocalFederationDomain(database, 'https://cdn.edge.test/users/a')
-    ).resolves.toBe(true)
+    ).resolves.toBe(false)
     await expect(
-      isLocalFederationDomain(database, 'https://edge.test/users/a')
+      canFederateWithDomain(database, 'https://cdn.edge.test/users/a')
     ).resolves.toBe(false)
     await expect(
       filterFederatedUrls(database, [
@@ -168,9 +168,38 @@ describe('domainPolicy', () => {
         'https://cdn.edge.test/inbox',
         'https://other.test/inbox'
       ])
+    ).resolves.toEqual(['https://alias.test/inbox'])
+  })
+
+  // `federation.allowActorDomains` keeps its exemption even for a remote
+  // server an admin listed there (the allowlist-mode form calls it "Allowed
+  // servers"), though it is not a served domain for search, quotes,
+  // forwarding or emoji.
+  it('keeps exempting a remote server listed in allowActorDomains', async () => {
+    mockFederation({
+      mode: 'allowlist',
+      allowActorDomains: ['mastodon.social', '*.people.test']
+    })
+    const database = createDatabase({ blocks: ['mastodon.social'] })
+
+    await expect(
+      isLocalFederationDomain(database, 'https://mastodon.social/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      canFederateWithDomain(database, 'https://mastodon.social/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      isDomainAllowed(database, 'https://alice.people.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      filterFederatedUrls(database, [
+        'https://mastodon.social/inbox',
+        'https://alice.people.test/inbox',
+        'https://other.test/inbox'
+      ])
     ).resolves.toEqual([
-      'https://alias.test/inbox',
-      'https://cdn.edge.test/inbox'
+      'https://mastodon.social/inbox',
+      'https://alice.people.test/inbox'
     ])
   })
 

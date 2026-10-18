@@ -1,3 +1,4 @@
+import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FORWARD_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import {
@@ -294,10 +295,12 @@ describe('forwardingDelivery', () => {
       expect(inboxes).toContain('https://follower2.example/users/user2/inbox')
     })
 
-    // Followers whose inboxes are on any domain this server serves are local:
-    // forwarding there only sends the activity back to ourselves. The primary
-    // host was the only one excluded before.
-    it('excludes inboxes on every domain this server serves', async () => {
+    // Followers whose inboxes are on any domain this server serves (the
+    // primary host or a concrete trusted host) are local: forwarding there
+    // only sends the activity back to ourselves. A remote server listed in
+    // `federation.allowActorDomains`, or a host a wildcard trusted host
+    // covers, is not one of ours and still gets the forward.
+    it('excludes inboxes on every domain this server serves, and only those', async () => {
       const targetActorId = `https://${TEST_DOMAIN}/users/forwarding-target`
       const followers = [
         {
@@ -305,12 +308,16 @@ describe('forwardingDelivery', () => {
           inbox: `https://${TEST_DOMAIN}/users/primary-follower/inbox`
         },
         {
-          actorId: 'https://actors.example/users/actor-domain-follower',
-          inbox: 'https://actors.example/users/actor-domain-follower/inbox'
+          actorId: 'https://alias.example/users/trusted-host-follower',
+          inbox: 'https://Alias.Example/users/trusted-host-follower/inbox'
+        },
+        {
+          actorId: 'https://listed.example/users/listed-follower',
+          inbox: 'https://listed.example/users/listed-follower/inbox'
         },
         {
           actorId: 'https://a.wild.example/users/wildcard-follower',
-          inbox: 'https://A.Wild.example/users/wildcard-follower/inbox'
+          inbox: 'https://a.wild.example/users/wildcard-follower/inbox'
         },
         {
           actorId: 'https://remote-forward.example/users/remote-follower',
@@ -326,10 +333,15 @@ describe('forwardingDelivery', () => {
           sharedInbox: ''
         })
       }
+      const config = getConfig()
+      vi.mocked(getConfig).mockReturnValue({
+        ...config,
+        trustedHosts: ['alias.example', '*.wild.example']
+      })
       await database.setServerSettings([
         {
           key: 'federation.allowActorDomains',
-          value: [TEST_DOMAIN, 'actors.example', '*.wild.example']
+          value: [TEST_DOMAIN, 'listed.example']
         }
       ])
       invalidateServerSettingsCache(database)
@@ -343,10 +355,13 @@ describe('forwardingDelivery', () => {
           cc: []
         })
 
-        expect(inboxes).toEqual([
+        expect([...inboxes].sort()).toEqual([
+          'https://a.wild.example/users/wildcard-follower/inbox',
+          'https://listed.example/users/listed-follower/inbox',
           'https://remote-forward.example/users/remote-follower/inbox'
         ])
       } finally {
+        vi.mocked(getConfig).mockReturnValue(config)
         await database.setServerSettings([
           { key: 'federation.allowActorDomains', value: [] }
         ])

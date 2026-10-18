@@ -1,8 +1,10 @@
 import {
   HostHeaders,
+  createHostRulesMatcher,
   getCanonicalAuthority,
   getHostCacheSizesForTests,
   getServedAuthority,
+  isHostServedByRules,
   isHostTrustedByRules,
   isOwnInstanceHost,
   isServedDomain,
@@ -353,8 +355,7 @@ describe('isServedDomain', () => {
 
   const sources = {
     host: 'llun.test',
-    trustedHosts: ['alias.example', '*.edge.llun.test'],
-    allowActorDomains: ['Actors.Example', '*.people.example']
+    trustedHosts: ['Alias.Example', '*.edge.llun.test']
   }
 
   it.each([
@@ -369,48 +370,40 @@ describe('isServedDomain', () => {
       expected: true
     },
     {
+      description: 'a trusted host in another case',
+      value: 'https://ALIAS.example/users/a',
+      expected: true
+    },
+    {
+      description: 'a trusted host with a trailing dot',
+      value: 'https://alias.example./users/a',
+      expected: true
+    },
+    {
+      description: 'a trusted host with the default port',
+      value: 'https://alias.example:443/users/a',
+      expected: true
+    },
+    // A wildcard trusted host is there to believe X-Forwarded-Host (preview
+    // deployments), not to claim every subdomain as this server.
+    {
       description: 'a key id under a wildcard trusted host',
       value: 'https://cdn.edge.llun.test/users/a#main-key',
-      expected: true
-    },
-    {
-      description: 'an actor domain in another case',
-      value: 'https://ACTORS.example/users/a',
-      expected: true
-    },
-    {
-      description: 'an actor domain with a trailing dot',
-      value: 'https://actors.example./users/a',
-      expected: true
-    },
-    {
-      description: 'an actor domain with the default port',
-      value: 'https://actors.example:443/users/a',
-      expected: true
-    },
-    {
-      description: 'a host under a wildcard actor domain',
-      value: 'https://alice.people.example/users/a',
-      expected: true
-    },
-    {
-      description: 'the parent of a wildcard actor domain',
-      value: 'https://people.example/users/a',
       expected: false
     },
     {
-      description: 'an actor domain on another port',
-      value: 'https://actors.example:8443/users/a',
+      description: 'a trusted host on another port',
+      value: 'https://alias.example:8443/users/a',
       expected: false
     },
     {
       description: 'a wildcard rule spelled as a host',
-      value: 'https://*.people.example/users/a',
+      value: 'https://*.edge.llun.test/users/a',
       expected: false
     },
     {
       description: 'a percent-encoded wildcard host',
-      value: 'https://%2a.people.example/users/a',
+      value: 'https://%2a.edge.llun.test/users/a',
       expected: false
     },
     {
@@ -437,7 +430,7 @@ describe('isServedDomain', () => {
   it('matches an IDNA domain in either spelling', () => {
     const idnaSources = {
       host: 'llun.test',
-      allowActorDomains: ['bücher.example']
+      trustedHosts: ['bücher.example']
     }
     expect(
       isServedDomain('https://xn--bcher-kva.example/users/a', idnaSources)
@@ -460,16 +453,43 @@ describe('isServedDomain', () => {
     ).toBeFalse()
   })
 
-  it('agrees with isOwnInstanceHost when there are no actor domains', () => {
-    const config = { host: 'llun.test', trustedHosts: ['*.edge.llun.test'] }
+  it('agrees with isOwnInstanceHost on concrete hosts only', () => {
+    const config = { host: 'llun.test', trustedHosts: ['alias.example'] }
     for (const host of [
       'llun.test',
-      'cdn.edge.llun.test',
+      'alias.example',
       'llun.test:8443',
       'other.example'
     ]) {
       expect(isServedDomain(host, config)).toBe(isOwnInstanceHost(host, config))
     }
+
+    // isOwnInstanceHost trusts the wildcard, the served-domain check does not.
+    const wildcard = { host: 'llun.test', trustedHosts: ['*.edge.llun.test'] }
+    expect(isOwnInstanceHost('cdn.edge.llun.test', wildcard)).toBeTrue()
+    expect(isServedDomain('cdn.edge.llun.test', wildcard)).toBeFalse()
+  })
+})
+
+describe('createHostRulesMatcher', () => {
+  it('matches like isHostServedByRules with the rules prepared once', () => {
+    const rules = ['llun.test', '*.people.example', 'Alias.Example:8443']
+    const matches = createHostRulesMatcher(rules)
+
+    for (const host of [
+      'llun.test',
+      'LLUN.test',
+      'alice.people.example',
+      'people.example',
+      'alias.example:8443',
+      'alias.example',
+      '*.people.example',
+      ''
+    ]) {
+      expect(matches(host)).toBe(isHostServedByRules(host, rules))
+    }
+    expect(matches('alice.people.example')).toBeTrue()
+    expect(matches('*.people.example')).toBeFalse()
   })
 })
 

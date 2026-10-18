@@ -1,10 +1,10 @@
 import { type Config, getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
-  type ServedDomainSources,
+  createServedDomainMatcher,
   getCanonicalAuthority,
-  isServedDomain,
+  getServedDomainRules,
+  isOwnInstanceHost,
   normalizeServedDomainChoice
 } from '@/lib/utils/host'
 
@@ -12,39 +12,35 @@ export type LocalDomainMatcher = (value: string | undefined | null) => boolean
 
 type LocalDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
 
+// One prepared matcher per config object: `getConfig()` hands back the same
+// object for the life of the process, so the hot paths (search, forwarding
+// fan-out, every inbound reaction) never rebuild the rule list.
+const matcherCache = new WeakMap<LocalDomainConfig, LocalDomainMatcher>()
+
 /**
- * The sources of "our domains" once the server settings are resolved: the
- * env-only host and trusted hosts plus the resolved actor-domain list. Kept
- * synchronous for callers that already hold the resolved settings (the
- * federation policy resolves them once per operation).
+ * The served-domain matcher for `config`: the primary host and the concrete
+ * `ACTIVITIES_TRUSTED_HOSTS` entries (see `ServedDomainSources` in
+ * `@/lib/utils/host`). Synchronous, with the rules prepared once, so it can run
+ * inside per-URL loops.
  */
-export const getServedDomainSources = (
-  config: LocalDomainConfig,
-  allowActorDomains: readonly string[]
-): ServedDomainSources => ({
-  host: config.host,
-  trustedHosts: config.trustedHosts ?? null,
-  allowActorDomains
-})
-
-export const createLocalDomainMatcher =
-  (sources: ServedDomainSources): LocalDomainMatcher =>
-  (value) =>
-    isServedDomain(value, sources)
+export const createLocalDomainMatcher = (
+  config: LocalDomainConfig
+): LocalDomainMatcher => {
+  const cached = matcherCache.get(config)
+  if (cached) return cached
+  const matcher = createServedDomainMatcher(getServedDomainRules(config))
+  matcherCache.set(config, matcher)
+  return matcher
+}
 
 /**
- * Resolves the served-domain sources once and returns a synchronous matcher,
- * so a loop over many URLs pays one settings read. The settings resolver
- * caches per database instance, so this is cheap on hot paths too.
+ * The served-domain matcher at request time. Every source is configuration
+ * today, so `database` is unused; it is part of the signature so the planned
+ * database-backed domain list can join the sources without touching a caller.
  */
 export const getLocalDomainMatcher = async (
-  database: Database | null
-): Promise<LocalDomainMatcher> => {
-  const { federation } = await getResolvedServerSettings(database)
-  return createLocalDomainMatcher(
-    getServedDomainSources(getConfig(), federation.allowActorDomains)
-  )
-}
+  _database: Database | null
+): Promise<LocalDomainMatcher> => createLocalDomainMatcher(getConfig())
 
 /**
  * Whether a URL (an actor id, a key id, an inbox) or a bare host is on a domain
@@ -58,19 +54,21 @@ export const isLocalDomain = async (
 /**
  * The domain a user-facing link (a confirmation email, say) should be built on
  * for an account whose actor lives on `domain`: that domain, normalised, when
- * this server serves it, so the link opens where the account's actor is.
+ * this server answers on it — the primary host or any `ACTIVITIES_TRUSTED_HOSTS`
+ * entry, wildcards included, the same set better-auth trusts as origins and
+ * `selectHeaderHost` accepts — so the link opens where the account's actor is.
  * Null — meaning "use the primary host" — for the primary host itself, a
- * missing or malformed domain,
- * one carrying a path or a wildcard, and any domain this server does not
- * serve, so a stored value can never point a link at another server.
+ * missing or malformed domain, one carrying a path or a wildcard, and any
+ * domain this server does not answer on, so a stored value can never point a
+ * link at another server.
  */
-export const getServedLinkDomain = async (
-  database: Database | null,
+export const getServedLinkDomain = (
   domain: string | undefined | null
-): Promise<string | null> => {
+): string | null => {
   const authority = normalizeServedDomainChoice(domain)
   if (!authority) return null
+  const config = getConfig()
   // The primary host keeps the `getBaseURL()` link it always had.
-  if (getCanonicalAuthority(getConfig().host) === authority) return null
-  return (await isLocalDomain(database, authority)) ? authority : null
+  if (getCanonicalAuthority(config.host) === authority) return null
+  return isOwnInstanceHost(authority, config) ? authority : null
 }

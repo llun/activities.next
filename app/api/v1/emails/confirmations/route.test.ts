@@ -170,28 +170,43 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
 
-  // The link opens where the account's actor lives when this server serves
-  // that domain, and on the primary host when it does not, so a stored actor
-  // domain can never point the link at another server.
+  // The link opens where the account's actor lives when auth trusts that host
+  // (the primary host or an ACTIVITIES_TRUSTED_HOSTS entry), and on the
+  // primary host otherwise — including a domain only listed in
+  // federation.allowActorDomains, which can name remote servers — so a stored
+  // actor domain can never point the link at another server.
   it.each([
     {
-      description: 'a domain this server serves',
+      description: 'a trusted host',
       actorDomain: 'actors.example',
       expected: 'https://actors.example/auth/confirmation'
     },
     {
-      description: 'a domain this server does not serve',
+      description: 'a domain only in allowActorDomains',
+      actorDomain: 'listed.example',
+      expected: 'https://llun.test/auth/confirmation'
+    },
+    {
+      description: 'a domain this server does not answer on',
       actorDomain: 'remote.example',
       expected: 'https://llun.test/auth/confirmation'
     }
   ])(
     'links the confirmation on the actor domain for $description',
     async ({ actorDomain, expected }) => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['actors.example'],
+        allowEmails: [],
+        email: {
+          serviceFromAddress: 'noreply@llun.test'
+        }
+      })
       vi.mocked(getResolvedServerSettings).mockResolvedValue({
         ...settingsWithAllowEmails([]),
         federation: {
           mode: 'open',
-          allowActorDomains: ['llun.test', 'actors.example']
+          allowActorDomains: ['llun.test', 'listed.example']
         }
       })
       const account = buildAccount(PENDING_CODE)
