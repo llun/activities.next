@@ -40,7 +40,8 @@ export const getVisibleOverviewGroups = (
 const OverviewGroupFrame: FC<{
   group: OverviewGroup
   reserveRows: boolean
-}> = ({ group, reserveRows }) => (
+  isFailed: boolean
+}> = ({ group, reserveRows, isFailed }) => (
   <div data-testid={`overview-group-${group.key}`}>
     <Frame className="overflow-hidden">
       <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -71,8 +72,8 @@ const OverviewGroupFrame: FC<{
               data-metric={row.label}
               className="flex items-center justify-between gap-2 px-3 py-[7px]"
             >
-              <SkeletonBar className="h-5 w-20" />
-              <SkeletonBar className="h-5 w-14" />
+              <SkeletonBar animated={!isFailed} className="h-5 w-20" />
+              <SkeletonBar animated={!isFailed} className="h-5 w-14" />
             </div>
           ) : null
         )}
@@ -88,6 +89,7 @@ export interface ActivityOverviewSectionProps {
   map: ReactNode | null
   groups: OverviewGroup[]
   reserveRows?: boolean
+  isFailed?: boolean
 }
 
 /**
@@ -100,7 +102,8 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
   meta,
   map,
   groups,
-  reserveRows = false
+  reserveRows = false,
+  isFailed = false
 }) => {
   const visibleGroups = reserveRows
     ? groups
@@ -129,6 +132,7 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
                 key={group.key}
                 group={group}
                 reserveRows={reserveRows}
+                isFailed={isFailed}
               />
             ))}
           </div>

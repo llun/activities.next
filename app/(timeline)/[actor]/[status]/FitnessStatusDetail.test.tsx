@@ -194,8 +194,14 @@ describe('FitnessStatusDetail', () => {
     expect(within(overview).getByText('215 / 580 W')).toBeInTheDocument()
     expect(within(overview).getByText('387 kJ')).toBeInTheDocument()
     expect(within(overview).getByText('148 / 172 bpm')).toBeInTheDocument()
-    // Route-only figures stay as skeleton rows where the summary makes them
-    // likely; their values remain private until the route request resolves.
+    // Route-only figures reserve space when the summary's sensor totals make
+    // them likely; their values remain private until the route request resolves.
+    const rideGroup = within(overview).getByTestId('overview-group-ride')
+    expect(
+      within(rideGroup)
+        .getAllByTestId('overview-placeholder-row')
+        .map((row) => row.getAttribute('data-metric'))
+    ).toEqual(['Max speed', 'Calories', 'Laps'])
     const powerGroup = within(overview).getByTestId('overview-group-power')
     expect(
       within(powerGroup)
@@ -216,8 +222,55 @@ describe('FitnessStatusDetail', () => {
         .getAllByTestId('overview-placeholder-row')
         .map((row) => row.getAttribute('data-metric'))
     ).toEqual(['Avg cadence', 'Time at 0 W'])
+    expect(
+      within(screen.getByRole('region', { name: 'Analysis' }))
+        .getAllByTestId('analysis-series-chip-placeholder')
+        .map((chip) => chip.getAttribute('data-series'))
+    ).toEqual(['elevation', 'speed', 'power', 'heart-rate', 'cadence', 'grade'])
     // The route data is asked for at once: every section reads it.
     expect(mockGetFitnessRouteData).toHaveBeenCalledWith('fit-1')
+  })
+
+  it('reserves only sparse overview rows supported by the server summary', () => {
+    mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+    const baseStatus = buildStatus()
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...baseStatus.fitness,
+          fileName: 'vitals-sparse-ride.tcx',
+          fileType: 'tcx',
+          totalDistanceMeters: 6500,
+          totalDurationSeconds: 2100,
+          elevationGainMeters: 7,
+          elevationSeries: [4, 5, 6, 7, 8, 9, 10, 11],
+          avgPower: null,
+          maxPower: null,
+          avgHeartRate: null,
+          maxHeartRate: null,
+          totalWorkKj: null
+        }
+      } as Partial<StatusNote>)
+    })
+
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    expect(
+      within(overview)
+        .getAllByTestId('overview-placeholder-row')
+        .map((row) => row.getAttribute('data-metric'))
+    ).toEqual(['Max speed'])
+    for (const group of ['power', 'heart-rate', 'cadence']) {
+      expect(
+        within(overview).queryByTestId(`overview-group-${group}`)
+      ).not.toBeInTheDocument()
+    }
+
+    const analysisSection = screen.getByRole('region', { name: 'Analysis' })
+    expect(
+      within(analysisSection)
+        .getAllByTestId('analysis-series-chip-placeholder')
+        .map((chip) => chip.getAttribute('data-series'))
+    ).toEqual(['elevation', 'speed', 'grade'])
   })
 
   it('renders an analysis skeleton sized from summary metrics while route analysis is loading', async () => {
@@ -270,7 +323,7 @@ describe('FitnessStatusDetail', () => {
     ).toHaveClass('h-[190px]', '@min-[700px]:h-[250px]')
   })
 
-  it('keeps the reserved overview and analysis placeholders when route data fails', async () => {
+  it('keeps summary stats visible and route-failure space static when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({
       status: buildStatus({
@@ -285,39 +338,51 @@ describe('FitnessStatusDetail', () => {
       } as Partial<StatusNote>)
     })
 
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    const rideGroup = within(overview).getByTestId('overview-group-ride')
+    expect(within(rideGroup).getByText('Elapsed time')).toBeInTheDocument()
+    expect(within(rideGroup).getByText('Avg speed')).toBeInTheDocument()
+    expect(within(overview).getByText('215 / 580 W')).toBeInTheDocument()
+    expect(within(overview).getByText('387 kJ')).toBeInTheDocument()
+    expect(within(overview).getByText('148 / 172 bpm')).toBeInTheDocument()
+
     const analysisSection = await screen.findByRole('region', {
       name: 'Analysis'
     })
-    expect(within(analysisSection).getByRole('alert')).toHaveTextContent(
-      ROUTE_DATA_ERROR_MESSAGE
-    )
+    const alert = within(analysisSection).getByRole('alert')
+    expect(alert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
+    expect(alert).not.toHaveClass('absolute', 'fixed', 'top-0', 'inset-x-0')
+    expect(
+      within(analysisSection).getByTestId('analysis-plot-skeleton')
+    ).toContainElement(alert)
     expect(
       within(analysisSection).getByTestId('analysis-controls-skeleton')
     ).toBeInTheDocument()
     expect(
       within(analysisSection).getByTestId('analysis-plot-skeleton')
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('region', { name: 'Best efforts' })
-    ).toBeInTheDocument()
+    const bestEffortsSection = screen.getByRole('region', {
+      name: 'Best efforts'
+    })
+    expect(bestEffortsSection).toBeInTheDocument()
     expect(
       screen.getByTestId('analysis-distribution-skeleton')
     ).toBeInTheDocument()
 
-    const overview = screen.getByRole('region', { name: 'Overview' })
+    expect(overview.querySelectorAll('.skeleton, .animate-pulse')).toHaveLength(
+      0
+    )
     expect(
-      within(overview).getByTestId('overview-group-cadence')
-    ).toBeInTheDocument()
+      bestEffortsSection.querySelectorAll('.skeleton, .animate-pulse')
+    ).toHaveLength(0)
     expect(
-      within(overview)
-        .getAllByTestId('overview-placeholder-row')
-        .map((row) => row.getAttribute('data-metric'))
-    ).toContain('Calories')
+      analysisSection.querySelectorAll('.skeleton, .animate-pulse')
+    ).toHaveLength(0)
     expect(
-      within(overview)
-        .getAllByTestId('overview-placeholder-row')
-        .map((row) => row.getAttribute('data-metric'))
-    ).toContain('Laps')
+      screen
+        .getByTestId('analysis-distribution-skeleton')
+        .querySelectorAll('.skeleton, .animate-pulse')
+    ).toHaveLength(0)
   })
 
   it('leaves out the overview rows the activity has nothing for', async () => {

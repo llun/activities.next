@@ -121,37 +121,46 @@ const ScrubbedAnalysisChart: FC<
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
 const ActivityAnalysisLoadingState: FC<{
-  seriesCount: number
+  series: Array<{ key: string; label: string; widthClass: string }>
   hasLikelyLaps: boolean
   error: string | null
-}> = ({ seriesCount, hasLikelyLaps, error }) => (
-  <div className="relative space-y-4">
+}> = ({ series, hasLikelyLaps, error }) => (
+  <div className="space-y-4">
     <div
       role={error ? undefined : 'status'}
       aria-label={error ? undefined : 'Loading activity analysis'}
-      aria-hidden={error ? 'true' : undefined}
       className="space-y-4"
     >
       <div data-testid="analysis-controls-skeleton">
         <Frame className="space-y-2.5 bg-card px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <SkeletonBar className="h-3 w-24" />
+            <SkeletonBar animated={!error} className="h-3 w-24" />
             <div className="flex gap-1">
-              <SkeletonBar className="h-7 w-20 rounded-md" />
-              <SkeletonBar className="h-7 w-20 rounded-md" />
+              <SkeletonBar animated={!error} className="h-7 w-20 rounded-md" />
+              <SkeletonBar animated={!error} className="h-7 w-20 rounded-md" />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {Array.from({ length: Math.max(1, seriesCount) }, (_, index) => (
-              <SkeletonBar
-                key={index}
-                className={`h-7 rounded-full ${index % 3 === 0 ? 'w-20' : 'w-16'}`}
-              />
+            {series.map(({ key, label, widthClass }) => (
+              <div
+                key={key}
+                aria-hidden="true"
+                data-testid="analysis-series-chip-placeholder"
+                data-series={key}
+                data-series-label={label}
+                className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+              >
+                <span className="size-2 shrink-0 rounded-full bg-muted" />
+                <SkeletonBar
+                  animated={!error}
+                  className={`h-5 ${widthClass}`}
+                />
+              </div>
             ))}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-            <SkeletonBar className="h-4 w-48" />
-            <SkeletonBar className="h-4 w-20" />
+            <SkeletonBar animated={!error} className="h-4 w-48" />
+            <SkeletonBar animated={!error} className="h-4 w-20" />
           </div>
         </Frame>
       </div>
@@ -166,6 +175,7 @@ const ActivityAnalysisLoadingState: FC<{
                 {Array.from({ length: 3 }, (_, index) => (
                   <SkeletonBar
                     key={index}
+                    animated={!error}
                     className="h-10 min-w-36 flex-1 basis-0 rounded-md"
                   />
                 ))}
@@ -174,26 +184,23 @@ const ActivityAnalysisLoadingState: FC<{
           ) : null}
           <div className="space-y-2 px-4 pb-2.5 pt-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <SkeletonBar className="h-5 w-20" />
+              <SkeletonBar animated={!error} className="h-5 w-20" />
             </div>
             <div
               data-testid="analysis-plot-skeleton"
               className="relative h-[190px] w-full @min-[700px]:h-[250px]"
             >
-              <SkeletonBar className="h-full w-full rounded-md" />
+              {error ? (
+                <Alert tone="warning" title={error} />
+              ) : (
+                <SkeletonBar className="h-full w-full rounded-md" />
+              )}
             </div>
-            <SkeletonBar className="h-4 w-full rounded-md" />
+            <SkeletonBar animated={!error} className="h-4 w-full rounded-md" />
           </div>
         </Frame>
       </div>
     </div>
-    {error ? (
-      <Alert
-        tone="warning"
-        title={error}
-        className="absolute inset-x-0 top-0 z-10 bg-background"
-      />
-    ) : null}
   </div>
 )
 
@@ -374,25 +381,55 @@ export const FitnessStatusDetail: FC<Props> = ({
   const hasSummaryHeartRate =
     typeof fitness?.avgHeartRate === 'number' ||
     typeof fitness?.maxHeartRate === 'number'
+  const hasSummaryElevation =
+    (fitness?.elevationSeries?.length ?? 0) > 1 ||
+    (fitness?.elevationGainMeters ?? 0) > 0
   const hasStructuredFitnessFormat =
     fitness?.fileType === 'fit' || fitness?.fileType === 'tcx'
   const activityTypeKey = activityType?.toLowerCase() ?? ''
   const isCadenceSport = /ride|cycl|run|bike/.test(activityTypeKey)
+  // Summary sensors are the best pre-route signal for optional route-only rows.
+  const hasSummarySensors = hasSummaryPower || hasSummaryHeartRate
   const likelyHasCadence =
-    hasStructuredFitnessFormat &&
-    isCadenceSport &&
-    (hasSummaryPower || hasSummaryHeartRate)
-  const hasSummaryElevation =
-    (fitness?.elevationSeries?.length ?? 0) > 1 ||
-    (fitness?.elevationGainMeters ?? 0) > 0
-  const expectedAnalysisSeriesCount = [
-    hasSummaryElevation,
-    distanceMeters > 0,
-    hasSummaryPower,
-    hasSummaryHeartRate,
-    likelyHasCadence,
-    hasSummaryElevation
-  ].filter(Boolean).length
+    hasStructuredFitnessFormat && isCadenceSport && hasSummarySensors
+  const expectedAnalysisSeries = [
+    {
+      key: 'elevation',
+      label: 'Elevation',
+      widthClass: 'w-16',
+      available: hasSummaryElevation
+    },
+    {
+      key: 'speed',
+      label: 'Speed',
+      widthClass: 'w-10',
+      available: distanceMeters > 0 && durationSeconds > 0
+    },
+    {
+      key: 'power',
+      label: 'Power',
+      widthClass: 'w-11',
+      available: hasSummaryPower
+    },
+    {
+      key: 'heart-rate',
+      label: 'Heart rate',
+      widthClass: 'w-16',
+      available: hasSummaryHeartRate
+    },
+    {
+      key: 'cadence',
+      label: 'Cadence',
+      widthClass: 'w-14',
+      available: likelyHasCadence
+    },
+    {
+      key: 'grade',
+      label: 'Grade',
+      widthClass: 'w-10',
+      available: hasSummaryElevation && distanceMeters > 0
+    }
+  ].filter(({ available }) => available)
   const tiles = useMemo<ActivityTile[]>(() => {
     const candidates: Array<ActivityTile | null> = [
       distanceMeters > 0
@@ -538,12 +575,18 @@ export const FitnessStatusDetail: FC<Props> = ({
             typeof analysis?.calories === 'number' && analysis.calories > 0
               ? `${Math.round(analysis.calories)} kcal`
               : null,
-          reserveWhenLoading: hasStructuredFitnessFormat && durationSeconds > 0
+          reserveWhenLoading:
+            hasStructuredFitnessFormat &&
+            hasSummarySensors &&
+            durationSeconds > 0
         },
         {
           label: 'Laps',
           value: formatLapPattern(laps),
-          reserveWhenLoading: hasStructuredFitnessFormat && durationSeconds > 0
+          reserveWhenLoading:
+            hasStructuredFitnessFormat &&
+            hasSummarySensors &&
+            durationSeconds > 0
         }
       ]
     },
@@ -791,6 +834,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           map={map}
           groups={overviewGroups}
           reserveRows={isRouteAnalysisUnavailable}
+          isFailed={Boolean(route.error)}
         />
 
         {isRouteAnalysisUnavailable ||
@@ -805,7 +849,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           >
             {isRouteAnalysisUnavailable ? (
               <ActivityAnalysisLoadingState
-                seriesCount={expectedAnalysisSeriesCount}
+                series={expectedAnalysisSeries}
                 hasLikelyLaps={
                   hasStructuredFitnessFormat && durationSeconds > 0
                 }
@@ -862,7 +906,10 @@ export const FitnessStatusDetail: FC<Props> = ({
                     meta="power"
                   >
                     <Frame className="p-3">
-                      <SkeletonBar className="h-12 w-full rounded-md" />
+                      <SkeletonBar
+                        animated={!route.error}
+                        className="h-12 w-full rounded-md"
+                      />
                     </Frame>
                   </Section>
                 ) : null}
@@ -875,8 +922,14 @@ export const FitnessStatusDetail: FC<Props> = ({
                       { length: expectedDistributionCount },
                       (_, index) => (
                         <Frame key={index} className="h-44 space-y-2 p-4">
-                          <SkeletonBar className="h-4 w-28" />
-                          <SkeletonBar className="h-28 w-full" />
+                          <SkeletonBar
+                            animated={!route.error}
+                            className="h-4 w-28"
+                          />
+                          <SkeletonBar
+                            animated={!route.error}
+                            className="h-28 w-full"
+                          />
                         </Frame>
                       )
                     )}
