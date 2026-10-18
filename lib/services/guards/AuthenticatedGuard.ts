@@ -19,6 +19,14 @@ export type AuthenticatedGuardOptions = {
   allowModerationBlocked?: boolean
 }
 
+// A native form submit is a top-level navigation. Answering it with 307 makes
+// the browser repeat the POST against /auth/signin, a page that refuses POST
+// (404), so use 303 to turn the follow-up into a GET. fetch()/XHR callers (and
+// browsers that send no Sec-Fetch headers) keep 307 so a mutation is never
+// reported as a successful response.
+const signinRedirectStatus = (req: NextRequest) =>
+  req.headers.get('sec-fetch-mode') === 'navigate' ? 303 : 307
+
 export const AuthenticatedGuard =
   <P>(
     handle: AuthenticatedApiHandle<P>,
@@ -35,12 +43,18 @@ export const AuthenticatedGuard =
     const session = await getServerAuthSession()
 
     if (!database || !session?.user?.email) {
-      return Response.redirect(getRedirectUrl(req, '/auth/signin'), 307)
+      return Response.redirect(
+        getRedirectUrl(req, '/auth/signin'),
+        signinRedirectStatus(req)
+      )
     }
 
     const currentActor = await getActorFromSession(database, session)
     if (!currentActor) {
-      return Response.redirect(getRedirectUrl(req, '/auth/signin'), 307)
+      return Response.redirect(
+        getRedirectUrl(req, '/auth/signin'),
+        signinRedirectStatus(req)
+      )
     }
 
     if (

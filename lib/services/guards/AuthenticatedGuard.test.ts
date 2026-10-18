@@ -190,6 +190,45 @@ describe('AuthenticatedGuard', () => {
     })
   })
 
+  describe('signed-out redirect status', () => {
+    beforeEach(() => {
+      mockGetServerSession.mockResolvedValue(null)
+    })
+
+    it('answers a native form navigation with 303', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', {
+        Origin: 'https://llun.test',
+        'Sec-Fetch-Mode': 'navigate'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe(
+        'https://llun.test/auth/signin'
+      )
+    })
+
+    it('keeps 307 for a fetch mutation', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', {
+        Origin: 'https://llun.test',
+        'Sec-Fetch-Mode': 'cors'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(307)
+    })
+
+    it('keeps 307 for a mutation without Sec-Fetch headers', async () => {
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', { Origin: 'https://llun.test' })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(307)
+    })
+  })
+
   describe('without database', () => {
     it('redirects to signin when database unavailable', async () => {
       const originalDb = mockDatabase
