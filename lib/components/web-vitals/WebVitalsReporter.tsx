@@ -5,9 +5,13 @@ import { useEffect, useState } from 'react'
 
 import { createWebVitalsCollector } from './webVitalsCollector'
 
-// Collects this page load's metrics. It only mounts for a sampled page load,
-// so the others register no observers at all.
-function SampledWebVitals() {
+/**
+ * Reports this page load's LCP, CLS and INP to the server (see
+ * "Browser Web Vitals" in docs/architecture.md). Loaded on demand and mounted
+ * by `WebVitalsLoader` only when this page load is sampled. Registers
+ * web-vitals observers and renders nothing.
+ */
+export function WebVitalsReporter() {
   const [collector] = useState(() => createWebVitalsCollector())
 
   useReportWebVitals(collector.record)
@@ -17,16 +21,4 @@ function SampledWebVitals() {
   useEffect(() => collector.start(), [collector])
 
   return null
-}
-
-/**
- * Reports a sample of page loads' LCP, CLS and INP to the server (see
- * "Browser Web Vitals" in docs/architecture.md). Mounted by the root layout
- * only while `ACTIVITIES_WEB_VITALS_SAMPLE_RATE` is above zero. Each page load
- * rolls the dice once; it renders nothing either way.
- */
-export function WebVitalsReporter({ sampleRate }: { sampleRate: number }) {
-  const [sampled] = useState(() => Math.random() < sampleRate)
-
-  return sampled ? <SampledWebVitals /> : null
 }

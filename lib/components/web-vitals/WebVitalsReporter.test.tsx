@@ -28,36 +28,15 @@ describe('WebVitalsReporter', () => {
     vi.restoreAllMocks()
   })
 
-  it.each([
-    [0.1, 0.05, true],
-    [0.1, 0.1, false],
-    [0.1, 0.5, false],
-    [1, 0.999, true],
-    [0, 0, false]
-  ])(
-    'with a rate of %s and a roll of %s, reports: %s',
-    (rate, roll, reports) => {
-      vi.spyOn(Math, 'random').mockReturnValue(roll)
+  it('renders nothing and registers web vitals reporting', () => {
+    const { container } = render(<WebVitalsReporter />)
 
-      const { container } = render(<WebVitalsReporter sampleRate={rate} />)
-
-      expect(mocks.useReportWebVitals).toHaveBeenCalledTimes(reports ? 1 : 0)
-      expect(container.innerHTML).toBe('')
-    }
-  )
-
-  it('rolls once per page load, not once per render', () => {
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.01)
-
-    const { rerender } = render(<WebVitalsReporter sampleRate={0.5} />)
-    rerender(<WebVitalsReporter sampleRate={0.5} />)
-
-    expect(random).toHaveBeenCalledTimes(1)
+    expect(mocks.useReportWebVitals).toHaveBeenCalledTimes(1)
+    expect(container.innerHTML).toBe('')
   })
 
   it('sends what web-vitals reports when the page is hidden', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0)
-    render(<WebVitalsReporter sampleRate={1} />)
+    render(<WebVitalsReporter />)
     const handler = mocks.useReportWebVitals.mock.calls[0][0]
 
     handler({
@@ -86,8 +65,7 @@ describe('WebVitalsReporter', () => {
   })
 
   it('stops listening when unmounted', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0)
-    const { unmount } = render(<WebVitalsReporter sampleRate={1} />)
+    const { unmount } = render(<WebVitalsReporter />)
     const handler = mocks.useReportWebVitals.mock.calls[0][0]
 
     unmount()
