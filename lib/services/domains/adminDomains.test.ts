@@ -2,6 +2,8 @@ import { getConfig } from '@/lib/config'
 import type { DomainCheckResult } from '@/lib/database/domains/servedDomain/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
+import { createDeferred } from '@/lib/testing/deferred'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
   addDomain,
@@ -13,10 +15,14 @@ import {
   setDomainStatus,
   updateDomainRegistrations
 } from './adminDomains'
+import { getDomainCheckProof } from './domainCheck'
 import {
   getActiveServedDomainNames,
+  refreshServedDomains,
   resetServedDomainsForTests
 } from './servedDomainSnapshot'
+
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
 
 const baseConfig = vi.mocked(getConfig)()
 
@@ -66,30 +72,25 @@ const createLocalActor = (
   })
 
 describe('adminDomains', () => {
-  const testDb = createTestDatabase()
+  // A fresh database per test: profiles one test creates must not change what
+  // another counts.
+  let testDb: ReturnType<typeof createTestDatabase>
   let database: Database
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    testDb = createTestDatabase()
     await testDb.prepare()
     await testDb.database.migrate()
     database = testDb.database
-  })
-
-  afterAll(async () => {
-    await testDb.destroy()
-  })
-
-  beforeEach(async () => {
     resetServedDomainsForTests()
     useEnv(['club.example', '*.preview.example'])
-    for (const row of await database.getServedDomains()) {
-      await database.deleteServedDomain({ domain: row.domain })
-    }
+    vi.mocked(safeRemoteFetch).mockReset()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.mocked(getConfig).mockReturnValue(baseConfig)
     resetServedDomainsForTests()
+    await testDb.destroy()
   })
 
   describe('getEnvDomains', () => {
@@ -141,6 +142,25 @@ describe('adminDomains', () => {
       expect(check).not.toHaveBeenCalled()
     })
 
+    // The default check knows the env domains, so a proof signed for one of
+    // them reads as "the proxy dropped the Host header", not another server.
+    it('checks with the env domains as the known hosts by default', async () => {
+      vi.mocked(safeRemoteFetch).mockImplementation(async ({ url }) => {
+        const nonce = new URL(url).searchParams.get('nonce') ?? ''
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            proof: getDomainCheckProof(nonce, 'club.example')
+          })
+        } as Awaited<ReturnType<typeof safeRemoteFetch>>
+      })
+      const result = await addDomain(database, 'photos.example')
+      expect(result).toMatchObject({
+        type: 'added',
+        domain: { lastCheck: { passed: false, reason: 'host-header' } }
+      })
+    })
+
     it('refuses a domain already in the list', async () => {
       await addDomain(database, 'photos.example', passes)
       await expect(
@@ -185,6 +205,34 @@ describe('adminDomains', () => {
       )
       expect(off).toMatchObject({ type: 'updated', domain: { status: 'off' } })
       expect(check).not.toHaveBeenCalled()
+      expect(getActiveServedDomainNames()).toEqual([])
+    })
+
+    // A refresh that began before the write may have read the table before it
+    // committed; turning the domain off must not just join it.
+    it('stops trusting a domain turned off while a refresh is in flight', async () => {
+      await addDomain(database, 'photos.example', passes)
+      await setDomainStatus(database, 'photos.example', 'on', passes)
+      expect(getActiveServedDomainNames()).toEqual(['photos.example'])
+
+      const beforeWrite = createDeferred<{ domain: string }[]>()
+      vi.spyOn(database, 'getActiveServedDomains').mockReturnValueOnce(
+        beforeWrite.promise as ReturnType<Database['getActiveServedDomains']>
+      )
+      const inflight = refreshServedDomains(database)
+      const update = database.updateServedDomain.bind(database)
+      vi.spyOn(database, 'updateServedDomain').mockImplementation(
+        async (params) => {
+          const row = await update(params)
+          // Settle the old read only once the write is done and its refresh
+          // has started, as a slow read would.
+          setTimeout(() => beforeWrite.resolve([{ domain: 'photos.example' }]))
+          return row
+        }
+      )
+
+      await setDomainStatus(database, 'photos.example', 'off', passes)
+      await inflight
       expect(getActiveServedDomainNames()).toEqual([])
     })
 

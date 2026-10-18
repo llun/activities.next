@@ -1,5 +1,10 @@
 // What Admin › Domains shows, shared by the API routes, the server pages and the
-// client components. Dependency-free: client modules import it.
+// client components. Dependency-free (type-only imports): client modules
+// import it.
+import type {
+  DomainCheckItem,
+  DomainCheckResult
+} from '@/lib/database/domains/servedDomain/types'
 
 export type AdminDomainSource =
   // ACTIVITIES_HOST: always on, its sign-up settings are Admin › Instance.
@@ -9,23 +14,9 @@ export type AdminDomainSource =
   // A row an admin added: can be checked, turned on and off, removed.
   | 'database'
 
-export type AdminDomainCheckItem = {
-  key: 'dns' | 'tls' | 'host'
-  status: 'passed' | 'failed' | 'skipped'
-}
-
-export type AdminDomainCheck = {
-  passed: boolean
-  reason:
-    | 'passed'
-    | 'dns'
-    | 'private-address'
-    | 'tls'
-    | 'unreachable'
-    | 'host-header'
-    | 'other-server'
-  items: AdminDomainCheckItem[]
-}
+// The stored check result, shown as it is.
+export type AdminDomainCheckItem = DomainCheckItem
+export type AdminDomainCheck = DomainCheckResult
 
 export type AdminDomain = {
   domain: string

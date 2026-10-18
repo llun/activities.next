@@ -446,13 +446,21 @@ export const createServedDomainMatcher = (
   }
 }
 
+// The headers a request's host is read from, in order. `selectHeaderHost`,
+// the domain check and the proxy all read them in this order.
+export const HOST_HEADER_NAMES = [
+  ACTIVITIES_HOST,
+  FORWARDED_HOST,
+  'host'
+] as const
+
 export const selectHeaderHost = (
   headers: HostHeaders,
   config: HostRuleConfig
 ): string => {
   const configuredHost = getConfiguredHost(config.host)
 
-  for (const headerName of [ACTIVITIES_HOST, FORWARDED_HOST, 'host']) {
+  for (const headerName of HOST_HEADER_NAMES) {
     const headerHost = getHeaderValue(headers, headerName)
     if (!headerHost) continue
 

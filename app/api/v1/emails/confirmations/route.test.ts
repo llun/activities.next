@@ -49,6 +49,7 @@ type MockDatabase = Pick<
   Database,
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
+  | 'getServedDomain'
   | 'repointUnconfirmedAccountEmail'
   | 'requestEmailChange'
   | 'isAccountExists'
@@ -110,6 +111,7 @@ describe('POST /api/v1/emails/confirmations', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
+    getServedDomain: vi.fn(),
     repointUnconfirmedAccountEmail: vi.fn(),
     requestEmailChange: vi.fn(),
     isAccountExists: vi.fn()
@@ -150,6 +152,8 @@ describe('POST /api/v1/emails/confirmations', () => {
     )
     mockDb.requestEmailChange.mockResolvedValue(undefined)
     mockDb.isAccountExists.mockResolvedValue(false)
+    mockDb.getServedDomain.mockReset()
+    mockDb.getServedDomain.mockResolvedValue(null)
     setAccount(buildAccount(PENDING_CODE))
   })
 
@@ -433,6 +437,69 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
     expect(mockSendMail).not.toHaveBeenCalled()
   })
+
+  // A pending account that signed up on club.example (an Admin › Domains row)
+  // is held to club.example's list, even though the server's own list is
+  // empty and so lets anyone in on the primary.
+  it.each([
+    {
+      description: 'repoints to an address the club list allows',
+      status: 'on' as const,
+      email: 'ana@club.test',
+      expected: 200
+    },
+    {
+      description: 'cannot repoint to an address the club list refuses',
+      status: 'on' as const,
+      email: 'bob@club.test',
+      expected: 403
+    },
+    {
+      description: 'cannot repoint at all once club.example is off',
+      status: 'off' as const,
+      email: 'ana@club.test',
+      expected: 403
+    }
+  ])(
+    'a pending club.example account $description',
+    async ({ status, email, expected }) => {
+      const account = buildAccount(PENDING_CODE)
+      mockDb.getAccountFromEmail.mockResolvedValue(account)
+      mockDb.getActorsForAccount.mockResolvedValue([
+        {
+          ...buildActor(account),
+          id: `https://club.example/users/${seedActor1.username}`,
+          domain: 'club.example'
+        }
+      ])
+      mockDb.getServedDomain.mockResolvedValue({
+        id: 'club',
+        domain: 'club.example',
+        status,
+        name: null,
+        signupsOpen: true,
+        allowedEmails: ['ana@club.test'],
+        allowExistingUsers: false,
+        lastCheckedAt: null,
+        lastCheckStatus: null,
+        lastCheckResult: null,
+        createdAt: 0,
+        updatedAt: 0
+      })
+
+      const response = await POST(makeRequest({ email }), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(expected)
+      expect(mockDb.getServedDomain).toHaveBeenCalledWith({
+        domain: 'club.example'
+      })
+      expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledTimes(
+        expected === 200 ? 1 : 0
+      )
+    }
+  )
 
   it('returns 422 when the new email is already registered to another account', async () => {
     mockDb.isAccountExists.mockResolvedValue(true)

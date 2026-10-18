@@ -1,5 +1,6 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
+import { logger } from '@/lib/utils/logger'
 
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
@@ -70,6 +71,43 @@ describe('createServedDomain', () => {
         database.createServedDomain({ domain: 'run.example' })
       ).rejects.toThrow()
     })
+  })
+})
+
+describe('getServedDomain', () => {
+  // An empty list means "anyone may sign up", so a value that cannot be read
+  // as a list closes sign-ups instead of opening them.
+  it.each([
+    { description: 'is not JSON', stored: 'not json' },
+    { description: 'is not a list', stored: '{"ana@mail.example":true}' }
+  ])('closes sign-ups when allowedEmails $description', async ({ stored }) => {
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    const loggerError = vi.spyOn(logger, 'error')
+    try {
+      await testDb.database.createServedDomain({
+        domain: 'club.example',
+        status: 'on',
+        signupsOpen: true,
+        allowedEmails: ['ana@mail.example']
+      })
+      await testDb.db
+        .updateTable('domains')
+        .set({ allowedEmails: stored })
+        .where('domain', '=', 'club.example')
+        .execute()
+
+      await expect(
+        testDb.database.getServedDomain({ domain: 'club.example' })
+      ).resolves.toMatchObject({ signupsOpen: false, allowedEmails: [] })
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ domain: 'club.example' })
+      )
+    } finally {
+      loggerError.mockRestore()
+      await testDb.destroy()
+    }
   })
 })
 

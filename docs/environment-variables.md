@@ -446,10 +446,11 @@ added and turned on in **Admin › Domains** (`createServedDomainMatcher` in
 `lib/utils/host.ts`, resolved per request by `isLocalDomain` /
 `getLocalDomainMatcher` in `lib/services/domains/localDomains.ts`). A domain
 added in Admin › Domains is trusted for `X-Forwarded-Host`, sign-in and
-federation only while it is on, and stops being trusted within seconds of being
-turned off (each server process re-reads the list every 30 seconds and right
-after an admin change, and trusts none of those domains when it could not read
-the list for five minutes). Hosts are compared case-insensitively,
+federation only while it is on. Turning it off takes effect at once in the
+server process that handled the change. Other processes re-read the list every
+30 seconds, so they stop trusting it within about 30 seconds. If a process
+cannot read the list, it keeps the last one for up to five minutes, then trusts
+none of these domains. Hosts are compared case-insensitively,
 after IDNA mapping and without a trailing dot or a default port; a different
 port is a different host. Account search, lookup and v2 search, inbound quote
 requests, inbox forwarding, emoji reactions and the forwarded-activity and

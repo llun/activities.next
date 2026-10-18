@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { LOCAL_USERNAME_PATTERN } from '@/lib/services/accounts/localUsername'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -14,8 +15,9 @@ const ALLOWED_METHODS = [HttpMethod.enum.GET, HttpMethod.enum.HEAD]
 // `/@user@<domain>` path, where the domain is `headerHost` — the visited host
 // when it is an active Admin › Domains row, the primary host otherwise (what
 // the proxy itself does for every other untrusted host). The request's host is
-// never echoed unless it is one of ours.
-const BARE_HANDLE_PATH = /^\/@(\w+)((?:\/[^@?#]*)?)$/
+// never echoed unless it is one of ours. The username is any local username
+// (`LOCAL_USERNAME_PATTERN`, so `jane.doe` and `jane-doe` too).
+const BARE_HANDLE_PATH = /^\/@([^/@?#]+)((?:\/[^@?#]*)?)$/
 
 export const GET = traceApiRoute(
   'bareHandleRedirect',
@@ -24,7 +26,11 @@ export const GET = traceApiRoute(
     const path = url.searchParams.get('path') ?? ''
     const query = url.searchParams.get('query') ?? ''
     const match = BARE_HANDLE_PATH.exec(path)
-    if (!match || (query && !query.startsWith('?'))) {
+    if (
+      !match ||
+      !LOCAL_USERNAME_PATTERN.test(match[1]) ||
+      (query && !query.startsWith('?'))
+    ) {
       return apiResponse({
         req,
         allowedMethods: ALLOWED_METHODS,

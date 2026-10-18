@@ -3,7 +3,14 @@ import { NextRequest } from 'next/server'
 import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentials/route'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { Database } from '@/lib/database/types'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import {
+  SERVED_DOMAIN_REFRESH_MS,
+  refreshServedDomains,
+  resetServedDomainsForTests,
+  setServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
@@ -55,6 +62,22 @@ let mockDatabase: unknown = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
+
+// run.example is a domain an admin added in Admin › Domains and turned on.
+const runExampleRow = (signupsOpen: boolean) => ({
+  id: 'run',
+  domain: 'run.example',
+  status: 'on' as const,
+  name: null,
+  signupsOpen,
+  allowedEmails: [],
+  allowExistingUsers: false,
+  lastCheckedAt: null,
+  lastCheckStatus: null,
+  lastCheckResult: null,
+  createdAt: 0,
+  updatedAt: 0
+})
 
 const mastodonAccount = {
   id: 'account-id',
@@ -342,6 +365,78 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
     expect(registerAccount).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'alice.example@example.com' })
     )
+  })
+})
+
+describe('POST /api/v1/accounts (web form) on an added domain', () => {
+  const getServedDomain = vi.fn()
+
+  beforeEach(() => {
+    getServedDomain.mockReset()
+    mockDatabase = { getServedDomain }
+    setServedDomainsForTests(['run.example'])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    resetServedDomainsForTests()
+  })
+
+  const postForm = () =>
+    POST(
+      new NextRequest('https://run.example/api/v1/accounts', {
+        method: 'POST',
+        body: 'username=alice&email=alice@example.com&password=password123',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'text/html',
+          host: 'run.example'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+  it('returns 403 when its sign-ups are closed, though the primary is open', async () => {
+    getServedDomain.mockResolvedValue(runExampleRow(false))
+    const res = await postForm()
+    expect(res.status).toBe(403)
+    expect(registerAccount).not.toHaveBeenCalled()
+  })
+
+  it('registers on that domain when its sign-ups are open', async () => {
+    getServedDomain.mockResolvedValue(runExampleRow(true))
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'success',
+      accountId: 'new-account-id',
+      username: 'alice',
+      actorId: 'https://run.example/users/alice'
+    })
+    const res = await postForm()
+    expect(res.status).toBe(307)
+    expect(registerAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ host: 'run.example' })
+    )
+  })
+
+  // A cold or thawed process holds a stale snapshot; reading the host from it
+  // first would hand the sign-up to the (open) primary.
+  it('refreshes a stale snapshot before deciding which domain the sign-up is on', async () => {
+    resetServedDomainsForTests()
+    // Loaded before the domain was turned on, so it does not list it.
+    const getActiveServedDomains = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([{ domain: 'run.example' }])
+    const database = { getServedDomain, getActiveServedDomains }
+    mockDatabase = database
+    await refreshServedDomains(database as unknown as Database)
+    getServedDomain.mockResolvedValue(runExampleRow(false))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + SERVED_DOMAIN_REFRESH_MS + 1)
+
+    const res = await postForm()
+    expect(res.status).toBe(403)
+    expect(registerAccount).not.toHaveBeenCalled()
   })
 })
 
@@ -729,5 +824,77 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       { params: Promise.resolve({}) }
     )
     expect(verify.status).toBe(403)
+  })
+
+  describe('on a domain added in Admin › Domains', () => {
+    const body = `username=runner&email=runner@llun.test&password=password123&agreement=true`
+    const postOnRunExample = () =>
+      POST(
+        new NextRequest('https://run.example/api/v1/accounts', {
+          method: 'POST',
+          body,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Bearer ${APP_TOKEN}`,
+            host: 'run.example'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    afterEach(async () => {
+      vi.useRealTimers()
+      resetServedDomainsForTests()
+      await apiDatabase.deleteServedDomain({ domain: 'run.example' })
+    })
+
+    it('returns 403 when its sign-ups are closed, though the primary is open', async () => {
+      await apiDatabase.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        signupsOpen: false
+      })
+      setServedDomainsForTests(['run.example'])
+      const res = await postOnRunExample()
+      expect(res.status).toBe(403)
+      expect(registerAccount).not.toHaveBeenCalled()
+    })
+
+    it('registers on that domain when its sign-ups are open', async () => {
+      await apiDatabase.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        signupsOpen: true
+      })
+      setServedDomainsForTests(['run.example'])
+      vi.mocked(registerAccount).mockResolvedValueOnce({
+        type: 'success',
+        accountId,
+        username: NEW_USERNAME,
+        actorId
+      })
+      const res = await postOnRunExample()
+      expect(res.status).toBe(200)
+      expect(registerAccount).toHaveBeenCalledWith(
+        expect.objectContaining({ host: 'run.example' })
+      )
+    })
+
+    // A cold or thawed process holds a stale snapshot; reading the host from
+    // it first would hand the sign-up to the (open) primary.
+    it('refreshes a stale snapshot before deciding which domain the sign-up is on', async () => {
+      // Loaded before the domain was turned on, so it does not list it.
+      await refreshServedDomains(apiDatabase)
+      await apiDatabase.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        signupsOpen: false
+      })
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(Date.now() + SERVED_DOMAIN_REFRESH_MS + 1)
+      const res = await postOnRunExample()
+      expect(res.status).toBe(403)
+      expect(registerAccount).not.toHaveBeenCalled()
+    })
   })
 })

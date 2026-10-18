@@ -1,13 +1,16 @@
 import crypto from 'crypto'
 
 import { getConfig } from '@/lib/config'
-import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import type {
   DomainCheckItem,
   DomainCheckResult
 } from '@/lib/database/domains/servedDomain/types'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
-import { type HostHeaders, getServedAuthority } from '@/lib/utils/host'
+import {
+  HOST_HEADER_NAMES,
+  type HostHeaders,
+  getServedAuthority
+} from '@/lib/utils/host'
 import {
   type SafeRemoteFetchOptions,
   type SafeRemoteFetchResult,
@@ -55,7 +58,7 @@ export const getDomainCheckProof = (
  * trusted yet. Normalised for comparison; never echoed back.
  */
 export const getDomainCheckRequestHost = (headers: HostHeaders): string => {
-  for (const name of [ACTIVITIES_HOST, FORWARDED_HOST, 'host']) {
+  for (const name of HOST_HEADER_NAMES) {
     const value = getHeaderValue(headers, name)?.split(',')[0]?.trim()
     if (!value) continue
     return getServedAuthority(value) ?? ''

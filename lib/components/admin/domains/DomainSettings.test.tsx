@@ -3,8 +3,11 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { MockInstance } from 'vitest'
 
 import type { AdminDomain } from '@/lib/services/domains/adminDomainTypes'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { DomainSettings } from './DomainSettings'
 
@@ -221,5 +224,33 @@ describe('DomainSettings', () => {
     expect(
       await screen.findByText('run.example does not reach this server')
     ).toBeInTheDocument()
+  })
+
+  // The last check ran at midnight UTC on 18 Oct, 8 PM on 17 Oct in New York.
+  it('hydrates the server-rendered UTC check time without a mismatch, then shows local time', async () => {
+    await withTimeZone('America/New_York', async () => {
+      let consoleError: MockInstance<typeof console.error> | undefined
+      let hydrated: Awaited<ReturnType<typeof hydrateServerHtml>> | undefined
+      try {
+        consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        hydrated = await hydrateServerHtml(
+          <DomainSettings domain={RUN} primaryDomain="social.example" />
+        )
+
+        expect(hydrated.serverHtml).toContain('Oct 18, 2026, 12:00 AM')
+        expect(hydrated.onRecoverableError).not.toHaveBeenCalled()
+        expect(consoleError).not.toHaveBeenCalled()
+        expect(hydrated.container).toHaveTextContent(
+          'Last checked Oct 17, 2026, 8:00 PM.'
+        )
+        expect(hydrated.container.querySelector('time')).toHaveAttribute(
+          'datetime',
+          '2026-10-18T00:00:00.000Z'
+        )
+      } finally {
+        consoleError?.mockRestore()
+        hydrated?.unmount()
+      }
+    })
   })
 })

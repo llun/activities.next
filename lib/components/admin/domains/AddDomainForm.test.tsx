@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { AdminDomain } from '@/lib/services/domains/adminDomainTypes'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { AddDomainForm } from './AddDomainForm'
 
@@ -148,6 +149,28 @@ describe('AddDomainForm', () => {
       expect(mockPush).toHaveBeenCalledWith('/admin/domains/photos.example')
     )
     expect(mockSetStatus).toHaveBeenCalledWith('photos.example', 'on')
+  })
+
+  // Editing the domain mid-request would swap the footer to "Check domain"
+  // and lose the passed check if turning it on then fails.
+  it('locks the domain field while it turns the domain on', async () => {
+    const turnOn = createDeferred<AdminDomain>()
+    mockAdd.mockResolvedValue(PASSED)
+    mockSetStatus.mockReturnValue(turnOn.promise)
+    render(<AddDomainForm />)
+    typeDomain('photos.example')
+    fireEvent.click(screen.getByRole('button', { name: 'Check domain' }))
+    await screen.findByText('photos.example reaches this server')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn on photos.example' })
+    )
+    await waitFor(() => expect(screen.getByLabelText('Domain')).toBeDisabled())
+
+    turnOn.resolve({ ...PASSED, status: 'on' })
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith('/admin/domains/photos.example')
+    )
   })
 
   it('shows why a domain cannot be added', async () => {

@@ -13,17 +13,21 @@ import type {
 import type { Db } from '@/lib/database/kysely'
 import type { Domains } from '@/lib/database/kysely/db'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
+import { logger } from '@/lib/utils/logger'
 
-const parseEmails = (value: string | null | undefined): string[] => {
+// Null when the stored value is not a JSON array: an empty list would mean
+// "anyone may sign up", so the caller closes sign-ups instead (fail closed).
+const parseEmails = (value: string | null | undefined): string[] | null => {
   if (!value) return []
   try {
     const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string')
-      : []
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string')
+    }
   } catch {
-    return []
+    // Logged below.
   }
+  return null
 }
 
 const parseCheck = (
@@ -40,23 +44,32 @@ const parseCheck = (
   }
 }
 
-const toServedDomain = (row: Selectable<Domains>): ServedDomainData => ({
-  id: row.id,
-  domain: row.domain,
-  status: row.status === 'on' ? 'on' : 'off',
-  name: row.name ?? null,
-  signupsOpen: Boolean(row.signupsOpen),
-  allowedEmails: parseEmails(row.allowedEmails),
-  allowExistingUsers: Boolean(row.allowExistingUsers),
-  lastCheckedAt: row.lastCheckedAt ?? null,
-  lastCheckStatus:
-    row.lastCheckStatus === 'passed' || row.lastCheckStatus === 'failed'
-      ? row.lastCheckStatus
-      : null,
-  lastCheckResult: parseCheck(row.lastCheckResult),
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt
-})
+const toServedDomain = (row: Selectable<Domains>): ServedDomainData => {
+  const allowedEmails = parseEmails(row.allowedEmails)
+  if (!allowedEmails) {
+    logger.error({
+      message: 'Unreadable allowedEmails on a domains row; sign-ups closed',
+      domain: row.domain
+    })
+  }
+  return {
+    id: row.id,
+    domain: row.domain,
+    status: row.status === 'on' ? 'on' : 'off',
+    name: row.name ?? null,
+    signupsOpen: Boolean(allowedEmails && row.signupsOpen),
+    allowedEmails: allowedEmails ?? [],
+    allowExistingUsers: Boolean(row.allowExistingUsers),
+    lastCheckedAt: row.lastCheckedAt ?? null,
+    lastCheckStatus:
+      row.lastCheckStatus === 'passed' || row.lastCheckStatus === 'failed'
+        ? row.lastCheckStatus
+        : null,
+    lastCheckResult: parseCheck(row.lastCheckResult),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  }
+}
 
 export const getServedDomain = async (
   db: Db,

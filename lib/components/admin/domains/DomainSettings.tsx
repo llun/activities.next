@@ -1,5 +1,7 @@
 'use client'
 
+import { UTCDate } from '@date-fns/utc'
+import { format } from 'date-fns/format'
 import { Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -26,6 +28,7 @@ import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Switch } from '@/lib/components/ui/switch'
+import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import type { AdminDomain } from '@/lib/services/domains/adminDomainTypes'
 
 import { DomainCheckItems } from './DomainCheckItems'
@@ -283,12 +286,15 @@ const StatusBox: FC<{
   )
 }
 
+const CHECKED_AT_PATTERN = 'MMM d, yyyy, p'
+
 const CheckBox: FC<{
   domain: AdminDomain
   onChange: (domain: AdminDomain) => void
 }> = ({ domain, onChange }) => {
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const hasHydrated = useHasHydrated()
   const check = domain.lastCheck
 
   const recheck = async () => {
@@ -303,9 +309,15 @@ const CheckBox: FC<{
     }
   }
 
+  // The server cannot know the viewer's zone: UTC until hydration, then local.
   const checkedAt = domain.lastCheckedAt
-    ? new Date(domain.lastCheckedAt).toLocaleString()
-    : null
+  const checkedAtText =
+    checkedAt === null
+      ? null
+      : format(
+          hasHydrated ? new Date(checkedAt) : new UTCDate(checkedAt),
+          CHECKED_AT_PATTERN
+        )
 
   return (
     <Frame
@@ -317,8 +329,14 @@ const CheckBox: FC<{
               <span role="alert" className="text-destructive-text">
                 {error}
               </span>
-            ) : checkedAt ? (
-              `Last checked ${checkedAt}.`
+            ) : checkedAt !== null ? (
+              <>
+                Last checked{' '}
+                <time dateTime={new Date(checkedAt).toISOString()}>
+                  {checkedAtText}
+                </time>
+                .
+              </>
             ) : (
               'Not checked yet.'
             )}

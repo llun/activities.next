@@ -2,9 +2,11 @@ import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import { logger } from '@/lib/utils/logger'
 
 import {
   isEmailAllowedForAccount,
+  isEmailAllowedForSignUpDomain,
   resolveSignUpDomain,
   resolveSignUpOpenSafely
 } from './signUpDomain'
@@ -105,6 +107,28 @@ describe('signUpDomain', () => {
         resolveSignUpOpenSafely(null, 'social.example')
       ).resolves.toBeNull()
     })
+
+    // The primary's own setting, the caller's fallback, says nothing about
+    // another domain.
+    it('logs a failed lookup and reports another domain closed', async () => {
+      const getServedDomain = vi
+        .spyOn(database, 'getServedDomain')
+        .mockRejectedValue(new Error('domains table missing'))
+      const loggerError = vi.spyOn(logger, 'error')
+      try {
+        await expect(
+          resolveSignUpOpenSafely(database, 'run.example')
+        ).resolves.toBe(false)
+        expect(loggerError).toHaveBeenCalledWith(
+          expect.objectContaining({
+            err: expect.objectContaining({ message: 'domains table missing' })
+          })
+        )
+      } finally {
+        getServedDomain.mockRestore()
+        loggerError.mockRestore()
+      }
+    })
   })
 
   describe('isEmailAllowedForAccount', () => {
@@ -150,6 +174,117 @@ describe('signUpDomain', () => {
       await expect(
         isEmailAllowedForAccount(database, 'ana@mail.example', runAccount)
       ).resolves.toBe(false)
+    })
+
+    it('uses the list of an env domain, whose row is stored off', async () => {
+      const accountId = await database.createAccount({
+        email: 'eve@mail.example',
+        username: 'eve-club',
+        domain: 'club.example',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await database.createServedDomain({
+        domain: 'club.example',
+        status: 'off',
+        allowedEmails: ['eve@mail.example']
+      })
+      await expect(
+        isEmailAllowedForAccount(database, 'eve@mail.example', accountId)
+      ).resolves.toBe(true)
+    })
+
+    // A new row (and an env domain's first Registrations save) is closed with
+    // an empty list; that must not read as "anyone".
+    it.each([
+      {
+        description: 'is refused on a closed domain with an empty list',
+        signupsOpen: false,
+        expected: false
+      },
+      {
+        description: 'is allowed on an open domain with an empty list',
+        signupsOpen: true,
+        expected: true
+      }
+    ])(
+      'an address off the primary list $description',
+      async ({ signupsOpen, expected }) => {
+        const username = `lee-${signupsOpen ? 'open' : 'closed'}`
+        const domain = `${username}.example`
+        const accountId = await database.createAccount({
+          email: `${username}@mail.example`,
+          username,
+          domain,
+          passwordHash: 'hash',
+          privateKey: 'private',
+          publicKey: 'public'
+        })
+        await database.createServedDomain({ domain, status: 'on', signupsOpen })
+        await expect(
+          isEmailAllowedForAccount(database, 'removed@mail.example', accountId)
+        ).resolves.toBe(expected)
+      }
+    )
+  })
+
+  describe('isEmailAllowedForSignUpDomain', () => {
+    beforeEach(async () => {
+      // An empty server list: anyone on the primary.
+      await database.setServerSettings([
+        { key: 'registrations.allowEmails', value: [] }
+      ])
+      invalidateServerSettingsCache(database)
+    })
+
+    it.each([
+      {
+        description: 'the server list on the primary',
+        domain: 'social.example',
+        status: 'on' as const,
+        email: 'anyone@mail.example',
+        expected: true
+      },
+      {
+        description: 'the domain list on an added domain',
+        domain: 'run.example',
+        status: 'on' as const,
+        email: 'ana@mail.example',
+        expected: true
+      },
+      {
+        description:
+          'an address the added domain refuses, though the server list is empty',
+        domain: 'run.example',
+        status: 'on' as const,
+        email: 'bob@mail.example',
+        expected: false
+      },
+      {
+        description: 'any address once the added domain is off',
+        domain: 'run.example',
+        status: 'off' as const,
+        email: 'ana@mail.example',
+        expected: false
+      },
+      {
+        description: 'any address on a domain with no row',
+        domain: 'gone.example',
+        status: 'on' as const,
+        email: 'ana@mail.example',
+        expected: false
+      }
+    ])('checks $description', async ({ domain, status, email, expected }) => {
+      await database.createServedDomain({
+        domain: 'run.example',
+        status,
+        signupsOpen: true,
+        allowedEmails: ['ana@mail.example']
+      })
+      await expect(
+        isEmailAllowedForSignUpDomain(database, email, domain)
+      ).resolves.toBe(expected)
     })
   })
 })

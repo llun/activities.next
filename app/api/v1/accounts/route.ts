@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import {
   OAuthAppGuard,
@@ -148,6 +149,9 @@ const registerViaApi = OAuthAppGuard(
     // runs as a before_action) and the web-form path. registerAccount() also
     // re-checks registrationOpen, so the registration_closed result branch below
     // remains a defensive fallback.
+    // Refresh first: `headerHost` trusts the visited host from the snapshot,
+    // and a stale one would hand an added domain's sign-up to the primary.
+    await ensureServedDomainsFresh()
     const host = headerHost(req.headers)
     if (!(await resolveSignUpDomain(database, host)).open) {
       return apiResponse({
@@ -306,6 +310,8 @@ export const POST = traceApiRoute(
     // registerAccount() also checks registrationOpen so it is safe to call as a
     // standalone service; the registration_closed branch in the result handler
     // below is a defensive fallback for that standalone-caller scenario.
+    // Refresh first, as above.
+    await ensureServedDomainsFresh()
     const host = headerHost(request.headers)
     if (!(await resolveSignUpDomain(database, host)).open) {
       return apiResponse({

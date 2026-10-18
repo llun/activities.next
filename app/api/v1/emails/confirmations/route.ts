@@ -11,7 +11,7 @@ import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
-import { isEmailAllowedForAccount } from '@/lib/services/domains/signUpDomain'
+import { isEmailAllowedForSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -154,10 +154,16 @@ export const POST = traceApiRoute(
       // cannot drift apart.
       let verificationCode = account.verificationCode
       if (newEmail && newEmail !== account.email) {
-        // Honor the allow-list (the server's, or that of a domain the
-        // account's profiles live on) so the email param can't be used to
-        // sidestep the same restriction enforced at registration.
-        if (!(await isEmailAllowedForAccount(database, newEmail, account.id))) {
+        // Honor the allow-list of the domain the account signed up on (its
+        // actor's) so the email param can't be used to sidestep the same
+        // restriction enforced at registration.
+        if (
+          !(await isEmailAllowedForSignUpDomain(
+            database,
+            newEmail,
+            currentActor.domain
+          ))
+        ) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,

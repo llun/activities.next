@@ -16,7 +16,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
  * How fresh it is:
  * - `startServedDomainRefresher` (instrumentation, the queue worker) loads it
  *   at boot and every `SERVED_DOMAIN_REFRESH_MS`.
- * - Every admin write refreshes it at once (`refreshServedDomains`).
+ * - Every admin write refreshes it at once (`refreshServedDomainsAfterWrite`).
  * - `ensureServedDomainsFresh` is awaited on the async request paths where
  *   trust decides something durable (auth, sign-up, local-domain matching).
  * - A sync read of a snapshot older than the refresh interval starts a
@@ -105,6 +105,18 @@ export const refreshServedDomains = async (
     state.inflight = null
   })
   return state.inflight
+}
+
+/**
+ * Reloads after an admin write. A load already in flight may have read the
+ * table before the write committed, so joining it could keep the old list for
+ * another refresh interval: wait for it, then load again.
+ */
+export const refreshServedDomainsAfterWrite = async (
+  database: Database
+): Promise<void> => {
+  await state.inflight
+  return refreshServedDomains(database)
 }
 
 const isStale = (now: number) =>

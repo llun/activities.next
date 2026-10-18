@@ -1,5 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { createDeferred } from '@/lib/testing/deferred'
 import { selectHeaderHost } from '@/lib/utils/host'
 
 import {
@@ -9,6 +10,7 @@ import {
   getActiveServedDomainNames,
   getServedHostConfig,
   refreshServedDomains,
+  refreshServedDomainsAfterWrite,
   resetServedDomainsForTests,
   setServedDomainsForTests
 } from './servedDomainSnapshot'
@@ -126,6 +128,41 @@ describe('servedDomainSnapshot', () => {
       refreshServedDomains(database)
     ])
     expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+  })
+
+  // A load that started before an admin write may have read the table before
+  // the write committed; the write's own refresh must not just join it.
+  it('loads again after an admin write instead of joining a load already in flight', async () => {
+    const beforeWrite = createDeferred<{ domain: string }[]>()
+    const getActiveServedDomains = vi
+      .fn()
+      .mockReturnValueOnce(beforeWrite.promise)
+      .mockResolvedValueOnce([])
+    const database = { getActiveServedDomains } as unknown as Database
+
+    const inflight = refreshServedDomains(database)
+    const afterWrite = refreshServedDomainsAfterWrite(database)
+    beforeWrite.resolve([{ domain: 'run.example' }])
+    await Promise.all([inflight, afterWrite])
+
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getActiveServedDomainNames()).toEqual([])
+  })
+
+  it('starts one background refresh when a sync read finds the snapshot stale', async () => {
+    vi.useFakeTimers()
+    const { database, getActiveServedDomains } = databaseWith(['run.example'])
+    await refreshServedDomains(database)
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS)
+    getActiveServedDomainNames()
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(1)
+    getActiveServedDomainNames()
+    getActiveServedDomainNames()
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
   })
 
   it('returns the same config object until the domain list changes', () => {

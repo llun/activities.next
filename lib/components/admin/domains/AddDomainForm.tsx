@@ -166,7 +166,7 @@ export const AddDomainForm: FC = () => {
             placeholder="photos.example"
             value={value}
             maxLength={255}
-            disabled={checking}
+            disabled={busy !== null}
             aria-invalid={failed || Boolean(error) || undefined}
             aria-describedby={check ? undefined : formRowHintId(INPUT_ID)}
             onChange={(event) => setValue(event.target.value)}

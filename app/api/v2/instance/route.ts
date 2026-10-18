@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveSignUpOpenSafely } from '@/lib/services/domains/signUpDomain'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
@@ -31,6 +32,8 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // Public per Mastodon: GET /api/v2/instance is served unauthenticated.
 export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
   const config = getConfig()
+  // Refresh first: `headerHost` trusts the visited host from the snapshot.
+  await ensureServedDomainsFresh()
   const domain = headerHost(req.headers)
   const baseUrl = buildBaseURL(domain)
   // The instance payload must stay robust: when the database is unavailable,

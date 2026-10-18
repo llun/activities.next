@@ -45,6 +45,24 @@ describe('GET /api/handle-redirect', () => {
     )
   })
 
+  // Local usernames may hold `.` and `-` (`LOCAL_USERNAME_PATTERN`).
+  it.each([
+    {
+      description: 'a username with a dot',
+      path: '/@jane.doe',
+      expected: '/@jane.doe@run.example'
+    },
+    {
+      description: 'a username with a dash and a status',
+      path: '/@jane-doe/123',
+      expected: '/@jane-doe@run.example/123'
+    }
+  ])('redirects $description', async ({ path, expected }) => {
+    const response = await call(request(path, '', 'run.example'))
+    expect(response.status).toBe(307)
+    expect(response.headers.get('Location')).toBe(expected)
+  })
+
   it('never echoes an untrusted host: it falls back to the primary', async () => {
     const response = await call(request('/@ana', '', 'evil.example'))
     expect(response.headers.get('Location')).toBe('/@ana@test.llun.dev')
@@ -60,7 +78,9 @@ describe('GET /api/handle-redirect', () => {
     ['/@ana@other.example', ''],
     ['/users/ana', ''],
     ['/@ana', 'page=2'],
-    ['//evil.example/@ana', '']
+    ['//evil.example/@ana', ''],
+    ['/@.ana', ''],
+    ['/@an%61', '']
   ])('answers 404 for %s %s', async (path, query) => {
     const response = await call(request(path, query, 'run.example'))
     expect(response.status).toBe(404)

@@ -17,7 +17,7 @@ import type {
   AdminDomainList
 } from './adminDomainTypes'
 import { checkDomainReachability } from './domainCheck'
-import { refreshServedDomains } from './servedDomainSnapshot'
+import { refreshServedDomainsAfterWrite } from './servedDomainSnapshot'
 
 type EnvDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
 
@@ -250,7 +250,7 @@ export const setDomainStatus = async (
     const result = await check(domain)
     if (!result.passed) {
       await database.updateServedDomain({ domain, check: result })
-      await refreshServedDomains(database)
+      await refreshServedDomainsAfterWrite(database)
       const current = await getAdminDomain(database, domain)
       return current
         ? { type: 'check-failed', domain: current }
@@ -260,7 +260,7 @@ export const setDomainStatus = async (
   } else {
     await database.updateServedDomain({ domain, status: 'off' })
   }
-  await refreshServedDomains(database)
+  await refreshServedDomainsAfterWrite(database)
   const updated = await getAdminDomain(database, domain)
   return updated ? { type: 'updated', domain: updated } : { type: 'not-found' }
 }
@@ -336,6 +336,6 @@ export const removeDomain = async (
   const counts = await database.countLocalActorsByDomain({ domains: [domain] })
   if ((counts[domain] ?? 0) > 0) return { type: 'has-profiles' }
   await database.deleteServedDomain({ domain })
-  await refreshServedDomains(database)
+  await refreshServedDomainsAfterWrite(database)
   return { type: 'removed' }
 }

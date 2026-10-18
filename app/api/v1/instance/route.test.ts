@@ -4,6 +4,11 @@ import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
+import {
+  SERVED_DOMAIN_REFRESH_MS,
+  refreshServedDomains,
+  resetServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
@@ -265,6 +270,36 @@ describe('GET /api/v1/instance', () => {
       expect(closed.registrations).toBe(false)
     } finally {
       await database.deleteServedDomain({ domain: 'alias.llun.test' })
+    }
+  })
+
+  // A stale snapshot would not trust the visited Admin › Domains host yet and
+  // describe the primary instead.
+  it('refreshes a stale snapshot before reading the visited host', async () => {
+    // Loaded before photos.llun.test was turned on, so it does not list it.
+    await refreshServedDomains(database)
+    await database.createServedDomain({
+      domain: 'photos.llun.test',
+      status: 'on',
+      signupsOpen: false
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + SERVED_DOMAIN_REFRESH_MS + 1)
+    try {
+      const body = await (
+        await GET(
+          new NextRequest('https://llun.test/api/v1/instance', {
+            headers: { host: 'photos.llun.test' }
+          }),
+          params
+        )
+      ).json()
+      expect(body.uri).toBe('photos.llun.test')
+      expect(body.registrations).toBe(false)
+    } finally {
+      vi.useRealTimers()
+      resetServedDomainsForTests()
+      await database.deleteServedDomain({ domain: 'photos.llun.test' })
     }
   })
 })

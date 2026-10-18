@@ -3,6 +3,10 @@ import { NextRequest } from 'next/server'
 import { generateKeyPairSync } from 'node:crypto'
 
 import type { MapProviderConfig } from '@/lib/config/mapProvider'
+import {
+  resetServedDomainsForTests,
+  setServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 
 import { GET } from './route'
 
@@ -63,6 +67,11 @@ describe('GET /api/v1/fitness/apple-maps-token', () => {
   beforeEach(() => {
     state.mapProvider = { type: 'osm' }
     state.authScheme = 'https'
+    resetServedDomainsForTests()
+  })
+
+  afterEach(() => {
+    resetServedDomainsForTests()
   })
 
   it('mints a MapKit JS token signed with the configured Apple credentials', async () => {
@@ -180,6 +189,29 @@ describe('GET /api/v1/fitness/apple-maps-token', () => {
     expect(payload.origin?.split(',')).toEqual([
       'https://maps.llun.test',
       'https://alias.llun.test'
+    ])
+  })
+
+  // A map on a domain added in Admin › Domains sends that domain as its Origin.
+  it('includes the active Admin › Domains rows in the token origin', async () => {
+    setServedDomainsForTests(['run.example'])
+    state.mapProvider = {
+      type: 'apple',
+      teamId: TEAM_ID,
+      keyId: KEY_ID,
+      privateKey: createPrivateKeyPem()
+    }
+
+    const response = await GET(
+      new NextRequest('https://run.example/api/v1/fitness/apple-maps-token'),
+      params
+    )
+    const body = (await response.json()) as { token: string }
+    const payload = decodeJwt(body.token) as { origin?: string }
+    expect(payload.origin?.split(',')).toEqual([
+      'https://maps.llun.test',
+      'https://alias.llun.test',
+      'https://run.example'
     ])
   })
 

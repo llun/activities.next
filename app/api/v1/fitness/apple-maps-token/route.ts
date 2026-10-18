@@ -4,6 +4,10 @@ import { NextRequest } from 'next/server'
 import { buildBaseURL } from '@/lib/config'
 import { getProxyHostConfig } from '@/lib/config/host'
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
+import {
+  ensureServedDomainsFresh,
+  getActiveServedDomainNames
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -56,11 +60,13 @@ const importPrivateKey = async (privateKey: string): Promise<CryptoKey> => {
  * scheme has to match how the app is actually served. `buildBaseURL` applies the
  * configured auth scheme (`http` only under the local-dev-only
  * `ACTIVITIES_INSECURE_AUTH`, `https` everywhere else) and leaves hosts that
- * already carry a scheme untouched.
+ * already carry a scheme untouched. The active Admin › Domains rows count too:
+ * a map on one of them sends that domain as its `Origin`.
  */
-const getAllowedOrigins = (): string => {
+const getAllowedOrigins = async (): Promise<string> => {
+  await ensureServedDomainsFresh()
   const { host, trustedHosts } = getProxyHostConfig()
-  const origins = [host, ...trustedHosts]
+  const origins = [host, ...trustedHosts, ...getActiveServedDomainNames()]
     .map((value) => value.trim())
     .filter((value) => value.length > 0)
     .map((value) => buildBaseURL(value))
@@ -78,7 +84,7 @@ export const GET = traceApiRoute(
     try {
       const key = await importPrivateKey(mapProvider.privateKey)
       const token = await new SignJWT({
-        origin: getAllowedOrigins(),
+        origin: await getAllowedOrigins(),
         scope: 'mapkit_js'
       })
         .setProtectedHeader({

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getProxyHostConfig } from '@/lib/config/host'
-import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import {
+  HOST_HEADER_NAMES,
   getTrustedHostRules,
   isHostTrustedByRules,
   normalizeHost,
@@ -73,9 +73,8 @@ const proxyHeaderHost = (headers: Headers): string => {
 // Domains row from an unknown host; for those it hands the decision to the app
 // (`/api/handle-redirect`) instead of rewriting onto the primary host. It never
 // puts the value in a path or header itself.
-const SELECTED_HOST_HEADERS = [ACTIVITIES_HOST, FORWARDED_HOST, 'host']
 const hasHostOutsideEnv = (headers: Headers): boolean => {
-  for (const name of SELECTED_HOST_HEADERS) {
+  for (const name of HOST_HEADER_NAMES) {
     const value = headers.get(name)
     if (!value) continue
     const normalized = normalizeHost(value, { allowWildcard: false })

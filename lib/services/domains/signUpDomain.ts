@@ -2,7 +2,9 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { normalizeServedDomainChoice } from '@/lib/utils/host'
+import { logger } from '@/lib/utils/logger'
 import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { getEnvDomainKind, getEnvDomains } from './adminDomains'
 import { ensureServedDomainsFresh } from './servedDomainSnapshot'
@@ -66,11 +68,21 @@ export const resolveSignUpDomain = async (
   }
 }
 
+// A domain's own allowed-emails list. An empty list means anyone only while
+// sign-ups are open there: a closed domain with no list (the default of a new
+// row) lets nobody in on its own say-so.
+const isEmailAllowedOnDomain = (
+  allowEmails: string[],
+  signupsOpen: boolean,
+  email: string
+): boolean =>
+  allowEmails.length > 0 ? isEmailAllowed(allowEmails, email) : signupsOpen
+
 /**
- * The allowed-emails gate for an existing account (sign-in, changing the
- * address): the server's `registrations.allowEmails` as before, or the allowed
- * emails of a domain one of the account's profiles lives on, so a person who
- * joined run.example under its own list is not locked out by the primary's.
+ * The allowed-emails gate for an existing account at sign-in: the server's
+ * `registrations.allowEmails` as before, or the allowed emails of a domain one
+ * of the account's profiles lives on, so a person who joined run.example under
+ * its own list is not locked out by the primary's.
  */
 export const isEmailAllowedForAccount = async (
   database: Database,
@@ -94,16 +106,44 @@ export const isEmailAllowedForAccount = async (
     const row = await database.getServedDomain({ domain })
     const usable =
       row && (getEnvDomainKind(domain, env) === 'env' || row.status === 'on')
-    if (usable && isEmailAllowed(row.allowedEmails, email)) return true
+    if (
+      usable &&
+      isEmailAllowedOnDomain(row.allowedEmails, row.signupsOpen, email)
+    ) {
+      return true
+    }
   }
   return false
 }
 
 /**
+ * The allowed-emails gate for an account that has not confirmed yet changing
+ * its address (`POST /api/v1/emails/confirmations`): only the list of the
+ * domain it signed up on, `domain` (its actor's), as at sign-up. The primary
+ * uses the server's `registrations.allowEmails` as before; any other domain
+ * uses its own row, and is closed when that domain is no longer usable. The
+ * server's list never stands in for another domain's here, or an empty primary
+ * list would let a run.example sign-up swap in an address run.example refuses.
+ */
+export const isEmailAllowedForSignUpDomain = async (
+  database: Database,
+  email: string,
+  domain: string
+): Promise<boolean> => {
+  if (!normalizeServedDomainChoice(domain)) return false
+  const signUp = await resolveSignUpDomain(database, domain)
+  if (signUp.source === 'primary') {
+    return isEmailAllowed(signUp.allowEmails, email)
+  }
+  return isEmailAllowedOnDomain(signUp.allowEmails, signUp.open, email)
+}
+
+/**
  * `resolveSignUpDomain(...).open` for the public discovery documents
  * (`/api/v1/instance`, `/api/v2/instance`), which must not fail: null when
- * there is no database or the lookup fails, so the caller can fall back to the
- * server setting it already has.
+ * there is no database, or when the lookup fails on the primary, so the caller
+ * can fall back to the server setting it already has. A failed lookup for any
+ * other domain reports closed: the primary's setting says nothing about it.
  */
 export const resolveSignUpOpenSafely = async (
   database: Database | null | undefined,
@@ -112,7 +152,13 @@ export const resolveSignUpOpenSafely = async (
   if (!database) return null
   try {
     return (await resolveSignUpDomain(database, host)).open
-  } catch {
-    return null
+  } catch (error) {
+    logger.error({
+      message: 'Failed to resolve the sign-up domain',
+      err: toLoggableError(error)
+    })
+    const env = getEnvDomains()
+    const domain = normalizeServedDomainChoice(host) ?? env.primary ?? ''
+    return getEnvDomainKind(domain, env) === 'primary' ? null : false
   }
 }
