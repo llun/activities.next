@@ -1,13 +1,14 @@
 import {
   HostHeaders,
   createHostRulesMatcher,
+  createServedDomainMatcher,
   getCanonicalAuthority,
   getHostCacheSizesForTests,
   getServedAuthority,
+  getServedDomainRules,
   isHostServedByRules,
   isHostTrustedByRules,
   isOwnInstanceHost,
-  isServedDomain,
   normalizeHost,
   normalizeServedDomainChoice,
   resetHostCachesForTests,
@@ -348,7 +349,12 @@ describe('isOwnInstanceHost', () => {
   })
 })
 
-describe('isServedDomain', () => {
+describe('served domain matching', () => {
+  const matchServed = (
+    value: string | null | undefined,
+    sources: Parameters<typeof getServedDomainRules>[0]
+  ) => createServedDomainMatcher(getServedDomainRules(sources))(value)
+
   afterEach(() => {
     resetHostCachesForTests()
   })
@@ -424,7 +430,7 @@ describe('isServedDomain', () => {
     { description: 'an empty value', value: '', expected: false },
     { description: 'a missing value', value: null, expected: false }
   ])('answers $expected for $description', ({ value, expected }) => {
-    expect(isServedDomain(value, sources)).toBe(expected)
+    expect(matchServed(value, sources)).toBe(expected)
   })
 
   it('matches an IDNA domain in either spelling', () => {
@@ -433,21 +439,21 @@ describe('isServedDomain', () => {
       trustedHosts: ['bücher.example']
     }
     expect(
-      isServedDomain('https://xn--bcher-kva.example/users/a', idnaSources)
+      matchServed('https://xn--bcher-kva.example/users/a', idnaSources)
     ).toBeTrue()
     expect(
-      isServedDomain('https://BÜCHER.example/users/a', idnaSources)
+      matchServed('https://BÜCHER.example/users/a', idnaSources)
     ).toBeTrue()
   })
 
   it('recognises a loopback development host with its port', () => {
     expect(
-      isServedDomain('http://localhost:3000/users/a', {
+      matchServed('http://localhost:3000/users/a', {
         host: 'localhost:3000'
       })
     ).toBeTrue()
     expect(
-      isServedDomain('http://localhost:4000/users/a', {
+      matchServed('http://localhost:4000/users/a', {
         host: 'localhost:3000'
       })
     ).toBeFalse()
@@ -461,13 +467,13 @@ describe('isServedDomain', () => {
       'llun.test:8443',
       'other.example'
     ]) {
-      expect(isServedDomain(host, config)).toBe(isOwnInstanceHost(host, config))
+      expect(matchServed(host, config)).toBe(isOwnInstanceHost(host, config))
     }
 
     // isOwnInstanceHost trusts the wildcard, the served-domain check does not.
     const wildcard = { host: 'llun.test', trustedHosts: ['*.edge.llun.test'] }
     expect(isOwnInstanceHost('cdn.edge.llun.test', wildcard)).toBeTrue()
-    expect(isServedDomain('cdn.edge.llun.test', wildcard)).toBeFalse()
+    expect(matchServed('cdn.edge.llun.test', wildcard)).toBeFalse()
   })
 })
 

@@ -286,7 +286,7 @@ export const isOwnInstanceHost = (
 ): boolean => isHostServedByRules(host, getTrustedHostRules(config))
 
 /**
- * The matcher behind `isOwnInstanceHost` and `isServedDomain`: whether an
+ * The matcher behind `isOwnInstanceHost` and `createServedDomainMatcher`: whether an
  * authority (`host` or `host:port`) is one of `rules`, a list of configured
  * host entries that may carry `*.example.com` wildcards and may be written as
  * URLs. Kept apart from `isOwnInstanceHost` so the served-domain check can
@@ -433,23 +433,6 @@ export const createServedDomainMatcher = (
     return matches(authority)
   }
 }
-
-/**
- * THE answer to "is this domain one this server serves?" for a URL or a host:
- * the primary host or a concrete `ACTIVITIES_TRUSTED_HOSTS` entry (see
- * `ServedDomainSources` for why wildcards and `federation.allowActorDomains`
- * are not). Pure; the request-time callers get a matcher from
- * `getLocalDomainMatcher` (`@/lib/services/domains/localDomains`), which
- * prepares the rules once for a loop.
- *
- * Every rule is operator configuration. Nothing a remote server sends can add
- * one, and an authority spelled with a `*` matches nothing, so a remote
- * server can only be "local" here by being on a host the operator declared.
- */
-export const isServedDomain = (
-  value: string | undefined | null,
-  sources: ServedDomainSources
-): boolean => createServedDomainMatcher(getServedDomainRules(sources))(value)
 
 export const selectHeaderHost = (
   headers: HostHeaders,

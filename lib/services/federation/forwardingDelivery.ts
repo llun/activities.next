@@ -200,7 +200,7 @@ export const resolveForwardingInboxes = async ({
   // Never forward to an inbox on any domain this server serves: that would
   // only send the activity back to this server. Comparing against the primary
   // host alone forwarded to ourselves whenever a follower's inbox was on a
-  // trusted host or another actor domain.
+  // trusted host.
   const isLocal = await getLocalDomainMatcher(database)
 
   const filteredInboxes = validInboxes.filter((inbox) => {

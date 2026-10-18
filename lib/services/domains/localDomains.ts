@@ -44,7 +44,8 @@ export const getLocalDomainMatcher = async (
 
 /**
  * Whether a URL (an actor id, a key id, an inbox) or a bare host is on a domain
- * this server serves. See `isServedDomain` for the rules.
+ * this server serves. The served domains are the primary host and the concrete
+ * `ACTIVITIES_TRUSTED_HOSTS` entries (see `ServedDomainSources`).
  */
 export const isLocalDomain = async (
   database: Database | null,

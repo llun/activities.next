@@ -441,13 +441,15 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 Two related lists answer two different questions.
 
 **Served domains** — "is this domain this server?" — are `ACTIVITIES_HOST` and
-every **concrete** `ACTIVITIES_TRUSTED_HOSTS` entry, through one check
-(`isServedDomain` in `lib/utils/host.ts`, resolved per request by
+every **concrete** `ACTIVITIES_TRUSTED_HOSTS` entry
+(`createServedDomainMatcher` in `lib/utils/host.ts`, resolved per request by
+`isLocalDomain` / `getLocalDomainMatcher` in
 `lib/services/domains/localDomains.ts`). Hosts are compared case-insensitively,
 after IDNA mapping and without a trailing dot or a default port; a different
-port is a different host. A served domain is never fetched or WebFingered as if
-it were remote (account search and lookup, quote requests, relayed and
-forwarded objects), never receives forwarded activities, and an actor on it
+port is a different host. Account search, lookup and v2 search, inbound quote
+requests, inbox forwarding, emoji reactions and the forwarded-activity and
+relay-announce self-echo guards use it: a served domain is not WebFingered as
+if it were remote, never receives forwarded activities, and an actor on it
 reacts with this server's own custom emoji. A **wildcard** trusted host
 (`*.vercel.app`, say) is not a served domain: it exists so `X-Forwarded-Host`
 can be believed on preview deployments, and it does not claim every subdomain
@@ -459,9 +461,16 @@ admin setting when that is unset), its `*.example.com` wildcards included —
 which match their subdomains but not `example.com` itself. A domain in it skips
 domain blocks and `allowlist` mode. `federation.allowActorDomains` is kept out
 of the served domains on purpose: in `allowlist` mode the admin Federation form
-presents it as the allowed servers, so it can hold remote servers, and treating
-those as this server would stop search, quotes, forwarding and reactions from
-reaching them.
+presents it as the allowed servers, so it can hold remote servers. Callers that
+still use `isLocalFederationDomain` (served domains plus
+`allowActorDomains`) — `lib/services/actors/resolveAccountTarget.ts`,
+`lib/services/quotes/fetchQuoteTargetForCreate.ts`,
+`lib/services/quotes/persistInboundQuoteEdge.ts`,
+`lib/services/statuses/fetchEphemeralRemoteStatus.ts`,
+`app/(timeline)/[actor]/resolveActorRedirect.ts` and
+`lib/activities/confirmActorHandle.ts` — keep treating a remote server listed
+there as local until a planned database-backed domain list replaces
+`allowActorDomains`.
 
 Neither list is trusted for anything else: inbound activities from them are
 still signature-checked like any other. Only list hosts you control.
