@@ -1,7 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
-import type { WebVitalsReport } from '@/lib/utils/webVitals/types'
+import {
+  WEB_VITAL_MAX_VALUE,
+  type WebVitalsReport
+} from '@/lib/utils/webVitals/types'
 
 import {
   WEB_VITALS_MAX_METRICS_PER_PAGE_LOAD,
@@ -107,6 +110,22 @@ describe('createWebVitalsCollector', () => {
 
     expect(sent).toEqual([])
   })
+
+  it.each(['LCP', 'CLS', 'INP'] as const)(
+    'keeps a %s exactly at its limit and drops one just over',
+    (name) => {
+      const limit = WEB_VITAL_MAX_VALUE[name]
+      const { sent, collector } = setup()
+
+      collector.record(metric({ id: 'at', name, value: limit }))
+      collector.record(metric({ id: 'over', name, value: limit + 1 }))
+      collector.flush()
+
+      expect(sent).toHaveLength(1)
+      expect(sent[0].metrics).toHaveLength(1)
+      expect(sent[0].metrics[0].value).toBe(limit)
+    }
+  )
 
   it.each([
     ['a missing rating', { rating: undefined }],

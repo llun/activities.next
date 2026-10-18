@@ -80,10 +80,21 @@ describe('sendWebVitalsReport', () => {
 
   it('swallows a rejected fetch', async () => {
     setBeacon(undefined)
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('offline'))
+    const rejected = Promise.reject(new Error('offline'))
+    const catchSpy = vi.spyOn(rejected, 'catch')
+    globalThis.fetch = vi.fn().mockReturnValue(rejected)
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
 
-    expect(() => sendWebVitalsReport(report)).not.toThrow()
-    await Promise.resolve()
+    try {
+      expect(() => sendWebVitalsReport(report)).not.toThrow()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+
+    expect(catchSpy).toHaveBeenCalledTimes(1)
+    expect(unhandled).not.toHaveBeenCalled()
   })
 
   it('swallows a beacon that throws', () => {

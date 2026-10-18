@@ -3,7 +3,7 @@ import {
   getWebVitalsRoute,
   toWebVitalNavigationType
 } from './classify'
-import { WEB_VITAL_ROUTES } from './types'
+import { WEB_VITAL_NAVIGATION_TYPES, WEB_VITAL_ROUTES } from './types'
 
 describe('getWebVitalsRoute', () => {
   it.each([
@@ -101,12 +101,32 @@ describe('getWebVitalsDevice', () => {
 describe('toWebVitalNavigationType', () => {
   it.each([
     ['navigate', 'navigate'],
+    ['reload', 'reload'],
+    ['back-forward', 'back-forward'],
     ['back-forward-cache', 'back-forward-cache'],
+    ['prerender', 'prerender'],
+    ['restore', 'restore'],
     ['soft-navigation', 'soft-navigation'],
+    ['other', 'other'],
     ['something-new', 'other'],
     [undefined, 'other'],
     [42, 'other']
   ])('maps %s to %s', (value, expected) => {
     expect(toWebVitalNavigationType(value)).toBe(expected)
+  })
+
+  it('has a row above for every navigation type', () => {
+    expect([...WEB_VITAL_NAVIGATION_TYPES].sort()).toEqual(
+      [
+        'navigate',
+        'reload',
+        'back-forward',
+        'back-forward-cache',
+        'prerender',
+        'restore',
+        'soft-navigation',
+        'other'
+      ].sort()
+    )
   })
 })
