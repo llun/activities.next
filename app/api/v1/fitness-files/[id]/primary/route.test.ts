@@ -578,7 +578,7 @@ describe('POST /api/v1/fitness-files/[id]/primary', () => {
 
     const response = await post(chosen.id)
 
-    expect(response.status).toBe(303)
+    expect(response.status).toBe(307)
     expect(response.headers.get('Location')).toContain('/auth/signin')
   })
 })

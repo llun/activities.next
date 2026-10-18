@@ -533,7 +533,7 @@ describe('PATCH /api/v1/fitness-files/[id] (assign gear)', () => {
 
     const response = await patch(file!.id, { gearId: null })
 
-    expect(response.status).toBe(303)
+    expect(response.status).toBe(307)
     expect(response.headers.get('Location')).toContain('/auth/signin')
   })
 })

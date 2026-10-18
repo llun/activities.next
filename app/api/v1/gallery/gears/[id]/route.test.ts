@@ -129,7 +129,7 @@ describe('/api/v1/gallery/gears/[id]', () => {
         ctx('any')
       )
 
-      expect(response.status).toBe(303)
+      expect(response.status).toBe(307)
     })
   })
 
