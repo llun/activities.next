@@ -18,6 +18,18 @@ const isAllowedOrigin = (value: string, baseUrl: URL): boolean => {
   return url.protocol === baseUrl.protocol && isTrustedHeaderHost(url.host)
 }
 
+const evaluateSameOriginProof = (req: NextRequest) => {
+  const baseUrl = new URL(getBaseURL())
+
+  const origin = req.headers.get('Origin')
+  const referer = req.headers.get('Referer')
+  const allowed = origin
+    ? isAllowedOrigin(origin, baseUrl)
+    : Boolean(referer && isAllowedOrigin(referer, baseUrl))
+
+  return { allowed, origin, referer, baseOrigin: baseUrl.origin }
+}
+
 /**
  * CSRF defense for cookie-session authenticated mutations: state-changing
  * requests must carry an Origin (or Referer) header that resolves to the
@@ -29,13 +41,7 @@ const isAllowedOrigin = (value: string, baseUrl: URL): boolean => {
 export const hasSameOriginProof = (req: NextRequest): boolean => {
   if (!STATE_CHANGING_METHODS.has(req.method)) return true
 
-  const baseUrl = new URL(getBaseURL())
-
-  const origin = req.headers.get('Origin')
-  const referer = req.headers.get('Referer')
-  const allowed = origin
-    ? isAllowedOrigin(origin, baseUrl)
-    : Boolean(referer && isAllowedOrigin(referer, baseUrl))
+  const { allowed, origin, referer, baseOrigin } = evaluateSameOriginProof(req)
 
   if (!allowed) {
     // Surface rejections so a misconfigured host or missing trusted-host
@@ -45,8 +51,17 @@ export const hasSameOriginProof = (req: NextRequest): boolean => {
       method: req.method,
       origin,
       referer,
-      baseOrigin: baseUrl.origin
+      baseOrigin
     })
   }
   return allowed
 }
+
+/**
+ * The same check as `hasSameOriginProof` without the rejection warning, for
+ * an unauthenticated, high-volume endpoint (browser telemetry) where anyone
+ * can send forged requests and a warning per rejection would flood the logs.
+ */
+export const hasSameOriginProofQuietly = (req: NextRequest): boolean =>
+  !STATE_CHANGING_METHODS.has(req.method) ||
+  evaluateSameOriginProof(req).allowed

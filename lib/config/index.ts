@@ -29,6 +29,10 @@ import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
 import { TranslationConfig, getTranslationConfig } from './translation'
 import { getEnvironmentList } from './utils'
+import {
+  type WebVitalsConfig,
+  getWebVitalsConfig as readWebVitalsConfig
+} from './webVitals'
 
 const FederationMode = z.enum(['open', 'allowlist'])
 export const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
@@ -228,6 +232,28 @@ export const getPhotoEditorConfig = (): PhotoEditorConfig =>
         return
       }
       didWarnAboutPhotoEditorConfig = true
+      logger.warn({ message })
+    }
+  })
+
+export type { WebVitalsConfig } from './webVitals'
+
+let didWarnAboutWebVitalsConfig = false
+
+// Browser Web Vitals sampling and the report endpoint's cap (see
+// lib/config/webVitals.ts), read at runtime on every call. An invalid value
+// turns reporting off (or restores the default cap) and logs one warning per
+// process; it never fails a request or the build.
+export const getWebVitalsConfig = (): WebVitalsConfig =>
+  readWebVitalsConfig({
+    onInvalid: (message) => {
+      if (
+        didWarnAboutWebVitalsConfig ||
+        process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
+      ) {
+        return
+      }
+      didWarnAboutWebVitalsConfig = true
       logger.warn({ message })
     }
   })

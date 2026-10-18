@@ -28,6 +28,10 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
     ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL:
       process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL,
+    ACTIVITIES_WEB_VITALS_MAX_REPORTS_PER_MINUTE:
+      process.env.ACTIVITIES_WEB_VITALS_MAX_REPORTS_PER_MINUTE,
+    ACTIVITIES_WEB_VITALS_SAMPLE_RATE:
+      process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE,
     NODE_ENV: process.env.NODE_ENV
   }
 
@@ -49,6 +53,9 @@ describe('next config runtime isolation', () => {
     // The photo editor's model origins reach the CSP at request time only.
     process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL =
       'https://build-model-should-not-be-used.example.com/'
+    // Web Vitals sampling is read per request by the layout and the endpoint.
+    process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE = '0.987654'
+    process.env.ACTIVITIES_WEB_VITALS_MAX_REPORTS_PER_MINUTE = '4321'
     setNodeEnv('production')
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
@@ -109,6 +116,34 @@ describe('next config runtime isolation', () => {
       expect(staticHeaders).not.toContain('wasm-unsafe-eval')
       expect(staticHeaders).not.toContain('hf.co')
       expect(staticHeaders).not.toContain('build-model')
+    }
+  )
+
+  it.each([
+    ['set', '0.5'],
+    ['invalid', 'not-a-number'],
+    ['missing', undefined]
+  ])(
+    'does not consume the Web Vitals sample rate when it is %s',
+    async (_, value) => {
+      if (value === undefined) {
+        delete process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE
+      } else {
+        process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE = value
+      }
+
+      const { default: loadedNextConfig } = await loadNextConfig()
+      const serialized = JSON.stringify({
+        ...loadedNextConfig,
+        headers: await loadedNextConfig.headers?.(),
+        rewrites: await loadedNextConfig.rewrites?.(),
+        redirects: await loadedNextConfig.redirects?.()
+      })
+
+      expect(loadedNextConfig.env).toBeUndefined()
+      expect(serialized).not.toContain('0.987654')
+      expect(serialized).not.toContain('4321')
+      expect(serialized).not.toMatch(/web-?vitals/i)
     }
   )
 

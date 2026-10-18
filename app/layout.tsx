@@ -1,10 +1,12 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
 
 import { InAppHistoryTracker } from '@/lib/components/navigation-history/InAppHistoryTracker'
 import { ServiceWorkerRegistration } from '@/lib/components/offline/ServiceWorkerRegistration'
 import { ThemeProvider } from '@/lib/components/theme'
 import { THEME_INIT_SCRIPT } from '@/lib/components/theme/theme-core'
+import { WebVitals } from '@/lib/components/web-vitals/WebVitals'
 import { withVersion } from '@/lib/utils/version'
 
 import './globals.css'
@@ -75,6 +77,13 @@ export default function RootLayout({
               entry; spans every route group, renders nothing. */}
           <InAppHistoryTracker />
           <ServiceWorkerRegistration />
+          {/* Mounts the sampled Web Vitals reporter, and only while
+              ACTIVITIES_WEB_VITALS_SAMPLE_RATE is above zero; renders nothing
+              otherwise. Its own boundary keeps it off the page's critical
+              path. */}
+          <Suspense fallback={null}>
+            <WebVitals />
+          </Suspense>
           {children}
         </ThemeProvider>
       </body>

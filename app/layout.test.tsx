@@ -9,6 +9,10 @@ vi.mock('@/lib/components/navigation-history/InAppHistoryTracker', () => ({
   InAppHistoryTracker: () => <span data-testid="in-app-history-tracker" />
 }))
 
+vi.mock('@/lib/components/web-vitals/WebVitals', () => ({
+  WebVitals: () => <span data-testid="web-vitals" />
+}))
+
 vi.mock('@/lib/components/theme', () => ({
   ThemeProvider: ({ children }: { children: React.ReactNode }) => children
 }))
@@ -27,6 +31,22 @@ describe('RootLayout', () => {
     const body = markup.slice(markup.indexOf('<body'))
     expect(body).toContain('data-testid="in-app-history-tracker"')
     expect(body).toContain('data-testid="page"')
+  })
+})
+
+describe('RootLayout web vitals', () => {
+  // The reporter decides for itself whether it is on (the sample rate is read
+  // per request); the layout only has to mount its gate on every page.
+  it('mounts the Web Vitals gate in the body', () => {
+    const markup = renderToStaticMarkup(
+      <RootLayout>
+        <main />
+      </RootLayout>
+    )
+
+    expect(markup.slice(markup.indexOf('<body'))).toContain(
+      'data-testid="web-vitals"'
+    )
   })
 })
 
