@@ -1,0 +1,68 @@
+lib/services/domains/signUpDomain.test.ts
+  s_e67afa7a51bb57::t_8fc1c5522b0ef2 287-383
+lib/database/domains/account/account.test.ts
+  s_e67afa7a51bb57::t_30109eff7161ce 124-139
+lib/utils/getActorFromSession.test.ts
+  s_e67afa7a51bb57::t_853e05f1fd153c 82,113
+lib/database/domains/account/accounts.ts
+  s_e67afa7a51bb57::t_1ae0549307b0d4 37,176-179
+lib/services/domains/signUpDomain.ts
+  s_e67afa7a51bb57::t_b0d85635b751e6 67-68,87-91,102-104,120
+lib/database/kysely/db.ts
+  s_e67afa7a51bb57::t_5242b89808419b 84
+migrations/schema.sqlite.sql
+  s_e67afa7a51bb57::t_131c3daece6c91 275
+migrations/20261018204230_add_accounts_sign_up_domain.ts
+  s_e67afa7a51bb57::t_ab579af21e5dbc 3-9,12-22,25-27
+  s_e67afa7a51bb57::t_6943bf57ac56f2 1-2,10-11,23-24
+lib/database/domains/servedDomain/queries.ts
+  s_e67afa7a51bb57::t_68ce6b8ef18c39 64
+lib/types/database/rows.ts
+  s_e67afa7a51bb57::t_1ae0549307b0d4 200-202
+lib/types/domain/account.ts
+  s_e67afa7a51bb57::t_1ae0549307b0d4 28-31
+lib/database/domains/servedDomain/servedDomain.test.ts
+  s_e67afa7a51bb57::t_e2971d00ba37a8 79-80,106
+scripts/backup/actorArchiveExport.test.ts
+  s_e67afa7a51bb57::t_a32813c019aacd 30,224-226
+docs/maintenance.md
+  s_e67afa7a51bb57::t_dac86bf7ea7032 1598,1603
+lib/database/domains/servedDomain/types.ts
+  s_e67afa7a51bb57::t_68ce6b8ef18c39 38-40
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_e67afa7a51bb57::t_058af75cfa0a11 124-145
+lib/services/domains/adminDomains.ts
+  s_e67afa7a51bb57::t_b0d85635b751e6 79-80
+app/(timeline)/account/security/page.test.tsx
+  s_e67afa7a51bb57::t_64758b7d6389e3 1-37,42-53,55-95,99-100
+  s_e67afa7a51bb57::t_66e003adcfdeac 38-41,54,96-98
+migrations/schema.sql
+  s_e67afa7a51bb57::t_f5572fb0811c0b 63-64
+lib/services/domains/servedDomainSnapshot.ts
+  s_e67afa7a51bb57::t_b4c9f907aa4f3a 48-49,65,95-96,133-136,140-143,209
+migrations/names.ts
+  s_e67afa7a51bb57::t_5983173174a684 9-10
+app/api/oauth/authorize/route.test.ts
+  s_e67afa7a51bb57::t_ecc99e057c72d4 3,5-9,92-140
+  s_e67afa7a51bb57::t_2df62d17f0065a 141
+app/(timeline)/account/security/page.tsx
+  s_e67afa7a51bb57::t_64758b7d6389e3 19-22,50
+migrations/index.ts
+  s_e67afa7a51bb57::t_5983173174a684 9,22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b91c9730f4729c4142f268f399d3c4f46b5665d",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
