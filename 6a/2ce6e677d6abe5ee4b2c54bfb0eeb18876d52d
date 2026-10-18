@@ -1,0 +1,23 @@
+docs/environment-variables.md
+  s_326ec3e82e0e75::t_aa5cf5eb6ba151 470
+  s_326ec3e82e0e75::t_854ab4e3eaffc3 468
+  s_326ec3e82e0e75::t_f2a4e293cb0e30 465-467
+docs/architecture.md
+  s_326ec3e82e0e75::t_6a6043b182ed93 633
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a2ce6e677d6abe5ee4b2c54bfb0eeb18876d52d",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
