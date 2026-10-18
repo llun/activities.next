@@ -1,5 +1,6 @@
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { logger } from '@/lib/utils/logger'
 import { NODE_INFO_SOFTWARE_NAME, VERSION } from '@/lib/utils/version'
 
@@ -57,33 +58,47 @@ export interface NodeInfo21 extends Omit<NodeInfo20, 'version' | 'software'> {
   }
 }
 
+export interface NodeInfoOptions {
+  /** The resolved `registrations.open` server setting. */
+  openRegistrations?: boolean
+}
+
 /**
  * The 2.0 link is listed first: clients that only understand 2.0 take the
  * first matching link, and 2.1 is a superset of the same document.
+ *
+ * `baseURL` defaults to the configured host, but the discovery route passes
+ * the origin of the (trusted) host the request arrived on, so a crawler that
+ * discovered this server on a second domain is pointed at that same domain.
  */
-export const getNodeInfoLinks = (): NodeInfoLinks => {
+export const getNodeInfoLinks = (
+  baseURL: string = getBaseURL()
+): NodeInfoLinks => {
   return {
     links: [
       {
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-        href: `${getBaseURL()}/nodeinfo/2.0`
+        href: `${baseURL}/nodeinfo/2.0`
       },
       {
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
-        href: `${getBaseURL()}/nodeinfo/2.1`
+        href: `${baseURL}/nodeinfo/2.1`
       }
     ]
   }
 }
 
-export const getNodeInfo20 = (stats: NodeInfoStats): NodeInfo20 => {
+export const getNodeInfo20 = (
+  stats: NodeInfoStats,
+  { openRegistrations = false }: NodeInfoOptions = {}
+): NodeInfo20 => {
   const config = getConfig()
   return {
     version: '2.0',
     software: { name: NODE_INFO_SOFTWARE_NAME, version: VERSION },
     protocols: ['activitypub'],
     services: { inbound: [], outbound: [] },
-    openRegistrations: false,
+    openRegistrations,
     usage: {
       users: {
         total: stats.totalUsers,
@@ -113,16 +128,24 @@ export const buildNodeInfo20 = async (): Promise<NodeInfo20 | null> => {
     return null
   }
   try {
-    const stats = await database.getNodeInfoStats()
-    return getNodeInfo20(stats)
+    const [stats, settings] = await Promise.all([
+      database.getNodeInfoStats(),
+      getResolvedServerSettings(database)
+    ])
+    return getNodeInfo20(stats, {
+      openRegistrations: settings.registrations.open
+    })
   } catch (error) {
     logger.error({ err: error }, 'Failed to build NodeInfo 2.0 document')
     return null
   }
 }
 
-export const getNodeInfo21 = (stats: NodeInfoStats): NodeInfo21 => {
-  const nodeInfo = getNodeInfo20(stats)
+export const getNodeInfo21 = (
+  stats: NodeInfoStats,
+  options: NodeInfoOptions = {}
+): NodeInfo21 => {
+  const nodeInfo = getNodeInfo20(stats, options)
   return {
     ...nodeInfo,
     version: '2.1',
@@ -146,8 +169,13 @@ export const buildNodeInfo21 = async (): Promise<NodeInfo21 | null> => {
     return null
   }
   try {
-    const stats = await database.getNodeInfoStats()
-    return getNodeInfo21(stats)
+    const [stats, settings] = await Promise.all([
+      database.getNodeInfoStats(),
+      getResolvedServerSettings(database)
+    ])
+    return getNodeInfo21(stats, {
+      openRegistrations: settings.registrations.open
+    })
   } catch (error) {
     logger.error({ err: error }, 'Failed to build NodeInfo 2.1 document')
     return null

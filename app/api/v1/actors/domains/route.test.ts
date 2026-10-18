@@ -104,6 +104,34 @@ describe('GET /api/v1/actors/domains', () => {
     }
   })
 
+  // A wildcard rule names no single domain, so it is not offered as one; the
+  // concrete entries come back normalised and de-duplicated.
+  it('offers only concrete, normalised domains', async () => {
+    mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+    await database.setServerSettings([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['Domain1.Test.', '*.people.test', 'domain1.test', 'llun.test']
+      }
+    ])
+    invalidateServerSettingsCache(database)
+
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({})
+      })
+
+      const data = await response.json()
+      expect(response.status).toBe(200)
+      expect(data.domains).toEqual(['domain1.test', 'llun.test'])
+    } finally {
+      await deleteServerSetting(db, {
+        key: 'federation.allowActorDomains'
+      })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
   it('returns trusted host rules when allowActorDomains is not set', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',

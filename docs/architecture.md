@@ -1071,7 +1071,14 @@ legacy shape left to copy.
   emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
   wrong under `ACTIVITIES_INSECURE_AUTH=true`. URLs are protocol-checked to
   http/https/mailto; anything else degrades to plain text rather than shipping a
-  dead or dangerous link, since remote actors control `status.url`.
+  dead or dangerous link, since remote actors control `status.url`. The one
+  variation is the account's own domain: the confirmation and email-change
+  links (`buildVerifyEmail`, `buildChangeEmail`) take an optional `domain` and
+  use `buildBaseURL(domain)` instead, so an account whose actor lives on a
+  second domain confirms there. The caller gets that domain from
+  `getServedLinkDomain` (`lib/services/domains/localDomains.ts`), which returns
+  it only when this server serves it and null (the primary host) otherwise — a
+  template never takes a domain straight from a stored row.
 - **The plain-text alternative is derived from the same block list**, never
   hand-written beside the HTML. Both used to be maintained by hand and had
   already drifted apart.
@@ -2651,9 +2658,11 @@ legacy shape left to copy.
   through `renderEmail`; they never write markup. Escaping belongs to the block
   builders, so a template hands in plain strings, and nothing in the layout emits
   an unescaped value today.
-- Every `href`/`src` is absolute and built from `getBaseURL()`. Root-relative
-  URLs are unresolvable in a mail client, and a hardcoded `https://${config.host}`
-  is wrong under `ACTIVITIES_INSECURE_AUTH=true`.
+- Every `href`/`src` is absolute and built from `getBaseURL()` (or, for the
+  account-confirmation links, `buildBaseURL` of a domain `getServedLinkDomain`
+  accepted). Root-relative URLs are unresolvable in a mail client, and a
+  hardcoded `https://${config.host}` is wrong under
+  `ACTIVITIES_INSECURE_AUTH=true`.
 - The plain-text part is derived from the same block list, never hand-written
   alongside the HTML.
 - **A local `vi.mock('@/lib/config', …)` must include `getBaseURL`.** It shadows

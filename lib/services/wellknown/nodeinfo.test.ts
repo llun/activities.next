@@ -68,7 +68,8 @@ describe('buildNodeInfo20', () => {
   it('builds the document from database stats', async () => {
     const getNodeInfoStats = vi.fn().mockResolvedValue(STATS)
     mockedGetDatabase.mockReturnValue({
-      getNodeInfoStats
+      getNodeInfoStats,
+      getAllServerSettings: vi.fn().mockResolvedValue([])
     } as unknown as ReturnType<typeof getDatabase>)
 
     const nodeInfo = await buildNodeInfo20()
@@ -110,7 +111,8 @@ describe('buildNodeInfo21', () => {
   it('builds the document from database stats', async () => {
     const getNodeInfoStats = vi.fn().mockResolvedValue(STATS)
     mockedGetDatabase.mockReturnValue({
-      getNodeInfoStats
+      getNodeInfoStats,
+      getAllServerSettings: vi.fn().mockResolvedValue([])
     } as unknown as ReturnType<typeof getDatabase>)
 
     const nodeInfo = await buildNodeInfo21()
@@ -140,5 +142,27 @@ describe('buildNodeInfo21', () => {
       expect.objectContaining({ err: expect.any(Error) }),
       'Failed to build NodeInfo 2.1 document'
     )
+  })
+})
+
+// `openRegistrations` reflects the resolved `registrations.open` server
+// setting — the same value `/api/v1/instance` reports — instead of a
+// hard-coded `false`, in both schema versions.
+describe.each([
+  { version: '2.0', build: buildNodeInfo20 },
+  { version: '2.1', build: buildNodeInfo21 }
+])('NodeInfo $version openRegistrations', ({ build }) => {
+  it.each([
+    { description: 'registrations are open', open: true },
+    { description: 'registrations are closed', open: false }
+  ])('is $open when $description', async ({ open }) => {
+    mockedGetDatabase.mockReturnValue({
+      getNodeInfoStats: vi.fn().mockResolvedValue(STATS),
+      getAllServerSettings: vi
+        .fn()
+        .mockResolvedValue([{ key: 'registrations.open', value: open }])
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    expect((await build())?.openRegistrations).toBe(open)
   })
 })

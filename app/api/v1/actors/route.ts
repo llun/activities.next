@@ -4,10 +4,13 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { localUsernameSchema } from '@/lib/services/accounts/localUsername'
+import {
+  getActorDomainRules,
+  resolveActorDomain
+} from '@/lib/services/domains/actorDomains'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { getTrustedHostRules } from '@/lib/utils/host'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -71,14 +74,13 @@ export const POST = traceApiRoute(
 
     const { username } = parsed.data
     const config = getConfig()
-    const { federation } = await getResolvedServerSettings()
-    const domain =
-      parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
-    const allowedDomains = federation.allowActorDomains.length
-      ? federation.allowActorDomains
-      : getTrustedHostRules(config)
+    const { federation } = await getResolvedServerSettings(database)
+    const domain = resolveActorDomain(
+      parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers),
+      getActorDomainRules(config, federation.allowActorDomains)
+    )
 
-    if (!allowedDomains.includes(domain)) {
+    if (!domain) {
       return apiResponse({
         req,
         allowedMethods: ['GET', 'POST'],

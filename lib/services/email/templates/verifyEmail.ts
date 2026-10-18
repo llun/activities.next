@@ -1,4 +1,4 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import { buildBaseURL, getBaseURL, getConfig } from '@/lib/config'
 import {
   button,
   fallbackUrl,
@@ -12,6 +12,13 @@ import { RenderedEmail } from '@/lib/services/email/types'
 export interface VerifyEmailParams {
   recipientEmail: string
   verificationCode: string
+  /**
+   * The domain of the account's actor, already checked to be one this server
+   * serves (`getServedLinkDomain`). The link and the copy name it so the
+   * account is confirmed where it lives; omitted or null means the primary
+   * host.
+   */
+  domain?: string | null
 }
 
 /**
@@ -21,14 +28,16 @@ export interface VerifyEmailParams {
  */
 export const buildVerifyEmail = ({
   recipientEmail,
-  verificationCode
+  verificationCode,
+  domain
 }: VerifyEmailParams): RenderedEmail => {
-  const { host } = getConfig()
-  // getBaseURL() honours the configured scheme and port, so the link is correct
-  // on http/local/custom-port deployments rather than assuming https. The code
-  // is base64url, so encoding is a no-op today — it is here so a future code
-  // format cannot silently produce a broken query string.
-  const url = `${getBaseURL()}/auth/confirmation?verificationCode=${encodeURIComponent(verificationCode)}`
+  const host = domain || getConfig().host
+  // getBaseURL()/buildBaseURL() honour the configured scheme and port, so the
+  // link is correct on http/local/custom-port deployments rather than assuming
+  // https. The code is base64url, so encoding is a no-op today — it is here so
+  // a future code format cannot silently produce a broken query string.
+  const baseURL = domain ? buildBaseURL(domain) : getBaseURL()
+  const url = `${baseURL}/auth/confirmation?verificationCode=${encodeURIComponent(verificationCode)}`
 
   return renderEmail({
     subject: 'Email verification',

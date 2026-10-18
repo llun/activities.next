@@ -4,13 +4,13 @@ import { z } from 'zod'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
   recordRemoteActorBestEffort,
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import {
   OptionalOAuthGuard,
@@ -34,7 +34,6 @@ import {
 } from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
-import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -341,7 +340,7 @@ const resolveAccountId = async ({
     actor = await refreshKnownRemoteActor({ database, actor, signingActor })
   } else if (
     query.includes('@') &&
-    !isOwnInstanceHost(handle.domain, getConfig())
+    !(await isLocalDomain(database, handle.domain))
   ) {
     const actorId = await getWebfingerSelf({
       account: `${handle.username}@${handle.domain}`

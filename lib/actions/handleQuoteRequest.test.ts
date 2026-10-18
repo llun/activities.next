@@ -45,9 +45,21 @@ const makeDatabase = (
     createSpy: ReturnType<typeof vi.fn>
     eitherBlocking: boolean
     follow: { status: string } | null
+    allowActorDomains: string[]
   }> = {}
 ): Database =>
   ({
+    // Read by the served-domain check through the server-settings resolver.
+    getAllServerSettings: vi.fn().mockResolvedValue(
+      overrides.allowActorDomains
+        ? [
+            {
+              key: 'federation.allowActorDomains',
+              value: overrides.allowActorDomains
+            }
+          ]
+        : []
+    ),
     getStatus: vi.fn().mockResolvedValue(
       overrides.quotedStatus === undefined
         ? {
@@ -259,6 +271,27 @@ describe('handleQuoteRequest', () => {
     })
     expect(handled).toBe(false)
     expect(createSpy).not.toHaveBeenCalled()
+  })
+
+  // Every domain this server serves is local, not just the primary host: a
+  // quote from an actor on a second actor domain goes through the create path.
+  it('returns false when the instrument is on another domain this server serves', async () => {
+    const createSpy = vi.fn()
+    const database = makeDatabase({
+      createSpy,
+      allowActorDomains: ['test.llun.dev', 'Second.Example']
+    })
+    const handled = await handleQuoteRequest({
+      database,
+      activity: activity({
+        actor: 'https://second.example/users/mallory',
+        instrument: 'https://second.example/users/mallory/statuses/1'
+      }),
+      inboxActor
+    })
+    expect(handled).toBe(false)
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(mockVerifyQuoteInstrument).not.toHaveBeenCalled()
   })
 
   it('returns false when an embedded instrument id is on a foreign host even if attributedTo matches the requester', async () => {

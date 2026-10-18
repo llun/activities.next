@@ -1,4 +1,4 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import { buildBaseURL, getBaseURL, getConfig } from '@/lib/config'
 import {
   button,
   fallbackUrl,
@@ -13,15 +13,22 @@ export interface ChangeEmailParams {
   /** The NEW address — this email is sent there, not to the current one. */
   recipientEmail: string
   emailChangeCode: string
+  /**
+   * The domain of the account's actor, already checked to be one this server
+   * serves (`getServedLinkDomain`); omitted or null means the primary host.
+   */
+  domain?: string | null
 }
 
 /** Confirms a requested email-address change before it is applied. */
 export const buildChangeEmail = ({
   recipientEmail,
-  emailChangeCode
+  emailChangeCode,
+  domain
 }: ChangeEmailParams): RenderedEmail => {
-  const { host } = getConfig()
-  const url = `${getBaseURL()}/account/verify-email?code=${encodeURIComponent(emailChangeCode)}`
+  const host = domain || getConfig().host
+  const baseURL = domain ? buildBaseURL(domain) : getBaseURL()
+  const url = `${baseURL}/account/verify-email?code=${encodeURIComponent(emailChangeCode)}`
 
   return renderEmail({
     subject: 'Verify your new email address',

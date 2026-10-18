@@ -238,6 +238,22 @@ describe('wellknown services', () => {
       )
       expect(xml).toContain('</XRD>')
     })
+
+    it('points WebFinger at the base URL it is given', () => {
+      expect(getHostMetaXML('https://alias.example.com')).toContain(
+        'template="https://alias.example.com/.well-known/webfinger?resource={uri}"'
+      )
+    })
+
+    // The URL parser keeps `"` and `&` in a hostname and a wildcard trusted
+    // host matches one, so the request host must not reach the XML raw.
+    it('escapes the base URL inside the attribute', () => {
+      const xml = getHostMetaXML('https://a"b&c.example.com')
+
+      expect(xml).toContain(
+        'template="https://a&quot;b&amp;c.example.com/.well-known/webfinger?resource={uri}"'
+      )
+    })
   })
 
   describe('getNodeInfoLinks', () => {
@@ -253,6 +269,17 @@ describe('wellknown services', () => {
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
         href: 'https://test.example.com/nodeinfo/2.1'
       })
+    })
+
+    it('builds the links on the base URL it is given', () => {
+      expect(
+        getNodeInfoLinks('https://alias.example.com').links.map(
+          (link) => link.href
+        )
+      ).toEqual([
+        'https://alias.example.com/nodeinfo/2.0',
+        'https://alias.example.com/nodeinfo/2.1'
+      ])
     })
   })
 

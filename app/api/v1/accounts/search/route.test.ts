@@ -12,6 +12,7 @@ const mockGetWebfingerSelf = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockIsCurrentActorFollowing = vi.fn()
 const mockGetServerSession = vi.fn()
+const mockGetAllServerSettings = vi.fn()
 const mockStoredToken = vi.fn()
 
 const oauthActor = {
@@ -37,7 +38,9 @@ vi.mock('@/lib/database', () => ({
     getMastodonActorsFromIds: mockGetMastodonActorsFromIds,
     getActorFromId: mockGetActorFromId,
     getActorFromUsername: mockGetActorFromUsername,
-    isCurrentActorFollowing: mockIsCurrentActorFollowing
+    isCurrentActorFollowing: mockIsCurrentActorFollowing,
+    // Read by the served-domain check through the server-settings resolver.
+    getAllServerSettings: mockGetAllServerSettings
   })
 }))
 
@@ -68,6 +71,8 @@ describe('GET /api/v1/accounts/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetRefreshRemoteActorStateForTesting()
+    mockGetAllServerSettings.mockReset()
+    mockGetAllServerSettings.mockResolvedValue([])
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: Date.now() + 60_000,
@@ -506,6 +511,34 @@ describe('GET /api/v1/accounts/search', () => {
       localDomain: 'llun.test',
       exactActorIds: []
     })
+  })
+
+  // `federation.allowActorDomains` names domains this server hosts actors on,
+  // so an unknown handle there is not an account anywhere else either.
+  it('does not webfinger an unknown handle on an allowed actor domain', async () => {
+    mockGetAllServerSettings.mockResolvedValue([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['llun.test', 'actors.example']
+      }
+    ])
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(null)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=unknown%40actors.example&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'unknown',
+      domain: 'actors.example'
+    })
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 
   it('rejects an over-long query with 400 before touching the database', async () => {

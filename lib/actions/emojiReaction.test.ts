@@ -9,6 +9,8 @@ import {
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { getReactionGroupKey } from '@/lib/services/reactions/reactionGroupKey'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { EmojiReact, Like } from '@/lib/types/activitypub'
@@ -216,6 +218,57 @@ describe('emojiReactionRequest', () => {
       expect(names).toContain('partyparrot@remote.test')
       expect(names).not.toContain('partyparrot')
     })
+
+    // A sender on a domain this server serves is one of our own actors, so
+    // its shortcode names our own emoji table — on a second actor domain too,
+    // not only on the primary host.
+    it.each([
+      {
+        description: 'the primary host',
+        actor: `https://${TEST_DOMAIN}/users/primary-reactor`,
+        shortcode: 'primaryparrot'
+      },
+      {
+        description: 'an actor domain from the allow-list',
+        actor: 'https://actors.example/users/second-domain-reactor',
+        shortcode: 'seconddomainparrot'
+      }
+    ])(
+      'keeps a bare shortcode for a sender on $description',
+      async ({ actor, shortcode }) => {
+        const statusId = statuses.primary.post
+        await database.setServerSettings([
+          {
+            key: 'federation.allowActorDomains',
+            value: [TEST_DOMAIN, 'actors.example']
+          }
+        ])
+        invalidateServerSettingsCache(database)
+        try {
+          await emojiReactionRequest({
+            activity: {
+              ...emojiReactActivity({ object: statusId }),
+              id: `${actor}#emoji-reactions/1`,
+              actor,
+              content: `:${shortcode}:`
+            },
+            database
+          })
+        } finally {
+          await database.setServerSettings([
+            { key: 'federation.allowActorDomains', value: [] }
+          ])
+          invalidateServerSettingsCache(database)
+        }
+
+        const reactors = await database.getStatusReactionActors({ statusId })
+        expect(
+          reactors
+            .filter((reactor) => reactor.actorId === actor)
+            .map((reactor) => reactor.name)
+        ).toEqual([shortcode])
+      }
+    )
 
     it('drops a reaction whose namespaced name would overflow storage', async () => {
       const statusId = statuses.primary.post

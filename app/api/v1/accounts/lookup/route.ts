@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import {
@@ -9,6 +8,7 @@ import {
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import {
   OptionalOAuthGuard,
   corsErrorResponse,
@@ -22,7 +22,6 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -186,7 +185,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     if (!isInternal && (await getRemoteFetchAuth()).authorized) {
       actor = await refreshKnownRemoteActor({ database, actor })
     }
-  } else if (resolve && !isOwnInstanceHost(domain, getConfig())) {
+  } else if (resolve && !(await isLocalDomain(database, domain))) {
     // An invalid bearer already returned above, so an unauthorized viewer
     // here is credential-less and gets the same 404 an unresolvable handle
     // would.

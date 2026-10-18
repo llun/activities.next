@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { buildBaseURL } from '@/lib/config'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getHostMetaXML } from '@/lib/services/wellknown'
 import { HttpMethod, getCORSHeaders } from '@/lib/utils/http-headers'
 import { defaultOptions } from '@/lib/utils/response'
@@ -16,5 +18,7 @@ export const GET = traceApiRoute('hostMeta', async (req: NextRequest) => {
     ['Content-Type', 'application/xrd+xml; charset=utf-8'],
     ...Object.entries(getCORSHeaders(CORS_HEADERS, req.headers))
   ])
-  return new Response(getHostMetaXML(), { headers })
+  return new Response(getHostMetaXML(buildBaseURL(headerHost(req.headers))), {
+    headers
+  })
 })

@@ -22,10 +22,11 @@ vi.mock('@/lib/services/serverSettings', () => ({
 // resolved from server settings.
 const mockFederation = ({
   host = 'local.test',
+  trustedHosts = [] as string[],
   mode = 'open' as 'open' | 'allowlist',
   allowActorDomains = [] as string[]
 } = {}) => {
-  mockGetConfig.mockReturnValue({ host })
+  mockGetConfig.mockReturnValue({ host, trustedHosts })
   vi.mocked(getResolvedServerSettings).mockResolvedValue({
     ...structuredClone(DEFAULT_SERVER_SETTINGS),
     federation: { mode, allowActorDomains }
@@ -136,6 +137,85 @@ describe('domainPolicy', () => {
     ).resolves.toBe(false)
     await expect(
       isLocalFederationDomain(database, 'https://sub.trusted.test/users/a')
+    ).resolves.toBe(true)
+  })
+
+  // One definition of "our domains": the trusted hosts this server answers on
+  // are as local as the primary host and the actor allow-list, for every
+  // policy decision — not only for `isOwnInstanceHost`.
+  it('treats trusted hosts, including wildcard ones, as local', async () => {
+    mockFederation({
+      mode: 'allowlist',
+      trustedHosts: ['alias.test', '*.edge.test']
+    })
+    const database = createDatabase({ blocks: ['alias.test'] })
+
+    await expect(
+      isLocalFederationDomain(database, 'https://alias.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      canFederateWithDomain(database, 'https://ALIAS.test./users/a')
+    ).resolves.toBe(true)
+    await expect(
+      isLocalFederationDomain(database, 'https://cdn.edge.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      isLocalFederationDomain(database, 'https://edge.test/users/a')
+    ).resolves.toBe(false)
+    await expect(
+      filterFederatedUrls(database, [
+        'https://alias.test/inbox',
+        'https://cdn.edge.test/inbox',
+        'https://other.test/inbox'
+      ])
+    ).resolves.toEqual([
+      'https://alias.test/inbox',
+      'https://cdn.edge.test/inbox'
+    ])
+  })
+
+  // Nothing a remote server sends can widen "local": the rules are operator
+  // configuration, and an authority spelled as a rule is not a host.
+  it.each([
+    {
+      description: 'a wildcard rule spelled as the host',
+      value: 'https://*.edge.test/users/a'
+    },
+    {
+      description: 'a percent-encoded wildcard host',
+      value: 'https://%2a.edge.test/users/a'
+    },
+    {
+      description: 'our host as userinfo in front of another host',
+      value: 'https://local.test@evil.test/users/a'
+    },
+    {
+      description: 'a host that only ends in our host',
+      value: 'https://evil-local.test/users/a'
+    },
+    {
+      description: 'our host on another port',
+      value: 'https://local.test:8443/users/a'
+    }
+  ])('does not treat $description as local', async ({ value }) => {
+    mockFederation({ trustedHosts: ['*.edge.test'] })
+    const database = createDatabase({})
+
+    await expect(isLocalFederationDomain(database, value)).resolves.toBe(false)
+  })
+
+  // The served-domain rules compare the port, which `getDomainFromUrl` drops,
+  // so locality is decided on the URL: a development instance on
+  // `localhost:3000` must still deliver to its own inboxes in allowlist mode.
+  it('keeps inboxes on a configured host with a port in allowlist mode', async () => {
+    mockFederation({ host: 'localhost:3000', mode: 'allowlist' })
+    const database = createDatabase({})
+
+    await expect(
+      filterFederatedUrls(database, ['http://localhost:3000/inbox'])
+    ).resolves.toEqual(['http://localhost:3000/inbox'])
+    await expect(
+      canFederateWithDomain(database, 'http://localhost:3000/users/a')
     ).resolves.toBe(true)
   })
 

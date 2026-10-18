@@ -1,7 +1,7 @@
-import { getConfig } from '@/lib/config'
 import { isInboxForwardingEnabled } from '@/lib/config/federation'
 import { Database } from '@/lib/database/types'
 import { FORWARD_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobMessage } from '@/lib/services/queue/type'
 import { normalizeActorId, toRecipientArray } from '@/lib/utils/activitypub'
@@ -197,14 +197,18 @@ export const resolveForwardingInboxes = async ({
     }
   }
 
-  const hostConfig = getConfig().host.toLowerCase()
+  // Never forward to an inbox on any domain this server serves: that would
+  // only send the activity back to this server. Comparing against the primary
+  // host alone forwarded to ourselves whenever a follower's inbox was on a
+  // trusted host or another actor domain.
+  const isLocal = await getLocalDomainMatcher(database)
 
   const filteredInboxes = validInboxes.filter((inbox) => {
     try {
       const inboxUrl = new URL(inbox)
       const inboxHost = inboxUrl.host.toLowerCase()
 
-      if (inboxHost === hostConfig) return false
+      if (isLocal(inbox)) return false
       if (authorHost && inboxHost === authorHost) return false
       if (explicitRecipientInboxes.has(inbox)) return false
 

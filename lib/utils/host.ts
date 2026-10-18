@@ -283,11 +283,23 @@ export const getCanonicalAuthority = (
 export const isOwnInstanceHost = (
   host: string | undefined | null,
   config: HostRuleConfig
+): boolean => isHostServedByRules(host, getTrustedHostRules(config))
+
+/**
+ * The matcher behind `isOwnInstanceHost` and `isServedDomain`: whether an
+ * authority (`host` or `host:port`) is one of `rules`, a list of configured
+ * host entries that may carry `*.example.com` wildcards and may be written as
+ * URLs. Kept apart from `isOwnInstanceHost` so the served-domain check can
+ * hand it more sources than `ACTIVITIES_HOST` and `ACTIVITIES_TRUSTED_HOSTS`
+ * without a second matcher that disagrees with this one.
+ */
+export const isHostServedByRules = (
+  host: string | undefined | null,
+  rules: readonly string[]
 ): boolean => {
   const authority = getCanonicalAuthority(host)
   if (!authority) return false
 
-  const rules = getTrustedHostRules(config)
   // A wildcard entry is never a literal authority. `new URL()` accepts `*` in
   // a host, so comparing `*.cdn.example` against itself would let a URL
   // spelling that authority pass as one of ours — the hole
@@ -305,6 +317,105 @@ export const isOwnInstanceHost = (
   }
 
   return isHostTrustedByRules(host, rules)
+}
+
+/**
+ * Every source of "a domain this server serves", as configuration hands them
+ * over: the primary host (`ACTIVITIES_HOST`), the other hosts it answers on
+ * (`ACTIVITIES_TRUSTED_HOSTS`) and the resolved `federation.allowActorDomains`
+ * server setting. All three may carry `*.example.com` wildcards. A new source
+ * (a database-backed domain list, say) becomes one more field here and one more
+ * spread in `getServedDomainRules`, so every caller picks it up at once.
+ */
+export type ServedDomainSources = HostRuleConfig & {
+  allowActorDomains?: readonly string[] | null
+}
+
+export const getServedDomainRules = (
+  sources: ServedDomainSources
+): string[] => [
+  ...getTrustedHostRules(sources),
+  ...(sources.allowActorDomains ?? [])
+]
+
+/**
+ * The authority a URL or a bare host names, normalised for comparison: lower
+ * case, IDNA-mapped and percent-decoded by the URL parser, without a trailing
+ * dot, and without a default port (`:443` or `:80`, as `getCanonicalAuthority`
+ * drops both). Accepts an ActivityPub id (`https://host/users/a`), a bare
+ * `host`, or `host:port`; a path, query or fragment is ignored and userinfo is
+ * resolved the way a fetch would (`https://ours@evil.example` names
+ * `evil.example`). Null for anything the parser refuses, a host-less URI, and
+ * any authority carrying a `*`, so a wildcard rule can never be spelled as a
+ * literal authority and matched against itself.
+ */
+export const getServedAuthority = (
+  value: string | undefined | null
+): string | null => {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+
+  try {
+    const url = new URL(
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+    )
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
+    if (!hostname || hostname.includes('*')) return null
+    const port = url.port === '443' || url.port === '80' ? '' : url.port
+    return port ? `${hostname}:${port}` : hostname
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A domain a user names as a choice (the domain for a new actor): a bare
+ * authority, optionally behind a scheme, with no path, userinfo, query or
+ * wildcard. Normalised as `getServedAuthority` does, so `Alias.Example.` and
+ * `alias.example` are one domain. Null for anything else.
+ */
+export const normalizeServedDomainChoice = (
+  value: string | undefined | null
+): string | null => {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const withoutScheme = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+  if (!withoutScheme || /[@/?#\\\s]/.test(withoutScheme)) return null
+  if (withoutScheme.includes('*')) return null
+  const authority = getServedAuthority(trimmed)
+  // The parser keeps `"`, `'`, `&` and the like in a hostname, and a chosen
+  // domain becomes part of actor ids and links, so a choice has to be an
+  // ordinary DNS name (IDNA has already turned Unicode into `xn--` labels) or
+  // a bracketed IPv6 literal, with an optional port.
+  if (
+    !authority ||
+    !/^(?:[a-z0-9_-]+(?:\.[a-z0-9_-]+)*|\[[0-9a-f:.]+\])(?::\d+)?$/.test(
+      authority
+    )
+  ) {
+    return null
+  }
+  return authority
+}
+
+/**
+ * THE answer to "is this domain one this server serves?" for a URL or a host:
+ * the primary host, any `ACTIVITIES_TRUSTED_HOSTS` entry, or any
+ * `federation.allowActorDomains` entry, wildcards included. Pure, so it runs
+ * inside per-domain loops; the request-time callers get `sources` resolved
+ * from `getLocalDomainMatcher` (`@/lib/services/domains/localDomains`).
+ *
+ * Every rule is operator configuration. Nothing a remote server sends can add
+ * one, and an authority spelled with a `*` matches nothing, so a remote
+ * server can only be "local" here by being on a host the operator declared.
+ */
+export const isServedDomain = (
+  value: string | undefined | null,
+  sources: ServedDomainSources
+): boolean => {
+  const authority = getServedAuthority(value)
+  if (!authority) return false
+  return isHostServedByRules(authority, getServedDomainRules(sources))
 }
 
 export const selectHeaderHost = (

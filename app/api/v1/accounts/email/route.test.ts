@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
@@ -25,6 +26,7 @@ vi.mock('@/lib/utils/logger', () => ({
 const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  buildBaseURL: (host: string) => `https://${host}`,
   getConfig: () => mockGetConfig()
 }))
 
@@ -34,6 +36,7 @@ type MockDatabase = Pick<
   | 'getActorsForAccount'
   | 'getActorFromId'
   | 'requestEmailChange'
+  | 'getAllServerSettings'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -75,7 +78,8 @@ describe('POST /api/v1/accounts/email', () => {
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
     getActorFromId: vi.fn(),
-    requestEmailChange: vi.fn()
+    requestEmailChange: vi.fn(),
+    getAllServerSettings: vi.fn()
   }
 
   beforeAll(() => {
@@ -100,6 +104,9 @@ describe('POST /api/v1/accounts/email', () => {
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
     mockDb.requestEmailChange.mockResolvedValue(undefined)
+    mockDb.getAllServerSettings.mockResolvedValue([])
+    // The served-domain check caches resolved settings per database instance.
+    invalidateServerSettingsCache(mockDb as unknown as Database)
   })
 
   afterEach(() => {
@@ -201,6 +208,41 @@ describe('POST /api/v1/accounts/email', () => {
     )
     expect(message.content.text).toContain(
       'https://llun.test/account/verify-email?code='
+    )
+  })
+
+  // The link opens on the account's actor domain when this server serves it.
+  it('links the verification on the actor domain this server serves', async () => {
+    mockDb.getAllServerSettings.mockResolvedValue([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['llun.test', 'actors.example'],
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ])
+    const secondDomainActor = {
+      ...actor,
+      id: `https://actors.example/users/${seedActor1.username}`,
+      domain: 'actors.example'
+    }
+    mockDb.getActorsForAccount.mockResolvedValue([secondDomainActor])
+    mockDb.getActorFromId.mockResolvedValue(secondDomainActor)
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockSendMail.mock.calls[0][0].content.text).toContain(
+      'https://actors.example/account/verify-email?code='
     )
   })
 

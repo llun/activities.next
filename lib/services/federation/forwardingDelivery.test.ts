@@ -9,6 +9,8 @@ import {
   resolveForwardingInboxes,
   shouldForwardActivity
 } from '@/lib/services/federation/forwardingDelivery'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -290,6 +292,66 @@ describe('forwardingDelivery', () => {
 
       expect(inboxes).not.toContain('https://follower1.example/inbox')
       expect(inboxes).toContain('https://follower2.example/users/user2/inbox')
+    })
+
+    // Followers whose inboxes are on any domain this server serves are local:
+    // forwarding there only sends the activity back to ourselves. The primary
+    // host was the only one excluded before.
+    it('excludes inboxes on every domain this server serves', async () => {
+      const targetActorId = `https://${TEST_DOMAIN}/users/forwarding-target`
+      const followers = [
+        {
+          actorId: `https://${TEST_DOMAIN}/users/primary-follower`,
+          inbox: `https://${TEST_DOMAIN}/users/primary-follower/inbox`
+        },
+        {
+          actorId: 'https://actors.example/users/actor-domain-follower',
+          inbox: 'https://actors.example/users/actor-domain-follower/inbox'
+        },
+        {
+          actorId: 'https://a.wild.example/users/wildcard-follower',
+          inbox: 'https://A.Wild.example/users/wildcard-follower/inbox'
+        },
+        {
+          actorId: 'https://remote-forward.example/users/remote-follower',
+          inbox: 'https://remote-forward.example/users/remote-follower/inbox'
+        }
+      ]
+      for (const follower of followers) {
+        await database.createFollow({
+          actorId: follower.actorId,
+          targetActorId,
+          status: FollowStatus.enum.Accepted,
+          inbox: follower.inbox,
+          sharedInbox: ''
+        })
+      }
+      await database.setServerSettings([
+        {
+          key: 'federation.allowActorDomains',
+          value: [TEST_DOMAIN, 'actors.example', '*.wild.example']
+        }
+      ])
+      invalidateServerSettingsCache(database)
+
+      try {
+        const inboxes = await resolveForwardingInboxes({
+          database,
+          targetLocalActorIds: [targetActorId],
+          authorActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        expect(inboxes).toEqual([
+          'https://remote-forward.example/users/remote-follower/inbox'
+        ])
+      } finally {
+        await database.setServerSettings([
+          { key: 'federation.allowActorDomains', value: [] }
+        ])
+        invalidateServerSettingsCache(database)
+      }
     })
   })
 
