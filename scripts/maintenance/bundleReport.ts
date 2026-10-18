@@ -71,7 +71,7 @@ export const STATS_PATH = '.next/diagnostics/route-bundle-stats.json'
 
 const kib = (n: number) => n * 1024
 
-// Current build plus 15 KiB gzip / 45 KiB raw rounded up to the next KiB: build-to-build variance of these numbers is 0 bytes over 5 identical builds, normal feature drift between recent commits was ~7.5 KiB gzip, and the smallest regression to catch (losing the composer/reaction-picker split on /tags/[tag]) is ~29 KiB gzip; profile/status splits ~74–82 KiB.
+// Each ceiling is the measured build plus 15 KiB gzip / 45 KiB raw, rounded up: headroom for normal drift, tight enough to catch a lost code split.
 export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
   '/': { gzipBytes: kib(560), rawBytes: kib(1723) },
   '/[actor]': { gzipBytes: kib(513), rawBytes: kib(1584) },

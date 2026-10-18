@@ -280,6 +280,19 @@ describe('POST /api/v1/web-vitals', () => {
       expect(logger.warn).toHaveBeenCalledTimes(2)
     })
 
+    it('answers 202 without reading the body once the cap is spent', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-01T00:00:10Z'))
+      enable({ maxReportsPerMinute: 1 })
+
+      expect((await POST(request({ metrics: [metric()] }))).status).toBe(202)
+      expect((await post('{not json')).status).toBe(202)
+      expect(
+        (await post({ metrics: [metric()], padding: 'x'.repeat(4096) })).status
+      ).toBe(202)
+      expect(logger.info).toHaveBeenCalledTimes(1)
+    })
+
     it('does not spend the cap on a rejected origin', async () => {
       enable({ maxReportsPerMinute: 1 })
 

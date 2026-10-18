@@ -74,9 +74,8 @@ export const getWebVitalsRoute = (pathname: string): WebVitalRoute => {
   switch (first) {
     case 'tags':
       return rest.length === 1 ? '/tags/[tag]' : 'other'
-    case 'collections':
-      if (rest.length === 1 && rest[0] !== 'new') return '/collections/[id]'
-      return rest.length > 0 ? '/collections/*' : 'other'
+    case 'app':
+      return rest.length === 0 ? '/app' : 'other'
     case 'lists':
       return rest.length === 0 ? '/lists' : '/lists/*'
     case 'fitness':

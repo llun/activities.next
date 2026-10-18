@@ -10,6 +10,7 @@ import {
 } from '@/lib/utils/boundedRequestBody'
 import { logger } from '@/lib/utils/logger'
 import {
+  DEFAULT_202,
   HTTP_STATUS,
   apiErrorResponse,
   apiResponse
@@ -38,7 +39,7 @@ const accepted = (req: NextRequest) =>
   apiResponse({
     req,
     allowedMethods: [],
-    data: { status: 'Accepted' },
+    data: DEFAULT_202,
     responseStatusCode: HTTP_STATUS.ACCEPTED
   })
 

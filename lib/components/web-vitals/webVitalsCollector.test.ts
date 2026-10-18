@@ -186,6 +186,24 @@ describe('createWebVitalsCollector', () => {
     expect(sent[0].metrics[0].route).toBe('/search')
   })
 
+  it('keeps the route of the page load when the pathname changes later', () => {
+    let pathname = '/search'
+    const sent: WebVitalsReport[] = []
+    const collector = createWebVitalsCollector({
+      send: (report) => sent.push(report),
+      getViewportWidth: () => 1280,
+      getPathname: () => pathname
+    })
+    const stop = collector.start()
+
+    pathname = '/tags/secret'
+    collector.record(metric({ navigationURL: undefined }))
+    collector.flush()
+    stop()
+
+    expect(sent[0].metrics[0].route).toBe('/search')
+  })
+
   it('falls back to other for an unparseable navigation URL path', () => {
     const { sent, collector } = setup()
 
@@ -225,6 +243,20 @@ describe('createWebVitalsCollector', () => {
 
     const total = sent.reduce((sum, report) => sum + report.metrics.length, 0)
     expect(total).toBe(WEB_VITALS_MAX_METRICS_PER_PAGE_LOAD)
+  })
+
+  it('still updates a pending id at the per-page-load cap', () => {
+    const { sent, collector } = setup()
+
+    for (let i = 0; i < WEB_VITALS_MAX_METRICS_PER_PAGE_LOAD; i += 1) {
+      collector.record(metric({ id: `m${i}`, value: 100 }))
+    }
+    collector.record(metric({ id: 'm0', value: 900 }))
+    collector.flush()
+
+    const values = sent.flatMap((report) => report.metrics.map((m) => m.value))
+    expect(values).toHaveLength(WEB_VITALS_MAX_METRICS_PER_PAGE_LOAD)
+    expect(values).toContain(900)
   })
 
   it('never throws into the page when sending fails', () => {
