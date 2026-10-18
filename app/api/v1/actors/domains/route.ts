@@ -17,9 +17,9 @@ export const GET = traceApiRoute(
     const config = getConfig()
     const { federation } = await getResolvedServerSettings(database)
     const host = headerHost(req.headers)
-    // Concrete domains only: a wildcard rule is not a domain to pick, though
-    // POST /api/v1/actors still accepts a domain it covers — including the
-    // host this request arrived on, which is listed when the rules allow it.
+    // Concrete domains only: a wildcard rule is neither a domain to pick nor
+    // an approval for POST /api/v1/actors. The host this request arrived on is
+    // listed only when a concrete rule allows it.
     const allowedDomains = getActorDomainChoices(
       getActorDomainRules(config, federation.allowActorDomains),
       host

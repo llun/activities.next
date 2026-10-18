@@ -153,10 +153,9 @@ describe('GET /api/v1/actors/domains', () => {
     expect(data.host).toBe('llun.test')
   })
 
-  // The host the request arrived on is a choice when the rules allow it, so a
-  // user on a subdomain an allowActorDomains wildcard approves can pick it;
-  // the wildcard itself is never listed.
-  it('lists the current request host when an allowActorDomains wildcard approves it', async () => {
+  // An allowActorDomains wildcard approves no actor domain, so the host the
+  // request arrived on is not added when only a wildcard covers it.
+  it('does not list the current request host when only an allowActorDomains wildcard covers it', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
       trustedHosts: ['*.people.test'],
@@ -180,7 +179,7 @@ describe('GET /api/v1/actors/domains', () => {
 
       const data = await response.json()
       expect(response.status).toBe(200)
-      expect(data.domains).toEqual(['llun.test', 'alice.people.test'])
+      expect(data.domains).toEqual(['llun.test'])
     } finally {
       await deleteServerSetting(db, {
         key: 'federation.allowActorDomains'

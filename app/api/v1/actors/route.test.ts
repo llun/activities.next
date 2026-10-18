@@ -182,7 +182,7 @@ describe('POST /api/v1/actors', () => {
 
   // The allow-list is matched with the served-domain rules rather than a raw
   // `includes`: case and a trailing dot cannot make an allowed domain look
-  // foreign, a wildcard rule covers its subdomains, and the rule itself (or
+  // foreign, a wildcard rule approves nothing (its subdomains, itself), and (
   // anything that is not a bare domain) is never a domain to create on.
   it.each([
     {
@@ -196,8 +196,13 @@ describe('POST /api/v1/actors', () => {
       description: 'a subdomain of a wildcard rule',
       username: 'newactor-wildcard',
       domain: 'alice.people.test',
-      status: 200,
-      storedDomain: 'alice.people.test'
+      status: 400
+    },
+    {
+      description: 'social.example.org beside an *.example.org wildcard',
+      username: 'newactor-wildcard-remote',
+      domain: 'social.example.org',
+      status: 400
     },
     {
       description: 'the wildcard rule itself',
@@ -230,7 +235,7 @@ describe('POST /api/v1/actors', () => {
       await database.setServerSettings([
         {
           key: 'federation.allowActorDomains',
-          value: ['Allowed.Test', '*.people.test']
+          value: ['Allowed.Test', '*.people.test', '*.example.org']
         }
       ])
       invalidateServerSettingsCache(database)
