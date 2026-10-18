@@ -200,6 +200,21 @@ describe('AdminDatabase', () => {
         page2.forEach((h) => expect(page1Names.has(h.name)).toBe(false))
       })
 
+      it('returns empty hashtags and correct total when offset is past the end', async () => {
+        const { total } = await database.getAllHashtags({
+          limit: 100,
+          offset: 0,
+          sort: 'alphabetical'
+        })
+        const result = await database.getAllHashtags({
+          limit: 10,
+          offset: total + 10,
+          sort: 'alphabetical'
+        })
+        expect(result.hashtags).toEqual([])
+        expect(result.total).toBe(total)
+      })
+
       it('provides latestPostAt timestamp for each hashtag', async () => {
         const { hashtags } = await database.getAllHashtags({
           limit: 100,
@@ -1245,5 +1260,16 @@ describe('AdminDatabase queries over seeded rows', () => {
         expect(await names(10, 6)).toEqual([])
       }
     )
+
+    it('returns empty hashtags but accurate total when offset is past the end of results', async () => {
+      await seedHashtags()
+      const { hashtags, total } = await testDb.database.getAllHashtags({
+        limit: 10,
+        offset: 100,
+        sort: 'alphabetical'
+      })
+      expect(hashtags).toEqual([])
+      expect(total).toBe(6)
+    })
   })
 })
