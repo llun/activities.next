@@ -57,7 +57,7 @@ describe('ActivityOverviewSection', () => {
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        isLoading={false}
+        reserveRows={false}
       />
     )
 
@@ -71,13 +71,13 @@ describe('ActivityOverviewSection', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders placeholder rows only for pending metrics with reserveWhenLoading while isLoading is true', () => {
+  it('renders reserved placeholder rows in place while route data is unavailable', () => {
     render(
       <ActivityOverviewSection
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        isLoading={true}
+        reserveRows={true}
       />
     )
 

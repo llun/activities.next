@@ -120,6 +120,83 @@ const ScrubbedAnalysisChart: FC<
 )
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
+const ActivityAnalysisLoadingState: FC<{
+  seriesCount: number
+  hasLikelyLaps: boolean
+  error: string | null
+}> = ({ seriesCount, hasLikelyLaps, error }) => (
+  <div className="relative space-y-4">
+    <div
+      role={error ? undefined : 'status'}
+      aria-label={error ? undefined : 'Loading activity analysis'}
+      aria-hidden={error ? 'true' : undefined}
+      className="space-y-4"
+    >
+      <div data-testid="analysis-controls-skeleton">
+        <Frame className="space-y-2.5 bg-card px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SkeletonBar className="h-3 w-24" />
+            <div className="flex gap-1">
+              <SkeletonBar className="h-7 w-20 rounded-md" />
+              <SkeletonBar className="h-7 w-20 rounded-md" />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: Math.max(1, seriesCount) }, (_, index) => (
+              <SkeletonBar
+                key={index}
+                className={`h-7 rounded-full ${index % 3 === 0 ? 'w-20' : 'w-16'}`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+            <SkeletonBar className="h-4 w-48" />
+            <SkeletonBar className="h-4 w-20" />
+          </div>
+        </Frame>
+      </div>
+      <div>
+        <Frame className="overflow-hidden">
+          {hasLikelyLaps ? (
+            <div
+              data-testid="analysis-laps-skeleton"
+              className="relative border-b bg-muted/40"
+            >
+              <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <SkeletonBar
+                    key={index}
+                    className="h-10 min-w-36 flex-1 basis-0 rounded-md"
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="space-y-2 px-4 pb-2.5 pt-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <SkeletonBar className="h-5 w-20" />
+            </div>
+            <div
+              data-testid="analysis-plot-skeleton"
+              className="relative h-[190px] w-full @min-[700px]:h-[250px]"
+            >
+              <SkeletonBar className="h-full w-full rounded-md" />
+            </div>
+            <SkeletonBar className="h-4 w-full rounded-md" />
+          </div>
+        </Frame>
+      </div>
+    </div>
+    {error ? (
+      <Alert
+        tone="warning"
+        title={error}
+        className="absolute inset-x-0 top-0 z-10 bg-background"
+      />
+    ) : null}
+  </div>
+)
+
 const formatKm = (meters: number) => {
   const km = meters / 1000
   return km >= 10 ? km.toFixed(1) : km.toFixed(2)
@@ -155,6 +232,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     setSelectedFitnessFileId
   })
   const route = useActivityRouteData(fitness?.id)
+  const isRouteAnalysisUnavailable = route.isLoading || Boolean(route.error)
 
   const [graphDisplayMode, setGraphDisplayMode] =
     useState<GraphDisplayMode>('combined')
@@ -290,6 +368,31 @@ export const FitnessStatusDetail: FC<Props> = ({
   const effortPower = normalizedPower ?? avgPower
 
   const calories = analysis?.calories ?? null
+  const hasSummaryPower =
+    typeof fitness?.avgPower === 'number' ||
+    typeof fitness?.maxPower === 'number'
+  const hasSummaryHeartRate =
+    typeof fitness?.avgHeartRate === 'number' ||
+    typeof fitness?.maxHeartRate === 'number'
+  const hasStructuredFitnessFormat =
+    fitness?.fileType === 'fit' || fitness?.fileType === 'tcx'
+  const activityTypeKey = activityType?.toLowerCase() ?? ''
+  const isCadenceSport = /ride|cycl|run|bike/.test(activityTypeKey)
+  const likelyHasCadence =
+    hasStructuredFitnessFormat &&
+    isCadenceSport &&
+    (hasSummaryPower || hasSummaryHeartRate)
+  const hasSummaryElevation =
+    (fitness?.elevationSeries?.length ?? 0) > 1 ||
+    (fitness?.elevationGainMeters ?? 0) > 0
+  const expectedAnalysisSeriesCount = [
+    hasSummaryElevation,
+    distanceMeters > 0,
+    hasSummaryPower,
+    hasSummaryHeartRate,
+    likelyHasCadence,
+    hasSummaryElevation
+  ].filter(Boolean).length
   const tiles = useMemo<ActivityTile[]>(() => {
     const candidates: Array<ActivityTile | null> = [
       distanceMeters > 0
@@ -404,11 +507,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     calories
   ])
 
-  // Only rows predicted by the stored `fitness_files` summary (`Max speed`,
-  // `Weighted`, `Variability`, `Time in Z3–Z4`) set `reserveWhenLoading`.
-  // Route-only metrics with no summary column (`Calories`, `Laps`, `L / R
-  // balance`, `Decoupling`, and the `Cadence and weather` group) wait for
-  // `/route-data` rather than guessing whether the recording has them.
+  // Stored values reserve rows exactly when the summary supports them. It has
+  // no availability flags for calories, laps, cadence, balance or decoupling,
+  // so reserve the likely rows from the file type and stored power/HR totals.
   const overviewGroups: OverviewGroup[] = [
     {
       key: 'ride',
@@ -436,9 +537,14 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             typeof analysis?.calories === 'number' && analysis.calories > 0
               ? `${Math.round(analysis.calories)} kcal`
-              : null
+              : null,
+          reserveWhenLoading: hasStructuredFitnessFormat && durationSeconds > 0
         },
-        { label: 'Laps', value: formatLapPattern(laps) }
+        {
+          label: 'Laps',
+          value: formatLapPattern(laps),
+          reserveWhenLoading: hasStructuredFitnessFormat && durationSeconds > 0
+        }
       ]
     },
     {
@@ -453,12 +559,13 @@ export const FitnessStatusDetail: FC<Props> = ({
               ? maxPower !== null
                 ? `${avgPower} / ${maxPower} W`
                 : `${avgPower} W`
-              : null
+              : null,
+          reserveWhenLoading: hasSummaryPower
         },
         {
           label: 'Weighted',
           value: normalizedPower !== null ? `${normalizedPower} W` : null,
-          reserveWhenLoading: avgPower !== null
+          reserveWhenLoading: hasSummaryPower
         },
         {
           label: 'Variability',
@@ -466,17 +573,19 @@ export const FitnessStatusDetail: FC<Props> = ({
             normalizedPower !== null && avgPower
               ? (normalizedPower / avgPower).toFixed(2)
               : null,
-          reserveWhenLoading: avgPower !== null
+          reserveWhenLoading: hasSummaryPower
         },
         {
           label: 'Work',
-          value: totalWorkKj !== null ? `${totalWorkKj} kJ` : null
+          value: totalWorkKj !== null ? `${totalWorkKj} kJ` : null,
+          reserveWhenLoading: hasSummaryPower && durationSeconds > 0
         },
         {
           label: 'L / R balance',
           value: analysis?.leftRightBalance
             ? `${analysis.leftRightBalance.left} / ${analysis.leftRightBalance.right}`
-            : null
+            : null,
+          reserveWhenLoading: hasSummaryPower && hasStructuredFitnessFormat
         }
       ]
     },
@@ -489,14 +598,16 @@ export const FitnessStatusDetail: FC<Props> = ({
           label: 'Avg / max',
           value: heartRateStats
             ? `${heartRateStats.avg} / ${heartRateStats.max} bpm`
-            : null
+            : null,
+          reserveWhenLoading: hasSummaryHeartRate
         },
         {
           label: 'Power / HR',
           value:
             effortPower !== null && heartRateStats && heartRateStats.avg > 0
               ? (effortPower / heartRateStats.avg).toFixed(2)
-              : null
+              : null,
+          reserveWhenLoading: hasSummaryPower && hasSummaryHeartRate
         },
         {
           label: 'Time in Z3–Z4',
@@ -508,14 +619,16 @@ export const FitnessStatusDetail: FC<Props> = ({
                   )
                 )
               : null,
-          reserveWhenLoading: heartRateStats !== null
+          reserveWhenLoading: hasSummaryHeartRate
         },
         {
           label: 'Decoupling',
           value:
             typeof analysis?.decouplingPercent === 'number'
               ? `${analysis.decouplingPercent.toFixed(1)} %`
-              : null
+              : null,
+          reserveWhenLoading:
+            hasSummaryPower && hasSummaryHeartRate && durationSeconds >= 600
         }
       ]
     },
@@ -529,7 +642,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             typeof analysis?.avgCadence === 'number'
               ? `${Math.round(analysis.avgCadence)} ${analysis.cadenceUnit}`
-              : null
+              : null,
+          reserveWhenLoading: likelyHasCadence
         },
         {
           label: 'Temperature',
@@ -548,7 +662,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             typeof analysis?.timeAtZeroPowerSeconds === 'number'
               ? formatDuration(Math.round(analysis.timeAtZeroPowerSeconds))
-              : null
+              : null,
+          reserveWhenLoading: hasSummaryPower
         }
       ]
     }
@@ -671,47 +786,31 @@ export const FitnessStatusDetail: FC<Props> = ({
           />
         ) : null}
 
-        {/* With no map to carry the banner, the failure is shown here so it is
-          never invisible. */}
-        {route.error && !map ? (
-          <Alert tone="warning" title={route.error} />
-        ) : null}
-
         <ActivityOverviewSection
           meta={overviewMeta}
           map={map}
           groups={overviewGroups}
-          isLoading={route.isLoading}
+          reserveRows={isRouteAnalysisUnavailable}
         />
 
-        {route.isLoading || (analysis && availableSeries.length > 0) ? (
+        {isRouteAnalysisUnavailable ||
+        (analysis && availableSeries.length > 0) ? (
           <Section
             id="analysis"
             title="Analysis"
             icon={Activity}
-            meta={!route.isLoading && analysis ? analysisMeta : undefined}
+            meta={
+              !isRouteAnalysisUnavailable && analysis ? analysisMeta : undefined
+            }
           >
-            {route.isLoading ? (
-              <div
-                role="status"
-                aria-label="Loading activity analysis"
-                className="space-y-4"
-              >
-                <Frame className="space-y-4 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex gap-2">
-                      <SkeletonBar className="h-8 w-20 rounded-md" />
-                      <SkeletonBar className="h-8 w-20 rounded-md" />
-                    </div>
-                    <div className="flex gap-2">
-                      <SkeletonBar className="h-8 w-16 rounded-md" />
-                      <SkeletonBar className="h-8 w-16 rounded-md" />
-                      <SkeletonBar className="h-8 w-16 rounded-md" />
-                    </div>
-                  </div>
-                  <SkeletonBar className="h-[280px] w-full rounded-md" />
-                </Frame>
-              </div>
+            {isRouteAnalysisUnavailable ? (
+              <ActivityAnalysisLoadingState
+                seriesCount={expectedAnalysisSeriesCount}
+                hasLikelyLaps={
+                  hasStructuredFitnessFormat && durationSeconds > 0
+                }
+                error={route.error}
+              />
             ) : analysis ? (
               <>
                 <GraphDisplayCard
@@ -749,14 +848,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           </Section>
         ) : null}
 
-        {route.isLoading ? (
+        {isRouteAnalysisUnavailable ? (
           (() => {
-            const hasSummaryHeartRate =
-              typeof fitness?.avgHeartRate === 'number' ||
-              typeof fitness?.maxHeartRate === 'number'
-            const hasSummaryPower =
-              typeof fitness?.avgPower === 'number' ||
-              typeof fitness?.maxPower === 'number'
             const expectedDistributionCount =
               (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
             return (

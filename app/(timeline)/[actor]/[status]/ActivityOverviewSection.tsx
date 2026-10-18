@@ -14,7 +14,7 @@ export interface OverviewRow {
   label: string
   /** Null hides the row: the file has nothing for it. */
   value: string | null
-  /** Whether to render a placeholder row while route analysis is still loading. */
+  /** Whether to render a placeholder row while route data is pending or failed. */
   reserveWhenLoading?: boolean
 }
 
@@ -39,45 +39,46 @@ export const getVisibleOverviewGroups = (
 
 const OverviewGroupFrame: FC<{
   group: OverviewGroup
-  pendingRowCount?: number
-}> = ({ group, pendingRowCount = 0 }) => (
-  <Frame className="overflow-hidden">
-    <div
-      data-testid={`overview-group-${group.key}`}
-      className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground"
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'size-2 shrink-0 rounded-full',
-          ANALYSIS_SERIES_COLOURS[group.colour].dot
-        )}
-      />
-      <h3>{group.title}</h3>
-    </div>
-    <dl className="divide-y">
-      {group.rows.map((row) => (
-        <div
-          key={row.label}
-          className="flex justify-between gap-2 px-3 py-[7px] tabular-nums"
-        >
-          <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
-          <dd className="font-semibold whitespace-nowrap">{row.value}</dd>
-        </div>
-      ))}
-      {Array.from({ length: pendingRowCount }, (_, index) => (
-        <div
-          key={`pending-${index}`}
+  reserveRows: boolean
+}> = ({ group, reserveRows }) => (
+  <div data-testid={`overview-group-${group.key}`}>
+    <Frame className="overflow-hidden">
+      <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+        <span
           aria-hidden="true"
-          data-testid="overview-placeholder-row"
-          className="flex items-center justify-between gap-2 px-3 py-[7px]"
-        >
-          <SkeletonBar className="h-5 w-20" />
-          <SkeletonBar className="h-5 w-14" />
-        </div>
-      ))}
-    </dl>
-  </Frame>
+          className={cn(
+            'size-2 shrink-0 rounded-full',
+            ANALYSIS_SERIES_COLOURS[group.colour].dot
+          )}
+        />
+        <h3>{group.title}</h3>
+      </div>
+      <dl className="divide-y">
+        {group.rows.map((row) =>
+          row.value !== null ? (
+            <div
+              key={row.label}
+              className="flex justify-between gap-2 px-3 py-[7px] tabular-nums"
+            >
+              <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
+              <dd className="font-semibold whitespace-nowrap">{row.value}</dd>
+            </div>
+          ) : reserveRows && row.reserveWhenLoading ? (
+            <div
+              key={row.label}
+              aria-hidden="true"
+              data-testid="overview-placeholder-row"
+              data-metric={row.label}
+              className="flex items-center justify-between gap-2 px-3 py-[7px]"
+            >
+              <SkeletonBar className="h-5 w-20" />
+              <SkeletonBar className="h-5 w-14" />
+            </div>
+          ) : null
+        )}
+      </dl>
+    </Frame>
+  </div>
 )
 
 export interface ActivityOverviewSectionProps {
@@ -86,7 +87,7 @@ export interface ActivityOverviewSectionProps {
   /** The route map, or null when the activity has no route. */
   map: ReactNode | null
   groups: OverviewGroup[]
-  isLoading?: boolean
+  reserveRows?: boolean
 }
 
 /**
@@ -99,18 +100,19 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
   meta,
   map,
   groups,
-  isLoading
+  reserveRows = false
 }) => {
-  const visibleGroups = getVisibleOverviewGroups(groups)
+  const visibleGroups = reserveRows
+    ? groups
+        .map((group) => ({
+          ...group,
+          rows: group.rows.filter(
+            (row) => row.value !== null || Boolean(row.reserveWhenLoading)
+          )
+        }))
+        .filter((group) => group.rows.length > 0)
+    : getVisibleOverviewGroups(groups)
   if (!map && visibleGroups.length === 0) return null
-  const pendingRowsByKey = new Map(
-    groups.map((group) => [
-      group.key,
-      group.rows.filter(
-        (row) => row.value === null && Boolean(row.reserveWhenLoading)
-      ).length
-    ])
-  )
   return (
     <Section id="overview" title="Overview" icon={MapIcon} meta={meta}>
       <div
@@ -122,18 +124,13 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
         {map ? <div className="min-w-0">{map}</div> : null}
         {visibleGroups.length > 0 ? (
           <div className="grid min-w-0 gap-3 @min-[520px]:grid-cols-2">
-            {visibleGroups.map((group) => {
-              const pendingRowCount = isLoading
-                ? (pendingRowsByKey.get(group.key) ?? 0)
-                : 0
-              return (
-                <OverviewGroupFrame
-                  key={group.key}
-                  group={group}
-                  pendingRowCount={pendingRowCount}
-                />
-              )
-            })}
+            {visibleGroups.map((group) => (
+              <OverviewGroupFrame
+                key={group.key}
+                group={group}
+                reserveRows={reserveRows}
+              />
+            ))}
           </div>
         ) : null}
       </div>

@@ -592,13 +592,15 @@ describe('FitnessStatusDetail analysis', () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
     renderDetail()
 
+    const errorMessage = await screen.findByText(
+      'Could not load route and analysis data for this activity.'
+    )
+    const analysisSection = screen.getByRole('region', { name: 'Analysis' })
+    expect(within(analysisSection).getByRole('alert')).toContainElement(
+      errorMessage
+    )
     expect(
-      await screen.findByText(
-        'Could not load route and analysis data for this activity.'
-      )
+      within(analysisSection).getByTestId('analysis-plot-skeleton')
     ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('region', { name: 'Analysis' })
-    ).not.toBeInTheDocument()
   })
 })
