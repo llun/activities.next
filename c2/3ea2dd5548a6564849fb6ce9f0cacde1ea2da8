@@ -1,0 +1,20 @@
+CONTRIBUTING.md
+  h_580a04e334fef4 1085-1087
+docs/maintenance.md
+  h_580a04e334fef4 511-533
+scripts/mock/createWebVitalsFixtures.test.ts
+  h_580a04e334fef4 1-221
+scripts/mock/createWebVitalsFixtures.ts
+  h_580a04e334fef4 1-1714
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c23ea2dd5548a6564849fb6ce9f0cacde1ea2da8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

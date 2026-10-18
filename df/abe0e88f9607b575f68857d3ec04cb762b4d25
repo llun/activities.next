@@ -1,0 +1,41 @@
+app/(timeline)/[actor]/ActorTimelines.preload.test.tsx
+  s_e7789e1c14278a::t_d0fe855815a4b6 1-89
+app/(timeline)/[actor]/ActorTimelines.preloadFocus.test.tsx
+  s_e7789e1c14278a::t_11d597cf927f45 1-61
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_e7789e1c14278a::t_3742e3874d6b4e 73-77,183-184,522-523,530,609,618,631-632
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_e7789e1c14278a::t_6ab6e3fdc137fe 13-14,30-44
+lib/components/gallery/GalleryGrid.tsx
+  s_82e74a60ba315a::t_ecacb9cfd7c606 169-170,199-200
+lib/components/posts/actions/reaction-button.preloadFocus.test.tsx
+  s_82e74a60ba315a::t_4161beda5f6d31 1-36
+lib/components/posts/posts.preload.test.tsx
+  s_82e74a60ba315a::t_4bb6c755a2834e 1-67
+lib/components/posts/posts.test.tsx
+  s_e7789e1c14278a::t_aa875e056cd40b 504,506-511,514-520
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dfabe0e88f9607b575f68857d3ec04cb762b4d25",
+  "prompts": {},
+  "sessions": {
+    "s_82e74a60ba315a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a146a3-4961-72c0-9a06-1bdbc0d4febb",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e7789e1c14278a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a146a2-c2c0-7a80-8293-5ba48c1e62a1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

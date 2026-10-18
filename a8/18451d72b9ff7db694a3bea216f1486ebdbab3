@@ -1,0 +1,28 @@
+app/(timeline)/[actor]/ActorTimelines.chunkFailure.test.tsx
+  h_580a04e334fef4 25-29,31-35
+app/(timeline)/[actor]/[status]/StatusBox.chunkFailure.test.tsx
+  h_580a04e334fef4 25-29
+docs/architecture.md
+  h_580a04e334fef4 2000,2039-2045
+lib/components/lazy/createPreloadable.test.tsx
+  h_580a04e334fef4 66,69
+lib/components/posts/lazy-chunk-boundary.test.tsx
+  h_580a04e334fef4 6,47-88
+lib/components/posts/lazy-chunk-boundary.tsx
+  h_580a04e334fef4 20-35,42-43,46,48-49,53-55
+lib/components/posts/lazy-inline-status-composer.test.tsx
+  h_580a04e334fef4 16-20
+lib/components/posts/posts.tsx
+  h_580a04e334fef4 76-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a818451d72b9ff7db694a3bea216f1486ebdbab3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
