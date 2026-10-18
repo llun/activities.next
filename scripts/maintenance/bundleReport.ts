@@ -73,13 +73,13 @@ const kib = (n: number) => n * 1024
 
 // Each ceiling is the measured build plus 15 KiB gzip / 45 KiB raw, rounded up: headroom for normal drift, tight enough to catch a lost code split.
 export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
-  '/': { gzipBytes: kib(560), rawBytes: kib(1723) },
-  '/[actor]': { gzipBytes: kib(513), rawBytes: kib(1584) },
-  '/[actor]/[status]': { gzipBytes: kib(514), rawBytes: kib(1586) },
-  '/tags/[tag]': { gzipBytes: kib(510), rawBytes: kib(1573) },
-  '/[actor]/followers': { gzipBytes: kib(402), rawBytes: kib(1260) },
-  '/[actor]/following': { gzipBytes: kib(402), rawBytes: kib(1260) },
-  '/[actor]/albums/[id]': { gzipBytes: kib(397), rawBytes: kib(1257) }
+  '/': { gzipBytes: kib(556), rawBytes: kib(1710) },
+  '/[actor]': { gzipBytes: kib(508), rawBytes: kib(1571) },
+  '/[actor]/[status]': { gzipBytes: kib(509), rawBytes: kib(1573) },
+  '/tags/[tag]': { gzipBytes: kib(506), rawBytes: kib(1560) },
+  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1247) },
+  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1247) },
+  '/[actor]/albums/[id]': { gzipBytes: kib(392), rawBytes: kib(1244) }
 }
 
 export function parseArgs(args: string[]): ReportOptions {
