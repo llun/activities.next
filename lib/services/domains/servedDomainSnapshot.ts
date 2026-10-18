@@ -18,7 +18,8 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
  *   at boot and every `SERVED_DOMAIN_REFRESH_MS`.
  * - Every admin write refreshes it at once (`refreshServedDomainsAfterWrite`).
  * - `ensureServedDomainsFresh` is awaited on the async request paths where
- *   trust decides something durable (auth, sign-up, local-domain matching).
+ *   trust decides something durable (auth, sign-up, local-domain matching),
+ *   by every `traceApiRoute` handler, and before `headerHost` elsewhere.
  * - A sync read of a snapshot older than the refresh interval starts a
  *   background refresh and uses what it has.
  *

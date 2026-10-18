@@ -121,10 +121,12 @@ const readStagedManifest = () => holder.stagingManifest
  */
 const runExport = async ({
   attachmentCount,
-  budgetSeconds
+  budgetSeconds,
+  seed
 }: {
   attachmentCount: number
   budgetSeconds: number
+  seed?: (database: Database, actorId: string) => Promise<void>
 }) => {
   const testDb = createTestDatabase()
   const database = testDb.database
@@ -155,6 +157,7 @@ const runExport = async ({
       domain: DOMAIN
     })
     if (!actor) throw new Error('Failed to seed actor for the export test')
+    await seed?.(database, actor.id)
 
     for (let index = 0; index < attachmentCount; index += 1) {
       const statusId = `${actor.id}/statuses/remote-${index}`
@@ -195,6 +198,7 @@ const runExport = async ({
     const warnings = (readStagedManifest()?.warnings ?? []) as string[]
     return {
       exitCode,
+      warnings,
       downloadedUrls: vi
         .mocked(safeImageFetch)
         .mock.calls.map(([url]) => url as string),
@@ -281,5 +285,53 @@ describe('exportActorArchive remote fetch budget', () => {
     expect(downloadedUrls).toHaveLength(3)
     expect(budgetSkippedUrls).toEqual([])
     expect(budgetSummaries).toEqual([])
+  })
+})
+
+describe('exportActorArchive served domains', () => {
+  // An Admin › Domains row is this instance too: its file URLs are local media,
+  // not remote attachments, or an account on an added domain loses its own
+  // photos and avatar from the archive.
+  it('archives an attachment and icon on an active added domain as local media', async () => {
+    const { exitCode, warnings, downloadedUrls } = await runExport({
+      attachmentCount: 0,
+      budgetSeconds: 1,
+      seed: async (database, actorId) => {
+        await database.createServedDomain({
+          domain: 'run.example',
+          status: 'on'
+        })
+        await database.updateActor({
+          actorId,
+          iconUrl: 'https://run.example/api/v1/files/medias/avatar.png'
+        })
+        const statusId = `${actorId}/statuses/added-domain`
+        await database.createNote({
+          id: statusId,
+          actorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          url: `https://${DOMAIN}/statuses/added-domain`,
+          text: 'added domain',
+          createdAt: holder.nowMs
+        })
+        await database.createAttachment({
+          actorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://run.example/api/v1/files/medias/photo.jpg',
+          name: 'photo'
+        })
+      }
+    })
+
+    expect(exitCode).toBe(0)
+    // Filed as a storage path: never fetched as a remote copy.
+    expect(downloadedUrls).toEqual([])
+    // `--skip-storage` leaves the file out, so reaching the copy at all is the
+    // proof the icon resolved to a local storage path.
+    expect(warnings).toContain(
+      'Could not copy avatar image from storage: medias/avatar.png'
+    )
   })
 })

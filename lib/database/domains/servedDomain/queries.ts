@@ -15,14 +15,17 @@ import type { Domains } from '@/lib/database/kysely/db'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { logger } from '@/lib/utils/logger'
 
-// Null when the stored value is not a JSON array: an empty list would mean
-// "anyone may sign up", so the caller closes sign-ups instead (fail closed).
+// Null when the stored value is not a JSON array of strings: an empty list
+// would mean "anyone may sign up", so the caller closes sign-ups instead (fail
+// closed).
 const parseEmails = (value: string | null | undefined): string[] | null => {
-  if (!value) return []
   try {
-    const parsed: unknown = JSON.parse(value)
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === 'string')
+    const parsed: unknown = JSON.parse(value ?? '')
+    if (
+      Array.isArray(parsed) &&
+      parsed.every((item): item is string => typeof item === 'string')
+    ) {
+      return parsed
     }
   } catch {
     // Logged below.

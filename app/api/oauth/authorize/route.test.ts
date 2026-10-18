@@ -26,13 +26,13 @@ describe('/api/oauth/authorize redirect host', () => {
     vi.mocked(resolveAuthBaseURL).mockReset()
   })
 
-  it('GET keeps the redirect on the resolved request host and preserves the query', () => {
+  it('GET keeps the redirect on the resolved request host and preserves the query', async () => {
     vi.mocked(resolveAuthBaseURL).mockReturnValue('https://alias.local')
     const req = new NextRequest(
       'https://alias.local/api/oauth/authorize?client_id=abc&response_type=code&scope=read'
     )
 
-    const res = GET(req)
+    const res = await GET(req)
 
     expect(res.status).toBe(302)
     const url = new URL(res.headers.get('location') as string)
@@ -47,7 +47,7 @@ describe('/api/oauth/authorize redirect host', () => {
     )
   })
 
-  it('falls back to the host resolveAuthBaseURL returns for an untrusted request host', () => {
+  it('falls back to the host resolveAuthBaseURL returns for an untrusted request host', async () => {
     // selectHeaderHost (inside resolveAuthBaseURL) falls back to the configured
     // host for untrusted hosts; the route just uses whatever it returns.
     vi.mocked(resolveAuthBaseURL).mockReturnValue('https://activities.local')
@@ -55,7 +55,7 @@ describe('/api/oauth/authorize redirect host', () => {
       'https://evil.example/api/oauth/authorize?client_id=abc'
     )
 
-    const res = GET(req)
+    const res = await GET(req)
 
     const url = new URL(res.headers.get('location') as string)
     expect(url.host).toBe('activities.local')

@@ -195,22 +195,21 @@ describe('signUpDomain', () => {
       ).resolves.toBe(true)
     })
 
-    // A new row (and an env domain's first Registrations save) is closed with
-    // an empty list; that must not read as "anyone".
+    // Closing sign-ups on the domain an account signed up on stops newcomers;
+    // it must not lock out the people already there, as on the primary.
     it.each([
       {
-        description: 'is refused on a closed domain with an empty list',
-        signupsOpen: false,
-        expected: false
+        description:
+          'is allowed on its closed sign-up domain with an empty list',
+        signupsOpen: false
       },
       {
-        description: 'is allowed on an open domain with an empty list',
-        signupsOpen: true,
-        expected: true
+        description: 'is allowed on its open sign-up domain with an empty list',
+        signupsOpen: true
       }
     ])(
       'an address off the primary list $description',
-      async ({ signupsOpen, expected }) => {
+      async ({ signupsOpen }) => {
         const username = `lee-${signupsOpen ? 'open' : 'closed'}`
         const domain = `${username}.example`
         const accountId = await database.createAccount({
@@ -224,9 +223,67 @@ describe('signUpDomain', () => {
         await database.createServedDomain({ domain, status: 'on', signupsOpen })
         await expect(
           isEmailAllowedForAccount(database, 'removed@mail.example', accountId)
-        ).resolves.toBe(expected)
+        ).resolves.toBe(true)
       }
     )
+
+    it('keeps an account in after sign-ups close on the domain it signed up on', async () => {
+      const accountId = await database.createAccount({
+        email: 'ray@mail.example',
+        username: 'ray',
+        domain: 'shut.example',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await database.createServedDomain({
+        domain: 'shut.example',
+        status: 'on',
+        signupsOpen: true
+      })
+      await expect(
+        isEmailAllowedForAccount(database, 'ray@mail.example', accountId)
+      ).resolves.toBe(true)
+
+      await database.updateServedDomain({
+        domain: 'shut.example',
+        signupsOpen: false
+      })
+      await expect(
+        isEmailAllowedForAccount(database, 'ray@mail.example', accountId)
+      ).resolves.toBe(true)
+    })
+
+    // A new row (and an env domain's first Registrations save) is closed with
+    // an empty list; on a domain the account only added a profile on, that must
+    // not read as "anyone".
+    it('refuses an address off the primary list on a closed domain it only added a profile on', async () => {
+      const accountId = await database.createAccount({
+        email: 'max@mail.example',
+        username: 'max',
+        domain: 'social.example',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      // Sorts after social.example, so it stays the second actor even when
+      // both share a createdAt.
+      await database.createActorForAccount({
+        accountId,
+        username: 'max',
+        domain: 'tide.example',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await database.createServedDomain({
+        domain: 'tide.example',
+        status: 'on',
+        signupsOpen: false
+      })
+      await expect(
+        isEmailAllowedForAccount(database, 'max@mail.example', accountId)
+      ).resolves.toBe(false)
+    })
   })
 
   describe('isEmailAllowedForSignUpDomain', () => {
@@ -285,6 +342,21 @@ describe('signUpDomain', () => {
       await expect(
         isEmailAllowedForSignUpDomain(database, email, domain)
       ).resolves.toBe(expected)
+    })
+
+    // The primary's list ignores registrations.open, as at sign-in.
+    it('checks the server list on the primary with sign-ups closed', async () => {
+      await database.setServerSettings([
+        { key: 'registrations.open', value: false }
+      ])
+      invalidateServerSettingsCache(database)
+      await expect(
+        isEmailAllowedForSignUpDomain(
+          database,
+          'anyone@mail.example',
+          'social.example'
+        )
+      ).resolves.toBe(true)
     })
   })
 })

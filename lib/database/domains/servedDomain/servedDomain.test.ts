@@ -79,7 +79,9 @@ describe('getServedDomain', () => {
   // as a list closes sign-ups instead of opening them.
   it.each([
     { description: 'is not JSON', stored: 'not json' },
-    { description: 'is not a list', stored: '{"ana@mail.example":true}' }
+    { description: 'is not a list', stored: '{"ana@mail.example":true}' },
+    { description: 'is empty', stored: '' },
+    { description: 'holds a non-string item', stored: '[123]' }
   ])('closes sign-ups when allowedEmails $description', async ({ stored }) => {
     const testDb = createTestDatabase()
     await testDb.prepare()

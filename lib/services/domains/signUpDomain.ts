@@ -82,7 +82,10 @@ const isEmailAllowedOnDomain = (
  * The allowed-emails gate for an existing account at sign-in: the server's
  * `registrations.allowEmails` as before, or the allowed emails of a domain one
  * of the account's profiles lives on, so a person who joined run.example under
- * its own list is not locked out by the primary's.
+ * its own list is not locked out by the primary's. An empty list on the domain
+ * the account signed up on lets it in even after sign-ups close there, as
+ * closing sign-ups on the primary locks no member out; on any other profile
+ * domain an empty list counts only while sign-ups are open.
  */
 export const isEmailAllowedForAccount = async (
   database: Database,
@@ -94,6 +97,10 @@ export const isEmailAllowedForAccount = async (
 
   const env = getEnvDomains()
   const actors = await database.getActorsForAccount({ accountId })
+  // shortcut: the first actor stands for the sign-up domain, so if it was
+  // deleted the next-oldest profile's domain counts instead; store the sign-up
+  // domain on the account if that matters.
+  const signUpDomain = normalizeServedDomainChoice(actors[0]?.domain)
   const domains = [
     ...new Set(
       actors
@@ -108,7 +115,11 @@ export const isEmailAllowedForAccount = async (
       row && (getEnvDomainKind(domain, env) === 'env' || row.status === 'on')
     if (
       usable &&
-      isEmailAllowedOnDomain(row.allowedEmails, row.signupsOpen, email)
+      isEmailAllowedOnDomain(
+        row.allowedEmails,
+        row.signupsOpen || domain === signUpDomain,
+        email
+      )
     ) {
       return true
     }

@@ -13,6 +13,7 @@ import {
   resolveAccountTarget
 } from '@/lib/services/actors/resolveAccountTarget'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -79,6 +80,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
     // Keep the sign-in redirect on the host the request arrived on so a login
     // started on a trusted alias domain is not bounced to ACTIVITIES_HOST;
     // inherit only the scheme from getBaseURL(). Same rule as /oauth/authorize.
+    await ensureServedDomainsFresh()
     const requestHost = headerHost(await headers())
     const { protocol } = new URL(getBaseURL())
     const url = new URL('/auth/signin', `${protocol}//${requestHost}`)
