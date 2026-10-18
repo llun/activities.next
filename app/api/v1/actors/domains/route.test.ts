@@ -104,6 +104,34 @@ describe('GET /api/v1/actors/domains', () => {
     }
   })
 
+  // A wildcard rule names no single domain, so it is not offered as one; the
+  // concrete entries come back normalised and de-duplicated.
+  it('offers only concrete, normalised domains', async () => {
+    mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+    await database.setServerSettings([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['Domain1.Test.', '*.people.test', 'domain1.test', 'llun.test']
+      }
+    ])
+    invalidateServerSettingsCache(database)
+
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({})
+      })
+
+      const data = await response.json()
+      expect(response.status).toBe(200)
+      expect(data.domains).toEqual(['domain1.test', 'llun.test'])
+    } finally {
+      await deleteServerSetting(db, {
+        key: 'federation.allowActorDomains'
+      })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
   it('returns trusted host rules when allowActorDomains is not set', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
@@ -123,6 +151,64 @@ describe('GET /api/v1/actors/domains', () => {
       'other.llun.test'
     ])
     expect(data.host).toBe('llun.test')
+  })
+
+  // An allowActorDomains wildcard approves no actor domain, so the host the
+  // request arrived on is not added when only a wildcard covers it.
+  it('does not list the current request host when only an allowActorDomains wildcard covers it', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['*.people.test'],
+      allowEmails: []
+    })
+    await database.setServerSettings([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['llun.test', '*.people.test']
+      }
+    ])
+    invalidateServerSettingsCache(database)
+
+    try {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/actors/domains', {
+          headers: { 'x-forwarded-host': 'Alice.People.Test' }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      const data = await response.json()
+      expect(response.status).toBe(200)
+      expect(data.domains).toEqual(['llun.test'])
+    } finally {
+      await deleteServerSetting(db, {
+        key: 'federation.allowActorDomains'
+      })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
+  // Without allowActorDomains a wildcard trusted host (there to believe
+  // X-Forwarded-Host on preview deployments) approves no actor domain, so
+  // neither it nor a request host it covers is listed.
+  it('does not list a wildcard trusted host or a host it covers', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['alias.llun.test', '*.preview.test'],
+      allowEmails: []
+    })
+
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/actors/domains', {
+        headers: { 'x-forwarded-host': 'pr-1.preview.test' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.domains).toEqual(['llun.test', 'alias.llun.test'])
+    expect(data.host).toBe('pr-1.preview.test')
   })
 
   it('returns host from request headers', async () => {

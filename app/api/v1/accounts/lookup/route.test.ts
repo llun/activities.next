@@ -14,6 +14,7 @@ const mockGetMastodonActorFromId = vi.fn()
 const mockGetWebfingerSelf = vi.fn()
 const mockRecordActorIfNeeded = vi.fn()
 const mockGetServerSession = vi.fn()
+const mockGetAllServerSettings = vi.fn()
 const mockStoredToken = vi.fn()
 const oauthActor = {
   id: 'https://llun.test/users/oauth-user',
@@ -36,7 +37,9 @@ vi.mock('@/lib/database', () => ({
     getOAuthAccessTokenByHash: () => mockStoredToken(),
     getActorFromUsername: mockGetActorFromUsername,
     getActorFromId: mockGetActorFromId,
-    getMastodonActorFromId: mockGetMastodonActorFromId
+    getMastodonActorFromId: mockGetMastodonActorFromId,
+    // Read by the served-domain check through the server-settings resolver.
+    getAllServerSettings: mockGetAllServerSettings
   })
 }))
 
@@ -87,6 +90,8 @@ describe('GET /api/v1/accounts/lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetRefreshRemoteActorStateForTesting()
+    mockGetAllServerSettings.mockReset()
+    mockGetAllServerSettings.mockResolvedValue([])
     mockGetServerSession.mockResolvedValue(null)
     mockGetActorFromSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
@@ -198,6 +203,38 @@ describe('GET /api/v1/accounts/lookup', () => {
 
     expect(response.status).toBe(404)
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
+  // `federation.allowActorDomains` is not "our domains": in allowlist mode
+  // the admin form lists remote servers there, so an unknown handle on one is
+  // still resolved remotely.
+  it('remotely resolves handles on a remote server in allowActorDomains', async () => {
+    mockGetAllServerSettings.mockResolvedValue([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['llun.test', 'mastodon.example']
+      }
+    ])
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockGetWebfingerSelf.mockResolvedValue(null)
+    mockStoredToken.mockResolvedValue({
+      expiresAt: Date.now() + 60_000,
+      referenceId: 'https://llun.test/users/oauth-user',
+      scopes: 'read'
+    })
+    mockGetActorFromId.mockResolvedValue(oauthActor)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=missing@mastodon.example&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      )
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+      account: 'missing@mastodon.example'
+    })
   })
 
   it('rejects handles with more than one username/domain separator', async () => {

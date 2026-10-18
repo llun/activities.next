@@ -1,5 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { processForwardedActivityJob } from '@/lib/jobs/processForwardedActivityJob'
@@ -439,6 +440,37 @@ describe('processForwardedActivityJob', () => {
 
     const calls = fetchMock.mock.calls.filter(
       (call) => typeof call?.[0] === 'string' && call[0] === localNote
+    )
+    expect(calls).toHaveLength(0)
+  })
+
+  // Every domain this server serves is local, not just the primary host: an
+  // object on a concrete trusted host is ours and is never re-fetched.
+  it('ignores an object pointer on a concrete trusted host', async () => {
+    const config = getConfig()
+    vi.mocked(getConfig).mockReturnValue({
+      ...config,
+      trustedHosts: ['alias.llun.dev']
+    })
+    const aliasActor = 'https://alias.llun.dev/users/localuser'
+    const aliasNote = 'https://alias.llun.dev/users/localuser/statuses/1'
+
+    try {
+      await processForwardedActivityJob(
+        database,
+        jobMessage({
+          id: `${aliasActor}/statuses/1/activity`,
+          type: 'Create',
+          actor: aliasActor,
+          object: { id: aliasNote, type: 'Note' }
+        })
+      )
+    } finally {
+      vi.mocked(getConfig).mockReturnValue(config)
+    }
+
+    const calls = fetchMock.mock.calls.filter(
+      (call) => typeof call?.[0] === 'string' && call[0] === aliasNote
     )
     expect(calls).toHaveLength(0)
   })

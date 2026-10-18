@@ -1,12 +1,12 @@
 import { z } from 'zod'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getConfig } from '@/lib/config'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
   recordRemoteActorBestEffort,
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
@@ -15,7 +15,6 @@ import {
   parseAccountUrlHandle
 } from '@/lib/utils/accountHandle'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
-import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
@@ -114,7 +113,7 @@ export const GET = traceApiRoute(
             database,
             actor: storedExactActor
           })
-        } else if (!isOwnInstanceHost(handle.domain, getConfig())) {
+        } else if (!(await isLocalDomain(database, handle.domain))) {
           const actorId = await getWebfingerSelf({
             account: `${handle.username}@${handle.domain}`
           })

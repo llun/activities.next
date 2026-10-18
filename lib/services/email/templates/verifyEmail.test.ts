@@ -37,4 +37,18 @@ describe('buildVerifyEmail', () => {
       `If you didn't create an account on ${HOST}, you can safely ignore this email.`
     )
   })
+
+  it('links and names the account actor domain when one is given', () => {
+    const url =
+      'https://actors.example/auth/confirmation?verificationCode=code-123'
+    const { html, text } = buildVerifyEmail({
+      recipientEmail: 'anna@example.com',
+      verificationCode: 'code-123',
+      domain: 'actors.example'
+    })
+    expect(html).toContain(`href="${url}"`)
+    expect(text).toContain(`Verify email: ${url}`)
+    expect(text).toContain('finish creating your account on actors.example.')
+    expect(html).not.toContain(`href="${BASE_URL}/auth/confirmation`)
+  })
 })

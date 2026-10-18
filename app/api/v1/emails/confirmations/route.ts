@@ -228,7 +228,8 @@ export const POST = traceApiRoute(
       try {
         await sendConfirmationEmail({
           recipient,
-          verificationCode
+          verificationCode,
+          actorDomain: currentActor.domain
         })
       } catch (error) {
         logger.error(

@@ -1,10 +1,10 @@
 import { QuoteRequest } from '@/lib/activities/quoteRequest'
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import {
   SEND_QUOTE_ACCEPT_JOB_NAME,
   SEND_QUOTE_REJECT_JOB_NAME
 } from '@/lib/jobs/names'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { buildQuoteAuthorizationUri } from '@/lib/services/quotes/quoteAuthorization'
@@ -57,17 +57,14 @@ export const handleQuoteRequest = async ({
   if (!instrumentId) return false
 
   // Cheap pre-filter: the quoting note is served from its author's host, so the
-  // instrument id must be on the requester's host, and never on our own host
-  // (local quotes go through the create path). This is only a fast reject for
+  // instrument id must be on the requester's host, and never on any domain
+  // this server serves (local quotes go through the create path, whichever of
+  // our domains the quoting actor is on). This is only a fast reject for
   // obvious forgeries — authorship is proven authoritatively below, since host
   // equality alone is not enough on a multi-user instance where the requester
   // could name a co-resident's note.
   if (!isSameActivityPubOrigin(instrumentId, request.actor)) return false
-  try {
-    if (new URL(instrumentId).host === getConfig().host) return false
-  } catch {
-    return false
-  }
+  if (await isLocalDomain(database, instrumentId)) return false
 
   // The quoted status (`object`) must be a local status owned by the inbox actor.
   const quotedStatus = await database.getStatus({

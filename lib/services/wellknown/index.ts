@@ -19,5 +19,6 @@ export {
   type NodeInfo20,
   type NodeInfo21,
   type NodeInfoLinks,
+  type NodeInfoOptions,
   type NodeInfoStats
 } from './nodeinfo'

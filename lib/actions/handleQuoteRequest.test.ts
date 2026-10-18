@@ -1,4 +1,5 @@
 import { handleQuoteRequest } from '@/lib/actions/handleQuoteRequest'
+import { getConfig } from '@/lib/config'
 import type { Database } from '@/lib/database/types'
 import {
   SEND_QUOTE_ACCEPT_JOB_NAME,
@@ -45,9 +46,22 @@ const makeDatabase = (
     createSpy: ReturnType<typeof vi.fn>
     eitherBlocking: boolean
     follow: { status: string } | null
+    allowActorDomains: string[]
   }> = {}
 ): Database =>
   ({
+    // Server settings, so a test can show `federation.allowActorDomains` does
+    // not feed the served-domain check.
+    getAllServerSettings: vi.fn().mockResolvedValue(
+      overrides.allowActorDomains
+        ? [
+            {
+              key: 'federation.allowActorDomains',
+              value: overrides.allowActorDomains
+            }
+          ]
+        : []
+    ),
     getStatus: vi.fn().mockResolvedValue(
       overrides.quotedStatus === undefined
         ? {
@@ -259,6 +273,52 @@ describe('handleQuoteRequest', () => {
     })
     expect(handled).toBe(false)
     expect(createSpy).not.toHaveBeenCalled()
+  })
+
+  // Every domain this server serves is local, not just the primary host: a
+  // quote from an actor on a concrete trusted host goes through the create path.
+  it('returns false when the instrument is on a concrete trusted host', async () => {
+    const config = getConfig()
+    vi.mocked(getConfig).mockReturnValue({
+      ...config,
+      trustedHosts: ['Second.Example']
+    })
+    const createSpy = vi.fn()
+    const database = makeDatabase({ createSpy })
+    try {
+      const handled = await handleQuoteRequest({
+        database,
+        activity: activity({
+          actor: 'https://second.example/users/mallory',
+          instrument: 'https://second.example/users/mallory/statuses/1'
+        }),
+        inboxActor
+      })
+      expect(handled).toBe(false)
+    } finally {
+      vi.mocked(getConfig).mockReturnValue(config)
+    }
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(mockVerifyQuoteInstrument).not.toHaveBeenCalled()
+  })
+
+  // `federation.allowActorDomains` is not "our domains": in allowlist mode the
+  // admin form lists remote servers there, and their quotes are inbound.
+  it('handles a quote from a remote server listed in allowActorDomains', async () => {
+    const createSpy = vi.fn().mockResolvedValue({})
+    const database = makeDatabase({
+      createSpy,
+      allowActorDomains: ['test.llun.dev', 'remote.example']
+    })
+    const handled = await handleQuoteRequest({
+      database,
+      activity: activity(),
+      inboxActor
+    })
+    expect(handled).toBe(true)
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: INSTRUMENT_ID, state: 'accepted' })
+    )
   })
 
   it('returns false when an embedded instrument id is on a foreign host even if attributedTo matches the requester', async () => {

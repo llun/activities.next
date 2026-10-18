@@ -26,6 +26,7 @@ const mockGetFederationSigningActor = vi.fn()
 const mockLoggerWarn = vi.fn()
 const mockGetActorIdByPublicId = vi.fn()
 const mockGetStatusIdByPublicId = vi.fn()
+const mockGetAllServerSettings = vi.fn()
 
 // The dedicated headless federation signer. It is intentionally a different
 // actor from `oauthActor` (the requesting viewer) so the signing assertions
@@ -64,7 +65,9 @@ vi.mock('@/lib/database', () => ({
     getStatus: mockGetStatus,
     getStatusFromUrl: mockGetStatusFromUrl,
     getActorIdByPublicId: mockGetActorIdByPublicId,
-    getStatusIdByPublicId: mockGetStatusIdByPublicId
+    getStatusIdByPublicId: mockGetStatusIdByPublicId,
+    // Read by the served-domain check through the server-settings resolver.
+    getAllServerSettings: mockGetAllServerSettings
   })
 }))
 
@@ -134,6 +137,8 @@ describe('GET /api/v2/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetRefreshRemoteActorStateForTesting()
+    mockGetAllServerSettings.mockReset()
+    mockGetAllServerSettings.mockResolvedValue([])
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: Date.now() + 60_000,
@@ -1262,6 +1267,34 @@ describe('GET /api/v2/search', () => {
       domain: 'alias.llun.test'
     })
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
+  // `federation.allowActorDomains` is not "our domains": in allowlist mode
+  // the admin form lists remote servers there, so an unknown handle on one is
+  // still resolved remotely.
+  it('webfingers an unknown handle on a remote server in allowActorDomains', async () => {
+    mockGetAllServerSettings.mockResolvedValue([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['llun.test', 'Mastodon.Example']
+      }
+    ])
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockGetWebfingerSelf.mockResolvedValue(null)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=unknown%40mastodon.example&type=accounts&resolve=true',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+      account: 'unknown@mastodon.example'
+    })
   })
 
   it('does not resolve account URLs after the first page', async () => {

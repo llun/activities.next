@@ -4,10 +4,13 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { localUsernameSchema } from '@/lib/services/accounts/localUsername'
+import {
+  getActorDomainRules,
+  resolveActorDomain
+} from '@/lib/services/domains/actorDomains'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { getTrustedHostRules } from '@/lib/utils/host'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -71,14 +74,15 @@ export const POST = traceApiRoute(
 
     const { username } = parsed.data
     const config = getConfig()
-    const { federation } = await getResolvedServerSettings()
-    const domain =
+    const { federation } = await getResolvedServerSettings(database)
+    const requestedDomain =
       parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
-    const allowedDomains = federation.allowActorDomains.length
-      ? federation.allowActorDomains
-      : getTrustedHostRules(config)
+    const domain = resolveActorDomain(
+      requestedDomain,
+      getActorDomainRules(config, federation.allowActorDomains)
+    )
 
-    if (!allowedDomains.includes(domain)) {
+    if (!domain) {
       return apiResponse({
         req,
         allowedMethods: ['GET', 'POST'],
@@ -87,7 +91,14 @@ export const POST = traceApiRoute(
       })
     }
 
-    const usernameExists = await database.isUsernameExists({ username, domain })
+    // Actors are stored on the normalised domain, but a row written before
+    // that may carry the raw spelling (`llun.social:443`, `Llun.Social`), so
+    // the name is taken if it exists under either.
+    const rawDomain = requestedDomain.trim()
+    const usernameExists =
+      (await database.isUsernameExists({ username, domain })) ||
+      (rawDomain !== domain &&
+        (await database.isUsernameExists({ username, domain: rawDomain })))
     if (usernameExists) {
       return apiResponse({
         req,

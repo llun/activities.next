@@ -1,10 +1,16 @@
 import {
   HostHeaders,
+  createHostRulesMatcher,
+  createServedDomainMatcher,
   getCanonicalAuthority,
   getHostCacheSizesForTests,
+  getServedAuthority,
+  getServedDomainRules,
+  isHostServedByRules,
   isHostTrustedByRules,
   isOwnInstanceHost,
   normalizeHost,
+  normalizeServedDomainChoice,
   resetHostCachesForTests,
   selectHeaderHost
 } from './host'
@@ -340,6 +346,190 @@ describe('isOwnInstanceHost', () => {
   it('answers false when no host is configured', () => {
     expect(isOwnInstanceHost('llun.test', { host: '' })).toBeFalse()
     expect(isOwnInstanceHost('', { host: '' })).toBeFalse()
+  })
+})
+
+describe('served domain matching', () => {
+  const matchServed = (
+    value: string | null | undefined,
+    sources: Parameters<typeof getServedDomainRules>[0]
+  ) => createServedDomainMatcher(getServedDomainRules(sources))(value)
+
+  afterEach(() => {
+    resetHostCachesForTests()
+  })
+
+  const sources = {
+    host: 'llun.test',
+    trustedHosts: ['Alias.Example', '*.edge.llun.test']
+  }
+
+  it.each([
+    {
+      description: 'an actor id on the primary host',
+      value: 'https://llun.test/users/a',
+      expected: true
+    },
+    {
+      description: 'a bare trusted host',
+      value: 'alias.example',
+      expected: true
+    },
+    {
+      description: 'a trusted host in another case',
+      value: 'https://ALIAS.example/users/a',
+      expected: true
+    },
+    {
+      description: 'a trusted host with a trailing dot',
+      value: 'https://alias.example./users/a',
+      expected: true
+    },
+    {
+      description: 'a trusted host with the default port',
+      value: 'https://alias.example:443/users/a',
+      expected: true
+    },
+    // A wildcard trusted host is there to believe X-Forwarded-Host (preview
+    // deployments), not to claim every subdomain as this server.
+    {
+      description: 'a key id under a wildcard trusted host',
+      value: 'https://cdn.edge.llun.test/users/a#main-key',
+      expected: false
+    },
+    {
+      description: 'a trusted host on another port',
+      value: 'https://alias.example:8443/users/a',
+      expected: false
+    },
+    {
+      description: 'a wildcard rule spelled as a host',
+      value: 'https://*.edge.llun.test/users/a',
+      expected: false
+    },
+    {
+      description: 'a percent-encoded wildcard host',
+      value: 'https://%2a.edge.llun.test/users/a',
+      expected: false
+    },
+    {
+      description: 'our host as userinfo before another host',
+      value: 'https://llun.test@evil.example/users/a',
+      expected: false
+    },
+    {
+      description: 'a host that only shares a suffix',
+      value: 'https://evil-llun.test/users/a',
+      expected: false
+    },
+    {
+      description: 'a host-less URI',
+      value: 'urn:uuid:1234',
+      expected: false
+    },
+    { description: 'an empty value', value: '', expected: false },
+    { description: 'a missing value', value: null, expected: false }
+  ])('answers $expected for $description', ({ value, expected }) => {
+    expect(matchServed(value, sources)).toBe(expected)
+  })
+
+  it('matches an IDNA domain in either spelling', () => {
+    const idnaSources = {
+      host: 'llun.test',
+      trustedHosts: ['bücher.example']
+    }
+    expect(
+      matchServed('https://xn--bcher-kva.example/users/a', idnaSources)
+    ).toBeTrue()
+    expect(
+      matchServed('https://BÜCHER.example/users/a', idnaSources)
+    ).toBeTrue()
+  })
+
+  it('recognises a loopback development host with its port', () => {
+    expect(
+      matchServed('http://localhost:3000/users/a', {
+        host: 'localhost:3000'
+      })
+    ).toBeTrue()
+    expect(
+      matchServed('http://localhost:4000/users/a', {
+        host: 'localhost:3000'
+      })
+    ).toBeFalse()
+  })
+
+  it('agrees with isOwnInstanceHost on concrete hosts only', () => {
+    const config = { host: 'llun.test', trustedHosts: ['alias.example'] }
+    for (const host of [
+      'llun.test',
+      'alias.example',
+      'llun.test:8443',
+      'other.example'
+    ]) {
+      expect(matchServed(host, config)).toBe(isOwnInstanceHost(host, config))
+    }
+
+    // isOwnInstanceHost trusts the wildcard, the served-domain check does not.
+    const wildcard = { host: 'llun.test', trustedHosts: ['*.edge.llun.test'] }
+    expect(isOwnInstanceHost('cdn.edge.llun.test', wildcard)).toBeTrue()
+    expect(matchServed('cdn.edge.llun.test', wildcard)).toBeFalse()
+  })
+})
+
+describe('createHostRulesMatcher', () => {
+  it('matches like isHostServedByRules with the rules prepared once', () => {
+    const rules = ['llun.test', '*.people.example', 'Alias.Example:8443']
+    const matches = createHostRulesMatcher(rules)
+
+    for (const host of [
+      'llun.test',
+      'LLUN.test',
+      'alice.people.example',
+      'people.example',
+      'alias.example:8443',
+      'alias.example',
+      '*.people.example',
+      ''
+    ]) {
+      expect(matches(host)).toBe(isHostServedByRules(host, rules))
+    }
+    expect(matches('alice.people.example')).toBeTrue()
+    expect(matches('*.people.example')).toBeFalse()
+  })
+})
+
+describe('getServedAuthority', () => {
+  it.each([
+    { value: 'https://Example.COM/users/a', expected: 'example.com' },
+    { value: 'example.com.', expected: 'example.com' },
+    { value: 'example.com:443', expected: 'example.com' },
+    { value: 'http://example.com:80/x', expected: 'example.com' },
+    { value: 'example.com:8443', expected: 'example.com:8443' },
+    { value: 'bücher.example', expected: 'xn--bcher-kva.example' },
+    { value: '*.example.com', expected: null },
+    { value: 'not a host', expected: null },
+    { value: '', expected: null }
+  ])('normalises $value to $expected', ({ value, expected }) => {
+    expect(getServedAuthority(value)).toBe(expected)
+  })
+})
+
+describe('normalizeServedDomainChoice', () => {
+  it.each([
+    { value: 'Alias.Example.', expected: 'alias.example' },
+    { value: 'https://alias.example', expected: 'alias.example' },
+    { value: 'localhost:3000', expected: 'localhost:3000' },
+    { value: 'alias.example/users', expected: null },
+    { value: 'user@alias.example', expected: null },
+    { value: '*.alias.example', expected: null },
+    { value: '%2a.alias.example', expected: null },
+    { value: 'a"b.alias.example', expected: null },
+    { value: "a'b.alias.example", expected: null },
+    { value: 'a&b.alias.example', expected: null },
+    { value: '', expected: null }
+  ])('normalises $value to $expected', ({ value, expected }) => {
+    expect(normalizeServedDomainChoice(value)).toBe(expected)
   })
 })
 

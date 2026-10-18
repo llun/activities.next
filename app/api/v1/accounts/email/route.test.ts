@@ -25,6 +25,7 @@ vi.mock('@/lib/utils/logger', () => ({
 const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  buildBaseURL: (host: string) => `https://${host}`,
   getConfig: () => mockGetConfig()
 }))
 
@@ -203,6 +204,58 @@ describe('POST /api/v1/accounts/email', () => {
       'https://llun.test/account/verify-email?code='
     )
   })
+
+  // The link opens on the account's actor domain when auth trusts that host
+  // (the primary host or an ACTIVITIES_TRUSTED_HOSTS entry), and on the
+  // primary host otherwise, so a stored actor domain cannot point it elsewhere.
+  it.each([
+    {
+      description: 'a trusted host',
+      actorDomain: 'actors.example',
+      expected: 'https://actors.example/account/verify-email?code='
+    },
+    {
+      description: 'a domain auth does not trust',
+      actorDomain: 'remote.example',
+      expected: 'https://llun.test/account/verify-email?code='
+    }
+  ])(
+    'links the verification for an actor on $description',
+    async ({ actorDomain, expected }) => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['actors.example'],
+        allowEmails: [],
+        email: {
+          serviceFromAddress: 'noreply@llun.test'
+        }
+      })
+      const secondDomainActor = {
+        ...actor,
+        id: `https://${actorDomain}/users/${seedActor1.username}`,
+        domain: actorDomain
+      }
+      mockDb.getActorsForAccount.mockResolvedValue([secondDomainActor])
+      mockDb.getActorFromId.mockResolvedValue(secondDomainActor)
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/accounts/email',
+        {
+          method: 'POST',
+          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockSendMail.mock.calls[0][0].content.text).toContain(expected)
+    }
+  )
 
   it.each(['development', 'production'])(
     'returns a configuration error without storing a pending change when email is disabled in %s',

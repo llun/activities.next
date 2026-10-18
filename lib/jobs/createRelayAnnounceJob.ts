@@ -1,10 +1,10 @@
 import { z } from 'zod'
 
 import { getNote } from '@/lib/activities'
-import { getConfig } from '@/lib/config'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPollJob'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Status } from '@/lib/types/domain/status'
@@ -28,14 +28,6 @@ const RelayAnnounce = z
     object: z.union([z.string(), z.object({ id: z.string() }).passthrough()])
   })
   .passthrough()
-
-const isLocalUrl = (value: string, host: string): boolean => {
-  try {
-    return new URL(value).host === host
-  } catch {
-    return false
-  }
-}
 
 const isHttpUrl = (value: string): boolean => {
   try {
@@ -83,9 +75,10 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
     // origin fetch for it.
     if (!objectId || !isHttpUrl(objectId)) return
 
-    const { host } = getConfig()
-    // Skip our own posts relayed back to us.
-    if (isLocalUrl(objectId, host)) return
+    // Skip our own posts relayed back to us, on any domain this server serves
+    // (the primary host or a concrete trusted host).
+    const isLocalUrl = await getLocalDomainMatcher(database)
+    if (isLocalUrl(objectId)) return
 
     let status = await database.getStatus({
       statusId: objectId,
@@ -115,7 +108,7 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
     }
     if (!status) return
     // Defensive: never federate a local-authored status (self-echo guard #2).
-    if (isLocalUrl(status.actorId, host)) return
+    if (isLocalUrl(status.actorId)) return
     // Never expose a non-public (followers-only/direct) note on the public
     // Federated timeline, even if a relay forwarded it.
     if (!isPublicStatus(status)) return

@@ -1,8 +1,11 @@
 import { z } from 'zod'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import {
+  type LocalDomainMatcher,
+  getLocalDomainMatcher
+} from '@/lib/services/domains/localDomains'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
@@ -93,7 +96,8 @@ export const getReactionContent = (
  */
 const resolveReactionEmoji = (
   reaction: string,
-  activity: ReactionActivity
+  activity: ReactionActivity,
+  isLocal: LocalDomainMatcher
 ): { name: string; url: string | null } | null => {
   if (!isCustomEmojiReference(reaction)) return { name: reaction, url: null }
 
@@ -113,8 +117,10 @@ const resolveReactionEmoji = (
   const name = (() => {
     // Already namespaced by the sender (a third instance's emoji relayed on).
     if (shortcode.includes('@')) return shortcode
-    // A local actor's reaction references our own emoji table directly.
-    if (senderHost === getConfig().host) return shortcode
+    // A local actor's reaction references our own emoji table directly — on
+    // any domain this server serves, not just the primary host, since an
+    // actor on a second domain shares the same table.
+    if (isLocal(activity.actor)) return shortcode
     return `${shortcode}@${senderHost}`
   })()
 
@@ -207,7 +213,11 @@ export const emojiReactionRequest = async ({
   const reaction = getReactionContent(activity)
   if (!reaction) return
 
-  const resolved = resolveReactionEmoji(reaction, activity)
+  const resolved = resolveReactionEmoji(
+    reaction,
+    activity,
+    await getLocalDomainMatcher(database)
+  )
   if (!resolved) return
 
   const statusId = getReactionTarget(activity)
@@ -293,7 +303,11 @@ export const undoEmojiReactionRequest = async ({
   const reaction = getReactionContent(activity)
   if (!reaction) return
 
-  const resolved = resolveReactionEmoji(reaction, activity)
+  const resolved = resolveReactionEmoji(
+    reaction,
+    activity,
+    await getLocalDomainMatcher(database)
+  )
   if (!resolved) return
 
   await database.deleteStatusReaction({

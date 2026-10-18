@@ -3,12 +3,15 @@ import {
   getReactionContent,
   undoEmojiReactionRequest
 } from '@/lib/actions/emojiReaction'
+import { getConfig } from '@/lib/config'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { getReactionGroupKey } from '@/lib/services/reactions/reactionGroupKey'
+import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { EmojiReact, Like } from '@/lib/types/activitypub'
@@ -216,6 +219,73 @@ describe('emojiReactionRequest', () => {
       expect(names).toContain('partyparrot@remote.test')
       expect(names).not.toContain('partyparrot')
     })
+
+    // A sender on a domain this server serves is one of our own actors, so
+    // its shortcode names our own emoji table — on a concrete trusted host
+    // too, not only on the primary host. `federation.allowActorDomains` is not
+    // a served domain (it can list remote servers in allowlist mode), so a
+    // sender there is namespaced like any remote one.
+    it.each([
+      {
+        description: 'the primary host',
+        actor: `https://${TEST_DOMAIN}/users/primary-reactor`,
+        shortcode: 'primaryparrot',
+        expected: 'primaryparrot'
+      },
+      {
+        description: 'a concrete trusted host',
+        actor: 'https://alias.example/users/trusted-host-reactor',
+        shortcode: 'aliasparrot',
+        expected: 'aliasparrot'
+      },
+      {
+        description: 'a remote server listed in allowActorDomains',
+        actor: 'https://listed.example/users/listed-reactor',
+        shortcode: 'listedparrot',
+        expected: 'listedparrot@listed.example'
+      }
+    ])(
+      'stores $expected for a sender on $description',
+      async ({ actor, shortcode, expected }) => {
+        const statusId = statuses.primary.post
+        const config = getConfig()
+        vi.mocked(getConfig).mockReturnValue({
+          ...config,
+          trustedHosts: ['alias.example']
+        })
+        await database.setServerSettings([
+          {
+            key: 'federation.allowActorDomains',
+            value: [TEST_DOMAIN, 'listed.example']
+          }
+        ])
+        invalidateServerSettingsCache(database)
+        try {
+          await emojiReactionRequest({
+            activity: {
+              ...emojiReactActivity({ object: statusId }),
+              id: `${actor}#emoji-reactions/1`,
+              actor,
+              content: `:${shortcode}:`
+            },
+            database
+          })
+        } finally {
+          vi.mocked(getConfig).mockReturnValue(config)
+          await database.setServerSettings([
+            { key: 'federation.allowActorDomains', value: [] }
+          ])
+          invalidateServerSettingsCache(database)
+        }
+
+        const reactors = await database.getStatusReactionActors({ statusId })
+        expect(
+          reactors
+            .filter((reactor) => reactor.actorId === actor)
+            .map((reactor) => reactor.name)
+        ).toEqual([expected])
+      }
+    )
 
     it('drops a reaction whose namespaced name would overflow storage', async () => {
       const statusId = statuses.primary.post

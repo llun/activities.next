@@ -180,6 +180,159 @@ describe('POST /api/v1/actors', () => {
     expect(data.error).toBe('Domain is not allowed')
   })
 
+  // The allow-list is matched with the served-domain rules rather than a raw
+  // `includes`: case and a trailing dot cannot make an allowed domain look
+  // foreign, a wildcard rule approves nothing (its subdomains, itself), and (
+  // anything that is not a bare domain) is never a domain to create on.
+  it.each([
+    {
+      description: 'an allowed domain in another case',
+      username: 'newactor-case',
+      domain: 'ALLOWED.test.',
+      status: 200,
+      storedDomain: 'allowed.test'
+    },
+    {
+      description: 'a subdomain of a wildcard rule',
+      username: 'newactor-wildcard',
+      domain: 'alice.people.test',
+      status: 400
+    },
+    {
+      description: 'social.example.org beside an *.example.org wildcard',
+      username: 'newactor-wildcard-remote',
+      domain: 'social.example.org',
+      status: 400
+    },
+    {
+      description: 'the wildcard rule itself',
+      username: 'newactor-literal-wildcard',
+      domain: '*.people.test',
+      status: 400
+    },
+    {
+      description: 'the parent of a wildcard rule',
+      username: 'newactor-wildcard-parent',
+      domain: 'people.test',
+      status: 400
+    },
+    {
+      description: 'an allowed domain with a path',
+      username: 'newactor-path',
+      domain: 'allowed.test/users',
+      status: 400
+    },
+    {
+      description: 'a domain on no rule',
+      username: 'newactor-untrusted',
+      domain: 'evil.test',
+      status: 400
+    }
+  ])(
+    'answers $status for $description',
+    async ({ username, domain, status, storedDomain }) => {
+      mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+      await database.setServerSettings([
+        {
+          key: 'federation.allowActorDomains',
+          value: ['Allowed.Test', '*.people.test', '*.example.org']
+        }
+      ])
+      invalidateServerSettingsCache(database)
+
+      try {
+        const response = await POST(createRequest({ username, domain }), {
+          params: Promise.resolve({})
+        })
+
+        const data = await response.json()
+        expect(response.status).toBe(status)
+        if (storedDomain) {
+          expect(data.domain).toBe(storedDomain)
+          await expect(
+            database.isUsernameExists({ username, domain: storedDomain })
+          ).resolves.toBeTrue()
+        } else {
+          expect(data.error).toBe('Domain is not allowed')
+        }
+      } finally {
+        await deleteServerSetting(db, {
+          key: 'federation.allowActorDomains'
+        })
+        invalidateServerSettingsCache(database)
+      }
+    }
+  )
+
+  // A wildcard trusted host exists to believe X-Forwarded-Host (preview
+  // deployments, say), so without allowActorDomains it approves no actor
+  // domain: only the primary host and concrete trusted hosts do.
+  it.each([
+    { domain: 'bob.alias.llun.test', status: 400 },
+    { domain: 'other.llun.test', status: 200 }
+  ])(
+    'answers $status for $domain beside a wildcard trusted host when allowActorDomains is not set',
+    async ({ domain, status }) => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['*.alias.llun.test', 'other.llun.test'],
+        allowEmails: []
+      })
+
+      const response = await POST(
+        createRequest({
+          username: `newactor-fallback-${status}`,
+          domain
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      const data = await response.json()
+      expect(response.status).toBe(status)
+      if (status === 200) {
+        expect(data.domain).toBe(domain)
+      } else {
+        expect(data.error).toBe('Domain is not allowed')
+      }
+    }
+  )
+
+  // Domains are stored normalised now, but an actor written earlier may carry
+  // the raw spelling the request used; that name is still taken.
+  it('rejects a username that exists under the raw requested domain spelling', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['legacy.llun.test'],
+      allowEmails: []
+    })
+    const account = await database.getAccountFromEmail({
+      email: seedActor1.email
+    })
+    if (!account) throw new Error('seed account is missing')
+    await database.createActorForAccount({
+      accountId: account.id,
+      username: 'rawspelled',
+      domain: 'legacy.llun.test:443',
+      publicKey: 'public-key',
+      privateKey: 'private-key'
+    })
+
+    const response = await POST(
+      createRequest({ username: 'rawspelled', domain: 'legacy.llun.test:443' }),
+      { params: Promise.resolve({}) }
+    )
+
+    const data = await response.json()
+    expect(response.status).toBe(400)
+    expect(data.error).toBe('Username already exists')
+    await expect(
+      database.isUsernameExists({
+        username: 'rawspelled',
+        domain: 'legacy.llun.test'
+      })
+    ).resolves.toBeFalse()
+  })
+
   it('rejects the reserved federation signing actor username', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
