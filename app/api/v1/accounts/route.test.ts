@@ -412,7 +412,7 @@ describe('POST /api/v1/accounts (web form) on an added domain', () => {
       actorId: 'https://run.example/users/alice'
     })
     const res = await postForm()
-    expect(res.status).toBe(307)
+    expect(res.status).toBe(303)
     expect(registerAccount).toHaveBeenCalledWith(
       expect.objectContaining({ host: 'run.example' })
     )
