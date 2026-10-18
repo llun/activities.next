@@ -46,9 +46,50 @@ export const getActorImageUrl = (image: ActivityPubActor['icon']) => {
   return image.url
 }
 
+// How many of a remote actor's profile fields are kept, and how long each name
+// and value may be. Mastodon's numbers for a remote account:
+// ActivityPub::ProcessAccountService keeps the first `MAX_PROFILE_FIELDS` (50)
+// PropertyValue attachments, and Account::Field strips each name and value and
+// cuts it to `MAX_CHARACTERS_COMPAT` (2047) characters. Local fields keep their
+// own, stricter limits (`lib/services/accounts/profileFieldLimits.ts`).
+export const REMOTE_PROFILE_FIELD_LIMIT = 50
+export const REMOTE_PROFILE_FIELD_MAX_LENGTH = 2047
+
+// The first `limit` code points, as Ruby's `str[0, limit]` counts them, so a
+// cut never splits a surrogate pair. Linear in `limit`, not in the input.
+const truncateCodePoints = (text: string, limit: number) => {
+  if (text.length <= limit) return text
+  let end = 0
+  for (let count = 0; count < limit && end < text.length; count++) {
+    const code = text.charCodeAt(end)
+    const next = text.charCodeAt(end + 1)
+    end +=
+      code >= 0xd800 && code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff
+        ? 2
+        : 1
+  }
+  return text.slice(0, end)
+}
+
+const capRemoteFieldText = (text: string) =>
+  truncateCodePoints(text.trim(), REMOTE_PROFILE_FIELD_MAX_LENGTH)
+
+const isPropertyValueType = (item: unknown) =>
+  typeof item === 'object' &&
+  item !== null &&
+  (item as { type?: unknown }).type === 'PropertyValue'
+
 // Mastodon profile metadata fields arrive as PropertyValue attachments on the
 // actor document. Unknown attachment shapes are tolerated by the schema (the
-// loose-object fallback), so narrow back to valid PropertyValues here.
+// loose-object fallback), so narrow back to valid PropertyValues here. This is
+// the one place a remote actor's fields are read, both for storage
+// (`getPersistableProfile`) and for the profile page (`getProfileData`), so it
+// applies Mastodon's remote caps in Mastodon's order: take the first 50
+// attachments typed PropertyValue, drop any whose name or value is not a
+// string, and strip and cut each name and value to 2047 characters. A value is
+// the remote server's raw HTML, so a cut can end inside a tag; every place that
+// shows it sanitizes it first (`sanitizeText`), which closes or drops the
+// broken markup, exactly as Mastodon sanitizes the cut value it serves.
 export const getActorProfileFields = (
   person: ActivityPubActor
 ): { name: string; value: string }[] => {
@@ -57,12 +98,20 @@ export const getActorProfileFields = (
     : person.attachment
       ? [person.attachment]
       : []
-  return attachments.flatMap((item) => {
-    const parsed = PropertyValue.safeParse(item)
-    return parsed.success
-      ? [{ name: parsed.data.name, value: parsed.data.value }]
-      : []
-  })
+  return attachments
+    .filter(isPropertyValueType)
+    .slice(0, REMOTE_PROFILE_FIELD_LIMIT)
+    .flatMap((item) => {
+      const parsed = PropertyValue.safeParse(item)
+      return parsed.success
+        ? [
+            {
+              name: capRemoteFieldText(parsed.data.name),
+              value: capRemoteFieldText(parsed.data.value)
+            }
+          ]
+        : []
+    })
 }
 
 const getActorCreatedAt = (published: string | null | undefined) => {
