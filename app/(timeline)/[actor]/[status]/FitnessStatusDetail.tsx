@@ -121,89 +121,156 @@ const ScrubbedAnalysisChart: FC<
     onHighlightElapsedSeconds={scrubStore.set}
   />
 )
+// A reserved placeholder that stays on screen, faded and still, when route data failed.
+const FAILED_PLACEHOLDER_CLASS =
+  'skeleton-static pointer-events-none select-none opacity-40'
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
 const ActivityAnalysisLoadingState: FC<{
   series: Array<{ key: string; label: string; widthClass: string }>
   hasLikelyLaps: boolean
   hasMap: boolean
-}> = ({ series, hasLikelyLaps, hasMap }) => (
-  <div
-    role="status"
-    aria-label="Loading activity analysis"
-    className="space-y-3"
-  >
-    <div data-testid="analysis-controls-skeleton">
-      <Frame className="space-y-2.5 bg-card px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SkeletonBar className="h-3 w-24" />
-          <div className="flex gap-1">
-            <SkeletonBar className="h-[30px] w-20 rounded-md" />
-            <SkeletonBar className="h-[30px] w-20 rounded-md" />
+  failure?: {
+    message: string
+    onRetry: () => void
+    announce: boolean
+  }
+}> = ({ series, hasLikelyLaps, hasMap, failure }) => {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const retryInFlight = useRef(false)
+  const failed = Boolean(failure)
+  // Retry unmounts its own button, so focus would fall to <body>; park it on
+  // the loading region that replaces the failure note, and on the new Retry
+  // button if the retried load fails again. `failed` (not `failure`, a fresh
+  // object each render) keeps this from re-running on unrelated renders.
+  useEffect(() => {
+    if (!retryInFlight.current) return
+    if (failed) {
+      retryInFlight.current = false
+      // Only when focus is still on the loading region (or fell to <body>
+      // with it: browsers run focus fixup when a focused node loses its
+      // tabindex or is replaced), not when the reader moved to another control.
+      const active = document.activeElement
+      if (active === document.body || rootRef.current?.contains(active)) {
+        overlayRef.current?.querySelector('button')?.focus()
+      }
+    } else {
+      rootRef.current?.focus()
+    }
+  }, [failed])
+  const skeletonTree = (
+    <>
+      <div data-testid="analysis-controls-skeleton">
+        <Frame className="space-y-2.5 bg-card px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SkeletonBar className="h-3 w-24" />
+            <div className="flex gap-1">
+              <SkeletonBar className="h-[30px] w-20 rounded-md" />
+              <SkeletonBar className="h-[30px] w-20 rounded-md" />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {series.map(({ key, label, widthClass }) => (
+          <div className="flex flex-wrap gap-2">
+            {series.map(({ key, label, widthClass }) => (
+              <div
+                key={key}
+                aria-hidden="true"
+                data-testid="analysis-series-chip-placeholder"
+                data-series={key}
+                data-series-label={label}
+                className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+              >
+                <span className="size-2 shrink-0 rounded-full bg-muted" />
+                <SkeletonBar className={`h-5 ${widthClass}`} />
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+            <SkeletonBar
+              className={
+                hasMap
+                  ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
+                  : 'h-4 w-48'
+              }
+            />
+          </div>
+        </Frame>
+      </div>
+      <div>
+        <Frame className="overflow-hidden">
+          {hasLikelyLaps ? (
             <div
-              key={key}
-              aria-hidden="true"
-              data-testid="analysis-series-chip-placeholder"
-              data-series={key}
-              data-series-label={label}
-              className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+              data-testid="analysis-laps-skeleton"
+              className="relative border-b bg-muted/40"
             >
-              <span className="size-2 shrink-0 rounded-full bg-muted" />
-              <SkeletonBar className={`h-5 ${widthClass}`} />
+              <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <SkeletonBar
+                    key={index}
+                    className={cn(
+                      'h-10 rounded-md',
+                      ANALYSIS_LAP_BOX_WIDTH_CLASS
+                    )}
+                  />
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <SkeletonBar
-            className={
-              hasMap
-                ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
-                : 'h-4 w-48'
-            }
-          />
-        </div>
-      </Frame>
-    </div>
-    <div>
-      <Frame className="overflow-hidden">
-        {hasLikelyLaps ? (
-          <div
-            data-testid="analysis-laps-skeleton"
-            className="relative border-b bg-muted/40"
-          >
-            <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
-              {Array.from({ length: 3 }, (_, index) => (
-                <SkeletonBar
-                  key={index}
-                  className={cn(
-                    'h-10 rounded-md',
-                    ANALYSIS_LAP_BOX_WIDTH_CLASS
-                  )}
-                />
-              ))}
+          ) : null}
+          <div className="space-y-2 px-4 pb-2.5 pt-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <SkeletonBar className="h-5 w-20" />
             </div>
+            <div
+              data-testid="analysis-plot-skeleton"
+              className={cn('relative w-full', ANALYSIS_PLOT_HEIGHT_CLASS)}
+            >
+              <SkeletonBar className="h-full w-full rounded-md" />
+            </div>
+            <SkeletonBar className="h-4 w-full rounded-md" />
           </div>
-        ) : null}
-        <div className="space-y-2 px-4 pb-2.5 pt-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <SkeletonBar className="h-5 w-20" />
-          </div>
-          <div
-            data-testid="analysis-plot-skeleton"
-            className={cn('relative w-full', ANALYSIS_PLOT_HEIGHT_CLASS)}
+        </Frame>
+      </div>
+    </>
+  )
+
+  // One tree for both states: the failure note is laid over the same
+  // placeholder nodes, so nothing is remounted or moved when a load fails.
+  return (
+    <div
+      ref={rootRef}
+      role={failure ? undefined : 'status'}
+      aria-label={failure ? undefined : 'Loading activity analysis'}
+      tabIndex={failure ? undefined : -1}
+      className="relative outline-none"
+    >
+      <div
+        aria-hidden={failure ? true : undefined}
+        className={cn('space-y-3', failure && FAILED_PLACEHOLDER_CLASS)}
+      >
+        {skeletonTree}
+      </div>
+      {failure ? (
+        <div
+          ref={overlayRef}
+          className="absolute inset-0 flex items-center justify-center p-4"
+        >
+          <Alert
+            tone="warning"
+            title="Couldn't load the charts for this activity"
+            onRetry={() => {
+              retryInFlight.current = true
+              failure.onRetry()
+            }}
+            live={failure.announce}
+            className="max-w-md"
           >
-            <SkeletonBar className="h-full w-full rounded-md" />
-          </div>
-          <SkeletonBar className="h-4 w-full rounded-md" />
+            {failure.message}
+          </Alert>
         </div>
-      </Frame>
+      ) : null}
     </div>
-  </div>
-)
+  )
+}
 
 const formatKm = (meters: number) => {
   const km = meters / 1000
@@ -832,7 +899,9 @@ export const FitnessStatusDetail: FC<Props> = ({
           meta={overviewMeta}
           map={map}
           groups={overviewGroups}
-          reserveRows={route.isLoading}
+          reserve={
+            route.error ? 'failed' : route.isLoading ? 'loading' : undefined
+          }
         />
 
         {isRouteAnalysisUnavailable ||
@@ -845,13 +914,20 @@ export const FitnessStatusDetail: FC<Props> = ({
               !isRouteAnalysisUnavailable && analysis ? analysisMeta : undefined
             }
           >
-            {route.error ? (
-              <Alert tone="warning" title={route.error} live={!map} />
-            ) : route.isLoading ? (
+            {isRouteAnalysisUnavailable ? (
               <ActivityAnalysisLoadingState
                 series={expectedAnalysisSeries}
                 hasLikelyLaps={likelyHasLaps}
                 hasMap={shouldRenderMap}
+                failure={
+                  route.error
+                    ? {
+                        message: route.error,
+                        onRetry: route.retry,
+                        announce: !map
+                      }
+                    : undefined
+                }
               />
             ) : analysis ? (
               <>
@@ -890,7 +966,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </Section>
         ) : null}
 
-        {route.isLoading ? (
+        {isRouteAnalysisUnavailable ? (
           <>
             {hasSummaryPower && durationSeconds >= 5 ? (
               <Section
@@ -898,6 +974,8 @@ export const FitnessStatusDetail: FC<Props> = ({
                 title="Best efforts"
                 icon={Trophy}
                 meta="power"
+                aria-hidden={route.error ? true : undefined}
+                className={route.error ? FAILED_PLACEHOLDER_CLASS : undefined}
               >
                 <Frame className="p-3">
                   <SkeletonBar className="h-12 w-full rounded-md" />
@@ -906,8 +984,12 @@ export const FitnessStatusDetail: FC<Props> = ({
             ) : null}
             {expectedDistributionCount > 0 ? (
               <div
+                aria-hidden={route.error ? 'true' : undefined}
                 data-testid="analysis-distribution-skeleton"
-                className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+                className={cn(
+                  'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1',
+                  route.error && FAILED_PLACEHOLDER_CLASS
+                )}
               >
                 {Array.from(
                   { length: expectedDistributionCount },

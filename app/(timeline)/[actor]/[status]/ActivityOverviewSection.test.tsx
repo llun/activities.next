@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import {
   ActivityOverviewSection,
@@ -76,7 +76,6 @@ describe('ActivityOverviewSection', () => {
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        reserveRows={false}
       />
     )
 
@@ -96,7 +95,7 @@ describe('ActivityOverviewSection', () => {
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        reserveRows={true}
+        reserve="loading"
       />
     )
 
@@ -104,6 +103,34 @@ describe('ActivityOverviewSection', () => {
     // Ride group has 1 reserved null row ('Max speed') and 1 unreserved null row ('Calories');
     // Power group has 1 unreserved null row ('L / R balance'). Only the reserved row renders a placeholder.
     expect(screen.getAllByTestId('overview-placeholder-row')).toHaveLength(1)
+  })
+
+  it('renders reserved rows with an em dash and accessible text when route data fails', () => {
+    render(
+      <ActivityOverviewSection
+        meta="5.0 km · 30:00 elapsed"
+        map={null}
+        groups={sampleGroups}
+        reserve="failed"
+      />
+    )
+
+    expect(
+      screen.queryByTestId('overview-placeholder-row')
+    ).not.toBeInTheDocument()
+    const unavailableRows = screen.getAllByTestId('overview-unavailable-row')
+    expect(unavailableRows).toHaveLength(1)
+    expect(unavailableRows[0]).toHaveAttribute('data-metric', 'Max speed')
+    expect(unavailableRows[0].querySelector('dt')).toHaveTextContent(
+      'Max speed'
+    )
+    const dd = unavailableRows[0].querySelector('dd')
+    expect(dd).toHaveTextContent('—')
+    expect(within(dd as HTMLElement).getByText('—')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
+    expect(dd).toHaveTextContent('Not available')
   })
 
   it('returns null when both map and visible groups are empty', () => {

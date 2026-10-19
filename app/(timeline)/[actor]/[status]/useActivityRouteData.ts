@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import {
   type FitnessRouteDataResponse,
@@ -15,6 +15,7 @@ export interface ActivityRouteData {
   data: FitnessRouteDataResponse | null
   isLoading: boolean
   error: string | null
+  retry: () => void
 }
 
 /**
@@ -31,6 +32,12 @@ export const useActivityRouteData = (
     data: FitnessRouteDataResponse | null
     error: string | null
   }>({ fileId: null, data: null, error: null })
+  const [attempt, setAttempt] = useState(0)
+
+  const retry = useCallback(() => {
+    setState({ fileId: null, data: null, error: null })
+    setAttempt((prev) => prev + 1)
+  }, [])
 
   useEffect(() => {
     if (!fitnessFileId) return
@@ -55,12 +62,13 @@ export const useActivityRouteData = (
     return () => {
       cancelled = true
     }
-  }, [fitnessFileId])
+  }, [fitnessFileId, attempt])
 
   const isCurrent = Boolean(fitnessFileId) && state.fileId === fitnessFileId
   return {
     data: isCurrent ? state.data : null,
     isLoading: Boolean(fitnessFileId) && !isCurrent,
-    error: isCurrent ? state.error : null
+    error: isCurrent ? state.error : null,
+    retry
   }
 }

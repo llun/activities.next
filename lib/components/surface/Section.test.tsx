@@ -39,6 +39,25 @@ describe('Section', () => {
     expect(container.querySelector('svg')).toBeNull()
   })
 
+  it('hides the whole section from assistive tech only when asked', () => {
+    const { rerender } = render(
+      <Section title="Bikes" aria-hidden>
+        <p>Body</p>
+      </Section>
+    )
+    expect(document.querySelector('section')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
+
+    rerender(
+      <Section title="Bikes">
+        <p>Body</p>
+      </Section>
+    )
+    expect(document.querySelector('section')).not.toHaveAttribute('aria-hidden')
+  })
+
   it('renders an h2 by default and the requested level when nested', () => {
     const { rerender } = render(
       <Section title="Bikes">

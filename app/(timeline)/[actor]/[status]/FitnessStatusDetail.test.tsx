@@ -337,7 +337,7 @@ describe('FitnessStatusDetail', () => {
     ).toHaveClass('h-[190px]', '@min-[700px]:h-[250px]')
   })
 
-  it('shows only real stats and a compact analysis alert when route data fails', async () => {
+  it('keeps reserved layout static with em-dash overview rows and a retry overlay when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({
       status: buildStatus({
@@ -367,6 +367,8 @@ describe('FitnessStatusDetail', () => {
     const analysisSection = await screen.findByRole('region', {
       name: 'Analysis'
     })
+    await within(analysisSection).findByRole('button', { name: 'Retry' })
+
     const overview = screen.getByRole('region', { name: 'Overview' })
     const rideGroup = within(overview).getByTestId('overview-group-ride')
     expect(within(rideGroup).getByText('Elapsed time')).toBeInTheDocument()
@@ -377,49 +379,179 @@ describe('FitnessStatusDetail', () => {
     expect(
       within(overview).queryByTestId('overview-placeholder-row')
     ).not.toBeInTheDocument()
+
+    const unavailableRows = within(overview).getAllByTestId(
+      'overview-unavailable-row'
+    )
     expect(
-      within(overview).queryByTestId('overview-group-cadence')
-    ).not.toBeInTheDocument()
+      unavailableRows.map((row) => row.getAttribute('data-metric'))
+    ).toEqual([
+      'Max speed',
+      'Calories',
+      'Laps',
+      'Weighted',
+      'Variability',
+      'L / R balance',
+      'Time in Z3–Z4',
+      'Decoupling',
+      'Avg cadence',
+      'Time at 0 W'
+    ])
+    for (const row of unavailableRows) {
+      expect(row.querySelector('dd')).toHaveTextContent('—')
+      expect(row.querySelector('dd')).toHaveTextContent('Not available')
+    }
 
     const mapAlert = within(overview).getByRole('alert')
     expect(mapAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
     expect(mapAlert).toHaveClass('left-3', 'right-14', 'top-3')
     expect(mapAlert).not.toHaveClass('inset-x-3')
 
-    // The map's banner is the one live alert; the section's copy of the same
-    // message is silent so a screen reader hears the failure once.
+    // The map's banner is the one live alert; the analysis failure overlay is
+    // silent when a map is present so a screen reader hears the failure once.
     expect(screen.getAllByRole('alert')).toEqual([mapAlert])
-    const analysisAlert = analysisSection.querySelector(
-      '[data-slot="alert"]'
-    ) as HTMLElement
-    expect(analysisAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
-    for (const positioned of ['absolute', 'fixed', 'top-0', 'inset-x-0']) {
-      expect(analysisAlert).not.toHaveClass(positioned)
-    }
+    expect(within(analysisSection).queryByRole('status')).toBeNull()
+    expect(
+      within(analysisSection).getByText(
+        "Couldn't load the charts for this activity"
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(analysisSection).getByText(ROUTE_DATA_ERROR_MESSAGE)
+    ).toBeInTheDocument()
+    expect(
+      within(analysisSection).getByRole('button', { name: 'Retry' })
+    ).toBeInTheDocument()
+
+    // Reserved frames and placeholders stay mounted with static shimmer so the
+    // page keeps its height.
     expect(
       analysisSection.querySelectorAll('[data-slot="frame"]')
-    ).toHaveLength(0)
-    expect(analysisSection.querySelector('[class*="min-h-"]')).toBeNull()
+    ).toHaveLength(2)
     expect(
-      within(analysisSection).queryByTestId('analysis-controls-skeleton')
-    ).not.toBeInTheDocument()
+      within(analysisSection).getByTestId('analysis-controls-skeleton')
+    ).toBeInTheDocument()
     expect(
-      within(analysisSection).queryByTestId('analysis-laps-skeleton')
-    ).not.toBeInTheDocument()
+      within(analysisSection).getByTestId('analysis-laps-skeleton')
+    ).toBeInTheDocument()
     expect(
-      within(analysisSection).queryByTestId('analysis-plot-skeleton')
-    ).not.toBeInTheDocument()
+      within(analysisSection).getByTestId('analysis-plot-skeleton')
+    ).toBeInTheDocument()
+    expect(
+      analysisSection.querySelector('.skeleton-static')
+    ).toBeInTheDocument()
+
+    // The faded skeleton is hidden from assistive tech; only the Alert is read.
+    expect(
+      within(analysisSection)
+        .getByTestId('analysis-plot-skeleton')
+        .closest('[aria-hidden="true"]')
+    ).toHaveClass('skeleton-static')
     expect(
       screen.queryByRole('region', { name: 'Best efforts' })
     ).not.toBeInTheDocument()
-    expect(
-      screen.queryByTestId('analysis-distribution-skeleton')
-    ).not.toBeInTheDocument()
+    const bestEffortsSection = document.getElementById(
+      'best-efforts'
+    ) as HTMLElement
+    expect(bestEffortsSection).toHaveAttribute('aria-hidden', 'true')
+    expect(bestEffortsSection).toHaveClass('skeleton-static')
+    const distributionSkeleton = screen.getByTestId(
+      'analysis-distribution-skeleton'
+    )
+    expect(distributionSkeleton).toHaveClass('skeleton-static')
+    expect(distributionSkeleton).toHaveAttribute('aria-hidden', 'true')
+  })
 
+  it('keeps keyboard focus on Retry when a retried route-data load fails again', async () => {
+    mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
+    renderDetail()
+
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const retry = await within(analysisSection).findByRole('button', {
+      name: 'Retry'
+    })
+    // The first failure is nobody's retry, so it must not take focus.
+    expect(document.activeElement).not.toBe(retry)
+
+    // The next attempt stays pending so the loading region can be observed.
+    let rejectRetry: (error: Error) => void = () => {}
+    mockGetFitnessRouteData.mockImplementation(
+      () => new Promise((_, reject) => (rejectRetry = reject))
+    )
+    retry.focus()
+    fireEvent.click(retry)
+    const loading = await within(analysisSection).findByRole('status', {
+      name: 'Loading activity analysis'
+    })
+    await waitFor(() => expect(document.activeElement).toBe(loading))
+
+    await act(async () => rejectRetry(new Error('request failed again')))
+    const retryAgain = await within(analysisSection).findByRole('button', {
+      name: 'Retry'
+    })
+    await waitFor(() => expect(document.activeElement).toBe(retryAgain))
+  })
+
+  it('leaves focus where the reader moved it while a retried load was pending', async () => {
+    mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
+    renderDetail()
+
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const retry = await within(analysisSection).findByRole('button', {
+      name: 'Retry'
+    })
+    let rejectRetry: (error: Error) => void = () => {}
+    mockGetFitnessRouteData.mockImplementation(
+      () => new Promise((_, reject) => (rejectRetry = reject))
+    )
+    retry.focus()
+    fireEvent.click(retry)
+    await within(analysisSection).findByRole('status', {
+      name: 'Loading activity analysis'
+    })
+
+    const elsewhere = document.createElement('button')
+    document.body.appendChild(elsewhere)
+    try {
+      elsewhere.focus()
+      await act(async () => rejectRetry(new Error('request failed again')))
+      await within(analysisSection).findByRole('button', { name: 'Retry' })
+      expect(document.activeElement).toBe(elsewhere)
+    } finally {
+      elsewhere.remove()
+    }
+  })
+
+  it('leaves no placeholder or em-dash overview rows once route data loads', async () => {
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          avgPower: 215,
+          maxPower: 580,
+          avgHeartRate: 148,
+          maxHeartRate: 172,
+          totalWorkKj: 387
+        }
+      } as Partial<StatusNote>)
+    })
+
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    // Reserved rows are on screen while the request is in flight.
     expect(
-      document.querySelectorAll(
-        '[data-slot="skeleton-bar"], .skeleton, .animate-pulse'
-      )
+      within(overview).getAllByTestId('overview-placeholder-row').length
+    ).toBeGreaterThan(0)
+
+    await screen.findByRole('region', { name: 'Best efforts' })
+    expect(
+      within(overview).queryAllByTestId('overview-placeholder-row')
+    ).toHaveLength(0)
+    expect(
+      within(overview).queryAllByTestId('overview-unavailable-row')
     ).toHaveLength(0)
   })
 
@@ -430,10 +562,14 @@ describe('FitnessStatusDetail', () => {
     const analysisSection = await screen.findByRole('region', {
       name: 'Analysis'
     })
-    const alerts = screen.getAllByRole('alert')
+    const alerts = await screen.findAllByRole('alert')
     expect(alerts).toHaveLength(1)
     expect(analysisSection).toContainElement(alerts[0])
+    expect(alerts[0]).toHaveTextContent(
+      "Couldn't load the charts for this activity"
+    )
     expect(alerts[0]).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
+    expect(within(analysisSection).queryByRole('status')).toBeNull()
   })
 
   it.each([

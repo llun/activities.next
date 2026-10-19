@@ -109,4 +109,10 @@ describe('skeleton loading utility', () => {
       /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.skeleton::after\s*\{[^}]*display:\s*none/
     )
   })
+
+  it('stills the shimmer when .skeleton-static is applied', () => {
+    expect(css).toMatch(
+      /\.skeleton-static\s+\.skeleton::after\s*\{[^}]*display:\s*none/
+    )
+  })
 })

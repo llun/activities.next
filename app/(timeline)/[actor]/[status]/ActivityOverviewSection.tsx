@@ -14,7 +14,10 @@ export interface OverviewRow {
   label: string
   /** Null hides the row: the file has nothing for it. */
   value: string | null
-  /** Whether to render a placeholder row while route data is pending. */
+  /**
+   * Whether to keep a row with no value: a placeholder while route data is
+   * pending, and the row's label with a dash when route data failed.
+   */
   reserveWhenLoading?: boolean
 }
 
@@ -26,10 +29,13 @@ export interface OverviewGroup {
   rows: OverviewRow[]
 }
 
+/** What the rows with no value yet keep: a loading bar, or a dash when route data failed. */
+export type OverviewReserve = 'loading' | 'failed'
+
 /**
  * The groups with their empty rows dropped, and groups left empty dropped.
  * `keepReserved` keeps the empty rows that reserve a placeholder while route
- * data loads.
+ * data loads or when route data failed to load.
  */
 export const getVisibleOverviewGroups = (
   groups: OverviewGroup[],
@@ -48,8 +54,8 @@ export const getVisibleOverviewGroups = (
 
 const OverviewGroupFrame: FC<{
   group: OverviewGroup
-  reserveRows: boolean
-}> = ({ group, reserveRows }) => (
+  reserve?: OverviewReserve
+}> = ({ group, reserve }) => (
   <div data-testid={`overview-group-${group.key}`}>
     <Frame className="h-full overflow-hidden">
       <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -72,17 +78,33 @@ const OverviewGroupFrame: FC<{
               <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
               <dd className="font-semibold whitespace-nowrap">{row.value}</dd>
             </div>
-          ) : reserveRows && row.reserveWhenLoading ? (
-            <div
-              key={row.label}
-              aria-hidden="true"
-              data-testid="overview-placeholder-row"
-              data-metric={row.label}
-              className="flex items-center justify-between gap-2 px-3 py-[7px]"
-            >
-              <SkeletonBar className="h-5 w-20" />
-              <SkeletonBar className="h-5 w-14" />
-            </div>
+          ) : reserve && row.reserveWhenLoading ? (
+            reserve === 'failed' ? (
+              <div
+                key={row.label}
+                data-testid="overview-unavailable-row"
+                data-metric={row.label}
+                // leading-5: the same 34px as the placeholder row it replaces
+                className="flex justify-between gap-2 px-3 py-[7px] leading-5 tabular-nums"
+              >
+                <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
+                <dd className="font-semibold whitespace-nowrap text-muted-foreground">
+                  <span aria-hidden="true">—</span>
+                  <span className="sr-only">Not available</span>
+                </dd>
+              </div>
+            ) : (
+              <div
+                key={row.label}
+                aria-hidden="true"
+                data-testid="overview-placeholder-row"
+                data-metric={row.label}
+                className="flex items-center justify-between gap-2 px-3 py-[7px]"
+              >
+                <SkeletonBar className="h-5 w-20" />
+                <SkeletonBar className="h-5 w-14" />
+              </div>
+            )
           ) : null
         )}
       </dl>
@@ -96,7 +118,8 @@ export interface ActivityOverviewSectionProps {
   /** The route map, or null when the activity has no route. */
   map: ReactNode | null
   groups: OverviewGroup[]
-  reserveRows?: boolean
+  /** Keeps the rows that reserve a place while route data loads or failed; undefined reserves nothing. */
+  reserve?: OverviewReserve
 }
 
 /**
@@ -109,9 +132,9 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
   meta,
   map,
   groups,
-  reserveRows = false
+  reserve
 }) => {
-  const visibleGroups = getVisibleOverviewGroups(groups, reserveRows)
+  const visibleGroups = getVisibleOverviewGroups(groups, Boolean(reserve))
   if (!map && visibleGroups.length === 0) return null
   return (
     <Section id="overview" title="Overview" icon={MapIcon} meta={meta}>
@@ -128,7 +151,7 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
               <OverviewGroupFrame
                 key={group.key}
                 group={group}
-                reserveRows={reserveRows}
+                reserve={reserve}
               />
             ))}
           </div>
