@@ -22,7 +22,6 @@ import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
-import { cn } from '@/lib/utils'
 import { getFitnessPaceOrSpeed } from '@/lib/utils/fitness'
 import { type PublicMapProvider } from '@/lib/utils/mapProvider'
 
@@ -120,35 +119,6 @@ const ScrubbedAnalysisChart: FC<
   />
 )
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
-
-const getAnalysisReservedHeightClass = ({
-  seriesCount,
-  hasLikelyLaps,
-  hasMap
-}: {
-  seriesCount: number
-  hasLikelyLaps: boolean
-  hasMap: boolean
-}): string => {
-  if (hasLikelyLaps) {
-    if (seriesCount >= 5) {
-      return hasMap
-        ? 'min-h-[551px] @min-[366px]:min-h-[513px] @min-[520px]:min-h-[497px] @min-[700px]:min-h-[557px]'
-        : 'min-h-[535px] @min-[366px]:min-h-[497px] @min-[700px]:min-h-[557px]'
-    }
-    return hasMap
-      ? 'min-h-[475px] @min-[520px]:min-h-[459px] @min-[700px]:min-h-[519px]'
-      : 'min-h-[459px] @min-[700px]:min-h-[519px]'
-  }
-  if (seriesCount >= 5) {
-    return hasMap
-      ? 'min-h-[494px] @min-[366px]:min-h-[456px] @min-[520px]:min-h-[440px] @min-[700px]:min-h-[500px]'
-      : 'min-h-[478px] @min-[366px]:min-h-[440px] @min-[700px]:min-h-[500px]'
-  }
-  return hasMap
-    ? 'min-h-[418px] @min-[520px]:min-h-[402px] @min-[700px]:min-h-[462px]'
-    : 'min-h-[402px] @min-[700px]:min-h-[462px]'
-}
 
 const ActivityAnalysisLoadingState: FC<{
   series: Array<{ key: string; label: string; widthClass: string }>
@@ -874,21 +844,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             }
           >
             {route.error ? (
-              <Frame
-                className={cn(
-                  'p-4',
-                  getAnalysisReservedHeightClass({
-                    seriesCount: expectedAnalysisSeries.length,
-                    hasLikelyLaps:
-                      hasStructuredFitnessFormat &&
-                      hasSummarySensors &&
-                      durationSeconds > 0,
-                    hasMap: shouldRenderMap
-                  })
-                )}
-              >
-                <Alert tone="warning" title={route.error} />
-              </Frame>
+              <Alert tone="warning" title={route.error} />
             ) : route.isLoading ? (
               <ActivityAnalysisLoadingState
                 series={expectedAnalysisSeries}

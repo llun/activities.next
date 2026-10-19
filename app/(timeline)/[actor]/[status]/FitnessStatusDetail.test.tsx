@@ -337,7 +337,7 @@ describe('FitnessStatusDetail', () => {
     ).toHaveClass('h-[190px]', '@min-[700px]:h-[250px]')
   })
 
-  it('shows only real stats and one static analysis panel when route data fails', async () => {
+  it('shows only real stats and a compact analysis alert when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({
       status: buildStatus({
@@ -394,15 +394,10 @@ describe('FitnessStatusDetail', () => {
       'top-0',
       'inset-x-0'
     )
-    const frames = analysisSection.querySelectorAll('[data-slot="frame"]')
-    expect(frames).toHaveLength(1)
-    expect(frames[0]).toContainElement(analysisAlert)
-    expect(frames[0]).toHaveClass(
-      'min-h-[551px]',
-      '@min-[366px]:min-h-[513px]',
-      '@min-[520px]:min-h-[497px]',
-      '@min-[700px]:min-h-[557px]'
-    )
+    expect(
+      analysisSection.querySelectorAll('[data-slot="frame"]')
+    ).toHaveLength(0)
+    expect(analysisSection.querySelector('[class*="min-h-"]')).toBeNull()
     expect(
       within(analysisSection).queryByTestId('analysis-controls-skeleton')
     ).not.toBeInTheDocument()

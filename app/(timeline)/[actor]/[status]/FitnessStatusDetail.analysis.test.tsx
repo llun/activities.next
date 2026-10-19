@@ -603,12 +603,22 @@ describe('FitnessStatusDetail analysis', () => {
     expect(alert).toHaveTextContent(
       'Could not load route and analysis data for this activity.'
     )
-    const frames = analysisSection.querySelectorAll('[data-slot="frame"]')
-    expect(frames).toHaveLength(1)
-    expect(frames[0]).toContainElement(alert)
-    expect(frames[0]).toHaveClass('min-h-[402px]', '@min-[700px]:min-h-[462px]')
+    expect(
+      analysisSection.querySelectorAll('[data-slot="frame"]')
+    ).toHaveLength(0)
+    expect(analysisSection.querySelector('[class*="min-h-"]')).toBeNull()
+    expect(
+      within(screen.getByRole('region', { name: 'Overview' })).queryByTestId(
+        'overview-placeholder-row'
+      )
+    ).not.toBeInTheDocument()
     expect(
       within(analysisSection).queryByTestId('analysis-plot-skeleton')
     ).not.toBeInTheDocument()
+    expect(
+      document.querySelectorAll(
+        '[data-slot="skeleton-bar"], .skeleton, .animate-pulse'
+      )
+    ).toHaveLength(0)
   })
 })
