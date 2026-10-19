@@ -494,6 +494,35 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() => expect(document.activeElement).toBe(retryAgain))
   })
 
+  it('leaves focus where the reader moved it while a retried load was pending', async () => {
+    mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
+    renderDetail()
+
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const retry = await within(analysisSection).findByRole('button', {
+      name: 'Retry'
+    })
+    let rejectRetry: (error: Error) => void = () => {}
+    mockGetFitnessRouteData.mockImplementation(
+      () => new Promise((_, reject) => (rejectRetry = reject))
+    )
+    retry.focus()
+    fireEvent.click(retry)
+    await within(analysisSection).findByRole('status', {
+      name: 'Loading activity analysis'
+    })
+
+    const elsewhere = document.createElement('button')
+    document.body.appendChild(elsewhere)
+    elsewhere.focus()
+    await act(async () => rejectRetry(new Error('request failed again')))
+    await within(analysisSection).findByRole('button', { name: 'Retry' })
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
+  })
+
   it('leaves no placeholder or em-dash overview rows once route data loads', async () => {
     renderDetail({
       status: buildStatus({

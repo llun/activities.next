@@ -136,7 +136,8 @@ const ActivityAnalysisLoadingState: FC<{
     announce: boolean
   }
 }> = ({ series, hasLikelyLaps, hasMap, failure }) => {
-  const statusRef = useRef<HTMLDivElement>(null)
+  // The root of both branches (React may keep the same node across them).
+  const rootRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const retryInFlight = useRef(false)
   const failed = Boolean(failure)
@@ -148,9 +149,14 @@ const ActivityAnalysisLoadingState: FC<{
     if (!retryInFlight.current) return
     if (failed) {
       retryInFlight.current = false
-      overlayRef.current?.querySelector('button')?.focus()
+      // Only when focus is still on the loading region (or fell to <body>
+      // with it), not when the reader moved to another control meanwhile.
+      const active = document.activeElement
+      if (active === document.body || rootRef.current?.contains(active)) {
+        overlayRef.current?.querySelector('button')?.focus()
+      }
     } else {
-      statusRef.current?.focus()
+      rootRef.current?.focus()
     }
   }, [failed])
   const skeletonTree = (
@@ -229,7 +235,7 @@ const ActivityAnalysisLoadingState: FC<{
 
   if (failure) {
     return (
-      <div className="relative">
+      <div ref={rootRef} className="relative">
         <div
           aria-hidden="true"
           className={cn(FAILED_PLACEHOLDER_CLASS, 'space-y-3')}
@@ -259,7 +265,7 @@ const ActivityAnalysisLoadingState: FC<{
 
   return (
     <div
-      ref={statusRef}
+      ref={rootRef}
       role="status"
       aria-label="Loading activity analysis"
       tabIndex={-1}
