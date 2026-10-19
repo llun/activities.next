@@ -1,0 +1,71 @@
+docs/setup.md
+  s_e67afa7a51bb57::t_033db45c19dc52 74
+lib/components/admin/domains/DomainSettings.tsx
+  s_e67afa7a51bb57::t_f83f4587c9df4e 291,299,391-397
+  s_e67afa7a51bb57::t_0e1170513cd248 167-170,198-201,215-218,290,292-298
+  s_e67afa7a51bb57::t_c88d58e2aa67b5 344,398
+app/(nosidebar)/auth/signup/UsernameField.tsx
+  s_e67afa7a51bb57::t_14f7b9a5aec288 17
+  s_e67afa7a51bb57::t_d79be3787772ed 18
+docs/maintenance.md
+  s_e67afa7a51bb57::t_16ff18a1509c9b 1602
+app/api/v1/actors/route.test.ts
+  s_e67afa7a51bb57::t_01a71b1d0d383d 418-422,424-425,435-438,442-509,515-516,518
+  s_e67afa7a51bb57::t_32feba571d8843 510-514,517
+  s_e67afa7a51bb57::t_9fd746996dd326 423,426-434,439-441
+lib/services/domains/signUpDomain.ts
+  s_e67afa7a51bb57::t_aa04ca9de6bb4e 22-24
+  s_e67afa7a51bb57::t_36d9df60784ff4 158-203
+  s_e67afa7a51bb57::t_0f481d6496dd93 157
+lib/services/domains/adminDomains.test.ts
+  s_e67afa7a51bb57::t_495ef674c07b33 260,262-265,267,269
+lib/components/admin/domains/AddDomainForm.test.tsx
+  s_e67afa7a51bb57::t_10304ce418a3f4 198-203
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_e67afa7a51bb57::t_10304ce418a3f4 203-206,233-241
+  s_e67afa7a51bb57::t_31d0bcf5012574 242-243
+app/api/v1/actors/route.ts
+  s_e67afa7a51bb57::t_15a095d8bd1a74 12,90-97
+lib/components/admin/domains/AddDomainForm.tsx
+  s_e67afa7a51bb57::t_0e1170513cd248 41-44,72-75,98-101,185-194
+  s_e67afa7a51bb57::t_19d0c8b81596a4 195
+app/api/v1/actors/domains/route.ts
+  s_e67afa7a51bb57::t_15a095d8bd1a74 9,18,27-29,33-39
+app/(nosidebar)/auth/signup/UsernameField.test.tsx
+  s_e67afa7a51bb57::t_d95a80adf1da12 1-23
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_e67afa7a51bb57::t_14efc15d911b8b 15-16,222-247
+  s_e67afa7a51bb57::t_edd877b15c286a 248
+lib/services/domains/domainCheck.test.ts
+  s_e67afa7a51bb57::t_d4700608287a8c 108-111,212-224
+  s_e67afa7a51bb57::t_2dec6752b1b8cc 225
+lib/services/domains/servedDomainSnapshot.ts
+  s_e67afa7a51bb57::t_69e1b0cd722be0 44-48,162-163
+  s_e67afa7a51bb57::t_6e0db8a390006a 164
+docs/features.md
+  s_e67afa7a51bb57::t_2581f6177d3e4f 126
+app/api/v1/actors/domains/route.test.ts
+  s_e67afa7a51bb57::t_c9f99c3d53ac0e 278-280,310-311
+  s_e67afa7a51bb57::t_e9fbaf1153d89f 281-309
+  s_e67afa7a51bb57::t_8fe47fe153cca7 312-320
+lib/services/domains/actorDomains.ts
+  s_e67afa7a51bb57::t_16ff18a1509c9b 25-26
+lib/services/domains/adminDomains.ts
+  s_e67afa7a51bb57::t_fb308ca30e5521 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fce79a5174b4bff424ceb613c5531c060f230162",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
