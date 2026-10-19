@@ -1,0 +1,52 @@
+lib/services/domains/signUpDomain.ts
+  s_e67afa7a51bb57::t_1a97dc7e097a78 85-88,100-103,118-122
+app/api/oauth/authorize/route.ts
+  s_e67afa7a51bb57::t_cd8adf816e63c6 5-7,40-41,52
+  s_e67afa7a51bb57::t_1942b5e669c7de 4
+lib/services/domains/signUpDomain.test.ts
+  s_e67afa7a51bb57::t_269fffe30288ec 346-359
+  s_e67afa7a51bb57::t_302feb51ef7b34 202-203
+  s_e67afa7a51bb57::t_337ca5efd90c44 198-199,204,207-208,212,226,229-286,360
+lib/database/domains/servedDomain/servedDomain.test.ts
+  s_e67afa7a51bb57::t_26f6dd5541a52c 82-84
+scripts/backup/actorArchiveExport.test.ts
+  s_e67afa7a51bb57::t_a689f95d02067d 124-125,129,160,201,290-295,297-321,323-328,331-335
+  s_e67afa7a51bb57::t_8ad725aa3c1c51 322
+  s_e67afa7a51bb57::t_5d14f44bfd62b3 296,329-330
+  s_e67afa7a51bb57::t_e14a87e7999e3e 336-337
+lib/utils/traceApiRoute.ts
+  s_e67afa7a51bb57::t_a6be152da90688 10-11,252-255
+app/(nosidebar)/authorize_interaction/page.tsx
+  s_e67afa7a51bb57::t_cd8adf816e63c6 16,83
+app/api/oauth/authorize/route.test.ts
+  s_e67afa7a51bb57::t_5a93d6d4eab988 35,58
+  s_e67afa7a51bb57::t_a8df43b42875cd 29,50
+app/(nosidebar)/oauth/authorize/page.tsx
+  s_e67afa7a51bb57::t_cd8adf816e63c6 9,86
+lib/database/domains/servedDomain/queries.ts
+  s_e67afa7a51bb57::t_fcdc6e0806b326 18-20,23-28
+docs/maintenance.md
+  s_e67afa7a51bb57::t_7a47777b2d0a28 1597
+  s_e67afa7a51bb57::t_ba219e505ffc51 1603
+lib/services/domains/servedDomainSnapshot.ts
+  s_e67afa7a51bb57::t_a6be152da90688 21-22
+lib/utils/traceApiRoute.test.ts
+  s_e67afa7a51bb57::t_53990f4fce97bd 11-17,160-183
+  s_e67afa7a51bb57::t_0853482542f639 184-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e10df57c06106ae07a3bfddbeb82aad955f5e57c",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
