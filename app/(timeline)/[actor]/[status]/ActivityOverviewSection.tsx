@@ -84,7 +84,8 @@ const OverviewGroupFrame: FC<{
                 key={row.label}
                 data-testid="overview-unavailable-row"
                 data-metric={row.label}
-                className="flex justify-between gap-2 px-3 py-[7px] tabular-nums"
+                // leading-5: the same 34px as the placeholder row it replaces
+                className="flex justify-between gap-2 px-3 py-[7px] leading-5 tabular-nums"
               >
                 <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
                 <dd className="font-semibold whitespace-nowrap text-muted-foreground">
