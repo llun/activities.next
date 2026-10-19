@@ -653,6 +653,11 @@
     }
   }
 
+  .skeleton-static .skeleton::after,
+  .skeleton.skeleton-static::after {
+    display: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .skeleton::after {
       display: none;

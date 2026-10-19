@@ -588,8 +588,8 @@ describe('FitnessStatusDetail analysis', () => {
     expect(screen.queryByTestId('route-map')).not.toBeInTheDocument()
   })
 
-  it('says so when the route data cannot be loaded', async () => {
-    mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
+  it('says so when the route data cannot be loaded and retries when asked', async () => {
+    mockGetFitnessRouteData.mockRejectedValueOnce(new Error('boom'))
     renderDetail({
       status: buildStatus({
         fitness: { ...buildStatus().fitness, hasMapData: false }
@@ -599,26 +599,45 @@ describe('FitnessStatusDetail analysis', () => {
     const analysisSection = await screen.findByRole('region', {
       name: 'Analysis'
     })
-    const alert = within(analysisSection).getByRole('alert')
+    const alert = await within(analysisSection).findByRole('alert')
+    expect(alert).toHaveTextContent(
+      "Couldn't load the charts for this activity"
+    )
     expect(alert).toHaveTextContent(
       'Could not load route and analysis data for this activity.'
     )
+    expect(within(analysisSection).queryByRole('status')).toBeNull()
     expect(
       analysisSection.querySelectorAll('[data-slot="frame"]')
-    ).toHaveLength(0)
-    expect(analysisSection.querySelector('[class*="min-h-"]')).toBeNull()
+    ).toHaveLength(2)
     expect(
       within(screen.getByRole('region', { name: 'Overview' })).queryByTestId(
         'overview-placeholder-row'
       )
     ).not.toBeInTheDocument()
     expect(
-      within(analysisSection).queryByTestId('analysis-plot-skeleton')
-    ).not.toBeInTheDocument()
-    expect(
-      document.querySelectorAll(
-        '[data-slot="skeleton-bar"], .skeleton, .animate-pulse'
+      within(screen.getByRole('region', { name: 'Overview' })).getAllByTestId(
+        'overview-unavailable-row'
       )
-    ).toHaveLength(0)
+    ).not.toHaveLength(0)
+    expect(
+      within(analysisSection).getByTestId('analysis-plot-skeleton')
+    ).toBeInTheDocument()
+    expect(
+      analysisSection.querySelector('.skeleton-static')
+    ).toBeInTheDocument()
+
+    mockGetFitnessRouteData.mockResolvedValueOnce(routeData)
+    fireEvent.click(
+      within(analysisSection).getByRole('button', { name: 'Retry' })
+    )
+
+    expect(mockGetFitnessRouteData).toHaveBeenCalledTimes(2)
+    expect(
+      await within(analysisSection).findByText('4 graphs from the FIT file')
+    ).toBeInTheDocument()
+    expect(
+      within(analysisSection).getByTestId('analysis-combined-plot')
+    ).toBeInTheDocument()
   })
 })

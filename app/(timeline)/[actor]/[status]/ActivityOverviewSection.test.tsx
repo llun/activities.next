@@ -106,6 +106,31 @@ describe('ActivityOverviewSection', () => {
     expect(screen.getAllByTestId('overview-placeholder-row')).toHaveLength(1)
   })
 
+  it('renders reserved rows with an em dash and accessible text when route data fails', () => {
+    render(
+      <ActivityOverviewSection
+        meta="5.0 km · 30:00 elapsed"
+        map={null}
+        groups={sampleGroups}
+        reserveRows={true}
+        reserveState="failed"
+      />
+    )
+
+    expect(
+      screen.queryByTestId('overview-placeholder-row')
+    ).not.toBeInTheDocument()
+    const unavailableRows = screen.getAllByTestId('overview-unavailable-row')
+    expect(unavailableRows).toHaveLength(1)
+    expect(unavailableRows[0]).toHaveAttribute('data-metric', 'Max speed')
+    expect(unavailableRows[0].querySelector('dt')).toHaveTextContent(
+      'Max speed'
+    )
+    const dd = unavailableRows[0].querySelector('dd')
+    expect(dd).toHaveTextContent('—')
+    expect(dd).toHaveTextContent('Not available')
+  })
+
   it('returns null when both map and visible groups are empty', () => {
     const { container } = render(
       <ActivityOverviewSection

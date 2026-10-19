@@ -7,6 +7,7 @@ import {
   Gauge,
   HeartPulse,
   Mountain,
+  RefreshCw,
   Route,
   Trophy,
   Zap
@@ -15,10 +16,10 @@ import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
-import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import { Button } from '@/lib/components/ui/button'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -127,83 +128,134 @@ const ActivityAnalysisLoadingState: FC<{
   series: Array<{ key: string; label: string; widthClass: string }>
   hasLikelyLaps: boolean
   hasMap: boolean
-}> = ({ series, hasLikelyLaps, hasMap }) => (
-  <div
-    role="status"
-    aria-label="Loading activity analysis"
-    className="space-y-3"
-  >
-    <div data-testid="analysis-controls-skeleton">
-      <Frame className="space-y-2.5 bg-card px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SkeletonBar className="h-3 w-24" />
-          <div className="flex gap-1">
-            <SkeletonBar className="h-[30px] w-20 rounded-md" />
-            <SkeletonBar className="h-[30px] w-20 rounded-md" />
+  failure?: {
+    message: string
+    onRetry: () => void
+    announce: boolean
+  }
+}> = ({ series, hasLikelyLaps, hasMap, failure }) => {
+  const skeletonTree = (
+    <>
+      <div data-testid="analysis-controls-skeleton">
+        <Frame className="space-y-2.5 bg-card px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SkeletonBar className="h-3 w-24" />
+            <div className="flex gap-1">
+              <SkeletonBar className="h-[30px] w-20 rounded-md" />
+              <SkeletonBar className="h-[30px] w-20 rounded-md" />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {series.map(({ key, label, widthClass }) => (
+          <div className="flex flex-wrap gap-2">
+            {series.map(({ key, label, widthClass }) => (
+              <div
+                key={key}
+                aria-hidden="true"
+                data-testid="analysis-series-chip-placeholder"
+                data-series={key}
+                data-series-label={label}
+                className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+              >
+                <span className="size-2 shrink-0 rounded-full bg-muted" />
+                <SkeletonBar className={`h-5 ${widthClass}`} />
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+            <SkeletonBar
+              className={
+                hasMap
+                  ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
+                  : 'h-4 w-48'
+              }
+            />
+          </div>
+        </Frame>
+      </div>
+      <div>
+        <Frame className="overflow-hidden">
+          {hasLikelyLaps ? (
             <div
-              key={key}
-              aria-hidden="true"
-              data-testid="analysis-series-chip-placeholder"
-              data-series={key}
-              data-series-label={label}
-              className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+              data-testid="analysis-laps-skeleton"
+              className="relative border-b bg-muted/40"
             >
-              <span className="size-2 shrink-0 rounded-full bg-muted" />
-              <SkeletonBar className={`h-5 ${widthClass}`} />
+              <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <SkeletonBar
+                    key={index}
+                    className={cn(
+                      'h-10 rounded-md',
+                      ANALYSIS_LAP_BOX_WIDTH_CLASS
+                    )}
+                  />
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <SkeletonBar
-            className={
-              hasMap
-                ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
-                : 'h-4 w-48'
-            }
-          />
-        </div>
-      </Frame>
-    </div>
-    <div>
-      <Frame className="overflow-hidden">
-        {hasLikelyLaps ? (
-          <div
-            data-testid="analysis-laps-skeleton"
-            className="relative border-b bg-muted/40"
-          >
-            <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
-              {Array.from({ length: 3 }, (_, index) => (
-                <SkeletonBar
-                  key={index}
-                  className={cn(
-                    'h-10 rounded-md',
-                    ANALYSIS_LAP_BOX_WIDTH_CLASS
-                  )}
-                />
-              ))}
+          ) : null}
+          <div className="space-y-2 px-4 pb-2.5 pt-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <SkeletonBar className="h-5 w-20" />
             </div>
+            <div
+              data-testid="analysis-plot-skeleton"
+              className={cn('relative w-full', ANALYSIS_PLOT_HEIGHT_CLASS)}
+            >
+              <SkeletonBar className="h-full w-full rounded-md" />
+            </div>
+            <SkeletonBar className="h-4 w-full rounded-md" />
           </div>
-        ) : null}
-        <div className="space-y-2 px-4 pb-2.5 pt-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <SkeletonBar className="h-5 w-20" />
-          </div>
-          <div
-            data-testid="analysis-plot-skeleton"
-            className={cn('relative w-full', ANALYSIS_PLOT_HEIGHT_CLASS)}
-          >
-            <SkeletonBar className="h-full w-full rounded-md" />
-          </div>
-          <SkeletonBar className="h-4 w-full rounded-md" />
+        </Frame>
+      </div>
+    </>
+  )
+
+  if (failure) {
+    return (
+      <div className="relative">
+        <div
+          aria-hidden="true"
+          className="skeleton-static pointer-events-none select-none space-y-3 opacity-40"
+        >
+          {skeletonTree}
         </div>
-      </Frame>
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div
+            role={failure.announce ? 'alert' : undefined}
+            className="flex max-w-sm flex-col items-center gap-2 rounded-lg border bg-background/90 px-5 py-4 text-center backdrop-blur-xs"
+          >
+            <Activity
+              aria-hidden="true"
+              className="size-5 text-muted-foreground"
+            />
+            <p className="text-sm font-medium text-foreground">
+              Couldn&apos;t load the charts for this activity
+            </p>
+            <p className="text-xs text-muted-foreground">{failure.message}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={failure.onRetry}
+              className="mt-1"
+            >
+              <RefreshCw aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      role="status"
+      aria-label="Loading activity analysis"
+      className="space-y-3"
+    >
+      {skeletonTree}
     </div>
-  </div>
-)
+  )
+}
 
 const formatKm = (meters: number) => {
   const km = meters / 1000
@@ -832,7 +884,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           meta={overviewMeta}
           map={map}
           groups={overviewGroups}
-          reserveRows={route.isLoading}
+          reserveRows={isRouteAnalysisUnavailable}
+          reserveState={route.error ? 'failed' : 'loading'}
         />
 
         {isRouteAnalysisUnavailable ||
@@ -845,13 +898,20 @@ export const FitnessStatusDetail: FC<Props> = ({
               !isRouteAnalysisUnavailable && analysis ? analysisMeta : undefined
             }
           >
-            {route.error ? (
-              <Alert tone="warning" title={route.error} live={!map} />
-            ) : route.isLoading ? (
+            {isRouteAnalysisUnavailable ? (
               <ActivityAnalysisLoadingState
                 series={expectedAnalysisSeries}
                 hasLikelyLaps={likelyHasLaps}
                 hasMap={shouldRenderMap}
+                failure={
+                  route.error
+                    ? {
+                        message: route.error,
+                        onRetry: route.retry,
+                        announce: !map
+                      }
+                    : undefined
+                }
               />
             ) : analysis ? (
               <>
@@ -890,7 +950,7 @@ export const FitnessStatusDetail: FC<Props> = ({
           </Section>
         ) : null}
 
-        {route.isLoading ? (
+        {isRouteAnalysisUnavailable ? (
           <>
             {hasSummaryPower && durationSeconds >= 5 ? (
               <Section
@@ -898,16 +958,28 @@ export const FitnessStatusDetail: FC<Props> = ({
                 title="Best efforts"
                 icon={Trophy}
                 meta="power"
+                className={
+                  route.error
+                    ? 'skeleton-static pointer-events-none select-none opacity-40'
+                    : undefined
+                }
               >
-                <Frame className="p-3">
-                  <SkeletonBar className="h-12 w-full rounded-md" />
-                </Frame>
+                <div aria-hidden={route.error ? 'true' : undefined}>
+                  <Frame className="p-3">
+                    <SkeletonBar className="h-12 w-full rounded-md" />
+                  </Frame>
+                </div>
               </Section>
             ) : null}
             {expectedDistributionCount > 0 ? (
               <div
+                aria-hidden={route.error ? 'true' : undefined}
                 data-testid="analysis-distribution-skeleton"
-                className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+                className={cn(
+                  'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1',
+                  route.error &&
+                    'skeleton-static pointer-events-none select-none opacity-40'
+                )}
               >
                 {Array.from(
                   { length: expectedDistributionCount },

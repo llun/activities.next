@@ -337,7 +337,7 @@ describe('FitnessStatusDetail', () => {
     ).toHaveClass('h-[190px]', '@min-[700px]:h-[250px]')
   })
 
-  it('shows only real stats and a compact analysis alert when route data fails', async () => {
+  it('keeps reserved layout static with em-dash overview rows and a retry overlay when route data fails', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail({
       status: buildStatus({
@@ -367,6 +367,8 @@ describe('FitnessStatusDetail', () => {
     const analysisSection = await screen.findByRole('region', {
       name: 'Analysis'
     })
+    await within(analysisSection).findByRole('button', { name: 'Retry' })
+
     const overview = screen.getByRole('region', { name: 'Overview' })
     const rideGroup = within(overview).getByTestId('overview-group-ride')
     expect(within(rideGroup).getByText('Elapsed time')).toBeInTheDocument()
@@ -377,50 +379,77 @@ describe('FitnessStatusDetail', () => {
     expect(
       within(overview).queryByTestId('overview-placeholder-row')
     ).not.toBeInTheDocument()
+
+    const unavailableRows = within(overview).getAllByTestId(
+      'overview-unavailable-row'
+    )
     expect(
-      within(overview).queryByTestId('overview-group-cadence')
-    ).not.toBeInTheDocument()
+      unavailableRows.map((row) => row.getAttribute('data-metric'))
+    ).toEqual([
+      'Max speed',
+      'Calories',
+      'Laps',
+      'Weighted',
+      'Variability',
+      'L / R balance',
+      'Time in Z3–Z4',
+      'Decoupling',
+      'Avg cadence',
+      'Time at 0 W'
+    ])
+    for (const row of unavailableRows) {
+      expect(row.querySelector('dd')).toHaveTextContent('—')
+      expect(row.querySelector('dd')).toHaveTextContent('Not available')
+    }
 
     const mapAlert = within(overview).getByRole('alert')
     expect(mapAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
     expect(mapAlert).toHaveClass('left-3', 'right-14', 'top-3')
     expect(mapAlert).not.toHaveClass('inset-x-3')
 
-    // The map's banner is the one live alert; the section's copy of the same
-    // message is silent so a screen reader hears the failure once.
+    // The map's banner is the one live alert; the analysis failure overlay is
+    // silent when a map is present so a screen reader hears the failure once.
     expect(screen.getAllByRole('alert')).toEqual([mapAlert])
-    const analysisAlert = analysisSection.querySelector(
-      '[data-slot="alert"]'
-    ) as HTMLElement
-    expect(analysisAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
-    for (const positioned of ['absolute', 'fixed', 'top-0', 'inset-x-0']) {
-      expect(analysisAlert).not.toHaveClass(positioned)
-    }
+    expect(within(analysisSection).queryByRole('status')).toBeNull()
+    expect(
+      within(analysisSection).getByText(
+        "Couldn't load the charts for this activity"
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(analysisSection).getByText(ROUTE_DATA_ERROR_MESSAGE)
+    ).toBeInTheDocument()
+    expect(
+      within(analysisSection).getByRole('button', { name: 'Retry' })
+    ).toBeInTheDocument()
+
+    // Reserved frames and placeholders stay mounted with static shimmer so the
+    // page keeps its height.
     expect(
       analysisSection.querySelectorAll('[data-slot="frame"]')
-    ).toHaveLength(0)
-    expect(analysisSection.querySelector('[class*="min-h-"]')).toBeNull()
+    ).toHaveLength(2)
     expect(
-      within(analysisSection).queryByTestId('analysis-controls-skeleton')
-    ).not.toBeInTheDocument()
+      within(analysisSection).getByTestId('analysis-controls-skeleton')
+    ).toBeInTheDocument()
     expect(
-      within(analysisSection).queryByTestId('analysis-laps-skeleton')
-    ).not.toBeInTheDocument()
+      within(analysisSection).getByTestId('analysis-laps-skeleton')
+    ).toBeInTheDocument()
     expect(
-      within(analysisSection).queryByTestId('analysis-plot-skeleton')
-    ).not.toBeInTheDocument()
+      within(analysisSection).getByTestId('analysis-plot-skeleton')
+    ).toBeInTheDocument()
     expect(
-      screen.queryByRole('region', { name: 'Best efforts' })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByTestId('analysis-distribution-skeleton')
-    ).not.toBeInTheDocument()
+      analysisSection.querySelector('.skeleton-static')
+    ).toBeInTheDocument()
 
-    expect(
-      document.querySelectorAll(
-        '[data-slot="skeleton-bar"], .skeleton, .animate-pulse'
-      )
-    ).toHaveLength(0)
+    const bestEffortsSection = screen.getByRole('region', {
+      name: 'Best efforts'
+    })
+    expect(bestEffortsSection).toHaveClass('skeleton-static')
+    const distributionSkeleton = screen.getByTestId(
+      'analysis-distribution-skeleton'
+    )
+    expect(distributionSkeleton).toHaveClass('skeleton-static')
+    expect(distributionSkeleton).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('announces a route-data failure once when the activity has no map', async () => {
@@ -430,10 +459,14 @@ describe('FitnessStatusDetail', () => {
     const analysisSection = await screen.findByRole('region', {
       name: 'Analysis'
     })
-    const alerts = screen.getAllByRole('alert')
+    const alerts = await screen.findAllByRole('alert')
     expect(alerts).toHaveLength(1)
     expect(analysisSection).toContainElement(alerts[0])
+    expect(alerts[0]).toHaveTextContent(
+      "Couldn't load the charts for this activity"
+    )
     expect(alerts[0]).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
+    expect(within(analysisSection).queryByRole('status')).toBeNull()
   })
 
   it.each([

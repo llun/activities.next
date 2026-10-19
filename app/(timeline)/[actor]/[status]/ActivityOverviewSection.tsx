@@ -26,10 +26,12 @@ export interface OverviewGroup {
   rows: OverviewRow[]
 }
 
+export type OverviewReserveState = 'loading' | 'failed'
+
 /**
  * The groups with their empty rows dropped, and groups left empty dropped.
  * `keepReserved` keeps the empty rows that reserve a placeholder while route
- * data loads.
+ * data loads or when route data failed to load.
  */
 export const getVisibleOverviewGroups = (
   groups: OverviewGroup[],
@@ -49,7 +51,8 @@ export const getVisibleOverviewGroups = (
 const OverviewGroupFrame: FC<{
   group: OverviewGroup
   reserveRows: boolean
-}> = ({ group, reserveRows }) => (
+  reserveState: OverviewReserveState
+}> = ({ group, reserveRows, reserveState }) => (
   <div data-testid={`overview-group-${group.key}`}>
     <Frame className="h-full overflow-hidden">
       <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -73,16 +76,31 @@ const OverviewGroupFrame: FC<{
               <dd className="font-semibold whitespace-nowrap">{row.value}</dd>
             </div>
           ) : reserveRows && row.reserveWhenLoading ? (
-            <div
-              key={row.label}
-              aria-hidden="true"
-              data-testid="overview-placeholder-row"
-              data-metric={row.label}
-              className="flex items-center justify-between gap-2 px-3 py-[7px]"
-            >
-              <SkeletonBar className="h-5 w-20" />
-              <SkeletonBar className="h-5 w-14" />
-            </div>
+            reserveState === 'failed' ? (
+              <div
+                key={row.label}
+                data-testid="overview-unavailable-row"
+                data-metric={row.label}
+                className="flex justify-between gap-2 px-3 py-[7px] tabular-nums"
+              >
+                <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
+                <dd className="font-semibold whitespace-nowrap text-muted-foreground">
+                  <span aria-hidden="true">—</span>
+                  <span className="sr-only">Not available</span>
+                </dd>
+              </div>
+            ) : (
+              <div
+                key={row.label}
+                aria-hidden="true"
+                data-testid="overview-placeholder-row"
+                data-metric={row.label}
+                className="flex items-center justify-between gap-2 px-3 py-[7px]"
+              >
+                <SkeletonBar className="h-5 w-20" />
+                <SkeletonBar className="h-5 w-14" />
+              </div>
+            )
           ) : null
         )}
       </dl>
@@ -97,6 +115,7 @@ export interface ActivityOverviewSectionProps {
   map: ReactNode | null
   groups: OverviewGroup[]
   reserveRows?: boolean
+  reserveState?: OverviewReserveState
 }
 
 /**
@@ -109,7 +128,8 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
   meta,
   map,
   groups,
-  reserveRows = false
+  reserveRows = false,
+  reserveState = 'loading'
 }) => {
   const visibleGroups = getVisibleOverviewGroups(groups, reserveRows)
   if (!map && visibleGroups.length === 0) return null
@@ -129,6 +149,7 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
                 key={group.key}
                 group={group}
                 reserveRows={reserveRows}
+                reserveState={reserveState}
               />
             ))}
           </div>
