@@ -75,7 +75,7 @@ describe('useActivityRouteData', () => {
     expect(result.current.data).toEqual(payload)
   })
 
-  it('drops stale responses from an earlier file across file switches and retries', async () => {
+  it('drops a late response from an earlier file, and retries the current file', async () => {
     let resolveFileA!: (value: FitnessRouteDataResponse) => void
     let resolveFileB!: (value: FitnessRouteDataResponse) => void
 

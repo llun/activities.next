@@ -7,7 +7,6 @@ import {
   Gauge,
   HeartPulse,
   Mountain,
-  RefreshCw,
   Route,
   Trophy,
   Zap
@@ -16,10 +15,10 @@ import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
-import { Button } from '@/lib/components/ui/button'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -122,6 +121,9 @@ const ScrubbedAnalysisChart: FC<
     onHighlightElapsedSeconds={scrubStore.set}
   />
 )
+// A reserved placeholder that stays on screen, faded and still, when route data failed.
+const FAILED_PLACEHOLDER_CLASS =
+  'skeleton-static pointer-events-none select-none opacity-40'
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
 const ActivityAnalysisLoadingState: FC<{
@@ -134,6 +136,16 @@ const ActivityAnalysisLoadingState: FC<{
     announce: boolean
   }
 }> = ({ series, hasLikelyLaps, hasMap, failure }) => {
+  const statusRef = useRef<HTMLDivElement>(null)
+  const focusAfterRetry = useRef(false)
+  // Retry unmounts its own button, so focus would fall to <body>; park it on
+  // the loading region that replaces the failure note.
+  useEffect(() => {
+    if (!failure && focusAfterRetry.current) {
+      focusAfterRetry.current = false
+      statusRef.current?.focus()
+    }
+  }, [failure])
   const skeletonTree = (
     <>
       <div data-testid="analysis-controls-skeleton">
@@ -213,34 +225,23 @@ const ActivityAnalysisLoadingState: FC<{
       <div className="relative">
         <div
           aria-hidden="true"
-          className="skeleton-static pointer-events-none select-none space-y-3 opacity-40"
+          className={cn(FAILED_PLACEHOLDER_CLASS, 'space-y-3')}
         >
           {skeletonTree}
         </div>
         <div className="absolute inset-0 flex items-center justify-center p-4">
-          <div
-            role={failure.announce ? 'alert' : undefined}
-            className="flex max-w-sm flex-col items-center gap-2 rounded-lg border bg-background/90 px-5 py-4 text-center backdrop-blur-xs"
+          <Alert
+            tone="warning"
+            title="Couldn't load the charts for this activity"
+            onRetry={() => {
+              focusAfterRetry.current = true
+              failure.onRetry()
+            }}
+            live={failure.announce}
+            className="max-w-md"
           >
-            <Activity
-              aria-hidden="true"
-              className="size-5 text-muted-foreground"
-            />
-            <p className="text-sm font-medium text-foreground">
-              Couldn&apos;t load the charts for this activity
-            </p>
-            <p className="text-xs text-muted-foreground">{failure.message}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={failure.onRetry}
-              className="mt-1"
-            >
-              <RefreshCw aria-hidden="true" />
-              Retry
-            </Button>
-          </div>
+            {failure.message}
+          </Alert>
         </div>
       </div>
     )
@@ -248,9 +249,11 @@ const ActivityAnalysisLoadingState: FC<{
 
   return (
     <div
+      ref={statusRef}
       role="status"
       aria-label="Loading activity analysis"
-      className="space-y-3"
+      tabIndex={-1}
+      className="space-y-3 outline-none"
     >
       {skeletonTree}
     </div>
@@ -884,8 +887,9 @@ export const FitnessStatusDetail: FC<Props> = ({
           meta={overviewMeta}
           map={map}
           groups={overviewGroups}
-          reserveRows={isRouteAnalysisUnavailable}
-          reserveState={route.error ? 'failed' : 'loading'}
+          reserve={
+            route.error ? 'failed' : route.isLoading ? 'loading' : undefined
+          }
         />
 
         {isRouteAnalysisUnavailable ||
@@ -958,17 +962,12 @@ export const FitnessStatusDetail: FC<Props> = ({
                 title="Best efforts"
                 icon={Trophy}
                 meta="power"
-                className={
-                  route.error
-                    ? 'skeleton-static pointer-events-none select-none opacity-40'
-                    : undefined
-                }
+                aria-hidden={route.error ? true : undefined}
+                className={route.error ? FAILED_PLACEHOLDER_CLASS : undefined}
               >
-                <div aria-hidden={route.error ? 'true' : undefined}>
-                  <Frame className="p-3">
-                    <SkeletonBar className="h-12 w-full rounded-md" />
-                  </Frame>
-                </div>
+                <Frame className="p-3">
+                  <SkeletonBar className="h-12 w-full rounded-md" />
+                </Frame>
               </Section>
             ) : null}
             {expectedDistributionCount > 0 ? (
@@ -977,8 +976,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 data-testid="analysis-distribution-skeleton"
                 className={cn(
                   'grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1',
-                  route.error &&
-                    'skeleton-static pointer-events-none select-none opacity-40'
+                  route.error && FAILED_PLACEHOLDER_CLASS
                 )}
               >
                 {Array.from(

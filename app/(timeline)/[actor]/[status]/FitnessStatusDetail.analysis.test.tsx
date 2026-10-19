@@ -633,6 +633,12 @@ describe('FitnessStatusDetail analysis', () => {
     )
 
     expect(mockGetFitnessRouteData).toHaveBeenCalledTimes(2)
+    // The Retry button is gone; focus moves to the loading region, not <body>.
+    expect(document.activeElement).toBe(
+      within(analysisSection).getByRole('status', {
+        name: 'Loading activity analysis'
+      })
+    )
     expect(
       await within(analysisSection).findByText('4 graphs from the FIT file')
     ).toBeInTheDocument()

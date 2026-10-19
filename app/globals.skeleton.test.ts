@@ -112,7 +112,7 @@ describe('skeleton loading utility', () => {
 
   it('stills the shimmer when .skeleton-static is applied', () => {
     expect(css).toMatch(
-      /\.skeleton-static\s+\.skeleton::after,\s*\.skeleton\.skeleton-static::after\s*\{[^}]*display:\s*none/
+      /\.skeleton-static\s+\.skeleton::after\s*\{[^}]*display:\s*none/
     )
   })
 })

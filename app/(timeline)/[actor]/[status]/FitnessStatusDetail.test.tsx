@@ -441,9 +441,19 @@ describe('FitnessStatusDetail', () => {
       analysisSection.querySelector('.skeleton-static')
     ).toBeInTheDocument()
 
-    const bestEffortsSection = screen.getByRole('region', {
-      name: 'Best efforts'
-    })
+    // The faded skeleton is hidden from assistive tech; only the Alert is read.
+    expect(
+      within(analysisSection)
+        .getByTestId('analysis-plot-skeleton')
+        .closest('[aria-hidden="true"]')
+    ).toHaveClass('skeleton-static')
+    expect(
+      screen.queryByRole('region', { name: 'Best efforts' })
+    ).not.toBeInTheDocument()
+    const bestEffortsSection = document.getElementById(
+      'best-efforts'
+    ) as HTMLElement
+    expect(bestEffortsSection).toHaveAttribute('aria-hidden', 'true')
     expect(bestEffortsSection).toHaveClass('skeleton-static')
     const distributionSkeleton = screen.getByTestId(
       'analysis-distribution-skeleton'

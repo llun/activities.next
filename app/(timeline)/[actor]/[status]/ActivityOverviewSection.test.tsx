@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import {
   ActivityOverviewSection,
@@ -76,7 +76,6 @@ describe('ActivityOverviewSection', () => {
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        reserveRows={false}
       />
     )
 
@@ -96,7 +95,7 @@ describe('ActivityOverviewSection', () => {
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        reserveRows={true}
+        reserve="loading"
       />
     )
 
@@ -112,8 +111,7 @@ describe('ActivityOverviewSection', () => {
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        reserveRows={true}
-        reserveState="failed"
+        reserve="failed"
       />
     )
 
@@ -128,6 +126,10 @@ describe('ActivityOverviewSection', () => {
     )
     const dd = unavailableRows[0].querySelector('dd')
     expect(dd).toHaveTextContent('—')
+    expect(within(dd as HTMLElement).getByText('—')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
     expect(dd).toHaveTextContent('Not available')
   })
 

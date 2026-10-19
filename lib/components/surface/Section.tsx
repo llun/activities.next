@@ -23,6 +23,8 @@ interface Props {
   /** An anchor for the section, so a link can point at it (`#laps`). */
   id?: string
   className?: string
+  /** Hides the whole section from assistive tech, e.g. a decorative placeholder. */
+  'aria-hidden'?: boolean
   children: ReactNode
 }
 
@@ -42,6 +44,7 @@ export const Section: FC<Props> = ({
   headingLevel = 2,
   id,
   className,
+  'aria-hidden': ariaHidden,
   children
 }) => {
   const headingId = useId()
@@ -51,6 +54,7 @@ export const Section: FC<Props> = ({
       id={id}
       data-slot="section"
       aria-labelledby={headingId}
+      aria-hidden={ariaHidden}
       className={cn('space-y-3', id && 'scroll-mt-4', className)}
     >
       <div className="space-y-1">

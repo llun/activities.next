@@ -653,8 +653,7 @@
     }
   }
 
-  .skeleton-static .skeleton::after,
-  .skeleton.skeleton-static::after {
+  .skeleton-static .skeleton::after {
     display: none;
   }
 
