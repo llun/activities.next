@@ -516,11 +516,14 @@ describe('FitnessStatusDetail', () => {
 
     const elsewhere = document.createElement('button')
     document.body.appendChild(elsewhere)
-    elsewhere.focus()
-    await act(async () => rejectRetry(new Error('request failed again')))
-    await within(analysisSection).findByRole('button', { name: 'Retry' })
-    expect(document.activeElement).toBe(elsewhere)
-    elsewhere.remove()
+    try {
+      elsewhere.focus()
+      await act(async () => rejectRetry(new Error('request failed again')))
+      await within(analysisSection).findByRole('button', { name: 'Retry' })
+      expect(document.activeElement).toBe(elsewhere)
+    } finally {
+      elsewhere.remove()
+    }
   })
 
   it('leaves no placeholder or em-dash overview rows once route data loads', async () => {

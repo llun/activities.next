@@ -150,7 +150,8 @@ const ActivityAnalysisLoadingState: FC<{
     if (failed) {
       retryInFlight.current = false
       // Only when focus is still on the loading region (or fell to <body>
-      // with it), not when the reader moved to another control meanwhile.
+      // with it: browsers run focus fixup when a focused node loses its
+      // tabindex or is replaced), not when the reader moved to another control.
       const active = document.activeElement
       if (active === document.body || rootRef.current?.contains(active)) {
         overlayRef.current?.querySelector('button')?.focus()
