@@ -257,10 +257,16 @@ describe('adminDomains', () => {
       expect(checked).toMatchObject({ status: 'on', lastCheck: FAILED })
     })
 
+    // With its sign-up row in place, so only the env guard can answer null.
     it('has nothing to check for an env domain', async () => {
+      await updateDomainRegistrations(database, 'club.example', {
+        signupsOpen: true
+      })
+      const check = vi.fn(async () => PASSED)
       await expect(
-        recheckDomain(database, 'club.example', passes)
+        recheckDomain(database, 'club.example', check)
       ).resolves.toBeNull()
+      expect(check).not.toHaveBeenCalled()
     })
   })
 

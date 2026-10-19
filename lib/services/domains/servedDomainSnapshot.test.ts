@@ -12,7 +12,8 @@ import {
   refreshServedDomains,
   refreshServedDomainsAfterWrite,
   resetServedDomainsForTests,
-  setServedDomainsForTests
+  setServedDomainsForTests,
+  startServedDomainRefresher
 } from './servedDomainSnapshot'
 
 const config = { host: 'social.example', trustedHosts: ['club.example'] }
@@ -216,6 +217,33 @@ describe('servedDomainSnapshot', () => {
     expect(getServedHostConfig(config)).toBe(first)
     setServedDomainsForTests(['run.example', 'birds.example'])
     expect(getServedHostConfig(config)).not.toBe(first)
+  })
+
+  // A stale or never-loaded snapshot hands back one shared empty list, so the
+  // config object (and every matcher cached on it) is not rebuilt per call.
+  it('returns the same config object while the snapshot is stale', () => {
+    vi.useFakeTimers()
+    const neverLoaded = getServedHostConfig(config)
+    expect(getServedHostConfig(config)).toBe(neverLoaded)
+
+    setServedDomainsForTests(['run.example'])
+    vi.advanceTimersByTime(SERVED_DOMAIN_MAX_STALE_MS + 1)
+    const stale = getServedHostConfig(config)
+    expect(stale.servedDomains).toEqual([])
+    expect(getServedHostConfig(config)).toBe(stale)
+  })
+
+  it('reloads on an interval, and a second start adds no timer', async () => {
+    vi.useFakeTimers()
+    const { database, getActiveServedDomains } = databaseWith(['run.example'])
+    startServedDomainRefresher(database)
+    startServedDomainRefresher(database)
+    expect(vi.getTimerCount()).toBe(1)
+    await vi.advanceTimersByTimeAsync(0)
+    const loads = getActiveServedDomains.mock.calls.length
+
+    await vi.advanceTimersByTimeAsync(SERVED_DOMAIN_REFRESH_MS)
+    expect(getActiveServedDomains).toHaveBeenCalledTimes(loads + 1)
   })
 
   it('feeds headerHost', () => {

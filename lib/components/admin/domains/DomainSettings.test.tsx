@@ -200,6 +200,10 @@ describe('DomainSettings', () => {
     expect(
       screen.getByText('run.example does not reach this server')
     ).toBeInTheDocument()
+    // A request failure is an Alert whose Retry repeats the turn on.
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockSetStatus).toHaveBeenCalledTimes(2))
+    expect(mockSetStatus).toHaveBeenLastCalledWith('run.example', 'on')
   })
 
   it('removes an off domain with no profiles', async () => {
@@ -224,6 +228,17 @@ describe('DomainSettings', () => {
     expect(
       await screen.findByText('run.example does not reach this server')
     ).toBeInTheDocument()
+  })
+
+  it('shows a failed check request as an Alert that checks again', async () => {
+    mockCheck.mockRejectedValue(new Error('Failed to check the domain.'))
+    renderPage(RUN)
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to check the domain.'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2))
   })
 
   // The last check ran at midnight UTC on 18 Oct, 8 PM on 17 Oct in New York.

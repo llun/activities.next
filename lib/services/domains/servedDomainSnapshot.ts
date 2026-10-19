@@ -41,7 +41,11 @@ type Snapshot = {
   loadedAt: number
 }
 
-const EMPTY_SNAPSHOT: Snapshot = { domains: [], loadedAt: 0 }
+// One shared empty list, so a stale snapshot hands back the same array every
+// call and `getServedHostConfig` keeps returning the same object.
+const NO_DOMAINS: readonly string[] = Object.freeze([])
+
+const EMPTY_SNAPSHOT: Snapshot = { domains: NO_DOMAINS, loadedAt: 0 }
 
 type SnapshotState = {
   snapshot: Snapshot
@@ -155,7 +159,9 @@ export const getActiveServedDomainNames = (): readonly string[] => {
   if (state.registeredDatabase && shouldRefresh(now) && !state.inflight) {
     void refreshServedDomains(state.registeredDatabase)
   }
-  if (now - state.snapshot.loadedAt > SERVED_DOMAIN_MAX_STALE_MS) return []
+  if (now - state.snapshot.loadedAt > SERVED_DOMAIN_MAX_STALE_MS) {
+    return NO_DOMAINS
+  }
   return state.snapshot.domains
 }
 

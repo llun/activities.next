@@ -22,7 +22,8 @@ type ActorDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
  *   approves nothing and does not fall back.
  * - Otherwise the list is the Admin › Domains list: the primary host, the
  *   CONCRETE `ACTIVITIES_TRUSTED_HOSTS` entries (always on, and existing users
- *   can always add profiles there), and `addableDomains`, the domains an admin
+ *   can add profiles there, except as `filterActorDomainsForAccount` narrows
+ *   for an account that signed up on another domain), and `addableDomains`, the domains an admin
  *   added that are on with "Existing users can add profiles here" on
  *   (`getAddableActorDomains`). A wildcard trusted host exists to trust
  *   `X-Forwarded-Host` (preview deployments, say) and must not let anyone

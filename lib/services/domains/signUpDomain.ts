@@ -19,7 +19,9 @@ import { ensureServedDomainsFresh } from './servedDomainSnapshot'
  *   ACTIVITIES_TRUSTED_HOSTS entry or an active row an admin added. Without a
  *   row, or with sign-ups off on it, sign-up on that domain is closed. There
  *   is no fallback to the primary: a visitor on run.example never ends up
- *   with a profile on social.example.
+ *   with a profile on social.example, at sign-up or later
+ *   (`filterActorDomainsForAccount` holds a new profile on another env
+ *   domain to that domain's own sign-up rules).
  * - Any other host (a wildcard-matched preview host, an untrusted Host that
  *   fell back) is closed unless it IS the primary.
  */
@@ -150,6 +152,53 @@ export const isEmailAllowedForSignUpDomain = async (
     return isEmailAllowed(signUp.allowEmails, email)
   }
   return isEmailAllowedOnDomain(signUp.allowEmails, signUp.open, email)
+}
+
+/**
+ * Of `domains` (normalised), the ones account `accountId` may add a profile
+ * on: `POST /api/v1/actors` refuses the rest and `GET /api/v1/actors/domains`
+ * does not offer them. An account that signed up on a domain other than the
+ * primary (`accounts.signUpDomain`) was admitted under that domain's rules
+ * only, so an env domain (the primary or a concrete ACTIVITIES_TRUSTED_HOSTS
+ * entry) other than its own counts only when that domain would admit its
+ * email at sign-up now (`resolveSignUpDomain`: open, and its list allows the
+ * address) or the account already has a profile there. An account that signed
+ * up on the primary, or predates the column, keeps every domain; a domain an
+ * admin added stays decided by its "Existing users can add profiles here".
+ */
+export const filterActorDomainsForAccount = async (
+  database: Database,
+  accountId: string,
+  domains: readonly string[]
+): Promise<string[]> => {
+  const env = getEnvDomains()
+  const account = await database.getAccountFromId({ id: accountId })
+  if (!account) return []
+  const signUpDomain = normalizeServedDomainChoice(account.signUpDomain)
+  if (!signUpDomain || getEnvDomainKind(signUpDomain, env) === 'primary') {
+    return [...domains]
+  }
+
+  const actors = await database.getActorsForAccount({ accountId })
+  const owned = new Set(
+    actors.map((actor) => normalizeServedDomainChoice(actor.domain))
+  )
+  const allowed: string[] = []
+  for (const domain of domains) {
+    if (
+      !getEnvDomainKind(domain, env) ||
+      domain === signUpDomain ||
+      owned.has(domain)
+    ) {
+      allowed.push(domain)
+      continue
+    }
+    const signUp = await resolveSignUpDomain(database, domain)
+    if (signUp.open && isEmailAllowed(signUp.allowEmails, account.email)) {
+      allowed.push(domain)
+    }
+  }
+  return allowed
 }
 
 /**

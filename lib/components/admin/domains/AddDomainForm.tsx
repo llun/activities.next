@@ -38,7 +38,10 @@ export const AddDomainForm: FC = () => {
   const [value, setValue] = useState('')
   const [added, setAdded] = useState<AdminDomain | null>(null)
   const [busy, setBusy] = useState<'checking' | 'turning-on' | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{
+    title: string
+    action: 'check' | 'turn-on'
+  } | null>(null)
 
   // Typing another domain after a check starts over with that one.
   const current =
@@ -66,7 +69,10 @@ export const AddDomainForm: FC = () => {
       setAdded(domain)
       setValue(domain.domain)
     } catch (caught) {
-      setError(errorMessage(caught, 'Failed to check the domain.'))
+      setError({
+        title: errorMessage(caught, 'Failed to check the domain.'),
+        action: 'check'
+      })
     } finally {
       setBusy(null)
     }
@@ -89,7 +95,10 @@ export const AddDomainForm: FC = () => {
       if (caught instanceof AdminDomainRequestError && caught.domain) {
         setAdded(caught.domain)
       }
-      setError(errorMessage(caught, 'Failed to turn the domain on.'))
+      setError({
+        title: errorMessage(caught, 'Failed to turn the domain on.'),
+        action: 'turn-on'
+      })
       setBusy(null)
     }
   }
@@ -171,12 +180,18 @@ export const AddDomainForm: FC = () => {
             aria-describedby={check ? undefined : formRowHintId(INPUT_ID)}
             onChange={(event) => setValue(event.target.value)}
           />
-          {error ? (
-            <p role="alert" className="text-destructive-text mt-2 text-sm">
-              {error}
-            </p>
-          ) : null}
         </FormRow>
+
+        {error ? (
+          <div className="px-4 py-2.5">
+            <Alert
+              title={error.title}
+              onRetry={() =>
+                void (error.action === 'check' ? runCheck() : turnOn())
+              }
+            />
+          </div>
+        ) : null}
 
         {checking ? (
           <div className="px-4 py-2.5">

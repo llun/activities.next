@@ -164,7 +164,10 @@ const StatusBox: FC<{
 }> = ({ domain, primaryDomain, onChange }) => {
   const router = useRouter()
   const [busy, setBusy] = useState<'on' | 'off' | 'remove' | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{
+    title: string
+    action: 'on' | 'off' | 'remove'
+  } | null>(null)
   const name = domain.domain
   const primaryNote = primaryDomain
     ? `The primary domain, ${primaryDomain}, can’t be turned off.`
@@ -192,7 +195,10 @@ const StatusBox: FC<{
       if (caught instanceof AdminDomainRequestError && caught.domain) {
         onChange(caught.domain)
       }
-      setError(errorMessage(caught, 'Failed to change the domain.'))
+      setError({
+        title: errorMessage(caught, 'Failed to change the domain.'),
+        action: status
+      })
     } finally {
       setBusy(null)
     }
@@ -206,7 +212,10 @@ const StatusBox: FC<{
       router.push('/admin/domains')
       router.refresh()
     } catch (caught) {
-      setError(errorMessage(caught, 'Failed to remove the domain.'))
+      setError({
+        title: errorMessage(caught, 'Failed to remove the domain.'),
+        action: 'remove'
+      })
       setBusy(null)
     }
   }
@@ -278,9 +287,16 @@ const StatusBox: FC<{
         </Alert>
       )}
       {error ? (
-        <p role="alert" className="text-destructive-text px-4 pb-4 text-sm">
-          {error}
-        </p>
+        <Alert
+          flush
+          className="border-t"
+          title={error.title}
+          onRetry={() =>
+            void (error.action === 'remove'
+              ? remove()
+              : setStatus(error.action))
+          }
+        />
       ) : null}
     </Frame>
   )
@@ -325,11 +341,7 @@ const CheckBox: FC<{
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-muted-foreground min-w-0 text-sm">
-            {error ? (
-              <span role="alert" className="text-destructive-text">
-                {error}
-              </span>
-            ) : checkedAt !== null ? (
+            {checkedAt !== null ? (
               <>
                 Last checked{' '}
                 <time dateTime={new Date(checkedAt).toISOString()}>
@@ -376,6 +388,14 @@ const CheckBox: FC<{
           Check that {domain.domain} reaches this server before turning it on.
         </p>
       )}
+      {error ? (
+        <Alert
+          flush
+          className="border-t"
+          title={error}
+          onRetry={() => void recheck()}
+        />
+      ) : null}
     </Frame>
   )
 }

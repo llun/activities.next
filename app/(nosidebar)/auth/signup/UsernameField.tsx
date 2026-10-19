@@ -14,7 +14,8 @@ interface Props {
 // on this domain under it ("Your profile will be @ana@run.example").
 export const UsernameField: FC<Props> = ({ domain }) => {
   const [username, setUsername] = useState('')
-  const handle = username.trim().replace(/^@/, '') || 'name'
+  // The server lowercases the handle and refuses a leading @, so show it as made.
+  const handle = username.trim().toLowerCase() || 'name'
   return (
     <FormRow
       stacked

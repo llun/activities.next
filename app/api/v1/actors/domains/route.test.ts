@@ -275,4 +275,47 @@ describe('GET /api/v1/actors/domains', () => {
       invalidateServerSettingsCache(database)
     }
   })
+
+  // POST refuses an env domain that would not admit an account that signed
+  // up elsewhere, so it is not offered either.
+  it('does not offer a closed primary to an account that signed up on another env domain', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['club.test'],
+      allowEmails: []
+    })
+    await database.createAccount({
+      email: 'clubber@mail.test',
+      username: 'clubber',
+      domain: 'club.test',
+      passwordHash: 'hash',
+      privateKey: 'private',
+      publicKey: 'public'
+    })
+    await database.createServedDomain({
+      domain: 'club.test',
+      status: 'off',
+      signupsOpen: true
+    })
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false },
+      { key: 'registrations.allowEmails', value: [seedActor1.email] }
+    ])
+    invalidateServerSettingsCache(database)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'clubber@mail.test' }
+    })
+
+    try {
+      const data = await (
+        await GET(createRequest(), { params: Promise.resolve({}) })
+      ).json()
+      expect(data.domains).toEqual(['club.test'])
+    } finally {
+      await database.deleteServedDomain({ domain: 'club.test' })
+      await deleteServerSetting(db, { key: 'registrations.open' })
+      await deleteServerSetting(db, { key: 'registrations.allowEmails' })
+      invalidateServerSettingsCache(database)
+    }
+  })
 })

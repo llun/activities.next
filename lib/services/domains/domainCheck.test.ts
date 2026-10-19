@@ -105,6 +105,10 @@ describe('checkDomainReachability', () => {
     )
     expect(maxRedirects).toBe(0)
     expect(allowCrossHostRedirects).toBe(false)
+    // The route refuses a nonce it would not accept, so every check would fail.
+    expect(isDomainCheckNonce(new URL(url).searchParams.get('nonce'))).toBe(
+      true
+    )
   })
 
   it('uses a fresh nonce on every check', async () => {
@@ -204,5 +208,19 @@ describe('checkDomainReachability', () => {
     expect(result.passed).toBe(false)
     expect(result.reason).toBe(reason)
     expect(result.items.map((item) => item.status)).toEqual(statuses)
+  })
+
+  // undici's fetch throws `fetch failed` with the system error as its cause.
+  it('reads the code of a nested cause', async () => {
+    const result = await checkDomainReachability({
+      domain: 'photos.example',
+      fetch: failingWith(
+        Object.assign(new Error('fetch failed'), {
+          cause: { code: 'ENOTFOUND' }
+        })
+      ),
+      secret: SECRET
+    })
+    expect(result.reason).toBe('dns')
   })
 })

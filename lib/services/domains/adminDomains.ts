@@ -52,9 +52,7 @@ export const getEnvDomains = (
   return { primary, trusted, wildcards }
 }
 
-export type DomainSourceKind = 'primary' | 'env' | 'database' | 'unknown'
-
-/** Which of the three sources a normalised domain belongs to (database: has a row). */
+/** Whether a normalised domain is the primary, a concrete trusted host, or neither (null). */
 export const getEnvDomainKind = (
   domain: string,
   env: EnvDomains = getEnvDomains()

@@ -195,6 +195,12 @@ describe('AddDomainForm', () => {
       'aria-invalid',
       'true'
     )
+    // A request failure is an Alert whose Retry repeats the check.
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Wildcards can only be set in ACTIVITIES_TRUSTED_HOSTS.'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockAdd).toHaveBeenCalledTimes(2))
   })
 
   it('checks the existing row again when the domain was added before', async () => {
