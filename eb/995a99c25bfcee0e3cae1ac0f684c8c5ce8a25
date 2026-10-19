@@ -1,0 +1,39 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_326ec3e82e0e75::t_773d2ab032777e 444-452,456
+  s_326ec3e82e0e75::t_f454bbaa837ec8 453-455
+app/(timeline)/[actor]/[status]/useActivityRouteData.test.ts
+  s_326ec3e82e0e75::t_f29357cd19cb25 78
+lib/components/surface/Section.tsx
+  s_326ec3e82e0e75::t_033bfd9aa0d406 26-27,47,57
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_326ec3e82e0e75::t_033bfd9aa0d406 18,124-126,139-148,228,233-241,243-244,252,255-256,890-892,965-966,968-970,979
+docs/fitness-file-storage.md
+  s_326ec3e82e0e75::t_773d2ab032777e 410
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.tsx
+  s_326ec3e82e0e75::t_033bfd9aa0d406 17-20,32-33,57-58,81-82,120-121,134,136,153
+app/globals.css
+  s_326ec3e82e0e75::t_033bfd9aa0d406 656
+app/globals.skeleton.test.ts
+  s_326ec3e82e0e75::t_033bfd9aa0d406 115
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.test.tsx
+  s_326ec3e82e0e75::t_773d2ab032777e 5
+  s_326ec3e82e0e75::t_f29357cd19cb25 98,114,129-132
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.analysis.test.tsx
+  s_326ec3e82e0e75::t_773d2ab032777e 636-641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb995a99c25bfcee0e3cae1ac0f684c8c5ce8a25",
+  "prompts": {},
+  "sessions": {
+    "s_326ec3e82e0e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c28552d-e2fa-4115-9f9d-ff00ded45c5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
