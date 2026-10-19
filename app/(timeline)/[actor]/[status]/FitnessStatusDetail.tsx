@@ -137,15 +137,22 @@ const ActivityAnalysisLoadingState: FC<{
   }
 }> = ({ series, hasLikelyLaps, hasMap, failure }) => {
   const statusRef = useRef<HTMLDivElement>(null)
-  const focusAfterRetry = useRef(false)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const retryInFlight = useRef(false)
+  const failed = Boolean(failure)
   // Retry unmounts its own button, so focus would fall to <body>; park it on
-  // the loading region that replaces the failure note.
+  // the loading region that replaces the failure note, and on the new Retry
+  // button if the retried load fails again. `failed` (not `failure`, a fresh
+  // object each render) keeps this from re-running on unrelated renders.
   useEffect(() => {
-    if (!failure && focusAfterRetry.current) {
-      focusAfterRetry.current = false
+    if (!retryInFlight.current) return
+    if (failed) {
+      retryInFlight.current = false
+      overlayRef.current?.querySelector('button')?.focus()
+    } else {
       statusRef.current?.focus()
     }
-  }, [failure])
+  }, [failed])
   const skeletonTree = (
     <>
       <div data-testid="analysis-controls-skeleton">
@@ -229,12 +236,15 @@ const ActivityAnalysisLoadingState: FC<{
         >
           {skeletonTree}
         </div>
-        <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div
+          ref={overlayRef}
+          className="absolute inset-0 flex items-center justify-center p-4"
+        >
           <Alert
             tone="warning"
             title="Couldn't load the charts for this activity"
             onRetry={() => {
-              focusAfterRetry.current = true
+              retryInFlight.current = true
               failure.onRetry()
             }}
             live={failure.announce}

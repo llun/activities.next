@@ -462,6 +462,67 @@ describe('FitnessStatusDetail', () => {
     expect(distributionSkeleton).toHaveAttribute('aria-hidden', 'true')
   })
 
+  it('keeps keyboard focus on Retry when a retried route-data load fails again', async () => {
+    mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
+    renderDetail()
+
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const retry = await within(analysisSection).findByRole('button', {
+      name: 'Retry'
+    })
+    // The first failure is nobody's retry, so it must not take focus.
+    expect(document.activeElement).not.toBe(retry)
+
+    // The next attempt stays pending so the loading region can be observed.
+    let rejectRetry: (error: Error) => void = () => {}
+    mockGetFitnessRouteData.mockImplementation(
+      () => new Promise((_, reject) => (rejectRetry = reject))
+    )
+    retry.focus()
+    fireEvent.click(retry)
+    const loading = await within(analysisSection).findByRole('status', {
+      name: 'Loading activity analysis'
+    })
+    await waitFor(() => expect(document.activeElement).toBe(loading))
+
+    await act(async () => rejectRetry(new Error('request failed again')))
+    const retryAgain = await within(analysisSection).findByRole('button', {
+      name: 'Retry'
+    })
+    await waitFor(() => expect(document.activeElement).toBe(retryAgain))
+  })
+
+  it('leaves no placeholder or em-dash overview rows once route data loads', async () => {
+    renderDetail({
+      status: buildStatus({
+        fitness: {
+          ...buildStatus().fitness,
+          avgPower: 215,
+          maxPower: 580,
+          avgHeartRate: 148,
+          maxHeartRate: 172,
+          totalWorkKj: 387
+        }
+      } as Partial<StatusNote>)
+    })
+
+    const overview = screen.getByRole('region', { name: 'Overview' })
+    // Reserved rows are on screen while the request is in flight.
+    expect(
+      within(overview).getAllByTestId('overview-placeholder-row').length
+    ).toBeGreaterThan(0)
+
+    await screen.findByRole('region', { name: 'Best efforts' })
+    expect(
+      within(overview).queryAllByTestId('overview-placeholder-row')
+    ).toHaveLength(0)
+    expect(
+      within(overview).queryAllByTestId('overview-unavailable-row')
+    ).toHaveLength(0)
+  })
+
   it('announces a route-data failure once when the activity has no map', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
     renderDetail()
