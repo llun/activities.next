@@ -901,7 +901,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         <Alert
           tone="warning"
           title={routeDataError || mapLoadError}
-          className="absolute left-3 right-14 top-3 bg-background px-3 py-2 shadow-sm"
+          className="absolute left-3 right-14 top-3 px-3 py-2 shadow-sm"
         />
       ) : null}
     </ResizableMapContainer>

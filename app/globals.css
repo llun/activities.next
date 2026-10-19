@@ -30,15 +30,19 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-text: var(--destructive-text);
+  --color-destructive-surface: var(--destructive-surface);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-success-text: var(--success-text);
+  --color-success-surface: var(--success-surface);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-text: var(--warning-text);
+  --color-warning-surface: var(--warning-surface);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-text: var(--info-text);
+  --color-info-surface: var(--info-surface);
   --color-like-text: var(--like-text);
   --color-like-icon: var(--like-icon);
   --color-bookmark-icon: var(--bookmark-icon);
@@ -141,6 +145,9 @@
      surface (6.44:1 on popover/card #171717, 7.3:1 on background #0A0A0A).
      Exposed as the `text-destructive-text` utility. */
   --destructive-text: hsl(357.5 64.1% 43.7%);
+  /* Destructive Surface: the Alert's opaque tinted fill for the error tone (see
+     Status tones below). Exposed as `bg-destructive-surface`. */
+  --destructive-surface: hsl(0 86% 97%);
   /* Count beside a LIKED heart (the design's "Like Text"). The heart icon stays
      the bright red-500 (#FB2C36); only the number darkens so it clears AA. The
      values equal --destructive-text on purpose, but the design names them
@@ -169,17 +176,23 @@
      (the Alert's left rule, an icon tile) with a --*-foreground that clears
      4.5:1 on it, and --*-text is the darker shade for TEXT and icons, which
      clears 4.5:1 on --background and on the faint bg-muted/40 panel
-     (app/globals.contrast.test.ts recomputes both). Exposed as the
-     `bg-success` / `text-success-text` family of utilities. */
+     (app/globals.contrast.test.ts recomputes both). The -surface shade is the
+     Alert's opaque tinted fill (`bg-success-surface`, and the destructive one
+     above); the bold title, the muted description and the -text icon all clear
+     4.5:1 on it (also recomputed there). Exposed as the `bg-success` /
+     `text-success-text` / `bg-success-surface` family of utilities. */
   --success: hsl(142 72% 29%);
   --success-foreground: hsl(0 0% 100%);
   --success-text: hsl(142 72% 24%);
+  --success-surface: hsl(138 76% 97%);
   --warning: hsl(38 92% 50%);
   --warning-foreground: hsl(0 0% 9%);
   --warning-text: hsl(26 83% 28%);
+  --warning-surface: hsl(48 100% 96%);
   --info: hsl(221 83% 53%);
   --info-foreground: hsl(0 0% 100%);
   --info-text: hsl(224 76% 40%);
+  --info-surface: hsl(214 100% 97%);
   /* Translucent "Surface Chrome" behind the sticky page header, sidebar, rail
      and mobile header (white at 72 % light, #141414 at 80 % dark). Paired with
      `backdrop-blur` at the use site. Exposed as the `bg-surface-chrome`
@@ -276,6 +289,8 @@
      WCAG 2.1 AA (4.5:1) on dark surfaces: 6.44:1 on card/popover (#171717) and
      7.3:1 on dark background (#0A0A0A). Fills (bg-destructive) keep #7F1D1D. */
   --destructive-text: hsl(0 91% 71%);
+  /* Destructive Surface (see the light block): a deep red tint. */
+  --destructive-surface: hsl(0 45% 11%);
   /* Like Text (see the light block): the same red-400 as --destructive-text. */
   --like-text: hsl(0 91% 71%);
   /* Like icon (see the light block): the same red-500 in both themes. */
@@ -291,12 +306,15 @@
   --success: hsl(142 64% 24%);
   --success-foreground: hsl(0 0% 98%);
   --success-text: hsl(142 69% 58%);
+  --success-surface: hsl(142 35% 9%);
   --warning: hsl(26 90% 37%);
   --warning-foreground: hsl(0 0% 98%);
   --warning-text: hsl(43 96% 56%);
+  --warning-surface: hsl(32 50% 10%);
   --info: hsl(224 64% 33%);
   --info-foreground: hsl(0 0% 98%);
   --info-text: hsl(213 94% 68%);
+  --info-surface: hsl(222 45% 13%);
   /* Surface Chrome (see the light block): #141414 at 80 %. */
   --surface-chrome: hsl(0 0% 7.8% / 0.8);
   /* Surface Accent (see the light block): #271A11. */
