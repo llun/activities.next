@@ -136,7 +136,6 @@ const ActivityAnalysisLoadingState: FC<{
     announce: boolean
   }
 }> = ({ series, hasLikelyLaps, hasMap, failure }) => {
-  // The root of both branches (React may keep the same node across them).
   const rootRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const retryInFlight = useRef(false)
@@ -234,15 +233,23 @@ const ActivityAnalysisLoadingState: FC<{
     </>
   )
 
-  if (failure) {
-    return (
-      <div ref={rootRef} className="relative">
-        <div
-          aria-hidden="true"
-          className={cn(FAILED_PLACEHOLDER_CLASS, 'space-y-3')}
-        >
-          {skeletonTree}
-        </div>
+  // One tree for both states: the failure note is laid over the same
+  // placeholder nodes, so nothing is remounted or moved when a load fails.
+  return (
+    <div
+      ref={rootRef}
+      role={failure ? undefined : 'status'}
+      aria-label={failure ? undefined : 'Loading activity analysis'}
+      tabIndex={failure ? undefined : -1}
+      className="relative outline-none"
+    >
+      <div
+        aria-hidden={failure ? true : undefined}
+        className={cn('space-y-3', failure && FAILED_PLACEHOLDER_CLASS)}
+      >
+        {skeletonTree}
+      </div>
+      {failure ? (
         <div
           ref={overlayRef}
           className="absolute inset-0 flex items-center justify-center p-4"
@@ -260,19 +267,7 @@ const ActivityAnalysisLoadingState: FC<{
             {failure.message}
           </Alert>
         </div>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      ref={rootRef}
-      role="status"
-      aria-label="Loading activity analysis"
-      tabIndex={-1}
-      className="space-y-3 outline-none"
-    >
-      {skeletonTree}
+      ) : null}
     </div>
   )
 }
