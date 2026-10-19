@@ -386,14 +386,16 @@ describe('FitnessStatusDetail', () => {
     expect(mapAlert).toHaveClass('left-3', 'right-14', 'top-3')
     expect(mapAlert).not.toHaveClass('inset-x-3')
 
-    const analysisAlert = within(analysisSection).getByRole('alert')
+    // The map's banner is the one live alert; the section's copy of the same
+    // message is silent so a screen reader hears the failure once.
+    expect(screen.getAllByRole('alert')).toEqual([mapAlert])
+    const analysisAlert = analysisSection.querySelector(
+      '[data-slot="alert"]'
+    ) as HTMLElement
     expect(analysisAlert).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
-    expect(analysisAlert).not.toHaveClass(
-      'absolute',
-      'fixed',
-      'top-0',
-      'inset-x-0'
-    )
+    for (const positioned of ['absolute', 'fixed', 'top-0', 'inset-x-0']) {
+      expect(analysisAlert).not.toHaveClass(positioned)
+    }
     expect(
       analysisSection.querySelectorAll('[data-slot="frame"]')
     ).toHaveLength(0)
@@ -420,6 +422,121 @@ describe('FitnessStatusDetail', () => {
       )
     ).toHaveLength(0)
   })
+
+  it('announces a route-data failure once when the activity has no map', async () => {
+    mockGetFitnessRouteData.mockRejectedValue(new Error('request failed'))
+    renderDetail()
+
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts).toHaveLength(1)
+    expect(analysisSection).toContainElement(alerts[0])
+    expect(alerts[0]).toHaveTextContent(ROUTE_DATA_ERROR_MESSAGE)
+  })
+
+  it.each([
+    {
+      name: 'a GPX file with power',
+      fitness: {
+        fileType: 'gpx',
+        totalDurationSeconds: 1800,
+        avgPower: 215,
+        maxPower: 580
+      },
+      ride: ['Max speed'],
+      power: ['Weighted', 'Variability'],
+      heartRate: null,
+      cadence: ['Time at 0 W'],
+      chips: ['elevation', 'speed', 'power', 'grade'],
+      hasLapBand: false
+    },
+    {
+      name: 'a zero-second activity',
+      fitness: {
+        totalDurationSeconds: 0,
+        elevationGainMeters: 0,
+        avgPower: 215,
+        maxPower: 580,
+        avgHeartRate: 148,
+        maxHeartRate: 172
+      },
+      ride: ['Max speed'],
+      power: ['Weighted', 'Variability', 'L / R balance'],
+      heartRate: ['Time in Z3–Z4'],
+      cadence: ['Avg cadence', 'Time at 0 W'],
+      chips: ['power', 'heart-rate', 'cadence'],
+      hasLapBand: false
+    },
+    {
+      name: 'a five-minute activity with power and heart rate',
+      fitness: {
+        totalDurationSeconds: 300,
+        avgPower: 215,
+        maxPower: 580,
+        avgHeartRate: 148,
+        maxHeartRate: 172
+      },
+      ride: ['Max speed', 'Calories', 'Laps'],
+      power: ['Weighted', 'Variability', 'L / R balance'],
+      heartRate: ['Time in Z3–Z4'],
+      cadence: ['Avg cadence', 'Time at 0 W'],
+      chips: ['elevation', 'speed', 'power', 'heart-rate', 'cadence', 'grade'],
+      hasLapBand: true
+    },
+    {
+      name: 'a swim with sensors',
+      fitness: {
+        activityType: 'swim',
+        totalDistanceMeters: 1000,
+        avgPower: 215,
+        maxPower: 580,
+        avgHeartRate: 148,
+        maxHeartRate: 172
+      },
+      ride: ['Max speed', 'Calories', 'Laps'],
+      power: ['Weighted', 'Variability', 'L / R balance'],
+      heartRate: ['Time in Z3–Z4', 'Decoupling'],
+      cadence: ['Time at 0 W'],
+      chips: ['elevation', 'speed', 'power', 'heart-rate', 'grade'],
+      hasLapBand: true
+    }
+  ])(
+    'reserves only the rows the summary supports for $name',
+    ({ fitness, ride, power, heartRate, cadence, chips, hasLapBand }) => {
+      mockGetFitnessRouteData.mockImplementation(() => new Promise(() => {}))
+      renderDetail({
+        status: buildStatus({
+          fitness: { ...buildStatus().fitness, ...fitness }
+        } as unknown as Partial<StatusNote>)
+      })
+
+      const overview = screen.getByRole('region', { name: 'Overview' })
+      const placeholders = (group: string) => {
+        const frame = within(overview).queryByTestId(`overview-group-${group}`)
+        return frame
+          ? within(frame)
+              .queryAllByTestId('overview-placeholder-row')
+              .map((row) => row.getAttribute('data-metric'))
+          : null
+      }
+      expect(placeholders('ride')).toEqual(ride)
+      expect(placeholders('power')).toEqual(power)
+      expect(placeholders('heart-rate')).toEqual(heartRate)
+      expect(placeholders('cadence')).toEqual(cadence)
+
+      const analysis = screen.getByRole('region', { name: 'Analysis' })
+      expect(
+        within(analysis)
+          .queryAllByTestId('analysis-series-chip-placeholder')
+          .map((chip) => chip.getAttribute('data-series'))
+      ).toEqual(chips)
+      expect(
+        within(analysis).queryByTestId('analysis-laps-skeleton') !== null
+      ).toBe(hasLapBand)
+    }
+  )
 
   it('leaves out the overview rows the activity has nothing for', async () => {
     renderDetail()

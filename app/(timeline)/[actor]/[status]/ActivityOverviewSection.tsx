@@ -26,14 +26,23 @@ export interface OverviewGroup {
   rows: OverviewRow[]
 }
 
-/** The groups with their empty rows dropped, and groups left empty dropped. */
+/**
+ * The groups with their empty rows dropped, and groups left empty dropped.
+ * `keepReserved` keeps the empty rows that reserve a placeholder while route
+ * data loads.
+ */
 export const getVisibleOverviewGroups = (
-  groups: OverviewGroup[]
+  groups: OverviewGroup[],
+  keepReserved = false
 ): OverviewGroup[] =>
   groups
     .map((group) => ({
       ...group,
-      rows: group.rows.filter((row) => row.value !== null)
+      rows: group.rows.filter(
+        (row) =>
+          row.value !== null ||
+          (keepReserved && Boolean(row.reserveWhenLoading))
+      )
     }))
     .filter((group) => group.rows.length > 0)
 
@@ -42,7 +51,7 @@ const OverviewGroupFrame: FC<{
   reserveRows: boolean
 }> = ({ group, reserveRows }) => (
   <div data-testid={`overview-group-${group.key}`}>
-    <Frame className="overflow-hidden">
+    <Frame className="h-full overflow-hidden">
       <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
         <span
           aria-hidden="true"
@@ -102,16 +111,7 @@ export const ActivityOverviewSection: FC<ActivityOverviewSectionProps> = ({
   groups,
   reserveRows = false
 }) => {
-  const visibleGroups = reserveRows
-    ? groups
-        .map((group) => ({
-          ...group,
-          rows: group.rows.filter(
-            (row) => row.value !== null || Boolean(row.reserveWhenLoading)
-          )
-        }))
-        .filter((group) => group.rows.length > 0)
-    : getVisibleOverviewGroups(groups)
+  const visibleGroups = getVisibleOverviewGroups(groups, reserveRows)
   if (!map && visibleGroups.length === 0) return null
   return (
     <Section id="overview" title="Overview" icon={MapIcon} meta={meta}>

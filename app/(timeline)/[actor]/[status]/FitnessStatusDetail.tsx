@@ -22,10 +22,13 @@ import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 import { getFitnessPaceOrSpeed } from '@/lib/utils/fitness'
 import { type PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import {
+  ANALYSIS_LAP_BOX_WIDTH_CLASS,
+  ANALYSIS_PLOT_HEIGHT_CLASS,
   ActivityAnalysisChart,
   type ActivityAnalysisChartProps
 } from './ActivityAnalysisChart'
@@ -125,78 +128,79 @@ const ActivityAnalysisLoadingState: FC<{
   hasLikelyLaps: boolean
   hasMap: boolean
 }> = ({ series, hasLikelyLaps, hasMap }) => (
-  <div className="space-y-4">
-    <div
-      role="status"
-      aria-label="Loading activity analysis"
-      className="space-y-4"
-    >
-      <div data-testid="analysis-controls-skeleton">
-        <Frame className="space-y-2.5 bg-card px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <SkeletonBar className="h-3 w-24" />
-            <div className="flex gap-1">
-              <SkeletonBar className="h-7 w-20 rounded-md" />
-              <SkeletonBar className="h-7 w-20 rounded-md" />
-            </div>
+  <div
+    role="status"
+    aria-label="Loading activity analysis"
+    className="space-y-3"
+  >
+    <div data-testid="analysis-controls-skeleton">
+      <Frame className="space-y-2.5 bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SkeletonBar className="h-3 w-24" />
+          <div className="flex gap-1">
+            <SkeletonBar className="h-[30px] w-20 rounded-md" />
+            <SkeletonBar className="h-[30px] w-20 rounded-md" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {series.map(({ key, label, widthClass }) => (
-              <div
-                key={key}
-                aria-hidden="true"
-                data-testid="analysis-series-chip-placeholder"
-                data-series={key}
-                data-series-label={label}
-                className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
-              >
-                <span className="size-2 shrink-0 rounded-full bg-muted" />
-                <SkeletonBar className={`h-5 ${widthClass}`} />
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-            <SkeletonBar
-              className={
-                hasMap
-                  ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
-                  : 'h-4 w-48'
-              }
-            />
-          </div>
-        </Frame>
-      </div>
-      <div>
-        <Frame className="overflow-hidden">
-          {hasLikelyLaps ? (
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {series.map(({ key, label, widthClass }) => (
             <div
-              data-testid="analysis-laps-skeleton"
-              className="relative border-b bg-muted/40"
+              key={key}
+              aria-hidden="true"
+              data-testid="analysis-series-chip-placeholder"
+              data-series={key}
+              data-series-label={label}
+              className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
             >
-              <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
-                {Array.from({ length: 3 }, (_, index) => (
-                  <SkeletonBar
-                    key={index}
-                    className="h-10 min-w-36 flex-1 basis-0 rounded-md"
-                  />
-                ))}
-              </div>
+              <span className="size-2 shrink-0 rounded-full bg-muted" />
+              <SkeletonBar className={`h-5 ${widthClass}`} />
             </div>
-          ) : null}
-          <div className="space-y-2 px-4 pb-2.5 pt-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <SkeletonBar className="h-5 w-20" />
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <SkeletonBar
+            className={
+              hasMap
+                ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
+                : 'h-4 w-48'
+            }
+          />
+        </div>
+      </Frame>
+    </div>
+    <div>
+      <Frame className="overflow-hidden">
+        {hasLikelyLaps ? (
+          <div
+            data-testid="analysis-laps-skeleton"
+            className="relative border-b bg-muted/40"
+          >
+            <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
+              {Array.from({ length: 3 }, (_, index) => (
+                <SkeletonBar
+                  key={index}
+                  className={cn(
+                    'h-10 rounded-md',
+                    ANALYSIS_LAP_BOX_WIDTH_CLASS
+                  )}
+                />
+              ))}
             </div>
-            <div
-              data-testid="analysis-plot-skeleton"
-              className="relative h-[190px] w-full @min-[700px]:h-[250px]"
-            >
-              <SkeletonBar className="h-full w-full rounded-md" />
-            </div>
-            <SkeletonBar className="h-4 w-full rounded-md" />
           </div>
-        </Frame>
-      </div>
+        ) : null}
+        <div className="space-y-2 px-4 pb-2.5 pt-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <SkeletonBar className="h-5 w-20" />
+          </div>
+          <div
+            data-testid="analysis-plot-skeleton"
+            className={cn('relative w-full', ANALYSIS_PLOT_HEIGHT_CLASS)}
+          >
+            <SkeletonBar className="h-full w-full rounded-md" />
+          </div>
+          <SkeletonBar className="h-4 w-full rounded-md" />
+        </div>
+      </Frame>
     </div>
   </div>
 )
@@ -389,6 +393,10 @@ export const FitnessStatusDetail: FC<Props> = ({
   const hasSummarySensors = hasSummaryPower || hasSummaryHeartRate
   const likelyHasCadence =
     hasStructuredFitnessFormat && isCadenceSport && hasSummarySensors
+  const likelyHasLaps =
+    hasStructuredFitnessFormat && hasSummarySensors && durationSeconds > 0
+  const expectedDistributionCount =
+    (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
   const expectedAnalysisSeries = [
     {
       key: 'elevation',
@@ -572,18 +580,12 @@ export const FitnessStatusDetail: FC<Props> = ({
             typeof analysis?.calories === 'number' && analysis.calories > 0
               ? `${Math.round(analysis.calories)} kcal`
               : null,
-          reserveWhenLoading:
-            hasStructuredFitnessFormat &&
-            hasSummarySensors &&
-            durationSeconds > 0
+          reserveWhenLoading: likelyHasLaps
         },
         {
           label: 'Laps',
           value: formatLapPattern(laps),
-          reserveWhenLoading:
-            hasStructuredFitnessFormat &&
-            hasSummarySensors &&
-            durationSeconds > 0
+          reserveWhenLoading: likelyHasLaps
         }
       ]
     },
@@ -844,15 +846,11 @@ export const FitnessStatusDetail: FC<Props> = ({
             }
           >
             {route.error ? (
-              <Alert tone="warning" title={route.error} />
+              <Alert tone="warning" title={route.error} live={!map} />
             ) : route.isLoading ? (
               <ActivityAnalysisLoadingState
                 series={expectedAnalysisSeries}
-                hasLikelyLaps={
-                  hasStructuredFitnessFormat &&
-                  hasSummarySensors &&
-                  durationSeconds > 0
-                }
+                hasLikelyLaps={likelyHasLaps}
                 hasMap={shouldRenderMap}
               />
             ) : analysis ? (
@@ -893,42 +891,36 @@ export const FitnessStatusDetail: FC<Props> = ({
         ) : null}
 
         {route.isLoading ? (
-          (() => {
-            const expectedDistributionCount =
-              (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
-            return (
-              <>
-                {hasSummaryPower && durationSeconds >= 5 ? (
-                  <Section
-                    id="best-efforts"
-                    title="Best efforts"
-                    icon={Trophy}
-                    meta="power"
-                  >
-                    <Frame className="p-3">
-                      <SkeletonBar className="h-12 w-full rounded-md" />
+          <>
+            {hasSummaryPower && durationSeconds >= 5 ? (
+              <Section
+                id="best-efforts"
+                title="Best efforts"
+                icon={Trophy}
+                meta="power"
+              >
+                <Frame className="p-3">
+                  <SkeletonBar className="h-12 w-full rounded-md" />
+                </Frame>
+              </Section>
+            ) : null}
+            {expectedDistributionCount > 0 ? (
+              <div
+                data-testid="analysis-distribution-skeleton"
+                className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+              >
+                {Array.from(
+                  { length: expectedDistributionCount },
+                  (_, index) => (
+                    <Frame key={index} className="h-44 space-y-2 p-4">
+                      <SkeletonBar className="h-4 w-28" />
+                      <SkeletonBar className="h-28 w-full" />
                     </Frame>
-                  </Section>
-                ) : null}
-                {expectedDistributionCount > 0 ? (
-                  <div
-                    data-testid="analysis-distribution-skeleton"
-                    className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
-                  >
-                    {Array.from(
-                      { length: expectedDistributionCount },
-                      (_, index) => (
-                        <Frame key={index} className="h-44 space-y-2 p-4">
-                          <SkeletonBar className="h-4 w-28" />
-                          <SkeletonBar className="h-28 w-full" />
-                        </Frame>
-                      )
-                    )}
-                  </div>
-                ) : null}
-              </>
-            )
-          })()
+                  )
+                )}
+              </div>
+            ) : null}
+          </>
         ) : analysis ? (
           <>
             <ActivityBestEfforts efforts={analysis.bestEfforts} />

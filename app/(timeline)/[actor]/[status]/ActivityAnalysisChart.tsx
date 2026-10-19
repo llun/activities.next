@@ -45,6 +45,10 @@ const TIME_LABEL_COUNT = 5
 // Gaps between the crosshair and the readout on either side of it, in px.
 const READOUT_GAP_RIGHT = 10
 const READOUT_GAP_LEFT = 8
+/** The combined chart's plot height; the loading state reserves the same. */
+export const ANALYSIS_PLOT_HEIGHT_CLASS = 'h-[190px] @min-[700px]:h-[250px]'
+/** A lap box's width: all equal, sharing the band until the minimum. */
+export const ANALYSIS_LAP_BOX_WIDTH_CLASS = 'min-w-36 flex-1 basis-0'
 
 /**
  * Where the combined chart's readout goes, as its left edge in px within the
@@ -145,7 +149,8 @@ const LapsBand: FC<{
               className={cn(
                 // Every lap box is the same width: they share the band equally
                 // and scroll once they reach the minimum.
-                'min-w-36 flex-1 basis-0 snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                ANALYSIS_LAP_BOX_WIDTH_CLASS,
+                'snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 isSelected
                   ? 'border-primary bg-primary/10'
                   : 'bg-background hover:bg-muted'
@@ -491,7 +496,8 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
             ref={combinedPlotRef}
             data-testid="analysis-combined-plot"
             className={cn(
-              'relative h-[190px] select-none @min-[700px]:h-[250px]',
+              'relative select-none',
+              ANALYSIS_PLOT_HEIGHT_CLASS,
               scrub.plotClassName
             )}
             {...scrub.plotHandlers}
