@@ -51,13 +51,32 @@ describe('ActivityOverviewSection', () => {
     expect(visible[0].rows).toHaveLength(2)
   })
 
+  it('keeps the rows that reserve a placeholder when asked', () => {
+    const visible = getVisibleOverviewGroups(sampleGroups, true)
+    expect(visible.map((g) => g.key)).toEqual(['ride', 'power'])
+    expect(visible[0].rows.map((r) => r.label)).toEqual([
+      'Elapsed time',
+      'Avg speed',
+      'Max speed'
+    ])
+  })
+
+  it('stretches each group frame to fill its grid cell so paired cards stay equal height', () => {
+    render(<ActivityOverviewSection map={null} groups={sampleGroups} />)
+
+    const frame = screen
+      .getByTestId('overview-group-ride')
+      .querySelector('[data-slot="frame"]')
+    expect(frame).toHaveClass('h-full')
+  })
+
   it('renders only populated rows without forced min-height once loading completes', () => {
     render(
       <ActivityOverviewSection
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        isLoading={false}
+        reserveRows={false}
       />
     )
 
@@ -71,13 +90,13 @@ describe('ActivityOverviewSection', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders placeholder rows only for pending metrics with reserveWhenLoading while isLoading is true', () => {
+  it('renders reserved placeholder rows in place while route data is unavailable', () => {
     render(
       <ActivityOverviewSection
         meta="5.0 km · 30:00 elapsed"
         map={null}
         groups={sampleGroups}
-        isLoading={true}
+        reserveRows={true}
       />
     )
 

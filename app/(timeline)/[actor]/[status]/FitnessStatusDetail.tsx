@@ -22,10 +22,13 @@ import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 import { getFitnessPaceOrSpeed } from '@/lib/utils/fitness'
 import { type PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import {
+  ANALYSIS_LAP_BOX_WIDTH_CLASS,
+  ANALYSIS_PLOT_HEIGHT_CLASS,
   ActivityAnalysisChart,
   type ActivityAnalysisChartProps
 } from './ActivityAnalysisChart'
@@ -120,6 +123,88 @@ const ScrubbedAnalysisChart: FC<
 )
 const MAP_ASPECT_CLASS = 'aspect-video @min-[820px]:aspect-[4/3]'
 
+const ActivityAnalysisLoadingState: FC<{
+  series: Array<{ key: string; label: string; widthClass: string }>
+  hasLikelyLaps: boolean
+  hasMap: boolean
+}> = ({ series, hasLikelyLaps, hasMap }) => (
+  <div
+    role="status"
+    aria-label="Loading activity analysis"
+    className="space-y-3"
+  >
+    <div data-testid="analysis-controls-skeleton">
+      <Frame className="space-y-2.5 bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SkeletonBar className="h-3 w-24" />
+          <div className="flex gap-1">
+            <SkeletonBar className="h-[30px] w-20 rounded-md" />
+            <SkeletonBar className="h-[30px] w-20 rounded-md" />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {series.map(({ key, label, widthClass }) => (
+            <div
+              key={key}
+              aria-hidden="true"
+              data-testid="analysis-series-chip-placeholder"
+              data-series={key}
+              data-series-label={label}
+              className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+            >
+              <span className="size-2 shrink-0 rounded-full bg-muted" />
+              <SkeletonBar className={`h-5 ${widthClass}`} />
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <SkeletonBar
+            className={
+              hasMap
+                ? 'h-8 w-full @min-[520px]:h-4 @min-[520px]:w-96'
+                : 'h-4 w-48'
+            }
+          />
+        </div>
+      </Frame>
+    </div>
+    <div>
+      <Frame className="overflow-hidden">
+        {hasLikelyLaps ? (
+          <div
+            data-testid="analysis-laps-skeleton"
+            className="relative border-b bg-muted/40"
+          >
+            <div className="no-scrollbar flex gap-1 overflow-hidden px-4 py-2">
+              {Array.from({ length: 3 }, (_, index) => (
+                <SkeletonBar
+                  key={index}
+                  className={cn(
+                    'h-10 rounded-md',
+                    ANALYSIS_LAP_BOX_WIDTH_CLASS
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="space-y-2 px-4 pb-2.5 pt-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <SkeletonBar className="h-5 w-20" />
+          </div>
+          <div
+            data-testid="analysis-plot-skeleton"
+            className={cn('relative w-full', ANALYSIS_PLOT_HEIGHT_CLASS)}
+          >
+            <SkeletonBar className="h-full w-full rounded-md" />
+          </div>
+          <SkeletonBar className="h-4 w-full rounded-md" />
+        </div>
+      </Frame>
+    </div>
+  </div>
+)
+
 const formatKm = (meters: number) => {
   const km = meters / 1000
   return km >= 10 ? km.toFixed(1) : km.toFixed(2)
@@ -155,6 +240,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     setSelectedFitnessFileId
   })
   const route = useActivityRouteData(fitness?.id)
+  const isRouteAnalysisUnavailable = route.isLoading || Boolean(route.error)
 
   const [graphDisplayMode, setGraphDisplayMode] =
     useState<GraphDisplayMode>('combined')
@@ -290,6 +376,65 @@ export const FitnessStatusDetail: FC<Props> = ({
   const effortPower = normalizedPower ?? avgPower
 
   const calories = analysis?.calories ?? null
+  const hasSummaryPower =
+    typeof fitness?.avgPower === 'number' ||
+    typeof fitness?.maxPower === 'number'
+  const hasSummaryHeartRate =
+    typeof fitness?.avgHeartRate === 'number' ||
+    typeof fitness?.maxHeartRate === 'number'
+  const hasSummaryElevation =
+    (fitness?.elevationSeries?.length ?? 0) > 1 ||
+    (fitness?.elevationGainMeters ?? 0) > 0
+  const hasStructuredFitnessFormat =
+    fitness?.fileType === 'fit' || fitness?.fileType === 'tcx'
+  const activityTypeKey = activityType?.toLowerCase() ?? ''
+  const isCadenceSport = /ride|cycl|run|bike/.test(activityTypeKey)
+  // Summary sensors are the best pre-route signal for optional route-only rows.
+  const hasSummarySensors = hasSummaryPower || hasSummaryHeartRate
+  const likelyHasCadence =
+    hasStructuredFitnessFormat && isCadenceSport && hasSummarySensors
+  const likelyHasLaps =
+    hasStructuredFitnessFormat && hasSummarySensors && durationSeconds > 0
+  const expectedDistributionCount =
+    (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
+  const expectedAnalysisSeries = [
+    {
+      key: 'elevation',
+      label: 'Elevation',
+      widthClass: 'w-16',
+      available: hasSummaryElevation
+    },
+    {
+      key: 'speed',
+      label: 'Speed',
+      widthClass: 'w-10',
+      available: distanceMeters > 0 && durationSeconds > 0
+    },
+    {
+      key: 'power',
+      label: 'Power',
+      widthClass: 'w-11',
+      available: hasSummaryPower
+    },
+    {
+      key: 'heart-rate',
+      label: 'Heart rate',
+      widthClass: 'w-16',
+      available: hasSummaryHeartRate
+    },
+    {
+      key: 'cadence',
+      label: 'Cadence',
+      widthClass: 'w-14',
+      available: likelyHasCadence
+    },
+    {
+      key: 'grade',
+      label: 'Grade',
+      widthClass: 'w-10',
+      available: hasSummaryElevation && distanceMeters > 0
+    }
+  ].filter(({ available }) => available)
   const tiles = useMemo<ActivityTile[]>(() => {
     const candidates: Array<ActivityTile | null> = [
       distanceMeters > 0
@@ -404,11 +549,9 @@ export const FitnessStatusDetail: FC<Props> = ({
     calories
   ])
 
-  // Only rows predicted by the stored `fitness_files` summary (`Max speed`,
-  // `Weighted`, `Variability`, `Time in Z3–Z4`) set `reserveWhenLoading`.
-  // Route-only metrics with no summary column (`Calories`, `Laps`, `L / R
-  // balance`, `Decoupling`, and the `Cadence and weather` group) wait for
-  // `/route-data` rather than guessing whether the recording has them.
+  // Stored values reserve rows exactly when the summary supports them. It has
+  // no availability flags for calories, laps, cadence, balance or decoupling,
+  // so reserve the likely rows from the file type and stored power/HR totals.
   const overviewGroups: OverviewGroup[] = [
     {
       key: 'ride',
@@ -436,9 +579,14 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             typeof analysis?.calories === 'number' && analysis.calories > 0
               ? `${Math.round(analysis.calories)} kcal`
-              : null
+              : null,
+          reserveWhenLoading: likelyHasLaps
         },
-        { label: 'Laps', value: formatLapPattern(laps) }
+        {
+          label: 'Laps',
+          value: formatLapPattern(laps),
+          reserveWhenLoading: likelyHasLaps
+        }
       ]
     },
     {
@@ -453,12 +601,13 @@ export const FitnessStatusDetail: FC<Props> = ({
               ? maxPower !== null
                 ? `${avgPower} / ${maxPower} W`
                 : `${avgPower} W`
-              : null
+              : null,
+          reserveWhenLoading: hasSummaryPower
         },
         {
           label: 'Weighted',
           value: normalizedPower !== null ? `${normalizedPower} W` : null,
-          reserveWhenLoading: avgPower !== null
+          reserveWhenLoading: hasSummaryPower
         },
         {
           label: 'Variability',
@@ -466,17 +615,19 @@ export const FitnessStatusDetail: FC<Props> = ({
             normalizedPower !== null && avgPower
               ? (normalizedPower / avgPower).toFixed(2)
               : null,
-          reserveWhenLoading: avgPower !== null
+          reserveWhenLoading: hasSummaryPower
         },
         {
           label: 'Work',
-          value: totalWorkKj !== null ? `${totalWorkKj} kJ` : null
+          value: totalWorkKj !== null ? `${totalWorkKj} kJ` : null,
+          reserveWhenLoading: hasSummaryPower && durationSeconds > 0
         },
         {
           label: 'L / R balance',
           value: analysis?.leftRightBalance
             ? `${analysis.leftRightBalance.left} / ${analysis.leftRightBalance.right}`
-            : null
+            : null,
+          reserveWhenLoading: hasSummaryPower && hasStructuredFitnessFormat
         }
       ]
     },
@@ -489,14 +640,16 @@ export const FitnessStatusDetail: FC<Props> = ({
           label: 'Avg / max',
           value: heartRateStats
             ? `${heartRateStats.avg} / ${heartRateStats.max} bpm`
-            : null
+            : null,
+          reserveWhenLoading: hasSummaryHeartRate
         },
         {
           label: 'Power / HR',
           value:
             effortPower !== null && heartRateStats && heartRateStats.avg > 0
               ? (effortPower / heartRateStats.avg).toFixed(2)
-              : null
+              : null,
+          reserveWhenLoading: hasSummaryPower && hasSummaryHeartRate
         },
         {
           label: 'Time in Z3–Z4',
@@ -508,14 +661,16 @@ export const FitnessStatusDetail: FC<Props> = ({
                   )
                 )
               : null,
-          reserveWhenLoading: heartRateStats !== null
+          reserveWhenLoading: hasSummaryHeartRate
         },
         {
           label: 'Decoupling',
           value:
             typeof analysis?.decouplingPercent === 'number'
               ? `${analysis.decouplingPercent.toFixed(1)} %`
-              : null
+              : null,
+          reserveWhenLoading:
+            hasSummaryPower && hasSummaryHeartRate && durationSeconds >= 600
         }
       ]
     },
@@ -529,7 +684,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             typeof analysis?.avgCadence === 'number'
               ? `${Math.round(analysis.avgCadence)} ${analysis.cadenceUnit}`
-              : null
+              : null,
+          reserveWhenLoading: likelyHasCadence
         },
         {
           label: 'Temperature',
@@ -548,7 +704,8 @@ export const FitnessStatusDetail: FC<Props> = ({
           value:
             typeof analysis?.timeAtZeroPowerSeconds === 'number'
               ? formatDuration(Math.round(analysis.timeAtZeroPowerSeconds))
-              : null
+              : null,
+          reserveWhenLoading: hasSummaryPower
         }
       ]
     }
@@ -671,47 +828,31 @@ export const FitnessStatusDetail: FC<Props> = ({
           />
         ) : null}
 
-        {/* With no map to carry the banner, the failure is shown here so it is
-          never invisible. */}
-        {route.error && !map ? (
-          <Alert tone="warning" title={route.error} />
-        ) : null}
-
         <ActivityOverviewSection
           meta={overviewMeta}
           map={map}
           groups={overviewGroups}
-          isLoading={route.isLoading}
+          reserveRows={route.isLoading}
         />
 
-        {route.isLoading || (analysis && availableSeries.length > 0) ? (
+        {isRouteAnalysisUnavailable ||
+        (analysis && availableSeries.length > 0) ? (
           <Section
             id="analysis"
             title="Analysis"
             icon={Activity}
-            meta={!route.isLoading && analysis ? analysisMeta : undefined}
+            meta={
+              !isRouteAnalysisUnavailable && analysis ? analysisMeta : undefined
+            }
           >
-            {route.isLoading ? (
-              <div
-                role="status"
-                aria-label="Loading activity analysis"
-                className="space-y-4"
-              >
-                <Frame className="space-y-4 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex gap-2">
-                      <SkeletonBar className="h-8 w-20 rounded-md" />
-                      <SkeletonBar className="h-8 w-20 rounded-md" />
-                    </div>
-                    <div className="flex gap-2">
-                      <SkeletonBar className="h-8 w-16 rounded-md" />
-                      <SkeletonBar className="h-8 w-16 rounded-md" />
-                      <SkeletonBar className="h-8 w-16 rounded-md" />
-                    </div>
-                  </div>
-                  <SkeletonBar className="h-[280px] w-full rounded-md" />
-                </Frame>
-              </div>
+            {route.error ? (
+              <Alert tone="warning" title={route.error} live={!map} />
+            ) : route.isLoading ? (
+              <ActivityAnalysisLoadingState
+                series={expectedAnalysisSeries}
+                hasLikelyLaps={likelyHasLaps}
+                hasMap={shouldRenderMap}
+              />
             ) : analysis ? (
               <>
                 <GraphDisplayCard
@@ -750,48 +891,36 @@ export const FitnessStatusDetail: FC<Props> = ({
         ) : null}
 
         {route.isLoading ? (
-          (() => {
-            const hasSummaryHeartRate =
-              typeof fitness?.avgHeartRate === 'number' ||
-              typeof fitness?.maxHeartRate === 'number'
-            const hasSummaryPower =
-              typeof fitness?.avgPower === 'number' ||
-              typeof fitness?.maxPower === 'number'
-            const expectedDistributionCount =
-              (hasSummaryHeartRate ? 1 : 0) + (hasSummaryPower ? 2 : 0)
-            return (
-              <>
-                {hasSummaryPower && durationSeconds >= 5 ? (
-                  <Section
-                    id="best-efforts"
-                    title="Best efforts"
-                    icon={Trophy}
-                    meta="power"
-                  >
-                    <Frame className="p-3">
-                      <SkeletonBar className="h-12 w-full rounded-md" />
+          <>
+            {hasSummaryPower && durationSeconds >= 5 ? (
+              <Section
+                id="best-efforts"
+                title="Best efforts"
+                icon={Trophy}
+                meta="power"
+              >
+                <Frame className="p-3">
+                  <SkeletonBar className="h-12 w-full rounded-md" />
+                </Frame>
+              </Section>
+            ) : null}
+            {expectedDistributionCount > 0 ? (
+              <div
+                data-testid="analysis-distribution-skeleton"
+                className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
+              >
+                {Array.from(
+                  { length: expectedDistributionCount },
+                  (_, index) => (
+                    <Frame key={index} className="h-44 space-y-2 p-4">
+                      <SkeletonBar className="h-4 w-28" />
+                      <SkeletonBar className="h-28 w-full" />
                     </Frame>
-                  </Section>
-                ) : null}
-                {expectedDistributionCount > 0 ? (
-                  <div
-                    data-testid="analysis-distribution-skeleton"
-                    className="grid gap-6 @min-[600px]:grid-cols-2 @min-[600px]:gap-4 @min-[600px]:[&>*:last-child:nth-child(odd)]:col-span-2 @min-[820px]:grid-cols-3 @min-[820px]:[&>*:last-child:nth-child(odd)]:col-span-1"
-                  >
-                    {Array.from(
-                      { length: expectedDistributionCount },
-                      (_, index) => (
-                        <Frame key={index} className="h-44 space-y-2 p-4">
-                          <SkeletonBar className="h-4 w-28" />
-                          <SkeletonBar className="h-28 w-full" />
-                        </Frame>
-                      )
-                    )}
-                  </div>
-                ) : null}
-              </>
-            )
-          })()
+                  )
+                )}
+              </div>
+            ) : null}
+          </>
         ) : analysis ? (
           <>
             <ActivityBestEfforts efforts={analysis.bestEfforts} />

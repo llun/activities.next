@@ -590,15 +590,35 @@ describe('FitnessStatusDetail analysis', () => {
 
   it('says so when the route data cannot be loaded', async () => {
     mockGetFitnessRouteData.mockRejectedValue(new Error('boom'))
-    renderDetail()
+    renderDetail({
+      status: buildStatus({
+        fitness: { ...buildStatus().fitness, hasMapData: false }
+      } as Partial<StatusNote>)
+    })
 
+    const analysisSection = await screen.findByRole('region', {
+      name: 'Analysis'
+    })
+    const alert = within(analysisSection).getByRole('alert')
+    expect(alert).toHaveTextContent(
+      'Could not load route and analysis data for this activity.'
+    )
     expect(
-      await screen.findByText(
-        'Could not load route and analysis data for this activity.'
+      analysisSection.querySelectorAll('[data-slot="frame"]')
+    ).toHaveLength(0)
+    expect(analysisSection.querySelector('[class*="min-h-"]')).toBeNull()
+    expect(
+      within(screen.getByRole('region', { name: 'Overview' })).queryByTestId(
+        'overview-placeholder-row'
       )
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('region', { name: 'Analysis' })
     ).not.toBeInTheDocument()
+    expect(
+      within(analysisSection).queryByTestId('analysis-plot-skeleton')
+    ).not.toBeInTheDocument()
+    expect(
+      document.querySelectorAll(
+        '[data-slot="skeleton-bar"], .skeleton, .animate-pulse'
+      )
+    ).toHaveLength(0)
   })
 })
