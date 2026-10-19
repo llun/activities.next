@@ -78,4 +78,30 @@ describe('Alert', () => {
     render(<Alert title="Saved" tone="success" />)
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it.each([
+    ['error', 'destructive'],
+    ['warning', 'warning'],
+    ['success', 'success'],
+    ['info', 'info']
+  ] as const)(
+    'fills the %s tone with an opaque tinted surface, card and flush',
+    (tone: AlertTone, color) => {
+      const { rerender } = render(<Alert tone={tone} title="Heads up" />)
+      const card = screen.getByRole(
+        tone === 'error' || tone === 'warning' ? 'alert' : 'status'
+      )
+      expect(card).toHaveClass(`bg-${color}-surface`, `border-${color}/25`)
+      expect(card).toHaveClass(`border-l-${color}`, 'border-l-4')
+
+      rerender(<Alert tone={tone} flush title="Heads up" />)
+      const flush = screen.getByRole(
+        tone === 'error' || tone === 'warning' ? 'alert' : 'status'
+      )
+      expect(flush).toHaveClass(`bg-${color}-surface`, `border-l-${color}`)
+      expect(flush).not.toHaveClass(`border-${color}/25`)
+      expect(flush).not.toHaveClass('rounded-lg')
+      expect(flush).toHaveClass('border-l-4', 'border-y-0', 'border-r-0')
+    }
+  )
 })

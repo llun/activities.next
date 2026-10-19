@@ -369,6 +369,61 @@ describe('status tone tokens: success, warning, info (WCAG 2.1 AA SC 1.4.3)', ()
   )
 })
 
+describe('alert surface tokens (WCAG 2.1 AA SC 1.4.3)', () => {
+  // The Alert fills with an opaque `bg-<tone>-surface`; its bold title is
+  // --foreground, its description --muted-foreground and its icon the tone's
+  // text token.
+  const tones = [
+    { tone: 'destructive', text: '--destructive-text' },
+    { tone: 'success', text: '--success-text' },
+    { tone: 'warning', text: '--warning-text' },
+    { tone: 'info', text: '--info-text' }
+  ] as const
+
+  const cases = (['light', 'dark'] as const).flatMap((theme) =>
+    tones.flatMap(({ tone, text }) =>
+      (
+        [
+          ['title', '--foreground'],
+          ['description', '--muted-foreground'],
+          ['icon', text]
+        ] as const
+      ).map(([role, token]) => ({ theme, tone, role, token }))
+    )
+  )
+
+  it.each(['light', 'dark'] as const)(
+    'defines every --<tone>-surface in the %s theme',
+    (theme) => {
+      for (const { tone } of tones) {
+        expect(themes[theme][`--${tone}-surface`]).toBeDefined()
+      }
+    }
+  )
+
+  it.each(cases)(
+    '$theme $tone-surface: $role ($token) meets 4.5:1',
+    ({ theme, tone, role, token }) => {
+      const fg = rgbOf(themes[theme], token)
+      const bg = rgbOf(themes[theme], `--${tone}-surface`)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `${theme} ${tone}-surface ${JSON.stringify(bg)} with ${role} ${token} ${JSON.stringify(fg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it.each(tones.map(({ tone }) => tone))(
+    'maps --color-%s-surface to the token',
+    (tone) => {
+      expect(css).toMatch(
+        new RegExp(`--color-${tone}-surface:\\s*var\\(--${tone}-surface\\)`)
+      )
+    }
+  )
+})
+
 describe('selected stat cell (WCAG 2.1 AA SC 1.4.3)', () => {
   // A pressed `StatCell` fills with a tint of --primary MIXED INTO
   // --background, opaque, and its value is --primary-text. Laying

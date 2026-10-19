@@ -132,4 +132,17 @@ describe('Frame', () => {
     )
     expect(container.innerHTML).not.toContain('scroll-mb-24')
   })
+
+  it('lets a flush Alert at either end of a form meet the frame edge', () => {
+    const { container } = render(
+      <Frame form>
+        <p>Body</p>
+      </Frame>
+    )
+    const content = container.querySelector('[data-slot="frame-content"]')
+    expect(content).toHaveClass(
+      '[&>[data-slot=alert]:first-child]:-mt-1.5',
+      '[&>[data-slot=alert]:last-child]:-mb-1.5'
+    )
+  })
 })

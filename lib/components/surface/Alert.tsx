@@ -9,24 +9,32 @@ export type AlertTone = 'error' | 'warning' | 'success' | 'info'
 const TONES = {
   error: {
     Icon: AlertTriangle,
+    surface: 'bg-destructive-surface',
+    outline: 'border-destructive/25',
     rule: 'border-l-destructive',
     icon: 'text-destructive-text',
     role: 'alert'
   },
   warning: {
     Icon: AlertTriangle,
+    surface: 'bg-warning-surface',
+    outline: 'border-warning/25',
     rule: 'border-l-warning',
     icon: 'text-warning-text',
     role: 'alert'
   },
   success: {
     Icon: CheckCircle2,
+    surface: 'bg-success-surface',
+    outline: 'border-success/25',
     rule: 'border-l-success',
     icon: 'text-success-text',
     role: 'status'
   },
   info: {
     Icon: Info,
+    surface: 'bg-info-surface',
+    outline: 'border-info/25',
     rule: 'border-l-info',
     icon: 'text-info-text',
     role: 'status'
@@ -45,8 +53,8 @@ interface Props {
   onRetry?: () => void
   /**
    * A row of a `Frame` rather than a card of its own: no outline or rounded
-   * corners, only the tone's rule down the left edge. The frame (give it
-   * `overflow-hidden`) draws the outline around it.
+   * corners, only the tone's tinted fill and its rule down the left edge. The
+   * frame (give it `overflow-hidden`) draws the outline around it.
    */
   flush?: boolean
   /**
@@ -56,16 +64,22 @@ interface Props {
    * so it drops the `alert` / `status` role.
    */
   live?: boolean
+  /**
+   * Extra classes for layout (margin, width). Do not override the fill with a
+   * `bg-*` class: the tone's opaque surface is part of the component, in both
+   * the card and the flush form.
+   */
   className?: string
 }
 
 /**
  * The shared message surface, as the Fitness overview draws its error: a
- * bordered card with a 4px rule down the left edge in the tone's colour, the
- * tone's icon, a bold line saying what happened and a muted one saying what to
- * do, and an optional action. Errors and warnings are live `alert`s, so a
- * failure that lands after the page settled announces itself; success and info
- * are polite `status` regions.
+ * bordered card with an opaque fill tinted in the tone's colour (so it never
+ * reads see-through), a tone-tinted outline, a 4px rule down the left edge in
+ * the tone's full colour, the tone's icon, a bold line saying what happened
+ * and a muted one saying what to do, and an optional action. Errors and
+ * warnings are live `alert`s, so a failure that lands after the page settled
+ * announces itself; success and info are polite `status` regions.
  */
 export const Alert: FC<Props> = ({
   tone = 'error',
@@ -77,15 +91,18 @@ export const Alert: FC<Props> = ({
   live = true,
   className
 }) => {
-  const { Icon, rule, icon, role } = TONES[tone]
+  const { Icon, surface, outline, rule, icon, role } = TONES[tone]
   return (
     <div
       role={live ? role : undefined}
       data-slot="alert"
       data-tone={tone}
       className={cn(
-        'flex flex-wrap items-center gap-3 border-l-4 p-4',
-        flush ? 'border-y-0 border-r-0' : 'rounded-lg border',
+        'flex flex-wrap items-center gap-3 p-4',
+        surface,
+        flush
+          ? 'border-y-0 border-r-0 border-l-4'
+          : ['rounded-lg border border-l-4', outline],
         rule,
         className
       )}
