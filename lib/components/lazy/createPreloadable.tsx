@@ -47,6 +47,9 @@ export function createPreloadable<P extends object>(
   }
 
   const Preloadable = (props: P) => {
+    // The React Compiler hoists this initializer out of the factory, where
+    // `Loaded` and `dynamicComponent` are undefined (ReferenceError on mount)
+    'use no memo'
     const [Implementation] = useState(() => Loaded ?? dynamicComponent)
     return createElement(Implementation, props)
   }
