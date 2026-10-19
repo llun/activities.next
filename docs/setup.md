@@ -71,7 +71,7 @@ One server can serve profiles on several domains (`social.example`, `run.example
 4. **Add it in the app**: open **Admin › Domains › Add domain** and enter the domain. The server asks `https://<domain>/.well-known/activities-domain-check` for a proof only it can sign, and shows which of DNS, TLS and the Host header still needs work. The domain is saved as **Off**; **Turn on** runs the check again and only turns it on when it passes.
 5. **Sign-ups**: on the domain's page, open sign-ups (with an optional list of allowed email addresses) and choose whether people who already have an account can add a profile there. A new domain starts with sign-ups closed.
 
-Domains can still be pinned in the environment with `ACTIVITIES_TRUSTED_HOSTS`; those show in Admin › Domains as always on, and only their sign-up settings can be changed there. Existing users can always add a profile on them, except someone who joined through another domain's sign-ups: they need that domain's own sign-ups open to their address (the same holds for the primary). A wildcard entry such as `*.vercel.app` stays environment-only: it lets forwarded preview hosts sign in, but never serves profiles or sign-ups.
+Domains can still be pinned in the environment with `ACTIVITIES_TRUSTED_HOSTS`; those show in Admin › Domains as always on, and only their sign-up settings can be changed there. Existing users can always add a profile on them, except someone who joined through another domain's sign-ups: they need that domain's own sign-ups open to their address, or a profile there already (the same holds for the primary). A wildcard entry such as `*.vercel.app` stays environment-only: it lets forwarded preview hosts sign in, but never serves profiles or sign-ups.
 
 ### Authentication Methods
 

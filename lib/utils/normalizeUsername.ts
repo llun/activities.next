@@ -19,20 +19,22 @@
  *    the same rule as a Zod `.trim().toLowerCase()` chain, and
  *    `localUsername.test.ts` pins the two against each other.
  *
- * And it has exactly one caller that is neither a mint nor a lookup:
+ * And it has two callers that are neither a mint nor a lookup. The first:
  * `OnlyLocalUserGuard` folds the requested path segment with it before asking
  * `isFederationSigningActorIdUsername` whether that segment names the instance
  * actor's URI. That is an ACCESS-CONTROL decision, so a rule added here changes
  * it. The standing example makes that concrete: teach this function to strip a
  * trailing dot and `__instance__.` starts folding to `__instance__`, changing
- * which requests are treated as addressing the reserved slot.
+ * which requests are treated as addressing the reserved slot. The second is
+ * display only: the sign-up form's `UsernameField` shows the handle a profile
+ * will get with it, so the preview cannot drift from what the mint stores.
  *
- * So the callers are FOUR: three on the mint side — `createAccount` and
+ * So the callers are FIVE: three on the mint side — `createAccount` and
  * `createActorForAccount` in `lib/database/domains/account/accounts.ts`, plus
  * `registerAccount`, which is its own layer precisely so a direct service call
- * cannot bypass the schema — and the guard's reserved-name check. A new rule
- * reaches those four and does NOT propagate to the lookup or the schema;
- * updating those is deliberate work, not inheritance.
+ * cannot bypass the schema — the guard's reserved-name check, and the sign-up
+ * preview. A new rule reaches those five and does NOT propagate to the lookup
+ * or the schema; updating those is deliberate work, not inheritance.
  *
  * Enumerate the call sites with grep before changing this. Do not trust a
  * summary of them, including this one: an earlier revision of this very

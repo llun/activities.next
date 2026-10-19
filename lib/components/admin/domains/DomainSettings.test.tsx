@@ -124,6 +124,11 @@ describe('DomainSettings', () => {
     expect(existing).toBeChecked()
     expect(existing).toBeDisabled()
     expect(
+      screen.getByText(
+        /joined through another domain can add a profile here only while this domain's sign-ups would admit them/
+      )
+    ).toBeInTheDocument()
+    expect(
       screen.getByText(/is set in ACTIVITIES_TRUSTED_HOSTS, so it is always on/)
     ).toBeInTheDocument()
 
@@ -204,6 +209,26 @@ describe('DomainSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(mockSetStatus).toHaveBeenCalledTimes(2))
     expect(mockSetStatus).toHaveBeenLastCalledWith('run.example', 'on')
+  })
+
+  it('retries a failed turn off as a turn off', async () => {
+    mockSetStatus.mockRejectedValue(new Error('Failed to change the domain.'))
+    renderPage(RUN)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn off run.example' })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockSetStatus).toHaveBeenCalledTimes(2))
+    expect(mockSetStatus).toHaveBeenLastCalledWith('run.example', 'off')
+  })
+
+  it('retries a failed remove as a remove', async () => {
+    mockRemove.mockRejectedValue(new Error('Failed to remove the domain.'))
+    renderPage({ ...RUN, status: 'off', profiles: 0 })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockRemove).toHaveBeenCalledTimes(2))
+    expect(mockSetStatus).not.toHaveBeenCalled()
   })
 
   it('removes an off domain with no profiles', async () => {

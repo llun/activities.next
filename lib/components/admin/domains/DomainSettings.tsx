@@ -141,7 +141,7 @@ const RegistrationsBox: FC<{
         label="Existing users can add profiles here"
         description={
           isEnv
-            ? `Always on for a domain set in ACTIVITIES_TRUSTED_HOSTS.`
+            ? `On for people who signed up on the primary or on ${name}. Someone who joined through another domain can add a profile here only while this domain's sign-ups would admit them, or if they already have one here.`
             : `People who already have an account can add a profile on ${name}.`
         }
         htmlFor="domain-allow-existing-users"

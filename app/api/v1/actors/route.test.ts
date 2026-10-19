@@ -420,19 +420,25 @@ describe('POST /api/v1/actors', () => {
   // thereby pass the primary's (or another env domain's): a profile there
   // needs that domain's admission, or a profile there already.
   describe('for an account that signed up on another env domain', () => {
-    const outsiderEmail = 'outsider@mail.test'
+    let accounts = 0
     let outsiderId: string
 
-    beforeAll(async () => {
-      outsiderId = await database.createAccount({
-        email: outsiderEmail,
-        username: 'outsider',
-        domain: 'run.test',
+    // Each test gets its own account, so a profile one test creates cannot
+    // admit another test's account through "already has a profile there".
+    const signUpOutsider = async (domain: string) => {
+      accounts += 1
+      const email = `outsider${accounts}@mail.test`
+      const id = await database.createAccount({
+        email,
+        username: `outsider${accounts}`,
+        domain,
         passwordHash: 'hash',
         privateKey: 'private',
         publicKey: 'public'
       })
-    })
+      mockGetServerSession.mockResolvedValue({ user: { email } })
+      return id
+    }
 
     const setPrimary = async (open: boolean, allowEmails: string[]) => {
       await database.setServerSettings([
@@ -448,13 +454,13 @@ describe('POST /api/v1/actors', () => {
         trustedHosts: ['run.test'],
         allowEmails: []
       })
-      mockGetServerSession.mockResolvedValue({ user: { email: outsiderEmail } })
       await database.createServedDomain({
         domain: 'run.test',
         status: 'off',
         signupsOpen: true
       })
       await setPrimary(false, [seedActor1.email])
+      outsiderId = await signUpOutsider('run.test')
     })
 
     afterEach(async () => {
@@ -462,6 +468,76 @@ describe('POST /api/v1/actors', () => {
       await deleteServerSetting(db, { key: 'registrations.open' })
       await deleteServerSetting(db, { key: 'registrations.allowEmails' })
       invalidateServerSettingsCache(database)
+    })
+
+    const postProfile = (username: string, domain: string) =>
+      POST(createRequest({ username, domain }), {
+        params: Promise.resolve({})
+      })
+
+    it.each([
+      { primary: 'closed with an empty list', open: false, allowEmails: [] },
+      {
+        primary: 'open with a list that leaves the address out',
+        open: true,
+        allowEmails: [seedActor1.email]
+      }
+    ])(
+      'refuses a profile on a primary $primary',
+      async ({ open, allowEmails }) => {
+        await setPrimary(open, allowEmails)
+        const response = await postProfile(`outsider-${open}`, 'llun.test')
+        expect(response.status).toBe(400)
+        expect(await response.json()).toEqual({
+          error: 'Domain is not allowed'
+        })
+      }
+    )
+
+    // An admin-added domain is not an env domain, but its sign-ups admitted
+    // the account all the same, so the primary's rules still apply.
+    it('refuses the primary to an account that signed up on an added domain', async () => {
+      await database.createServedDomain({
+        domain: 'run.db',
+        status: 'on',
+        signupsOpen: true
+      })
+      try {
+        await signUpOutsider('run.db')
+        const response = await postProfile('added-outsider', 'llun.test')
+        expect(response.status).toBe(400)
+      } finally {
+        await database.deleteServedDomain({ domain: 'run.db' })
+      }
+    })
+
+    // An added domain stays decided by "Existing users can add profiles
+    // here", whatever its own sign-ups say.
+    it('allows a profile on an added domain open to existing users', async () => {
+      await database.createServedDomain({
+        domain: 'club.db',
+        status: 'on',
+        signupsOpen: false,
+        allowExistingUsers: true
+      })
+      try {
+        const response = await postProfile('outsider-club', 'club.db')
+        expect(response.status).toBe(200)
+        expect((await response.json()).domain).toBe('club.db')
+      } finally {
+        await database.deleteServedDomain({ domain: 'club.db' })
+      }
+    })
+
+    // An account from before accounts.signUpDomain signed up on the primary.
+    it('leaves an account with no sign-up domain as before', async () => {
+      await db
+        .updateTable('accounts')
+        .set({ signUpDomain: null })
+        .where('id', '=', outsiderId)
+        .execute()
+      const response = await postProfile('legacy-outsider', 'llun.test')
+      expect(response.status).toBe(200)
     })
 
     it('refuses a profile on a primary that would not admit the account', async () => {

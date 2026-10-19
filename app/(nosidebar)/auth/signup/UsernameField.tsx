@@ -4,6 +4,7 @@ import { FC, useState } from 'react'
 
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Input } from '@/lib/components/ui/input'
+import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 
 interface Props {
   // The domain the profile is created on: the domain this page is visited on.
@@ -15,7 +16,7 @@ interface Props {
 export const UsernameField: FC<Props> = ({ domain }) => {
   const [username, setUsername] = useState('')
   // The server lowercases the handle and refuses a leading @, so show it as made.
-  const handle = username.trim().toLowerCase() || 'name'
+  const handle = normalizeUsername(username) || 'name'
   return (
     <FormRow
       stacked

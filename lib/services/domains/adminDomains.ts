@@ -22,7 +22,7 @@ import { refreshServedDomainsAfterWrite } from './servedDomainSnapshot'
 type EnvDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
 
 export type EnvDomains = {
-  // ACTIVITIES_HOST, normalised; null only when it is not a plain authority.
+  // ACTIVITIES_HOST, normalised as a trusted host is; null when it names none.
   primary: string | null
   // The concrete ACTIVITIES_TRUSTED_HOSTS entries, normalised, primary excluded.
   trusted: string[]
@@ -34,7 +34,7 @@ export type EnvDomains = {
 export const getEnvDomains = (
   config: EnvDomainConfig = getConfig()
 ): EnvDomains => {
-  const primary = normalizeServedDomainChoice(config.host)
+  const primary = normalizeServedDomainChoice(getServedAuthority(config.host))
   const trusted: string[] = []
   const wildcards: string[] = []
   for (const raw of config.trustedHosts ?? []) {

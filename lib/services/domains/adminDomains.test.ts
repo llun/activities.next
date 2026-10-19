@@ -108,6 +108,17 @@ describe('adminDomains', () => {
         wildcards: ['*.preview.example']
       })
     })
+
+    // The primary is read the way a trusted host is, so a URL-shaped
+    // ACTIVITIES_HOST is still the primary to every helper.
+    it('reads a URL-shaped ACTIVITIES_HOST as the primary', () => {
+      expect(
+        getEnvDomains({
+          host: 'https://Social.Example/',
+          trustedHosts: ['social.example']
+        })
+      ).toEqual({ primary: 'social.example', trusted: [], wildcards: [] })
+    })
   })
 
   describe('addDomain', () => {

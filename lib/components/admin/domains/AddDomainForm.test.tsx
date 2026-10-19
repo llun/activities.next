@@ -151,6 +151,22 @@ describe('AddDomainForm', () => {
     expect(mockSetStatus).toHaveBeenCalledWith('photos.example', 'on')
   })
 
+  it('retries a failed turn on as a turn on', async () => {
+    mockAdd.mockResolvedValue(PASSED)
+    mockSetStatus.mockRejectedValue(new Error('Failed to turn the domain on.'))
+    render(<AddDomainForm />)
+    typeDomain('photos.example')
+    fireEvent.click(screen.getByRole('button', { name: 'Check domain' }))
+    await screen.findByText('photos.example reaches this server')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn on photos.example' })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mockSetStatus).toHaveBeenCalledTimes(2))
+    expect(mockCheck).not.toHaveBeenCalled()
+  })
+
   // Editing the domain mid-request would swap the footer to "Check domain"
   // and lose the passed check if turning it on then fails.
   it('locks the domain field while it turns the domain on', async () => {
