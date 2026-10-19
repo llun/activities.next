@@ -1,6 +1,9 @@
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { type LocalDomainMatcher } from '@/lib/services/domains/localDomains'
+import {
+  ensureServedDomainsFresh,
+  getServedHostConfig
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   createServedDomainMatcher,
@@ -36,11 +39,14 @@ export const getDomainFromUrl = (value: string): string | null =>
 const getFederationPolicy = async (
   database: Database
 ): Promise<{ mode: FederationMode; isLocal: LocalDomainMatcher }> => {
-  const { federation } = await getResolvedServerSettings(database)
+  const [{ federation }] = await Promise.all([
+    getResolvedServerSettings(database),
+    ensureServedDomainsFresh()
+  ])
   return {
     mode: federation.mode,
     isLocal: createServedDomainMatcher([
-      ...getServedDomainRules(getConfig()),
+      ...getServedDomainRules(getServedHostConfig()),
       ...federation.allowActorDomains
     ])
   }

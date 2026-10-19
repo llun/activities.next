@@ -14,6 +14,7 @@ import {
 } from '@/lib/database/domains/gallery/types'
 import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
 import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
+import { ServedDomainDatabase } from '@/lib/database/domains/servedDomain/types'
 import { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
 import {
@@ -98,6 +99,7 @@ export type Database = AccountDatabase &
   FilterDatabase &
   ServerFilterDatabase &
   ServerSettingDatabase &
+  ServedDomainDatabase &
   BookmarkDatabase &
   CustomEmojiDatabase &
   DeadLetterJobDatabase &

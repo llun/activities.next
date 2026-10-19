@@ -1,4 +1,8 @@
 import { Database } from '@/lib/database/types'
+import {
+  resetServedDomainsForTests,
+  setServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 
 import {
   createLocalDomainMatcher,
@@ -48,6 +52,17 @@ describe('isLocalDomain', () => {
     }
   ])('answers $expected for $description', async ({ value, expected }) => {
     await expect(isLocalDomain(database, value)).resolves.toBe(expected)
+  })
+
+  it('counts a domain turned on in Admin › Domains as local', async () => {
+    setServedDomainsForTests(['run.example'])
+    try {
+      await expect(
+        isLocalDomain(database, 'https://run.example/users/a')
+      ).resolves.toBe(true)
+    } finally {
+      resetServedDomainsForTests()
+    }
   })
 })
 

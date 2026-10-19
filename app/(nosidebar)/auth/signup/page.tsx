@@ -15,7 +15,9 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
+
+import { UsernameField } from './UsernameField'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -26,9 +28,11 @@ const Page: FC = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  // When the server has closed registration there is no sign-up to show; send
-  // visitors to the landing, whose auth card explains registration is closed.
-  if (!(await getResolvedServerSettings(database)).registrations.open) {
+  // Sign-up creates the first profile on the domain this page is visited on,
+  // under that domain's settings. When they are closed there is no sign-up to
+  // show; send visitors to the landing, whose auth card says so.
+  const signUpDomain = await getVisitedSignUpDomain(database)
+  if (!signUpDomain.open) {
     return redirect('/')
   }
 
@@ -40,19 +44,12 @@ const Page: FC = async () => {
   return (
     <AuthCard
       logoSrc={getAuthLogoSrc()}
-      title="Create an account"
-      description="Join Activities and start sharing"
+      title={`Join ${signUpDomain.displayName}`}
+      description={`Create your profile on ${signUpDomain.domain}`}
     >
       <form method="post" action="/api/v1/accounts">
         <AuthCardBody>
-          <FormRow
-            stacked
-            className="p-0"
-            label="Username"
-            htmlFor="inputUsername"
-          >
-            <Input name="username" type="text" id="inputUsername" />
-          </FormRow>
+          <UsernameField domain={signUpDomain.domain} />
           <FormRow
             stacked
             className="p-0"

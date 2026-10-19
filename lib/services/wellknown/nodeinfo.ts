@@ -1,6 +1,6 @@
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import { logger } from '@/lib/utils/logger'
 import { NODE_INFO_SOFTWARE_NAME, VERSION } from '@/lib/utils/version'
 
@@ -59,7 +59,7 @@ export interface NodeInfo21 extends Omit<NodeInfo20, 'version' | 'software'> {
 }
 
 export interface NodeInfoOptions {
-  /** The resolved `registrations.open` server setting. */
+  /** Whether sign-ups are open on the domain the document is served for. */
   openRegistrations?: boolean
 }
 
@@ -121,19 +121,24 @@ export const getNodeInfo20 = (
  * `null` when the database is unavailable or the stats query fails so callers
  * can emit a CORS-aware 500 response instead of crashing.
  */
-export const buildNodeInfo20 = async (): Promise<NodeInfo20 | null> => {
+export const buildNodeInfo20 = async (
+  // The served host the request arrived on: `openRegistrations` is that
+  // domain's sign-up setting (see resolveSignUpDomain). Defaults to the
+  // primary host.
+  host?: string | null
+): Promise<NodeInfo20 | null> => {
   const database = getDatabase()
   if (!database) {
     logger.error('NodeInfo 2.0 requested but the database is unavailable')
     return null
   }
   try {
-    const [stats, settings] = await Promise.all([
+    const [stats, signUpDomain] = await Promise.all([
       database.getNodeInfoStats(),
-      getResolvedServerSettings(database)
+      resolveSignUpDomain(database, host ?? getConfig().host)
     ])
     return getNodeInfo20(stats, {
-      openRegistrations: settings.registrations.open
+      openRegistrations: signUpDomain.open
     })
   } catch (error) {
     logger.error({ err: error }, 'Failed to build NodeInfo 2.0 document')
@@ -162,19 +167,24 @@ export const getNodeInfo21 = (
  * `null` when the database is unavailable or the stats query fails so callers
  * can emit a CORS-aware 500 response instead of crashing.
  */
-export const buildNodeInfo21 = async (): Promise<NodeInfo21 | null> => {
+export const buildNodeInfo21 = async (
+  // The served host the request arrived on: `openRegistrations` is that
+  // domain's sign-up setting (see resolveSignUpDomain). Defaults to the
+  // primary host.
+  host?: string | null
+): Promise<NodeInfo21 | null> => {
   const database = getDatabase()
   if (!database) {
     logger.error('NodeInfo 2.1 requested but the database is unavailable')
     return null
   }
   try {
-    const [stats, settings] = await Promise.all([
+    const [stats, signUpDomain] = await Promise.all([
       database.getNodeInfoStats(),
-      getResolvedServerSettings(database)
+      resolveSignUpDomain(database, host ?? getConfig().host)
     ])
     return getNodeInfo21(stats, {
-      openRegistrations: settings.registrations.open
+      openRegistrations: signUpDomain.open
     })
   } catch (error) {
     logger.error({ err: error }, 'Failed to build NodeInfo 2.1 document')

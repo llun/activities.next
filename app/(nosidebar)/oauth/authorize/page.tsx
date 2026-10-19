@@ -6,6 +6,7 @@ import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { matchesRegisteredRedirectUri } from '@/lib/services/oauth/matchRedirectUri'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -82,6 +83,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // login started on a custom domain isn't bounced to ACTIVITIES_HOST. Inherit
   // only the configured scheme (http for ACTIVITIES_INSECURE_AUTH) from
   // getBaseURL(); the validated request host is authoritative for host+port.
+  await ensureServedDomainsFresh()
   const requestHost = headerHost(await headers())
   const { protocol } = new URL(getBaseURL())
   const requestBaseURL = `${protocol}//${requestHost}`

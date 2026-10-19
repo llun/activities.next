@@ -8,6 +8,13 @@ import {
 } from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
+import {
+  SERVED_DOMAIN_REFRESH_MS,
+  getActiveServedDomainNames,
+  refreshServedDomains,
+  resetServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
 import {
@@ -148,6 +155,32 @@ describe('traceApiRoute', () => {
     })
     expect(mockSpan.end).toHaveBeenCalled()
     expect(response.status).toBe(200)
+  })
+
+  // `headerHost` reads the snapshot synchronously, so a stale one would hand
+  // an added domain's request to the primary.
+  it('refreshes a stale served-domain snapshot before the handler runs', async () => {
+    const getActiveServedDomains = vi.fn().mockResolvedValue([])
+    try {
+      await refreshServedDomains({
+        getActiveServedDomains
+      } as unknown as Database)
+      getActiveServedDomains.mockResolvedValue([{ domain: 'run.example' }])
+      const later = Date.now() + SERVED_DOMAIN_REFRESH_MS + 1
+      vi.spyOn(Date, 'now').mockReturnValue(later)
+
+      const wrapped = traceApiRoute('testRoute', async () =>
+        Response.json(getActiveServedDomainNames())
+      )
+      const response = await wrapped(
+        new NextRequest('http://localhost/api/test'),
+        { params: Promise.resolve({}) }
+      )
+
+      await expect(response.json()).resolves.toEqual(['run.example'])
+    } finally {
+      resetServedDomainsForTests()
+    }
   })
 
   it('marks span as error for 4xx responses', async () => {

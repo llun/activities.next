@@ -16,6 +16,10 @@ import {
   ensureDomainListed,
   getServedDomains
 } from '@/lib/services/auth/servedDomains'
+import {
+  ensureServedDomainsFresh,
+  getServedHostConfig
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -43,13 +47,16 @@ const Page = async () => {
   // Passkeys are scoped per domain; offer the domains this instance serves and
   // tell the manager which one the user is currently on so it can register here
   // directly and send cross-domain registrations to the right origin.
-  const currentDomain = new URL(resolveAuthBaseURL(await headers(), config))
-    .hostname
+  await ensureServedDomainsFresh()
+  const servedHostConfig = getServedHostConfig(config)
+  const currentDomain = new URL(
+    resolveAuthBaseURL(await headers(), servedHostConfig)
+  ).hostname
   // A wildcard trusted host resolves to a concrete subdomain that the served
   // list (which drops wildcards) won't include, so make sure the current domain
   // is always a chooser option.
   const servedDomains = ensureDomainListed(
-    getServedDomains(config),
+    getServedDomains(servedHostConfig),
     currentDomain
   )
 

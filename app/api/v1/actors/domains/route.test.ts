@@ -153,9 +153,9 @@ describe('GET /api/v1/actors/domains', () => {
     expect(data.host).toBe('llun.test')
   })
 
-  // An allowActorDomains wildcard approves no actor domain, so the host the
-  // request arrived on is not added when only a wildcard covers it.
-  it('does not list the current request host when only an allowActorDomains wildcard covers it', async () => {
+  // A wildcard allowActorDomains entry approves no domain, so neither it nor
+  // the request host it covers is listed.
+  it('does not list a request host that only an allowActorDomains wildcard covers', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
       trustedHosts: ['*.people.test'],
@@ -229,4 +229,98 @@ describe('GET /api/v1/actors/domains', () => {
     expect(response.status).toBe(200)
     expect(data.host).toBe('alias.main.test')
   })
+
+  // With allowActorDomains empty, the Admin › Domains list decides: an added
+  // domain is offered only while it is on and lets existing users add
+  // profiles.
+  it('offers an added domain only while it is on with existing users allowed', async () => {
+    mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+    await database.createServedDomain({
+      domain: 'run.test',
+      status: 'on',
+      allowExistingUsers: true
+    })
+    await database.createServedDomain({
+      domain: 'birds.test',
+      status: 'on',
+      allowExistingUsers: false
+    })
+    await database.createServedDomain({
+      domain: 'old.test',
+      status: 'off',
+      allowExistingUsers: true
+    })
+
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({})
+      })
+      const data = await response.json()
+      expect(data.domains).toEqual(['llun.test', 'run.test'])
+
+      // A non-empty allowActorDomains keeps today's behaviour: it is the list.
+      await database.setServerSettings([
+        { key: 'federation.allowActorDomains', value: ['llun.test'] }
+      ])
+      invalidateServerSettingsCache(database)
+      const listed = await (
+        await GET(createRequest(), { params: Promise.resolve({}) })
+      ).json()
+      expect(listed.domains).toEqual(['llun.test'])
+    } finally {
+      for (const domain of ['run.test', 'birds.test', 'old.test']) {
+        await database.deleteServedDomain({ domain })
+      }
+      await deleteServerSetting(db, { key: 'federation.allowActorDomains' })
+      invalidateServerSettingsCache(database)
+    }
+  })
+
+  // POST refuses an env domain that would not admit an account that signed
+  // up elsewhere, so it is not offered either.
+  it.each([
+    { list: 'a list without the address', allowEmails: [seedActor1.email] },
+    { list: 'an empty list', allowEmails: [] }
+  ])(
+    'does not offer a closed primary with $list to an account that signed up on another env domain',
+    async ({ allowEmails }) => {
+      const email = `clubber${allowEmails.length}@mail.test`
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['club.test'],
+        allowEmails: []
+      })
+      await database.createAccount({
+        email,
+        username: `clubber${allowEmails.length}`,
+        domain: 'club.test',
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      await database.createServedDomain({
+        domain: 'club.test',
+        status: 'off',
+        signupsOpen: true
+      })
+      await database.setServerSettings([
+        { key: 'registrations.open', value: false },
+        { key: 'registrations.allowEmails', value: allowEmails }
+      ])
+      invalidateServerSettingsCache(database)
+      mockGetServerSession.mockResolvedValue({ user: { email } })
+
+      try {
+        const data = await (
+          await GET(createRequest(), { params: Promise.resolve({}) })
+        ).json()
+        expect(data.domains).toEqual(['club.test'])
+      } finally {
+        await database.deleteServedDomain({ domain: 'club.test' })
+        await deleteServerSetting(db, { key: 'registrations.open' })
+        await deleteServerSetting(db, { key: 'registrations.allowEmails' })
+        invalidateServerSettingsCache(database)
+      }
+    }
+  )
 })

@@ -25,6 +25,10 @@ export const Account = z.object({
   // timestamps; optional so existing Account.parse call sites stay valid.
   disabledAt: z.number().nullish(),
   approvedAt: z.number().nullish(),
+  // The normalised domain the account signed up on (`createAccount` writes
+  // its first actor's). Null on accounts created before the column: read
+  // that as the primary (ACTIVITIES_HOST), where every one of them signed up.
+  signUpDomain: z.string().nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number(),

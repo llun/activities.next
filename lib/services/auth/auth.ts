@@ -6,6 +6,7 @@ import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase, getKysely } from '@/lib/database'
+import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
@@ -18,7 +19,7 @@ import {
   OAUTH_GRANT_TYPES
 } from './constants'
 import { kyselyAdapter } from './kyselyAdapter'
-import { buildTrustedOrigins } from './trustedOrigins'
+import { createTrustedOriginsResolver } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
@@ -29,6 +30,14 @@ const buildAuth = (baseURL: string) => {
   const db = getKysely()
 
   const rpID = new URL(baseURL).hostname
+  // The env origins are built (and any bad ACTIVITIES_TRUSTED_HOSTS entry
+  // warned about) once here; the active Admin › Domains rows are added per
+  // request.
+  const trustedOrigins = createTrustedOriginsResolver(
+    getBaseURL(),
+    config.trustedHosts ?? [],
+    getActiveServedDomainNames
+  )
 
   return betterAuth({
     logger: {
@@ -65,15 +74,15 @@ const buildAuth = (baseURL: string) => {
     },
     secret: config.secretPhase,
     baseURL,
-    // Trust the configured host plus any ACTIVITIES_TRUSTED_HOSTS so a Mastodon
-    // client logging into a served alias/custom domain isn't rejected with
-    // `403 Invalid origin` on credential sign-in. The union is the same for
-    // every per-host instance (it already contains this instance's origin) so a
-    // request handled by any instance can sign in from any served domain.
-    trustedOrigins: buildTrustedOrigins(
-      getBaseURL(),
-      config.trustedHosts ?? []
-    ),
+    // Trust the configured host, any ACTIVITIES_TRUSTED_HOSTS and the active
+    // Admin › Domains rows so a Mastodon client logging into a served
+    // alias/custom domain isn't rejected with `403 Invalid origin` on
+    // credential sign-in. The union is the same for every per-host instance (it
+    // already contains this instance's origin) so a request handled by any
+    // instance can sign in from any served domain. A function so better-auth
+    // asks per request: a domain turned off drops out of the list as soon as
+    // the snapshot does, without rebuilding the cached instances.
+    trustedOrigins,
     basePath: AUTH_BASE_PATH,
     // Send failed auth/OAuth requests to our own page instead of better-auth's
     // built-in /api/auth/error, which is a development affordance: in

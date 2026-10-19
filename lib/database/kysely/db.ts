@@ -81,6 +81,7 @@ export interface Accounts {
   passwordResetCode: Nullable<string>
   passwordResetCodeExpiresAt: Nullable<Timestamp>
   role: Nullable<string>
+  signUpDomain: Nullable<string>
   twoFactorEnabled: WithDefault<boolean>
   updatedAt: WithDefault<Nullable<Timestamp>>
   verificationCode: Nullable<string>
@@ -319,6 +320,21 @@ export interface DomainFederationRules {
   source: Nullable<string>
   type: string
   updatedAt: WithDefault<Nullable<Timestamp>>
+}
+
+export interface Domains {
+  allowExistingUsers: WithDefault<boolean>
+  allowedEmails: WithDefault<string>
+  createdAt: WithDefault<Timestamp>
+  domain: string
+  id: string
+  lastCheckResult: Nullable<string>
+  lastCheckStatus: Nullable<string>
+  lastCheckedAt: Nullable<Timestamp>
+  name: Nullable<string>
+  signupsOpen: WithDefault<boolean>
+  status: WithDefault<string>
+  updatedAt: WithDefault<Timestamp>
 }
 
 export interface Endorsements {
@@ -1378,6 +1394,7 @@ export interface DB {
   direct_conversation_statuses: DirectConversationStatuses
   direct_conversations: DirectConversations
   domain_federation_rules: DomainFederationRules
+  domains: Domains
   endorsements: Endorsements
   featured_tags: FeaturedTags
   federated_timeline: FederatedTimeline

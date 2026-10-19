@@ -8,8 +8,9 @@ export interface SendConfirmationEmailParams {
   verificationCode: string
   /**
    * The domain of the account's actor. The link is built on it when this
-   * server answers on that domain (the primary host or an
-   * `ACTIVITIES_TRUSTED_HOSTS` entry), and on the primary host otherwise.
+   * server answers on that domain (the primary host, an
+   * `ACTIVITIES_TRUSTED_HOSTS` entry or an active Admin › Domains row), and on
+   * the primary host otherwise.
    */
   actorDomain?: string | null
 }
@@ -18,8 +19,8 @@ export interface SendConfirmationEmailParams {
 // /auth/confirmation, which verifyAccount consumes to clear verificationCode,
 // on the account's actor domain when this server answers on it (an account
 // whose actor lives on a second domain confirms there), else on the primary
-// host. Registration passes no actor domain, so its first email is always on
-// the primary host, where sign-up creates the first actor.
+// host. Registration passes the domain it created the first actor on (the
+// domain the visitor signed up on), so the first link goes back there.
 // No-ops when email delivery is not configured; rejections from sendMail are
 // allowed to propagate so callers can decide how to handle delivery failures.
 export const sendConfirmationEmail = async ({

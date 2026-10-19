@@ -105,7 +105,9 @@ describe('Landing', () => {
     renderLanding([], false)
 
     expect(screen.getByText('Welcome back')).toBeInTheDocument()
-    expect(screen.getByText('Registration is closed')).toBeInTheDocument()
+    expect(
+      screen.getByText('Sign-ups on Activities are closed')
+    ).toBeInTheDocument()
     // Sign-in only — no "Create account" path.
     expect(
       screen.queryByRole('link', { name: 'Create account' })
@@ -121,6 +123,29 @@ describe('Landing', () => {
 
     // The left column (feed vs hero) is independent of the auth card variant.
     expect(screen.getByTestId('posts')).toBeInTheDocument()
-    expect(screen.getByText('Registration is closed')).toBeInTheDocument()
+    expect(
+      screen.getByText('Sign-ups on Activities are closed')
+    ).toBeInTheDocument()
+  })
+
+  it('names the visited domain when its sign-ups are closed', () => {
+    render(
+      <Landing
+        host="birds.example"
+        currentTime={1_700_000_000_000}
+        statuses={[]}
+        serviceName="Bird Notes"
+        signupOpen={false}
+        domain="birds.example"
+      />
+    )
+
+    expect(
+      screen.getByText('Sign-ups on Bird Notes are closed')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/birds\.example isn.t accepting new members right now/)
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Want to join Bird Notes\?/)).toBeInTheDocument()
   })
 })

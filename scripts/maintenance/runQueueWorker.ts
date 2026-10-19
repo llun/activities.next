@@ -3,6 +3,7 @@ import { loadEnvConfig } from '@next/env'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
 
 import { createQueueWorkerShutdown } from './runQueueWorkerLifecycle'
@@ -25,6 +26,9 @@ async function runQueueWorker() {
     `Starting database queue worker (poll interval: ${pollIntervalMs}ms)...`
   )
 
+  // Jobs decide what is local (forwarding, relays, reactions) from the served
+  // domains, which include the active Admin › Domains rows.
+  startServedDomainRefresher(database)
   const runner = startDatabaseQueueRunner(database, {
     pollIntervalMs
   })

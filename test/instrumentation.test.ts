@@ -3,6 +3,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase, getKysely } from '@/lib/database'
 import { warnAboutPendingMigrations } from '@/lib/database/migrate/startupCheck'
 import { startActorDeletionSweep } from '@/lib/services/actors/actorDeletion'
+import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
 
 vi.mock('@/lib/config', () => ({
@@ -20,6 +21,10 @@ vi.mock('@/lib/database/migrate/startupCheck', () => ({
 
 vi.mock('@/lib/services/actors/actorDeletion', () => ({
   startActorDeletionSweep: vi.fn()
+}))
+
+vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
+  startServedDomainRefresher: vi.fn()
 }))
 
 vi.mock('@/lib/services/queue/databaseRunner', () => ({
@@ -74,6 +79,15 @@ describe('register', () => {
     expect(startActorDeletionSweep).toHaveBeenCalledWith(database)
   })
 
+  // Without it the process never trusts a domain added in Admin › Domains.
+  it('starts the served-domain refresher on the database', async () => {
+    mockGetConfig.mockReturnValue({} as ReturnType<typeof getConfig>)
+
+    await register()
+
+    expect(startServedDomainRefresher).toHaveBeenCalledWith(database)
+  })
+
   it('checks the database for pending migrations without waiting for it', async () => {
     mockGetConfig.mockReturnValue({
       database: databaseConfig
@@ -101,6 +115,7 @@ describe('register', () => {
     expect(startDatabaseQueueRunner).not.toHaveBeenCalled()
     expect(startActorDeletionSweep).not.toHaveBeenCalled()
     expect(warnAboutPendingMigrations).not.toHaveBeenCalled()
+    expect(startServedDomainRefresher).not.toHaveBeenCalled()
   })
 
   it('starts nothing outside the Node.js runtime', async () => {

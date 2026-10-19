@@ -17,6 +17,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getDatabase, getKysely } from '@/lib/database'
 import type { Db } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'
+import { refreshServedDomains } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 
 const projectDir = process.cwd()
@@ -200,6 +201,9 @@ async function main() {
     console.error('Database is not available')
     process.exit(1)
   }
+  // Recording an actor checks whether it is local, which includes the active
+  // Admin › Domains rows.
+  await refreshServedDomains(database)
 
   const db = getKysely()
 

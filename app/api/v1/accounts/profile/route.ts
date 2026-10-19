@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
 import { parseProfileFieldsForm } from '@/lib/services/accounts/profileFields'
 import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
@@ -62,7 +62,9 @@ export const POST = traceApiRoute(
     // not change is treated as "no change" rather than re-validated — see
     // `parseProfileImageUrl`, where the single settings form makes that
     // load-bearing.
-    const config = getConfig()
+    // The served domains (database ones included): an actor on an added
+    // domain gets media URLs on that domain.
+    const config = getServedHostConfig()
     const iconUrl = parseProfileImageUrl(
       rawIconUrl,
       config,

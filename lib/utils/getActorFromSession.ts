@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { cache } from 'react'
 
 import { Database } from '@/lib/database/types'
+import { isEmailAllowedForAccount } from '@/lib/services/domains/signUpDomain'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
 import { selectAccountActor } from '@/lib/utils/selectAccountActor'
@@ -32,11 +33,18 @@ export const getAccountFromSession = async (
   if (!session?.user?.email) return null
 
   const settings = await getResolvedServerSettings(database)
-  if (!isEmailAllowed(settings.registrations.allowEmails, session.user.email)) {
-    return null
+  const email = session.user.email
+  if (isEmailAllowed(settings.registrations.allowEmails, email)) {
+    return database.getAccountFromEmail({ email })
   }
 
-  return database.getAccountFromEmail({ email: session.user.email })
+  // Not on the server's list: still allowed when a domain one of the
+  // account's profiles lives on allows the address (Admin › Domains).
+  const account = await database.getAccountFromEmail({ email })
+  if (!account) return null
+  return (await isEmailAllowedForAccount(database, email, account.id))
+    ? account
+    : null
 }
 
 // Wrapped in React `cache()` so resolving the viewer is deduplicated within a

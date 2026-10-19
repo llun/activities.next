@@ -18,6 +18,18 @@ import { logger } from '@/lib/utils/logger'
 import Page from './page'
 import { resolveStatusFromPath } from './resolveStatusFromPath'
 
+// The page reads the sign-ups of the domain it is visited on, which needs a
+// request; these tests render the page directly, so answer for the primary.
+vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
+  getVisitedSignUpDomain: vi.fn(async () => ({
+    domain: 'test.llun.dev',
+    displayName: 'Activities',
+    source: 'primary',
+    open: false,
+    allowEmails: []
+  }))
+}))
+
 vi.mock('next/navigation', async () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')

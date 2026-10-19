@@ -182,8 +182,9 @@ describe('POST /api/v1/actors', () => {
 
   // The allow-list is matched with the served-domain rules rather than a raw
   // `includes`: case and a trailing dot cannot make an allowed domain look
-  // foreign, a wildcard rule approves nothing (its subdomains, itself), and (
-  // anything that is not a bare domain) is never a domain to create on.
+  // foreign. A wildcard rule approves nothing, neither its subdomains nor the
+  // rule itself, and anything that is not a bare domain is never a domain to
+  // create on.
   it.each([
     {
       description: 'an allowed domain in another case',
@@ -383,4 +384,212 @@ describe('POST /api/v1/actors', () => {
       expect(response.status).toBe(400)
     }
   )
+
+  // With allowActorDomains empty an added domain approves an actor only while
+  // it is on and "Existing users can add profiles here" is on.
+  it.each([
+    { domain: 'run.test', status: 'on', allowExistingUsers: true, ok: true },
+    {
+      domain: 'birds.test',
+      status: 'on',
+      allowExistingUsers: false,
+      ok: false
+    },
+    { domain: 'old.test', status: 'off', allowExistingUsers: true, ok: false }
+  ] as const)(
+    'answers $ok for an added domain that is $status with existing users $allowExistingUsers',
+    async ({ domain, status, allowExistingUsers, ok }) => {
+      mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
+      await database.createServedDomain({ domain, status, allowExistingUsers })
+      try {
+        const response = await POST(
+          createRequest({ username: `added-${domain.split('.')[0]}`, domain }),
+          { params: Promise.resolve({}) }
+        )
+        const data = await response.json()
+        expect(response.status).toBe(ok ? 200 : 400)
+        if (ok) expect(data.domain).toBe(domain)
+        else expect(data.error).toBe('Domain is not allowed')
+      } finally {
+        await database.deleteServedDomain({ domain })
+      }
+    }
+  )
+
+  // An account admitted through another domain's own sign-up rules does not
+  // thereby pass the primary's (or another env domain's): a profile there
+  // needs that domain's admission, or a profile there already.
+  describe('for an account that signed up on another env domain', () => {
+    let accounts = 0
+    let outsiderId: string
+
+    // Each test gets its own account, so a profile one test creates cannot
+    // admit another test's account through "already has a profile there".
+    const signUpOutsider = async (domain: string) => {
+      accounts += 1
+      const email = `outsider${accounts}@mail.test`
+      const id = await database.createAccount({
+        email,
+        username: `outsider${accounts}`,
+        domain,
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      mockGetServerSession.mockResolvedValue({ user: { email } })
+      return id
+    }
+
+    const setPrimary = async (open: boolean, allowEmails: string[]) => {
+      await database.setServerSettings([
+        { key: 'registrations.open', value: open },
+        { key: 'registrations.allowEmails', value: allowEmails }
+      ])
+      invalidateServerSettingsCache(database)
+    }
+
+    beforeEach(async () => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['run.test'],
+        allowEmails: []
+      })
+      await database.createServedDomain({
+        domain: 'run.test',
+        status: 'off',
+        signupsOpen: true
+      })
+      await setPrimary(false, [seedActor1.email])
+      outsiderId = await signUpOutsider('run.test')
+    })
+
+    afterEach(async () => {
+      await database.deleteServedDomain({ domain: 'run.test' })
+      await deleteServerSetting(db, { key: 'registrations.open' })
+      await deleteServerSetting(db, { key: 'registrations.allowEmails' })
+      invalidateServerSettingsCache(database)
+    })
+
+    const postProfile = (username: string, domain: string) =>
+      POST(createRequest({ username, domain }), {
+        params: Promise.resolve({})
+      })
+
+    it.each([
+      { primary: 'closed with an empty list', open: false, allowEmails: [] },
+      {
+        primary: 'open with a list that leaves the address out',
+        open: true,
+        allowEmails: [seedActor1.email]
+      }
+    ])(
+      'refuses a profile on a primary $primary',
+      async ({ open, allowEmails }) => {
+        await setPrimary(open, allowEmails)
+        const response = await postProfile(`outsider-${open}`, 'llun.test')
+        expect(response.status).toBe(400)
+        expect(await response.json()).toEqual({
+          error: 'Domain is not allowed'
+        })
+      }
+    )
+
+    // An admin-added domain is not an env domain, but its sign-ups admitted
+    // the account all the same, so the primary's rules still apply.
+    it('refuses the primary to an account that signed up on an added domain', async () => {
+      await database.createServedDomain({
+        domain: 'run.db',
+        status: 'on',
+        signupsOpen: true
+      })
+      try {
+        await signUpOutsider('run.db')
+        const response = await postProfile('added-outsider', 'llun.test')
+        expect(response.status).toBe(400)
+      } finally {
+        await database.deleteServedDomain({ domain: 'run.db' })
+      }
+    })
+
+    // An added domain stays decided by "Existing users can add profiles
+    // here", whatever its own sign-ups say.
+    it('allows a profile on an added domain open to existing users', async () => {
+      await database.createServedDomain({
+        domain: 'club.db',
+        status: 'on',
+        signupsOpen: false,
+        allowExistingUsers: true
+      })
+      try {
+        const response = await postProfile('outsider-club', 'club.db')
+        expect(response.status).toBe(200)
+        expect((await response.json()).domain).toBe('club.db')
+      } finally {
+        await database.deleteServedDomain({ domain: 'club.db' })
+      }
+    })
+
+    // An account from before accounts.signUpDomain signed up on the primary.
+    it('leaves an account with no sign-up domain as before', async () => {
+      await db
+        .updateTable('accounts')
+        .set({ signUpDomain: null })
+        .where('id', '=', outsiderId)
+        .execute()
+      const response = await postProfile('legacy-outsider', 'llun.test')
+      expect(response.status).toBe(200)
+    })
+
+    it('refuses a profile on a primary that would not admit the account', async () => {
+      const response = await POST(
+        createRequest({ username: 'outsider-primary', domain: 'llun.test' }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ error: 'Domain is not allowed' })
+    })
+
+    it('allows a profile on a primary open to the address', async () => {
+      await setPrimary(true, [])
+      const response = await POST(
+        createRequest({ username: 'outsider-open', domain: 'llun.test' }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      expect((await response.json()).domain).toBe('llun.test')
+    })
+
+    it('allows another profile on a domain the account already has one on', async () => {
+      await database.createActorForAccount({
+        accountId: outsiderId,
+        username: 'outsider-existing',
+        domain: 'llun.test',
+        publicKey: 'public',
+        privateKey: 'private'
+      })
+      const response = await POST(
+        createRequest({ username: 'outsider-second', domain: 'llun.test' }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+    })
+
+    it('leaves an account that signed up on the primary as before', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      // club.test has no row, so its sign-ups are closed.
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        trustedHosts: ['run.test', 'club.test'],
+        allowEmails: []
+      })
+      const response = await POST(
+        createRequest({ username: 'primary-on-club', domain: 'club.test' }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      expect((await response.json()).domain).toBe('club.test')
+    })
+  })
 })

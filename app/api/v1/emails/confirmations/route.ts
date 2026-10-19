@@ -11,17 +11,16 @@ import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { isEmailAllowedForSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { isAccountConfirmationPending } from '@/lib/services/guards/accountState'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
-import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
 import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -155,10 +154,16 @@ export const POST = traceApiRoute(
       // cannot drift apart.
       let verificationCode = account.verificationCode
       if (newEmail && newEmail !== account.email) {
-        // Honor the server's allow-list so the email param can't be used to
-        // sidestep the same restriction enforced at registration.
-        const { registrations } = await getResolvedServerSettings(database)
-        if (!isEmailAllowed(registrations.allowEmails, newEmail)) {
+        // Honor the allow-list of the domain the account signed up on (its
+        // actor's) so the email param can't be used to sidestep the same
+        // restriction enforced at registration.
+        if (
+          !(await isEmailAllowedForSignUpDomain(
+            database,
+            newEmail,
+            currentActor.domain
+          ))
+        ) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,

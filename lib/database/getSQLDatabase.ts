@@ -46,6 +46,7 @@ import { relayQueries } from '@/lib/database/domains/relay/queries'
 import { reportQueries } from '@/lib/database/domains/report/queries'
 import { scheduledStatusQueries } from '@/lib/database/domains/scheduledStatus/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
+import { servedDomainQueries } from '@/lib/database/domains/servedDomain/queries'
 import { serverFilterQueries } from '@/lib/database/domains/serverFilter/queries'
 import { serverSettingQueries } from '@/lib/database/domains/serverSetting/queries'
 import { statusQueries } from '@/lib/database/domains/status/queries'
@@ -147,6 +148,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, filterQueries),
     ...bindDb(kysely, serverFilterQueries),
     ...bindDb(kysely, serverSettingQueries),
+    ...bindDb(kysely, servedDomainQueries),
     ...bindDb(kysely, followQueries),
     ...bindDb(kysely, followedTagQueries),
     ...bindDb(kysely, likeQueries),

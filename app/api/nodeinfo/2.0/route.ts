@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   NODE_INFO_20_CONTENT_TYPE,
   buildNodeInfo20
@@ -15,7 +17,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const GET = traceApiRoute('nodeInfoV2', async (req: NextRequest) => {
-  const nodeInfo = await buildNodeInfo20()
+  // Refresh first: `headerHost` trusts the visited host from the snapshot.
+  await ensureServedDomainsFresh()
+  const nodeInfo = await buildNodeInfo20(headerHost(req.headers))
   if (!nodeInfo) {
     return apiResponse({
       req,

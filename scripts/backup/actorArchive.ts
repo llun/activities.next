@@ -18,6 +18,10 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import { Database } from '@/lib/database/types'
+import {
+  getServedHostConfig,
+  refreshServedDomains
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
@@ -951,6 +955,10 @@ export const exportActorArchive = async (
     return 1
   }
 
+  // Attachment and image URLs on an Admin › Domains row are ours too.
+  await refreshServedDomains(database)
+  const hostConfig = getServedHostConfig(config)
+
   const actor = await resolveActor(database, args, config.host)
   const accountId = actor.account!.id
   const handle = getHandleFromActor(actor)
@@ -1006,7 +1014,7 @@ export const exportActorArchive = async (
         for (const attachment of status.attachments) {
           const { budgetExhausted } = await registerAttachmentUrl({
             attachment,
-            hostConfig: config,
+            hostConfig,
             mediaPaths,
             mediaIds,
             remoteFetch,
@@ -1077,10 +1085,10 @@ export const exportActorArchive = async (
     }
 
     const iconPath = actor.iconUrl
-      ? getMediaPathFromFileUrl(actor.iconUrl, config)
+      ? getMediaPathFromFileUrl(actor.iconUrl, hostConfig)
       : null
     const headerPath = actor.headerImageUrl
-      ? getMediaPathFromFileUrl(actor.headerImageUrl, config)
+      ? getMediaPathFromFileUrl(actor.headerImageUrl, hostConfig)
       : null
     if (iconPath) mediaPaths.add(iconPath)
     if (headerPath) mediaPaths.add(headerPath)

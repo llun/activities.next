@@ -19,6 +19,7 @@ import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { refreshServedDomains } from '@/lib/services/domains/servedDomainSnapshot'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { StatusType } from '@/lib/types/domain/status'
@@ -179,6 +180,8 @@ async function main() {
     console.error('importRemoteStatus: Database is not available')
     process.exit(1)
   }
+  // The local-domain guard counts the active Admin › Domains rows as ours.
+  await refreshServedDomains(database)
 
   console.log(`Fetching remote status from ${options.statusUrl}...`)
   if (options.dryRun) {

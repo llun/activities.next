@@ -402,6 +402,24 @@ export type {
 } from '@/lib/database/domains/serverSetting/types'
 
 // ============================================================================
+// Served Domain Database
+// ============================================================================
+
+export type {
+  CountLocalActorsByDomainParams,
+  CreateServedDomainParams,
+  DeleteServedDomainParams,
+  DomainCheckItem,
+  DomainCheckItemStatus,
+  DomainCheckResult,
+  GetServedDomainParams,
+  ServedDomainData,
+  ServedDomainDatabase,
+  ServedDomainStatus,
+  UpdateServedDomainParams
+} from '@/lib/database/domains/servedDomain/types'
+
+// ============================================================================
 // Relay Database
 // ============================================================================
 

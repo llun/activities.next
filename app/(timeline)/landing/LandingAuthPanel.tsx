@@ -12,6 +12,8 @@ interface LandingAuthPanelProps {
    * notice. Defaults to open.
    */
   signupOpen?: boolean
+  /** The visited domain, for the closed notice ("birds.example isn't …"). */
+  domain?: string
 }
 
 /**
@@ -26,7 +28,8 @@ interface LandingAuthPanelProps {
  */
 export const LandingAuthPanel: FC<LandingAuthPanelProps> = ({
   serviceName,
-  signupOpen = true
+  signupOpen = true,
+  domain
 }) => {
   if (!signupOpen) {
     return (
@@ -44,9 +47,12 @@ export const LandingAuthPanel: FC<LandingAuthPanelProps> = ({
               <Lock className="size-[15px]" />
             </span>
             <div>
-              <p className="text-sm font-medium">Registration is closed</p>
+              <p className="text-sm font-medium">
+                Sign-ups on {serviceName} are closed
+              </p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                This server isn&apos;t accepting new members right now.
+                {domain ?? 'This server'} isn&apos;t accepting new members right
+                now.
               </p>
             </div>
           </div>
@@ -63,8 +69,7 @@ export const LandingAuthPanel: FC<LandingAuthPanelProps> = ({
           </div>
 
           <p className="mt-7 text-xs leading-relaxed text-muted-foreground">
-            Hoping to join {serviceName}? Request an invite from the server
-            admin.
+            Want to join {serviceName}? Ask the people who run it for an invite.
           </p>
         </div>
       </div>

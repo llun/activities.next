@@ -82,21 +82,21 @@ User Action ──→ Service Layer ──→ Queue Job
 
 The frontend and API layer, organized using Next.js route groups:
 
-| Directory             | Purpose                                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)                                                                                                     |
-| `app/(nosidebar)/`    | Authentication and standalone pages without sidebar (login, signup, OAuth consent, `/app` offline shell)                                                                 |
-| `app/embed/`          | Public embed widgets (framable interactive heatmap embeds and static share images)                                                                                       |
-| `app/health/`         | Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`                                                                                                 |
-| `app/api/auth/`       | Authentication endpoints (better-auth)                                                                                                                                   |
-| `app/api/inbox/`      | Shared ActivityPub inbox receiving federated activities (rewritten from `/inbox`)                                                                                        |
-| `app/api/nodeinfo/`   | NodeInfo 2.0 and 2.1 documents and discovery (rewritten from `/.well-known/nodeinfo`)                                                                                    |
-| `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                          |
-| `app/api/oembed/`     | Public oEmbed provider (`GET /api/oembed`) returning rich embed metadata for this instance's public/unlisted status pages                                                |
-| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                        |
-| `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications), plus the activities.next-only `POST /api/v1/web-vitals` browser Web Vitals sink               |
-| `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                |
-| `app/api/well-known/` | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo` |
+| Directory             | Purpose                                                                                                                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/(timeline)/`     | Main app pages with sidebar (home, profile, notifications, settings)                                                                                                                                                                            |
+| `app/(nosidebar)/`    | Authentication and standalone pages without sidebar (login, signup, OAuth consent, `/app` offline shell)                                                                                                                                        |
+| `app/embed/`          | Public embed widgets (framable interactive heatmap embeds and static share images)                                                                                                                                                              |
+| `app/health/`         | Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`                                                                                                                                                                        |
+| `app/api/auth/`       | Authentication endpoints (better-auth)                                                                                                                                                                                                          |
+| `app/api/inbox/`      | Shared ActivityPub inbox receiving federated activities (rewritten from `/inbox`)                                                                                                                                                               |
+| `app/api/nodeinfo/`   | NodeInfo 2.0 and 2.1 documents and discovery (rewritten from `/.well-known/nodeinfo`)                                                                                                                                                           |
+| `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                                                                                                 |
+| `app/api/oembed/`     | Public oEmbed provider (`GET /api/oembed`) returning rich embed metadata for this instance's public/unlisted status pages                                                                                                                       |
+| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                                                                                               |
+| `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications), plus the activities.next-only `POST /api/v1/web-vitals` browser Web Vitals sink                                                                                      |
+| `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                                                                                       |
+| `app/api/well-known/` | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) and the Admin › Domains reachability proof (`activities-domain-check`) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo` |
 
 ### `lib/` — Core Business Logic
 
@@ -180,6 +180,15 @@ Authentication is handled by [better-auth](https://www.better-auth.com/), which 
 - OAuth 2.0 access tokens (JWT and opaque) for API access
 
 The application also acts as an **OAuth 2.0 provider** (using better-auth's OAuth provider plugin), allowing third-party applications to authenticate users and access the API.
+
+### Served Domains
+
+One server answers on several domains. They come from three places: `ACTIVITIES_HOST` (the primary), the concrete `ACTIVITIES_TRUSTED_HOSTS` entries, and the `domains` table that **Admin › Domains** edits. Only a row that is `on` is trusted, and a row is turned on only after `checkDomainReachability` (`lib/services/domains/domainCheck.ts`) has fetched `https://<domain>/.well-known/activities-domain-check` and found this server's proof for that host.
+
+- **Host trust is synchronous**, so the active rows live in an in-process snapshot (`lib/services/domains/servedDomainSnapshot.ts`), refreshed at boot, every 30 seconds and after every admin write, and ignored when older than five minutes (fail closed). `getServedHostConfig()` is the config every request-time check uses: `headerHost`/`selectHeaderHost`, better-auth's `baseURL` per host and its `trustedOrigins` (a function called per request), local-domain matching and the federation policy.
+- **The proxy has no database.** `proxy.ts` keeps the env rules; a bare `/@user` on a host they do not list is rewritten to `GET /api/handle-redirect`, which redirects onto `headerHost`.
+- **Sign-up and instance metadata are per domain.** `resolveSignUpDomain` (`lib/services/domains/signUpDomain.ts`) returns the visited domain's sign-up settings: the server's `registrations.*` on the primary, the row on any other served domain, closed otherwise. `registerAccount`, both `POST /api/v1/accounts` paths, the sign-up page and landing card, `/api/v1/instance`, `/api/v2/instance` and NodeInfo all read it.
+- **Admin API**: `GET`/`POST /api/v1/admin/domains`, `GET`/`PATCH`/`DELETE /api/v1/admin/domains/:domain` and `POST /api/v1/admin/domains/:domain/check`, behind `AdminApiGuard`. `PATCH { status }` turns a domain on (after a passing check) or off; the other fields are the Registrations box.
 
 ### ActivityPub Federation
 
@@ -678,7 +687,8 @@ Other tables: sessions, notifications, medias, gallery_gears,
               announcement_reactions, instance_rules, suggestion_dismissals,
               domain federation rules, relays, federated_timeline,
               status_detected_languages, recipients, counters, poll_choices,
-              server_settings, clients, tokens, auth_codes (Mastodon API OAuth),
+              server_settings, domains (Admin › Domains),
+              clients, tokens, auth_codes (Mastodon API OAuth),
               oauthClient, oauthAccessToken, oauthRefreshToken,
               oauthConsent (better-auth OAuth provider)
 ```
@@ -1087,13 +1097,14 @@ legacy shape left to copy.
   variation is the account's own domain: the confirmation and email-change
   links (`buildVerifyEmail`, `buildChangeEmail`) take an optional `domain` and
   use `buildBaseURL(domain)` instead. Registration's first confirmation email
-  passes none, so it always links to the primary host, where sign-up creates
-  the first actor. A resend (`POST /api/v1/emails/confirmations`) and an email
+  passes the domain sign-up created the first actor on (the domain the visitor
+  signed up on, see Served Domains below), so it links back there. A resend (`POST /api/v1/emails/confirmations`) and an email
   change (`POST /api/v1/accounts/email`) pass the selected actor's domain, and
   the link uses it when auth trusts that host. The caller gets that domain from
   `getServedLinkDomain` (`lib/services/domains/localDomains.ts`), which returns
-  it only when `isOwnInstanceHost` accepts it — the primary host or an
-  `ACTIVITIES_TRUSTED_HOSTS` entry, wildcards included, the same set
+  it only when `isOwnInstanceHost` accepts it — the primary host, an
+  `ACTIVITIES_TRUSTED_HOSTS` entry (wildcards included) or an active
+  Admin › Domains row, the same set
   better-auth's trusted origins and `selectHeaderHost` use — and null (the
   primary host) otherwise, never for a `federation.allowActorDomains` entry
   alone, which can name a remote server. A template never takes a domain

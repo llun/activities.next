@@ -197,6 +197,9 @@ export interface SQLAccount {
   // existing account, set at creation while no approval-required mode exists).
   disabledAt?: number | Date | null
   approvedAt?: number | Date | null
+  // The normalised domain the account signed up on; null on accounts created
+  // before the column, which all signed up on the primary.
+  signUpDomain?: string | null
 
   createdAt: number | Date
   updatedAt: number | Date

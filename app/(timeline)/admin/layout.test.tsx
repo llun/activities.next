@@ -54,6 +54,7 @@ describe('Admin Layout', () => {
       'Custom emojis',
       'Federation',
       'Relays',
+      'Domains',
       'Posts & media',
       'Network',
       'Instance',

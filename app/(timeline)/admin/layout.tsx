@@ -43,6 +43,7 @@ const tabs: SectionNavTab[] = [
     icon: ADMIN_ICONS.federation
   },
   { name: 'Relays', url: '/admin/relays', icon: ADMIN_ICONS.relays },
+  { name: 'Domains', url: '/admin/domains', icon: ADMIN_ICONS.domains },
   { name: 'Posts & media', url: '/admin/posts', icon: ADMIN_ICONS.posts },
   { name: 'Network', url: '/admin/network', icon: ADMIN_ICONS.network },
   { name: 'Instance', url: '/admin/instance', icon: ADMIN_ICONS.instance },

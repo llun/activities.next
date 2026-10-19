@@ -39,6 +39,7 @@ vi.mock('@/lib/database', () => ({
 
 vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn().mockResolvedValue({
+    instance: { name: 'activities.next' },
     registrations: { open: true, allowEmails: [] }
   })
 }))

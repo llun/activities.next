@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
+import { resolveSignUpOpenSafely } from '@/lib/services/domains/signUpDomain'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import {
@@ -29,6 +31,8 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
   const config = getConfig()
   const database = getDatabase()
+  // Refresh first: `headerHost` trusts the visited host from the snapshot.
+  await ensureServedDomainsFresh()
   const domain = headerHost(req.headers)
   const baseUrl = buildBaseURL(domain)
 
@@ -44,11 +48,15 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
     }
   }
 
-  const [stats, contactAccount, serverSettings] = await Promise.all([
-    getInstanceStats(database, domain),
-    getInstanceContactAccount(database),
-    getResolvedServerSettings(database)
-  ])
+  const [stats, contactAccount, serverSettings, signUpOpen] = await Promise.all(
+    [
+      getInstanceStats(database, domain),
+      getInstanceContactAccount(database),
+      getResolvedServerSettings(database),
+      // Sign-ups on the domain this request arrived on.
+      resolveSignUpOpenSafely(database, domain)
+    ]
+  )
 
   const data = {
     uri: domain,
@@ -70,7 +78,7 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
     },
     thumbnail: `${baseUrl}/logo.png`,
     languages: serverSettings.instance.languages,
-    registrations: serverSettings.registrations.open,
+    registrations: signUpOpen ?? serverSettings.registrations.open,
     approval_required: false,
     invites_enabled: false,
     configuration: {

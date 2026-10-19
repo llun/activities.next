@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 
 import { CreateCustomEmojiRequest } from '@/app/api/v1/admin/custom_emojis/schema'
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
@@ -198,7 +198,7 @@ const deleteSavedMedia = async (
   url: string,
   shortcode: string
 ) => {
-  const path = getMediaPathFromFileUrl(url, getConfig())
+  const path = getMediaPathFromFileUrl(url, getServedHostConfig())
   if (!path) return
   // Cleanup is best effort, but a failure here orphans the stored file, so it
   // cannot be silent.

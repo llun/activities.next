@@ -8,6 +8,14 @@ type NormalizeHostOptions = {
 export type HostRuleConfig = {
   host?: string | null
   trustedHosts?: readonly string[] | null
+  /**
+   * The active domains an admin added in Admin › Domains (the `domains` table),
+   * as the in-process snapshot holds them (`getServedHostConfig` in
+   * `@/lib/services/domains/servedDomainSnapshot`). Concrete, normalised
+   * authorities only — the snapshot drops anything else — so they behave
+   * exactly like concrete `ACTIVITIES_TRUSTED_HOSTS` entries.
+   */
+  servedDomains?: readonly string[] | null
 }
 
 export type HostHeaders =
@@ -188,7 +196,10 @@ export const normalizeHostRules = (rules: readonly string[]) => {
 
 export const getTrustedHostRules = (config: HostRuleConfig): string[] => [
   config.host ?? '',
-  ...(config.trustedHosts ?? [])
+  ...(config.trustedHosts ?? []),
+  // A database domain never carries a wildcard (the snapshot refuses one), but
+  // filter here too so a hand-built config cannot smuggle one in.
+  ...(config.servedDomains ?? []).filter((domain) => !domain.includes('*'))
 ]
 
 /**
@@ -348,9 +359,10 @@ export const createHostRulesMatcher = (
  * search, quotes, forwarding and emoji from reaching them. The federation
  * policy adds it to its own exemption set (`domainPolicy.ts`).
  *
- * A new source (a database-backed domain list, say) becomes one more field
- * here and one more spread in `getServedDomainRules`, so every caller picks it
- * up at once.
+ * The active rows of the `domains` table (Admin › Domains) are the third
+ * source, `servedDomains`, spread by `getTrustedHostRules`; request-time
+ * callers get all three from `getServedHostConfig()`
+ * (`@/lib/services/domains/servedDomainSnapshot`).
  */
 export type ServedDomainSources = HostRuleConfig
 
@@ -434,13 +446,21 @@ export const createServedDomainMatcher = (
   }
 }
 
+// The headers a request's host is read from, in order. `selectHeaderHost`,
+// the domain check and the proxy all read them in this order.
+export const HOST_HEADER_NAMES = [
+  ACTIVITIES_HOST,
+  FORWARDED_HOST,
+  'host'
+] as const
+
 export const selectHeaderHost = (
   headers: HostHeaders,
   config: HostRuleConfig
 ): string => {
   const configuredHost = getConfiguredHost(config.host)
 
-  for (const headerName of [ACTIVITIES_HOST, FORWARDED_HOST, 'host']) {
+  for (const headerName of HOST_HEADER_NAMES) {
     const headerHost = getHeaderValue(headers, headerName)
     if (!headerHost) continue
 

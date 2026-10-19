@@ -7,6 +7,8 @@ import {
 } from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
+
 import { getTracer } from './trace'
 
 type RouteHandler<P = unknown> = (
@@ -247,6 +249,10 @@ export function traceApiRoute<P = unknown>(
             }
           }
 
+          // `headerHost` reads the served-domain snapshot synchronously; a
+          // stale one hands an added domain's request to the primary. No query
+          // while it is fresh, and it never throws.
+          await ensureServedDomainsFresh()
           const response = await handler(req, routeContext)
 
           const statusCode = response.status

@@ -6,8 +6,10 @@ import { getConfig } from '@/lib/config'
 import { localUsernameSchema } from '@/lib/services/accounts/localUsername'
 import {
   getActorDomainRules,
+  getAddableActorDomains,
   resolveActorDomain
 } from '@/lib/services/domains/actorDomains'
+import { filterActorDomainsForAccount } from '@/lib/services/domains/signUpDomain'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -74,15 +76,25 @@ export const POST = traceApiRoute(
 
     const { username } = parsed.data
     const config = getConfig()
-    const { federation } = await getResolvedServerSettings(database)
+    const [{ federation }, addableDomains] = await Promise.all([
+      getResolvedServerSettings(database),
+      getAddableActorDomains(database)
+    ])
     const requestedDomain =
       parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
     const domain = resolveActorDomain(
       requestedDomain,
-      getActorDomainRules(config, federation.allowActorDomains)
+      getActorDomainRules(config, federation.allowActorDomains, addableDomains)
     )
 
-    if (!domain) {
+    if (
+      !domain ||
+      !(
+        await filterActorDomainsForAccount(database, currentActor.account.id, [
+          domain
+        ])
+      ).length
+    ) {
       return apiResponse({
         req,
         allowedMethods: ['GET', 'POST'],

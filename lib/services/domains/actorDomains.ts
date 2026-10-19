@@ -1,4 +1,5 @@
 import { type Config } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import {
   getServedAuthority,
   getServedDomainRules,
@@ -9,33 +10,61 @@ import {
 type ActorDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
 
 /**
- * The rules a new actor's domain has to match. When the resolved
- * `federation.allowActorDomains` setting is non-empty, its CONCRETE entries are
- * the list: a `*.example.com` wildcard there keeps its federation-policy
- * exemption (`domainPolicy.ts`) but approves no domain for actor creation, since
- * in allowlist mode the setting can name remote servers and a user must not
- * mint a local actor on someone else's subdomain. A list holding only wildcards
- * is still "non-empty": it approves nothing and does not fall back. Otherwise an
- * actor may live on the primary host or a CONCRETE `ACTIVITIES_TRUSTED_HOSTS`
- * entry: a wildcard trusted host exists to trust `X-Forwarded-Host` (preview
- * deployments, say) and must not let anyone create actors on arbitrary
- * subdomains.
+ * The rules a new actor's domain has to match. Every rule names one domain:
+ * a wildcard never approves a domain here, wherever it is written.
+ *
+ * - When the resolved `federation.allowActorDomains` setting is non-empty, it
+ *   is the list, its CONCRETE entries only. A `*.example.com` wildcard there
+ *   keeps its federation-policy exemption (`domainPolicy.ts`) but approves no
+ *   domain for actor creation, since in allowlist mode the setting can name
+ *   remote servers and a user must not mint a local actor on someone else's
+ *   subdomain. A list holding only wildcards is still "non-empty": it
+ *   approves nothing and does not fall back.
+ * - Otherwise the list is the Admin › Domains list: the primary host, the
+ *   CONCRETE `ACTIVITIES_TRUSTED_HOSTS` entries (always on, and existing users
+ *   can add profiles there, except as `filterActorDomainsForAccount` narrows
+ *   for an account that signed up on another domain), and `addableDomains`, the domains an admin
+ *   added that are on with "Existing users can add profiles here" on
+ *   (`getAddableActorDomains`). A wildcard trusted host exists to trust
+ *   `X-Forwarded-Host` (preview deployments, say) and must not let anyone
+ *   create actors on arbitrary subdomains.
  */
 export const getActorDomainRules = (
   config: ActorDomainConfig,
-  allowActorDomains: readonly string[]
+  allowActorDomains: readonly string[],
+  addableDomains: readonly string[] = []
 ): string[] =>
   allowActorDomains.length
     ? allowActorDomains.filter((rule) => !rule.includes('*'))
-    : getServedDomainRules(config)
+    : [
+        ...getServedDomainRules({
+          host: config.host,
+          trustedHosts: config.trustedHosts
+        }),
+        ...addableDomains.filter((domain) => !domain.includes('*'))
+      ]
+
+/**
+ * The domains an admin added in Admin › Domains that new actors of existing
+ * users may live on: on, with "Existing users can add profiles here" on.
+ */
+export const getAddableActorDomains = async (
+  database: Pick<Database, 'getActiveServedDomains'>
+): Promise<string[]> => {
+  const rows = await database.getActiveServedDomains()
+  return rows
+    .filter((row) => row.status === 'on' && row.allowExistingUsers)
+    .map((row) => normalizeServedDomainChoice(row.domain))
+    .filter((domain): domain is string => domain !== null)
+}
 
 /**
  * The domain to create an actor on, normalised, when `requested` is a bare
- * domain that matches one of `rules`; null
- * otherwise. Matching uses the same rules as every other served-domain check,
- * so casing, a trailing dot or a default port cannot make an allowed domain
- * look foreign, and a wildcard rule spelled literally is never a domain. Pass
- * the output of `getActorDomainRules`, which holds no wildcards.
+ * domain that one of `rules` names; null otherwise. Matching uses the same
+ * rules as every other served-domain check, so casing, a trailing dot or a
+ * default port cannot make an allowed domain look foreign, and a wildcard
+ * rule spelled literally is never a domain. Pass the output of
+ * `getActorDomainRules`, which holds no wildcards.
  */
 export const resolveActorDomain = (
   requested: string | undefined | null,

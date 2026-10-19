@@ -2,6 +2,7 @@ import { cache } from 'react'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import {
   buildHeatmapTileSource,
   isPyramidVariantHeatmap
@@ -118,14 +119,16 @@ export const loadSharedHeatmap = cache(
       token
     })
 
-    const { instance, registrations } =
-      await getResolvedServerSettings(database)
+    const [{ instance }, signUpDomain] = await Promise.all([
+      getResolvedServerSettings(database),
+      getVisitedSignUpDomain(database)
+    ])
 
     return {
       view,
       siteName: instance.name,
       origin,
-      signupOpen: registrations.open
+      signupOpen: signUpDomain.open
     }
   }
 )

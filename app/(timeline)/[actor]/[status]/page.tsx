@@ -18,11 +18,12 @@ import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
+import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   canActorReadStatus,
   isStatusPubliclyReadable
@@ -78,7 +79,7 @@ const isLocalActorHandleDomain = (
   try {
     const config = getConfig()
     if (!config) return false
-    if (isOwnInstanceHost(actorDomain, config)) {
+    if (isOwnInstanceHost(actorDomain, getServedHostConfig(config))) {
       return true
     }
     return (config.allowActorDomains ?? []).some(
@@ -210,9 +211,7 @@ const Page: FC<Props> = async ({ params }) => {
   const mapProvider = getPublicMapProvider()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
-  const {
-    registrations: { open: registrationOpen }
-  } = await getResolvedServerSettings(database)
+  const { open: registrationOpen } = await getVisitedSignUpDomain(database)
 
   const session = await getServerAuthSession()
   const currentActor = await getActorFromSession(database, session)
