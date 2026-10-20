@@ -144,7 +144,13 @@ const Page = async () => {
                     <p className="text-muted-foreground mt-1 text-xs">{note}</p>
                   ) : null}
                   <div className={PHONE_DETAIL_CLASS}>
-                    {domain.name ? <span>{domain.name}</span> : null}
+                    <span
+                      className={
+                        domain.name ? undefined : 'text-muted-foreground'
+                      }
+                    >
+                      {domain.name ?? 'Same as server'}
+                    </span>
                     <span>
                       {domain.profiles} profile
                       {domain.profiles === 1 ? '' : 's'}
@@ -155,7 +161,9 @@ const Page = async () => {
                 </td>
                 <td className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}>
                   {domain.name ?? (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">
+                      Same as server
+                    </span>
                   )}
                 </td>
                 <td

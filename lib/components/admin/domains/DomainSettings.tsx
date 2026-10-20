@@ -12,9 +12,12 @@ import {
   checkAdminDomain,
   removeAdminDomain,
   setAdminDomainStatus,
+  updateAdminDomainIdentity,
+  updateAdminDomainPolicies,
   updateAdminDomainRegistrations
 } from '@/lib/client'
 import { LinesTextarea } from '@/lib/components/admin/settings/LinesTextarea'
+import { PolicyDate } from '@/lib/components/admin/settings/PolicyDate'
 import {
   ControlRow,
   SettingsField
@@ -27,9 +30,16 @@ import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
+import { Textarea } from '@/lib/components/ui/textarea'
 import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
-import type { AdminDomain } from '@/lib/services/domains/adminDomainTypes'
+import {
+  ADMIN_DOMAIN_FIELD_LIMITS,
+  type AdminDomain,
+  type AdminDomainDetail,
+  type ServerIdentityView
+} from '@/lib/services/domains/adminDomainTypes'
 
 import { DomainCheckItems } from './DomainCheckItems'
 import {
@@ -39,8 +49,9 @@ import {
 } from './domainLabels'
 
 interface Props {
-  domain: AdminDomain
+  domain: AdminDomainDetail
   primaryDomain: string | null
+  server: ServerIdentityView
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -62,7 +73,7 @@ const pickRegistrations = (domain: AdminDomain): Registrations => ({
 
 const RegistrationsBox: FC<{
   domain: AdminDomain
-  onSaved: (domain: AdminDomain) => void
+  onSaved: (domain: AdminDomainDetail) => void
 }> = ({ domain, onSaved }) => {
   const [values, setValues] = useState(() => pickRegistrations(domain))
   const [baseline, setBaseline] = useState(() => pickRegistrations(domain))
@@ -160,7 +171,7 @@ const RegistrationsBox: FC<{
 const StatusBox: FC<{
   domain: AdminDomain
   primaryDomain: string | null
-  onChange: (domain: AdminDomain) => void
+  onChange: (domain: AdminDomainDetail) => void
 }> = ({ domain, primaryDomain, onChange }) => {
   const router = useRouter()
   const [busy, setBusy] = useState<'on' | 'off' | 'remove' | null>(null)
@@ -306,7 +317,7 @@ const CHECKED_AT_PATTERN = 'MMM d, yyyy, p'
 
 const CheckBox: FC<{
   domain: AdminDomain
-  onChange: (domain: AdminDomain) => void
+  onChange: (domain: AdminDomainDetail) => void
 }> = ({ domain, onChange }) => {
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -400,15 +411,402 @@ const CheckBox: FC<{
   )
 }
 
-/** Admin › Domains › one domain: the header, Registrations and the Turn off box. */
+const SAME_AS_SERVER = 'Same as server'
+const OVERRIDE_REQUIRED = 'Enter a value or use Same as server'
+
+// One field the domain can set or leave as "Same as server". The draft text is
+// kept while the switch is on, so toggling never loses what was typed.
+type Override = { same: boolean; text: string }
+
+const toOverride = (value: string | null): Override => ({
+  same: value === null,
+  text: value ?? ''
+})
+
+// What is sent and compared: null for "Same as server", else trimmed text.
+const overrideValue = (field: Override): string | null =>
+  field.same ? null : field.text.trim()
+
+const SameAsServerSwitch: FC<{
+  id: string
+  label: string
+  checked: boolean
+  disabled?: boolean
+  onChange: (checked: boolean) => void
+}> = ({ id, label, checked, disabled, onChange }) => (
+  <label
+    htmlFor={id}
+    className="text-muted-foreground mt-2 flex w-fit items-center gap-2 text-xs"
+  >
+    <Switch
+      id={id}
+      aria-label={`${label}: ${SAME_AS_SERVER}`}
+      checked={checked}
+      disabled={disabled}
+      onCheckedChange={onChange}
+    />
+    {SAME_AS_SERVER}
+  </label>
+)
+
+type IdentityKey = 'name' | 'description' | 'contactEmail'
+type IdentityDrafts = Record<IdentityKey, Override>
+
+const IDENTITY_FIELDS: {
+  key: IdentityKey
+  label: string
+  multiline?: boolean
+  type?: 'email'
+}[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'description', label: 'Description', multiline: true },
+  { key: 'contactEmail', label: 'Contact email', type: 'email' }
+]
+
+const pickIdentity = (domain: AdminDomainDetail): IdentityDrafts => ({
+  name: toOverride(domain.name),
+  description: toOverride(domain.description),
+  contactEmail: toOverride(domain.contactEmail)
+})
+
+const IdentityBox: FC<{
+  domain: AdminDomainDetail
+  server: ServerIdentityView
+  readOnly: boolean
+  onSaved: (domain: AdminDomainDetail) => void
+}> = ({ domain, server, readOnly, onSaved }) => {
+  const [drafts, setDrafts] = useState(() => pickIdentity(domain))
+  const [baseline, setBaseline] = useState(() => pickIdentity(domain))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const name = domain.domain
+
+  const dirty = IDENTITY_FIELDS.some(
+    ({ key }) => overrideValue(drafts[key]) !== overrideValue(baseline[key])
+  )
+  const missing = IDENTITY_FIELDS.some(
+    ({ key }) => !drafts[key].same && drafts[key].text.trim() === ''
+  )
+
+  const update = (key: IdentityKey, patch: Partial<Override>) => {
+    setSaved(false)
+    setDrafts((current) => ({
+      ...current,
+      [key]: { ...current[key], ...patch }
+    }))
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const next = await updateAdminDomainIdentity(name, {
+        name: overrideValue(drafts.name),
+        description: overrideValue(drafts.description),
+        contactEmail: overrideValue(drafts.contactEmail)
+      })
+      setDrafts(pickIdentity(next))
+      setBaseline(pickIdentity(next))
+      setSaved(true)
+      onSaved(next)
+    } catch (caught) {
+      setError(errorMessage(caught, 'Failed to save changes.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const serverValue: Record<IdentityKey, string> = {
+    name: server.name,
+    description: server.description,
+    contactEmail: server.contactEmail
+  }
+
+  return (
+    <Frame
+      form
+      footer={
+        readOnly ? undefined : (
+          <SaveBar
+            actionLabel="Save identity"
+            idleNote={`Changes apply to ${name} only.`}
+            dirty={dirty}
+            saving={saving}
+            saved={saved}
+            error={error}
+            disabledReason={missing ? OVERRIDE_REQUIRED : undefined}
+            onSave={() => void save()}
+          />
+        )
+      }
+    >
+      {IDENTITY_FIELDS.map(({ key, label, multiline, type }) => {
+        const id = `domain-${key}`
+        const draft = drafts[key]
+        const useServer = readOnly || draft.same
+        const shared = {
+          id,
+          disabled: useServer,
+          maxLength: ADMIN_DOMAIN_FIELD_LIMITS[key],
+          value: useServer ? serverValue[key] : draft.text,
+          onChange: (
+            event: React.ChangeEvent<HTMLInputElement & HTMLTextAreaElement>
+          ) => update(key, { text: event.target.value })
+        }
+        return (
+          <SettingsField
+            key={key}
+            label={label}
+            htmlFor={id}
+            className={multiline ? 'sm:items-start' : undefined}
+          >
+            <div>
+              {multiline ? (
+                <Textarea rows={3} {...shared} />
+              ) : (
+                <Input type={type} {...shared} />
+              )}
+              {readOnly ? null : (
+                <SameAsServerSwitch
+                  id={`${id}-same`}
+                  label={label}
+                  checked={draft.same}
+                  onChange={(same) => update(key, { same })}
+                />
+              )}
+            </div>
+          </SettingsField>
+        )
+      })}
+      <SettingsField label="Contact account">
+        <div className="text-sm">
+          <p>
+            {server.contactAccount ? (
+              <>
+                {server.contactAccount}
+                <span className="text-muted-foreground">
+                  {' '}
+                  · the server’s first admin
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">None</span>
+            )}
+          </p>
+          <p className="text-muted-foreground mt-1">Same for every domain.</p>
+        </div>
+      </SettingsField>
+    </Frame>
+  )
+}
+
+type PolicyKey = 'termsOfService' | 'privacyPolicy'
+type PolicyDrafts = Record<PolicyKey, Override>
+
+const POLICY_FIELDS: {
+  key: PolicyKey
+  label: string
+  short: string
+  serverKey: 'terms' | 'privacy'
+  updatedKey: 'termsOfServiceUpdatedAt' | 'privacyPolicyUpdatedAt'
+}[] = [
+  {
+    key: 'termsOfService',
+    label: 'Terms of service',
+    short: 'terms of service',
+    serverKey: 'terms',
+    updatedKey: 'termsOfServiceUpdatedAt'
+  },
+  {
+    key: 'privacyPolicy',
+    label: 'Privacy policy',
+    short: 'privacy policy',
+    serverKey: 'privacy',
+    updatedKey: 'privacyPolicyUpdatedAt'
+  }
+]
+
+const pickPolicies = (domain: AdminDomainDetail): PolicyDrafts => ({
+  termsOfService: toOverride(domain.termsOfService),
+  privacyPolicy: toOverride(domain.privacyPolicy)
+})
+
+// The muted stand-in for the server's policy: whether it is set and when it
+// last changed. The server's text is never sent to this page.
+const ServerPolicyNote: FC<{
+  short: string
+  state: ServerIdentityView['terms']
+}> = ({ short, state }) => (
+  <p className="bg-muted text-muted-foreground rounded-md px-3 py-2 text-sm">
+    {state.set ? (
+      <>
+        Using the server {short}.
+        {state.updatedAt !== null ? (
+          <>
+            {' '}
+            Last updated <PolicyDate at={state.updatedAt} />.
+          </>
+        ) : null}
+      </>
+    ) : (
+      <>The server has no {short}.</>
+    )}{' '}
+    <Link
+      href="/admin/instance"
+      className="text-primary-text font-medium underline"
+    >
+      Edit on Instance
+    </Link>
+  </p>
+)
+
+const PoliciesBox: FC<{
+  domain: AdminDomainDetail
+  server: ServerIdentityView
+  readOnly: boolean
+  onSaved: (domain: AdminDomainDetail) => void
+}> = ({ domain, server, readOnly, onSaved }) => {
+  const [drafts, setDrafts] = useState(() => pickPolicies(domain))
+  const [baseline, setBaseline] = useState(() => pickPolicies(domain))
+  const [updatedAt, setUpdatedAt] = useState({
+    termsOfService: domain.termsOfServiceUpdatedAt,
+    privacyPolicy: domain.privacyPolicyUpdatedAt
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const name = domain.domain
+
+  const dirty = POLICY_FIELDS.some(
+    ({ key }) => overrideValue(drafts[key]) !== overrideValue(baseline[key])
+  )
+  const missing = POLICY_FIELDS.some(
+    ({ key }) => !drafts[key].same && drafts[key].text.trim() === ''
+  )
+
+  const update = (key: PolicyKey, patch: Partial<Override>) => {
+    setSaved(false)
+    setDrafts((current) => ({
+      ...current,
+      [key]: { ...current[key], ...patch }
+    }))
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const next = await updateAdminDomainPolicies(name, {
+        termsOfService: overrideValue(drafts.termsOfService),
+        privacyPolicy: overrideValue(drafts.privacyPolicy)
+      })
+      setDrafts(pickPolicies(next))
+      setBaseline(pickPolicies(next))
+      setUpdatedAt({
+        termsOfService: next.termsOfServiceUpdatedAt,
+        privacyPolicy: next.privacyPolicyUpdatedAt
+      })
+      setSaved(true)
+      onSaved(next)
+    } catch (caught) {
+      setError(errorMessage(caught, 'Failed to save changes.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Frame
+      form
+      footer={
+        readOnly ? undefined : (
+          <SaveBar
+            actionLabel="Save policies"
+            idleNote={`Changes apply to ${name} only.`}
+            dirty={dirty}
+            saving={saving}
+            saved={saved}
+            error={error}
+            disabledReason={missing ? OVERRIDE_REQUIRED : undefined}
+            onSave={() => void save()}
+          />
+        )
+      }
+    >
+      {POLICY_FIELDS.map((field) => {
+        const id = `domain-${field.key}`
+        const helpId = `${id}-help`
+        const draft = drafts[field.key]
+        const useServer = readOnly || draft.same
+        const at = updatedAt[field.key]
+        return (
+          <SettingsField
+            key={field.key}
+            label={field.label}
+            htmlFor={useServer ? undefined : id}
+            className="sm:items-start"
+          >
+            <div>
+              {useServer ? (
+                <ServerPolicyNote
+                  short={field.short}
+                  state={server[field.serverKey]}
+                />
+              ) : (
+                <>
+                  <Textarea
+                    id={id}
+                    rows={16}
+                    className="font-mono"
+                    aria-describedby={helpId}
+                    maxLength={ADMIN_DOMAIN_FIELD_LIMITS[field.key]}
+                    value={draft.text}
+                    onChange={(event) =>
+                      update(field.key, { text: event.target.value })
+                    }
+                  />
+                  <p
+                    id={helpId}
+                    className="text-muted-foreground mt-1.5 text-xs"
+                  >
+                    Markdown.
+                    {at !== null ? (
+                      <>
+                        {' '}
+                        Last updated <PolicyDate at={at} />.
+                      </>
+                    ) : null}
+                  </p>
+                </>
+              )}
+              {readOnly ? null : (
+                <SameAsServerSwitch
+                  id={`${id}-same`}
+                  label={field.label}
+                  checked={draft.same}
+                  onChange={(same) => update(field.key, { same })}
+                />
+              )}
+            </div>
+          </SettingsField>
+        )
+      })}
+    </Frame>
+  )
+}
+
+/** Admin › Domains › one domain: the header, Registrations, Identity, Terms and privacy and the Turn off box. */
 export const DomainSettings: FC<Props> = ({
   domain: initial,
-  primaryDomain
+  primaryDomain,
+  server
 }) => {
   const [domain, setDomain] = useState(initial)
   const checkBadge = getDomainCheckBadge(domain)
   const onOff = getDomainOnOffBadge(domain)
   const note = getDomainSourceNote(domain)
+  const isPrimary = domain.source === 'primary'
   const profiles = `${domain.profiles} profile${domain.profiles === 1 ? '' : 's'}`
 
   return (
@@ -443,6 +841,21 @@ export const DomainSettings: FC<Props> = ({
         />
       </div>
 
+      {isPrimary ? (
+        <Alert
+          tone="info"
+          title="The primary domain uses the server’s identity, terms and privacy."
+          live={false}
+          action={
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/admin/instance">Open Instance</Link>
+            </Button>
+          }
+        >
+          Edit them on Admin › Instance.
+        </Alert>
+      ) : null}
+
       {domain.source === 'database' ? (
         <Section
           title="Check"
@@ -456,7 +869,7 @@ export const DomainSettings: FC<Props> = ({
         title="Registrations"
         description="Who can join or add a profile on this domain."
       >
-        {domain.source === 'primary' ? (
+        {isPrimary ? (
           <Frame
             footer={
               <div className="flex justify-end">
@@ -474,6 +887,32 @@ export const DomainSettings: FC<Props> = ({
         ) : (
           <RegistrationsBox domain={domain} onSaved={setDomain} />
         )}
+      </Section>
+
+      <Section
+        title="Identity"
+        description={`What visitors to ${domain.domain} see as the name of this server.`}
+      >
+        <IdentityBox
+          key={`identity-${domain.domain}`}
+          domain={domain}
+          server={server}
+          readOnly={isPrimary}
+          onSaved={setDomain}
+        />
+      </Section>
+
+      <Section
+        title="Terms and privacy"
+        description={`Shown on ${domain.domain}/terms-of-service and ${domain.domain}/privacy-policy and linked from sign-up.`}
+      >
+        <PoliciesBox
+          key={`policies-${domain.domain}`}
+          domain={domain}
+          server={server}
+          readOnly={isPrimary}
+          onSaved={setDomain}
+        />
       </Section>
 
       <Section

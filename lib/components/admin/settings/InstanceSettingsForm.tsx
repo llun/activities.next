@@ -1,7 +1,5 @@
 'use client'
 
-import { UTCDate } from '@date-fns/utc'
-import { format } from 'date-fns/format'
 import { FC, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
@@ -14,7 +12,6 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
-import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import {
   NAV_FEATURE_KEYS,
   type NavFeatureKey
@@ -23,6 +20,7 @@ import {
 import { EnvLockLabel } from './EnvLockBadge'
 import { LanguagesPicker } from './LanguagesPicker'
 import { LinesTextarea } from './LinesTextarea'
+import { PolicyDate } from './PolicyDate'
 import { ControlRow, SettingsField } from './SettingsField'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
@@ -46,7 +44,6 @@ const DETAILS_KEYS = [
   'instance.languages'
 ]
 const POLICY_KEYS = ['policies.termsOfService', 'policies.privacyPolicy']
-const POLICY_DATE_PATTERN = 'd MMM yyyy'
 const REGISTRATION_KEYS = ['registrations.open', 'registrations.allowEmails']
 // Optional sections of the product. Off removes the item from everyone's
 // navigation; the section itself keeps working for anyone who has a link.
@@ -86,22 +83,13 @@ const PolicyHelp: FC<{ id: string; updatedAt: number | null }> = ({
   id,
   updatedAt
 }) => {
-  // The server cannot know the viewer's zone: UTC until hydration, then local.
-  const hasHydrated = useHasHydrated()
   return (
     <p id={id} className="text-muted-foreground mt-1.5 text-xs">
       Markdown.
       {updatedAt !== null ? (
         <>
           {' '}
-          Last updated{' '}
-          <time dateTime={new Date(updatedAt).toISOString()}>
-            {format(
-              hasHydrated ? new Date(updatedAt) : new UTCDate(updatedAt),
-              POLICY_DATE_PATTERN
-            )}
-          </time>
-          .
+          Last updated <PolicyDate at={updatedAt} />.
         </>
       ) : null}
     </p>
