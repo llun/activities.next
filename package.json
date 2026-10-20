@@ -94,7 +94,7 @@
     "htmlparser2": "^12.0.0",
     "jose": "^6.2.12",
     "jsonld": "^9.0.0",
-    "kysely": "0.29.6",
+    "kysely": "0.29.7",
     "lodash": "^4.18.1",
     "lucide-react": "1.58.0",
     "marked": "^18.1.1",
