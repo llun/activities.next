@@ -1414,9 +1414,25 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   collision back to the winning status, throwing `IdempotencyConflictError` on a
   hash mismatch or `IdempotencyDeletedError` if the status was deleted);
   `deleteStatus` leaves `idempotency_keys` rows intact so retries of a deleted
-  status answer `410 Gone`, while `discardUnpublishedStatus` (a create that
-  failed before it was federated) deletes the status and its key in one
-  transaction so the retry creates it afresh. The key row is stamped with the
+  status answer `410 Gone`, while `discardUnpublishedStatus` (a create whose
+  completion steps failed before its federation job was queued) deletes the
+  status and its key in one transaction, so the retry creates it afresh. It
+  does not decrement hashtag counters: a create counts its hashtags only after
+  the publish, so a discarded status's were never counted.
+  `idempotency_keys.state` (`pending` from the claim, then `publish_failed` or
+  `complete`; `complete` by default for rows written before the column and for
+  `saveIdempotencyKey`) is what lets a retry tell a finished create from one
+  whose publish failed, which it re-queues under the same job id
+  (`getHashFromString(statusId)`), and from one still running in another
+  process (`409` while the key is younger than `IDEMPOTENCY_PENDING_STALE_MS`,
+  60 seconds, then treated as `publish_failed`). QStash (whose deduplication id
+  is the job id) and the database queue (`onConflict(id).doNothing()`)
+  deduplicate that re-queue; **Cloud Tasks does not**, because its tasks carry
+  no name, so a replay there can run `SendNoteJob` twice for the same status and
+  deliver the same `Create` (same object id) twice, which receiving servers drop
+  as a repeat. A process that dies after the claim and before the publish
+  leaves a `pending` key behind; a retry 60 seconds later sends that post as it
+  was left, which may lack the completion steps the crash skipped. The key row is stamped with the
   request time, not the status's (possibly backdated) `createdAt`;
   `deleteExpiredIdempotencyKeys`, run by the actor-deletion sweep, deletes keys
   older than 7 days (`IDEMPOTENCY_KEY_TTL_MS`), and `deleteActorData` deletes an

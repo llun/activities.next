@@ -166,6 +166,35 @@ describe('StatusReplyBox', () => {
     expect(nextKey).not.toBe(firstKey)
   })
 
+  it('mints a fresh idempotencyKey when a failed reply is edited before the retry', async () => {
+    createNoteMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue({ status: replyStatus, attachments: [] })
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={replyStatus}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('Reply to Llun...')
+    fireEvent.change(textarea, { target: { value: 'Reply body' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    const firstKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.change(textarea, { target: { value: 'Reply body, edited' } })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    const editedKey = createNoteMock.mock.calls[1]?.[0]?.idempotencyKey
+    expect(isPublicId(editedKey!)).toBe(true)
+    expect(editedKey).not.toBe(firstKey)
+  })
+
   it('toggles mention modes between all, author-first, and author-only', async () => {
     const multiMentionStatus: StatusNote = {
       ...replyStatus,

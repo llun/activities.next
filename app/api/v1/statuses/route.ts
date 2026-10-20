@@ -8,7 +8,9 @@ import {
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import {
   IdempotencyConflictError,
-  IdempotencyDeletedError
+  IdempotencyDeletedError,
+  IdempotencyInProgressError,
+  StatusPublishFailedError
 } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -437,8 +439,10 @@ export const POST = traceApiRoute(
         }
 
         // Honor Idempotency-Key: a repeated key with matching normalized
-        // content returns the original status rather than creating a duplicate;
-        // different content returns 422; a deleted status returns 410.
+        // content returns the original status rather than creating a duplicate
+        // (sending it first if its federation job was never queued); different
+        // content returns 422; a deleted status returns 410; a create still
+        // running elsewhere returns 409.
         const idempotency = idempotencyKey
           ? {
               key: idempotencyKey,
@@ -622,6 +626,23 @@ export const POST = traceApiRoute(
             allowedMethods: CORS_HEADERS,
             data: { error: error.message },
             responseStatusCode: 410
+          })
+        }
+        if (error instanceof IdempotencyInProgressError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 409
+          })
+        }
+        // The post is saved; a retry with the same key sends it.
+        if (error instanceof StatusPublishFailedError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 503
           })
         }
         logger.error(

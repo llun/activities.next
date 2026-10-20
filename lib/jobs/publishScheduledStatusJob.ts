@@ -188,6 +188,10 @@ export const publishScheduledStatusJob = createJobHandle(
         })
         return
       }
+      // Anything else is retryable and keeps the row: a post saved but not
+      // yet sent (StatusPublishFailedError) or a create still running
+      // (IdempotencyInProgressError) is finished by the queue's retry, which
+      // finds the post through the same key.
       throw error
     }
 

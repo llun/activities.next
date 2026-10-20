@@ -3,7 +3,9 @@ import {
   type GetIdempotentStatusIdParams,
   IDEMPOTENCY_KEY_TTL_MS,
   type IdempotencyKeyRecord,
-  type SaveIdempotencyKeyParams
+  type IdempotencyKeyState,
+  type SaveIdempotencyKeyParams,
+  type SetIdempotencyKeyStateParams
 } from '@/lib/database/domains/idempotency/types'
 import type { Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
@@ -28,7 +30,7 @@ export const getIdempotencyKey = async (
 ): Promise<IdempotencyKeyRecord | null> => {
   const row = await db
     .selectFrom('idempotency_keys')
-    .select(['actorId', 'key', 'statusId', 'contentHash', 'createdAt'])
+    .select(['actorId', 'key', 'statusId', 'contentHash', 'state', 'createdAt'])
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .limit(1)
@@ -39,6 +41,7 @@ export const getIdempotencyKey = async (
     key: row.key,
     statusId: row.statusId,
     contentHash: row.contentHash ?? null,
+    state: row.state as IdempotencyKeyState,
     createdAt: row.createdAt ?? null
   }
 }
@@ -75,6 +78,19 @@ export const saveIdempotencyKey = async (
     .execute()
 }
 
+export const setIdempotencyKeyState = async (
+  db: Db,
+  { actorId, key, statusId, state }: SetIdempotencyKeyStateParams
+): Promise<void> => {
+  await db
+    .updateTable('idempotency_keys')
+    .set({ state })
+    .where('actorId', '=', actorId)
+    .where('key', '=', key)
+    .where('statusId', '=', statusId)
+    .execute()
+}
+
 export const deleteExpiredIdempotencyKeys = async (
   db: Db,
   {
@@ -92,5 +108,6 @@ export const idempotencyQueries = {
   getIdempotentStatusId,
   getIdempotencyKey,
   saveIdempotencyKey,
+  setIdempotencyKeyState,
   deleteExpiredIdempotencyKeys
 }

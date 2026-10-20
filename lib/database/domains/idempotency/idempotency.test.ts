@@ -100,8 +100,76 @@ describe('IdempotencyDatabase', () => {
       key: 'hashed-key',
       statusId: 'status-hashed',
       contentHash: 'sha256-abc',
+      state: 'complete',
       createdAt: expect.any(Number)
     })
+  })
+
+  it('claims a status create key as pending and moves it only while it is bound to that status', async () => {
+    const actorId = actor('state')
+    await database.createActor({
+      actorId,
+      username: 'idempotent_state',
+      domain: 'llun.test',
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      publicKey: 'pub',
+      privateKey: 'priv',
+      createdAt: Date.now()
+    })
+    const statusId = `${actorId}/statuses/state`
+    await database.createNoteWithResult({
+      id: statusId,
+      url: statusId,
+      actorId,
+      text: 'Stateful status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      idempotency: { key: 'state-key', contentHash: 'hash-state' }
+    })
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'state-key' })
+    ).resolves.toMatchObject({ statusId, state: 'pending' })
+
+    await database.setIdempotencyKeyState({
+      actorId,
+      key: 'state-key',
+      statusId: `${actorId}/statuses/other`,
+      state: 'complete'
+    })
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'state-key' })
+    ).resolves.toMatchObject({ state: 'pending' })
+
+    await database.setIdempotencyKeyState({
+      actorId,
+      key: 'state-key',
+      statusId,
+      state: 'publish_failed'
+    })
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'state-key' })
+    ).resolves.toMatchObject({ state: 'publish_failed' })
+  })
+
+  it('discards an unpublished status without deleting a key bound to another status', async () => {
+    const actorId = actor('discard-scope')
+    await database.saveIdempotencyKey({
+      actorId,
+      key: 'shared-key',
+      statusId: `${actorId}/statuses/kept`
+    })
+
+    await database.discardUnpublishedStatus({
+      actorId,
+      statusId: `${actorId}/statuses/discarded`,
+      idempotencyKey: 'shared-key'
+    })
+
+    await expect(
+      database.getIdempotentStatusId({ actorId, key: 'shared-key' })
+    ).resolves.toBe(`${actorId}/statuses/kept`)
   })
 
   it('deletes idempotency keys older than 7 days and keeps newer ones', async () => {

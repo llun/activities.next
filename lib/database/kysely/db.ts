@@ -691,6 +691,7 @@ export interface IdempotencyKeys {
   contentHash: Nullable<string>
   createdAt: WithDefault<Nullable<Timestamp>>
   key: string
+  state: WithDefault<string>
   statusId: string
 }
 

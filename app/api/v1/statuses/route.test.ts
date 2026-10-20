@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server'
 
 import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
+import { IDEMPOTENCY_PENDING_STALE_MS } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import type { Database } from '@/lib/database/types'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import {
@@ -21,12 +23,14 @@ import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { createDeferred } from '@/lib/testing/deferred'
 import {
   Status,
   StatusNote,
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId, getPublicIdTimestamp } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -70,6 +74,10 @@ vi.mock('@/lib/config', () => ({
     secretPhase: 'test-secret'
   })
 }))
+
+const flushMicrotasks = async () => {
+  for (let i = 0; i < 20; i += 1) await Promise.resolve()
+}
 
 describe('POST /api/v1/statuses', () => {
   const testDb = createTestDatabase()
@@ -966,19 +974,35 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(200)
   })
 
-  it('discards the status and its key when the federation publish fails, so a retry with the key creates it', async () => {
-    const idempotencyKey = 'idem-key-publish-fails'
-    const text = 'Discarded then retried #retried'
-    const media = await database.createMedia({
+  const createTestMedia = (name: string) =>
+    database.createMedia({
       actorId: ACTOR1_ID,
       original: {
-        path: 'medias/discarded-photo.webp',
+        path: `medias/${name}.webp`,
         bytes: 1024,
         mimeType: 'image/jpeg',
         metaData: { width: 10, height: 10 },
-        fileName: 'discarded-photo.jpg'
+        fileName: `${name}.jpg`
       }
     })
+
+  const rowsForStatus = (
+    table: 'tags' | 'attachments' | 'timelines',
+    statusId: string
+  ) =>
+    db
+      .selectFrom(table)
+      .select('statusId')
+      .where('statusId', '=', statusId)
+      .execute()
+
+  const keyState = async (key: string) =>
+    (await database.getIdempotencyKey({ actorId: ACTOR1_ID, key }))?.state
+
+  it('keeps the post and responds 503 when the federation publish fails, and a retry with the key sends it', async () => {
+    const idempotencyKey = 'idem-key-publish-fails'
+    const text = 'Saved then sent #resent'
+    const media = await createTestMedia('kept-photo')
     const publishMock = vi.mocked(getQueue().publish)
     publishMock.mockRejectedValueOnce(new Error('Queue unavailable'))
 
@@ -987,22 +1011,64 @@ describe('POST /api/v1/statuses', () => {
       idempotencyKey
     )
 
-    expect(failed.status).toBe(400)
-    const discardedId = String(
-      (publishMock.mock.calls[0][0].data as { statusId: string }).statusId
+    expect(failed.status).toBe(503)
+    await expect(failed.json()).resolves.toEqual({
+      error: expect.stringContaining('Idempotency-Key')
+    })
+    const firstJob = publishMock.mock.calls[0][0]
+    const statusId = String((firstJob.data as { statusId: string }).statusId)
+    expect(firstJob).toMatchObject({
+      id: getHashFromString(statusId),
+      name: SEND_NOTE_JOB_NAME
+    })
+    await expect(statusesWithText(text)).resolves.toHaveLength(1)
+    await expect(keyState(idempotencyKey)).resolves.toBe('publish_failed')
+    await expect(rowsForStatus('attachments', statusId)).resolves.toHaveLength(
+      1
     )
+
+    publishMock.mockClear()
+    const retried = await postStatus(
+      { status: text, media_ids: [media!.id] },
+      idempotencyKey
+    )
+
+    expect(retried.status).toBe(200)
+    const sent = await retried.json()
+    expect(sent.uri).toBe(statusId)
+    expect(sent.media_attachments).toHaveLength(1)
+    expect(publishMock).toHaveBeenCalledTimes(1)
+    expect(publishMock.mock.calls[0][0]).toEqual(firstJob)
+    await expect(keyState(idempotencyKey)).resolves.toBe('complete')
+    await expect(statusesWithText(text)).resolves.toHaveLength(1)
+  })
+
+  it('discards the status and its key without publishing when a step before the publish fails, so a retry with the key creates it', async () => {
+    const idempotencyKey = 'idem-key-attachment-fails'
+    const text = 'Discarded then retried #retried'
+    const media = await createTestMedia('discarded-photo')
+    const attachmentSpy = vi
+      .spyOn(database, 'createAttachment')
+      .mockRejectedValueOnce(new Error('Database hiccup'))
+    let discardedId: string
+    try {
+      const failed = await postStatus(
+        { status: text, media_ids: [media!.id] },
+        idempotencyKey
+      )
+      expect(failed.status).toBe(400)
+      discardedId = attachmentSpy.mock.calls[0][0].statusId
+    } finally {
+      attachmentSpy.mockRestore()
+    }
+
+    expect(vi.mocked(getQueue().publish)).not.toHaveBeenCalled()
     await expect(statusesWithText(text)).resolves.toHaveLength(0)
     await expect(
       database.getIdempotencyKey({ actorId: ACTOR1_ID, key: idempotencyKey })
     ).resolves.toBeNull()
     for (const table of ['tags', 'attachments', 'timelines'] as const) {
-      await expect(
-        db
-          .selectFrom(table)
-          .select('statusId')
-          .where('statusId', '=', discardedId)
-          .execute()
-      ).resolves.toEqual([])
+      await expect(rowsForStatus(table, discardedId)).resolves.toEqual([])
     }
 
     const retried = await postStatus(
@@ -1014,6 +1080,228 @@ describe('POST /api/v1/statuses', () => {
     expect(created.media_attachments).toHaveLength(1)
     expect(created.tags).toEqual([expect.objectContaining({ name: 'retried' })])
     await expect(statusesWithText(text)).resolves.toHaveLength(1)
+  })
+
+  it.each([
+    { description: 'status', body: { status: 'Created but not loadable' } },
+    {
+      description: 'poll',
+      body: {
+        status: 'Created poll not loadable',
+        poll: { options: ['Yes', 'No'], expires_in: 3600 }
+      }
+    }
+  ])(
+    'discards the $description without publishing when it cannot be loaded after its create',
+    async ({ description, body }) => {
+      const idempotencyKey = `idem-key-hydrate-null-${description}`
+      const discardSpy = vi.spyOn(database, 'discardUnpublishedStatus')
+      const getStatusSpy = vi
+        .spyOn(database, 'getStatus')
+        .mockResolvedValue(null)
+      try {
+        const failed = await postStatus(body, idempotencyKey)
+        expect(failed.status).toBe(400)
+        expect(discardSpy).toHaveBeenCalled()
+      } finally {
+        getStatusSpy.mockRestore()
+        discardSpy.mockRestore()
+      }
+
+      expect(vi.mocked(getQueue().publish)).not.toHaveBeenCalled()
+      await expect(statusesWithText(body.status)).resolves.toHaveLength(0)
+      await expect(
+        database.getIdempotencyKey({ actorId: ACTOR1_ID, key: idempotencyKey })
+      ).resolves.toBeNull()
+    }
+  )
+
+  it('discards the status without publishing when its emoji tags cannot be saved', async () => {
+    const text = 'Emoji tags fail :blobcat:'
+    const discardSpy = vi.spyOn(database, 'discardUnpublishedStatus')
+    const emojiSpy = vi
+      .spyOn(database, 'getCustomEmojis')
+      .mockRejectedValueOnce(new Error('Database hiccup'))
+    try {
+      const failed = await postStatus({ status: text }, 'idem-key-emoji-fails')
+      expect(failed.status).toBe(400)
+      expect(discardSpy).toHaveBeenCalled()
+    } finally {
+      emojiSpy.mockRestore()
+      discardSpy.mockRestore()
+    }
+
+    expect(vi.mocked(getQueue().publish)).not.toHaveBeenCalled()
+    await expect(statusesWithText(text)).resolves.toHaveLength(0)
+  })
+
+  it('waits for every sibling insert to settle before discarding, so none lands after the discard', async () => {
+    const text = 'Sibling inserts settle first'
+    const [first, second] = await Promise.all([
+      createTestMedia('sibling-first'),
+      createTestMedia('sibling-second')
+    ])
+    const createAttachment = database.createAttachment.bind(database)
+    const reached = createDeferred<void>()
+    const gate = createDeferred<void>()
+    const attachmentSpy = vi
+      .spyOn(database, 'createAttachment')
+      .mockImplementationOnce(async () => {
+        reached.resolve()
+        throw new Error('Database hiccup')
+      })
+      .mockImplementationOnce(async (params) => {
+        await gate.promise
+        return createAttachment(params)
+      })
+    const discardSpy = vi.spyOn(database, 'discardUnpublishedStatus')
+    try {
+      const pending = postStatus(
+        { status: text, media_ids: [first!.id, second!.id] },
+        'idem-key-sibling-settle'
+      )
+      await reached.promise
+      await flushMicrotasks()
+      expect(discardSpy).not.toHaveBeenCalled()
+
+      gate.resolve()
+      const failed = await pending
+      expect(failed.status).toBe(400)
+      expect(discardSpy).toHaveBeenCalled()
+      const statusId = attachmentSpy.mock.calls[0][0].statusId
+      await expect(rowsForStatus('attachments', statusId)).resolves.toEqual([])
+    } finally {
+      attachmentSpy.mockRestore()
+      discardSpy.mockRestore()
+    }
+  })
+
+  it('leaves the hashtag counter alone when it discards a post whose hashtags were never counted', async () => {
+    const counterId = CounterKey.totalHashtag('neveruncounted')
+    const counterValue = async () =>
+      (
+        await db
+          .selectFrom('counters')
+          .select('value')
+          .where('id', '=', counterId)
+          .executeTakeFirst()
+      )?.value
+    const counted = await postStatus({ status: 'Counted #neveruncounted' })
+    expect(counted.status).toBe(200)
+    await expect(counterValue()).resolves.toBe(1)
+
+    const media = await createTestMedia('uncounted-photo')
+    const attachmentSpy = vi
+      .spyOn(database, 'createAttachment')
+      .mockRejectedValueOnce(new Error('Database hiccup'))
+    try {
+      const failed = await postStatus({
+        status: 'Discarded #neveruncounted',
+        media_ids: [media!.id]
+      })
+      expect(failed.status).toBe(400)
+    } finally {
+      attachmentSpy.mockRestore()
+    }
+
+    await expect(counterValue()).resolves.toBe(1)
+  })
+
+  it('responds 409 while another process may still hold a pending key, and sends the post once the key is stale', async () => {
+    const idempotencyKey = 'idem-key-pending-elsewhere'
+    const body = { status: 'Pending elsewhere' }
+    const created = await postStatus(body, idempotencyKey)
+    expect(created.status).toBe(200)
+    const { uri } = await created.json()
+    await database.setIdempotencyKeyState({
+      actorId: ACTOR1_ID,
+      key: idempotencyKey,
+      statusId: uri,
+      state: 'pending'
+    })
+    const publishMock = vi.mocked(getQueue().publish)
+    publishMock.mockClear()
+
+    const inProgress = await postStatus(body, idempotencyKey)
+    expect(inProgress.status).toBe(409)
+    await expect(inProgress.json()).resolves.toEqual({
+      error: expect.stringContaining('still being processed')
+    })
+    expect(publishMock).not.toHaveBeenCalled()
+
+    await db
+      .updateTable('idempotency_keys')
+      .set({ createdAt: new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS) })
+      .where('actorId', '=', ACTOR1_ID)
+      .where('key', '=', idempotencyKey)
+      .execute()
+    const stale = await postStatus(body, idempotencyKey)
+    expect(stale.status).toBe(200)
+    await expect(stale.json()).resolves.toMatchObject({ uri })
+    expect(publishMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: getHashFromString(uri),
+        name: SEND_NOTE_JOB_NAME
+      })
+    )
+    await expect(keyState(idempotencyKey)).resolves.toBe('complete')
+    await expect(statusesWithText('Pending elsewhere')).resolves.toHaveLength(1)
+  })
+
+  it('returns the winner’s status to a create that lost the key claim to it', async () => {
+    const idempotencyKey = 'idem-key-claim-loser'
+    const body = { status: 'Claim winner' }
+    const winner = await postStatus(body, idempotencyKey)
+    expect(winner.status).toBe(200)
+    const { id } = await winner.json()
+    // Both pre-checks miss the key, as for a request that read it before the
+    // winner committed, so this create reaches the claim and loses it.
+    const keySpy = vi
+      .spyOn(database, 'getIdempotencyKey')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+    try {
+      const loser = await postStatus(body, idempotencyKey)
+      expect(loser.status).toBe(200)
+      await expect(loser.json()).resolves.toMatchObject({ id })
+    } finally {
+      keySpy.mockRestore()
+    }
+    await expect(statusesWithText('Claim winner')).resolves.toHaveLength(1)
+  })
+
+  it('fails a create that lost the key claim to one that was then discarded, so the client retries', async () => {
+    const idempotencyKey = 'idem-key-claim-loser-discarded'
+    const body = { status: 'Claim winner discarded' }
+    const winner = await postStatus(body, idempotencyKey)
+    expect(winner.status).toBe(200)
+    const createNoteWithResult = database.createNoteWithResult.bind(database)
+    const keySpy = vi
+      .spyOn(database, 'getIdempotencyKey')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+    // The winner is discarded between the lost claim and the loser's read.
+    const createSpy = vi
+      .spyOn(database, 'createNoteWithResult')
+      .mockImplementationOnce(async (params) => {
+        const result = await createNoteWithResult(params)
+        await database.discardUnpublishedStatus({
+          actorId: ACTOR1_ID,
+          statusId: result.status.id,
+          idempotencyKey
+        })
+        return result
+      })
+    try {
+      const loser = await postStatus(body, idempotencyKey)
+      expect(loser.status).toBe(400)
+    } finally {
+      keySpy.mockRestore()
+      createSpy.mockRestore()
+    }
+    await expect(
+      statusesWithText('Claim winner discarded')
+    ).resolves.toHaveLength(0)
   })
 
   it('still returns the status when a best-effort step fails', async () => {

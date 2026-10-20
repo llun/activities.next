@@ -479,29 +479,46 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   without creating a second status or enqueuing a second federation delivery;
   a repeat with the same key and different request parameters returns
   `422 Unprocessable Entity` (`{ error }`). A key stored before content hashing
-  (a `NULL` hash) matches any payload. Concurrent in-flight requests for the
-  same `(actorId, key)` coalesce onto the first request's creation in-process
-  (wait-and-return) and fall back to the `(actorId, key)` unique constraint
-  inside the status creation transaction across processes. After the status
-  row commits, the steps that complete the post (mention and hashtag tags,
-  attachments, timelines, fitness linking, the hydrating re-read, and, last,
-  the `SendNoteJob` / `ProcessFitnessFileJob` publish) must succeed: if one
-  fails, the not-yet-federated status is deleted locally (no `Delete` is sent)
-  together with this request's `idempotency_keys` row
-  (`discardUnpublishedStatus`), and the route answers with an error, so a retry
-  with the same key creates the post afresh. On the in-process queue, which runs
-  the job inside the publish, a failing job is only logged, since the note may
-  already have reached some inboxes. Best-effort steps (detected language,
-  emoji tags, hashtag counters and search indexing, notifications and alerts,
-  the quote request, and link preview sync) are logged on failure and the route
-  still responds `200 OK`. Deleting a status
+  (a `NULL` hash) matches any payload. Concurrent requests for the same
+  `(actorId, key)` in one process wait for the first request's create; across
+  processes the `(actorId, key)` unique constraint inside the status creation
+  transaction picks one winner, and the others answer as a repeat does. Each
+  key records how far its create got (`idempotency_keys.state`): `pending`
+  from the claim, `publish_failed` when the post was saved but its federation
+  job could not be queued, and `complete` once it was (keys stored before the
+  column existed are `complete`). After the status row commits, the steps that
+  complete the post (mention, hashtag and emoji tags, attachments, timelines,
+  fitness linking and the hydrating re-read) must all succeed. When one fails,
+  its parallel siblings are allowed to settle, then the not-yet-federated
+  status is deleted locally (no `Delete` is sent) together with this request's
+  key (`discardUnpublishedStatus`), and the route answers `400`, so a retry
+  with the same key creates the post afresh. Queueing `SendNoteJob` /
+  `ProcessFitnessFileJob` is the commit point, on every queue: a queue error
+  is ambiguous (the job may have been accepted, or run inline), so the post is
+  kept, the key moves to `publish_failed`, and the route answers
+  `503 Service Unavailable` (`{ error }`). A retry with the same key queues the
+  job again under the same deterministic job id and answers `200 OK` (or `503`
+  again); without a key nothing re-sends that post. On success the key moves to
+  `complete`. Best-effort steps (detected language before the publish; hashtag
+  counters and search indexing, the quote request, notifications and alerts,
+  and link preview sync after it, which run even when the publish failed,
+  since the post is kept) are logged on failure and do not change the
+  response. A repeat that finds the key `pending` waits for the create when it
+  runs in the same process. Otherwise it answers `409 Conflict` (`{ error }`,
+  retryable) while the key is younger than 60 seconds
+  (`IDEMPOTENCY_PENDING_STALE_MS`), and after that treats the key as
+  `publish_failed`, since its process most likely stopped: that post is sent
+  as it was left, which can be incomplete if the process died part-way through
+  the completion steps. Deleting a status
   (`lib/database/domains/status/deletion.ts`) preserves its `idempotency_keys`
   row as a tombstone, and retrying with the key of a deleted status returns
   `410 Gone` (`{ error: 'The status associated with this Idempotency-Key was deleted' }`)
   instead of recreating the post. A scheduled status claims its key (the
   client's, or `scheduled-<id>`) the same way when it publishes, bound to a hash
   of its stored params; when that key already belongs to a deleted status or to
-  different content, the scheduled status is dropped with a warning. Keys older
+  different content, the scheduled status is dropped with a warning. A publish
+  that would answer `503` or `409` fails the job instead and keeps the scheduled
+  row, so the queue's retry finishes the post through the same key. Keys older
   than 7 days (`IDEMPOTENCY_KEY_TTL_MS`) are purged by
   `deleteExpiredIdempotencyKeys` on each tick of the actor-deletion sweep
   (`startActorDeletionSweep` in `lib/services/actors/actorDeletion.ts`), and

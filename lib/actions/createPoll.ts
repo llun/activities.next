@@ -5,8 +5,10 @@ import {
   getVisibilityFromReplyStatus,
   loadIdempotentStatus,
   persistEmojiTagsForStatus,
+  publishCreatedStatus,
   resolveExistingIdempotentStatus,
   runBestEffortStep,
+  settleAll,
   statusRecipientsCC,
   statusRecipientsTo,
   trackInFlightStatusCreation
@@ -209,49 +211,66 @@ export const createPollFromUserInput = async ({
 
     // As in createNoteFromUserInput: a failed completion step discards the
     // poll and fails the request; best-effort steps only log.
+    let poll: Status
     try {
-      // Content-detected language, stored separately from the declared `language`
-      // above so the Translate gate can fall back to it when the author's
-      // declared/default language doesn't match what they actually wrote.
-      await runBestEffortStep(statusId, 'detected language', () =>
-        persistDetectedLanguage({
-          database,
-          statusId,
-          text,
-          declaredLanguage: language
-        })
-      )
-
-      await Promise.all([
-        addStatusToTimelines(database, createdPoll),
-        ...mentionTags.map((mention) =>
-          database.createTag({
+      try {
+        // Content-detected language, stored separately from the declared
+        // `language` above so the Translate gate can fall back to it when the
+        // author's declared/default language doesn't match what they actually
+        // wrote.
+        await runBestEffortStep(statusId, 'detected language', () =>
+          persistDetectedLanguage({
+            database,
             statusId,
-            name: mention.name || '',
-            value: mention.href,
-            type: 'mention'
+            text,
+            declaredLanguage: language
           })
         )
-      ])
 
-      await runBestEffortStep(statusId, 'emoji tags', () =>
-        persistEmojiTagsForStatus({
+        await settleAll([
+          addStatusToTimelines(database, createdPoll),
+          ...mentionTags.map((mention) =>
+            database.createTag({
+              statusId,
+              name: mention.name || '',
+              value: mention.href,
+              type: 'mention'
+            })
+          )
+        ])
+
+        await persistEmojiTagsForStatus({
           database,
           statusId,
           text: [text, summary ?? '', ...choices]
         })
-      )
 
-      return await database.getStatus({ statusId, withReplies: false })
-    } catch (error) {
-      await discardFailedStatusCreate({
+        const hydratedPoll = await database.getStatus({
+          statusId,
+          withReplies: false
+        })
+        if (!hydratedPoll) {
+          throw new Error('The created poll could not be loaded')
+        }
+        poll = hydratedPoll
+      } catch (error) {
+        await discardFailedStatusCreate({
+          database,
+          actorId: currentActor.id,
+          statusId,
+          idempotency
+        })
+        throw error
+      }
+      // A poll queues no job at creation; this marks its key 'complete'.
+      await publishCreatedStatus({
         database,
         actorId: currentActor.id,
-        statusId,
+        status: poll,
         idempotency
       })
-      throw error
     } finally {
       finishInFlight()
     }
+    return poll
   })

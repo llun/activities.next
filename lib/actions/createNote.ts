@@ -1,6 +1,10 @@
 import {
+  IDEMPOTENCY_PENDING_STALE_MS,
   IdempotencyConflictError,
-  IdempotencyDeletedError
+  IdempotencyDeletedError,
+  IdempotencyInProgressError,
+  type IdempotencyKeyState,
+  StatusPublishFailedError
 } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import {
@@ -21,6 +25,7 @@ import {
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import type { JobMessage } from '@/lib/services/queue/type'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   canActorReadStatus,
@@ -39,6 +44,7 @@ import {
   QuoteApprovalPolicy,
   Status,
   StatusNote,
+  StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
@@ -80,9 +86,114 @@ export const trackInFlightStatusCreation = (statusId: string): (() => void) => {
   }
 }
 
-// Waits out an in-process create of `statusId` and loads it. Null when that
-// create failed and discarded its status and key, so a retry may create the
-// post afresh; IdempotencyDeletedError when the key outlived its status.
+// Awaits every write before failing with the first error, so a discard that
+// follows never races a sibling insert that is still running.
+export const settleAll = async (work: Promise<unknown>[]): Promise<void> => {
+  const results = await Promise.allSettled(work)
+  const failure = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected'
+  )
+  if (failure) throw failure.reason
+}
+
+// One best-effort step of a status create: a failure is logged and the post
+// still succeeds.
+export const runBestEffortStep = async (
+  statusId: string,
+  step: string,
+  work: () => Promise<unknown>
+): Promise<void> => {
+  try {
+    await work()
+  } catch (error) {
+    logger.error({
+      message: `Status create: ${step} failed`,
+      statusId,
+      err: toLoggableError(error)
+    })
+  }
+}
+
+// The federation job of a created status: PROCESS_FITNESS_FILE (which sends
+// the note itself) for a fitness post, SEND_NOTE otherwise, none for a poll.
+// The id is derived from the status, so queueing it again is deduplicated.
+const getStatusCreationJob = (
+  actorId: string,
+  status: Status,
+  fitnessFileId?: string
+): JobMessage | null => {
+  if (status.type === StatusType.enum.Poll) return null
+  const id = getHashFromString(status.id)
+  return fitnessFileId
+    ? {
+        id,
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId, statusId: status.id, fitnessFileId }
+      }
+    : {
+        id,
+        name: SEND_NOTE_JOB_NAME,
+        data: { actorId, statusId: status.id }
+      }
+}
+
+// The commit point of a status create, after which the post is never
+// discarded: a queue error is ambiguous (the job may have been accepted, or
+// run inline), so the post is kept. Its key is marked 'publish_failed' so a
+// retry with the key queues the job again, and the request fails with
+// StatusPublishFailedError. On success the key is marked 'complete'.
+export const publishCreatedStatus = async ({
+  database,
+  actorId,
+  status,
+  fitnessFileId,
+  idempotency
+}: {
+  database: Database
+  actorId: string
+  status: Status
+  fitnessFileId?: string
+  idempotency?: { key: string }
+}): Promise<void> => {
+  // A failed state write leaves the key 'pending': a retry gets 409 until the
+  // key is IDEMPOTENCY_PENDING_STALE_MS old, then queues the job again.
+  const setKeyState = async (state: IdempotencyKeyState) => {
+    if (!idempotency) return
+    await runBestEffortStep(status.id, `Idempotency-Key ${state}`, () =>
+      database.setIdempotencyKeyState({
+        actorId,
+        key: idempotency.key,
+        statusId: status.id,
+        state
+      })
+    )
+  }
+  const job = getStatusCreationJob(actorId, status, fitnessFileId)
+  try {
+    if (job) await getQueue().publish(job)
+  } catch (error) {
+    logger.error({
+      message: 'Status create: federation job could not be queued',
+      statusId: status.id,
+      err: toLoggableError(error)
+    })
+    await setKeyState('publish_failed')
+    throw new StatusPublishFailedError(status.id, Boolean(idempotency))
+  }
+  await setKeyState('complete')
+}
+
+// Answers a retry with the key that claimed `statusId`, after waiting out an
+// in-process create of it, by the key's state:
+// - 'complete': the status;
+// - 'publish_failed', or 'pending' for longer than IDEMPOTENCY_PENDING_STALE_MS
+//   (its process most likely stopped): queues the job again, then the status
+//   (StatusPublishFailedError when the queue refuses again);
+// - a fresher 'pending': IdempotencyInProgressError, as another process may
+//   still be creating it.
+// Null when that create failed and discarded its status and key, so a retry
+// may create the post afresh; IdempotencyDeletedError when the key outlived
+// its status.
 export const loadIdempotentStatus = async ({
   database,
   actorId,
@@ -95,11 +206,31 @@ export const loadIdempotentStatus = async ({
   statusId: string
 }): Promise<Status | null> => {
   await waitForInFlightStatusCreation(statusId)
-  const status = await database.getStatus({ statusId, withReplies: false })
-  if (status) return status
+  // The key first: a discard removes the status and the key together, so a
+  // key read before the status cannot vouch for a status discarded since.
   const claim = await database.getIdempotencyKey({ actorId, key })
-  if (claim?.statusId === statusId) throw new IdempotencyDeletedError(statusId)
-  return null
+  const status = await database.getStatus({ statusId, withReplies: false })
+  if (!status) {
+    if (claim?.statusId === statusId)
+      throw new IdempotencyDeletedError(statusId)
+    return null
+  }
+  if (claim?.statusId !== statusId || claim.state === 'complete') return status
+  if (
+    claim.state === 'pending' &&
+    Date.now() - (claim.createdAt ?? 0) < IDEMPOTENCY_PENDING_STALE_MS
+  ) {
+    throw new IdempotencyInProgressError()
+  }
+  await publishCreatedStatus({
+    database,
+    actorId,
+    status,
+    fitnessFileId:
+      status.type === StatusType.enum.Note ? status.fitness?.id : undefined,
+    idempotency: { key }
+  })
+  return status
 }
 
 export const resolveExistingIdempotentStatus = async ({
@@ -130,26 +261,11 @@ export const resolveExistingIdempotentStatus = async ({
   })
 }
 
-// One best-effort step of a status create: a failure is logged and the post
-// still succeeds.
-export const runBestEffortStep = async (
-  statusId: string,
-  step: string,
-  work: () => Promise<unknown>
-): Promise<void> => {
-  try {
-    await work()
-  } catch (error) {
-    logger.error({
-      message: `Status create: ${step} failed`,
-      statusId,
-      err: toLoggableError(error)
-    })
-  }
-}
-
-// Undoes a create whose completion steps failed before it was federated, so a
-// retry (with the same Idempotency-Key, if any) creates the post afresh.
+// Undoes a create whose completion steps failed before its job was queued, so
+// a retry (with the same Idempotency-Key, if any) creates the post afresh.
+// When the discard itself fails, the status and its 'pending' key remain: a
+// retry gets 409 until the key is IDEMPOTENCY_PENDING_STALE_MS old, then sends
+// the post as it was left.
 export const discardFailedStatusCreate = async ({
   database,
   actorId,
@@ -307,7 +423,7 @@ export const persistEmojiTagsForStatus = async ({
   const combinedText = Array.isArray(text) ? text.join(' ') : text
   const customEmojis = await database.getCustomEmojis()
   const emojiTags = getEmojiTags(combinedText, customEmojis)
-  await Promise.all(
+  await settleAll(
     emojiTags.map((emojiTag) =>
       database.createTag({
         statusId,
@@ -686,211 +802,198 @@ export const createNoteFromUserInput = async ({
     }
 
     // Completion steps: without any of them the post is incomplete, so a
-    // failure discards it (it is not federated yet; the publish is last) and
-    // fails the request. Best-effort steps log their failure and carry on.
+    // failure discards it and fails the request. Nothing is queued before they
+    // all succeed: the publish after them is the commit point. Best-effort
+    // steps log their failure and carry on.
     let status: StatusNote
     let remoteQuoteRequest = false
     let localQuotedAuthorId: string | null = null
+    let publishError: unknown = null
     const hashtags = getHashtags(text, currentActor.domain)
     try {
-      // Quote handling (FEP-044f). The caller has already authorized the quote
-      // (visibility + canQuoteStatus), so record the edge here and drive the
-      // handshake after the publish. Doing this before the final status
-      // re-fetch means the returned status (and the federated note) already
-      // carry the quote edge.
-      if (quotedStatusId) {
-        const quotedStatus = await database.getStatus({
-          statusId: quotedStatusId,
-          withReplies: false
-        })
-        if (quotedStatus) {
-          const quotedAuthorId = getOriginalStatus(quotedStatus).actorId
-          if (quotedStatus.isLocalActor) {
-            // We host the quoted author (FEP same-authority shortcut): approve
-            // immediately, no QuoteRequest handshake.
-            await database.createStatusQuote({
-              statusId,
-              quotedStatusId,
-              state: 'accepted'
-            })
-            if (quotedAuthorId !== currentActor.id) {
-              localQuotedAuthorId = quotedAuthorId
+      try {
+        // Quote handling (FEP-044f). The caller has already authorized the
+        // quote (visibility + canQuoteStatus), so record the edge here and
+        // drive the handshake after the publish. Doing this before the final
+        // status re-fetch means the returned status (and the federated note)
+        // already carry the quote edge.
+        if (quotedStatusId) {
+          const quotedStatus = await database.getStatus({
+            statusId: quotedStatusId,
+            withReplies: false
+          })
+          if (quotedStatus) {
+            const quotedAuthorId = getOriginalStatus(quotedStatus).actorId
+            if (quotedStatus.isLocalActor) {
+              // We host the quoted author (FEP same-authority shortcut):
+              // approve immediately, no QuoteRequest handshake.
+              await database.createStatusQuote({
+                statusId,
+                quotedStatusId,
+                state: 'accepted'
+              })
+              if (quotedAuthorId !== currentActor.id) {
+                localQuotedAuthorId = quotedAuthorId
+              }
+            } else {
+              // Remote quoted author: create a pending edge; the QuoteRequest
+              // handshake below lets their Accept/Reject settle it.
+              await database.createStatusQuote({
+                statusId,
+                quotedStatusId,
+                state: 'pending',
+                quoteRequestId: `${statusId}#quote-request`
+              })
+              remoteQuoteRequest = true
             }
-          } else {
-            // Remote quoted author: create a pending edge; the QuoteRequest
-            // handshake below lets their Accept/Reject settle it.
-            await database.createStatusQuote({
-              statusId,
-              quotedStatusId,
-              state: 'pending',
-              quoteRequestId: `${statusId}#quote-request`
-            })
-            remoteQuoteRequest = true
           }
         }
-      }
 
-      // Content-detected language, stored separately from the declared `language`
-      // above so the Translate gate can fall back to it when the author's
-      // declared/default language doesn't match what they actually wrote.
-      await runBestEffortStep(statusId, 'detected language', () =>
-        persistDetectedLanguage({
-          database,
-          statusId,
-          text,
-          declaredLanguage: language
-        })
-      )
-
-      // Tags must be persisted before timeline rules run so that
-      // notifyRemoteReplyAndMention can verify mentions via tags rather than text
-      // content.
-      await Promise.all([
-        ...mentionTags.map((mention) =>
-          database.createTag({
+        // Content-detected language, stored separately from the declared
+        // `language` above so the Translate gate can fall back to it when the
+        // author's declared/default language doesn't match what they actually
+        // wrote.
+        await runBestEffortStep(statusId, 'detected language', () =>
+          persistDetectedLanguage({
+            database,
             statusId,
-            name: mention.name || '',
-            value: mention.href,
-            type: 'mention'
-          })
-        ),
-        ...hashtags.map((hashtag) =>
-          database.createTag({
-            statusId,
-            name: hashtag.name,
-            value: hashtag.value,
-            type: 'hashtag',
-            skipSearchIndex: true
+            text,
+            declaredLanguage: language
           })
         )
-      ])
-      await runBestEffortStep(
-        statusId,
-        'hashtag counters and search',
-        async () => {
-          // The count is served to anonymous /tags/<tag> visitors; a
-          // followers-only or direct post must not move it.
-          if (isPublicOrUnlisted({ to, cc })) {
-            await Promise.all(
-              hashtags.map((hashtag) =>
-                database.increaseHashtagCounter({ hashtag: hashtag.name })
-              )
-            )
-          }
-          if (hashtags.length > 0) {
-            await database.indexHashtagSearchDocuments({
-              hashtags: hashtags.map((hashtag) => hashtag.name)
-            })
-          }
-        }
-      )
 
-      // Before the publish: the federated note carries its emoji tags.
-      await runBestEffortStep(statusId, 'emoji tags', () =>
-        persistEmojiTagsForStatus({
+        // Tags must be persisted before timeline rules run so that
+        // notifyRemoteReplyAndMention can verify mentions via tags rather than
+        // text content.
+        await settleAll([
+          ...mentionTags.map((mention) =>
+            database.createTag({
+              statusId,
+              name: mention.name || '',
+              value: mention.href,
+              type: 'mention'
+            })
+          ),
+          ...hashtags.map((hashtag) =>
+            database.createTag({
+              statusId,
+              name: hashtag.name,
+              value: hashtag.value,
+              type: 'hashtag',
+              skipSearchIndex: true
+            })
+          )
+        ])
+
+        // Before the publish: the federated note carries its emoji tags, and
+        // a note sent without them would show raw :shortcode: text for good.
+        await persistEmojiTagsForStatus({
           database,
           statusId,
           text: [text, summary ?? '', ...attachments.map((a) => a.name || '')]
         })
-      )
 
-      // The file, placeholder and focal point are read back from the owner's own
-      // media rows: a stale composer or an outbox client can send an earlier
-      // render of an edited photo, which a later save may prune.
-      const ownedAttachments = await resolveOwnedAttachments({
-        database,
-        currentActor,
-        attachments
-      })
+        // The file, placeholder and focal point are read back from the owner's
+        // own media rows: a stale composer or an outbox client can send an
+        // earlier render of an edited photo, which a later save may prune.
+        const ownedAttachments = await resolveOwnedAttachments({
+          database,
+          currentActor,
+          attachments
+        })
 
-      // A backdated status's attachments are backdated with it.
-      const attachmentsCreatedAt = createdAt ?? Date.now()
-      await Promise.all([
-        addStatusToTimelines(database, createdStatus),
-        ...ownedAttachments.map(({ attachment, metadata }, index) => {
-          // Link the attachment to a media row only when that row belongs to
-          // the author's account. The outbox takes attachment ids from the
-          // client, and `attachments.mediaId` is read as proof the media's owner
-          // published it (the public details endpoint relies on it), so an id
-          // that did not resolve to an owned row is written without a link.
-          const ownedMetadata = metadata ?? undefined
-          return database.createAttachment({
-            // The inserts run in parallel, so without a distinct, increasing
-            // createdAt every attachment of the status would share one
-            // timestamp and reads (createdAt, then random id) would shuffle
-            // them. base + index ms preserves the author's order.
-            createdAt: attachmentsCreatedAt + index,
-            actorId: currentActor.id,
-            statusId,
-            mediaType: attachment.mediaType,
-            url: attachment.url,
-            width: attachment.width,
-            height: attachment.height,
-            name: attachment.name,
-            ...(ownedMetadata ? { mediaId: String(attachment.id) } : {}),
-            ...(ownedMetadata ?? EMPTY_ATTACHMENT_MEDIA_METADATA)
+        // A backdated status's attachments are backdated with it.
+        const attachmentsCreatedAt = createdAt ?? Date.now()
+        await settleAll([
+          addStatusToTimelines(database, createdStatus),
+          ...ownedAttachments.map(({ attachment, metadata }, index) => {
+            // Link the attachment to a media row only when that row belongs
+            // to the author's account. The outbox takes attachment ids from
+            // the client, and `attachments.mediaId` is read as proof the
+            // media's owner published it (the public details endpoint relies
+            // on it), so an id that did not resolve to an owned row is written
+            // without a link.
+            const ownedMetadata = metadata ?? undefined
+            return database.createAttachment({
+              // The inserts run in parallel, so without a distinct, increasing
+              // createdAt every attachment of the status would share one
+              // timestamp and reads (createdAt, then random id) would shuffle
+              // them. base + index ms preserves the author's order.
+              createdAt: attachmentsCreatedAt + index,
+              actorId: currentActor.id,
+              statusId,
+              mediaType: attachment.mediaType,
+              url: attachment.url,
+              width: attachment.width,
+              height: attachment.height,
+              name: attachment.name,
+              ...(ownedMetadata ? { mediaId: String(attachment.id) } : {}),
+              ...(ownedMetadata ?? EMPTY_ATTACHMENT_MEDIA_METADATA)
+            })
           })
-        })
-      ])
+        ])
 
-      if (fitnessFile) {
-        await database.updateFitnessFileStatus(fitnessFile.id, statusId)
-      }
+        if (fitnessFile) {
+          await database.updateFitnessFileStatus(fitnessFile.id, statusId)
+        }
 
-      const hydratedStatus = (await database.getStatus({
-        statusId,
-        withReplies: false
-      })) as StatusNote | null
-      if (!hydratedStatus) {
-        return null
-      }
-      status = hydratedStatus
-
-      // The last completion step: once the job is queued the post is on its
-      // way out and is never discarded.
-      const queue = getQueue()
-      try {
-        await queue.publish(
-          fitnessFile
-            ? {
-                id: getHashFromString(status.id),
-                name: PROCESS_FITNESS_FILE_JOB_NAME,
-                data: {
-                  actorId: currentActor.id,
-                  statusId: status.id,
-                  fitnessFileId: fitnessFile.id
-                }
-              }
-            : {
-                id: getHashFromString(status.id),
-                name: SEND_NOTE_JOB_NAME,
-                data: { actorId: currentActor.id, statusId: status.id }
-              }
-        )
-      } catch (error) {
-        // An inline queue ran the job inside `publish`, so the note may
-        // already have reached some inboxes: keep the post, do not discard it.
-        if (!queue.runsInline) throw error
-        logger.error({
-          message: 'Federation job failed inline after status creation',
+        const hydratedStatus = (await database.getStatus({
           statusId,
-          err: toLoggableError(error)
+          withReplies: false
+        })) as StatusNote | null
+        if (!hydratedStatus) {
+          throw new Error('The created status could not be loaded')
+        }
+        status = hydratedStatus
+      } catch (error) {
+        await discardFailedStatusCreate({
+          database,
+          actorId: currentActor.id,
+          statusId,
+          idempotency
         })
+        throw error
       }
-    } catch (error) {
-      await discardFailedStatusCreate({
-        database,
-        actorId: currentActor.id,
-        statusId,
-        idempotency
-      })
-      throw error
+
+      try {
+        await publishCreatedStatus({
+          database,
+          actorId: currentActor.id,
+          status,
+          fitnessFileId: fitnessFile?.id,
+          idempotency
+        })
+      } catch (error) {
+        publishError = error
+      }
     } finally {
+      // After the key state is written, so a waiting retry reads it.
       finishInFlight()
     }
 
-    // Best-effort steps after the publish, so nobody is notified of a post
-    // that was then discarded.
+    // Best-effort steps after the publish, so a discarded post never reached
+    // them. They run when the publish failed too, because that post is kept.
+    await runBestEffortStep(
+      statusId,
+      'hashtag counters and search',
+      async () => {
+        // The count is served to anonymous /tags/<tag> visitors; a
+        // followers-only or direct post must not move it.
+        if (isPublicOrUnlisted({ to, cc })) {
+          await Promise.all(
+            hashtags.map((hashtag) =>
+              database.increaseHashtagCounter({ hashtag: hashtag.name })
+            )
+          )
+        }
+        if (hashtags.length > 0) {
+          await database.indexHashtagSearchDocuments({
+            hashtags: hashtags.map((hashtag) => hashtag.name)
+          })
+        }
+      }
+    )
+
     if (remoteQuoteRequest && quotedStatusId) {
       const quoteRequestId = `${statusId}#quote-request`
       await runBestEffortStep(statusId, 'quote request enqueue', () =>
@@ -926,6 +1029,7 @@ export const createNoteFromUserInput = async ({
     // throws (see syncStatusLinkPreview).
     await syncStatusLinkPreview({ database, status })
 
+    if (publishError) throw publishError
     return status
   })
 

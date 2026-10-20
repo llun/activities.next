@@ -500,11 +500,14 @@ const refreshAffectedHashtags = async (
 const executeStatusDeletion = async ({
   actorId,
   affectedHashtags,
+  hashtagsCounted = true,
   statusId,
   trx
 }: {
   actorId?: string
   affectedHashtags: string[]
+  // False when the status's hashtags never reached the total-hashtag counters.
+  hashtagsCounted?: boolean
   statusId: string
   trx: Db
 }): Promise<boolean> => {
@@ -529,12 +532,14 @@ const executeStatusDeletion = async ({
   })
 
   const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIdsToDelete)
-  await applyHashtagDeletionCounterAdjustments({
-    currentTime,
-    publiclyAddressedStatusIds,
-    tags: hashtagTags,
-    trx
-  })
+  if (hashtagsCounted) {
+    await applyHashtagDeletionCounterAdjustments({
+      currentTime,
+      publiclyAddressedStatusIds,
+      tags: hashtagTags,
+      trx
+    })
+  }
   affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
 
   const deleteByStatusIds = (remove: (chunk: string[]) => Promise<unknown>) =>
@@ -713,6 +718,8 @@ export const deleteStatus = async (
 // deleteStatus of a status whose create failed before it was federated, and,
 // in the same transaction, the idempotency key that create claimed for it, so
 // a retry with the same key creates the post afresh instead of getting 410.
+// The create counts hashtags only after its federation job is queued, so a
+// discarded status's hashtags were never counted and are not decremented.
 export const discardUnpublishedStatus = async (
   db: Db,
   { actorId, statusId, idempotencyKey }: DiscardUnpublishedStatusParams
@@ -722,6 +729,7 @@ export const discardUnpublishedStatus = async (
     await executeStatusDeletion({
       actorId,
       affectedHashtags: collectedHashtags,
+      hashtagsCounted: false,
       statusId,
       trx
     })

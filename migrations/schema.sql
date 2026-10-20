@@ -722,7 +722,8 @@ CREATE TABLE public.idempotency_keys (
     key character varying(255) NOT NULL,
     "statusId" character varying(255) NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "contentHash" character varying(64)
+    "contentHash" character varying(64),
+    state character varying(16) DEFAULT 'complete'::character varying NOT NULL
 );
 
 CREATE TABLE public.instance_rules (

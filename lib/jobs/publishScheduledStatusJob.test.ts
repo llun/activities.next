@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { publishScheduledStatusJob } from '@/lib/jobs/publishScheduledStatusJob'
 import { getQueue } from '@/lib/services/queue'
@@ -225,17 +226,19 @@ describe('publishScheduledStatusJob', () => {
   it('drops the scheduled row without publishing when its Idempotency-Key belongs to a deleted status', async () => {
     const text = `Deleted-key scheduled note ${Date.now()}`
     const idempotency = `idem-${Date.now()}`
-    // The key survives the deletion of the status it created.
-    await database.saveIdempotencyKey({
-      actorId: actor1.id,
-      key: idempotency,
-      statusId: `${actor1.id}/statuses/already-deleted`,
-      contentHash: 'some-hash'
-    })
     const scheduled = await database.createScheduledStatus({
       actorId: actor1.id,
       scheduledAt: Date.now() - 1_000,
       params: baseParams({ text, idempotency })
+    })
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    // The key survives the deletion of the status it created, and matches
+    // this job's content, so only the deleted status stops it.
+    await database.saveIdempotencyKey({
+      actorId: actor1.id,
+      key: idempotency,
+      statusId: `${actor1.id}/statuses/already-deleted`,
+      contentHash: getHashFromString(JSON.stringify(row!.params))
     })
 
     await publishScheduledStatusJob(database, {
@@ -249,6 +252,78 @@ describe('publishScheduledStatusJob', () => {
     await expect(
       database.getScheduledStatusById({ id: scheduled.id })
     ).resolves.toBeNull()
+  })
+
+  it('keeps the row and fails the job when the post is saved but not sent, and the retry sends it', async () => {
+    const text = `Publish-failed scheduled note ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text })
+    })
+    const message = {
+      id: 'job-publish-failed',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    }
+    const key = { actorId: actor1.id, key: `scheduled-${scheduled.id}` }
+    vi.mocked(getQueue().publish).mockRejectedValueOnce(
+      new Error('Queue unavailable')
+    )
+
+    await expect(
+      publishScheduledStatusJob(database, message)
+    ).rejects.toBeInstanceOf(StatusPublishFailedError)
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.not.toBeNull()
+    await expect(database.getIdempotencyKey(key)).resolves.toMatchObject({
+      state: 'publish_failed'
+    })
+
+    await publishScheduledStatusJob(database, message)
+
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    expect(after.filter((status) => hasText(status, text))).toHaveLength(1)
+    await expect(database.getIdempotencyKey(key)).resolves.toMatchObject({
+      state: 'complete'
+    })
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
+  })
+
+  it('claims the row-derived key for a scheduled poll too', async () => {
+    const text = `Keyed scheduled poll ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({
+        text,
+        poll: {
+          options: ['Up', 'Down'],
+          expires_in: 3600,
+          multiple: false,
+          hide_totals: false
+        }
+      })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-keyed-poll',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const published = (
+      await database.getActorStatuses({ actorId: actor1.id })
+    ).find((status) => hasText(status, text))
+    await expect(
+      database.getIdempotencyKey({
+        actorId: actor1.id,
+        key: `scheduled-${scheduled.id}`
+      })
+    ).resolves.toMatchObject({ statusId: published?.id, state: 'complete' })
   })
 
   it('drops the scheduled row without publishing when its Idempotency-Key was used for different content', async () => {
@@ -308,7 +383,10 @@ describe('publishScheduledStatusJob', () => {
       actorId: actor1.id,
       key: `scheduled-${scheduled.id}`
     })
-    expect(claim?.contentHash).toEqual(expect.any(String))
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    expect(claim?.contentHash).toBe(
+      getHashFromString(JSON.stringify(row!.params))
+    )
 
     await publishScheduledStatusJob(database, message)
 

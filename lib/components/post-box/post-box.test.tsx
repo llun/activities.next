@@ -520,6 +520,38 @@ describe('PostBox poll creation', () => {
     expect(isPublicId(nextKey!)).toBe(true)
     expect(nextKey).not.toBe(firstKey)
   })
+  it('mints a fresh idempotencyKey when a failed poll is edited before the retry', async () => {
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    createPollMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue(undefined)
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Best framework?' } })
+    await choosePostOption('Poll')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(1))
+    const firstKey = createPollMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.change(textarea, { target: { value: 'Best editor?' } })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(2))
+    const editedKey = createPollMock.mock.calls[1]?.[0]?.idempotencyKey
+    expect(isPublicId(editedKey!)).toBe(true)
+    expect(editedKey).not.toBe(firstKey)
+  })
 })
 
 describe('PostBox new post character limit with attachments', () => {
@@ -782,5 +814,36 @@ describe('PostBox idempotency key', () => {
     expect(secondPostKey).toBeDefined()
     expect(isPublicId(secondPostKey!)).toBe(true)
     expect(secondPostKey).not.toBe(firstKey)
+  })
+
+  it('mints a fresh idempotencyKey when a failed post is edited before the retry', async () => {
+    createNoteMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue({ status: editStatus, attachments: [] })
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    const firstKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.change(textarea, { target: { value: 'First post, edited' } })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    const editedKey = createNoteMock.mock.calls[1]?.[0]?.idempotencyKey
+    expect(isPublicId(editedKey!)).toBe(true)
+    expect(editedKey).not.toBe(firstKey)
   })
 })
