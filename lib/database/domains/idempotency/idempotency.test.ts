@@ -141,6 +141,129 @@ describe('IdempotencyDatabase', () => {
     })
   })
 
+  it('stamps the claim with the request time, so a backdated status keeps its key past the TTL sweep', async () => {
+    const actorId = actor('backdated')
+    await database.createActor({
+      actorId,
+      username: 'idempotent_backdated',
+      domain: 'llun.test',
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      publicKey: 'pub',
+      privateKey: 'priv',
+      createdAt: Date.now()
+    })
+    const thirtyDaysAgo = Date.now() - 30 * 86_400_000
+
+    await database.createNoteWithResult({
+      id: `${actorId}/statuses/note`,
+      url: `${actorId}/statuses/note`,
+      actorId,
+      text: 'Backdated note',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: thirtyDaysAgo,
+      idempotency: { key: 'backdated-note', contentHash: 'hash-note' }
+    })
+    await database.createPollWithResult({
+      id: `${actorId}/statuses/poll`,
+      url: `${actorId}/statuses/poll`,
+      actorId,
+      text: 'Backdated poll',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      choices: ['a', 'b'],
+      endAt: Date.now() + 86_400_000,
+      createdAt: thirtyDaysAgo,
+      idempotency: { key: 'backdated-poll', contentHash: 'hash-poll' }
+    })
+
+    await database.deleteExpiredIdempotencyKeys()
+
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'backdated-note' })
+    ).resolves.toMatchObject({ statusId: `${actorId}/statuses/note` })
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'backdated-poll' })
+    ).resolves.toMatchObject({ statusId: `${actorId}/statuses/poll` })
+  })
+
+  it('purges keys past the 7-day TTL by default', async () => {
+    const actorId = actor('default-ttl')
+    const now = Date.now()
+    await database.saveIdempotencyKey({
+      actorId,
+      key: 'eight-days',
+      statusId: 'status-eight-days',
+      createdAt: now - 8 * 86_400_000
+    })
+    await database.saveIdempotencyKey({
+      actorId,
+      key: 'six-days',
+      statusId: 'status-six-days',
+      createdAt: now - 6 * 86_400_000
+    })
+
+    await database.deleteExpiredIdempotencyKeys()
+
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'eight-days' })
+    ).resolves.toBeNull()
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'six-days' })
+    ).resolves.toMatchObject({ statusId: 'status-six-days' })
+  })
+
+  it('claims idempotency key atomically inside createPollWithResult and resolves duplicates and conflicts', async () => {
+    const actorId = actor('poll-claim')
+    await database.createActor({
+      actorId,
+      username: 'idempotent_poll_claim',
+      domain: 'llun.test',
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      publicKey: 'pub',
+      privateKey: 'priv',
+      createdAt: Date.now()
+    })
+    const poll = (n: number, contentHash: string) => ({
+      id: `${actorId}/statuses/${n}`,
+      url: `${actorId}/statuses/${n}`,
+      actorId,
+      text: 'Atomic poll',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      choices: ['a', 'b'],
+      endAt: Date.now() + 86_400_000,
+      idempotency: { key: 'poll-key', contentHash }
+    })
+
+    const first = await database.createPollWithResult(poll(1, 'hash-poll'))
+    expect(first.isNew).toBe(true)
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'poll-key' })
+    ).resolves.toMatchObject({
+      statusId: `${actorId}/statuses/1`,
+      contentHash: 'hash-poll'
+    })
+
+    const duplicate = await database.createPollWithResult(poll(2, 'hash-poll'))
+    expect(duplicate.isNew).toBe(false)
+    expect(duplicate.status.id).toBe(`${actorId}/statuses/1`)
+    await expect(
+      database.getStatus({ statusId: `${actorId}/statuses/2` })
+    ).resolves.toBeNull()
+
+    await expect(
+      database.createPollWithResult(poll(3, 'hash-other'))
+    ).rejects.toBeInstanceOf(IdempotencyConflictError)
+    await expect(
+      database.getStatus({ statusId: `${actorId}/statuses/3` })
+    ).resolves.toBeNull()
+  })
+
   it('claims idempotency key atomically inside createNoteWithResult and resolves DB-level duplicates, conflicts, and deleted tombstones', async () => {
     const actorId = actor('tx-claim')
     await database.createActor({

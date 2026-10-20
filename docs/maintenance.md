@@ -1414,8 +1414,13 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   collision back to the winning status, throwing `IdempotencyConflictError` on a
   hash mismatch or `IdempotencyDeletedError` if the status was deleted);
   `deleteStatus` leaves `idempotency_keys` rows intact so retries of a deleted
-  status answer `410 Gone`, and `purgeExpiredIdempotencyKeys` deletes keys older
-  than 7 days (`IDEMPOTENCY_KEY_TTL_MS`).
+  status answer `410 Gone`, while `discardUnpublishedStatus` (a create that
+  failed before it was federated) deletes the status and its key in one
+  transaction so the retry creates it afresh. The key row is stamped with the
+  request time, not the status's (possibly backdated) `createdAt`;
+  `deleteExpiredIdempotencyKeys`, run by the actor-deletion sweep, deletes keys
+  older than 7 days (`IDEMPOTENCY_KEY_TTL_MS`), and `deleteActorData` deletes an
+  erased actor's keys.
 
 <a id="review-stored-media"></a>
 

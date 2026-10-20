@@ -76,6 +76,9 @@ const CORS_HEADERS = [
 // predictable. Exported so the route test can exercise the truncation.
 export const MAX_BATCH_STATUSES = 100
 
+const MAX_IDEMPOTENCY_KEY_LENGTH = 255
+const IDEMPOTENCY_KEY_TOO_LONG_ERROR = `Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY_LENGTH} characters`
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const VisibilitySchema = z.enum(['public', 'unlisted', 'private', 'direct'])
@@ -210,6 +213,20 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { currentActor, database, clientId } = context
+      const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
+      // idempotency_keys.key is varchar(255); PostgreSQL rejects a longer
+      // value at the claim, so refuse it before doing anything.
+      if (
+        idempotencyKey &&
+        idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: IDEMPOTENCY_KEY_TOO_LONG_ERROR },
+          responseStatusCode: 422
+        })
+      }
       try {
         const content = await parseStatusRequestBody(req)
         const parsed = NoteSchema.safeParse(content)
@@ -269,8 +286,6 @@ export const POST = traceApiRoute(
             responseStatusCode: 422
           })
         }
-
-        const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
 
         // A scheduled_at at least five minutes ahead stores the status for later
         // publication instead of posting it now. Media is validated

@@ -151,8 +151,8 @@ export const startActorDeletionSweep = (
       })
     }
     try {
-      const purgedKeys = await database.deleteExpiredIdempotencyKeys?.()
-      if (purgedKeys && purgedKeys > 0) {
+      const purgedKeys = await database.deleteExpiredIdempotencyKeys()
+      if (purgedKeys > 0) {
         logger.info({
           message: 'Purged expired idempotency keys',
           count: purgedKeys

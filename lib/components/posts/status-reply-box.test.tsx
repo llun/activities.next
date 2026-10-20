@@ -15,6 +15,7 @@ import { createNote, uploadAttachment } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { isPublicId } from '@/lib/utils/publicId'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { StatusReplyBox } from './status-reply-box'
@@ -128,6 +129,41 @@ describe('StatusReplyBox', () => {
         })
       )
     })
+  })
+
+  it('reuses the idempotencyKey when a failed reply is retried and mints a fresh key for the next reply', async () => {
+    createNoteMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue({ status: replyStatus, attachments: [] })
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={replyStatus}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('Reply to Llun...')
+    fireEvent.change(textarea, { target: { value: 'Reply body' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    const firstKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+    expect(isPublicId(firstKey!)).toBe(true)
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).toBe(firstKey)
+
+    fireEvent.change(textarea, { target: { value: 'Reply body' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+    const nextKey = createNoteMock.mock.calls[2]?.[0]?.idempotencyKey
+    expect(isPublicId(nextKey!)).toBe(true)
+    expect(nextKey).not.toBe(firstKey)
   })
 
   it('toggles mention modes between all, author-first, and author-only', async () => {

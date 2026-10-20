@@ -4,6 +4,7 @@ import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import type { Database } from '@/lib/database/types'
+import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import {
   MAX_FEDERATION_MEDIA_ATTACHMENTS,
@@ -916,34 +917,335 @@ describe('POST /api/v1/statuses', () => {
         status.text === 'Concurrent idempotent post'
     )
     expect(matching).toHaveLength(1)
+    const sendNotePublishes = publishMock.mock.calls.filter(
+      ([message]) => message.name === SEND_NOTE_JOB_NAME
+    )
+    expect(sendNotePublishes).toHaveLength(1)
   })
 
-  it('responds with the created status when post-commit queue publishing throws', async () => {
-    const publishMock = vi.mocked(getQueue().publish)
-    publishMock.mockRejectedValueOnce(new Error('Queue unavailable'))
-
-    const response = await POST(
+  const postStatus = (body: Record<string, unknown>, idempotencyKey?: string) =>
+    POST(
       new NextRequest('https://llun.test/api/v1/statuses', {
         method: 'POST',
-        body: JSON.stringify({
-          status: 'Status survives post-commit queue failure'
-        }),
+        body: JSON.stringify(body),
         headers: {
           'Content-Type': 'application/json',
           Origin: 'https://llun.test',
-          'Idempotency-Key': 'idem-key-queue-throws'
+          ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
         }
       }),
       { params: Promise.resolve({}) }
     )
 
-    expect(response.status).toBe(200)
-    const created = await response.json()
-    expect(created.text).toBe('Status survives post-commit queue failure')
+  const statusesWithText = async (text: string) =>
+    (await database.getActorStatuses({ actorId: ACTOR1_ID })).filter(
+      (status) =>
+        status.type !== StatusType.enum.Announce && status.text.includes(text)
+    )
+
+  it('rejects an Idempotency-Key longer than 255 characters with 422 before creating anything', async () => {
+    const response = await postStatus(
+      { status: 'Status with an over-long key' },
+      'k'.repeat(256)
+    )
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: expect.stringContaining('Idempotency-Key')
+    })
     await expect(
-      database.getStatus({ statusId: created.uri, withReplies: false })
-    ).resolves.not.toBeNull()
+      statusesWithText('Status with an over-long key')
+    ).resolves.toHaveLength(0)
   })
+
+  it('accepts an Idempotency-Key of exactly 255 characters', async () => {
+    const response = await postStatus(
+      { status: 'Status with a 255-character key' },
+      'k'.repeat(255)
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it('discards the status and its key when the federation publish fails, so a retry with the key creates it', async () => {
+    const idempotencyKey = 'idem-key-publish-fails'
+    const text = 'Discarded then retried #retried'
+    const media = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/discarded-photo.webp',
+        bytes: 1024,
+        mimeType: 'image/jpeg',
+        metaData: { width: 10, height: 10 },
+        fileName: 'discarded-photo.jpg'
+      }
+    })
+    const publishMock = vi.mocked(getQueue().publish)
+    publishMock.mockRejectedValueOnce(new Error('Queue unavailable'))
+
+    const failed = await postStatus(
+      { status: text, media_ids: [media!.id] },
+      idempotencyKey
+    )
+
+    expect(failed.status).toBe(400)
+    const discardedId = String(
+      (publishMock.mock.calls[0][0].data as { statusId: string }).statusId
+    )
+    await expect(statusesWithText(text)).resolves.toHaveLength(0)
+    await expect(
+      database.getIdempotencyKey({ actorId: ACTOR1_ID, key: idempotencyKey })
+    ).resolves.toBeNull()
+    for (const table of ['tags', 'attachments', 'timelines'] as const) {
+      await expect(
+        db
+          .selectFrom(table)
+          .select('statusId')
+          .where('statusId', '=', discardedId)
+          .execute()
+      ).resolves.toEqual([])
+    }
+
+    const retried = await postStatus(
+      { status: text, media_ids: [media!.id] },
+      idempotencyKey
+    )
+    expect(retried.status).toBe(200)
+    const created = await retried.json()
+    expect(created.media_attachments).toHaveLength(1)
+    expect(created.tags).toEqual([expect.objectContaining({ name: 'retried' })])
+    await expect(statusesWithText(text)).resolves.toHaveLength(1)
+  })
+
+  it('still returns the status when a best-effort step fails', async () => {
+    const indexSpy = vi
+      .spyOn(database, 'indexHashtagSearchDocuments')
+      .mockRejectedValueOnce(new Error('Search unavailable'))
+    try {
+      const response = await postStatus(
+        { status: 'Survives a search outage #resilient' },
+        'idem-key-best-effort'
+      )
+
+      expect(response.status).toBe(200)
+      const created = await response.json()
+      expect(indexSpy).toHaveBeenCalled()
+      expect(created.tags).toEqual([
+        expect.objectContaining({ name: 'resilient' })
+      ])
+      expect(vi.mocked(getQueue().publish)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_NOTE_JOB_NAME,
+          data: expect.objectContaining({ statusId: created.uri })
+        })
+      )
+    } finally {
+      indexSpy.mockRestore()
+    }
+  })
+
+  it('discards a poll and its key when a completion step fails, so a retry with the key creates it', async () => {
+    const idempotencyKey = 'idem-key-poll-fails'
+    const body = {
+      status: 'Discarded poll',
+      poll: { options: ['Yes', 'No'], expires_in: 3600 }
+    }
+    const getStatusSpy = vi
+      .spyOn(database, 'getStatus')
+      .mockRejectedValueOnce(new Error('Database hiccup'))
+    try {
+      const failed = await postStatus(body, idempotencyKey)
+      expect(failed.status).toBe(400)
+    } finally {
+      getStatusSpy.mockRestore()
+    }
+    await expect(statusesWithText('Discarded poll')).resolves.toHaveLength(0)
+    await expect(
+      database.getIdempotencyKey({ actorId: ACTOR1_ID, key: idempotencyKey })
+    ).resolves.toBeNull()
+
+    const retried = await postStatus(body, idempotencyKey)
+    expect(retried.status).toBe(200)
+    await expect(statusesWithText('Discarded poll')).resolves.toHaveLength(1)
+  })
+
+  it('returns the original poll for a repeated Idempotency-Key and 422 for different poll content', async () => {
+    const idempotencyKey = 'idem-key-poll-repeat'
+    const body = {
+      status: 'Idempotent poll',
+      poll: { options: ['Red', 'Blue'], expires_in: 3600 }
+    }
+
+    const first = await postStatus(body, idempotencyKey)
+    expect(first.status).toBe(200)
+    const firstPoll = await first.json()
+    const second = await postStatus(body, idempotencyKey)
+    expect(second.status).toBe(200)
+    await expect(second.json()).resolves.toMatchObject({ id: firstPoll.id })
+    await expect(statusesWithText('Idempotent poll')).resolves.toHaveLength(1)
+
+    const conflict = await postStatus(
+      { ...body, poll: { ...body.poll, options: ['Red', 'Green'] } },
+      idempotencyKey
+    )
+    expect(conflict.status).toBe(422)
+    await expect(conflict.json()).resolves.toEqual({
+      error: expect.stringContaining('Idempotency-Key')
+    })
+  })
+
+  const NOTE_HASH_BASE = { status: 'Hashed note', visibility: 'public' }
+  const POLL_HASH_BASE = {
+    status: 'Hashed poll',
+    poll: { options: ['One', 'Two'], expires_in: 3600 }
+  }
+  it.each([
+    {
+      description: 'status',
+      base: NOTE_HASH_BASE,
+      change: { status: 'Other' }
+    },
+    {
+      description: 'media_ids',
+      base: NOTE_HASH_BASE,
+      change: { media_ids: ['1'] }
+    },
+    {
+      description: 'fitness_file_id',
+      base: NOTE_HASH_BASE,
+      change: { fitness_file_id: 'fitness-1' }
+    },
+    {
+      description: 'in_reply_to_id',
+      base: NOTE_HASH_BASE,
+      change: { in_reply_to_id: 'parent-1' }
+    },
+    {
+      description: 'quoted_status_id',
+      base: NOTE_HASH_BASE,
+      change: { quoted_status_id: 'quoted-1' }
+    },
+    {
+      description: 'quote_approval_policy',
+      base: NOTE_HASH_BASE,
+      change: { quote_approval_policy: 'followers' }
+    },
+    {
+      description: 'visibility',
+      base: NOTE_HASH_BASE,
+      change: { visibility: 'unlisted' }
+    },
+    {
+      description: 'spoiler_text',
+      base: NOTE_HASH_BASE,
+      change: { spoiler_text: 'cw' }
+    },
+    {
+      description: 'sensitive',
+      base: NOTE_HASH_BASE,
+      change: { sensitive: true }
+    },
+    {
+      description: 'language',
+      base: NOTE_HASH_BASE,
+      change: { language: 'th' }
+    },
+    {
+      description: 'created_at',
+      base: NOTE_HASH_BASE,
+      change: { created_at: '2024-01-01T00:00:00.000Z' }
+    },
+    {
+      description: 'poll options',
+      base: POLL_HASH_BASE,
+      change: { poll: { ...POLL_HASH_BASE.poll, options: ['One', 'Three'] } }
+    },
+    {
+      description: 'poll expires_in',
+      base: POLL_HASH_BASE,
+      change: { poll: { ...POLL_HASH_BASE.poll, expires_in: 7200 } }
+    },
+    {
+      description: 'poll multiple',
+      base: POLL_HASH_BASE,
+      change: { poll: { ...POLL_HASH_BASE.poll, multiple: true } }
+    },
+    {
+      description: 'poll hide_totals',
+      base: POLL_HASH_BASE,
+      change: { poll: { ...POLL_HASH_BASE.poll, hide_totals: true } }
+    }
+  ])(
+    'rejects a reused Idempotency-Key whose $description differs with 422',
+    async ({ description, base, change }) => {
+      const idempotencyKey = `idem-key-hash-${description}`
+      const first = await postStatus(base, idempotencyKey)
+      expect(first.status).toBe(200)
+
+      const changed = await postStatus({ ...base, ...change }, idempotencyKey)
+      expect(changed.status).toBe(422)
+      await expect(changed.json()).resolves.toEqual({
+        error: expect.stringContaining('Idempotency-Key')
+      })
+    }
+  )
+
+  it('returns the original status for a legacy key saved without a content hash, whatever the body', async () => {
+    const original = await postStatus({ status: 'Legacy keyed status' })
+    expect(original.status).toBe(200)
+    const originalStatus = await original.json()
+    await database.saveIdempotencyKey({
+      actorId: ACTOR1_ID,
+      key: 'idem-key-legacy-null-hash',
+      statusId: originalStatus.uri
+    })
+
+    const response = await postStatus(
+      { status: 'A different body' },
+      'idem-key-legacy-null-hash'
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      id: originalStatus.id
+    })
+    await expect(statusesWithText('A different body')).resolves.toHaveLength(0)
+  })
+
+  it.each([
+    {
+      description: 'a poll',
+      extra: { poll: { options: ['Ride', 'Run'], expires_in: 3600 } }
+    },
+    {
+      description: 'scheduled_at',
+      extra: {
+        scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      }
+    }
+  ])(
+    'rejects fitness_file_id combined with $description with 422',
+    async ({ extra }) => {
+      const fitnessFile = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        fileName: 'combined.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        path: `fitness/combined-${Object.keys(extra)[0]}.fit`
+      })
+
+      const response = await postStatus({
+        status: 'Fitness combined with something else',
+        fitness_file_id: fitnessFile!.id,
+        ...extra
+      })
+
+      expect(response.status).toBe(422)
+      await expect(
+        statusesWithText('Fitness combined with something else')
+      ).resolves.toHaveLength(0)
+    }
+  )
 
   it('accepts fitness_file_id and quote_approval_policy extensions on POST /api/v1/statuses', async () => {
     const fitnessFile = await database.createFitnessFile({

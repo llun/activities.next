@@ -85,25 +85,6 @@ const toCreatedNoteResult = (
     language?: string | null
   }
 ): { status: Status; attachments: Attachment[] } => {
-  if (
-    payload &&
-    typeof payload === 'object' &&
-    'status' in payload &&
-    payload.status &&
-    typeof payload.status === 'object'
-  ) {
-    const legacy = payload as { status: Status; attachments?: Attachment[] }
-    return {
-      status: legacy.status,
-      attachments: Array.isArray(legacy.attachments)
-        ? legacy.attachments
-        : 'attachments' in legacy.status &&
-            Array.isArray(legacy.status.attachments)
-          ? legacy.status.attachments
-          : []
-    }
-  }
-
   const mastodonStatus = payload as Partial<MastodonStatus>
   const now = Date.now()
   const createdAt = parseTimestamp(mastodonStatus.created_at, now)
@@ -111,10 +92,7 @@ const toCreatedNoteResult = (
     ? parseTimestamp(mastodonStatus.edited_at, createdAt)
     : createdAt
   const statusId = mastodonStatus.uri || mastodonStatus.id || ''
-  const publicId =
-    mastodonStatus.id && mastodonStatus.id !== statusId
-      ? mastodonStatus.id
-      : (mastodonStatus.id ?? null)
+  const publicId = mastodonStatus.id ?? null
 
   const account = mastodonStatus.account
   const actorUri = account?.uri || account?.url || ''
@@ -134,10 +112,7 @@ const toCreatedNoteResult = (
   const actor: ActorProfile | null = account
     ? {
         id: actorUri || account.id,
-        publicId:
-          account.id && account.id !== actorUri
-            ? account.id
-            : (account.id ?? null),
+        publicId: account.id ?? null,
         username: account.username ?? '',
         domain,
         ...(account.display_name ? { name: account.display_name } : {}),

@@ -306,7 +306,9 @@ export const createNoteWithResult = async (
               key: idempotency.key,
               statusId: id,
               contentHash: idempotency.contentHash,
-              createdAt: statusCreatedAt
+              // The claim time, not the (possibly backdated) status time, so
+              // the key's TTL runs from when the request was made.
+              createdAt: currentTime
             })
             .execute()
         }
@@ -554,7 +556,9 @@ export const createPollWithResult = async (
               key: idempotency.key,
               statusId: id,
               contentHash: idempotency.contentHash,
-              createdAt: statusCreatedAt
+              // The claim time, not the (possibly backdated) status time, so
+              // the key's TTL runs from when the request was made.
+              createdAt: currentTime
             })
             .execute()
         }

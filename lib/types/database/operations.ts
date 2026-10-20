@@ -97,6 +97,7 @@ export type {
   DeleteStatusParams,
   DeleteStatusTagsByTypeParams,
   DeleteStatusWithQueueJobParams,
+  DiscardUnpublishedStatusParams,
   FavouritedByAccount,
   GetActorAnnouncedStatusIdParams,
   GetActorPollVotesForStatusesParams,

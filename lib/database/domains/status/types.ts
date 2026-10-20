@@ -5,7 +5,8 @@
 // visibility and quote-policy updates, the tag writes, the hashtag counters
 // and the poll votes), and the reads and hydration (getStatus, the actor and
 // reply feeds, getStatusesByIds, the counts and the edit history), and the
-// deletions (deleteStatus, deleteStatusWithQueueJob, deleteStatusEditHistory).
+// deletions (deleteStatus, deleteStatusWithQueueJob, discardUnpublishedStatus,
+// deleteStatusEditHistory).
 // lib/types/database/operations.ts re-exports them, so existing imports keep
 // working.
 import type { Selectable } from 'kysely'
@@ -348,6 +349,12 @@ export type DeleteStatusParams = {
   statusId: string
   actorId?: string
 }
+export type DiscardUnpublishedStatusParams = {
+  actorId: string
+  statusId: string
+  // The Idempotency-Key the failed request claimed for this status, if any.
+  idempotencyKey?: string
+}
 export type DeleteStatusWithQueueJobParams = {
   actorId: string
   statusId: string
@@ -566,6 +573,11 @@ export interface StatusDeletionDatabase {
   // `status_history` does not record who a revision was written for.
   deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
   deleteStatus(params: DeleteStatusParams): Promise<void>
+  // Undoes a local create that failed before it was federated: the status
+  // (as deleteStatus, no Delete activity) and the idempotency key it claimed.
+  discardUnpublishedStatus(
+    params: DiscardUnpublishedStatusParams
+  ): Promise<void>
   deleteStatusWithQueueJob(
     params: DeleteStatusWithQueueJobParams
   ): Promise<boolean>

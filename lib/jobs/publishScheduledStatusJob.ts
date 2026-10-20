@@ -2,12 +2,17 @@ import { z } from 'zod'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import {
+  IdempotencyConflictError,
+  IdempotencyDeletedError
+} from '@/lib/database/domains/idempotency/types'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { scheduledDelaySeconds } from '@/lib/services/statuses/scheduledStatusSerializer'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from './names'
@@ -81,25 +86,13 @@ export const publishScheduledStatusJob = createJobHandle(
 
     const { params } = row
     // Fall back to a key derived from the row id when the client supplied no
-    // Idempotency-Key, so the job is idempotent by default: if it is retried
-    // after the status was created but before the row was deleted, the retry
-    // finds the existing mapping below and skips re-publishing rather than
-    // posting a duplicate.
-    const idempotencyKey = params.idempotency?.trim() || `scheduled-${row.id}`
-
-    // Honor the Idempotency-Key the same way the POST route does: a key that
-    // already maps to a status means this scheduled post was published already,
-    // so just clean up the row.
-    const existingStatusId = await database.getIdempotentStatusId({
-      actorId: row.actorId,
-      key: idempotencyKey
-    })
-    if (existingStatusId) {
-      await database.deleteScheduledStatus({
-        id: row.id,
-        actorId: row.actorId
-      })
-      return
+    // Idempotency-Key, so the job is idempotent by default. The key is claimed
+    // in the status create's own transaction, bound to a hash of the stored
+    // params: a retry after the status was created but before the row was
+    // deleted gets the existing status back instead of posting a duplicate.
+    const idempotency = {
+      key: params.idempotency?.trim() || `scheduled-${row.id}`,
+      contentHash: getHashFromString(JSON.stringify(params))
     }
 
     // Re-resolve the OAuth client stored at schedule time so the published
@@ -122,35 +115,72 @@ export const publishScheduledStatusJob = createJobHandle(
       : undefined
 
     let status
-    if (params.poll) {
-      status = await createPollFromUserInput({
-        text: params.text,
-        summary: params.spoiler_text ?? undefined,
-        replyStatusId,
-        currentActor: actor,
-        choices: params.poll.options,
-        endAt: Date.now() + params.poll.expires_in * 1000,
-        pollType: params.poll.multiple ? 'anyOf' : 'oneOf',
-        hideTotals: params.poll.hide_totals,
-        visibility: params.visibility,
-        sensitive: params.sensitive ?? false,
-        language: params.language ?? null,
-        application,
-        database
-      })
-    } else {
-      const mediaIds = params.media_ids ?? []
-      const attachments = await getAttachmentsFromMediaIds(
-        database,
-        actor,
-        mediaIds
-      )
-      // Media that no longer resolves (deleted before the status fired) aborts
-      // the publish but still clears the row so it is not retried forever.
-      if (!attachments) {
+    try {
+      if (params.poll) {
+        status = await createPollFromUserInput({
+          text: params.text,
+          summary: params.spoiler_text ?? undefined,
+          replyStatusId,
+          currentActor: actor,
+          choices: params.poll.options,
+          endAt: Date.now() + params.poll.expires_in * 1000,
+          pollType: params.poll.multiple ? 'anyOf' : 'oneOf',
+          hideTotals: params.poll.hide_totals,
+          visibility: params.visibility,
+          sensitive: params.sensitive ?? false,
+          language: params.language ?? null,
+          application,
+          idempotency,
+          database
+        })
+      } else {
+        const mediaIds = params.media_ids ?? []
+        const attachments = await getAttachmentsFromMediaIds(
+          database,
+          actor,
+          mediaIds
+        )
+        // Media that no longer resolves (deleted before the status fired) aborts
+        // the publish but still clears the row so it is not retried forever.
+        if (!attachments) {
+          logger.warn(
+            { scheduledStatusId: row.id, actorId: row.actorId },
+            'publishScheduledStatusJob: media unresolved, dropping scheduled status'
+          )
+          await database.deleteScheduledStatus({
+            id: row.id,
+            actorId: row.actorId
+          })
+          return
+        }
+        status = await createNoteFromUserInput({
+          currentActor: actor,
+          text: params.text,
+          summary: params.spoiler_text ?? undefined,
+          replyNoteId: replyStatusId,
+          visibility: params.visibility,
+          attachments,
+          sensitive: params.sensitive ?? false,
+          language: params.language ?? null,
+          application,
+          idempotency,
+          database
+        })
+      }
+    } catch (error) {
+      // The key already belongs to a deleted status or to different content:
+      // this scheduled post can never publish, so drop it instead of retrying.
+      if (
+        error instanceof IdempotencyDeletedError ||
+        error instanceof IdempotencyConflictError
+      ) {
         logger.warn(
-          { scheduledStatusId: row.id, actorId: row.actorId },
-          'publishScheduledStatusJob: media unresolved, dropping scheduled status'
+          {
+            scheduledStatusId: row.id,
+            actorId: row.actorId,
+            err: toLoggableError(error)
+          },
+          'publishScheduledStatusJob: Idempotency-Key already used, dropping scheduled status'
         )
         await database.deleteScheduledStatus({
           id: row.id,
@@ -158,26 +188,7 @@ export const publishScheduledStatusJob = createJobHandle(
         })
         return
       }
-      status = await createNoteFromUserInput({
-        currentActor: actor,
-        text: params.text,
-        summary: params.spoiler_text ?? undefined,
-        replyNoteId: replyStatusId,
-        visibility: params.visibility,
-        attachments,
-        sensitive: params.sensitive ?? false,
-        language: params.language ?? null,
-        application,
-        database
-      })
-    }
-
-    if (status) {
-      await database.saveIdempotencyKey({
-        actorId: row.actorId,
-        key: idempotencyKey,
-        statusId: status.id
-      })
+      throw error
     }
 
     if (status) {

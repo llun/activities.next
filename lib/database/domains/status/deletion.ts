@@ -7,6 +7,7 @@ import { getAnnounceOriginalStatusId } from '@/lib/database/domains/status/rows'
 import type {
   DeleteStatusParams,
   DeleteStatusWithQueueJobParams,
+  DiscardUnpublishedStatusParams,
   GetStatusEditHistoryParams
 } from '@/lib/database/domains/status/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
@@ -706,6 +707,33 @@ export const deleteStatus = async (
       trx
     })
   )
+  await refreshAffectedHashtags(db, { collectedHashtags, statusId })
+}
+
+// deleteStatus of a status whose create failed before it was federated, and,
+// in the same transaction, the idempotency key that create claimed for it, so
+// a retry with the same key creates the post afresh instead of getting 410.
+export const discardUnpublishedStatus = async (
+  db: Db,
+  { actorId, statusId, idempotencyKey }: DiscardUnpublishedStatusParams
+): Promise<void> => {
+  const collectedHashtags: string[] = []
+  await inTransaction(db, async (trx) => {
+    await executeStatusDeletion({
+      actorId,
+      affectedHashtags: collectedHashtags,
+      statusId,
+      trx
+    })
+    if (idempotencyKey) {
+      await trx
+        .deleteFrom('idempotency_keys')
+        .where('actorId', '=', actorId)
+        .where('key', '=', idempotencyKey)
+        .where('statusId', '=', statusId)
+        .execute()
+    }
+  })
   await refreshAffectedHashtags(db, { collectedHashtags, statusId })
 }
 

@@ -1,7 +1,8 @@
 import {
   deleteStatus,
   deleteStatusEditHistory,
-  deleteStatusWithQueueJob
+  deleteStatusWithQueueJob,
+  discardUnpublishedStatus
 } from '@/lib/database/domains/status/deletion'
 import {
   updateNote,
@@ -94,8 +95,8 @@ import type { Db } from '@/lib/database/kysely'
 // favourited-by and reblogged-by pages, the creates and the edits, the reads
 // and hydration (getStatus, the actor and reply feeds, getStatusesByIds, the
 // counts and the edit history), and the deletions (deleteStatus,
-// deleteStatusWithQueueJob, deleteStatusEditHistory). getSQLDatabase binds
-// them into the facade.
+// deleteStatusWithQueueJob, discardUnpublishedStatus,
+// deleteStatusEditHistory). getSQLDatabase binds them into the facade.
 //
 // The lookups, hashtag reads and writes that return hydrated statuses take
 // their hydration as an argument (`hydrationFor(db)`, which statusQueries
@@ -187,7 +188,8 @@ export const createStatusQueries = (
   getStatusRepliesCounts,
   deleteStatusEditHistory,
   deleteStatus,
-  deleteStatusWithQueueJob
+  deleteStatusWithQueueJob,
+  discardUnpublishedStatus
 })
 
 export const statusQueries = createStatusQueries(statusHydrationFor)

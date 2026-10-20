@@ -479,6 +479,47 @@ describe('PostBox poll creation', () => {
     expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
     expect(createNoteMock).not.toHaveBeenCalled()
   })
+
+  it('reuses the idempotencyKey when a failed poll is retried and mints a fresh key for the next poll', async () => {
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    createPollMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue(undefined)
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Best framework?' } })
+    await choosePostOption('Poll')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(1))
+    const firstKey = createPollMock.mock.calls[0]?.[0]?.idempotencyKey
+    expect(isPublicId(firstKey!)).toBe(true)
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(2))
+    expect(createPollMock.mock.calls[1]?.[0]?.idempotencyKey).toBe(firstKey)
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    fireEvent.change(textarea, { target: { value: 'Best framework?' } })
+    await choosePostOption('Poll')
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(3))
+    const nextKey = createPollMock.mock.calls[2]?.[0]?.idempotencyKey
+    expect(isPublicId(nextKey!)).toBe(true)
+    expect(nextKey).not.toBe(firstKey)
+  })
 })
 
 describe('PostBox new post character limit with attachments', () => {

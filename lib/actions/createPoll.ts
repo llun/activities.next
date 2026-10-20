@@ -1,16 +1,17 @@
 import {
+  discardFailedStatusCreate,
   getExplicitMentions,
   getMentionTagsForStatus,
   getVisibilityFromReplyStatus,
+  loadIdempotentStatus,
   persistEmojiTagsForStatus,
   resolveExistingIdempotentStatus,
+  runBestEffortStep,
   statusRecipientsCC,
   statusRecipientsTo,
-  trackInFlightStatusCreation,
-  waitForInFlightStatusCreation
+  trackInFlightStatusCreation
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
-import { IdempotencyDeletedError } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
@@ -20,11 +21,9 @@ import { Actor, getMention } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
-import { logger } from '@/lib/utils/logger'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { getMentions } from '@/lib/utils/text/getMentions'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 interface CreatePollFromUserInputParams {
@@ -181,7 +180,7 @@ export const createPollFromUserInput = async ({
         createdAt,
         ...(idempotency ? { idempotency } : {})
       }
-      if (idempotency && typeof database.createPollWithResult === 'function') {
+      if (idempotency) {
         const result = await database.createPollWithResult(createParams)
         createdPoll = result.status
         isNew = result.isNew
@@ -193,30 +192,35 @@ export const createPollFromUserInput = async ({
       throw error
     }
 
-    if (!isNew) {
+    if (!isNew && idempotency) {
       finishInFlight()
-      await waitForInFlightStatusCreation(createdPoll.id)
-      const existing = await database.getStatus({
-        statusId: createdPoll.id,
-        withReplies: false
+      const existing = await loadIdempotentStatus({
+        database,
+        actorId: currentActor.id,
+        key: idempotency.key,
+        statusId: createdPoll.id
       })
+      // The winner's create failed and was discarded; the client retries.
       if (!existing) {
-        throw new IdempotencyDeletedError(createdPoll.id)
+        throw new Error('Concurrent create with this Idempotency-Key failed')
       }
       return existing
     }
 
-    let status: Status = createdPoll
+    // As in createNoteFromUserInput: a failed completion step discards the
+    // poll and fails the request; best-effort steps only log.
     try {
       // Content-detected language, stored separately from the declared `language`
       // above so the Translate gate can fall back to it when the author's
       // declared/default language doesn't match what they actually wrote.
-      await persistDetectedLanguage({
-        database,
-        statusId,
-        text,
-        declaredLanguage: language
-      })
+      await runBestEffortStep(statusId, 'detected language', () =>
+        persistDetectedLanguage({
+          database,
+          statusId,
+          text,
+          declaredLanguage: language
+        })
+      )
 
       await Promise.all([
         addStatusToTimelines(database, createdPoll),
@@ -230,29 +234,24 @@ export const createPollFromUserInput = async ({
         )
       ])
 
-      await persistEmojiTagsForStatus({
-        database,
-        statusId,
-        text: [text, summary ?? '', ...choices]
-      })
+      await runBestEffortStep(statusId, 'emoji tags', () =>
+        persistEmojiTagsForStatus({
+          database,
+          statusId,
+          text: [text, summary ?? '', ...choices]
+        })
+      )
 
-      const hydrated = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
-      if (!hydrated) {
-        return null
-      }
-      status = hydrated
+      return await database.getStatus({ statusId, withReplies: false })
     } catch (error) {
-      logger.error({
-        message: 'Post-processing failed after poll creation',
+      await discardFailedStatusCreate({
+        database,
+        actorId: currentActor.id,
         statusId,
-        err: toLoggableError(error)
+        idempotency
       })
+      throw error
     } finally {
       finishInFlight()
     }
-
-    return status
   })
