@@ -20,11 +20,23 @@ import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 import { CreateAccountRequest } from './types'
 
 const MAIN_ERROR_MESSAGE = 'Validation failed'
+// Mastodon's answer when `agreement` was not accepted (User validates
+// `agreement` with `acceptance`), shared by both sign-up paths.
+const AGREEMENT_REQUIRED_ERROR = {
+  error: `${MAIN_ERROR_MESSAGE}: Agreement must be accepted`,
+  details: {
+    agreement: [
+      {
+        error: 'ERR_ACCEPTED',
+        description: 'Agreement must be accepted'
+      }
+    ]
+  }
+}
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,
@@ -113,12 +125,11 @@ const isApiClient = (request: NextRequest): boolean => {
 }
 
 // Mastodon's "Register an account" body. Extends the web-form schema (keeping
-// the reserved-username and email/password validation) with the API-only
-// `agreement`/`locale`/`reason` fields. `agreement` is optional in the schema
-// so a missing value yields the dedicated ERR_ACCEPTED error below rather than
-// a generic schema failure.
+// the reserved-username and email/password validation, and its optional
+// `agreement`, so a missing value yields the dedicated ERR_ACCEPTED error below
+// rather than a generic schema failure) with the API-only `locale`/`reason`
+// fields.
 const RegisterApiRequest = CreateAccountRequest.extend({
-  agreement: Booleanish.optional(),
   locale: z.string().optional(),
   reason: z.string().max(5000).optional()
 })
@@ -191,21 +202,13 @@ const registerViaApi = OAuthAppGuard(
     }
 
     const form = content.data
+    // Mastodon requires `agreement` on every API registration, whether or not
+    // the server has terms; the web form needs it only when there are some.
     if (form.agreement !== true) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: {
-          error: `${MAIN_ERROR_MESSAGE}: Agreement must be accepted`,
-          details: {
-            agreement: [
-              {
-                error: 'ERR_ACCEPTED',
-                description: 'Agreement must be accepted'
-              }
-            ]
-          }
-        },
+        data: AGREEMENT_REQUIRED_ERROR,
         responseStatusCode: 422
       })
     }
@@ -216,7 +219,8 @@ const registerViaApi = OAuthAppGuard(
       email: form.email,
       password: form.password,
       name: form.name,
-      host
+      host,
+      agreement: true
     })
 
     if (result.type === 'registration_closed') {
@@ -234,6 +238,17 @@ const registerViaApi = OAuthAppGuard(
         allowedMethods: CORS_HEADERS,
         data: { error: 'Email is not allowed to register on this server' },
         responseStatusCode: 403
+      })
+    }
+
+    // Unreachable while the check above stands; kept so the result handling
+    // stays exhaustive.
+    if (result.type === 'agreement_required') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: AGREEMENT_REQUIRED_ERROR,
+        responseStatusCode: 422
       })
     }
 
@@ -355,7 +370,8 @@ export const POST = traceApiRoute(
       email: form.email,
       password: form.password,
       name: form.name,
-      host
+      host,
+      agreement: form.agreement
     })
 
     // Defensive fallback: the early gate above normally prevents this branch
@@ -387,6 +403,17 @@ export const POST = traceApiRoute(
             ]
           }
         },
+        responseStatusCode: 422
+      })
+    }
+
+    // The domain has a terms of service or privacy policy and the form's
+    // agreement checkbox was not ticked.
+    if (result.type === 'agreement_required') {
+      return apiResponse({
+        req: request,
+        allowedMethods: CORS_HEADERS,
+        data: AGREEMENT_REQUIRED_ERROR,
         responseStatusCode: 422
       })
     }

@@ -231,22 +231,16 @@ describe('Config', () => {
       return getConfig()
     }
 
-    it('loads privacy policy and terms of service text from the environment', async () => {
+    // The documents are server settings now (`policies.*` in
+    // lib/config/serverSettings.ts), so the env vars only pin those settings
+    // and must not reappear as config fields something could read instead.
+    it('does not expose the policy variables as config fields', async () => {
       process.env.ACTIVITIES_PRIVACY_POLICY = 'We keep no logs.'
       process.env.ACTIVITIES_TERMS_OF_SERVICE = 'Be excellent to each other.'
 
       const config = await loadConfig()
-      expect(config.privacyPolicy).toBe('We keep no logs.')
-      expect(config.termsOfService).toBe('Be excellent to each other.')
-    })
-
-    it('leaves both unset when the variables are absent', async () => {
-      delete process.env.ACTIVITIES_PRIVACY_POLICY
-      delete process.env.ACTIVITIES_TERMS_OF_SERVICE
-
-      const config = await loadConfig()
-      expect(config.privacyPolicy).toBeUndefined()
-      expect(config.termsOfService).toBeUndefined()
+      expect(config).not.toHaveProperty('privacyPolicy')
+      expect(config).not.toHaveProperty('termsOfService')
     })
   })
 

@@ -71,4 +71,24 @@ describe('CreateAccountRequest', () => {
     expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH)).success).toBe(true)
     expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH + 1)).success).toBe(false)
   })
+
+  it.each([
+    { agreement: undefined, expected: undefined },
+    { agreement: 'true', expected: true },
+    { agreement: '1', expected: true },
+    { agreement: 'false', expected: false },
+    { agreement: true, expected: true }
+  ])(
+    'reads the agreement checkbox $agreement as $expected',
+    ({ agreement, expected }) => {
+      const parsed = CreateAccountRequest.parse({
+        username: 'alice',
+        email: 'test@example.com',
+        password: 'password123',
+        agreement
+      })
+
+      expect(parsed.agreement).toBe(expected)
+    }
+  )
 })

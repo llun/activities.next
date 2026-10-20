@@ -34,6 +34,7 @@ const baseSettings: ResolvedServerSettings = {
     languages: ['en']
   },
   registrations: { open: true, allowEmails: [] },
+  policies: { termsOfService: '', privacyPolicy: '' },
   posts: { maxCharacters: 500, maxMediaAttachments: 20 },
   polls: {
     maxOptions: 4,
@@ -133,5 +134,23 @@ describe('NetworkSettingsForm', () => {
     })
     expect(screen.getByLabelText('Timeout')).toBeDisabled()
     expect(screen.getByText('ACTIVITIES_REQUEST_TIMEOUT')).toBeInTheDocument()
+  })
+
+  it('leaves an env-locked key out of the request tuning save', async () => {
+    renderForm({
+      'network.requestTimeoutMs': {
+        locked: true,
+        envVar: 'ACTIVITIES_REQUEST_TIMEOUT'
+      }
+    })
+    fireEvent.change(screen.getByLabelText('Retries'), {
+      target: { value: '3' }
+    })
+    fireEvent.click(saveButtonFor('Advanced — outbound requests'))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
+    const patch = mockUpdate.mock.calls[0][0]
+    expect(patch).not.toHaveProperty('network.requestTimeoutMs')
+    expect(patch).toHaveProperty('network.requestRetries', 3)
   })
 })

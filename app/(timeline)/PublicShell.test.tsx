@@ -24,6 +24,12 @@ const loadPublicTopBar = async () =>
   (await vi.importActual<typeof PublicTopBarModule>('./PublicTopBar'))
     .PublicTopBar
 
+// PublicFooter is an async server component too (it reads the visited
+// domain's policies).
+vi.mock('./PublicFooter', () => ({
+  PublicFooter: () => <footer data-testid="public-footer" />
+}))
+
 vi.mock('@/app/Modal', () => ({
   Modal: () => null
 }))
@@ -136,5 +142,21 @@ describe('PublicShell', () => {
       container.querySelector('[data-mobile-compact-header]')
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('renders the footer unless the page opts out of it', () => {
+    const { rerender } = render(
+      <PublicShell>
+        <p>content</p>
+      </PublicShell>
+    )
+    expect(screen.getAllByTestId('public-footer')).toHaveLength(1)
+
+    rerender(
+      <PublicShell footer={false}>
+        <p>content</p>
+      </PublicShell>
+    )
+    expect(screen.queryByTestId('public-footer')).not.toBeInTheDocument()
   })
 })

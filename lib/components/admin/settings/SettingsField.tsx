@@ -20,6 +20,8 @@ interface SettingsFieldProps {
   help?: ReactNode
   locked?: boolean
   envVar?: string
+  /** Layout classes for the row, such as `sm:items-start` for a tall control. */
+  className?: string
   children: ReactNode
 }
 
@@ -66,11 +68,12 @@ export const SettingsField: FC<SettingsFieldProps> = ({
   help,
   locked,
   envVar,
+  className,
   children
 }) => {
   const hint = lockedHint(help, locked, envVar)
   return (
-    <FormRow label={label} htmlFor={htmlFor} hint={hint}>
+    <FormRow label={label} htmlFor={htmlFor} hint={hint} className={className}>
       {describedByHint(children, htmlFor, hint)}
     </FormRow>
   )

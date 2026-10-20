@@ -5,6 +5,9 @@ import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 export interface AdminServerSettingsResponse {
   settings: ResolvedServerSettings
   locks: Record<string, { locked: boolean; envVar?: string }>
+  // When each field's stored value last changed (epoch ms); null when it comes
+  // from the env or the default.
+  updatedAt: Record<string, number | null>
 }
 
 export const getAdminServerSettings =

@@ -85,4 +85,14 @@ describe('SectionSkeleton', () => {
     // Five rows' worth of control bars (w-24) plus the footer button.
     expect(box.querySelectorAll('.h-9')).toHaveLength(6)
   })
+
+  it('draws a tall control in the rows of the sections named by tallSections', () => {
+    const { container } = render(
+      <SectionSkeleton sections={[1, 2, 1]} form tallSections={[1]} />
+    )
+    const rows = container.querySelectorAll('[data-slot="frame"]')
+    expect(rows[0].querySelectorAll('.h-\\[22rem\\]')).toHaveLength(0)
+    expect(rows[1].querySelectorAll('.h-\\[22rem\\]')).toHaveLength(2)
+    expect(rows[2].querySelectorAll('.h-\\[22rem\\]')).toHaveLength(0)
+  })
 })

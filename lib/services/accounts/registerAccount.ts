@@ -5,6 +5,7 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
@@ -19,6 +20,9 @@ export type RegisterAccountResult =
   | { type: 'success'; accountId: string; username: string; actorId: string }
   | { type: 'registration_closed' }
   | { type: 'email_not_allowed' }
+  // The domain has a terms of service or privacy policy and the person did
+  // not accept them.
+  | { type: 'agreement_required' }
   | {
       type: 'validation_failed'
       details: Record<string, { error: string; description: string }[]>
@@ -36,6 +40,12 @@ export interface RegisterAccountParams {
    * `resolveSignUpDomain`). Omitted, it is the primary host.
    */
   host?: string | null
+  /**
+   * Whether the person accepted the sign-up domain's terms of service and
+   * privacy policy. Required (true) whenever that domain has either; checked
+   * here so no caller can create an account without it.
+   */
+  agreement?: boolean
 }
 
 export const registerAccount = async ({
@@ -44,13 +54,24 @@ export const registerAccount = async ({
   email: rawEmail,
   password,
   name,
-  host
+  host,
+  agreement
 }: RegisterAccountParams): Promise<RegisterAccountResult> => {
   const config = getConfig()
   const signUpDomain = await resolveSignUpDomain(database, host ?? config.host)
 
   if (!signUpDomain.open) {
     return { type: 'registration_closed' }
+  }
+
+  // The policies of the domain the account is created on, as the sign-up
+  // page shows them. With neither set there is nothing to agree to.
+  const identity = await resolveDomainIdentity(database, signUpDomain.domain)
+  if (
+    (identity.termsOfService || identity.privacyPolicy) &&
+    agreement !== true
+  ) {
+    return { type: 'agreement_required' }
   }
 
   // Normalize once at the service boundary so the allow-list check, the

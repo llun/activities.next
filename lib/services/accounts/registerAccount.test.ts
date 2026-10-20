@@ -1,7 +1,15 @@
 import { getConfig } from '@/lib/config'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import {
+  type DomainIdentity,
+  type PolicyDocument,
+  resolveDomainIdentity
+} from '@/lib/services/domains/domainIdentity'
+import {
+  getResolvedServerSettings,
+  getServerSettingsView
+} from '@/lib/services/serverSettings'
 
 import { registerAccount } from './registerAccount'
 
@@ -32,8 +40,34 @@ vi.mock('@/lib/services/email', async () => ({
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: vi.fn()
+  getResolvedServerSettings: vi.fn(),
+  getServerSettingsView: vi.fn()
 }))
+
+// The sign-up domain's terms of service and privacy policy decide whether the
+// agreement is required; none by default.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn()
+}))
+
+const identityWith = (
+  policies: Partial<Pick<DomainIdentity, 'termsOfService' | 'privacyPolicy'>>
+): DomainIdentity => ({
+  domain: 'llun.test',
+  source: 'primary',
+  name: 'Activities.next',
+  description: '',
+  contactEmail: '',
+  termsOfService: null,
+  privacyPolicy: null,
+  ...policies
+})
+
+const POLICY: PolicyDocument = {
+  markdown: 'Be excellent',
+  updatedAt: null,
+  source: 'server'
+}
 
 // Registration open/allow-list are resolved from server settings; build a
 // resolved object varying only those fields.
@@ -58,6 +92,8 @@ beforeEach(() => {
   vi.mocked(getResolvedServerSettings).mockResolvedValue(
     settingsWith({ open: true, allowEmails: [] })
   )
+  vi.mocked(resolveDomainIdentity).mockReset()
+  vi.mocked(resolveDomainIdentity).mockResolvedValue(identityWith({}))
   mockDatabase = {
     isAccountExists: vi.fn().mockResolvedValue(false),
     isUsernameExists: vi.fn().mockResolvedValue(false),
@@ -483,6 +519,83 @@ describe('registerAccount', () => {
   })
 })
 
+describe('registerAccount agreement', () => {
+  const register = (agreement?: boolean) =>
+    registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: 'alice',
+      email: 'alice@example.com',
+      password: 'password123',
+      agreement
+    })
+
+  it.each([
+    { name: 'terms of service', policies: { termsOfService: POLICY } },
+    { name: 'privacy policy', policies: { privacyPolicy: POLICY } }
+  ])(
+    'refuses a sign-up that did not accept the $name',
+    async ({ policies }) => {
+      vi.mocked(resolveDomainIdentity).mockResolvedValue(identityWith(policies))
+
+      await expect(register()).resolves.toEqual({ type: 'agreement_required' })
+      await expect(register(false)).resolves.toEqual({
+        type: 'agreement_required'
+      })
+      expect(mockDatabase.createAccount).not.toHaveBeenCalled()
+    }
+  )
+
+  it('creates the account once the agreement is accepted', async () => {
+    vi.mocked(resolveDomainIdentity).mockResolvedValue(
+      identityWith({ termsOfService: POLICY, privacyPolicy: POLICY })
+    )
+
+    await expect(register(true)).resolves.toMatchObject({ type: 'success' })
+    expect(mockDatabase.createAccount).toHaveBeenCalled()
+  })
+
+  it('requires the agreement for a policy pinned by the environment', async () => {
+    // The real identity helper, reading the pinned document through the real
+    // settings view (env + defaults, as with no database).
+    const { resolveDomainIdentity: realResolve } = await vi.importActual<
+      typeof import('@/lib/services/domains/domainIdentity')
+    >('@/lib/services/domains/domainIdentity')
+    const { getServerSettingsView: realView, invalidateServerSettingsCache } =
+      await vi.importActual<typeof import('@/lib/services/serverSettings')>(
+        '@/lib/services/serverSettings'
+      )
+    vi.mocked(getServerSettingsView).mockImplementation(realView)
+    vi.mocked(resolveDomainIdentity).mockImplementation(realResolve)
+    const saved = process.env.ACTIVITIES_TERMS_OF_SERVICE
+    process.env.ACTIVITIES_TERMS_OF_SERVICE = 'Pinned terms'
+    invalidateServerSettingsCache(null)
+    try {
+      await expect(register()).resolves.toEqual({ type: 'agreement_required' })
+      expect(mockDatabase.createAccount).not.toHaveBeenCalled()
+      await expect(register(true)).resolves.toMatchObject({ type: 'success' })
+    } finally {
+      if (saved === undefined) delete process.env.ACTIVITIES_TERMS_OF_SERVICE
+      else process.env.ACTIVITIES_TERMS_OF_SERVICE = saved
+      invalidateServerSettingsCache(null)
+    }
+  })
+
+  it('asks for no agreement when the domain has neither document', async () => {
+    await expect(register()).resolves.toMatchObject({ type: 'success' })
+  })
+
+  it('reports a closed registration before the agreement', async () => {
+    vi.mocked(getResolvedServerSettings).mockResolvedValue(
+      settingsWith({ open: false, allowEmails: [] })
+    )
+    vi.mocked(resolveDomainIdentity).mockResolvedValue(
+      identityWith({ termsOfService: POLICY })
+    )
+
+    await expect(register()).resolves.toEqual({ type: 'registration_closed' })
+  })
+})
+
 describe('registerAccount on another served domain', () => {
   const EMAIL_CONFIG = {
     ...DEFAULT_CONFIG,
@@ -551,6 +664,11 @@ describe('registerAccount on another served domain', () => {
     })
     expect(database.createAccount).toHaveBeenCalledWith(
       expect.objectContaining({ domain: 'run.llun.test' })
+    )
+    // The agreement follows the policies of the domain the account is on.
+    expect(resolveDomainIdentity).toHaveBeenCalledWith(
+      database,
+      'run.llun.test'
     )
   })
 
