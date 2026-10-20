@@ -114,28 +114,30 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
   updatedAt: initialUpdatedAt = {}
 }) => {
   const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt)
-  const { values, setValue, isDirty, statusFor, saveSection } =
-    useServerSettingsForm({
-      'instance.name': settings.instance.name,
-      'instance.description': settings.instance.description,
-      'instance.contactEmail': settings.instance.contactEmail,
-      'instance.languages': settings.instance.languages,
-      'policies.termsOfService': settings.policies.termsOfService,
-      'policies.privacyPolicy': settings.policies.privacyPolicy,
-      'registrations.open': settings.registrations.open,
-      'registrations.allowEmails': settings.registrations.allowEmails,
-      // Derived like the rows above it: seeded by hand, a feature added later
-      // would start as undefined, which leaves its Switch uncontrolled and
-      // reading "off" for something that is on.
-      ...Object.fromEntries(
-        NAV_FEATURE_KEYS.map((feature) => [
-          `features.${feature}`,
-          settings.features[feature]
-        ])
-      )
-    })
-
   const lock = (key: string) => locks[key] ?? { locked: false }
+  const { values, setValue, isDirty, statusFor, saveSection } =
+    useServerSettingsForm(
+      {
+        'instance.name': settings.instance.name,
+        'instance.description': settings.instance.description,
+        'instance.contactEmail': settings.instance.contactEmail,
+        'instance.languages': settings.instance.languages,
+        'policies.termsOfService': settings.policies.termsOfService,
+        'policies.privacyPolicy': settings.policies.privacyPolicy,
+        'registrations.open': settings.registrations.open,
+        'registrations.allowEmails': settings.registrations.allowEmails,
+        // Derived like the rows above it: seeded by hand, a feature added later
+        // would start as undefined, which leaves its Switch uncontrolled and
+        // reading "off" for something that is on.
+        ...Object.fromEntries(
+          NAV_FEATURE_KEYS.map((feature) => [
+            `features.${feature}`,
+            settings.features[feature]
+          ])
+        )
+      },
+      (key) => lock(key).locked
+    )
   const detailsStatus = statusFor('details')
   const policiesStatus = statusFor('policies')
   const registrationStatus = statusFor('registrations')
@@ -296,17 +298,19 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
                     id={field.id}
                     rows={16}
                     className="font-mono"
-                    aria-describedby={helpId}
+                    aria-describedby={locked ? undefined : helpId}
                     value={values[field.key] as string}
                     disabled={locked}
                     onChange={(event) =>
                       setValue(field.key, event.target.value)
                     }
                   />
-                  <PolicyHelp
-                    id={helpId}
-                    updatedAt={locked ? null : (updatedAt[field.key] ?? null)}
-                  />
+                  {locked ? null : (
+                    <PolicyHelp
+                      id={helpId}
+                      updatedAt={updatedAt[field.key] ?? null}
+                    />
+                  )}
                   {locked ? (
                     <Alert
                       tone="warning"

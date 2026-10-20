@@ -26,7 +26,7 @@ const DOCUMENT_CLASS = [
   '[&_h2+*]:mt-2 [&_h3+*]:mt-2 [&_h4+*]:mt-2 [&_h5+*]:mt-2 [&_h6+*]:mt-2',
   '[&_p]:mt-4 [&_ul]:mt-2 [&_ol]:mt-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-[22px] [&_ol]:pl-[22px]',
   '[&_li]:mt-1.5 [&_li>p]:mt-1.5',
-  '[&_a]:text-primary-text [&_a]:underline [&_a:hover]:no-underline',
+  '[&_a]:text-(color:--link-color) [&_a:hover]:text-(color:--link-color-hover) [&_a]:underline [&_a:hover]:no-underline',
   '[&_blockquote]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground',
   '[&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:font-mono [&_code]:text-sm',
   '[&_pre]:bg-muted [&_pre]:mt-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0',

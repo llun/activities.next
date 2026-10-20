@@ -13,7 +13,7 @@ interface LayoutProps {
  * The terms of service and privacy policy are public: they are what a visitor
  * reads before creating an account. Signed-in visitors already get the nav
  * sidebar from the `(timeline)` layout, so this only adds the public top bar
- * and footer for logged-out visitors, like `[actor]/layout.tsx`; signed-in
+ * (the page prints its own footer) for logged-out visitors, like `[actor]/layout.tsx`; signed-in
  * renders pass through untouched.
  */
 const Layout: FC<LayoutProps> = async ({ children }) => {
@@ -26,7 +26,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const actor = await getActorFromSession(database, session)
   if (actor) return <>{children}</>
 
-  return <PublicShell>{children}</PublicShell>
+  return <PublicShell footer={false}>{children}</PublicShell>
 }
 
 export default Layout

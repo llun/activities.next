@@ -36,7 +36,12 @@ const getByPath = (source: unknown, path: string): unknown =>
 const valuesEqual = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b)
 
-export const useServerSettingsForm = (initial: Values) => {
+export const useServerSettingsForm = (
+  initial: Values,
+  // Keys pinned by the environment. The server rejects a patch naming one,
+  // even with its value unchanged, so a section's save leaves them out.
+  isLocked: (key: string) => boolean = () => false
+) => {
   const [values, setValues] = useState<Values>(initial)
   const [baseline, setBaseline] = useState<Values>(initial)
   const [statuses, setStatuses] = useState<Record<string, SectionStatus>>({})
@@ -59,8 +64,9 @@ export const useServerSettingsForm = (initial: Values) => {
   const saveSection = useCallback(
     async (
       id: string,
-      keys: string[]
+      allKeys: string[]
     ): Promise<AdminServerSettingsResponse | undefined> => {
+      const keys = allKeys.filter((key) => !isLocked(key))
       setStatuses((current) => ({
         ...current,
         [id]: { saving: true, saved: false, error: null }
@@ -99,7 +105,7 @@ export const useServerSettingsForm = (initial: Values) => {
         return undefined
       }
     },
-    [values]
+    [values, isLocked]
   )
 
   return { values, setValue, isDirty, statusFor, saveSection }

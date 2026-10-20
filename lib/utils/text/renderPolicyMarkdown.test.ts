@@ -21,6 +21,12 @@ describe('renderPolicyMarkdown', () => {
     )
   })
 
+  it('shows task list items with their brackets, as Redcarpet does', () => {
+    expect(render('- [ ] open\n- [x] done')).toBe(
+      '<ul>\n<li>[ ] open</li>\n<li>[x] done</li>\n</ul>'
+    )
+  })
+
   it('wraps plain text in paragraphs split on blank lines', () => {
     expect(render('Be excellent.\nTo everyone.\n\nThank you.')).toBe(
       '<p>Be excellent.\nTo everyone.</p>\n<p>Thank you.</p>'

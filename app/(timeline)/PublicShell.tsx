@@ -8,6 +8,9 @@ import { PublicTopBar } from './PublicTopBar'
 
 interface PublicShellProps {
   children: ReactNode
+  // False leaves out the shared footer, for a page that prints its own (the
+  // policy pages), so a logged-out visitor sees exactly one.
+  footer?: boolean
 }
 
 /**
@@ -19,7 +22,10 @@ interface PublicShellProps {
  * renders a full-bleed landing instead, so the chrome moved into the sub-trees
  * that still need it (`[actor]/*`, `tags/*`).
  */
-export const PublicShell: FC<PublicShellProps> = ({ children }) => (
+export const PublicShell: FC<PublicShellProps> = ({
+  children,
+  footer = true
+}) => (
   // min-h-dvh (dynamic viewport height) rather than min-h-screen/100vh so the
   // footer stays at the bottom without a mobile address-bar gap — same
   // rationale as the public error pages (lib/components/error-page.tsx).
@@ -38,7 +44,7 @@ export const PublicShell: FC<PublicShellProps> = ({ children }) => (
     {/* Footer is a sibling of <main> (not nested in it) so its <footer> maps to
         the contentinfo landmark; main keeps flex-1 to pin it to the bottom on
         short pages. */}
-    <PublicFooter />
+    {footer ? <PublicFooter /> : null}
     <Modal />
   </div>
 )

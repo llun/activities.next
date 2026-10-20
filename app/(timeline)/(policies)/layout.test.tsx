@@ -22,8 +22,16 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 }))
 
 vi.mock('@/app/(timeline)/PublicShell', () => ({
-  PublicShell: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="public-shell">{children}</div>
+  PublicShell: ({
+    children,
+    footer = true
+  }: {
+    children: React.ReactNode
+    footer?: boolean
+  }) => (
+    <div data-testid="public-shell" data-footer={String(footer)}>
+      {children}
+    </div>
   )
 }))
 
@@ -47,6 +55,17 @@ describe('(policies) Layout', () => {
 
     expect(screen.getByTestId('public-shell')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
+  })
+
+  it("leaves out the shell's footer, since the page prints its own", async () => {
+    mockGetActorFromSession.mockResolvedValue(null)
+
+    await renderLayout()
+
+    expect(screen.getByTestId('public-shell')).toHaveAttribute(
+      'data-footer',
+      'false'
+    )
   })
 
   it('passes children through for signed-in users', async () => {

@@ -6,7 +6,10 @@ import {
   type PolicyDocument,
   resolveDomainIdentity
 } from '@/lib/services/domains/domainIdentity'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import {
+  getResolvedServerSettings,
+  getServerSettingsView
+} from '@/lib/services/serverSettings'
 
 import { registerAccount } from './registerAccount'
 
@@ -37,7 +40,8 @@ vi.mock('@/lib/services/email', async () => ({
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: vi.fn()
+  getResolvedServerSettings: vi.fn(),
+  getServerSettingsView: vi.fn()
 }))
 
 // The sign-up domain's terms of service and privacy policy decide whether the
@@ -548,6 +552,32 @@ describe('registerAccount agreement', () => {
 
     await expect(register(true)).resolves.toMatchObject({ type: 'success' })
     expect(mockDatabase.createAccount).toHaveBeenCalled()
+  })
+
+  it('requires the agreement for a policy pinned by the environment', async () => {
+    // The real identity helper, reading the pinned document through the real
+    // settings view (env + defaults, as with no database).
+    const { resolveDomainIdentity: realResolve } = await vi.importActual<
+      typeof import('@/lib/services/domains/domainIdentity')
+    >('@/lib/services/domains/domainIdentity')
+    const { getServerSettingsView: realView, invalidateServerSettingsCache } =
+      await vi.importActual<typeof import('@/lib/services/serverSettings')>(
+        '@/lib/services/serverSettings'
+      )
+    vi.mocked(getServerSettingsView).mockImplementation(realView)
+    vi.mocked(resolveDomainIdentity).mockImplementation(realResolve)
+    const saved = process.env.ACTIVITIES_TERMS_OF_SERVICE
+    process.env.ACTIVITIES_TERMS_OF_SERVICE = 'Pinned terms'
+    invalidateServerSettingsCache(null)
+    try {
+      await expect(register()).resolves.toEqual({ type: 'agreement_required' })
+      expect(mockDatabase.createAccount).not.toHaveBeenCalled()
+      await expect(register(true)).resolves.toMatchObject({ type: 'success' })
+    } finally {
+      if (saved === undefined) delete process.env.ACTIVITIES_TERMS_OF_SERVICE
+      else process.env.ACTIVITIES_TERMS_OF_SERVICE = saved
+      invalidateServerSettingsCache(null)
+    }
   })
 
   it('asks for no agreement when the domain has neither document', async () => {

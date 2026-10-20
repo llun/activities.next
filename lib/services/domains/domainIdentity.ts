@@ -80,6 +80,15 @@ const serverIdentity = (
   )
 })
 
+// The primary host from the config, for when the domain lists cannot be read.
+const configuredHost = () => {
+  try {
+    return getConfig().host
+  } catch {
+    return ''
+  }
+}
+
 /**
  * The identity of the domain `host` names. `host` must come from
  * `headerHost` (trust-filtered); anything it does not name falls back to the
@@ -93,7 +102,7 @@ export const resolveDomainIdentity = async (
   database: Database | null,
   host: string | null | undefined
 ): Promise<DomainIdentity> => {
-  let domain = normalizeServedDomainChoice(host) ?? ''
+  let domain = normalizeServedDomainChoice(host) ?? configuredHost()
   let source: DomainIdentity['source'] = 'other'
   try {
     await ensureServedDomainsFresh()

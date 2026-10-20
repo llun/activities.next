@@ -71,6 +71,12 @@ const createPolicyMarked = () =>
       // Redcarpet's no_images: an image is reduced to its alt text.
       image({ text }: Tokens.Image) {
         return escapeHtml(text)
+      },
+      // Redcarpet has no task lists: `- [ ] a` shows its brackets as text.
+      // Sanitizing would drop the <input> and leave nothing to tell a checked
+      // item from an unchecked one.
+      checkbox({ checked }: Tokens.Checkbox) {
+        return checked ? '[x] ' : '[ ] '
       }
     }
   })

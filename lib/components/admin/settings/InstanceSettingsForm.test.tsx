@@ -309,6 +309,42 @@ describe('InstanceSettingsForm', () => {
         screen.getByText('Remove the variable to edit it here.')
       ).toBeInTheDocument()
       expect(screen.queryByText(/Last updated/)).toBeNull()
+      expect(document.getElementById('policies-privacy-help')).toBeNull()
+      expect(document.getElementById('policies-terms-help')).not.toBeNull()
     })
+
+    it('saves the unlocked document alone while the other is pinned', async () => {
+      renderForm(
+        {
+          [PRIVACY_KEY]: { locked: true, envVar: 'ACTIVITIES_PRIVACY_POLICY' }
+        },
+        {},
+        withPolicies({ termsOfService: '', privacyPolicy: '# Privacy' })
+      )
+
+      fireEvent.change(screen.getByLabelText('Terms of service'), {
+        target: { value: '# New terms' }
+      })
+      fireEvent.click(saveButton())
+
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith({ [TERMS_KEY]: '# New terms' })
+      )
+    })
+  })
+
+  it('leaves an env-locked key out of the details patch', async () => {
+    renderForm({
+      'instance.name': { locked: true, envVar: 'ACTIVITIES_SERVICE_NAME' }
+    })
+    fireEvent.change(screen.getByLabelText('Short description'), {
+      target: { value: 'New description' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
+    const patch = mockUpdate.mock.calls[0][0]
+    expect(patch).toHaveProperty('instance.description', 'New description')
+    expect(patch).not.toHaveProperty('instance.name')
   })
 })
