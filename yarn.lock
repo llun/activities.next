@@ -3800,7 +3800,7 @@ __metadata:
     kysely: "npm:0.29.6"
     lint-staged: "npm:^17.6.0"
     lodash: "npm:^4.18.1"
-    lucide-react: "npm:1.58.0"
+    lucide-react: "npm:1.59.0"
     marked: "npm:^18.1.1"
     mime-types: "npm:^3.0.2"
     next: "npm:16.4.2"
@@ -5808,16 +5808,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:1.58.0":
-  version: 1.58.0
-  resolution: "lucide-react@npm:1.58.0"
+"lucide-react@npm:1.59.0":
+  version: 1.59.0
+  resolution: "lucide-react@npm:1.59.0"
   peerDependencies:
     "@types/react": "*"
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/2206d52aef1224292bf41285b7c1d224e3718bc9bbb1ae57fbaba346ec7600793b594730288ed065aa3165c98966bee275c8765ab1802620867a18787bfdf20c
+  checksum: 10c0/e02dbdda8a9689527988ffb8ed7f01675755146ee7abfebbbe46b843fbc477f23dc0a4524fe257d0daa3d8eb3289a46f8bdce4a1dcbbdeeab5d158bfa68842c4
   languageName: node
   linkType: hard
 
