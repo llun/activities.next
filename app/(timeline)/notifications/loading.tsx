@@ -16,7 +16,8 @@ export const NotificationsLoading: FC = () => (
       <PageHeader
         title={<SkeletonBar className="h-7 w-40" />}
         description={<SkeletonBar className="h-4 w-72 max-w-full" />}
-        actions={<SkeletonBar className="h-9 w-40" />}
+        actions={<SkeletonBar className="h-9 w-28" />}
+        mobileBarActions={<SkeletonBar className="size-9 rounded-md" />}
       />
     </PageSubnavProvider>
 

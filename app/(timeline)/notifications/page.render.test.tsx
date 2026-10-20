@@ -74,9 +74,17 @@ describe('notifications page when there is nothing to show', () => {
       'aria-current',
       'page'
     )
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Refresh notifications' })
-    )
+    const markAllReadButton = screen.getByRole('button', {
+      name: 'Mark all read'
+    })
+    const refreshButton = screen.getByRole('button', {
+      name: 'Refresh notifications'
+    })
+    expect(
+      markAllReadButton.compareDocumentPosition(refreshButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    fireEvent.click(refreshButton)
     expect(mockRefresh).toHaveBeenCalledTimes(1)
   })
 })
