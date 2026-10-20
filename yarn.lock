@@ -3797,7 +3797,7 @@ __metadata:
     jose: "npm:^6.2.12"
     jsdom: "npm:^30.1.3"
     jsonld: "npm:^9.0.0"
-    kysely: "npm:0.29.6"
+    kysely: "npm:0.29.7"
     lint-staged: "npm:^17.6.0"
     lodash: "npm:^4.18.1"
     lucide-react: "npm:1.59.0"
@@ -5457,7 +5457,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kysely@npm:0.29.6, kysely@npm:^0.28.17 || ^0.29.0":
+"kysely@npm:0.29.7":
+  version: 0.29.7
+  resolution: "kysely@npm:0.29.7"
+  checksum: 10c0/a034c3ef7f965220e2ff314bf3d5caa9805509b51282fd9149bad82cfddf6aae3863fe6e536933c7ca41785cd8da72d7311376f7ab0de0b98a93beec49796f4d
+  languageName: node
+  linkType: hard
+
+"kysely@npm:^0.28.17 || ^0.29.0":
   version: 0.29.6
   resolution: "kysely@npm:0.29.6"
   checksum: 10c0/262a2111944cc82dcb10e840fef4e374467abe0d6aa9c1272df2ca6199155c59bb0f3ca17f856c20b719cbdd5d2e641d3464faeab409680098dc35b514119798
