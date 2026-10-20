@@ -9,15 +9,21 @@ import {
   mockBob,
   mockCarol
 } from '@/lib/components/posts/__fixtures__/timeline-context'
-import { COMBINE_MAX_GAP_MS } from '@/lib/components/posts/combinedThreadModel'
+import {
+  COMBINE_MAX_GAP_MS,
+  CombinedBlock,
+  buildCombinedBlocks
+} from '@/lib/components/posts/combinedThreadModel'
 import {
   LONG_RUN_MAX_PARTS,
+  SelfThreadModel,
   buildSelfThreadModel,
   collapseLongRun,
   extractSelfReplyChain
 } from '@/lib/components/posts/selfThreadModel'
+import { groupTimelinePage } from '@/lib/components/posts/timelineModel'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { StatusNote } from '@/lib/types/domain/status'
+import { Status, StatusNote } from '@/lib/types/domain/status'
 
 const MINUTE = 60 * 1000
 
@@ -417,6 +423,241 @@ describe('selfThreadModel', () => {
         [a1.id, a2.id]
       )
       expect(focusedInSecondBlock.repliesOutsideRun).toEqual([])
+    })
+
+    it('labels a reply to the last part of a separate ancestor run', () => {
+      const a1 = note('a1', { at: 0 })
+      const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
+      const a3 = note('a3', { at: 20 * MINUTE, reply: a2.id })
+      const a4 = note('a4', { at: 22 * MINUTE, reply: a3.id })
+      const replyToA2 = note('reply-a2', {
+        actor: mockBob,
+        at: 23 * MINUTE,
+        reply: a2.id
+      })
+      const replyToA4 = note('reply-a4', {
+        actor: mockBob,
+        at: 24 * MINUTE,
+        reply: a4.id
+      })
+
+      const model = buildSelfThreadModel({
+        focusedStatus: a3,
+        ancestors: [a1, a2],
+        descendants: [a4, replyToA2, replyToA4]
+      })
+
+      expect(model.ancestorRuns.map((run) => run.key)).toEqual([
+        `combined:${a1.id}`
+      ])
+      expect(model.replyingToByReplyId.get(replyToA2.id)).toBe(
+        'Replying to 2 of 2'
+      )
+      // The opened run keeps its rule: its last part needs no label.
+      expect(model.replyingToByReplyId.has(replyToA4.id)).toBe(false)
+    })
+
+    describe('matches the timeline tuck decision', () => {
+      const insetIds = (model: SelfThreadModel) =>
+        model.parts.flatMap((part) => part.insets.map((inset) => inset.id))
+
+      it("tucks a reply measured from the run's latest post, not the part it answers", () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: 9 * MINUTE, reply: a1.id })
+        const bob = note('bob', {
+          actor: mockBob,
+          at: 11 * MINUTE,
+          reply: a1.id
+        })
+        const a3 = note('a3', { at: 12 * MINUTE, reply: a2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: a1,
+          descendants: [a2, bob, a3]
+        })
+
+        expect(model.parts.map((p) => p.status.id)).toEqual([
+          a1.id,
+          a2.id,
+          a3.id
+        ])
+        expect(insetIds(model)).toEqual([bob.id])
+        expect(model.repliesOutsideRun).toEqual([])
+      })
+
+      it('tucks a reply exactly ten minutes before the next part', () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: 8 * MINUTE, reply: a1.id })
+        const bob = note('bob', {
+          actor: mockBob,
+          at: 17 * MINUTE,
+          reply: a1.id
+        })
+        const a3 = note('a3', { at: 18 * MINUTE, reply: a2.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: a1,
+          descendants: [a2, bob, a3]
+        })
+
+        expect(insetIds(model)).toEqual([bob.id])
+        expect(model.repliesOutsideRun).toEqual([])
+      })
+
+      it("leaves a reply under Replies when the author's next post does not follow it", () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: MINUTE, reply: a1.id })
+        const bob = note('bob', {
+          actor: mockBob,
+          at: 8 * MINUTE,
+          reply: a1.id
+        })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: a1,
+          descendants: [a2, bob]
+        })
+
+        expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id])
+        expect(insetIds(model)).toEqual([])
+        expect(model.repliesOutsideRun.map((s) => s.id)).toEqual([bob.id])
+        expect(model.replyingToByReplyId.get(bob.id)).toBe('Replying to 1 of 2')
+      })
+
+      it('leaves a reply to a middle part under Replies when it comes after the last part', () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: MINUTE, reply: a1.id })
+        const a3 = note('a3', { at: 2 * MINUTE, reply: a2.id })
+        const bob = note('bob', {
+          actor: mockBob,
+          at: 5 * MINUTE,
+          reply: a2.id
+        })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: a1,
+          descendants: [a2, a3, bob]
+        })
+
+        expect(model.parts.map((p) => p.status.id)).toEqual([
+          a1.id,
+          a2.id,
+          a3.id
+        ])
+        expect(insetIds(model)).toEqual([])
+        expect(model.replyingToByReplyId.get(bob.id)).toBe('Replying to 2 of 3')
+      })
+
+      // Deterministic generator so failures reproduce: mulberry32.
+      const random = (seed: number) => () => {
+        seed = (seed + 0x6d2b79f5) | 0
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      }
+      const partIdsOf = (blocks: readonly CombinedBlock[]) =>
+        blocks.flatMap((block) =>
+          block.kind === 'run'
+            ? [block.parts.map((part) => part.status.id)]
+            : []
+        )
+      const tuckedIdsOf = (blocks: readonly CombinedBlock[]) =>
+        blocks
+          .flatMap((block) =>
+            block.kind === 'run'
+              ? block.parts.flatMap((part) => part.insets.map((i) => i.id))
+              : []
+          )
+          .sort()
+      // The timeline's own order for a thread row of these statuses.
+      const timelineBlocks = (statuses: Status[]) => {
+        const byId = new Map(statuses.map((status) => [status.id, status]))
+        const row = groupTimelinePage(statuses).find(
+          (r) => r.kind === 'thread' || r.kind === 'conversation'
+        )
+        if (!row || !('entryIds' in row)) throw new Error('no thread row')
+        return buildCombinedBlocks(row.entryIds.map((id) => byId.get(id)!))
+      }
+
+      it('tucks what the timeline tucks for generated threads without splitting the run', () => {
+        const next = random(2560)
+        const pick = (n: number) => Math.floor(next() * n)
+        let comparedWithFullTimeline = 0
+        let tuckedCount = 0
+        let leftOutCount = 0
+
+        for (let caseIndex = 0; caseIndex < 200; caseIndex++) {
+          const chain: Status[] = []
+          let at = 0
+          for (let i = 0; i < 2 + pick(4); i++) {
+            at += pick(12) * MINUTE
+            chain.push(
+              note(`c${caseIndex}-a${i}`, { at, reply: chain[i - 1]?.id })
+            )
+          }
+          const replies: Status[] = []
+          for (let i = 0; i < pick(5); i++) {
+            const target = chain[pick(chain.length)]
+            const base = note(`c${caseIndex}-r${i}`, {
+              actor: i % 2 ? mockCarol : mockBob,
+              at: target.createdAt - BASE_TIME + pick(14) * MINUTE,
+              reply: target.id
+            })
+            replies.push(
+              pick(5) === 0
+                ? { ...base, attachments: [createMockPhoto(base, 'photo')] }
+                : base
+            )
+          }
+
+          const [root, ...rest] = chain
+          const model = buildSelfThreadModel({
+            focusedStatus: root,
+            descendants: [...rest, ...replies]
+          })
+          const postPageBlocks = [
+            ...(model.run ? [model.run] : []),
+            ...model.descendantRuns
+          ]
+          const tucked = tuckedIdsOf(postPageBlocks)
+          tuckedCount += tucked.length
+          leftOutCount += replies.length - tucked.length
+
+          // The post page never splits the author's run.
+          expect(partIdsOf(postPageBlocks)).toEqual(
+            partIdsOf(buildCombinedBlocks(chain))
+          )
+          // What it tucks is exactly what the timeline tucks for the run plus
+          // those replies...
+          const tuckedSet = new Set(tucked)
+          const kept = replies.filter((reply) => tuckedSet.has(reply.id))
+          expect(tuckedIdsOf(timelineBlocks([...chain, ...kept]))).toEqual(
+            tucked
+          )
+          // ...and no reply left out could join without one falling out.
+          for (const reply of replies) {
+            if (tuckedSet.has(reply.id)) continue
+            const ids = tuckedIdsOf(timelineBlocks([...chain, ...kept, reply]))
+            expect([...tucked, reply.id].every((id) => ids.includes(id))).toBe(
+              false
+            )
+          }
+          // When the timeline keeps the same runs with every reply, it tucks
+          // the same replies the post page does.
+          const full = timelineBlocks([...chain, ...replies])
+          if (
+            JSON.stringify(partIdsOf(full)) ===
+            JSON.stringify(partIdsOf(postPageBlocks))
+          ) {
+            comparedWithFullTimeline += 1
+            expect(tuckedIdsOf(full)).toEqual(tucked)
+          }
+        }
+        // Guard against a generator that stops exercising either side.
+        expect(comparedWithFullTimeline).toBeGreaterThan(50)
+        expect(tuckedCount).toBeGreaterThan(20)
+        expect(leftOutCount).toBeGreaterThan(20)
+      })
     })
   })
 

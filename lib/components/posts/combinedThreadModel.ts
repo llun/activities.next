@@ -55,7 +55,7 @@ interface RunDraft {
   pending: PendingInset[]
 }
 
-export const isWithinGap = (a: number, b: number) =>
+const isWithinGap = (a: number, b: number) =>
   Math.abs(a - b) <= COMBINE_MAX_GAP_MS
 
 /**

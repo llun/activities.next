@@ -1,20 +1,18 @@
 import { Status } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import {
-  COMBINE_MAX_INSETS,
   CombinedBlock,
   CombinedPart,
   buildCombinedBlocks,
-  canTuck,
-  isWithinGap
+  canTuck
 } from './combinedThreadModel'
 import {
   getStatusAliases,
   getStatusAuthorId,
   getStatusCreatedAtMs,
-  getStatusReplyTargetId
+  getStatusReplyTargetId,
+  sortComponentNodes
 } from './timelineModel'
 
 export const LONG_RUN_MAX_PARTS = 6
@@ -63,9 +61,42 @@ const getCreatedAtMs = (status: Status): number =>
 const getReplyTargetId = (status: Status): string | null =>
   getStatusReplyTargetId(getActualStatus(status))
 
-const getStatusVis = (status: Status): string => {
-  const actual = getActualStatus(status)
-  return getVisibility(actual.to ?? [], actual.cc ?? [])
+/**
+ * Orders statuses as the timeline orders a thread row (`sortComponentNodes`):
+ * parent before child, oldest first, input order on ties. A status counts as a
+ * child only of a status earlier in the input, so a malformed loop cannot drop
+ * any of them.
+ */
+const orderLikeTimeline = (statuses: readonly Status[]): Status[] => {
+  const idByAlias = new Map<string, string>()
+  for (const status of statuses) {
+    for (const alias of getAliases(status)) idByAlias.set(alias, status.id)
+  }
+  const nodes = new Map(
+    statuses.map((status, listIndex) => [
+      status.id,
+      {
+        id: status.id,
+        status,
+        listIndex,
+        createdAt: getCreatedAtMs(status),
+        children: [] as string[],
+        isRoot: true
+      }
+    ])
+  )
+  for (const node of nodes.values()) {
+    const target = getReplyTargetId(node.status)
+    const parent = target ? nodes.get(idByAlias.get(target) ?? '') : undefined
+    if (parent && parent.listIndex < node.listIndex) {
+      parent.children.push(node.id)
+      node.isRoot = false
+    }
+  }
+  return [...nodes.values()]
+    .filter((node) => node.isRoot)
+    .flatMap((root) => sortComponentNodes(root.id, nodes))
+    .map((id) => nodes.get(id)!.status)
 }
 
 interface IndexedStatus {
@@ -221,103 +252,47 @@ export const buildSelfThreadModel = ({
   const hasChildInDescendants = (reply: Status): boolean =>
     getAliases(reply).some((alias) => nonChainTargets.has(alias))
 
-  const continuesRunAt = (index: number): boolean => {
-    if (index < 0 || index >= chain.length - 1) return false
-    const current = chain[index]
-    const next = chain[index + 1]
-    const authorId = getAuthorId(current)
-    if (!authorId || getAuthorId(next) !== authorId) return false
-    const nextTarget = getReplyTargetId(next)
-    if (!nextTarget || !getAliases(current).includes(nextTarget)) {
-      return false
-    }
-    if (getStatusVis(next) !== getStatusVis(current)) return false
-    return isWithinGap(getCreatedAtMs(next), getCreatedAtMs(current))
-  }
-
-  const runGroupByChainIndex = new Map<number, number>()
-  let currentRunGroup = 0
-  for (let i = 0; i < chain.length - 1; i++) {
-    if (continuesRunAt(i)) {
-      runGroupByChainIndex.set(i, currentRunGroup)
-    } else {
-      currentRunGroup += 1
-    }
-  }
-
-  const withoutRun = (
-    replyingToByReplyId = new Map<string, string>(),
-    ancestorRuns: SelfThreadRunBlock[] = [],
-    descendantRuns: SelfThreadRunBlock[] = []
-  ): SelfThreadModel => ({
-    run: null,
-    parts: [],
-    openedPartIndex: -1,
-    mergedIds: new Set<string>(),
-    mergedStatuses: [],
-    ancestorsOutsideRun: [...ancestors],
-    repliesOutsideRun: [...descendants],
-    replyingToByReplyId,
-    ancestorRuns,
-    descendantRuns
+  // A lone post cannot make a run: skip the tuck search, the common case.
+  const canRun = chain.length > 1
+  // Only structural checks here: whether a reply tucks (gap, cap, the author
+  // continuing after it) is left to `buildCombinedBlocks` below.
+  const candidates = (canRun ? descendants : []).filter((candidate) => {
+    if (chainIds.has(candidate.id)) return false
+    const target = getReplyTargetId(candidate)
+    const chainIndex = target ? chainIndexByAlias.get(target) : undefined
+    if (chainIndex === undefined) return false
+    if (chainIndex === 0 && !tuckIntoFirstPart) return false
+    if (getAuthorId(candidate) === getAuthorId(chain[chainIndex])) return false
+    return !hasChildInDescendants(candidate) && canTuck(candidate)
   })
 
-  if (runGroupByChainIndex.size === 0) return withoutRun()
+  const insetIdsOf = (blocks: readonly CombinedBlock[]) =>
+    new Set(
+      blocks.flatMap((block) =>
+        block.kind === 'run'
+          ? block.parts.flatMap((part) => part.insets.map((inset) => inset.id))
+          : []
+      )
+    )
 
-  const tuckCandidatesByChainIndex = new Map<number, Status[]>()
-  const insetCountByRunGroup = new Map<number, number>()
-  const prevCreatedAtByChainIndex = new Map<number, number>()
-
-  const sortedDescendants = descendants
-    .map((status, index) => ({
-      status,
-      index,
-      createdAt: getCreatedAtMs(status)
-    }))
-    .sort(sortIndexedStatuses)
-
-  for (const { status: candidate, createdAt } of sortedDescendants) {
+  // Add replies one at a time in timeline order, keeping one only while the
+  // timeline would still tuck it and every reply kept before it. A reply that
+  // would split the run never enters the input, so the run is never split.
+  const accepted: Status[] = []
+  for (const candidate of orderLikeTimeline([...chain, ...candidates])) {
     if (chainIds.has(candidate.id)) continue
-    const target = getReplyTargetId(candidate)
-    if (!target) continue
-    const chainIndex = chainIndexByAlias.get(target)
-    if (chainIndex === undefined) continue
-    const runGroup = runGroupByChainIndex.get(chainIndex)
-    if (runGroup === undefined) continue
-
-    if (chainIndex === 0 && !tuckIntoFirstPart) continue
-
-    const parentStatus = chain[chainIndex]
-    if (getAuthorId(candidate) === getAuthorId(parentStatus)) continue
-    if (hasChildInDescendants(candidate)) continue
-    if (!canTuck(candidate)) continue
-
-    const currentInsets = insetCountByRunGroup.get(runGroup) ?? 0
-    if (currentInsets >= COMBINE_MAX_INSETS) continue
-
-    // Measured as `buildCombinedBlocks` does: from the last waiting reply,
-    // else from the run post being answered.
-    const prevCreatedAt =
-      prevCreatedAtByChainIndex.get(chainIndex) ?? getCreatedAtMs(parentStatus)
-    if (!isWithinGap(createdAt, prevCreatedAt)) continue
-
-    const list = tuckCandidatesByChainIndex.get(chainIndex) ?? []
-    list.push(candidate)
-    tuckCandidatesByChainIndex.set(chainIndex, list)
-    insetCountByRunGroup.set(runGroup, currentInsets + 1)
-    prevCreatedAtByChainIndex.set(chainIndex, createdAt)
-  }
-
-  const chronologicalInput: Status[] = []
-  for (let i = 0; i < chain.length; i++) {
-    chronologicalInput.push(chain[i])
-    const tucked = tuckCandidatesByChainIndex.get(i)
-    if (tucked) {
-      chronologicalInput.push(...tucked)
+    const tried = [...accepted, candidate]
+    const insetIds = insetIdsOf(
+      buildCombinedBlocks(orderLikeTimeline([...chain, ...tried]))
+    )
+    if (tried.every((status) => insetIds.has(status.id))) {
+      accepted.push(candidate)
     }
   }
 
-  const blocks = buildCombinedBlocks(chronologicalInput)
+  const blocks = canRun
+    ? buildCombinedBlocks(orderLikeTimeline([...chain, ...accepted]))
+    : []
   const focusedBlockIndex = findBlockIndexContainingStatus(
     blocks,
     focusedStatus.id
@@ -344,7 +319,10 @@ export const buildSelfThreadModel = ({
   >()
   for (const runBlock of allRunBlocks) {
     const count = runBlock.parts.length
-    for (let i = 0; i < count - 1; i++) {
+    // A separate ancestor run sits above the opened post, so a reply to any of
+    // its parts, the last one included, would otherwise read as a reply to it.
+    const labelledCount = ancestorRuns.includes(runBlock) ? count : count - 1
+    for (let i = 0; i < labelledCount; i++) {
       for (const alias of getAliases(runBlock.parts[i].status)) {
         earlierPartByAlias.set(alias, { partIndex: i, numParts: count })
       }
@@ -368,11 +346,18 @@ export const buildSelfThreadModel = ({
   }
 
   if (!focusedBlock || focusedBlock.kind !== 'run') {
-    return withoutRun(
-      getReplyingToLabels(descendants),
+    return {
+      run: null,
+      parts: [],
+      openedPartIndex: -1,
+      mergedIds: new Set<string>(),
+      mergedStatuses: [],
+      ancestorsOutsideRun: [...ancestors],
+      repliesOutsideRun: [...descendants],
+      replyingToByReplyId: getReplyingToLabels(descendants),
       ancestorRuns,
       descendantRuns
-    )
+    }
   }
 
   const parts = focusedBlock.parts

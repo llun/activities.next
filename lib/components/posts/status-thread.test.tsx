@@ -1004,6 +1004,30 @@ describe('StatusThread', () => {
       )
     })
 
+    it("rounds the opened first part's tint like the focused card it bleeds into", () => {
+      const [a1, a2] = makeAliceRun(2)
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[a2]}
+          currentTime={BASE_TIME + 16 * MINUTE}
+        />
+      )
+
+      const card = screen.getByTestId('focused-status')
+      expect(card).toHaveClass('rounded-t-lg')
+      // The card has no overflow clip, so every wrapper down to the tinted
+      // part inherits its top radius.
+      let element = screen.getByTestId(`status-${a1.id}`)
+      while (element !== card) {
+        expect(element).toHaveClass('rounded-t-[inherit]')
+        element = element.parentElement as HTMLElement
+      }
+    })
+
     it('marks opened middle part with aria-current="location" and scrolls it into view respecting prefers-reduced-motion', () => {
       const [a1, a2, a3] = makeAliceRun(3)
       const scrollIntoView = vi.fn()

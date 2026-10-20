@@ -196,8 +196,8 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
           isOpened &&
             '-mx-4 border-l-[3px] border-l-primary bg-primary/[0.07] py-1.5 pr-4 pl-[13px]',
           // The focused card pads its top by 16px: reach through it so the
-          // tint on the first part meets the card edge.
-          isOpened && isFirstHeader && '-mt-4 pt-[22px]'
+          // tint on the first part meets the card edge, rounded as the card is.
+          isOpened && isFirstHeader && '-mt-4 rounded-t-[inherit] pt-[22px]'
         )}
       >
         <CombinedPartRailColumn
@@ -419,7 +419,12 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
     : null
 
   return (
-    <div ref={runRef} data-testid="self-thread-run" data-combined-post>
+    <div
+      ref={runRef}
+      data-testid="self-thread-run"
+      data-combined-post
+      className="rounded-t-[inherit]"
+    >
       {renderedIndices.map((partIndex, renderPos) => {
         const part = parts[partIndex]
         const isFirstHeader = partIndex === 0
@@ -432,7 +437,10 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
             : 0
 
         return (
-          <div key={part.status.id}>
+          <div
+            key={part.status.id}
+            className={isFirstHeader ? 'rounded-t-[inherit]' : undefined}
+          >
             <SelfThreadPart
               part={part}
               partIndex={partIndex}
