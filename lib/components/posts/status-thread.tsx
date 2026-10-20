@@ -14,6 +14,7 @@ import {
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
+import { CombinedPart } from '@/lib/components/posts/combinedThreadModel'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { ReplyToast } from '@/lib/components/posts/reply-toast'
@@ -35,13 +36,10 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
   Status,
-  StatusNote,
-  StatusPoll,
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
-import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
@@ -61,16 +59,6 @@ export interface StatusThreadProps {
   renderFocusedFooter?: (status: Status) => ReactNode
   className?: string
   onReplyCreated?: (status: Status) => void
-  onPostDeleted?: (status: Status) => void
-  onBookmarkChanged?: (
-    status: StatusNote | StatusPoll,
-    isBookmarked: boolean
-  ) => void
-  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
-  onReactionsChanged?: (
-    status: StatusNote | StatusPoll,
-    reactions: StatusReaction[]
-  ) => void
 }
 
 const EMPTY_STATUS_LIST: Status[] = []
@@ -90,11 +78,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
   focusedFooter,
   renderFocusedFooter,
   className,
-  onReplyCreated,
-  onPostDeleted,
-  onBookmarkChanged,
-  onLikeChanged,
-  onReactionsChanged
+  onReplyCreated
 }) => {
   const router = useRouter()
   const composer = useInlineComposer(Boolean(currentActor))
@@ -162,18 +146,14 @@ export const StatusThread: FC<StatusThreadProps> = ({
     fallback?.focus()
   }, [separateRows])
 
-  const handlePostDeleted = useCallback(
-    (deletedStatus: Status) => {
-      setDeletedStatusIds((prev) => {
-        if (prev.has(deletedStatus.id)) return prev
-        const next = new Set(prev)
-        next.add(deletedStatus.id)
-        return next
-      })
-      onPostDeleted?.(deletedStatus)
-    },
-    [onPostDeleted]
-  )
+  const handlePostDeleted = useCallback((deletedStatus: Status) => {
+    setDeletedStatusIds((prev) => {
+      if (prev.has(deletedStatus.id)) return prev
+      const next = new Set(prev)
+      next.add(deletedStatus.id)
+      return next
+    })
+  }, [])
 
   const visibleAncestors = useMemo(
     () =>
@@ -247,21 +227,21 @@ export const StatusThread: FC<StatusThreadProps> = ({
     return map
   }, [activeAncestorRuns])
 
-  const mergedSecondaryAncestorIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const run of activeAncestorRuns) {
-      for (const inset of run.parts[0].insets) {
-        ids.add(inset.id)
-      }
-      for (let i = 1; i < run.parts.length; i++) {
-        ids.add(run.parts[i].status.id)
-        for (const inset of run.parts[i].insets) {
-          ids.add(inset.id)
-        }
-      }
-    }
-    return ids
-  }, [activeAncestorRuns])
+  // Everything an ancestor run folds into its first row (the row that stays in
+  // the tree), so the tree skips these and treats them as part of the thread.
+  const mergedSecondaryAncestorStatuses = useMemo(
+    () =>
+      activeAncestorRuns.flatMap((run) => [
+        ...run.parts[0].insets,
+        ...run.parts.slice(1).flatMap((part) => [part.status, ...part.insets])
+      ]),
+    [activeAncestorRuns]
+  )
+
+  const mergedSecondaryAncestorIds = useMemo(
+    () => new Set(mergedSecondaryAncestorStatuses.map((s) => s.id)),
+    [mergedSecondaryAncestorStatuses]
+  )
 
   const descendantRunMergedStatuses = useMemo(
     () => activeDescendantRuns.flatMap(getRunMergedStatuses),
@@ -305,10 +285,16 @@ export const StatusThread: FC<StatusThreadProps> = ({
   const focusedGroupStatuses = useMemo(() => {
     const list: Status[] = [
       ...(isCombinedRun ? selfThread.mergedStatuses : []),
+      ...mergedSecondaryAncestorStatuses,
       ...descendantRunMergedStatuses
     ]
     return list.length > 0 ? list : undefined
-  }, [isCombinedRun, selfThread.mergedStatuses, descendantRunMergedStatuses])
+  }, [
+    isCombinedRun,
+    selfThread.mergedStatuses,
+    mergedSecondaryAncestorStatuses,
+    descendantRunMergedStatuses
+  ])
 
   const hasAnyActiveRun =
     isCombinedRun ||
@@ -481,17 +467,63 @@ export const StatusThread: FC<StatusThreadProps> = ({
         hasAnyActiveRun ? selfThread.replyingToByReplyId : undefined
       }
       onPostDeleted={handlePostDeleted}
-      onBookmarkChanged={onBookmarkChanged}
-      onLikeChanged={onLikeChanged}
-      onReactionsChanged={onReactionsChanged}
     />
   )
+
+  const canComposeFocused = Boolean(currentActor)
+
+  const renderSelfThreadRun = (
+    parts: readonly CombinedPart[],
+    runStatusIds: ReadonlySet<string>,
+    opened?: { openedPartIndex: number; focusedFooter: ReactNode }
+  ): ReactNode => {
+    const closeComposerAndRefresh = () => {
+      composer.close()
+      router.refresh()
+    }
+    return (
+      <SelfThreadRun
+        parts={parts}
+        openedPartIndex={opened?.openedPartIndex}
+        host={host}
+        currentTime={currentTime}
+        currentActor={currentActor ?? undefined}
+        showActions={canComposeFocused}
+        showReadOnlyStats={!canComposeFocused}
+        canCompose={canComposeFocused}
+        activeComposer={
+          composer.active && runStatusIds.has(composer.active.anchorId)
+            ? composer.active
+            : null
+        }
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        openReply={composer.openReply}
+        openQuote={composer.openQuote}
+        openEdit={composer.openEdit}
+        close={composer.close}
+        onOpenStatus={openStatus}
+        onShowMedia={(allMedias, index, actualStatus) => {
+          setModalMedias({
+            medias: allMedias,
+            tags: actualStatus.tags,
+            initialSelection: index,
+            albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
+          })
+        }}
+        onShowSeparate={showRowSeparate}
+        focusedFooter={opened?.focusedFooter}
+        onReplyCreated={handleReplyCreated}
+        onStatusCreated={closeComposerAndRefresh}
+        onPostUpdated={closeComposerAndRefresh}
+        onPostDeleted={handlePostDeleted}
+      />
+    )
+  }
 
   const actualFocusedStatus =
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)
       : status
-  const canComposeFocused = Boolean(currentActor)
   const hasReplies = tree.totalDescendants > 0
   // "No replies yet" only speaks for a post on its own. Under the last post of
   // a conversation it reads as if the whole thread were empty, so there the
@@ -560,53 +592,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 )}
               >
                 {ancestorRun && ancestorRunIds ? (
-                  <SelfThreadRun
-                    parts={ancestorRun.parts}
-                    openedPartIndex={-1}
-                    host={host}
-                    currentTime={currentTime}
-                    currentActor={currentActor ?? undefined}
-                    showActions={canComposeFocused}
-                    showReadOnlyStats={!canComposeFocused}
-                    canCompose={canComposeFocused}
-                    activeComposer={
-                      composer.active &&
-                      ancestorRunIds.has(composer.active.anchorId)
-                        ? composer.active
-                        : null
-                    }
-                    isMediaUploadEnabled={isMediaUploadEnabled}
-                    openReply={composer.openReply}
-                    openQuote={composer.openQuote}
-                    openEdit={composer.openEdit}
-                    close={composer.close}
-                    onOpenStatus={openStatus}
-                    onShowMedia={(allMedias, idx, actualStatus) => {
-                      setModalMedias({
-                        medias: allMedias,
-                        tags: actualStatus.tags,
-                        initialSelection: idx,
-                        albumsOwnerId: getAlbumsOwnerId(
-                          currentActor,
-                          actualStatus
-                        )
-                      })
-                    }}
-                    onShowSeparate={showRowSeparate}
-                    onReplyCreated={handleReplyCreated}
-                    onStatusCreated={() => {
-                      composer.close()
-                      router.refresh()
-                    }}
-                    onPostUpdated={() => {
-                      composer.close()
-                      router.refresh()
-                    }}
-                    onPostDeleted={handlePostDeleted}
-                    onBookmarkChanged={onBookmarkChanged}
-                    onLikeChanged={onLikeChanged}
-                    onReactionsChanged={onReactionsChanged}
-                  />
+                  renderSelfThreadRun(ancestorRun.parts, ancestorRunIds)
                 ) : (
                   <>
                     <div
@@ -657,9 +643,6 @@ export const StatusThread: FC<StatusThreadProps> = ({
                           })
                         }}
                         onPostDeleted={handlePostDeleted}
-                        onBookmarkChanged={onBookmarkChanged}
-                        onLikeChanged={onLikeChanged}
-                        onReactionsChanged={onReactionsChanged}
                       />
                     </div>
 
@@ -716,54 +699,12 @@ export const StatusThread: FC<StatusThreadProps> = ({
         )}
       >
         {isCombinedRun && selfThread.run ? (
-          <SelfThreadRun
-            parts={selfThread.parts}
-            openedPartIndex={selfThread.openedPartIndex}
-            host={host}
-            currentTime={currentTime}
-            currentActor={currentActor ?? undefined}
-            showActions={canComposeFocused}
-            showReadOnlyStats={!canComposeFocused}
-            canCompose={canComposeFocused}
-            activeComposer={
-              composer.active &&
-              selfThread.mergedIds.has(composer.active.anchorId)
-                ? composer.active
-                : null
-            }
-            isMediaUploadEnabled={isMediaUploadEnabled}
-            openReply={composer.openReply}
-            openQuote={composer.openQuote}
-            openEdit={composer.openEdit}
-            close={composer.close}
-            onOpenStatus={openStatus}
-            onShowMedia={(allMedias, index, actualStatus) => {
-              setModalMedias({
-                medias: allMedias,
-                tags: actualStatus.tags,
-                initialSelection: index,
-                albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
-              })
-            }}
-            onShowSeparate={showRowSeparate}
-            focusedFooter={
+          renderSelfThreadRun(selfThread.parts, selfThread.mergedIds, {
+            openedPartIndex: selfThread.openedPartIndex,
+            focusedFooter:
               focusedFooter ??
               (renderFocusedFooter ? renderFocusedFooter(status) : null)
-            }
-            onReplyCreated={handleReplyCreated}
-            onStatusCreated={() => {
-              composer.close()
-              router.refresh()
-            }}
-            onPostUpdated={() => {
-              composer.close()
-              router.refresh()
-            }}
-            onPostDeleted={handlePostDeleted}
-            onBookmarkChanged={onBookmarkChanged}
-            onLikeChanged={onLikeChanged}
-            onReactionsChanged={onReactionsChanged}
-          />
+          })
         ) : (
           <>
             <div
@@ -811,9 +752,6 @@ export const StatusThread: FC<StatusThreadProps> = ({
                   })
                 }}
                 onPostDeleted={handlePostDeleted}
-                onBookmarkChanged={onBookmarkChanged}
-                onLikeChanged={onLikeChanged}
-                onReactionsChanged={onReactionsChanged}
               />
             </div>
 
@@ -868,50 +806,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                   : 'max-md:border-b-0 max-md:rounded-b-lg')
             )}
           >
-            <SelfThreadRun
-              parts={descendantRun.parts}
-              openedPartIndex={-1}
-              host={host}
-              currentTime={currentTime}
-              currentActor={currentActor ?? undefined}
-              showActions={canComposeFocused}
-              showReadOnlyStats={!canComposeFocused}
-              canCompose={canComposeFocused}
-              activeComposer={
-                composer.active &&
-                descendantRunIds.has(composer.active.anchorId)
-                  ? composer.active
-                  : null
-              }
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              openReply={composer.openReply}
-              openQuote={composer.openQuote}
-              openEdit={composer.openEdit}
-              close={composer.close}
-              onOpenStatus={openStatus}
-              onShowMedia={(allMedias, idx, actualStatus) => {
-                setModalMedias({
-                  medias: allMedias,
-                  tags: actualStatus.tags,
-                  initialSelection: idx,
-                  albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
-                })
-              }}
-              onShowSeparate={showRowSeparate}
-              onReplyCreated={handleReplyCreated}
-              onStatusCreated={() => {
-                composer.close()
-                router.refresh()
-              }}
-              onPostUpdated={() => {
-                composer.close()
-                router.refresh()
-              }}
-              onPostDeleted={handlePostDeleted}
-              onBookmarkChanged={onBookmarkChanged}
-              onLikeChanged={onLikeChanged}
-              onReactionsChanged={onReactionsChanged}
-            />
+            {renderSelfThreadRun(descendantRun.parts, descendantRunIds)}
           </div>
         )
       })}

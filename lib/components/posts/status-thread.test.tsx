@@ -1336,6 +1336,11 @@ describe('StatusThread', () => {
 
       fireEvent.click(secondGapBtn)
 
+      // The clicked button unmounts: focus goes to the first part it revealed.
+      expect(document.activeElement).toBe(
+        screen.getByTestId(`status-${parts[5].id}`)
+      )
+
       for (let i = 1; i <= 9; i++) {
         expect(screen.getByText(`Run part ${i} content`)).toBeInTheDocument()
       }
@@ -1459,6 +1464,198 @@ describe('StatusThread', () => {
       expect(
         within(runEl).queryByRole('button', { name: 'Read full post' })
       ).not.toBeInTheDocument()
+    })
+
+    describe('runs above and below the opened post', () => {
+      const makeTwoRuns = () => {
+        const [a1, a2] = makeAliceRun(2)
+        const a3 = createMockNote({
+          id: 'https://activities.local/users/alice/statuses/later-1',
+          actor: mockAlice,
+          actorId: mockAlice.id,
+          reply: a2.id,
+          text: 'Later run part 1',
+          createdAt: BASE_TIME + 25 * MINUTE
+        })
+        const a4 = createMockNote({
+          id: 'https://activities.local/users/alice/statuses/later-2',
+          actor: mockAlice,
+          actorId: mockAlice.id,
+          reply: a3.id,
+          text: 'Later run part 2',
+          createdAt: BASE_TIME + 27 * MINUTE
+        })
+        return { a1, a2, a3, a4 }
+      }
+
+      it('nests a reply created on a part of an earlier run without an "unavailable" boundary, and never scrolls or marks the earlier run as opened', async () => {
+        const { a1, a2, a3, a4 } = makeTwoRuns()
+        const reply = createMockNote({
+          id: 'https://activities.local/users/bob/statuses/reply-to-earlier-part',
+          actor: mockBob,
+          actorId: mockBob.id,
+          reply: a2.id,
+          text: 'Reply to the earlier run',
+          createdAt: BASE_TIME + 30 * MINUTE
+        })
+        mockCreateNote.mockResolvedValueOnce({ status: reply, attachments: [] })
+        const scrollIntoView = vi.fn()
+        Element.prototype.scrollIntoView = scrollIntoView
+
+        try {
+          render(
+            <StatusThread
+              host={host}
+              status={a3}
+              ancestors={[a1, a2]}
+              descendants={[a4]}
+              currentActor={mockBob}
+              currentTime={BASE_TIME + 40 * MINUTE}
+            />
+          )
+
+          const runs = screen.getAllByTestId('self-thread-run')
+          expect(runs).toHaveLength(2)
+          // Only the focused run has an opened part; the earlier run has none.
+          expect(runs[0].querySelector('[aria-current]')).toBeNull()
+          expect(runs[1].querySelector('[aria-current="location"]')).not.toBe(
+            null
+          )
+          // Part 1 of the focused run is opened: nothing to scroll to.
+          expect(scrollIntoView).not.toHaveBeenCalled()
+
+          fireEvent.click(
+            within(screen.getByTestId(`status-${a2.id}`)).getByRole('button', {
+              name: /Reply/i
+            })
+          )
+          fireEvent.change(screen.getByPlaceholderText(/Reply to Alice/i), {
+            target: { value: 'Reply to the earlier run' }
+          })
+          fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+          await waitFor(() => expect(mockCreateNote).toHaveBeenCalled())
+          const replies = await screen.findByTestId('thread-descendants')
+          expect(replies).toHaveTextContent('Reply to the earlier run')
+          expect(
+            screen.queryByTestId('parent-unavailable-boundary')
+          ).not.toBeInTheDocument()
+        } finally {
+          Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+        }
+      })
+
+      it('moves focus into a later run after "Show as separate posts" on it, and offers the item on part 1 only', async () => {
+        const { a1, a3, a4 } = makeTwoRuns()
+        const a2 = makeAliceRun(2)[1]
+
+        render(
+          <StatusThread
+            host={host}
+            status={a1}
+            ancestors={[]}
+            descendants={[a2, a3, a4]}
+            currentActor={mockAlice}
+            currentTime={BASE_TIME + 40 * MINUTE}
+          />
+        )
+
+        const runs = screen.getAllByTestId('self-thread-run')
+        expect(runs).toHaveLength(2)
+        // The later run is below the opened post: no opened part.
+        expect(runs[1].querySelector('[aria-current]')).toBeNull()
+
+        // Part 2 of the later run does not offer "Show as separate posts".
+        fireEvent.keyDown(
+          within(screen.getByTestId(`status-${a4.id}`)).getByRole('button', {
+            name: 'More actions'
+          }),
+          { key: 'ArrowDown' }
+        )
+        await screen.findByRole('menu')
+        expect(
+          screen.queryByRole('menuitem', { name: 'Show as separate posts' })
+        ).not.toBeInTheDocument()
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+        await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+
+        fireEvent.keyDown(
+          within(screen.getByTestId(`status-${a3.id}`)).getByRole('button', {
+            name: 'More actions'
+          }),
+          { key: 'ArrowDown' }
+        )
+        fireEvent.click(
+          await screen.findByRole('menuitem', {
+            name: 'Show as separate posts'
+          })
+        )
+        await waitFor(() =>
+          expect(screen.getAllByTestId('self-thread-run')).toHaveLength(1)
+        )
+
+        await waitFor(() =>
+          expect(document.activeElement).toHaveAttribute('data-node-id', a3.id)
+        )
+      })
+    })
+
+    it('tints the opened part and its left edge, reaching up through the card padding only for part 1', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+
+      const first = render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[a2, a3]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+      const openedFirst = screen.getByTestId(`status-${a1.id}`)
+      expect(openedFirst).toHaveClass('border-l-primary', 'bg-primary/[0.07]')
+      expect(openedFirst).toHaveClass('-mt-4')
+      first.unmount()
+
+      render(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[a1]}
+          descendants={[a3]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+      const openedMiddle = screen.getByTestId(`status-${a2.id}`)
+      expect(openedMiddle).toHaveClass('border-l-primary', 'bg-primary/[0.07]')
+      expect(openedMiddle).not.toHaveClass('-mt-4')
+      expect(screen.getByTestId(`status-${a1.id}`)).not.toHaveClass(
+        'border-l-primary'
+      )
+    })
+
+    it('does not scroll when the opened post is part 1 of the run', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      const scrollIntoView = vi.fn()
+      Element.prototype.scrollIntoView = scrollIntoView
+
+      try {
+        render(
+          <StatusThread
+            host={host}
+            status={a1}
+            ancestors={[]}
+            descendants={[a2, a3]}
+            currentActor={mockAlice}
+            currentTime={BASE_TIME + 10 * MINUTE}
+          />
+        )
+        expect(scrollIntoView).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+      }
     })
 
     it('renders a second self-reply block > 10 minutes later as its own SelfThreadRun with its own header', () => {

@@ -6,7 +6,7 @@ import { FC, useCallback, useEffect, useId, useMemo, useState } from 'react'
 
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { SelfThreadRun } from '@/lib/components/posts/self-thread-run'
-import { buildFitnessSelfThreadModel } from '@/lib/components/posts/selfThreadModel'
+import { buildSelfThreadModel } from '@/lib/components/posts/selfThreadModel'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   type ThreadNode,
@@ -155,10 +155,15 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   )
 
   const selfThread = useMemo(
-    () => buildFitnessSelfThreadModel(status, allReplies),
+    () =>
+      buildSelfThreadModel({
+        focusedStatus: status,
+        descendants: allReplies,
+        tuckIntoFirstPart: false
+      }),
     [status, allReplies]
   )
-  const hasFollowUps = selfThread.followUpParts.length > 0
+  const hasFollowUps = selfThread.parts.length > 1
   const focusedGroupStatuses = useMemo(
     () => (hasFollowUps ? selfThread.mergedStatuses : undefined),
     [hasFollowUps, selfThread.mergedStatuses]
@@ -235,7 +240,6 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
       <SelfThreadRun
         parts={selfThread.parts}
         startAt={1}
-        hideFirstPart
         host={host}
         currentTime={currentTime}
         currentActor={currentActor ?? undefined}

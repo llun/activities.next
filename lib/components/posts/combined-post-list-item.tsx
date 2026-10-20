@@ -96,7 +96,7 @@ export interface CombinedPostListItemProps {
 // column; the dot is 10px wide, so 15px centres it too. A label line is 24px
 // tall, so its centre (and the dot's) is 12px down: the dot sits at 7px.
 export const RAIL_LINE = 'absolute left-[19px] w-0.5 bg-border'
-export const RAIL_DOT =
+const RAIL_DOT =
   'absolute left-[15px] top-[7px] size-2.5 rounded-full bg-muted-foreground/55'
 
 export const createShowSeparateMenuItem = (
@@ -221,7 +221,7 @@ const arePropsEqual = (
   return true
 }
 
-export interface InsetReplyProps {
+interface InsetReplyProps {
   status: Status
   host: string
   currentTime: number

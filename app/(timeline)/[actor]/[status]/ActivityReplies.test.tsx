@@ -358,6 +358,45 @@ describe('ActivityReplies', () => {
       )
     })
 
+    it("keeps someone else's short reply to the activity under Replies (not in the rail) and hidden with the toggle", () => {
+      const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
+      const bobToActivity = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-to-activity',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: activity.id,
+        text: 'Nice ride!',
+        createdAt: BASE_TIME + MINUTE
+      })
+
+      render(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+          status={activity}
+          replies={[bobToActivity, followUp1, followUp2]}
+          composer={composer}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const rail = screen.getByTestId('self-thread-run')
+      expect(
+        within(rail).queryByTestId(`status-${bobToActivity.id}`)
+      ).not.toBeInTheDocument()
+      const repliesList = screen.getByTestId('activity-replies-list')
+      expect(within(repliesList).getByTestId('reply-post')).toHaveTextContent(
+        bobToActivity.id
+      )
+      expect(repliesList).toHaveTextContent('Replying to 1 of 3')
+
+      const toggle = screen.getByRole('button', { name: /Replies \(1\)/ })
+      fireEvent.click(toggle)
+      expect(within(repliesList).getByTestId('reply-post')).not.toBeVisible()
+      expect(screen.getByText('New PR on the Lekdijk segment')).toBeVisible()
+    })
+
     it('renders no "No replies yet" empty state when the only descendants are follow-ups', () => {
       const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
 

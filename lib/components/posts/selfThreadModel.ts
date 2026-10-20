@@ -1,13 +1,14 @@
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import {
-  COMBINE_MAX_GAP_MS,
   COMBINE_MAX_INSETS,
   CombinedBlock,
   CombinedPart,
-  buildCombinedBlocks
+  buildCombinedBlocks,
+  canTuck,
+  isWithinGap
 } from './combinedThreadModel'
 import {
   getStatusAliases,
@@ -16,30 +17,23 @@ import {
   getStatusReplyTargetId
 } from './timelineModel'
 
-export { COMBINE_MAX_GAP_MS, COMBINE_MAX_INSETS }
-export type { CombinedBlock, CombinedPart }
-
 export const LONG_RUN_MAX_PARTS = 6
-
-export interface LongRunCollapseGap {
-  afterPartIndex: number
-  count: number
-  label: string
-}
 
 export interface LongRunCollapseResult {
   isCollapsed: boolean
   visiblePartIndices: number[]
-  visibleParts: CombinedPart[]
-  collapsedCount: number
-  collapseLabel: string | null
-  gaps: LongRunCollapseGap[]
 }
 
 export interface BuildSelfThreadParams {
   focusedStatus: Status
   ancestors?: readonly Status[]
   descendants?: readonly Status[]
+  /**
+   * Whether other people's short replies to the first part may tuck into the
+   * run. The fitness page turns this off: its first part is the activity
+   * itself, which stays unchanged, so those replies stay under "Replies".
+   */
+  tuckIntoFirstPart?: boolean
 }
 
 export type SelfThreadRunBlock = Extract<CombinedBlock, { kind: 'run' }>
@@ -57,10 +51,6 @@ export interface SelfThreadModel {
   descendantRuns: SelfThreadRunBlock[]
 }
 
-export interface FitnessSelfThreadModel extends SelfThreadModel {
-  followUpParts: CombinedPart[]
-}
-
 const getAliases = (status: Status): string[] =>
   getStatusAliases(getActualStatus(status))
 
@@ -76,17 +66,6 @@ const getReplyTargetId = (status: Status): string | null =>
 const getStatusVis = (status: Status): string => {
   const actual = getActualStatus(status)
   return getVisibility(actual.to ?? [], actual.cc ?? [])
-}
-
-const isTuckableNote = (status: Status): boolean => {
-  const actual = getActualStatus(status)
-  return (
-    actual.type === StatusType.enum.Note &&
-    Array.isArray(actual.attachments) &&
-    actual.attachments.length === 0 &&
-    !actual.fitness &&
-    !actual.quote
-  )
 }
 
 interface IndexedStatus {
@@ -165,11 +144,7 @@ export const collapseLongRun = (
   if (parts.length <= maxParts) {
     return {
       isCollapsed: false,
-      visiblePartIndices: parts.map((_, index) => index),
-      visibleParts: [...parts],
-      collapsedCount: 0,
-      collapseLabel: null,
-      gaps: []
+      visiblePartIndices: parts.map((_, index) => index)
     }
   }
 
@@ -177,29 +152,9 @@ export const collapseLongRun = (
   if (openedPartIndex > 1 && openedPartIndex < parts.length - 1) {
     indexSet.add(openedPartIndex)
   }
-  const visiblePartIndices = [...indexSet].sort((a, b) => a - b)
-  const visibleParts = visiblePartIndices.map((index) => parts[index])
-  const collapsedCount = parts.length - visiblePartIndices.length
-  const gaps: LongRunCollapseGap[] = []
-  for (let i = 0; i < visiblePartIndices.length - 1; i++) {
-    const afterPartIndex = visiblePartIndices[i]
-    const count = visiblePartIndices[i + 1] - afterPartIndex - 1
-    if (count > 0) {
-      gaps.push({
-        afterPartIndex,
-        count,
-        label: formatLongRunCollapseLabel(count)
-      })
-    }
-  }
-
   return {
     isCollapsed: true,
-    visiblePartIndices,
-    visibleParts,
-    collapsedCount,
-    collapseLabel: formatLongRunCollapseLabel(collapsedCount),
-    gaps
+    visiblePartIndices: [...indexSet].sort((a, b) => a - b)
   }
 }
 
@@ -235,7 +190,8 @@ const findBlockIndexContainingStatus = (
 export const buildSelfThreadModel = ({
   focusedStatus,
   ancestors = [],
-  descendants = []
+  descendants = [],
+  tuckIntoFirstPart = true
 }: BuildSelfThreadParams): SelfThreadModel => {
   const focusedAuthorId = getAuthorId(focusedStatus)
   const authorAncestors = ancestors.filter(
@@ -276,10 +232,7 @@ export const buildSelfThreadModel = ({
       return false
     }
     if (getStatusVis(next) !== getStatusVis(current)) return false
-    return (
-      Math.abs(getCreatedAtMs(next) - getCreatedAtMs(current)) <=
-      COMBINE_MAX_GAP_MS
-    )
+    return isWithinGap(getCreatedAtMs(next), getCreatedAtMs(current))
   }
 
   const runGroupByChainIndex = new Map<number, number>()
@@ -292,20 +245,24 @@ export const buildSelfThreadModel = ({
     }
   }
 
-  if (runGroupByChainIndex.size === 0) {
-    return {
-      run: null,
-      parts: [],
-      openedPartIndex: -1,
-      mergedIds: new Set<string>(),
-      mergedStatuses: [],
-      ancestorsOutsideRun: [...ancestors],
-      repliesOutsideRun: [...descendants],
-      replyingToByReplyId: new Map<string, string>(),
-      ancestorRuns: [],
-      descendantRuns: []
-    }
-  }
+  const withoutRun = (
+    replyingToByReplyId = new Map<string, string>(),
+    ancestorRuns: SelfThreadRunBlock[] = [],
+    descendantRuns: SelfThreadRunBlock[] = []
+  ): SelfThreadModel => ({
+    run: null,
+    parts: [],
+    openedPartIndex: -1,
+    mergedIds: new Set<string>(),
+    mergedStatuses: [],
+    ancestorsOutsideRun: [...ancestors],
+    repliesOutsideRun: [...descendants],
+    replyingToByReplyId,
+    ancestorRuns,
+    descendantRuns
+  })
+
+  if (runGroupByChainIndex.size === 0) return withoutRun()
 
   const tuckCandidatesByChainIndex = new Map<number, Status[]>()
   const insetCountByRunGroup = new Map<number, number>()
@@ -328,22 +285,21 @@ export const buildSelfThreadModel = ({
     const runGroup = runGroupByChainIndex.get(chainIndex)
     if (runGroup === undefined) continue
 
+    if (chainIndex === 0 && !tuckIntoFirstPart) continue
+
     const parentStatus = chain[chainIndex]
-    const nextChainStatus = chain[chainIndex + 1]
     if (getAuthorId(candidate) === getAuthorId(parentStatus)) continue
     if (hasChildInDescendants(candidate)) continue
-    if (!isTuckableNote(candidate)) continue
-
-    const parentCreatedAt = getCreatedAtMs(parentStatus)
-    const nextCreatedAt = getCreatedAtMs(nextChainStatus)
-    if (createdAt < parentCreatedAt || createdAt > nextCreatedAt) continue
+    if (!canTuck(candidate)) continue
 
     const currentInsets = insetCountByRunGroup.get(runGroup) ?? 0
     if (currentInsets >= COMBINE_MAX_INSETS) continue
 
+    // Measured as `buildCombinedBlocks` does: from the last waiting reply,
+    // else from the run post being answered.
     const prevCreatedAt =
-      prevCreatedAtByChainIndex.get(chainIndex) ?? parentCreatedAt
-    if (Math.abs(createdAt - prevCreatedAt) > COMBINE_MAX_GAP_MS) continue
+      prevCreatedAtByChainIndex.get(chainIndex) ?? getCreatedAtMs(parentStatus)
+    if (!isWithinGap(createdAt, prevCreatedAt)) continue
 
     const list = tuckCandidatesByChainIndex.get(chainIndex) ?? []
     list.push(candidate)
@@ -395,32 +351,28 @@ export const buildSelfThreadModel = ({
     }
   }
 
-  if (!focusedBlock || focusedBlock.kind !== 'run') {
-    const replyingToByReplyId = new Map<string, string>()
-    for (const reply of descendants) {
+  const getReplyingToLabels = (replies: readonly Status[]) => {
+    const labels = new Map<string, string>()
+    for (const reply of replies) {
       const target = getReplyTargetId(reply)
       if (!target) continue
       const match = earlierPartByAlias.get(target)
       if (match) {
-        replyingToByReplyId.set(
+        labels.set(
           reply.id,
           `Replying to ${match.partIndex + 1} of ${match.numParts}`
         )
       }
     }
+    return labels
+  }
 
-    return {
-      run: null,
-      parts: [],
-      openedPartIndex: -1,
-      mergedIds: new Set<string>(),
-      mergedStatuses: [],
-      ancestorsOutsideRun: [...ancestors],
-      repliesOutsideRun: [...descendants],
-      replyingToByReplyId,
+  if (!focusedBlock || focusedBlock.kind !== 'run') {
+    return withoutRun(
+      getReplyingToLabels(descendants),
       ancestorRuns,
       descendantRuns
-    }
+    )
   }
 
   const parts = focusedBlock.parts
@@ -445,19 +397,6 @@ export const buildSelfThreadModel = ({
   const ancestorsOutsideRun = ancestors.filter((a) => !mergedIds.has(a.id))
   const repliesOutsideRun = descendants.filter((d) => !mergedIds.has(d.id))
 
-  const replyingToByReplyId = new Map<string, string>()
-  for (const reply of repliesOutsideRun) {
-    const target = getReplyTargetId(reply)
-    if (!target) continue
-    const match = earlierPartByAlias.get(target)
-    if (match) {
-      replyingToByReplyId.set(
-        reply.id,
-        `Replying to ${match.partIndex + 1} of ${match.numParts}`
-      )
-    }
-  }
-
   return {
     run: focusedBlock,
     parts,
@@ -466,28 +405,8 @@ export const buildSelfThreadModel = ({
     mergedStatuses,
     ancestorsOutsideRun,
     repliesOutsideRun,
-    replyingToByReplyId,
+    replyingToByReplyId: getReplyingToLabels(repliesOutsideRun),
     ancestorRuns,
     descendantRuns
-  }
-}
-
-/**
- * Builds the self-thread model for a fitness activity detail page, where Part 1
- * is rendered by the fitness hero card (`ActivityPostFrame`) and `followUpParts`
- * (`parts.slice(1)`) are rendered in the follow-up notes card below the charts.
- */
-export const buildFitnessSelfThreadModel = (
-  activityStatus: Status,
-  descendants: readonly Status[] = []
-): FitnessSelfThreadModel => {
-  const model = buildSelfThreadModel({
-    focusedStatus: activityStatus,
-    ancestors: [],
-    descendants
-  })
-  return {
-    ...model,
-    followUpParts: model.parts.slice(1)
   }
 }

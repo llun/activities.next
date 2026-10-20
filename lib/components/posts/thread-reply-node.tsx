@@ -15,7 +15,6 @@ import {
   StatusPoll,
   getOriginalStatus
 } from '@/lib/types/domain/status'
-import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 export interface ThreadReplyNodeProps {
   node: ThreadNode
@@ -39,15 +38,6 @@ export interface ThreadReplyNodeProps {
   onComposerDone: () => void
   replyingToLabels?: ReadonlyMap<string, string>
   onPostDeleted?: (status: Status) => void
-  onBookmarkChanged?: (
-    status: StatusNote | StatusPoll,
-    isBookmarked: boolean
-  ) => void
-  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
-  onReactionsChanged?: (
-    status: StatusNote | StatusPoll,
-    reactions: StatusReaction[]
-  ) => void
 }
 
 /**
@@ -73,10 +63,7 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
     onReplyCreated,
     onComposerDone,
     replyingToLabels,
-    onPostDeleted,
-    onBookmarkChanged,
-    onLikeChanged,
-    onReactionsChanged
+    onPostDeleted
   } = props
   const isExpanded = getIsExpanded(node)
   const hasReplies = node.replies.length > 0
@@ -90,7 +77,8 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
       data-testid="thread-node"
       data-node-id={node.status.id}
       data-depth={node.depth}
-      className="transition-colors"
+      tabIndex={-1}
+      className="transition-colors focus:outline-none"
     >
       {node.parentUnavailable ? (
         <div
@@ -138,9 +126,6 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
               onShowAttachment(allMedias, index, actualStatus)
             }
             onPostDeleted={onPostDeleted}
-            onBookmarkChanged={onBookmarkChanged}
-            onLikeChanged={onLikeChanged}
-            onReactionsChanged={onReactionsChanged}
           />
         </div>
 

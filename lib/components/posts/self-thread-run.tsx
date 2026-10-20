@@ -14,7 +14,6 @@ import {
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
-import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
@@ -51,7 +50,6 @@ export interface SelfThreadRunProps {
   parts: readonly CombinedPart[]
   openedPartIndex?: number
   startAt?: number
-  hideFirstPart?: boolean
   host: string
   currentTime: number
   currentActor?: ActorProfile
@@ -76,15 +74,6 @@ export interface SelfThreadRunProps {
   onStatusCreated?: (status: Status) => void
   onPostUpdated?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
-  onBookmarkChanged?: (
-    status: StatusNote | StatusPoll,
-    isBookmarked: boolean
-  ) => void
-  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
-  onReactionsChanged?: (
-    status: StatusNote | StatusPoll,
-    reactions: StatusReaction[]
-  ) => void
 }
 
 interface SelfThreadPartProps {
@@ -120,15 +109,6 @@ interface SelfThreadPartProps {
   onStatusCreated?: (status: Status) => void
   onPostUpdated?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
-  onBookmarkChanged?: (
-    status: StatusNote | StatusPoll,
-    isBookmarked: boolean
-  ) => void
-  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
-  onReactionsChanged?: (
-    status: StatusNote | StatusPoll,
-    reactions: StatusReaction[]
-  ) => void
 }
 
 const SelfThreadPart: FC<SelfThreadPartProps> = ({
@@ -159,16 +139,12 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
   onReplyCreated,
   onStatusCreated,
   onPostUpdated,
-  onPostDeleted,
-  onBookmarkChanged,
-  onLikeChanged,
-  onReactionsChanged
+  onPostDeleted
 }) => {
   const actualStatus = getActualStatus(part.status)
   const reactionState = useReactionState({
     currentActor: showActions ? currentActor : undefined,
-    status: actualStatus,
-    onReactionsChanged
+    status: actualStatus
   })
   const { isTranslatable, translationLanguage } = getPostTranslation(
     actualStatus,
@@ -214,10 +190,14 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
         data-node-id={part.status.id}
         data-testid={`status-${part.status.id}`}
         aria-current={isOpened ? 'location' : undefined}
+        tabIndex={-1}
         className={cn(
-          'flex min-w-0 gap-3',
+          'flex min-w-0 gap-3 focus:outline-none',
           isOpened &&
-            '-mx-4 border-l-[3px] border-l-primary bg-primary/[0.07] py-1.5 pr-4 pl-[13px]'
+            '-mx-4 border-l-[3px] border-l-primary bg-primary/[0.07] py-1.5 pr-4 pl-[13px]',
+          // The focused card pads its top by 16px: reach through it so the
+          // tint on the first part meets the card edge.
+          isOpened && isFirstHeader && '-mt-4 pt-[22px]'
         )}
       >
         <CombinedPartRailColumn
@@ -287,8 +267,6 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
               onEdit={handleEdit}
               onQuote={handleQuote}
               onPostDeleted={onPostDeleted}
-              onBookmarkChanged={onBookmarkChanged}
-              onLikeChanged={onLikeChanged}
             />
             {showReadOnlyStats && !showActions ? (
               <ReadOnlyStats status={part.status} />
@@ -325,7 +303,6 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
                     : undefined
                 }
                 onPostDeleted={onPostDeleted}
-                onLikeChanged={onLikeChanged}
                 onOpenStatus={onOpenStatus}
                 onShowMedia={onShowMedia}
               />
@@ -358,7 +335,6 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   parts,
   openedPartIndex = -1,
   startAt = 0,
-  hideFirstPart = false,
   host,
   currentTime,
   currentActor,
@@ -378,22 +354,13 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   onReplyCreated,
   onStatusCreated,
   onPostUpdated,
-  onPostDeleted,
-  onBookmarkChanged,
-  onLikeChanged,
-  onReactionsChanged
+  onPostDeleted
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const openedPartRef = useRef<HTMLDivElement | null>(null)
+  const runRef = useRef<HTMLDivElement | null>(null)
+  const focusAfterExpandRef = useRef<string | null>(null)
 
-  const effectiveStartAt = Math.max(startAt, hideFirstPart ? 1 : 0)
-  const hiddenLeadingInsets = useMemo(
-    () =>
-      effectiveStartAt > 0
-        ? parts.slice(0, effectiveStartAt).flatMap((part) => part.insets)
-        : [],
-    [parts, effectiveStartAt]
-  )
   const longRun = useMemo(
     () => collapseLongRun(parts, openedPartIndex, LONG_RUN_MAX_PARTS),
     [parts, openedPartIndex]
@@ -402,25 +369,33 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
 
   const renderedIndices = useMemo(() => {
     if (!showCollapsedView) {
-      return parts
-        .map((_, index) => index)
-        .filter((index) => index >= effectiveStartAt)
+      return parts.map((_, index) => index).filter((index) => index >= startAt)
     }
     const indexSet = new Set<number>(
-      longRun.visiblePartIndices.filter((index) => index >= effectiveStartAt)
+      longRun.visiblePartIndices.filter((index) => index >= startAt)
     )
-    if (effectiveStartAt < parts.length) {
-      indexSet.add(effectiveStartAt)
+    if (startAt < parts.length) {
+      indexSet.add(startAt)
     }
     return [...indexSet].sort((a, b) => a - b)
-  }, [showCollapsedView, longRun.visiblePartIndices, parts, effectiveStartAt])
+  }, [showCollapsedView, longRun.visiblePartIndices, parts, startAt])
+
+  // The button that revealed the parts unmounts with its row; hand focus to
+  // the first part it revealed so keyboard users keep their place.
+  useEffect(() => {
+    const id = focusAfterExpandRef.current
+    if (!isExpanded || !id) return
+    focusAfterExpandRef.current = null
+    runRef.current
+      ?.querySelector<HTMLElement>(`[data-node-id="${id}"]`)
+      ?.focus()
+  }, [isExpanded])
 
   useEffect(() => {
     if (openedPartIndex <= 0) return
     const el = openedPartRef.current
     if (!el || typeof el.scrollIntoView !== 'function') return
     const prefersReducedMotion =
-      typeof window !== 'undefined' &&
       typeof window.matchMedia === 'function' &&
       Boolean(window.matchMedia('(prefers-reduced-motion: reduce)')?.matches)
     el.scrollIntoView({
@@ -444,16 +419,9 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
     : null
 
   return (
-    <div data-testid="self-thread-run" data-combined-post>
+    <div ref={runRef} data-testid="self-thread-run" data-combined-post>
       {renderedIndices.map((partIndex, renderPos) => {
-        const basePart = parts[partIndex]
-        const part =
-          renderPos === 0 && hiddenLeadingInsets.length > 0
-            ? {
-                ...basePart,
-                insets: [...hiddenLeadingInsets, ...basePart.insets]
-              }
-            : basePart
+        const part = parts[partIndex]
         const isFirstHeader = partIndex === 0
         const isLastRendered = renderPos === renderedIndices.length - 1
         const isOpened = partIndex === openedPartIndex
@@ -496,9 +464,6 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
               onStatusCreated={onStatusCreated}
               onPostUpdated={onPostUpdated}
               onPostDeleted={onPostDeleted}
-              onBookmarkChanged={onBookmarkChanged}
-              onLikeChanged={onLikeChanged}
-              onReactionsChanged={onReactionsChanged}
             />
 
             {hiddenGapCount > 0 ? (
@@ -515,8 +480,12 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
                 <div className="min-w-0 flex-1 pb-3">
                   <button
                     type="button"
-                    onClick={() => setIsExpanded(true)}
-                    className="text-xs font-medium text-primary-text hover:underline"
+                    onClick={() => {
+                      focusAfterExpandRef.current =
+                        parts[partIndex + 1].status.id
+                      setIsExpanded(true)
+                    }}
+                    className="rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
                     {formatLongRunCollapseLabel(hiddenGapCount)}
                   </button>

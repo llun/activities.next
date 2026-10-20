@@ -9,10 +9,9 @@ import {
   mockBob,
   mockCarol
 } from '@/lib/components/posts/__fixtures__/timeline-context'
+import { COMBINE_MAX_GAP_MS } from '@/lib/components/posts/combinedThreadModel'
 import {
-  COMBINE_MAX_GAP_MS,
   LONG_RUN_MAX_PARTS,
-  buildFitnessSelfThreadModel,
   buildSelfThreadModel,
   collapseLongRun,
   extractSelfReplyChain
@@ -89,15 +88,16 @@ describe('selfThreadModel', () => {
       ])
     })
 
-    it('guards against cycles in malformed reply chains', () => {
+    it('stops at a reply that points back into the chain', () => {
       const a1 = note('a1', { at: 0 })
       const a2 = note('a2', { at: MINUTE, reply: a1.id })
       const a3 = note('a3', { at: 2 * MINUTE, reply: a2.id })
-      const cyclicA2 = { ...a2, reply: a3.id }
+      // The root itself, replying to the last post: a malformed loop.
+      const loopBack = { ...a1, reply: a3.id }
 
       expect(
-        extractSelfReplyChain(a1, [cyclicA2, a3]).map((s) => s.id)
-      ).toEqual([])
+        extractSelfReplyChain(a1, [a2, a3, loopBack]).map((s) => s.id)
+      ).toEqual([a2.id, a3.id])
     })
   })
 
@@ -199,6 +199,27 @@ describe('selfThreadModel', () => {
         reply: a2.id
       })
 
+      const dQuote = note('d-quote', {
+        actor: mockBob,
+        at: 3.5 * MINUTE,
+        reply: a2.id,
+        quote: { quotedStatusId: a1.id, state: 'accepted' }
+      })
+      const eFitness = note('e-fitness', {
+        actor: mockCarol,
+        at: 3.6 * MINUTE,
+        reply: a1.id,
+        fitness: {
+          id: 'fit-e',
+          fileName: 'ride.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 1,
+          url: 'https://activities.local/fit/e.fit',
+          processingStatus: 'completed'
+        }
+      })
+
       const replyToLast = note('reply-last', {
         actor: mockBob,
         at: 5 * MINUTE,
@@ -208,7 +229,7 @@ describe('selfThreadModel', () => {
       const model = buildSelfThreadModel({
         focusedStatus: a1,
         ancestors: [],
-        descendants: [bPhoto, a2, cPoll, a3, replyToLast]
+        descendants: [bPhoto, a2, cPoll, dQuote, eFitness, a3, replyToLast]
       })
 
       // All 3 author parts stay in one combined run without splitting
@@ -216,12 +237,20 @@ describe('selfThreadModel', () => {
       expect(model.repliesOutsideRun.map((r) => r.id)).toEqual([
         bPhoto.id,
         cPoll.id,
+        dQuote.id,
+        eFitness.id,
         replyToLast.id
       ])
       expect(model.replyingToByReplyId.get(bPhoto.id)).toBe(
         'Replying to 1 of 3'
       )
       expect(model.replyingToByReplyId.get(cPoll.id)).toBe('Replying to 2 of 3')
+      expect(model.replyingToByReplyId.get(dQuote.id)).toBe(
+        'Replying to 2 of 3'
+      )
+      expect(model.replyingToByReplyId.get(eFitness.id)).toBe(
+        'Replying to 1 of 3'
+      )
       // Replies to the last part (3 of 3) need no "Replying to" label
       expect(model.replyingToByReplyId.has(replyToLast.id)).toBe(false)
     })
@@ -285,7 +314,7 @@ describe('selfThreadModel', () => {
       expect(model.repliesOutsideRun).toEqual([])
     })
 
-    it("does not tuck a reply posted after the author's next part out of order", () => {
+    it("tucks a reply that arrived after the author's next part, as the timeline does", () => {
       const a1 = note('a1', { at: 0 })
       const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
       const bLate = note('b-late', {
@@ -295,39 +324,61 @@ describe('selfThreadModel', () => {
       })
       const a3 = note('a3', { at: 4 * MINUTE, reply: a2.id })
 
-      const threePartModel = buildSelfThreadModel({
+      const model = buildSelfThreadModel({
         focusedStatus: a1,
         ancestors: [],
         descendants: [a2, bLate, a3]
       })
 
-      expect(threePartModel.parts.map((p) => p.status.id)).toEqual([
-        a1.id,
-        a2.id,
-        a3.id
-      ])
-      expect(threePartModel.parts[0].insets).toEqual([])
-      expect(threePartModel.repliesOutsideRun.map((s) => s.id)).toEqual([
-        bLate.id
-      ])
-      expect(threePartModel.replyingToByReplyId.get(bLate.id)).toBe(
-        'Replying to 1 of 3'
-      )
+      expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id, a3.id])
+      expect(model.parts[0].insets.map((s) => s.id)).toEqual([bLate.id])
+      expect(model.repliesOutsideRun).toEqual([])
+    })
 
-      const twoPartModel = buildSelfThreadModel({
-        focusedStatus: a1,
-        ancestors: [],
-        descendants: [a2, bLate]
+    it('leaves a reply more than 10 minutes after the post it answers under Replies without splitting the run', () => {
+      const a1 = note('a1', { at: 0 })
+      const a2 = note('a2', { at: 2 * MINUTE, reply: a1.id })
+      const a3 = note('a3', { at: 4 * MINUTE, reply: a2.id })
+      const bLate = note('b-late', {
+        actor: mockBob,
+        at: COMBINE_MAX_GAP_MS + MINUTE,
+        reply: a1.id
       })
 
-      expect(twoPartModel.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id])
-      expect(twoPartModel.parts[0].insets).toEqual([])
-      expect(twoPartModel.repliesOutsideRun.map((s) => s.id)).toEqual([
-        bLate.id
+      const model = buildSelfThreadModel({
+        focusedStatus: a1,
+        ancestors: [],
+        descendants: [a2, a3, bLate]
+      })
+
+      expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id, a3.id])
+      expect(model.parts[0].insets).toEqual([])
+      expect(model.repliesOutsideRun.map((s) => s.id)).toEqual([bLate.id])
+      expect(model.replyingToByReplyId.get(bLate.id)).toBe('Replying to 1 of 3')
+    })
+
+    it('keeps a tuckable reply that has its own replies under Replies so its sub-thread renders', () => {
+      const a1 = note('a1', { at: 0 })
+      const bob = note('bob', { actor: mockBob, at: MINUTE, reply: a1.id })
+      const carol = note('carol', {
+        actor: mockCarol,
+        at: 2 * MINUTE,
+        reply: bob.id
+      })
+      const a2 = note('a2', { at: 3 * MINUTE, reply: a1.id })
+
+      const model = buildSelfThreadModel({
+        focusedStatus: a1,
+        ancestors: [],
+        descendants: [bob, carol, a2]
+      })
+
+      expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id])
+      expect(model.parts[0].insets).toEqual([])
+      expect(model.repliesOutsideRun.map((s) => s.id)).toEqual([
+        bob.id,
+        carol.id
       ])
-      expect(twoPartModel.replyingToByReplyId.get(bLate.id)).toBe(
-        'Replying to 1 of 2'
-      )
     })
 
     it('keeps two self-reply blocks separated by > 10 minutes as distinct runs around focusedStatus', () => {
@@ -382,8 +433,6 @@ describe('selfThreadModel', () => {
 
       expect(result.isCollapsed).toBe(false)
       expect(result.visiblePartIndices).toEqual([0, 1, 2, 3, 4, 5])
-      expect(result.collapsedCount).toBe(0)
-      expect(result.collapseLabel).toBeNull()
     })
 
     it('collapses runs with > 6 parts keeping first two, opened middle part, and last part', () => {
@@ -391,18 +440,14 @@ describe('selfThreadModel', () => {
       const fromFirst = collapseLongRun(parts, 0)
       expect(fromFirst.isCollapsed).toBe(true)
       expect(fromFirst.visiblePartIndices).toEqual([0, 1, 7])
-      expect(fromFirst.collapsedCount).toBe(5)
-      expect(fromFirst.collapseLabel).toBe('Show 5 more posts in this thread')
 
       const fromMiddle = collapseLongRun(parts, 4)
       expect(fromMiddle.isCollapsed).toBe(true)
       expect(fromMiddle.visiblePartIndices).toEqual([0, 1, 4, 7])
-      expect(fromMiddle.collapsedCount).toBe(4)
-      expect(fromMiddle.collapseLabel).toBe('Show 4 more posts in this thread')
     })
   })
 
-  describe('buildFitnessSelfThreadModel', () => {
+  describe('fitness activity page (tuckIntoFirstPart: false)', () => {
     it('extracts followUpParts after the root fitness activity status, tucks plain replies, and labels untuckable replies', () => {
       const activity = note('activity', { at: 0 })
       const followUp1 = note('follow-1', { at: MINUTE, reply: activity.id })
@@ -430,26 +475,18 @@ describe('selfThreadModel', () => {
         reply: activity.id
       })
 
-      const model = buildFitnessSelfThreadModel(activity, [
-        followUp1,
-        bobInset,
-        carolPhoto,
-        followUp2,
-        bobReply
-      ])
+      const model = buildSelfThreadModel({
+        focusedStatus: activity,
+        descendants: [followUp1, bobInset, carolPhoto, followUp2, bobReply],
+        tuckIntoFirstPart: false
+      })
 
       expect(model.parts.map((p) => p.status.id)).toEqual([
         activity.id,
         followUp1.id,
         followUp2.id
       ])
-      expect(model.followUpParts.map((p) => p.status.id)).toEqual([
-        followUp1.id,
-        followUp2.id
-      ])
-      expect(model.followUpParts[0].insets.map((s) => s.id)).toEqual([
-        bobInset.id
-      ])
+      expect(model.parts[1].insets.map((s) => s.id)).toEqual([bobInset.id])
       expect(model.repliesOutsideRun.map((s) => s.id)).toEqual([
         carolPhoto.id,
         bobReply.id
@@ -457,6 +494,39 @@ describe('selfThreadModel', () => {
       expect(model.replyingToByReplyId.get(carolPhoto.id)).toBe(
         'Replying to 2 of 3'
       )
+    })
+
+    it('keeps a short reply from someone else to the activity under Replies instead of tucking it into the hidden first part', () => {
+      const activity = note('activity', { at: 0 })
+      const bobShort = note('bob-short', {
+        actor: mockBob,
+        at: 30 * 1000,
+        reply: activity.id
+      })
+      const followUp1 = note('follow-1', { at: MINUTE, reply: activity.id })
+      const followUp2 = note('follow-2', {
+        at: 3 * MINUTE,
+        reply: followUp1.id
+      })
+      const descendants = [bobShort, followUp1, followUp2]
+
+      const fitness = buildSelfThreadModel({
+        focusedStatus: activity,
+        descendants,
+        tuckIntoFirstPart: false
+      })
+      expect(fitness.parts[0].insets).toEqual([])
+      expect(fitness.repliesOutsideRun.map((s) => s.id)).toEqual([bobShort.id])
+      expect(fitness.replyingToByReplyId.get(bobShort.id)).toBe(
+        'Replying to 1 of 3'
+      )
+
+      // The post page, where part 1 is a normal row, still tucks it.
+      const postPage = buildSelfThreadModel({
+        focusedStatus: activity,
+        descendants
+      })
+      expect(postPage.parts[0].insets.map((s) => s.id)).toEqual([bobShort.id])
     })
 
     it('includes the fitness activity as part 1 when opening a follow-up URL on the post page', () => {
