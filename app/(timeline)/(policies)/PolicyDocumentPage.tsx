@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { renderPolicyMarkdown } from '@/lib/utils/text/renderPolicyMarkdown'
 
@@ -69,58 +70,63 @@ export const PolicyDocumentPage: FC<PolicyDocumentPageProps> = async ({
     policy.updatedAt === null ? null : new UTCDate(policy.updatedAt)
 
   return (
-    <article>
-      <h1 className="text-[28px] leading-9 font-bold tracking-tight md:text-4xl md:leading-[44px]">
-        {title}
-      </h1>
-      {updatedAt ? (
-        <p className="text-muted-foreground mt-1.5 text-sm md:mt-2">
-          Last updated{' '}
-          <time dateTime={updatedAt.toISOString()}>
-            {format(updatedAt, 'd MMMM yyyy')}
-          </time>
-        </p>
-      ) : null}
-      <div className={DOCUMENT_CLASS}>{parse(html)}</div>
-      <footer className="text-muted-foreground mt-12 flex flex-col gap-1.5 border-t pt-5 text-sm md:flex-row md:flex-wrap md:justify-center md:gap-x-5">
-        {otherPolicy ? (
-          <>
-            <Link href={POLICIES[other].href} className={footerLinkClass}>
-              {POLICIES[other].title}
-            </Link>
-            <span aria-hidden="true" className="max-md:hidden">
-              &middot;
-            </span>
-          </>
+    <>
+      {/* Signed-in phones need the menu button; renders nothing without the
+          navigation provider, so logged-out pages are unchanged. */}
+      <MobileCompactHeader title={title} as="p" />
+      <article>
+        <h1 className="text-[28px] leading-9 font-bold tracking-tight md:text-4xl md:leading-[44px]">
+          {title}
+        </h1>
+        {updatedAt ? (
+          <p className="text-muted-foreground mt-1.5 text-sm md:mt-2">
+            Last updated{' '}
+            <time dateTime={updatedAt.toISOString()}>
+              {format(updatedAt, 'd MMMM yyyy')}
+            </time>
+          </p>
         ) : null}
-        {identity.contactEmail ? (
-          <>
-            <span>
-              Contact{' '}
-              <a
-                href={`mailto:${identity.contactEmail}`}
-                className={footerLinkClass}
-              >
-                {identity.contactEmail}
-              </a>
-            </span>
-            <span aria-hidden="true" className="max-md:hidden">
-              &middot;
-            </span>
-          </>
-        ) : null}
-        <span>
-          Powered by{' '}
-          <a
-            href="https://github.com/llun/activities.next"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={footerLinkClass}
-          >
-            Activities.next
-          </a>
-        </span>
-      </footer>
-    </article>
+        <div className={DOCUMENT_CLASS}>{parse(html)}</div>
+        <footer className="text-muted-foreground mt-12 flex flex-col gap-1.5 border-t pt-5 text-sm md:flex-row md:flex-wrap md:justify-center md:gap-x-5">
+          {otherPolicy ? (
+            <>
+              <Link href={POLICIES[other].href} className={footerLinkClass}>
+                {POLICIES[other].title}
+              </Link>
+              <span aria-hidden="true" className="max-md:hidden">
+                &middot;
+              </span>
+            </>
+          ) : null}
+          {identity.contactEmail ? (
+            <>
+              <span>
+                Contact{' '}
+                <a
+                  href={`mailto:${identity.contactEmail}`}
+                  className={footerLinkClass}
+                >
+                  {identity.contactEmail}
+                </a>
+              </span>
+              <span aria-hidden="true" className="max-md:hidden">
+                &middot;
+              </span>
+            </>
+          ) : null}
+          <span>
+            Powered by{' '}
+            <a
+              href="https://github.com/llun/activities.next"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={footerLinkClass}
+            >
+              Activities.next
+            </a>
+          </span>
+        </footer>
+      </article>
+    </>
   )
 }

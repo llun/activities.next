@@ -73,10 +73,7 @@ describe('(policies) Layout', () => {
 
     await renderLayout()
 
-    expect(screen.getByTestId('child').parentElement).toHaveClass(
-      'pt-6',
-      'md:pt-8'
-    )
+    expect(screen.getByTestId('child').parentElement).toHaveClass('md:pt-8')
     expect(screen.queryByTestId('public-shell')).not.toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })

@@ -122,4 +122,25 @@ describe('FederationPolicyForm', () => {
     expect(screen.getByLabelText('Mode')).toBeDisabled()
     expect(screen.getByText('ACTIVITIES_FEDERATION_MODE')).toBeInTheDocument()
   })
+
+  it('saves only the edited field when the mode is env-locked', async () => {
+    renderForm(
+      { mode: 'allowlist', allowActorDomains: ['mastodon.social'] },
+      {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        }
+      }
+    )
+    fireEvent.change(screen.getByLabelText('Allowed servers'), {
+      target: { value: 'mastodon.social\nexample.org' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    expect(Object.keys(mockUpdate.mock.calls[0][0])).toEqual([
+      'federation.allowActorDomains'
+    ])
+  })
 })

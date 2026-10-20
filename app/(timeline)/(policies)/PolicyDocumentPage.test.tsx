@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import type {
   DomainIdentity,
   PolicyDocument
@@ -26,6 +27,7 @@ vi.mock('@/lib/services/domains/domainIdentity', () => ({
 
 const notFoundError = new Error('NEXT_NOT_FOUND')
 vi.mock('next/navigation', () => ({
+  usePathname: () => '/terms-of-service',
   notFound: () => {
     throw notFoundError
   }
@@ -154,5 +156,32 @@ describe('policy routes', () => {
   it('render their own document', () => {
     expect(TermsPage().props).toEqual({ kind: 'terms' })
     expect(PrivacyPage().props).toEqual({ kind: 'privacy' })
+  })
+})
+
+describe('PolicyDocumentPage mobile navigation', () => {
+  beforeEach(() => {
+    mockIdentity.mockReset()
+    mockIdentity.mockResolvedValue(identity())
+  })
+
+  it('renders the Open navigation trigger when signed in', async () => {
+    render(
+      <MobileNavigationProvider>
+        {await PolicyDocumentPage({ kind: 'terms' })}
+      </MobileNavigationProvider>
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Open navigation' })
+    ).toBeInTheDocument()
+  })
+
+  it('renders no trigger when logged out', async () => {
+    render(await PolicyDocumentPage({ kind: 'terms' }))
+
+    expect(
+      screen.queryByRole('button', { name: 'Open navigation' })
+    ).not.toBeInTheDocument()
   })
 })
