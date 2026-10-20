@@ -1,6 +1,7 @@
 // This schema is base on https://docs.joinmastodon.org/entities/Status/
 import { z } from 'zod'
 
+import { StatusFitnessFile } from '@/lib/types/domain/statusFitnessFile'
 import { Account } from '@/lib/types/mastodon/account'
 import { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { FilterResult } from '@/lib/types/mastodon/filterResult'
@@ -204,6 +205,9 @@ export const BaseStatus = z.object({
   pleroma: z
     .object({ emoji_reactions: StatusReaction.array() })
     .optional()
-    .describe('Pleroma/Akkoma extension fields')
+    .describe('Pleroma/Akkoma extension fields'),
+
+  // Activities.next fitness activity summary attached to this status.
+  fitness: StatusFitnessFile.optional()
 })
 export type BaseStatus = z.infer<typeof BaseStatus>

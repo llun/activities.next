@@ -1,5 +1,6 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
+import { IDEMPOTENCY_KEY_TTL_MS } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -24,11 +25,14 @@ export interface QueueRunnerOptions extends ProcessDueQueueJobsOptions {
   batchSize?: number
   /** How long a `completed` job (and its payload) is kept. Default 7 days. */
   completedRetentionMs?: number
+  /** How long an `idempotency_keys` row is kept. Default 7 days. */
+  idempotencyRetentionMs?: number
   /** Minimum gap between retention sweeps. Default 10 minutes. */
   retentionSweepIntervalMs?: number
 }
 
 export const DEFAULT_COMPLETED_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+export const DEFAULT_IDEMPOTENCY_KEY_RETENTION_MS = IDEMPOTENCY_KEY_TTL_MS
 export const DEFAULT_RETENTION_SWEEP_INTERVAL_MS = 10 * 60 * 1000
 const RETENTION_SWEEP_BATCH_SIZE = 500
 // Bounds one sweep so a huge backlog cannot starve job processing; the next
@@ -60,6 +64,21 @@ export const purgeExpiredCompletedQueueJobs = async (
     if (deleted < RETENTION_SWEEP_BATCH_SIZE) break
   }
   return purged
+}
+
+/**
+ * Deletes `idempotency_keys` rows older than the 7-day retention window.
+ */
+export const purgeExpiredIdempotencyKeys = async (
+  database: Database,
+  {
+    now = new Date(),
+    retentionMs = DEFAULT_IDEMPOTENCY_KEY_RETENTION_MS
+  }: { now?: Date; retentionMs?: number } = {}
+): Promise<number> => {
+  if (typeof database.deleteExpiredIdempotencyKeys !== 'function') return 0
+  const olderThan = new Date(now.getTime() - retentionMs)
+  return database.deleteExpiredIdempotencyKeys({ olderThan })
 }
 
 export const processDueQueueJobs = async (
@@ -263,6 +282,7 @@ export const startDatabaseQueueRunner = (
     backoffOptions,
     stalledTimeoutMs,
     completedRetentionMs = DEFAULT_COMPLETED_JOB_RETENTION_MS,
+    idempotencyRetentionMs = DEFAULT_IDEMPOTENCY_KEY_RETENTION_MS,
     retentionSweepIntervalMs = DEFAULT_RETENTION_SWEEP_INTERVAL_MS
   } = options
 
@@ -285,6 +305,20 @@ export const startDatabaseQueueRunner = (
       logger.error(
         { err: toLoggableError(error) },
         'Failed to purge expired completed database queue jobs'
+      )
+    }
+    try {
+      const purgedKeys = await purgeExpiredIdempotencyKeys(database, {
+        now: new Date(now),
+        retentionMs: idempotencyRetentionMs
+      })
+      if (purgedKeys > 0) {
+        logger.info({ purged: purgedKeys }, 'Purged expired idempotency keys')
+      }
+    } catch (error) {
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to purge expired idempotency keys'
       )
     }
   }

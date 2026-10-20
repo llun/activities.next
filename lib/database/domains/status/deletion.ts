@@ -610,13 +610,10 @@ const executeStatusDeletion = async ({
       .where('statusId', 'in', chunk)
       .execute()
   )
-  // Clean up idempotency keys that pointed at the deleted status so a retried
-  // create with the same key does not resolve to a now-missing status (which
-  // would otherwise let the retry create a duplicate). Likewise drop any
-  // conversation mute rows keyed on a deleted thread root.
-  await deleteByStatusIds((chunk) =>
-    trx.deleteFrom('idempotency_keys').where('statusId', 'in', chunk).execute()
-  )
+  // Keep idempotency_keys rows after status deletion so a late retry with the
+  // key of a deleted status is rejected rather than recreating the post; keys
+  // are cleaned up by the periodic 7-day TTL sweep. Drop any conversation mute
+  // rows keyed on a deleted thread root.
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('status_mutes').where('statusId', 'in', chunk).execute()
   )

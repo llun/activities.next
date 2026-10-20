@@ -8,6 +8,7 @@ import { getCustomEmojis } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { isPublicId } from '@/lib/utils/publicId'
 
 import { PostBox } from './post-box'
 import {
@@ -688,5 +689,57 @@ describe('PostBox automatic vertical growth', () => {
     } finally {
       globalThis.CSS = originalCSS
     }
+  })
+})
+
+describe('PostBox idempotency key', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+  })
+
+  it('reuses the UUIDv7 idempotencyKey across retries of the same submit series and mints a fresh key on the next post', async () => {
+    createNoteMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue({ status: editStatus, attachments: [] })
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    const firstKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+    expect(firstKey).toBeDefined()
+    expect(isPublicId(firstKey!)).toBe(true)
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    const retryKey = createNoteMock.mock.calls[1]?.[0]?.idempotencyKey
+    expect(retryKey).toBe(firstKey)
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+    const secondPostKey = createNoteMock.mock.calls[2]?.[0]?.idempotencyKey
+    expect(secondPostKey).toBeDefined()
+    expect(isPublicId(secondPostKey!)).toBe(true)
+    expect(secondPostKey).not.toBe(firstKey)
   })
 })

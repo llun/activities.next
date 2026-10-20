@@ -21,8 +21,8 @@ to the admin form. Clients read the resolved values from `/api/v1/instance` and
 
 Every endpoint that creates or edits a status enforces the resolved
 `posts.maxCharacters` and `polls.*` limits — `POST`/`PUT
-/api/v1/statuses[/:id]` and `POST /api/v1/accounts/outbox`, which is the
-endpoint the web composer and the inline reply box post through. Every upload
+/api/v1/statuses[/:id]` (which the web composer and the inline reply box post
+through) and the deprecated `POST /api/v1/accounts/outbox`. Every upload
 endpoint (`POST /api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH
 /api/v1/media/:id` thumbnails, `POST /api/v1/medias/presigned`, `PATCH
 /api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)

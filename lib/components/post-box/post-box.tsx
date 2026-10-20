@@ -58,6 +58,7 @@ import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
@@ -174,6 +175,10 @@ export const PostBox: FC<Props> = ({
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
   const submitInFlightRef = useRef(false)
+  const submitIdempotencyRef = useRef<{
+    fingerprint: string
+    key: string
+  } | null>(null)
   // Ids of media that a create/update has already accepted. A parent may
   // unmount the composer from inside `onPostCreated`/`onPostUpdated` (after
   // which `submitInFlightRef` is already false again), so every discard path
@@ -862,16 +867,35 @@ export const PostBox: FC<Props> = ({
 
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
+        const choices = poll.choices.map((item) => item.text)
+        const pollFingerprint = JSON.stringify({
+          type: 'poll',
+          message,
+          contentWarning,
+          choices,
+          durationInSeconds: poll.durationInSeconds,
+          pollType: poll.pollType,
+          replyStatusId: replyStatus?.id ?? null,
+          visibility: postExtension.visibility
+        })
+        if (submitIdempotencyRef.current?.fingerprint !== pollFingerprint) {
+          submitIdempotencyRef.current = {
+            fingerprint: pollFingerprint,
+            key: generatePublicId()
+          }
+        }
         await createPoll({
           message,
           contentWarning,
-          choices: poll.choices.map((item) => item.text),
+          choices,
           durationInSeconds: poll.durationInSeconds,
           pollType: poll.pollType,
           replyStatus,
-          visibility: postExtension.visibility
+          visibility: postExtension.visibility,
+          idempotencyKey: submitIdempotencyRef.current.key
         })
 
+        submitIdempotencyRef.current = null
         dispatch(resetExtension())
         resetMediaState()
         // Clear the draft like the note branch does. Leaving the question text
@@ -996,6 +1020,24 @@ export const PostBox: FC<Props> = ({
         return
       }
 
+      const noteFingerprint = JSON.stringify({
+        type: 'note',
+        message,
+        contentWarning,
+        replyStatusId: replyStatus?.id ?? null,
+        quotedStatusId: quotedStatus?.id ?? null,
+        attachmentIds: attachments.map((attachment) => attachment.id),
+        fitnessFileId: fitnessFileId ?? null,
+        visibility: postExtension.visibility,
+        quoteApprovalPolicy: postExtension.quoteApprovalPolicy
+      })
+      if (submitIdempotencyRef.current?.fingerprint !== noteFingerprint) {
+        submitIdempotencyRef.current = {
+          fingerprint: noteFingerprint,
+          key: generatePublicId()
+        }
+      }
+
       const response = await createNote({
         message,
         contentWarning,
@@ -1004,9 +1046,11 @@ export const PostBox: FC<Props> = ({
         attachments,
         fitnessFileId,
         visibility: postExtension.visibility,
-        quoteApprovalPolicy: postExtension.quoteApprovalPolicy
+        quoteApprovalPolicy: postExtension.quoteApprovalPolicy,
+        idempotencyKey: submitIdempotencyRef.current.key
       })
 
+      submitIdempotencyRef.current = null
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
       onPostCreated(status, storedAttachments)

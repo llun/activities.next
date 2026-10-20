@@ -795,7 +795,7 @@ describe('POST /api/v1/statuses', () => {
     expect(matching).toHaveLength(1)
   })
 
-  it('does not resurrect a deleted status for a reused Idempotency-Key (orphan cleanup)', async () => {
+  it('does not resurrect a deleted status for a reused Idempotency-Key and responds with 410', async () => {
     const idempotencyKey = 'idem-key-orphan-456'
     const makeRequest = () =>
       POST(
@@ -812,28 +812,192 @@ describe('POST /api/v1/statuses', () => {
       )
 
     const firstResponse = await makeRequest()
+    expect(firstResponse.status).toBe(200)
     const firstStatus = await firstResponse.json()
 
-    // Deleting the status must also drop the idempotency key pointing at it.
+    // Deleting the status keeps its idempotency key so stale retries cannot
+    // resurrect the deleted post.
     await database.deleteStatus({ statusId: firstStatus.uri })
     await expect(
       database.getIdempotentStatusId({
         actorId: ACTOR1_ID,
         key: idempotencyKey
       })
-    ).resolves.toBeNull()
+    ).resolves.toBe(firstStatus.uri)
 
-    // A retry now creates a fresh status (not a 404/duplicate loop) and re-keys.
     const secondResponse = await makeRequest()
-    expect(secondResponse.status).toBe(200)
-    const secondStatus = await secondResponse.json()
-    expect(secondStatus.id).not.toBe(firstStatus.id)
+    expect(secondResponse.status).toBe(410)
+    await expect(secondResponse.json()).resolves.toEqual({
+      error: expect.stringContaining('deleted')
+    })
     await expect(
-      database.getIdempotentStatusId({
-        actorId: ACTOR1_ID,
-        key: idempotencyKey
-      })
-    ).resolves.toBe(secondStatus.uri)
+      database.getStatus({ statusId: firstStatus.uri })
+    ).resolves.toBeNull()
+  })
+
+  it('rejects a reused Idempotency-Key with different request content with 422', async () => {
+    const idempotencyKey = 'idem-key-conflict-789'
+    const firstResponse = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Original body',
+          visibility: 'public'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          'Idempotency-Key': idempotencyKey
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(firstResponse.status).toBe(200)
+
+    const conflictResponse = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Different body',
+          visibility: 'public'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          'Idempotency-Key': idempotencyKey
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(conflictResponse.status).toBe(422)
+    await expect(conflictResponse.json()).resolves.toEqual({
+      error: expect.stringContaining('Idempotency-Key')
+    })
+  })
+
+  it('creates and federates only one status under concurrent duplicate Idempotency-Key requests', async () => {
+    const idempotencyKey = 'idem-key-concurrent-race'
+    const publishMock = vi.mocked(getQueue().publish)
+    publishMock.mockClear()
+
+    const makeConcurrentRequest = () =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'Concurrent idempotent post' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': idempotencyKey
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    const responses = await Promise.all([
+      makeConcurrentRequest(),
+      makeConcurrentRequest(),
+      makeConcurrentRequest()
+    ])
+
+    for (const response of responses) {
+      expect(response.status).toBe(200)
+    }
+    const payloads = await Promise.all(responses.map((r) => r.json()))
+    expect(payloads[1].id).toBe(payloads[0].id)
+    expect(payloads[2].id).toBe(payloads[0].id)
+    expect(payloads[1].uri).toBe(payloads[0].uri)
+    expect(payloads[2].uri).toBe(payloads[0].uri)
+
+    const owned = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    const matching = owned.filter(
+      (status) =>
+        status.type === StatusType.enum.Note &&
+        status.text === 'Concurrent idempotent post'
+    )
+    expect(matching).toHaveLength(1)
+  })
+
+  it('responds with the created status when post-commit queue publishing throws', async () => {
+    const publishMock = vi.mocked(getQueue().publish)
+    publishMock.mockRejectedValueOnce(new Error('Queue unavailable'))
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Status survives post-commit queue failure'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          'Idempotency-Key': 'idem-key-queue-throws'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const created = await response.json()
+    expect(created.text).toBe('Status survives post-commit queue failure')
+    await expect(
+      database.getStatus({ statusId: created.uri, withReplies: false })
+    ).resolves.not.toBeNull()
+  })
+
+  it('accepts fitness_file_id and quote_approval_policy extensions on POST /api/v1/statuses', async () => {
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      fileName: 'ride.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 4096,
+      path: 'fitness/ride.fit'
+    })
+    expect(fitnessFile).toBeDefined()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: '',
+          fitness_file_id: fitnessFile!.id,
+          quote_approval_policy: 'followers'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.fitness).toMatchObject({
+      id: fitnessFile!.id,
+      fileName: 'ride.fit',
+      fileType: 'fit'
+    })
+    expect(body.quote_approval).toMatchObject({
+      automatic: ['followers']
+    })
+
+    const invalidPolicyResponse = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Invalid quote policy',
+          quote_approval_policy: 'invalid-policy'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(invalidPolicyResponse.status).toBe(422)
   })
 
   it('records the OAuth client as the application on a token-created status', async () => {

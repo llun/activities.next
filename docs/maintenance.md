@@ -1407,7 +1407,15 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   oldest band immediately after it (ascending, then reversed). Order each query
   accordingly.
 - Idempotency-key storage uses `.onConflict().ignore()`, not `.merge()`, so the
-  first stored resource id is preserved when a request is retried.
+  first stored resource id is preserved when a request is retried. On
+  `POST /api/v1/statuses`, the key and its normalized request `contentHash` are
+  claimed atomically inside the `createNoteWithResult` / `createPollWithResult`
+  transaction (`recoverFromDuplicateInsert` resolves a concurrent unique-key
+  collision back to the winning status, throwing `IdempotencyConflictError` on a
+  hash mismatch or `IdempotencyDeletedError` if the status was deleted);
+  `deleteStatus` leaves `idempotency_keys` rows intact so retries of a deleted
+  status answer `410 Gone`, and `purgeExpiredIdempotencyKeys` deletes keys older
+  than 7 days (`IDEMPOTENCY_KEY_TTL_MS`).
 
 <a id="review-stored-media"></a>
 

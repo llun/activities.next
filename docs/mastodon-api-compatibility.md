@@ -454,6 +454,43 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Fitness tracking** — `/api/v1/fitness/*` (general settings, `.fit`/`.gpx`/`.tcx`
   imports, Strava sync) plus per-account fitness summaries, calendars, activity
   types, and route heatmaps under `/api/v1/accounts/:id/fitness-*`.
+  `POST /api/v1/statuses` also accepts an optional `fitness_file_id` (JSON or
+  form field) for note statuses, linking an uploaded fitness file owned by the
+  caller to the newly created status and queuing `ImportFitnessFileJob` (it
+  answers `422` when combined with `poll`, when the file does not exist or
+  belongs to another actor, or when the file is already attached to a status),
+  and the serialized Mastodon `Status` entity includes an optional `fitness`
+  object (`StatusFitnessFile`) when a fitness file is attached. The web composer
+  (`createNote` and `createPoll` in `lib/client/statuses.ts`) posts through
+  `POST /api/v1/statuses` using these extensions alongside `quoted_status_id`,
+  `quote_approval_policy`, and `Idempotency-Key`; the legacy
+  `POST /api/v1/accounts/outbox` route is kept for backward compatibility.
+- **Atomic `Idempotency-Key` on `POST /api/v1/statuses`** — `Idempotency-Key`
+  (up to 255 characters) is claimed atomically inside the same database
+  transaction as the status row creation (`createNoteWithResult` /
+  `createPollWithResult` in `lib/database/domains/status/writes.ts`), scoped to
+  `(actorId, key)` and bound to a SHA-256 `contentHash` of the normalized
+  request payload (`status`, `spoiler_text`, `visibility`, `sensitive`,
+  `language`, `in_reply_to_id`, `quoted_status_id`, `quote_approval_policy`,
+  `media_ids`, `media_attributes`, `poll`, `fitness_file_id`, `created_at`). A
+  repeat with the same key and identical payload returns `200 OK` with the
+  existing serialized `Status` without creating a second status or enqueuing a
+  second federation delivery; a repeat with the same key and different request
+  parameters returns `422 Unprocessable Entity` (`{ error }`). Concurrent
+  in-flight requests for the same `(actorId, key)` coalesce onto the first
+  request's promise in-process (wait-and-return) and fall back to the
+  `(actorId, key)` unique constraint inside the status creation transaction
+  across processes. Once the status row and idempotency key commit, any failure
+  in post-commit work (attachments, tags, fitness linking, quote request, link
+  preview, or federation queue dispatch) is logged and the route still responds
+  `200 OK` with the serialized status so the client does not retry into a
+  duplicate. Deleting a status (`lib/database/domains/status/deletion.ts`)
+  preserves its `idempotency_keys` row as a tombstone, and retrying with the key
+  of a deleted status returns `410 Gone` (`{ error: 'Status for this Idempotency-Key was deleted' }`)
+  instead of recreating the post. Keys older than 7 days
+  (`IDEMPOTENCY_KEY_TTL_MS`) are purged by `purgeExpiredIdempotencyKeys` during
+  the periodic maintenance sweeps (`lib/services/queue/databaseRunner.ts` and
+  `lib/services/actors/actorDeletion.ts`).
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.

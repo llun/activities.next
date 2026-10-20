@@ -202,6 +202,13 @@ interface BaseCreateStatusParams {
   // Callers that already generated the id for the status URI tail (Task 1.5)
   // pass it here so the URI tail, web-url tail, and stored publicId agree.
   publicId?: string
+
+  // Optional idempotency key claimed atomically in the same transaction as the
+  // status row creation, bound to a SHA-256 hash of the normalized request.
+  idempotency?: {
+    key: string
+    contentHash: string
+  }
 }
 
 export type CreateNoteParams = BaseCreateStatusParams

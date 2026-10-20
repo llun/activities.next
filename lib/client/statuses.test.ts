@@ -1,6 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { generatePublicId } from '@/lib/utils/publicId'
+import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
@@ -279,26 +279,167 @@ describe('client statuses module', () => {
       ).rejects.toThrow('Message or attachments must not be empty')
     })
 
-    it('creates note successfully', async () => {
+    it('creates note via POST /api/v1/statuses with a UUIDv7 Idempotency-Key and adapts Mastodon status response', async () => {
       fetchMock.mockResponse(
         JSON.stringify({
-          status: { id: 'status-1', text: 'Hello world' },
-          attachments: []
+          id: '01950000-0000-7000-8000-000000000001',
+          uri: 'https://llun.test/users/test1/statuses/post-1',
+          url: 'https://llun.test/@test1/post-1',
+          created_at: '2026-04-26T10:00:00.000Z',
+          edited_at: null,
+          content: '<p>Hello world</p>',
+          text: 'Hello world',
+          spoiler_text: 'CW',
+          visibility: 'unlisted',
+          sensitive: true,
+          language: 'en',
+          in_reply_to_id: null,
+          account: {
+            id: '01950000-0000-7000-8000-000000000099',
+            username: 'test1',
+            acct: 'test1',
+            url: 'https://llun.test/@test1',
+            uri: 'https://llun.test/users/test1',
+            display_name: 'Test User',
+            note: '',
+            avatar: 'https://llun.test/avatar.png',
+            header: '',
+            locked: false,
+            emojis: [],
+            following_count: 1,
+            followers_count: 2,
+            statuses_count: 3,
+            last_status_at: null,
+            created_at: '2026-01-01T00:00:00.000Z'
+          },
+          media_attachments: [
+            {
+              id: 'att-1',
+              type: 'image',
+              url: 'https://llun.test/api/v1/files/media-1.jpg',
+              preview_url: null,
+              remote_url: null,
+              description: 'Alt text',
+              blurhash: null,
+              meta: {
+                original: {
+                  width: 640,
+                  height: 480
+                }
+              }
+            }
+          ],
+          mentions: [],
+          tags: [],
+          emojis: [],
+          quote_approval: {
+            automatic: ['followers'],
+            manual: [],
+            current_user: 'automatic'
+          },
+          fitness: {
+            id: 'fit-1',
+            fileName: 'morning.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024,
+            url: '/api/v1/fitness-files/fit-1',
+            processingStatus: 'pending'
+          }
         })
       )
 
       const result = await createNote({
-        message: 'Hello world'
+        message: 'Hello world',
+        contentWarning: 'CW',
+        visibility: 'unlisted',
+        quoteApprovalPolicy: 'followers',
+        fitnessFileId: 'fit-1',
+        attachments: [
+          {
+            type: 'upload',
+            id: 'media-1',
+            mediaType: 'image/jpeg',
+            url: 'https://llun.test/api/v1/files/media-1.jpg',
+            width: 640,
+            height: 480,
+            name: 'Alt text'
+          }
+        ]
       })
 
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/outbox',
+        '/api/v1/statuses',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"message":"Hello world"')
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'Idempotency-Key': expect.any(String)
+          }),
+          body: JSON.stringify({
+            status: 'Hello world',
+            spoiler_text: 'CW',
+            quote_approval_policy: 'followers',
+            media_ids: ['media-1'],
+            fitness_file_id: 'fit-1',
+            visibility: 'unlisted'
+          })
         })
       )
-      expect(result.status.id).toBe('status-1')
+      const callHeaders = (
+        fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>
+      )?.['Idempotency-Key']
+      expect(isPublicId(callHeaders)).toBe(true)
+
+      expect(result.status.id).toBe(
+        'https://llun.test/users/test1/statuses/post-1'
+      )
+      expect(result.status.publicId).toBe(
+        '01950000-0000-7000-8000-000000000001'
+      )
+      if (result.status.type === 'Note') {
+        expect(result.status.text).toBe('Hello world')
+        expect(result.status.summary).toBe('CW')
+        expect(result.status.quoteApprovalPolicy).toBe('followers')
+        expect(result.status.fitness?.id).toBe('fit-1')
+      }
+      expect(result.attachments).toEqual([
+        expect.objectContaining({
+          id: 'att-1',
+          mediaId: 'media-1',
+          name: 'Alt text',
+          width: 640,
+          height: 480
+        })
+      ])
+    })
+
+    it('forwards caller-supplied idempotencyKey header', async () => {
+      const customKey = generatePublicId()
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-2',
+          text: 'Retry safe',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+
+      await createNote({
+        message: 'Retry safe',
+        idempotencyKey: customKey
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses',
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': customKey
+          }
+        })
+      )
     })
   })
 
@@ -393,18 +534,32 @@ describe('client statuses module', () => {
 
     it('creates poll successfully', async () => {
       fetchMock.mockResponse('', { status: 200 })
+      const customKey = generatePublicId()
 
       await createPoll({
         message: 'Favorite color?',
         choices: ['Red', 'Blue'],
-        durationInSeconds: 1800
+        durationInSeconds: 1800,
+        pollType: 'anyOf',
+        idempotencyKey: customKey
       })
 
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/outbox',
+        '/api/v1/statuses',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"type":"poll"')
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': customKey
+          },
+          body: JSON.stringify({
+            status: 'Favorite color?',
+            poll: {
+              options: ['Red', 'Blue'],
+              expires_in: 1800,
+              multiple: true
+            }
+          })
         })
       )
     })

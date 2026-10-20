@@ -293,9 +293,16 @@ export type {
 // Idempotency Key Database
 // ============================================================================
 
+export {
+  IDEMPOTENCY_KEY_TTL_MS,
+  IdempotencyConflictError,
+  IdempotencyDeletedError
+} from '@/lib/database/domains/idempotency/types'
 export type {
+  DeleteExpiredIdempotencyKeysParams,
   GetIdempotentStatusIdParams,
   IdempotencyDatabase,
+  IdempotencyKeyRecord,
   SaveIdempotencyKeyParams
 } from '@/lib/database/domains/idempotency/types'
 

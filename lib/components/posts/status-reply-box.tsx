@@ -35,6 +35,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
   PreparedReplyDraft,
@@ -86,6 +87,10 @@ export const StatusReplyBox: FC<Props> = ({
   useAutoResizeTextarea(textareaRef, text)
   const formRef = useRef<HTMLFormElement>(null)
   const isSubmittingRef = useRef<boolean>(false)
+  const submitIdempotencyRef = useRef<{
+    fingerprint: string
+    key: string
+  } | null>(null)
   const initializedStatusIdRef = useRef<string | null>(null)
   const userHasEditedTextRef = useRef<boolean>(false)
 
@@ -264,6 +269,21 @@ export const StatusReplyBox: FC<Props> = ({
         )
         .map((a) => a.uploadedAttachment)
 
+      const replyFingerprint = JSON.stringify({
+        message,
+        contentWarning: contentWarning ?? null,
+        inReplyToId: replyStatus.id,
+        visibility: inheritedVisibility,
+        language: inheritedLanguage ?? null,
+        attachmentIds: attachments.map((attachment) => attachment.id)
+      })
+      if (submitIdempotencyRef.current?.fingerprint !== replyFingerprint) {
+        submitIdempotencyRef.current = {
+          fingerprint: replyFingerprint,
+          key: generatePublicId()
+        }
+      }
+
       const response = await createNote({
         message,
         contentWarning,
@@ -271,9 +291,11 @@ export const StatusReplyBox: FC<Props> = ({
         inReplyToId: replyStatus.id,
         visibility: inheritedVisibility,
         language: inheritedLanguage,
-        attachments
+        attachments,
+        idempotencyKey: submitIdempotencyRef.current.key
       })
 
+      submitIdempotencyRef.current = null
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())

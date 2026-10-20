@@ -150,6 +150,20 @@ export const startActorDeletionSweep = (
         err: toLoggableError(error)
       })
     }
+    try {
+      const purgedKeys = await database.deleteExpiredIdempotencyKeys?.()
+      if (purgedKeys && purgedKeys > 0) {
+        logger.info({
+          message: 'Purged expired idempotency keys',
+          count: purgedKeys
+        })
+      }
+    } catch (error) {
+      logger.error({
+        message: 'Expired idempotency key sweep failed',
+        err: toLoggableError(error)
+      })
+    }
     schedule(intervalMs)
   }
 

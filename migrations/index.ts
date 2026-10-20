@@ -7,6 +7,7 @@ import * as baseline from './20261014000000_baseline'
 import * as addFitnessFileRouteData from './20261015000000_add_fitness_file_route_data'
 import * as addDomains from './20261018170047_add_domains'
 import * as addAccountsSignUpDomain from './20261018204230_add_accounts_sign_up_domain'
+import * as addIdempotencyKeysContentHash from './20261020194752_add_idempotency_keys_content_hash'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -20,5 +21,7 @@ export const migrations: MigrationRegistry = {
   '20261014000000_baseline': baseline,
   '20261015000000_add_fitness_file_route_data': addFitnessFileRouteData,
   '20261018170047_add_domains': addDomains,
-  '20261018204230_add_accounts_sign_up_domain': addAccountsSignUpDomain
+  '20261018204230_add_accounts_sign_up_domain': addAccountsSignUpDomain,
+  '20261020194752_add_idempotency_keys_content_hash':
+    addIdempotencyKeysContentHash
 } satisfies Record<MigrationName, MigrationModule>
