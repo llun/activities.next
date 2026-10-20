@@ -15,6 +15,7 @@ import {
   StatusPoll,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 export interface ThreadReplyNodeProps {
   node: ThreadNode
@@ -36,6 +37,17 @@ export interface ThreadReplyNodeProps {
   onReplyCreated?: (status: Status) => void
   /** After the composer posts (reply or quote) or saves an edit. */
   onComposerDone: () => void
+  replyingToLabels?: ReadonlyMap<string, string>
+  onPostDeleted?: (status: Status) => void
+  onBookmarkChanged?: (
+    status: StatusNote | StatusPoll,
+    isBookmarked: boolean
+  ) => void
+  onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+  onReactionsChanged?: (
+    status: StatusNote | StatusPoll,
+    reactions: StatusReaction[]
+  ) => void
 }
 
 /**
@@ -59,13 +71,19 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
     onOpenStatus,
     onShowAttachment,
     onReplyCreated,
-    onComposerDone
+    onComposerDone,
+    replyingToLabels,
+    onPostDeleted,
+    onBookmarkChanged,
+    onLikeChanged,
+    onReactionsChanged
   } = props
   const isExpanded = getIsExpanded(node)
   const hasReplies = node.replies.length > 0
   // The reply itself, or the post a boost carries.
   const actualStatus = getOriginalStatus(node.status)
   const canCompose = Boolean(currentActor)
+  const replyingToLabel = replyingToLabels?.get(node.status.id)
 
   return (
     <div
@@ -85,6 +103,11 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
       ) : null}
 
       <article className="py-3">
+        {replyingToLabel ? (
+          <div className="mb-1 ml-13 text-xs text-muted-foreground">
+            {replyingToLabel}
+          </div>
+        ) : null}
         <div data-testid={`status-${node.status.id}`}>
           <Post
             host={host}
@@ -114,6 +137,10 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
             onShowAttachment={(allMedias, index) =>
               onShowAttachment(allMedias, index, actualStatus)
             }
+            onPostDeleted={onPostDeleted}
+            onBookmarkChanged={onBookmarkChanged}
+            onLikeChanged={onLikeChanged}
+            onReactionsChanged={onReactionsChanged}
           />
         </div>
 

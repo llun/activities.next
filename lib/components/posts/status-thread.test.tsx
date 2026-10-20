@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 import {
   afterEach,
@@ -29,10 +36,24 @@ import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
 
 const mockPush = vi.fn()
 const mockRefresh = vi.fn()
+let mockClampCollapsible = false
 
 vi.mock('./collapsible-content', () => ({
-  CollapsibleContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+  CollapsibleContent: ({
+    children,
+    onReadMore
+  }: {
+    children: ReactNode
+    onReadMore?: () => void
+  }) => (
+    <div>
+      {children}
+      {mockClampCollapsible && onReadMore ? (
+        <button type="button" aria-label="Read full post" onClick={onReadMore}>
+          Read full post
+        </button>
+      ) : null}
+    </div>
   )
 }))
 
@@ -81,13 +102,14 @@ describe('StatusThread', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockClampCollapsible = false
   })
 
   it('renders ancestors, focused status, and descendants in order', () => {
     const root = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/root',
-      actor: mockAlice,
-      actorId: mockAlice.id,
+      id: 'https://activities.local/users/bob/statuses/root',
+      actor: mockBob,
+      actorId: mockBob.id,
       text: 'Ancestor Root',
       createdAt: BASE_TIME
     })
@@ -131,9 +153,9 @@ describe('StatusThread', () => {
 
   it("centres only the focused post's header row on its avatar", () => {
     const root = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/root',
-      actor: mockAlice,
-      actorId: mockAlice.id,
+      id: 'https://activities.local/users/bob/statuses/root',
+      actor: mockBob,
+      actorId: mockBob.id,
       text: 'Ancestor Root',
       createdAt: BASE_TIME
     })
@@ -542,9 +564,9 @@ describe('StatusThread', () => {
 
   it('nests reply directly beneath ancestor when replying to an ancestor', async () => {
     const root = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/root',
-      actor: mockAlice,
-      actorId: mockAlice.id,
+      id: 'https://activities.local/users/carol/statuses/root',
+      actor: mockCarol,
+      actorId: mockCarol.id,
       text: 'Ancestor Root Post',
       createdAt: BASE_TIME
     })
@@ -587,8 +609,8 @@ describe('StatusThread', () => {
     const replyButtons = screen.getAllByLabelText(/Reply/i)
     fireEvent.click(replyButtons[0])
 
-    // Reply box appears for Alice
-    const textarea = screen.getByPlaceholderText(/Reply to Alice/i)
+    // Reply box appears for Carol
+    const textarea = screen.getByPlaceholderText(/Reply to Carol/i)
     fireEvent.change(textarea, {
       target: { value: 'Direct reply beneath Ancestor Root' }
     })
@@ -917,5 +939,592 @@ describe('StatusThread', () => {
       'src',
       expect.stringContaining('focused-photo')
     )
+  })
+
+  describe('self-thread run (Layout B)', () => {
+    const MINUTE = 60 * 1000
+
+    const makeAliceRun = (count: number) => {
+      const notes: ReturnType<typeof createMockNote>[] = []
+      for (let i = 0; i < count; i++) {
+        const prev = notes[i - 1]
+        notes.push(
+          createMockNote({
+            id: `https://activities.local/users/alice/statuses/run-${i + 1}`,
+            actor: mockAlice,
+            actorId: mockAlice.id,
+            reply: prev ? prev.id : '',
+            text: `Run part ${i + 1} content`,
+            createdAt: BASE_TIME + i * 2 * MINUTE
+          })
+        )
+      }
+      return notes
+    }
+
+    it('renders opened last part inside a combined run with time span header, per-part actions, and focusedFooter inside opened part', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+
+      render(
+        <StatusThread
+          host={host}
+          status={a3}
+          ancestors={[a1, a2]}
+          descendants={[]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 16 * MINUTE}
+          focusedFooter={
+            <div data-testid="opened-part-footer">Opened Footer</div>
+          }
+        />
+      )
+
+      expect(screen.queryByTestId('thread-ancestors')).not.toBeInTheDocument()
+      expect(screen.getByTestId('self-thread-run')).toBeInTheDocument()
+
+      // Part 1 header shows the time span ("16m – 12m")
+      expect(screen.getByText('16m – 12m')).toBeInTheDocument()
+      // Part 2 has a clickable "2 of 3" label button
+      expect(
+        screen.getByRole('button', { name: /Open part 2 of 3/i })
+      ).toBeInTheDocument()
+      // Opened part 3 has author name in a static span ("Alice Smith · 3 of 3 · 12m")
+      expect(screen.getByText('Alice Smith · 3 of 3 · 12m')).toBeInTheDocument()
+
+      // Each of the 3 parts has its own action bar
+      expect(
+        screen.getAllByRole('group', { name: 'Post actions' })
+      ).toHaveLength(3)
+
+      // Opened part has aria-current="location" and contains focusedFooter
+      const openedPart = screen.getByTestId(`status-${a3.id}`)
+      expect(openedPart).toHaveAttribute('aria-current', 'location')
+      expect(openedPart).toContainElement(
+        screen.getByTestId('opened-part-footer')
+      )
+    })
+
+    it('marks opened middle part with aria-current="location" and scrolls it into view respecting prefers-reduced-motion', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      const scrollIntoView = vi.fn()
+      Element.prototype.scrollIntoView = scrollIntoView
+      const originalMatchMedia = window.matchMedia
+
+      try {
+        window.matchMedia = vi.fn().mockReturnValue({ matches: false })
+        const { unmount } = render(
+          <StatusThread
+            host={host}
+            status={a2}
+            ancestors={[a1]}
+            descendants={[a3]}
+            currentActor={mockAlice}
+            currentTime={BASE_TIME + 16 * MINUTE}
+          />
+        )
+
+        const openedMiddle = screen.getByTestId(`status-${a2.id}`)
+        expect(openedMiddle).toHaveAttribute('aria-current', 'location')
+        expect(screen.getByText('Alice Smith · 2 of 3 · 14m').tagName).toBe(
+          'SPAN'
+        )
+        expect(
+          screen.queryByRole('button', { name: /Open part 2 of 3/i })
+        ).not.toBeInTheDocument()
+        expect(
+          screen.getByRole('button', { name: /Open part 3 of 3/i })
+        ).toBeInTheDocument()
+
+        expect(scrollIntoView).toHaveBeenCalledWith({
+          behavior: 'smooth',
+          block: 'nearest'
+        })
+
+        unmount()
+        scrollIntoView.mockClear()
+
+        window.matchMedia = vi.fn().mockReturnValue({ matches: true })
+        render(
+          <StatusThread
+            host={host}
+            status={a2}
+            ancestors={[a1]}
+            descendants={[a3]}
+            currentActor={mockAlice}
+            currentTime={BASE_TIME + 16 * MINUTE}
+          />
+        )
+
+        expect(scrollIntoView).toHaveBeenCalledWith({
+          behavior: 'auto',
+          block: 'nearest'
+        })
+      } finally {
+        window.matchMedia = originalMatchMedia
+        Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+      }
+    })
+
+    it("keeps someone else's post above the run as a separate ancestor row", () => {
+      const bobRoot = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-root',
+        actor: mockBob,
+        actorId: mockBob.id,
+        text: 'Bob Root Question',
+        createdAt: BASE_TIME
+      })
+      const a1 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/a1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: bobRoot.id,
+        text: 'Alice Part 1',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const a2 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/a2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a1.id,
+        text: 'Alice Part 2',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[bobRoot, a1]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const ancestorRow = screen.getByTestId('ancestor-status')
+      expect(ancestorRow).toHaveTextContent('Bob Root Question')
+      expect(ancestorRow).not.toHaveTextContent('Alice Part 1')
+      expect(screen.getByTestId('self-thread-run')).toHaveTextContent(
+        'Alice Part 1'
+      )
+      expect(screen.getByTestId('self-thread-run')).toHaveTextContent(
+        'Alice Part 2'
+      )
+    })
+
+    it('renders a tucked reply inside the run as an inset card', () => {
+      const [a1, a2] = makeAliceRun(2)
+      const bobInset = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-inset',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a1.id,
+        text: 'Quick plain reply from Bob',
+        createdAt: BASE_TIME + MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[bobInset, a2]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const insetGroup = screen.getByRole('group', {
+        name: 'Reply by Bob Jones'
+      })
+      expect(screen.getByTestId('self-thread-run')).toContainElement(insetGroup)
+      expect(insetGroup).toHaveTextContent('Quick plain reply from Bob')
+      // Tucked reply is excluded from Replies section below
+      expect(screen.queryByTestId('thread-descendants')).not.toBeInTheDocument()
+    })
+
+    it('keeps an untucked reply with media under Replies (1) with "Replying to 1 of 3" without splitting the run', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      const bobBase = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-photo',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a1.id,
+        text: 'Bob reply with photo to part 1',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const bobWithPhoto = {
+        ...bobBase,
+        attachments: [createMockPhoto(bobBase, 'bob-pic')]
+      }
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[bobWithPhoto, a2, a3]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // All 3 parts remain in the single run
+      const runEl = screen.getByTestId('self-thread-run')
+      expect(runEl).toHaveTextContent('Run part 1 content')
+      expect(runEl).toHaveTextContent('Run part 2 content')
+      expect(runEl).toHaveTextContent('Run part 3 content')
+
+      // Bob's photo reply is in Replies (1) with "Replying to 1 of 3"
+      const descendantsSection = screen.getByTestId('thread-descendants')
+      expect(descendantsSection).toHaveTextContent('Replies (1)')
+      expect(descendantsSection).toHaveTextContent('Replying to 1 of 3')
+      expect(descendantsSection).toHaveTextContent(
+        'Bob reply with photo to part 1'
+      )
+    })
+
+    it('hides "No replies yet" when opening part 1 whose only descendants are merged self-replies', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[a2, a3]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(screen.queryByText('No replies yet')).not.toBeInTheDocument()
+    })
+
+    it('excludes posts merged into the run from the "Replies (N)" count', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      const bobInset = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-inset',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a1.id,
+        text: 'Bob tucked reply',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const carolReplyToEnd = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/carol-end',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: a3.id,
+        text: 'Carol reply at end',
+        createdAt: BASE_TIME + 6 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[bobInset, a2, a3, carolReplyToEnd]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(screen.getByText('Replies (1)')).toBeInTheDocument()
+    })
+
+    it('restores separate ancestor, focused, and descendant rows when clicking "Show as separate posts" in part 1 menu', async () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+
+      const { rerender } = render(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[a1]}
+          descendants={[a3]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(screen.getByTestId('self-thread-run')).toBeInTheDocument()
+      expect(screen.queryByTestId('thread-ancestors')).not.toBeInTheDocument()
+
+      const part1Trigger = within(
+        screen.getByTestId(`status-${a1.id}`)
+      ).getByRole('button', { name: 'More actions' })
+      fireEvent.keyDown(part1Trigger, { key: 'ArrowDown' })
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: 'Show as separate posts'
+        })
+      )
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+      await waitFor(() =>
+        expect(screen.queryByTestId('self-thread-run')).not.toBeInTheDocument()
+      )
+
+      expect(screen.getByTestId('thread-ancestors')).toHaveTextContent(
+        'Run part 1 content'
+      )
+      expect(screen.getByTestId('focused-status')).toHaveTextContent(
+        'Run part 2 content'
+      )
+      expect(screen.getByTestId('thread-descendants')).toHaveTextContent(
+        'Run part 3 content'
+      )
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByTestId(`status-${a1.id}`)
+        )
+      )
+
+      // Separating persists by status IDs even when the run's first post (and run.key) changes
+      rerender(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[]}
+          descendants={[a3]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+      expect(screen.queryByTestId('self-thread-run')).not.toBeInTheDocument()
+      expect(screen.getByTestId('focused-status')).toHaveTextContent(
+        'Run part 2 content'
+      )
+      expect(screen.getByTestId('thread-descendants')).toHaveTextContent(
+        'Run part 3 content'
+      )
+    })
+
+    it('collapses middle parts of a long run (> 6 parts) with two hidden gaps each showing their own button and expands all on click', () => {
+      const parts = makeAliceRun(9)
+      const focused = parts[4] // Part 5 (index 4)
+      const ancestors = parts.slice(0, 4)
+      const descendants = parts.slice(5)
+
+      render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={ancestors}
+          descendants={descendants}
+          currentTime={BASE_TIME + 30 * MINUTE}
+        />
+      )
+
+      // Visible before expanding: part 1, part 2, opened part 5, last part 9
+      expect(screen.getByText('Run part 1 content')).toBeInTheDocument()
+      expect(screen.getByText('Run part 2 content')).toBeInTheDocument()
+      expect(screen.queryByText('Run part 3 content')).not.toBeInTheDocument()
+      expect(screen.queryByText('Run part 4 content')).not.toBeInTheDocument()
+      expect(screen.getByText('Run part 5 content')).toBeInTheDocument()
+      expect(screen.queryByText('Run part 6 content')).not.toBeInTheDocument()
+      expect(screen.queryByText('Run part 7 content')).not.toBeInTheDocument()
+      expect(screen.queryByText('Run part 8 content')).not.toBeInTheDocument()
+      expect(screen.getByText('Run part 9 content')).toBeInTheDocument()
+
+      // First gap hides parts 3-4 (2 posts); second gap hides parts 6-8 (3 posts)
+      expect(screen.getAllByTestId('self-thread-collapse-row')).toHaveLength(2)
+      const firstGapBtn = screen.getByRole('button', {
+        name: 'Show 2 more posts in this thread'
+      })
+      const secondGapBtn = screen.getByRole('button', {
+        name: 'Show 3 more posts in this thread'
+      })
+      expect(firstGapBtn).toBeInTheDocument()
+      expect(secondGapBtn).toBeInTheDocument()
+
+      fireEvent.click(secondGapBtn)
+
+      for (let i = 1; i <= 9; i++) {
+        expect(screen.getByText(`Run part ${i} content`)).toBeInTheDocument()
+      }
+      expect(
+        screen.queryByRole('button', {
+          name: /Show .* more posts in this thread/i
+        })
+      ).not.toBeInTheDocument()
+    })
+
+    it('opens the inline composer inside the run under the targeted part when clicking Reply on a run part', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+
+      render(
+        <StatusThread
+          host={host}
+          status={a3}
+          ancestors={[a1, a2]}
+          descendants={[]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const part2El = screen.getByTestId(`status-${a2.id}`)
+      const replyBtn = within(part2El).getByRole('button', { name: /Reply/i })
+      fireEvent.click(replyBtn)
+
+      const composer = screen.getByPlaceholderText(/Reply to Alice/i)
+      expect(screen.getByTestId('self-thread-run')).toContainElement(composer)
+      expect(part2El).toContainElement(composer)
+    })
+
+    it('renders per-part ReadOnlyStats for a signed-out viewer', () => {
+      const [base1, base2, base3] = makeAliceRun(3)
+      const a1 = { ...base1, totalShares: 2, totalLikes: 3 }
+      const a2 = { ...base2, totalShares: 1, totalLikes: 5 }
+      const a3 = { ...base3, totalShares: 0, totalLikes: 4 }
+
+      render(
+        <StatusThread
+          host={host}
+          status={a3}
+          ancestors={[a1, a2]}
+          descendants={[]}
+          currentActor={null}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      expect(
+        screen.queryByRole('group', { name: 'Post actions' })
+      ).not.toBeInTheDocument()
+
+      const engagementRows = screen.getAllByRole('group', {
+        name: 'Engagement'
+      })
+      expect(engagementRows).toHaveLength(3)
+      expect(screen.getByTestId(`status-${a1.id}`)).toContainElement(
+        engagementRows[0]
+      )
+      expect(
+        within(engagementRows[0]).getByTitle('3 likes')
+      ).toBeInTheDocument()
+      expect(screen.getByTestId(`status-${a2.id}`)).toContainElement(
+        engagementRows[1]
+      )
+      expect(
+        within(engagementRows[1]).getByTitle('5 likes')
+      ).toBeInTheDocument()
+      expect(screen.getByTestId(`status-${a3.id}`)).toContainElement(
+        engagementRows[2]
+      )
+      expect(
+        within(engagementRows[2]).getByTitle('4 likes')
+      ).toBeInTheDocument()
+    })
+
+    it("does not clamp run parts while clamping another person's long ancestor post", () => {
+      mockClampCollapsible = true
+      const bobLongAncestor = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-long',
+        actor: mockBob,
+        actorId: mockBob.id,
+        text: 'Bob very long ancestor post content. '.repeat(12),
+        createdAt: BASE_TIME
+      })
+      const a1 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/a1-long',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: bobLongAncestor.id,
+        text: 'Alice very long first run part content. '.repeat(12),
+        createdAt: BASE_TIME + MINUTE
+      })
+      const a2 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/a2-long',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a1.id,
+        text: 'Alice very long second run part content. '.repeat(12),
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[bobLongAncestor, a1]}
+          descendants={[]}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const ancestorRow = screen.getByTestId('ancestor-status')
+      expect(
+        within(ancestorRow).getByRole('button', { name: 'Read full post' })
+      ).toBeInTheDocument()
+
+      const runEl = screen.getByTestId('self-thread-run')
+      expect(
+        within(runEl).queryByRole('button', { name: 'Read full post' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('renders a second self-reply block > 10 minutes later as its own SelfThreadRun with its own header', () => {
+      const a1 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/block1-1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'First block part 1',
+        createdAt: BASE_TIME
+      })
+      const a2 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/block1-2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a1.id,
+        text: 'First block part 2',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      const a3 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/block2-1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a2.id,
+        text: 'Second block part 1 after gap',
+        createdAt: BASE_TIME + 20 * MINUTE
+      })
+      const a4 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/block2-2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a3.id,
+        text: 'Second block part 2 after gap',
+        createdAt: BASE_TIME + 22 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[a2, a3, a4]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 30 * MINUTE}
+        />
+      )
+
+      const runs = screen.getAllByTestId('self-thread-run')
+      expect(runs).toHaveLength(2)
+
+      // First block has its own header time span (30m – 28m) and opened part a1
+      expect(within(runs[0]).getByText('30m – 28m')).toBeInTheDocument()
+      expect(within(runs[0]).getByTestId(`status-${a1.id}`)).toHaveAttribute(
+        'aria-current',
+        'location'
+      )
+
+      // Second block (>10 min later) has its own header time span (10m – 8m), its own 2 of 2 label, and no opened part
+      expect(within(runs[1]).getByText('10m – 8m')).toBeInTheDocument()
+      expect(
+        within(runs[1]).getByText('Second block part 1 after gap')
+      ).toBeInTheDocument()
+      expect(
+        within(runs[1]).getByRole('button', { name: /Open part 2 of 2/i })
+      ).toBeInTheDocument()
+      expect(runs[1].querySelector('[aria-current="location"]')).toBeNull()
+      expect(screen.queryByTestId('thread-descendants')).not.toBeInTheDocument()
+    })
   })
 })
