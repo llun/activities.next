@@ -12,11 +12,14 @@ import {
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
+import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 
+import { AgreementLabel } from './AgreementLabel'
 import { UsernameField } from './UsernameField'
 
 export const dynamic = 'force-dynamic'
@@ -40,6 +43,12 @@ const Page: FC = async () => {
   if (session && session.user) {
     return redirect('/')
   }
+
+  // The terms of service and privacy policy of the domain being joined (its
+  // own, or the server's). Sign-up requires accepting whichever it has; the
+  // server enforces it too, this only asks.
+  const { termsOfService, privacyPolicy } = await getVisitedDomainIdentity()
+  const hasAgreement = Boolean(termsOfService || privacyPolicy)
 
   return (
     <AuthCard
@@ -74,6 +83,24 @@ const Page: FC = async () => {
           >
             <Input name="password" type="password" id="inputPassword" />
           </FormRow>
+          {hasAgreement ? (
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="inputAgreement"
+                name="agreement"
+                value="true"
+                required
+                className="mt-0.5"
+              />
+              <label htmlFor="inputAgreement" className="text-sm">
+                <AgreementLabel
+                  terms={Boolean(termsOfService)}
+                  privacy={Boolean(privacyPolicy)}
+                  name={signUpDomain.displayName}
+                />
+              </label>
+            </div>
+          ) : null}
         </AuthCardBody>
 
         <AuthCardActions>

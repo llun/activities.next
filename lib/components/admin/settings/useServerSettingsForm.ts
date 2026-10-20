@@ -10,7 +10,9 @@ import {
 // A settings form keyed by dotted setting keys (e.g. `instance.name`). Sections
 // save independently: each SaveBar drives its own saving/saved/error status and
 // patches only its keys, matching the design where every section has its own
-// Save button.
+// Save button. `saveSection` resolves with the server's response (or nothing
+// when the save failed), for a form that shows more than the values, such as
+// each field's last-updated date.
 
 type Values = Record<string, unknown>
 
@@ -55,7 +57,10 @@ export const useServerSettingsForm = (initial: Values) => {
   )
 
   const saveSection = useCallback(
-    async (id: string, keys: string[]) => {
+    async (
+      id: string,
+      keys: string[]
+    ): Promise<AdminServerSettingsResponse | undefined> => {
       setStatuses((current) => ({
         ...current,
         [id]: { saving: true, saved: false, error: null }
@@ -81,6 +86,7 @@ export const useServerSettingsForm = (initial: Values) => {
           ...current,
           [id]: { saving: false, saved: true, error: null }
         }))
+        return result
       } catch (error) {
         setStatuses((current) => ({
           ...current,
@@ -90,6 +96,7 @@ export const useServerSettingsForm = (initial: Values) => {
             error: error instanceof Error ? error.message : 'Failed to save'
           }
         }))
+        return undefined
       }
     },
     [values]

@@ -24,6 +24,12 @@ const loadPublicTopBar = async () =>
   (await vi.importActual<typeof PublicTopBarModule>('./PublicTopBar'))
     .PublicTopBar
 
+// PublicFooter is an async server component too (it reads the visited
+// domain's policies).
+vi.mock('./PublicFooter', () => ({
+  PublicFooter: () => <footer data-testid="public-footer" />
+}))
+
 vi.mock('@/app/Modal', () => ({
   Modal: () => null
 }))

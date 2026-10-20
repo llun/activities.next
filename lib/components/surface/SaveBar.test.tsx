@@ -71,6 +71,42 @@ describe('SaveBar with a disabledReason', () => {
   })
 })
 
+describe('SaveBar with an actionLabel and an idleNote', () => {
+  it('labels the edit button and shows the note while clean', () => {
+    const { onSave } = renderBar({
+      actionLabel: 'Save terms and privacy',
+      idleNote: 'Changes apply to every domain.'
+    })
+
+    expect(screen.getByText('Changes apply to every domain.')).toBeVisible()
+    expect(screen.queryByText('No unsaved changes')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+    const button = screen.getByRole('button', {
+      name: 'Save terms and privacy'
+    })
+    expect(button).toBeDisabled()
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('lets Unsaved changes, Saved and an error replace the note', () => {
+    const props = { actionLabel: 'Save terms', idleNote: 'Applies to all.' }
+    const { rerender } = render(
+      <SaveBar {...props} dirty saving={false} saved={false} onSave={vi.fn()} />
+    )
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    expect(screen.queryByText('Applies to all.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save terms' })).toBeEnabled()
+
+    rerender(<SaveBar {...props} saved onSave={vi.fn()} />)
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.queryByText('Applies to all.')).toBeNull()
+
+    rerender(<SaveBar {...props} error="Nope" onSave={vi.fn()} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Nope')
+    expect(screen.queryByText('Applies to all.')).toBeNull()
+  })
+})
+
 describe('SaveBar as a submit button', () => {
   it('submits the enclosing form instead of calling onSave', () => {
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault())

@@ -54,10 +54,21 @@ interface SaveBarProps {
    * `actionIcon`. `dirty` and `saved` are ignored. Default `edit`.
    */
   variant?: 'edit' | 'create'
-  /** The create button's text ("Save block"); `create` only. */
+  /**
+   * The button's text ("Save block", "Save terms and privacy"). A `create`
+   * form always sets its own; an `edit` form keeps "Save" unless a box that
+   * shares the page with others says what it saves.
+   */
   actionLabel?: string
   /** The create button's icon; `create` only. */
   actionIcon?: ComponentType<{ className?: string }>
+  /**
+   * Muted text shown when the form is clean instead of "No unsaved changes",
+   * for a footer that has something more useful to say about what saving does
+   * ("Changes apply to every domain that uses the server terms."). Dirty,
+   * Saved and the error still replace it. `edit` only.
+   */
+  idleNote?: string
   dirty?: boolean
   saving?: boolean
   saved?: boolean
@@ -90,10 +101,12 @@ interface SaveBarProps {
 /**
  * A form's footer, for `Frame`'s `footer` slot: the state on the left
  * ("Unsaved changes" with a dot when dirty, "Saved" with a tick after a save,
- * a muted "No unsaved changes" when clean, the error in the alert colour) and
+ * a muted "No unsaved changes" (or the form's own `idleNote`) when clean, the
+ * error in the alert colour) and
  * the primary Save button on the right, disabled while the form is clean or
  * saving (or while `disabledReason` says why not), with a spinner inside while
- * it saves. The button is labelled "Save"; `variant="create"` (a form that
+ * it saves. The button is labelled "Save" (or `actionLabel`, for a box that
+ * shares its page with others and says what it saves); `variant="create"` (a form that
  * makes something new) shows no Unsaved/Saved status, only an error or the
  * muted `disabledReason`, and uses the form's own `actionLabel` and
  * `actionIcon`.
@@ -104,6 +117,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   variant = 'edit',
   actionLabel = 'Save',
   actionIcon: ActionIcon,
+  idleNote,
   dirty = false,
   saving = false,
   saved = false,
@@ -134,7 +148,7 @@ export const SaveBar: FC<SaveBarProps> = ({
       ) : ActionIcon ? (
         <ActionIcon aria-hidden="true" />
       ) : null}
-      {isCreate ? actionLabel : 'Save'}
+      {actionLabel}
     </Button>
   )
   return (
@@ -184,7 +198,7 @@ export const SaveBar: FC<SaveBarProps> = ({
                 Saved
               </>
             ) : (
-              'No unsaved changes'
+              (idleNote ?? 'No unsaved changes')
             )}
           </p>
         )}
