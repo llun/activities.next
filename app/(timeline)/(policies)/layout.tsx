@@ -29,9 +29,14 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // The `(timeline)` content wrapper has no top padding, which the public
   // shell's `py-6` supplies for logged-out visitors; the profile page takes the
   // same `md:pt-8` when signed in. Below `md` the page renders
-  // `MobileCompactHeader` first, so the gap goes under it, not above.
+  // `MobileCompactHeader` first (it is the h1 there, so the article's h1 is
+  // hidden below `md`), so the gap goes under it, not above.
   if (actor)
-    return <div className="md:pt-8 max-md:[&>article]:mt-6">{children}</div>
+    return (
+      <div className="md:pt-8 max-md:[&>article]:mt-6 max-md:[&>article>h1]:hidden">
+        {children}
+      </div>
+    )
 
   return <PublicShell footer={false}>{children}</PublicShell>
 }

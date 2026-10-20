@@ -72,8 +72,9 @@ export const PolicyDocumentPage: FC<PolicyDocumentPageProps> = async ({
   return (
     <>
       {/* Signed-in phones need the menu button; renders nothing without the
-          navigation provider, so logged-out pages are unchanged. */}
-      <MobileCompactHeader title={title} as="p" />
+          navigation provider, so logged-out pages are unchanged. It is the h1
+          below md (the layout hides the article's h1 there), like PageHeader. */}
+      <MobileCompactHeader title={title} as="h1" />
       <article>
         <h1 className="text-[28px] leading-9 font-bold tracking-tight md:text-4xl md:leading-[44px]">
           {title}

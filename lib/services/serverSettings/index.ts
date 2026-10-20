@@ -181,7 +181,6 @@ export const getServerSettingsView = async (
     // or the env/defaults fallback) so a sustained outage does not re-read the
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
-    // Bounded last-known-good: the stale view is served for at most FAILURE_CACHE_TTL_MS per retry.
     const view = entry ? entry.view : buildView(new Map())
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
     return view

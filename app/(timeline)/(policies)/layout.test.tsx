@@ -73,7 +73,10 @@ describe('(policies) Layout', () => {
 
     await renderLayout()
 
-    expect(screen.getByTestId('child').parentElement).toHaveClass('md:pt-8')
+    expect(screen.getByTestId('child').parentElement).toHaveClass(
+      'md:pt-8',
+      'max-md:[&>article>h1]:hidden'
+    )
     expect(screen.queryByTestId('public-shell')).not.toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })

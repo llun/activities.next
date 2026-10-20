@@ -175,6 +175,8 @@ describe('PolicyDocumentPage mobile navigation', () => {
     expect(
       screen.getByRole('button', { name: 'Open navigation' })
     ).toBeInTheDocument()
+    // The bar is the h1 on phones; the article's h1 is hidden by the layout.
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(2)
   })
 
   it('renders no trigger when logged out', async () => {
