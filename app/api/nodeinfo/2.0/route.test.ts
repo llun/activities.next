@@ -37,6 +37,11 @@ describe('GET /nodeinfo/2.0', () => {
 
   beforeAll(async () => {
     await database.migrate()
+    // Admin › Instance's name names the node (no longer the config's
+    // serviceName).
+    await database.setServerSettings([
+      { key: 'instance.name', value: 'llun test' }
+    ])
     mockDatabase = database
   })
 
@@ -120,6 +125,40 @@ describe('GET /nodeinfo/2.0', () => {
       expect(closed.openRegistrations).toBe(false)
     } finally {
       await database.deleteServedDomain({ domain: 'run.llun.test' })
+    }
+  })
+
+  it('names the node after the visited domain’s identity', async () => {
+    const config =
+      await vi.importMock<typeof import('@/lib/config')>('@/lib/config')
+    vi.mocked(config.getConfig).mockReturnValue({
+      ...baseConfig,
+      trustedHosts: ['club.llun.test']
+    } as unknown as Config)
+    await database.createServedDomain({
+      domain: 'club.llun.test',
+      name: 'Run Club',
+      description: 'Running together'
+    })
+    const visit = async (host: string) =>
+      (
+        await GET(
+          new NextRequest('https://llun.test/nodeinfo/2.0', {
+            headers: { host }
+          }),
+          params
+        )
+      ).json()
+    try {
+      await expect(visit('club.llun.test')).resolves.toMatchObject({
+        metadata: { nodeName: 'Run Club', nodeDescription: 'Running together' }
+      })
+      // An untrusted Host gets the primary's (the server's) identity.
+      await expect(visit('evil.example')).resolves.toMatchObject({
+        metadata: { nodeName: 'llun test' }
+      })
+    } finally {
+      await database.deleteServedDomain({ domain: 'club.llun.test' })
     }
   })
 

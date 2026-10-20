@@ -1,5 +1,9 @@
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import {
+  type DomainIdentity,
+  resolveDomainIdentity
+} from '@/lib/services/domains/domainIdentity'
 import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import { logger } from '@/lib/utils/logger'
 import { NODE_INFO_SOFTWARE_NAME, VERSION } from '@/lib/utils/version'
@@ -61,6 +65,12 @@ export interface NodeInfo21 extends Omit<NodeInfo20, 'version' | 'software'> {
 export interface NodeInfoOptions {
   /** Whether sign-ups are open on the domain the document is served for. */
   openRegistrations?: boolean
+  /**
+   * The identity of that domain (`resolveDomainIdentity`), which names the
+   * node. Without it the node is named from ACTIVITIES_SERVICE_NAME /
+   * ACTIVITIES_SERVICE_DESCRIPTION.
+   */
+  identity?: Pick<DomainIdentity, 'domain' | 'name' | 'description'>
 }
 
 /**
@@ -90,7 +100,7 @@ export const getNodeInfoLinks = (
 
 export const getNodeInfo20 = (
   stats: NodeInfoStats,
-  { openRegistrations = false }: NodeInfoOptions = {}
+  { openRegistrations = false, identity }: NodeInfoOptions = {}
 ): NodeInfo20 => {
   const config = getConfig()
   return {
@@ -108,11 +118,16 @@ export const getNodeInfo20 = (
       localPosts: stats.localPosts,
       localComments: 0
     },
-    metadata: {
-      // `||` (not `??`) so a blank serviceName falls back to the host.
-      nodeName: config.serviceName || config.host,
-      nodeDescription: config.serviceDescription ?? ''
-    }
+    metadata: identity
+      ? {
+          nodeName: identity.name || identity.domain,
+          nodeDescription: identity.description
+        }
+      : {
+          // `||` (not `??`) so a blank serviceName falls back to the host.
+          nodeName: config.serviceName || config.host,
+          nodeDescription: config.serviceDescription ?? ''
+        }
   }
 }
 
@@ -123,8 +138,8 @@ export const getNodeInfo20 = (
  */
 export const buildNodeInfo20 = async (
   // The served host the request arrived on: `openRegistrations` is that
-  // domain's sign-up setting (see resolveSignUpDomain). Defaults to the
-  // primary host.
+  // domain's sign-up setting (see resolveSignUpDomain) and the node is named
+  // after its identity (resolveDomainIdentity). Defaults to the primary host.
   host?: string | null
 ): Promise<NodeInfo20 | null> => {
   const database = getDatabase()
@@ -133,12 +148,15 @@ export const buildNodeInfo20 = async (
     return null
   }
   try {
-    const [stats, signUpDomain] = await Promise.all([
+    const domain = host ?? getConfig().host
+    const [stats, signUpDomain, identity] = await Promise.all([
       database.getNodeInfoStats(),
-      resolveSignUpDomain(database, host ?? getConfig().host)
+      resolveSignUpDomain(database, domain),
+      resolveDomainIdentity(database, domain)
     ])
     return getNodeInfo20(stats, {
-      openRegistrations: signUpDomain.open
+      openRegistrations: signUpDomain.open,
+      identity
     })
   } catch (error) {
     logger.error({ err: error }, 'Failed to build NodeInfo 2.0 document')
@@ -169,8 +187,8 @@ export const getNodeInfo21 = (
  */
 export const buildNodeInfo21 = async (
   // The served host the request arrived on: `openRegistrations` is that
-  // domain's sign-up setting (see resolveSignUpDomain). Defaults to the
-  // primary host.
+  // domain's sign-up setting (see resolveSignUpDomain) and the node is named
+  // after its identity (resolveDomainIdentity). Defaults to the primary host.
   host?: string | null
 ): Promise<NodeInfo21 | null> => {
   const database = getDatabase()
@@ -179,12 +197,15 @@ export const buildNodeInfo21 = async (
     return null
   }
   try {
-    const [stats, signUpDomain] = await Promise.all([
+    const domain = host ?? getConfig().host
+    const [stats, signUpDomain, identity] = await Promise.all([
       database.getNodeInfoStats(),
-      resolveSignUpDomain(database, host ?? getConfig().host)
+      resolveSignUpDomain(database, domain),
+      resolveDomainIdentity(database, domain)
     ])
     return getNodeInfo21(stats, {
-      openRegistrations: signUpDomain.open
+      openRegistrations: signUpDomain.open,
+      identity
     })
   } catch (error) {
     logger.error({ err: error }, 'Failed to build NodeInfo 2.1 document')

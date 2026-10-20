@@ -32,7 +32,10 @@ export type ServedDomainData = {
   // Normalized authority (`normalizeServedDomainChoice`).
   domain: string
   status: ServedDomainStatus
+  // The domain's own identity; null means "Same as server" (Admin › Instance).
   name: string | null
+  description: string | null
+  contactEmail: string | null
   signupsOpen: boolean
   // Same matching as `registrations.allowEmails`; empty allows any address.
   // Null when the stored value cannot be read as a list: not the same as
@@ -46,20 +49,45 @@ export type ServedDomainData = {
   updatedAt: number
 }
 
-export type CreateServedDomainParams = {
+// A domain's own terms of service and privacy policy (Markdown), null when it
+// uses the server's. `*UpdatedAt` is when that text last changed (epoch ms),
+// null while there is none. Kept out of `ServedDomainData` because the lists
+// (and the served-domain snapshot, reloaded every 30 s) never need them.
+export type ServedDomainPolicies = {
+  termsOfService: string | null
+  termsOfServiceUpdatedAt: number | null
+  privacyPolicy: string | null
+  privacyPolicyUpdatedAt: number | null
+}
+
+export type ServedDomainWithPoliciesData = ServedDomainData &
+  ServedDomainPolicies
+
+// Identity and policy columns a create or update may set. Undefined leaves a
+// column as it is (on create: null); null clears it. The caller decides the
+// `*UpdatedAt` values (lib/services/domains/adminDomains.ts).
+type ServedDomainIdentityParams = {
+  name?: string | null
+  description?: string | null
+  contactEmail?: string | null
+  termsOfService?: string | null
+  termsOfServiceUpdatedAt?: number | null
+  privacyPolicy?: string | null
+  privacyPolicyUpdatedAt?: number | null
+}
+
+export type CreateServedDomainParams = ServedDomainIdentityParams & {
   domain: string
   status?: ServedDomainStatus
-  name?: string | null
   signupsOpen?: boolean
   allowedEmails?: string[]
   allowExistingUsers?: boolean
   check?: DomainCheckResult | null
 }
 
-export type UpdateServedDomainParams = {
+export type UpdateServedDomainParams = ServedDomainIdentityParams & {
   domain: string
   status?: ServedDomainStatus
-  name?: string | null
   signupsOpen?: boolean
   allowedEmails?: string[]
   allowExistingUsers?: boolean
@@ -79,12 +107,17 @@ export interface ServedDomainDatabase {
   updateServedDomain(
     params: UpdateServedDomainParams
   ): Promise<ServedDomainData | null>
+  // Without the policy texts.
   getServedDomain(
     params: GetServedDomainParams
   ): Promise<ServedDomainData | null>
-  // Every row, ordered by domain.
+  // The row with its terms of service and privacy policy.
+  getServedDomainWithPolicies(
+    params: GetServedDomainParams
+  ): Promise<ServedDomainWithPoliciesData | null>
+  // Every row, ordered by domain, without the policy texts.
   getServedDomains(): Promise<ServedDomainData[]>
-  // Rows whose status is `on`, ordered by domain.
+  // Rows whose status is `on`, ordered by domain, without the policy texts.
   getActiveServedDomains(): Promise<ServedDomainData[]>
   // True when a row was removed.
   deleteServedDomain(params: DeleteServedDomainParams): Promise<boolean>

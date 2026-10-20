@@ -1,12 +1,18 @@
 import { NextRequest } from 'next/server'
 
-import { UpdateDomainRequest } from '@/app/api/v1/admin/domains/schema'
-import { readDomainRouteParam } from '@/lib/services/domains/adminDomainTypes'
+import {
+  UpdateDomainRequest,
+  hasIdentityOrPolicyFields
+} from '@/app/api/v1/admin/domains/schema'
+import {
+  PRIMARY_DOMAIN_IDENTITY_ERROR,
+  readDomainRouteParam
+} from '@/lib/services/domains/adminDomainTypes'
 import {
   getAdminDomain,
   removeDomain,
   setDomainStatus,
-  updateDomainRegistrations
+  updateDomainSettings
 } from '@/lib/services/domains/adminDomains'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
@@ -95,7 +101,7 @@ export const PATCH = traceApiRoute(
       })
     }
 
-    const { status, ...registrations } = parsed.data
+    const { status, ...settings } = parsed.data
     if (status) {
       const result = await setDomainStatus(database, domain, status)
       switch (result.type) {
@@ -125,11 +131,7 @@ export const PATCH = traceApiRoute(
       }
     }
 
-    const result = await updateDomainRegistrations(
-      database,
-      domain,
-      registrations
-    )
+    const result = await updateDomainSettings(database, domain, settings)
     switch (result.type) {
       case 'not-found':
         return notFound(req)
@@ -138,7 +140,9 @@ export const PATCH = traceApiRoute(
           req,
           HTTP_STATUS.UNPROCESSABLE_ENTITY,
           'primary',
-          'The primary domain’s sign-ups are set in Admin › Instance.'
+          hasIdentityOrPolicyFields(parsed.data)
+            ? PRIMARY_DOMAIN_IDENTITY_ERROR
+            : 'The primary domain’s sign-ups are set in Admin › Instance.'
         )
       case 'updated':
         return apiResponse({

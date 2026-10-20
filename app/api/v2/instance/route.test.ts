@@ -4,6 +4,7 @@ import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
+import { invalidateDomainIdentityCache } from '@/lib/services/domains/domainIdentity'
 import {
   SERVED_DOMAIN_REFRESH_MS,
   refreshServedDomains,
@@ -352,6 +353,50 @@ describe('GET /api/v2/instance', () => {
     } finally {
       nodeInfoSpy.mockRestore()
       peersSpy.mockRestore()
+    }
+  })
+
+  it('describes the visited domain with its own identity and policies', async () => {
+    invalidateDomainIdentityCache(database)
+    await database.createServedDomain({
+      domain: 'alias.llun.test',
+      name: 'Alias Club',
+      description: 'The alias',
+      contactEmail: 'hello@alias.llun.test',
+      termsOfService: 'Alias terms',
+      termsOfServiceUpdatedAt: Date.UTC(2026, 0, 1)
+    })
+    const visit = async (host: string) =>
+      (
+        await GET(
+          new NextRequest('https://llun.test/api/v2/instance', {
+            headers: { host }
+          }),
+          params
+        )
+      ).json()
+    try {
+      const alias = await visit('alias.llun.test')
+      expect(alias).toMatchObject({
+        domain: 'alias.llun.test',
+        title: 'Alias Club',
+        description: 'The alias',
+        contact: { email: 'hello@alias.llun.test' }
+      })
+      expect(alias.configuration.urls).toMatchObject({
+        terms_of_service: 'https://alias.llun.test/terms-of-service',
+        privacy_policy: null
+      })
+
+      const primary = await visit('llun.test')
+      expect(primary).toMatchObject({
+        title: 'Activities.next',
+        contact: { email: 'admin@llun.test' }
+      })
+      expect(primary.configuration.urls.terms_of_service).toBeNull()
+    } finally {
+      await database.deleteServedDomain({ domain: 'alias.llun.test' })
+      invalidateDomainIdentityCache(database)
     }
   })
 

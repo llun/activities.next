@@ -33,6 +33,17 @@ beforeEach(() => {
   )
 })
 
+// Admin › Instance's name and description, which name the node.
+const INSTANCE_SETTINGS = [
+  { key: 'instance.name', value: 'Test Service', createdAt: 0, updatedAt: 0 },
+  {
+    key: 'instance.description',
+    value: 'Test description',
+    createdAt: 0,
+    updatedAt: 0
+  }
+]
+
 const STATS = {
   totalUsers: 7,
   activeMonth: 2,
@@ -53,6 +64,23 @@ describe('getNodeInfo20', () => {
   it('uses serviceName when it is set', () => {
     expect(getNodeInfo20(STATS).metadata.nodeName).toBe('Test Service')
   })
+
+  it('names the node after the given domain identity', () => {
+    expect(
+      getNodeInfo20(STATS, {
+        identity: {
+          domain: 'run.example',
+          name: 'Run Club',
+          description: 'Running together'
+        }
+      }).metadata
+    ).toEqual({ nodeName: 'Run Club', nodeDescription: 'Running together' })
+    expect(
+      getNodeInfo20(STATS, {
+        identity: { domain: 'run.example', name: '', description: '' }
+      }).metadata
+    ).toEqual({ nodeName: 'run.example', nodeDescription: '' })
+  })
 })
 
 describe('buildNodeInfo20', () => {
@@ -69,7 +97,7 @@ describe('buildNodeInfo20', () => {
     const getNodeInfoStats = vi.fn().mockResolvedValue(STATS)
     mockedGetDatabase.mockReturnValue({
       getNodeInfoStats,
-      getAllServerSettings: vi.fn().mockResolvedValue([])
+      getAllServerSettings: vi.fn().mockResolvedValue(INSTANCE_SETTINGS)
     } as unknown as ReturnType<typeof getDatabase>)
 
     const nodeInfo = await buildNodeInfo20()
@@ -112,7 +140,7 @@ describe('buildNodeInfo21', () => {
     const getNodeInfoStats = vi.fn().mockResolvedValue(STATS)
     mockedGetDatabase.mockReturnValue({
       getNodeInfoStats,
-      getAllServerSettings: vi.fn().mockResolvedValue([])
+      getAllServerSettings: vi.fn().mockResolvedValue(INSTANCE_SETTINGS)
     } as unknown as ReturnType<typeof getDatabase>)
 
     const nodeInfo = await buildNodeInfo21()

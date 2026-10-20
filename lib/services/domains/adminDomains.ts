@@ -1,11 +1,19 @@
 import { type Config, getConfig } from '@/lib/config'
 import type {
   DomainCheckResult,
-  ServedDomainData
+  ServedDomainData,
+  UpdateServedDomainParams
 } from '@/lib/database/domains/servedDomain/types'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import {
+  getInstanceContactAccount,
+  getInstanceContactEmail
+} from '@/lib/services/mastodon/instance'
+import {
+  getResolvedServerSettings,
+  getServerSettingsView
+} from '@/lib/services/serverSettings'
 import {
   getServedAuthority,
   normalizeServedDomainChoice
@@ -14,9 +22,13 @@ import {
 import type {
   AddDomainError,
   AdminDomain,
-  AdminDomainList
+  AdminDomainDetail,
+  AdminDomainList,
+  AdminDomainSettingsPatch,
+  ServerIdentityView
 } from './adminDomainTypes'
 import { checkDomainReachability } from './domainCheck'
+import { invalidateDomainIdentityCache } from './domainIdentityCache'
 import { refreshServedDomainsAfterWrite } from './servedDomainSnapshot'
 
 type EnvDomainConfig = Pick<Config, 'host' | 'trustedHosts'>
@@ -86,6 +98,8 @@ const emptyRow = (domain: string): ServedDomainData => ({
   domain,
   status: 'off',
   name: null,
+  description: null,
+  contactEmail: null,
   signupsOpen: false,
   allowedEmails: [],
   allowExistingUsers: false,
@@ -149,15 +163,63 @@ export const getAdminDomainList = async (
   }
 }
 
-/** One domain's page; null when the domain is neither in the env nor a row. */
+/**
+ * One domain's page, with its own identity and policies; null when the domain
+ * is neither in the env nor a row. The primary's are always null: it uses the
+ * server's (Admin › Instance).
+ */
 export const getAdminDomain = async (
   database: Database,
   domain: string
-): Promise<AdminDomain | null> => {
+): Promise<AdminDomainDetail | null> => {
   const normalized = normalizeServedDomainChoice(domain)
   if (!normalized) return null
   const { domains } = await getAdminDomainList(database)
-  return domains.find((item) => item.domain === normalized) ?? null
+  const item = domains.find((entry) => entry.domain === normalized)
+  if (!item) return null
+  const row =
+    item.source === 'primary'
+      ? null
+      : await database.getServedDomainWithPolicies({ domain: normalized })
+  return {
+    ...item,
+    description: row?.description ?? null,
+    contactEmail: row?.contactEmail ?? null,
+    termsOfService: row?.termsOfService ?? null,
+    privacyPolicy: row?.privacyPolicy ?? null,
+    termsOfServiceUpdatedAt: row?.termsOfServiceUpdatedAt ?? null,
+    privacyPolicyUpdatedAt: row?.privacyPolicyUpdatedAt ?? null
+  }
+}
+
+/**
+ * The server's identity as a domain page shows it beside "Same as server":
+ * Admin › Instance's resolved values, and whether the server has terms and a
+ * privacy policy (never their text).
+ */
+export const getServerIdentityView = async (
+  database: Database
+): Promise<ServerIdentityView> => {
+  const [view, contactAccount] = await Promise.all([
+    getServerSettingsView(database),
+    getInstanceContactAccount(database)
+  ])
+  const { instance, policies } = view.settings
+  return {
+    name: instance.name,
+    description: instance.description,
+    // What the instance API serves when no contact email is set.
+    contactEmail: instance.contactEmail || getInstanceContactEmail(getConfig()),
+    contactAccount: contactAccount ? `@${contactAccount.acct}` : null,
+    terms: {
+      set: policies.termsOfService.trim() !== '',
+      updatedAt: view.updatedAt['policies.termsOfService'] ?? null
+    },
+    privacy: {
+      set: policies.privacyPolicy.trim() !== '',
+      updatedAt: view.updatedAt['policies.privacyPolicy'] ?? null
+    }
+  }
 }
 
 export type AddDomainResult =
@@ -211,7 +273,7 @@ export const recheckDomain = async (
   domain: string,
   check: (domain: string) => Promise<DomainCheckResult> = (target) =>
     runCheck(target, getEnvDomains())
-): Promise<AdminDomain | null> => {
+): Promise<AdminDomainDetail | null> => {
   if (getEnvDomainKind(domain)) return null
   const existing = await database.getServedDomain({ domain })
   if (!existing) return null
@@ -224,10 +286,10 @@ export const recheckDomain = async (
 }
 
 export type SetDomainStatusResult =
-  | { type: 'updated'; domain: AdminDomain }
+  | { type: 'updated'; domain: AdminDomainDetail }
   | { type: 'not-found' }
   | { type: 'locked' }
-  | { type: 'check-failed'; domain: AdminDomain }
+  | { type: 'check-failed'; domain: AdminDomainDetail }
 
 /**
  * Turns a database domain on or off. Turning on runs the check again and only
@@ -260,47 +322,88 @@ export const setDomainStatus = async (
     await database.updateServedDomain({ domain, status: 'off' })
   }
   await refreshServedDomainsAfterWrite(database)
+  // An off domain falls back to the server identity at once here.
+  invalidateDomainIdentityCache(database)
   const updated = await getAdminDomain(database, domain)
   return updated ? { type: 'updated', domain: updated } : { type: 'not-found' }
 }
 
-export type RegistrationSettings = {
-  signupsOpen?: boolean
-  allowedEmails?: string[]
-  allowExistingUsers?: boolean
-}
-
-export type UpdateRegistrationsResult =
-  | { type: 'updated'; domain: AdminDomain }
+export type UpdateDomainSettingsResult =
+  | { type: 'updated'; domain: AdminDomainDetail }
   | { type: 'not-found' }
   | { type: 'primary' }
 
+type PolicyValues = Pick<
+  UpdateServedDomainParams,
+  | 'termsOfService'
+  | 'termsOfServiceUpdatedAt'
+  | 'privacyPolicy'
+  | 'privacyPolicyUpdatedAt'
+>
+
+// The text and date to store for one policy: the date moves to now only when
+// the text really changed, and is cleared with the text.
+const policyValues = (
+  key: 'termsOfService' | 'privacyPolicy',
+  next: string | null | undefined,
+  current: string | null,
+  now: number
+): PolicyValues => {
+  if (next === undefined || next === current) return {}
+  const updatedAt = next === null ? null : now
+  return key === 'termsOfService'
+    ? { termsOfService: next, termsOfServiceUpdatedAt: updatedAt }
+    : { privacyPolicy: next, privacyPolicyUpdatedAt: updatedAt }
+}
+
 /**
- * Saves a domain's Registrations box. A concrete env domain gets a row the
- * first time (stored off: its trust comes from the env, never from the row).
- * The primary's settings are Admin › Instance.
+ * Saves a domain's Registrations, Identity or Policies box: whatever `patch`
+ * carries, the rest stays. Null on an identity or policy field means "Same as
+ * server". A concrete env domain gets a row the first time (stored off: its
+ * trust comes from the env, never from the row). The primary's settings are
+ * Admin › Instance.
  */
-export const updateDomainRegistrations = async (
+export const updateDomainSettings = async (
   database: Database,
   domain: string,
-  settings: RegistrationSettings
-): Promise<UpdateRegistrationsResult> => {
+  patch: AdminDomainSettingsPatch
+): Promise<UpdateDomainSettingsResult> => {
   const kind = getEnvDomainKind(domain)
   if (kind === 'primary') return { type: 'primary' }
-  const existing = await database.getServedDomain({ domain })
+  const existing = await database.getServedDomainWithPolicies({ domain })
   if (!existing && kind !== 'env') return { type: 'not-found' }
 
+  const now = Date.now()
   const values = {
-    ...(settings.signupsOpen !== undefined
-      ? { signupsOpen: settings.signupsOpen }
+    ...(patch.signupsOpen !== undefined
+      ? { signupsOpen: patch.signupsOpen }
       : null),
-    ...(settings.allowedEmails !== undefined
-      ? { allowedEmails: settings.allowedEmails }
+    ...(patch.allowedEmails !== undefined
+      ? { allowedEmails: patch.allowedEmails }
       : null),
     // Env domains always let existing users add profiles.
-    ...(settings.allowExistingUsers !== undefined && kind !== 'env'
-      ? { allowExistingUsers: settings.allowExistingUsers }
-      : null)
+    ...(patch.allowExistingUsers !== undefined && kind !== 'env'
+      ? { allowExistingUsers: patch.allowExistingUsers }
+      : null),
+    ...(patch.name !== undefined ? { name: patch.name } : null),
+    ...(patch.description !== undefined
+      ? { description: patch.description }
+      : null),
+    ...(patch.contactEmail !== undefined
+      ? { contactEmail: patch.contactEmail }
+      : null),
+    ...policyValues(
+      'termsOfService',
+      patch.termsOfService,
+      existing?.termsOfService ?? null,
+      now
+    ),
+    ...policyValues(
+      'privacyPolicy',
+      patch.privacyPolicy,
+      existing?.privacyPolicy ?? null,
+      now
+    )
   }
   if (existing) {
     await database.updateServedDomain({ domain, ...values })
@@ -312,6 +415,8 @@ export const updateDomainRegistrations = async (
       await database.updateServedDomain({ domain, ...values })
     }
   }
+  // Identity writes change no trust, so the snapshot needs no refresh.
+  invalidateDomainIdentityCache(database)
   const updated = await getAdminDomain(database, domain)
   return updated ? { type: 'updated', domain: updated } : { type: 'not-found' }
 }
@@ -336,5 +441,6 @@ export const removeDomain = async (
   if ((counts[domain] ?? 0) > 0) return { type: 'has-profiles' }
   await database.deleteServedDomain({ domain })
   await refreshServedDomainsAfterWrite(database)
+  invalidateDomainIdentityCache(database)
   return { type: 'removed' }
 }
