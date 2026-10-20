@@ -40,7 +40,7 @@ export const useServerSettingsForm = (
   initial: Values,
   // Keys pinned by the environment. The server rejects a patch naming one,
   // even with its value unchanged, so a section's save leaves them out.
-  isLocked: (key: string) => boolean = () => false
+  locks: Record<string, { locked: boolean }> = {}
 ) => {
   const [values, setValues] = useState<Values>(initial)
   const [baseline, setBaseline] = useState<Values>(initial)
@@ -66,7 +66,7 @@ export const useServerSettingsForm = (
       id: string,
       allKeys: string[]
     ): Promise<AdminServerSettingsResponse | undefined> => {
-      const keys = allKeys.filter((key) => !isLocked(key))
+      const keys = allKeys.filter((key) => !locks[key]?.locked)
       setStatuses((current) => ({
         ...current,
         [id]: { saving: true, saved: false, error: null }
@@ -105,7 +105,7 @@ export const useServerSettingsForm = (
         return undefined
       }
     },
-    [values, isLocked]
+    [values, locks]
   )
 
   return { values, setValue, isDirty, statusFor, saveSection }

@@ -120,6 +120,20 @@ describe('server settings resolver', () => {
     await database.destroy()
   })
 
+  it('reports no date for a cleared policy', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'policies.termsOfService', value: '  \n' },
+      { key: 'policies.privacyPolicy', value: 'Privacy' }
+    ])
+    invalidateServerSettingsCache(database)
+
+    const { updatedAt } = await getServerSettingsView(database)
+    expect(updatedAt['policies.termsOfService']).toBeNull()
+    expect(updatedAt['policies.privacyPolicy']).toEqual(expect.any(Number))
+    await database.destroy()
+  })
+
   it('pins a policy from a non-empty env variable and ignores an empty one', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([
@@ -188,6 +202,32 @@ describe('server settings resolver', () => {
     expect(spy).toHaveBeenCalledTimes(2)
 
     spy.mockRestore()
+    await database.destroy()
+  })
+
+  it("drops another module copy's cache when one copy invalidates", async () => {
+    // Next bundles the admin API route and the admin page as separate module
+    // graphs: each has its own copy of this module and so its own cache.
+    const database = await freshDatabase()
+    const first = await import('@/lib/services/serverSettings')
+    vi.resetModules()
+    const second = await import('@/lib/services/serverSettings')
+    expect(second.getServerSettingsView).not.toBe(first.getServerSettingsView)
+
+    await first.getResolvedServerSettings(database)
+    await second.getResolvedServerSettings(database)
+    // The page's copy (second) has the old name cached.
+    expect(
+      (await second.getResolvedServerSettings(database)).instance.name
+    ).toBe(DEFAULT_SERVER_SETTINGS.instance.name)
+
+    // The route's copy (first) saves, as the admin PATCH does.
+    await first.updateServerSettings(database, {
+      'instance.name': 'Saved Name'
+    })
+    expect(
+      (await second.getResolvedServerSettings(database)).instance.name
+    ).toBe('Saved Name')
     await database.destroy()
   })
 

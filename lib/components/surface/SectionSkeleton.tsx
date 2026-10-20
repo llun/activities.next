@@ -15,6 +15,13 @@ interface Props {
    */
   sections?: (number | number[])[]
   /**
+   * Indexes (into `sections`) of numeric sections whose rows each hold a tall
+   * control, such as a 16-row Markdown textarea, instead of a one-line input:
+   * their rows draw a control of that height so the sections below do not jump
+   * when the content arrives.
+   */
+  tallSections?: number[]
+  /**
    * Draw the numeric sections in the form look (a `Frame form`: no hairlines,
    * rows spaced like `FormRow`, `py-2.5`) instead of as a divided list. Turn it
    * on for a page of settings forms; leave it off for lists.
@@ -38,10 +45,11 @@ interface Props {
   className?: string
 }
 
-const Row: FC<{ form: boolean }> = ({ form }) => (
+const Row: FC<{ form: boolean; tall?: boolean }> = ({ form, tall = false }) => (
   <div
     className={cn(
-      'flex items-center justify-between gap-6 px-4',
+      'flex justify-between gap-6 px-4',
+      tall ? 'items-start' : 'items-center',
       form ? 'py-2.5' : 'py-4'
     )}
   >
@@ -49,7 +57,12 @@ const Row: FC<{ form: boolean }> = ({ form }) => (
       <SkeletonBar className="h-4 w-40 max-w-full" />
       <SkeletonBar className="h-3 w-64 max-w-full" />
     </div>
-    <SkeletonBar className="h-9 w-24 shrink-0 sm:w-48" />
+    <SkeletonBar
+      className={cn(
+        'shrink-0',
+        tall ? 'h-[22rem] w-24 sm:w-48' : 'h-9 w-24 sm:w-48'
+      )}
+    />
   </div>
 )
 
@@ -61,6 +74,7 @@ const Row: FC<{ form: boolean }> = ({ form }) => (
  */
 export const SectionSkeleton: FC<Props> = ({
   sections = [3],
+  tallSections = [],
   form = false,
   title = true,
   headings = true,
@@ -123,7 +137,11 @@ export const SectionSkeleton: FC<Props> = ({
           ) : null}
           <Frame form={form} divided={!form}>
             {Array.from({ length: rows }, (_, row) => (
-              <Row key={row} form={form} />
+              <Row
+                key={row}
+                form={form}
+                tall={tallSections.includes(section)}
+              />
             ))}
           </Frame>
         </div>

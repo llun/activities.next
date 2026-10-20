@@ -36,14 +36,17 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
   locks
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
-    useServerSettingsForm({
-      'network.requestTimeoutMs': settings.network.requestTimeoutMs,
-      'network.requestRetries': settings.network.requestRetries,
-      'network.maxResponseSizeBytes': settings.network.maxResponseSizeBytes,
-      'network.linkPreviews': settings.network.linkPreviews,
-      'network.speciesLookups': settings.network.speciesLookups,
-      'network.placeLookups': settings.network.placeLookups
-    })
+    useServerSettingsForm(
+      {
+        'network.requestTimeoutMs': settings.network.requestTimeoutMs,
+        'network.requestRetries': settings.network.requestRetries,
+        'network.maxResponseSizeBytes': settings.network.maxResponseSizeBytes,
+        'network.linkPreviews': settings.network.linkPreviews,
+        'network.speciesLookups': settings.network.speciesLookups,
+        'network.placeLookups': settings.network.placeLookups
+      },
+      locks
+    )
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const status = statusFor('network')

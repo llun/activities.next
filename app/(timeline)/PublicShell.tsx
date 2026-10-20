@@ -15,12 +15,13 @@ interface PublicShellProps {
 
 /**
  * Public chrome for logged-out visitors on the federated reading surfaces
- * (single status, profiles, hashtags): a slim top bar with sign-in CTAs and a
+ * (single status, profiles, hashtags, and the terms of service and privacy
+ * policy pages, which pass `footer={false}` and print their own): a slim top bar with sign-in CTAs and a
  * footer in place of the nav sidebar, with a narrow reading column that widens
  * below `md` to stay aligned with the full-bleed mobile feeds. This used
  * to live inline in the `(timeline)` layout, but the logged-out home route
  * renders a full-bleed landing instead, so the chrome moved into the sub-trees
- * that still need it (`[actor]/*`, `tags/*`).
+ * that still need it (`[actor]/*`, `tags/*`, `(policies)/*`).
  */
 export const PublicShell: FC<PublicShellProps> = ({
   children,

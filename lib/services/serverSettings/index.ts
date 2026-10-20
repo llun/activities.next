@@ -41,7 +41,7 @@ export interface ServerSettingsView {
   locks: Record<string, ServerSettingLock>
   // When each field's stored value last changed, in epoch milliseconds; null
   // when the value comes from the env or the default instead (no stored row,
-  // an invalid one, or an env pin). The terms of service and privacy policy
+  // an invalid one, an env pin, or a cleared policy). The terms of service and privacy policy
   // report this as their date.
   updatedAt: Record<string, number | null>
 }
@@ -59,7 +59,26 @@ export interface ServerSettingUpdateResult {
   applied: boolean
 }
 
-type CacheEntry = { view: ServerSettingsView; expiresAt: number }
+type CacheEntry = {
+  view: ServerSettingsView
+  expiresAt: number
+  // The invalidation epoch the entry was read under; stale once it moves on.
+  epoch: number
+}
+
+// Next bundles route handlers and server components as separate module graphs,
+// so this module (its cache, and `getDatabase()`'s Database) is a different
+// copy in the admin API route than in the admin page: invalidating one copy's
+// cache leaves the other serving the old view until its TTL runs out, and the
+// page showed the pre-save values right after a save. The cache stays per copy,
+// but every invalidation bumps one process-wide epoch on globalThis, which all
+// copies check before serving an entry. (The same sharing as
+// `servedDomainSnapshot`.)
+const EPOCH_KEY = Symbol.for('activities.next.serverSettings.epoch')
+const globalEpoch = globalThis as typeof globalThis & {
+  [EPOCH_KEY]?: number
+}
+const currentEpoch = (): number => globalEpoch[EPOCH_KEY] ?? 0
 
 // Cache is keyed by the database instance so the production singleton is cached
 // while each test's throwaway database resolves independently. A null database
@@ -85,7 +104,12 @@ const buildView = (
       const parsed = settingField.schema.safeParse(stored.value)
       if (parsed.success) {
         settingField.set(settings, parsed.data)
-        updatedAt[settingField.key] = stored.updatedAt
+        // A cleared policy is an empty row, not a document: it has no date.
+        const isBlankPolicy =
+          settingField.key.startsWith('policies.') &&
+          typeof parsed.data === 'string' &&
+          parsed.data.trim() === ''
+        updatedAt[settingField.key] = isBlankPolicy ? null : stored.updatedAt
       }
     }
 
@@ -109,9 +133,10 @@ const readCacheEntry = (database: Database | null): CacheEntry | null =>
 const writeCache = (
   database: Database | null,
   view: ServerSettingsView,
-  expiresAt: number
+  expiresAt: number,
+  epoch: number
 ) => {
-  const entry: CacheEntry = { view, expiresAt }
+  const entry: CacheEntry = { view, expiresAt, epoch }
   if (database) cacheByDatabase.set(database, entry)
   else nullDatabaseCache = entry
 }
@@ -121,13 +146,18 @@ export const getServerSettingsView = async (
   database: Database | null = getDatabase()
 ): Promise<ServerSettingsView> => {
   const now = Date.now()
+  // Read before any await: an invalidation during the read below leaves the
+  // entry written with this older epoch, so the next call re-reads.
+  const epoch = currentEpoch()
   const entry = readCacheEntry(database)
-  if (entry && entry.expiresAt > now) return entry.view
+  if (entry && entry.epoch === epoch && entry.expiresAt > now) {
+    return entry.view
+  }
 
   // No configured database: env + defaults only.
   if (!database) {
     const view = buildView(new Map())
-    writeCache(null, view, now + CACHE_TTL_MS)
+    writeCache(null, view, now + CACHE_TTL_MS, epoch)
     return view
   }
 
@@ -152,12 +182,12 @@ export const getServerSettingsView = async (
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
     const view = entry ? entry.view : buildView(new Map())
-    writeCache(database, view, now + FAILURE_CACHE_TTL_MS)
+    writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
     return view
   }
 
   const view = buildView(storedByKey)
-  writeCache(database, view, now + CACHE_TTL_MS)
+  writeCache(database, view, now + CACHE_TTL_MS, epoch)
   return view
 }
 
@@ -173,6 +203,7 @@ export const invalidateServerSettingsCache = (
 ) => {
   if (database) cacheByDatabase.delete(database)
   else nullDatabaseCache = null
+  globalEpoch[EPOCH_KEY] = currentEpoch() + 1
 }
 
 // Applies a partial { key: value } patch: every entry is validated against its

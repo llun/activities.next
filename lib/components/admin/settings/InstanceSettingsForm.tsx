@@ -136,7 +136,7 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
           ])
         )
       },
-      (key) => lock(key).locked
+      locks
     )
   const detailsStatus = statusFor('details')
   const policiesStatus = statusFor('policies')

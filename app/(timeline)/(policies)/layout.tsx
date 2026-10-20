@@ -13,8 +13,9 @@ interface LayoutProps {
  * The terms of service and privacy policy are public: they are what a visitor
  * reads before creating an account. Signed-in visitors already get the nav
  * sidebar from the `(timeline)` layout, so this only adds the public top bar
- * (the page prints its own footer) for logged-out visitors, like `[actor]/layout.tsx`; signed-in
- * renders pass through untouched.
+ * (the page prints its own footer) for logged-out visitors, like
+ * `[actor]/layout.tsx`; signed-in renders only gain the top spacing the shell
+ * would have given.
  */
 const Layout: FC<LayoutProps> = async ({ children }) => {
   const database = getDatabase()
@@ -24,7 +25,10 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
-  if (actor) return <>{children}</>
+  // The `(timeline)` content wrapper has no top padding, which the public
+  // shell's `py-6` supplies for logged-out visitors; the profile page takes the
+  // same `md:pt-8` when signed in.
+  if (actor) return <div className="pt-6 md:pt-8">{children}</div>
 
   return <PublicShell footer={false}>{children}</PublicShell>
 }

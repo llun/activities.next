@@ -68,11 +68,15 @@ describe('(policies) Layout', () => {
     )
   })
 
-  it('passes children through for signed-in users', async () => {
+  it('passes children through for signed-in users, with top spacing', async () => {
     mockGetActorFromSession.mockResolvedValue({ id: 'actor-1' } as never)
 
     await renderLayout()
 
+    expect(screen.getByTestId('child').parentElement).toHaveClass(
+      'pt-6',
+      'md:pt-8'
+    )
     expect(screen.queryByTestId('public-shell')).not.toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })
