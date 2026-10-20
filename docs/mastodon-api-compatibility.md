@@ -278,11 +278,26 @@ product or security decision, not a gap to be closed.
 
 - **`GET /api/v1/instance/privacy_policy` returns 404 when unset.** Mastodon
   falls back to a bundled default privacy policy when the admin has not set one.
-  Activity.next ships no default, so the endpoint returns `404` until
-  `ACTIVITIES_PRIVACY_POLICY` is configured (clients hide the link on a 404). The
-  companion `GET /api/v1/instance/terms_of_service` (and `/:date`) 404-when-unset
-  already matches Mastodon; both report `1970-01-01` as their single effective
-  date, the same "no date tracked" placeholder `extended_description` uses.
+  Activity.next ships no default, so the endpoint returns `404` until a policy
+  is saved in Admin › Instance or `ACTIVITIES_PRIVACY_POLICY` is set (clients
+  hide the link on a 404), and `/api/v2/instance` reports
+  `configuration.urls.privacy_policy` as `null` then, where Mastodon always has
+  a URL. The companion `GET /api/v1/instance/terms_of_service` (and `/:date`)
+  404-when-unset and its `null` `configuration.urls.terms_of_service` already
+  match Mastodon. Both documents are Markdown rendered like Mastodon's
+  serializers (Redcarpet with `escape_html` and `no_images`, `%{domain}`
+  replaced); bare URLs and email addresses are also linked. Only the current
+  version of each is kept: the terms report the UTC date they last changed as
+  their single `effective_date` and are never `succeeded_by` another, and the
+  policy's `updated_at` is when it last changed. A document pinned by the
+  environment has no date and reports the epoch (`1970-01-01`).
+
+- **`agreement` on `POST /api/v1/accounts`.** An API registration must send
+  `agreement=true` whether or not the server has terms, as Mastodon requires;
+  without it the answer is `422` with an `agreement` `ERR_ACCEPTED` detail.
+  The web sign-up form needs it only when the domain it is on has a terms of
+  service or privacy policy. Mastodon also stores when a user agreed; this
+  server does not.
 
 - **`GET /api/oembed` emits a static blockquote embed.** Activity.next has no
   per-status embed widget, so the oEmbed `html` field is a `blockquote` linking

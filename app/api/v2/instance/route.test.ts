@@ -187,10 +187,43 @@ describe('GET /api/v2/instance', () => {
       params
     )
     const body = await response.json()
-    expect(body.configuration.urls).toEqual({ streaming: '' })
+    expect(body.configuration.urls).toEqual({
+      streaming: '',
+      terms_of_service: null,
+      privacy_policy: null
+    })
     expect(body.configuration.vapid).toEqual({
       public_key: 'test-vapid-public-key'
     })
+  })
+
+  // Mastodon 4.4's REST::InstanceSerializer#configuration lists the policy
+  // pages under urls, on the domain the request arrived on.
+  it('links the policy pages of the visited domain once they are set', async () => {
+    await database.setServerSettings([
+      { key: 'policies.termsOfService', value: 'Be excellent' },
+      { key: 'policies.privacyPolicy', value: 'No logs' }
+    ])
+    invalidateServerSettingsCache(database)
+    try {
+      const body = await (
+        await GET(
+          new NextRequest('https://llun.test/api/v2/instance', {
+            headers: { 'x-forwarded-host': 'alias.llun.test' }
+          }),
+          params
+        )
+      ).json()
+      expect(body.configuration.urls).toEqual({
+        streaming: '',
+        terms_of_service: 'https://alias.llun.test/terms-of-service',
+        privacy_policy: 'https://alias.llun.test/privacy-policy'
+      })
+    } finally {
+      await deleteServerSetting(db, { key: 'policies.termsOfService' })
+      await deleteServerSetting(db, { key: 'policies.privacyPolicy' })
+      invalidateServerSettingsCache(database)
+    }
   })
 
   it('advertises the stored media ceiling as max_media_attachments', async () => {

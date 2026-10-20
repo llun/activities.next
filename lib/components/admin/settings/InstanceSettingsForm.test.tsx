@@ -36,6 +36,7 @@ const baseSettings: ResolvedServerSettings = {
     languages: ['en', 'th']
   },
   registrations: { open: true, allowEmails: ['anna@llun.dev'] },
+  policies: { termsOfService: '', privacyPolicy: '' },
   posts: { maxCharacters: 500, maxMediaAttachments: 20 },
   polls: {
     maxOptions: 4,

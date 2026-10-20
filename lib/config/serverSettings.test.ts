@@ -12,7 +12,9 @@ const ENV_KEYS = [
   'ACTIVITIES_REGISTRATION_OPEN',
   'ACTIVITIES_FEDERATION_MODE',
   'ACTIVITIES_ALLOW_EMAILS',
-  'ACTIVITIES_LANGUAGES'
+  'ACTIVITIES_LANGUAGES',
+  'ACTIVITIES_TERMS_OF_SERVICE',
+  'ACTIVITIES_PRIVACY_POLICY'
 ]
 
 describe('server settings registry env parsers', () => {
@@ -72,6 +74,18 @@ describe('server settings registry env parsers', () => {
     expect(readEnvFor('federation.mode')).toBeUndefined()
   })
 
+  it.each([
+    ['policies.termsOfService', 'ACTIVITIES_TERMS_OF_SERVICE'],
+    ['policies.privacyPolicy', 'ACTIVITIES_PRIVACY_POLICY']
+  ])('reads %s from %s, treating an empty value as unset', (key, envVar) => {
+    expect(SERVER_SETTING_FIELDS_BY_KEY[key].envVar).toBe(envVar)
+    expect(readEnvFor(key)).toBeUndefined()
+    process.env[envVar] = ''
+    expect(readEnvFor(key)).toBeUndefined()
+    process.env[envVar] = '# Terms\n\nBe excellent.'
+    expect(readEnvFor(key)).toBe('# Terms\n\nBe excellent.')
+  })
+
   it('normalizes allowed emails and parses languages from JSON', () => {
     process.env.ACTIVITIES_ALLOW_EMAILS = '["A@Example.com"]'
     expect(readEnvFor('registrations.allowEmails')).toEqual(['a@example.com'])
@@ -112,6 +126,22 @@ describe('gallery lookup settings', () => {
       expect(field.schema.safeParse(false).success).toBe(true)
       expect(field.schema.safeParse('off').success).toBe(false)
       expect(field.get(DEFAULT_SERVER_SETTINGS)).toBe(true)
+    }
+  )
+})
+
+describe('policy settings', () => {
+  it.each([['policies.termsOfService'], ['policies.privacyPolicy']])(
+    'gives %s an instance field that ships empty and holds up to 100000 characters',
+    (key) => {
+      const field = SERVER_SETTING_FIELDS_BY_KEY[key]
+
+      expect(field.group).toBe('instance')
+      expect(field.get(DEFAULT_SERVER_SETTINGS)).toBe('')
+      expect(field.schema.safeParse('x'.repeat(100_000)).success).toBe(true)
+      expect(field.schema.safeParse('x'.repeat(100_001)).success).toBe(false)
+      // Stored as written: leading indentation is Markdown.
+      expect(field.schema.parse('    code\n')).toBe('    code\n')
     }
   )
 })

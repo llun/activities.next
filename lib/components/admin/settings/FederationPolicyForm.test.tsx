@@ -26,6 +26,7 @@ const settingsWith = (
     languages: ['en']
   },
   registrations: { open: true, allowEmails: [] },
+  policies: { termsOfService: '', privacyPolicy: '' },
   posts: { maxCharacters: 500, maxMediaAttachments: 20 },
   polls: {
     maxOptions: 4,

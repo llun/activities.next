@@ -7,7 +7,10 @@ import {
 } from '@/lib/config/serverSettings'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { ServerSettingValue } from '@/lib/types/database/operations'
+import {
+  ServerSettingData,
+  ServerSettingValue
+} from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
 
 // Resolves database-backed server settings using env -> database -> default
@@ -36,6 +39,11 @@ export interface ServerSettingLock {
 export interface ServerSettingsView {
   settings: ResolvedServerSettings
   locks: Record<string, ServerSettingLock>
+  // When each field's stored value last changed, in epoch milliseconds; null
+  // when the value comes from the env or the default instead (no stored row,
+  // an invalid one, or an env pin). The terms of service and privacy policy
+  // report this as their date.
+  updatedAt: Record<string, number | null>
 }
 
 export type ServerSettingRejectionReason = 'unknown' | 'locked' | 'invalid'
@@ -62,17 +70,23 @@ let nullDatabaseCache: CacheEntry | null = null
 // Build the resolved view from the already-read stored rows (no I/O):
 // default -> database (valid rows only) -> env (wins and locks the field).
 const buildView = (
-  storedByKey: Map<string, ServerSettingValue>
+  storedByKey: Map<string, ServerSettingData>
 ): ServerSettingsView => {
   const settings = structuredClone(DEFAULT_SERVER_SETTINGS)
   const locks: Record<string, ServerSettingLock> = {}
+  const updatedAt: Record<string, number | null> = {}
 
   for (const settingField of SERVER_SETTING_FIELDS) {
+    updatedAt[settingField.key] = null
+
     // Database value wins over the default, when present and still valid.
-    const storedValue = storedByKey.get(settingField.key)
-    if (storedValue !== undefined) {
-      const parsed = settingField.schema.safeParse(storedValue)
-      if (parsed.success) settingField.set(settings, parsed.data)
+    const stored = storedByKey.get(settingField.key)
+    if (stored !== undefined) {
+      const parsed = settingField.schema.safeParse(stored.value)
+      if (parsed.success) {
+        settingField.set(settings, parsed.data)
+        updatedAt[settingField.key] = stored.updatedAt
+      }
     }
 
     // Env override wins over everything and locks the field.
@@ -80,12 +94,13 @@ const buildView = (
     if (envValue !== undefined) {
       settingField.set(settings, envValue)
       locks[settingField.key] = { locked: true, envVar: settingField.envVar }
+      updatedAt[settingField.key] = null
     } else {
       locks[settingField.key] = { locked: false, envVar: settingField.envVar }
     }
   }
 
-  return { settings, locks }
+  return { settings, locks, updatedAt }
 }
 
 const readCacheEntry = (database: Database | null): CacheEntry | null =>
@@ -116,10 +131,10 @@ export const getServerSettingsView = async (
     return view
   }
 
-  let storedByKey: Map<string, ServerSettingValue>
+  let storedByKey: Map<string, ServerSettingData>
   try {
     const rows = await database.getAllServerSettings()
-    storedByKey = new Map(rows.map((row) => [row.key, row.value]))
+    storedByKey = new Map(rows.map((row) => [row.key, row]))
   } catch (error) {
     // A settings read failure must never take down a request path, but it must
     // also not silently revert an admin's stored policy (a closed registration,
