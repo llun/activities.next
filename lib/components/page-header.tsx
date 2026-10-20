@@ -54,6 +54,15 @@ interface PageHeaderProps {
    * up, in section mode, or without the signed-in mobile navigation.
    */
   actionsInMobileBar?: boolean
+  /**
+   * Controls that sit at the end of the mobile compact bar below `md` and at
+   * the trailing end of the header actions row from `md` up, while `actions`
+   * stays in the content row below `md` (for example, Notifications puts
+   * Refresh in the compact bar and keeps "Mark all read" in the content row).
+   * In section mode or without the signed-in mobile navigation, renders alongside
+   * actions.
+   */
+  mobileBarActions?: ReactNode
 }
 
 const PageSubnavContext = createContext<ReactNode>(null)
@@ -107,7 +116,8 @@ export const PageHeader = ({
   back,
   compactTitle,
   flushOnMobile,
-  actionsInMobileBar
+  actionsInMobileBar,
+  mobileBarActions
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
@@ -142,7 +152,7 @@ export const PageHeader = ({
               </div>
             )}
           </div>
-          {actions && (
+          {(actions || mobileBarActions) && (
             <div
               className={cn(
                 'shrink-0',
@@ -151,7 +161,14 @@ export const PageHeader = ({
                   : 'self-center'
               )}
             >
-              {actions}
+              {actions && mobileBarActions ? (
+                <div className="flex items-center gap-2">
+                  {actions}
+                  {mobileBarActions}
+                </div>
+              ) : (
+                actions || mobileBarActions
+              )}
             </div>
           )}
         </div>
@@ -173,13 +190,30 @@ export const PageHeader = ({
   // specific heading of its own (`compactTitle`), so exactly one h1 is
   // displayed at any width.
   const hidesTitleOnMobile = hasMobileBar && !compactTitle
+  const hasAnyActions = Boolean(actions || mobileBarActions)
   // Actions the bar carries below `md`; the content row then hides its copy.
-  const barActions = hasMobileBar && actionsInMobileBar ? actions : undefined
+  const barActions = hasMobileBar ? (
+    actionsInMobileBar ? (
+      actions && mobileBarActions ? (
+        <div className="flex items-center gap-2">
+          {actions}
+          {mobileBarActions}
+        </div>
+      ) : (
+        actions || mobileBarActions
+      )
+    ) : (
+      mobileBarActions
+    )
+  ) : undefined
+  const hidesAllBoxActionsOnMobile =
+    hasMobileBar &&
+    (actionsInMobileBar ? hasAnyActions : !actions && Boolean(mobileBarActions))
   const isEmptyOnMobile =
     hidesTitleOnMobile &&
     !back &&
     !description &&
-    (!actions || Boolean(barActions)) &&
+    (!hasAnyActions || hidesAllBoxActionsOnMobile) &&
     !subnav
 
   const heading = (
@@ -237,7 +271,7 @@ export const PageHeader = ({
               // + 16px description = 46px). Pad it to that height so the box
               // matches the 79px of described pages and the content below does
               // not move. A title-only header keeps its own height.
-              !description && actions && 'md:min-h-[46px]',
+              !description && hasAnyActions && 'md:min-h-[46px]',
               stackActionsOnMobile
                 ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
                 : 'items-start justify-between'
@@ -286,19 +320,40 @@ export const PageHeader = ({
                 )}
               </div>
             </div>
-            {actions && (
-              <div
-                className={cn(
-                  'shrink-0',
-                  stackActionsOnMobile
-                    ? 'self-start sm:self-center'
-                    : 'self-center',
-                  barActions && 'max-md:hidden'
-                )}
-              >
-                {actions}
-              </div>
-            )}
+            {hasAnyActions &&
+              (actions && mobileBarActions ? (
+                <div
+                  className={cn(
+                    'flex shrink-0 items-center gap-2',
+                    stackActionsOnMobile
+                      ? 'self-start sm:self-center'
+                      : 'self-center',
+                    hasMobileBar && actionsInMobileBar && 'max-md:hidden'
+                  )}
+                >
+                  {actions}
+                  <div
+                    className={cn(
+                      'shrink-0',
+                      hasMobileBar && !actionsInMobileBar && 'max-md:hidden'
+                    )}
+                  >
+                    {mobileBarActions}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    'shrink-0',
+                    stackActionsOnMobile
+                      ? 'self-start sm:self-center'
+                      : 'self-center',
+                    hidesAllBoxActionsOnMobile && 'max-md:hidden'
+                  )}
+                >
+                  {actions || mobileBarActions}
+                </div>
+              ))}
           </div>
           {subnav && <div className="mt-3">{subnav}</div>}
         </div>

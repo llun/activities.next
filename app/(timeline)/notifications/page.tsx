@@ -131,13 +131,10 @@ const Page = async ({ searchParams }: Props) => {
         title="Notifications"
         description="Recent follows, replies, mentions and activity updates."
         actions={
-          <div className="flex items-center gap-2">
-            <PageRefreshButton accessibleName="Refresh notifications" />
-            <MarkAllReadButton
-              unreadIds={unreadIds}
-              unreadCount={unreadCount}
-            />
-          </div>
+          <MarkAllReadButton unreadIds={unreadIds} unreadCount={unreadCount} />
+        }
+        mobileBarActions={
+          <PageRefreshButton accessibleName="Refresh notifications" />
         }
       />
 

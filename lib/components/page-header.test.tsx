@@ -265,6 +265,38 @@ describe('PageHeader', () => {
     expect(getTitleColumn()).not.toHaveClass('self-center')
   })
 
+  it('renders mobileBarActions after actions in section mode', () => {
+    const { rerender } = render(
+      <PageHeaderSectionProvider>
+        <PageHeader
+          title="Gear"
+          actions={<button type="button">Primary</button>}
+          mobileBarActions={<button type="button">Secondary</button>}
+        />
+      </PageHeaderSectionProvider>
+    )
+
+    const primary = screen.getByRole('button', { name: 'Primary' })
+    const secondary = screen.getByRole('button', { name: 'Secondary' })
+    expect(
+      primary.compareDocumentPosition(secondary) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    rerender(
+      <PageHeaderSectionProvider>
+        <PageHeader
+          title="Gear"
+          actions={false}
+          mobileBarActions={<button type="button">Secondary</button>}
+        />
+      </PageHeaderSectionProvider>
+    )
+    expect(
+      screen.getByRole('button', { name: 'Secondary' })
+    ).toBeInTheDocument()
+  })
+
   describe('mobile compact bar', () => {
     it('puts only the title in the bar and keeps description, actions and sub-nav in the content', () => {
       const { container } = render(
@@ -569,6 +601,146 @@ describe('PageHeader', () => {
       })
       expect(getBar(container)).toContainElement(barPill)
       expect(boxPill.closest('.top-full')).toHaveClass('max-md:hidden')
+    })
+
+    it('moves mobileBarActions into the bar below md while keeping actions in the content', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Notifications"
+            description="Recent activity"
+            actions={<button type="button">Mark all read</button>}
+            mobileBarActions={
+              <button type="button">Refresh notifications</button>
+            }
+          />
+        </MobileNavigationProvider>
+      )
+
+      const bar = getBar(container)
+      const [barRefresh, boxRefresh] = screen.getAllByRole('button', {
+        name: 'Refresh notifications'
+      })
+      const markAllRead = screen.getByRole('button', {
+        name: 'Mark all read'
+      })
+
+      expect(bar).toContainElement(barRefresh)
+      expect(
+        within(bar)
+          .getByRole('heading', { level: 1, name: 'Notifications' })
+          .compareDocumentPosition(barRefresh) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(bar).not.toContainElement(markAllRead)
+
+      expect(bar).not.toContainElement(boxRefresh)
+      expect(markAllRead.parentElement).not.toHaveClass('max-md:hidden')
+      expect(
+        markAllRead.compareDocumentPosition(boxRefresh) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(boxRefresh.parentElement).toHaveClass('shrink-0', 'max-md:hidden')
+    })
+
+    it('renders mobileBarActions alongside actions without the signed-in mobile navigation', () => {
+      render(
+        <PageHeader
+          title="Notifications"
+          description="Recent activity"
+          actions={<button type="button">Mark all read</button>}
+          mobileBarActions={
+            <button type="button">Refresh notifications</button>
+          }
+        />
+      )
+
+      const markAllRead = screen.getByRole('button', {
+        name: 'Mark all read'
+      })
+      const refresh = screen.getByRole('button', {
+        name: 'Refresh notifications'
+      })
+
+      expect(markAllRead.parentElement).not.toHaveClass('max-md:hidden')
+      expect(refresh.parentElement).not.toHaveClass('max-md:hidden')
+      expect(
+        markAllRead.compareDocumentPosition(refresh) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+
+    it('handles actions={false} with mobileBarActions populated', () => {
+      const { container, rerender } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Notifications"
+            description="Recent activity"
+            actions={false}
+            mobileBarActions={
+              <button type="button">Refresh notifications</button>
+            }
+          />
+        </MobileNavigationProvider>
+      )
+
+      const bar = getBar(container)
+      const [barRefresh, boxRefresh] = screen.getAllByRole('button', {
+        name: 'Refresh notifications'
+      })
+      expect(bar).toContainElement(barRefresh)
+      expect(boxRefresh.parentElement).toHaveClass('shrink-0', 'max-md:hidden')
+
+      rerender(
+        <PageHeader
+          title="Notifications"
+          description="Recent activity"
+          actions={false}
+          mobileBarActions={
+            <button type="button">Refresh notifications</button>
+          }
+        />
+      )
+
+      const refresh = screen.getByRole('button', {
+        name: 'Refresh notifications'
+      })
+      expect(refresh.parentElement).toHaveClass('shrink-0')
+      expect(refresh.parentElement).not.toHaveClass('max-md:hidden')
+    })
+
+    it('moves both actions and mobileBarActions into the bar with actionsInMobileBar', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            actions={<button type="button">Action 1</button>}
+            mobileBarActions={<button type="button">Action 2</button>}
+            actionsInMobileBar
+          />
+        </MobileNavigationProvider>
+      )
+
+      const bar = getBar(container)
+      const [barAction1, boxAction1] = screen.getAllByRole('button', {
+        name: 'Action 1'
+      })
+      const [barAction2, boxAction2] = screen.getAllByRole('button', {
+        name: 'Action 2'
+      })
+
+      expect(bar).toContainElement(barAction1)
+      expect(bar).toContainElement(barAction2)
+      expect(
+        barAction1.compareDocumentPosition(barAction2) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+
+      expect(boxAction1.closest('.max-md\\:hidden')).toBeInTheDocument()
+      expect(boxAction2.closest('.max-md\\:hidden')).toBeInTheDocument()
+      const headerBox = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(headerBox).toHaveClass('max-md:hidden')
     })
   })
 })
