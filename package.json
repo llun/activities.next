@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.203.4",
+  "version": "1.204.0",
   "license": "MIT",
   "type": "module",
   "workspaces": [
