@@ -140,15 +140,17 @@ describe('/settings', () => {
     )
   })
 
-  describe('profile links', () => {
+  describe('profile fields', () => {
     it('puts the row after Summary and before the image uploads, inside the profile form', async () => {
-      getActorSettings.mockResolvedValue(null)
+      getActorSettings.mockResolvedValue({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      })
 
       render(await Page())
 
       const profile = screen.getByRole('group', { name: 'Profile' })
       const summary = screen.getByLabelText('Summary')
-      const links = screen.getByLabelText('Link 1 label')
+      const links = screen.getByLabelText('Field 1 label')
       const upload = screen.getAllByTestId('image-upload')[0]
       expect(profile).toContainElement(links)
       expect(
@@ -164,9 +166,17 @@ describe('/settings', () => {
       ).toBe(true)
       expect(
         screen.getByText(
-          'Up to 4. Shown on your profile and on other servers. Plain text works too.'
+          'Up to 4, like Location, Pronouns or a website. Shown on your profile and on other servers.'
         )
       ).toBeInTheDocument()
+      // The row label names the first control, so a click on it works.
+      expect(
+        (
+          screen.getByText('Profile fields', {
+            selector: 'label'
+          }) as HTMLLabelElement
+        ).control
+      ).toBe(links)
     })
 
     it('posts the saved fields with the profile form', async () => {
@@ -182,6 +192,20 @@ describe('/settings', () => {
       expect(data.get('fields[0][name]')).toBe('Blog')
       expect(data.get('fields[0][value]')).toBe('https://blog.example')
       expect(data.get('fields[3][name]')).toBe('')
+    })
+
+    it('still posts four empty pairs when no field is saved', async () => {
+      getActorSettings.mockResolvedValue(null)
+
+      render(await Page())
+
+      const form = (screen.getByLabelText('Summary') as HTMLTextAreaElement)
+        .form as HTMLFormElement
+      const data = new FormData(form)
+      for (const index of [0, 1, 2, 3]) {
+        expect(data.get(`fields[${index}][name]`)).toBe('')
+        expect(data.get(`fields[${index}][value]`)).toBe('')
+      }
     })
 
     it('shows each saved link\u2019s verification next to its inputs', async () => {

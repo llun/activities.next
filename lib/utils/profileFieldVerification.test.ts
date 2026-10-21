@@ -20,6 +20,38 @@ describe('carryOverFieldVerification', () => {
     ])
   })
 
+  it('keeps the verification when the field moves to another position', () => {
+    // The settings editor can reorder fields: the check follows the value, not
+    // the index the field had when it was verified.
+    expect(
+      carryOverFieldVerification(
+        [
+          { name: 'Pronouns', value: 'they/them' },
+          { name: 'Site', value: 'https://blog.example' }
+        ],
+        previous
+      )
+    ).toEqual([
+      { name: 'Pronouns', value: 'they/them' },
+      { name: 'Site', value: 'https://blog.example', verifiedAt: 1000 }
+    ])
+  })
+
+  it('keeps the verification of a value shared by two fields', () => {
+    expect(
+      carryOverFieldVerification(
+        [
+          { name: 'Home', value: 'https://blog.example' },
+          { name: 'Blog', value: 'https://blog.example' }
+        ],
+        previous
+      )
+    ).toEqual([
+      { name: 'Home', value: 'https://blog.example', verifiedAt: 1000 },
+      { name: 'Blog', value: 'https://blog.example', verifiedAt: 1000 }
+    ])
+  })
+
   it('starts a changed value unverified', () => {
     expect(
       carryOverFieldVerification(

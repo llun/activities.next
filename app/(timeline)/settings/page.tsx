@@ -6,7 +6,8 @@ import { AppearanceSection } from '@/lib/components/settings/AppearanceSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { NativeFormSaveBar } from '@/lib/components/settings/NativeFormSaveBar'
-import { ProfileLinksField } from '@/lib/components/settings/ProfileLinksField'
+import { ProfileFieldsField } from '@/lib/components/settings/ProfileFieldsField'
+import { PROFILE_FIELDS_FIRST_CONTROL_ID } from '@/lib/components/settings/profileFieldsFieldIds'
 import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
@@ -127,13 +128,13 @@ const Page = async () => {
               />
             </FormRow>
             <FormRow
-              label="Profile links"
-              htmlFor="profileField0Name"
-              hint="Up to 4. Shown on your profile and on other servers. Plain text works too."
+              label="Profile fields"
+              htmlFor={PROFILE_FIELDS_FIRST_CONTROL_ID}
+              hint="Up to 4, like Location, Pronouns or a website. Shown on your profile and on other servers."
               className="sm:items-start"
             >
               {({ describedBy, labelledBy }) => (
-                <ProfileLinksField
+                <ProfileFieldsField
                   fields={settings?.fields ?? []}
                   profileUrl={getActorProfileUrl(actor)}
                   describedBy={describedBy}

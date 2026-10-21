@@ -1808,11 +1808,23 @@ legacy shape left to copy.
     of the Account entity (ISO time or `null`); `ProfileFieldsBlock` (the
     profile page passes `profileFields` from `getProfileData`: a local actor's
     stored field, or a remote document's field matched by name and value to the
-    stored row); and the settings "Profile links" row, which shows a green
-    "Verified" or a muted "Not verified" under each saved URL row (nothing for
-    an empty or text row, and nothing once the content input was edited,
-    because the status describes the saved value), wired into the content
-    input's `aria-describedby`. There is deliberately no "Checking" state.
+    stored row); and the settings "Profile fields" editor (`ProfileFieldsField`,
+    `lib/components/settings/`), which shows a green "Verified" or a muted
+    "Not verified" under each row whose current content (trimmed) equals a
+    saved https value, matched by value and not by position because rows can
+    move (nothing for an empty, text or http row, and nothing once the content
+    was edited to something unsaved, because the status describes the saved
+    value), wired into the content input's `aria-describedby`. The editor's
+    "On your profile" preview renders the filled rows through
+    `ProfileFieldsBlock` with `verifiedAt` only for such saved values, and
+    each row's icon comes from `chooseProfileFieldIcon` on the same sanitized
+    value the profile uses, drawn from the one `PROFILE_FIELD_ICONS` map
+    (`profileFieldIcons.ts`). The editor always submits four
+    `fields[i][name]`/`fields[i][value]` pairs in row order, padding unused
+    slots with empty hidden inputs, because `parseProfileFieldsForm` keeps the
+    stored fields when a form has no `fields[...]` key and emptying the list
+    must clear them. Reordering or relabelling keeps `verifiedAt`, since
+    `carryOverFieldVerification` matches by value. There is deliberately no "Checking" state.
 - **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,
   while the row is still `scheduled`: after the due-time checks and BEFORE
   `startActorDeletion`.** The Delete must be signed with the actor's key, and
