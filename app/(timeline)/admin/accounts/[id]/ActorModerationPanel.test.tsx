@@ -225,6 +225,24 @@ describe('ActorModerationPanel', () => {
     ).not.toBeNull()
   })
 
+  it('keeps the same box from loading to loaded', async () => {
+    mockGetAdminAccount.mockResolvedValue(account({}))
+
+    render(
+      <ActorModerationPanel actorId="acct-1" username="target">
+        <p>Target actor</p>
+      </ActorModerationPanel>
+    )
+    const loadingBox = screen
+      .getByText('Target actor')
+      .closest('[data-slot=frame]')
+    await screen.findByRole('button', { name: 'Suspend' })
+
+    expect(screen.getByText('Target actor').closest('[data-slot=frame]')).toBe(
+      loadingBox
+    )
+  })
+
   it('keeps the actions and shows an alert when an action fails', async () => {
     mockGetAdminAccount.mockResolvedValue(account({}))
     mockAction.mockRejectedValue(new Error('Not allowed'))

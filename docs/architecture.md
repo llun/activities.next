@@ -2515,7 +2515,7 @@ legacy shape left to copy.
 - New page UI is built from the surface kit in `lib/components/surface/` (`Section`, `Frame`, `FormRow`, `SaveBar`, `StatStrip`, `FramedList`, `TableFrame`, `EmptyState`, `Alert`, `SegmentedControl`, `AddBar`, `RadioCard`, `ScreenSkeleton`/`DescriptionSkeleton`/`StatStripSkeleton`, `SectionSkeleton`, `SkeletonBar`/`SkeletonRows`, and `GalleryGridSkeleton` from `lib/components/gallery/` for a photo grid), not a `Card`, a hand-rolled panel, tab row, empty state or banner.
 - Radii are `rounded-lg` frames, `rounded-md` controls and tiles, `rounded-xl` dialogs only; no `rounded-2xl`, no panel `shadow-*`.
 - Headings, labels and buttons are sentence case; colours are theme tokens (`success`, `warning`, `info`, `destructive`, `primary`), never raw palette utilities.
-- Every list, post lists included, is one frame with `divide-y`, not separate cards.
+- Every list, post lists included, is one frame with `divide-y`, not separate cards (the one exception, an admin account's actors, is under **Lists**).
   - Exception: the profile fields on the profile page are an unframed inline line under the bio (like the software line), not a framed list.
 - Settings rows are label-and-hint left, control right, stacked on a phone; the save button says "Save"; instant-save controls show `SavedIndicator`.
 - Loading draws skeleton bars in the final layout's shape, no "Loading…" text; messages and page-level errors are an `Alert` with the right tone and Retry where it helps.

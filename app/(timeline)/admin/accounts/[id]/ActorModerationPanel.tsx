@@ -132,10 +132,12 @@ export const ActorModerationPanel = ({
     void load()
   }
 
-  // Every state is the same stack, so the box stays mounted as it changes.
+  // Every state is the same stack (an Alert slot, then the box), so the box
+  // stays mounted as it changes.
   if (loading && !account) {
     return (
       <div className="space-y-3">
+        {null}
         {box(
           <SkeletonRows
             rows={1}

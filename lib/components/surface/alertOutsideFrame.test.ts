@@ -107,7 +107,7 @@ describe('Alert outside Frame', () => {
       .filter((file) => !ALLOWED_FILES.has(path.normalize(file)))
       .flatMap((file) => {
         const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
-        return source.includes('<Alert')
+        return [...ALERT_TAGS].some((tag) => source.includes(`<${tag}`))
           ? alertsInBoxes(source).map((line) => `${file}:${line}`)
           : []
       })
