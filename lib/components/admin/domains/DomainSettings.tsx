@@ -289,7 +289,7 @@ const StatusBox: FC<{
             <Button
               variant="outline"
               size="sm"
-              className="text-destructive-text h-auto min-h-8 py-1.5 max-w-full text-left whitespace-normal"
+              className="text-destructive-text h-auto min-h-8 py-[5px] max-w-full text-left whitespace-normal"
               disabled={busy !== null}
               onClick={() => void setStatus('off')}
             >
@@ -308,12 +308,12 @@ const StatusBox: FC<{
           title={`${name} is off`}
           live={false}
           action={
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-start gap-2">
               {domain.profiles === 0 ? (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-destructive-text h-auto min-h-8 py-1.5 max-w-full"
+                  className="text-destructive-text h-auto min-h-8 py-[5px] max-w-full"
                   disabled={busy !== null}
                   onClick={() => void remove()}
                 >
