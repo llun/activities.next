@@ -112,7 +112,7 @@ const getEarlierFileSnapshot = (
 
 /**
  * The file an attachment of an edited photo may show. The url, type and size
- * come from the client (the composer, `POST /api/v1/accounts/outbox`, a
+ * come from the client (the deprecated `POST /api/v1/accounts/outbox`, a
  * refresh that started before another save committed), so a stale one could
  * point the post at an earlier render that has been, or is about to be,
  * pruned. Only two files are taken as sent: the media's live file, and on an

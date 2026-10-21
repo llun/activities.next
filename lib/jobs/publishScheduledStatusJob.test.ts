@@ -1,6 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { seedIdempotencyKey } from '@/lib/database/testing/idempotencyTestHelpers'
 import { publishScheduledStatusJob } from '@/lib/jobs/publishScheduledStatusJob'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
@@ -57,7 +59,7 @@ const baseParams = (
 })
 
 describe('publishScheduledStatusJob', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor1: Actor
 
   beforeAll(async () => {
@@ -222,69 +224,235 @@ describe('publishScheduledStatusJob', () => {
     expect(published.hideTotals).toBe(true)
   })
 
-  it('drops the scheduled row without re-publishing when the idempotency key already maps to a status', async () => {
-    const text = `Idempotent scheduled note ${Date.now()}`
+  it('drops the scheduled row without publishing when its Idempotency-Key belongs to a deleted status', async () => {
+    const text = `Deleted-key scheduled note ${Date.now()}`
     const idempotency = `idem-${Date.now()}`
-    // Simulate a prior publish: the idempotency key already maps to a status.
-    await database.saveIdempotencyKey({
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, idempotency })
+    })
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    // The key survives the deletion of the status it created, and matches
+    // this job's content, so only the deleted status stops it.
+    await seedIdempotencyKey(db, {
       actorId: actor1.id,
       key: idempotency,
-      statusId: `${actor1.id}/statuses/already-published`
+      statusId: `${actor1.id}/statuses/already-deleted`,
+      contentHash: getHashFromString(JSON.stringify(row!.params))
     })
 
+    await publishScheduledStatusJob(database, {
+      id: 'job-deleted-key',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    expect(after.some((status) => hasText(status, text))).toBe(false)
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
+  })
+
+  it('publishes afresh instead of dropping the row when its key’s create is discarded during the lookup', async () => {
+    const text = `Discarded-key scheduled note ${Date.now()}`
+    const idempotency = `idem-discarded-${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, idempotency })
+    })
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    // An overlapping delivery's create, still 'pending', with this job's key.
+    const pendingId = `${actor1.id}/statuses/discarded-during-lookup`
+    await database.createNoteWithResult({
+      id: pendingId,
+      url: pendingId,
+      actorId: actor1.id,
+      text,
+      to: [],
+      cc: [],
+      idempotency: {
+        key: idempotency,
+        contentHash: getHashFromString(JSON.stringify(row!.params))
+      }
+    })
+    // It is discarded after this job read the key, before it read the status.
+    const getStatus = database.getStatus.bind(database)
+    const getStatusSpy = vi
+      .spyOn(database, 'getStatus')
+      .mockImplementationOnce(async (params) => {
+        await database.discardUnpublishedStatus({
+          actorId: actor1.id,
+          statusId: pendingId,
+          idempotencyKey: idempotency
+        })
+        return getStatus(params)
+      })
+
+    try {
+      await publishScheduledStatusJob(database, {
+        id: 'job-discarded-key',
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id }
+      })
+    } finally {
+      getStatusSpy.mockRestore()
+    }
+
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    const published = after.filter((status) => hasText(status, text))
+    expect(published).toHaveLength(1)
+    expect(published[0].id).not.toBe(pendingId)
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
+  })
+
+  it('keeps the row and fails the job when the post is saved but not sent, and the retry sends it', async () => {
+    const text = `Publish-failed scheduled note ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text })
+    })
+    const message = {
+      id: 'job-publish-failed',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    }
+    const key = { actorId: actor1.id, key: `scheduled-${scheduled.id}` }
+    vi.mocked(getQueue().publish).mockRejectedValueOnce(
+      new Error('Queue unavailable')
+    )
+
+    await expect(
+      publishScheduledStatusJob(database, message)
+    ).rejects.toBeInstanceOf(StatusPublishFailedError)
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.not.toBeNull()
+    await expect(database.getIdempotencyKey(key)).resolves.toMatchObject({
+      state: 'publish_failed'
+    })
+
+    await publishScheduledStatusJob(database, message)
+
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    expect(after.filter((status) => hasText(status, text))).toHaveLength(1)
+    await expect(database.getIdempotencyKey(key)).resolves.toMatchObject({
+      state: 'complete'
+    })
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
+  })
+
+  it('claims the row-derived key for a scheduled poll too', async () => {
+    const text = `Keyed scheduled poll ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({
+        text,
+        poll: {
+          options: ['Up', 'Down'],
+          expires_in: 3600,
+          multiple: false,
+          hide_totals: false
+        }
+      })
+    })
+
+    await publishScheduledStatusJob(database, {
+      id: 'job-keyed-poll',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: { scheduledStatusId: scheduled.id }
+    })
+
+    const published = (
+      await database.getActorStatuses({ actorId: actor1.id })
+    ).find((status) => hasText(status, text))
+    await expect(
+      database.getIdempotencyKey({
+        actorId: actor1.id,
+        key: `scheduled-${scheduled.id}`
+      })
+    ).resolves.toMatchObject({ statusId: published?.id, state: 'complete' })
+  })
+
+  it('drops the scheduled row without publishing when its Idempotency-Key was used for different content', async () => {
+    const text = `Conflicting-key scheduled note ${Date.now()}`
+    const idempotency = `idem-conflict-${Date.now()}`
+    const [existing] = await database.getActorStatuses({ actorId: actor1.id })
+    await seedIdempotencyKey(db, {
+      actorId: actor1.id,
+      key: idempotency,
+      statusId: existing.id,
+      contentHash: 'hash-of-other-content'
+    })
     const scheduled = await database.createScheduledStatus({
       actorId: actor1.id,
       scheduledAt: Date.now() - 1_000,
       params: baseParams({ text, idempotency })
     })
 
-    const before = await database.getActorStatuses({ actorId: actor1.id })
-
     await publishScheduledStatusJob(database, {
-      id: 'job-idempotent',
+      id: 'job-conflict-key',
       name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
       data: { scheduledStatusId: scheduled.id }
     })
 
-    // No duplicate status was created for the deduped scheduled post.
     const after = await database.getActorStatuses({ actorId: actor1.id })
-    expect(after).toHaveLength(before.length)
     expect(after.some((status) => hasText(status, text))).toBe(false)
-
-    // The scheduled row is cleaned up regardless.
-    const row = await database.getScheduledStatusById({ id: scheduled.id })
-    expect(row).toBeNull()
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
   })
 
-  it('is idempotent by default (no client key) using a row-derived key', async () => {
+  it('claims a row-derived key bound to the params, so a retry after a crash does not publish twice', async () => {
     const text = `Default-idempotent scheduled note ${Date.now()}`
+    const params = baseParams({ text, idempotency: null })
     const scheduled = await database.createScheduledStatus({
       actorId: actor1.id,
       scheduledAt: Date.now() - 1_000,
-      params: baseParams({ text, idempotency: null })
+      params
     })
-    // Simulate a prior publish recorded under the row-derived fallback key
-    // (what the job saves when the client supplied no Idempotency-Key).
-    await database.saveIdempotencyKey({
-      actorId: actor1.id,
-      key: `scheduled-${scheduled.id}`,
-      statusId: `${actor1.id}/statuses/already-published-default`
-    })
-
-    const before = await database.getActorStatuses({ actorId: actor1.id })
-
-    await publishScheduledStatusJob(database, {
+    const message = {
       id: 'job-default-idempotent',
       name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
       data: { scheduledStatusId: scheduled.id }
+    }
+    // The job dies after creating the status, before removing the row.
+    const deleteRow = vi
+      .spyOn(database, 'deleteScheduledStatus')
+      .mockRejectedValueOnce(new Error('crashed'))
+    try {
+      await expect(
+        publishScheduledStatusJob(database, message)
+      ).rejects.toThrow('crashed')
+    } finally {
+      deleteRow.mockRestore()
+    }
+    const claim = await database.getIdempotencyKey({
+      actorId: actor1.id,
+      key: `scheduled-${scheduled.id}`
     })
-
-    // The retry did not publish a duplicate, and the row is cleaned up.
-    const after = await database.getActorStatuses({ actorId: actor1.id })
-    expect(after).toHaveLength(before.length)
-    expect(after.some((status) => hasText(status, text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
-    expect(row).toBeNull()
+    expect(claim?.contentHash).toBe(
+      getHashFromString(JSON.stringify(row!.params))
+    )
+
+    await publishScheduledStatusJob(database, message)
+
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    const published = after.filter((status) => hasText(status, text))
+    expect(published).toHaveLength(1)
+    expect(published[0].id).toBe(claim?.statusId)
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
   })
 
   it('discards an obsolete job whose scheduledAt no longer matches the row', async () => {

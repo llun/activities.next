@@ -445,7 +445,6 @@ const STATUS_ID_TABLES = [
   'collection_timeline',
   'notifications',
   'direct_conversation_statuses',
-  'idempotency_keys',
   'status_mutes',
   'status_detected_languages',
   'status_link_previews'
@@ -1482,7 +1481,6 @@ describe('statements', () => {
     'delete collection_timeline',
     'delete notifications',
     'delete direct_conversation_statuses',
-    'delete idempotency_keys',
     'delete status_mutes',
     'delete status_detected_languages',
     'delete status_link_previews',

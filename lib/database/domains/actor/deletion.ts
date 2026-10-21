@@ -542,6 +542,12 @@ export const deleteActorData = async (
     // Delete markers made by this actor
     await trx.deleteFrom('markers').where('actorId', '=', actorId).execute()
 
+    // Delete this actor's idempotency keys (they hold a hash of each post body)
+    await trx
+      .deleteFrom('idempotency_keys')
+      .where('actorId', '=', actorId)
+      .execute()
+
     const pollAnswersMadeByActor = await trx
       .selectFrom('poll_answers')
       .select(['statusId', 'choice'])

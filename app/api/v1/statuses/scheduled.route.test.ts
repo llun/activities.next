@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { seedIdempotencyKey } from '@/lib/database/testing/idempotencyTestHelpers'
 import type { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
@@ -49,7 +50,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('POST /api/v1/statuses', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
     await prepare()
@@ -67,6 +68,41 @@ describe('POST /api/v1/statuses', () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
+    })
+  })
+
+  it('schedules a keyed request without replaying the key, which is claimed only at publish', async () => {
+    const idempotencyKey = `idem-scheduled-${Date.now()}`
+    const [published] = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    // The key a published scheduled status holds is bound to a hash of its
+    // stored params, which never matches the request hash.
+    await seedIdempotencyKey(db, {
+      actorId: ACTOR1_ID,
+      key: idempotencyKey,
+      statusId: published.id,
+      contentHash: getHashFromString('stored scheduled params')
+    })
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Scheduled under a published key',
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test',
+          'Idempotency-Key': idempotencyKey
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      scheduled_at: scheduledAt
     })
   })
 

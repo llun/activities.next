@@ -187,8 +187,10 @@ describe('startActorDeletionSweep', () => {
     const getActorsScheduledForDeletion = vi
       .fn()
       .mockResolvedValue([{ id: 'https://llun.test/users/timed' }])
+    const deleteExpiredIdempotencyKeys = vi.fn().mockResolvedValue(0)
     const database = {
-      getActorsScheduledForDeletion
+      getActorsScheduledForDeletion,
+      deleteExpiredIdempotencyKeys
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
@@ -197,9 +199,13 @@ describe('startActorDeletionSweep', () => {
     await vi.advanceTimersByTimeAsync(1000)
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(1)
     expect(published).toHaveLength(1)
+    // Each tick also purges expired idempotency keys (the default 7-day TTL).
+    expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(1)
+    expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledWith()
 
     await vi.advanceTimersByTimeAsync(1000)
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
+    expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
 
     sweep.stop()
     await vi.advanceTimersByTimeAsync(5000)
@@ -213,14 +219,40 @@ describe('startActorDeletionSweep', () => {
       .fn()
       .mockRejectedValueOnce(new Error('database down'))
       .mockResolvedValue([])
+    const deleteExpiredIdempotencyKeys = vi.fn().mockResolvedValue(0)
     const database = {
-      getActorsScheduledForDeletion
+      getActorsScheduledForDeletion,
+      deleteExpiredIdempotencyKeys
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
     await vi.advanceTimersByTimeAsync(2000)
 
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
+    // A failed actor sweep does not skip the idempotency-key purge.
+    expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
+    sweep.stop()
+  })
+
+  it('keeps sweeping after the idempotency-key purge fails', async () => {
+    vi.useFakeTimers()
+    makeQueue(true)
+    const getActorsScheduledForDeletion = vi.fn().mockResolvedValue([])
+    const deleteExpiredIdempotencyKeys = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('database down'))
+      .mockResolvedValue(0)
+    const database = {
+      getActorsScheduledForDeletion,
+      deleteExpiredIdempotencyKeys
+    } as unknown as Parameters<typeof startActorDeletionSweep>[0]
+
+    const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // The failed purge still reschedules, so the second tick runs both steps.
+    expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
+    expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
     sweep.stop()
   })
 })

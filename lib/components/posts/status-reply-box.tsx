@@ -12,6 +12,7 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   addAttachment,
@@ -35,6 +36,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
   PreparedReplyDraft,
@@ -65,6 +67,21 @@ export const StatusReplyBox: FC<Props> = ({
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
+  // Set once the server kept the reply (503/409): the draft is locked so Post
+  // retries the same payload under the same Idempotency-Key. Any edit would
+  // mint a new key and strand the kept reply (or duplicate it).
+  const [lockedMessage, setLockedMessageState] = useState<string | null>(null)
+  const draftLocked = lockedMessage !== null
+  // Written with the lock, not after render: a media batch that settles
+  // between the two must already see it.
+  const draftLockedRef = useRef(draftLocked)
+  const setLockedMessage = (message: string | null) => {
+    draftLockedRef.current = message !== null
+    setLockedMessageState(message)
+  }
+  // Bumped when the reply target changes: a submit still in flight belongs to
+  // the previous draft and must not lock the new one.
+  const draftGenerationRef = useRef(0)
   const [mentionMode, setMentionMode] = useState<ReplyMentionMode>('all')
   const [targetPreview, setTargetPreview] = useState<ReplyTargetPreview | null>(
     null
@@ -86,6 +103,10 @@ export const StatusReplyBox: FC<Props> = ({
   useAutoResizeTextarea(textareaRef, text)
   const formRef = useRef<HTMLFormElement>(null)
   const isSubmittingRef = useRef<boolean>(false)
+  const submitIdempotencyRef = useRef<{
+    fingerprint: string
+    key: string
+  } | null>(null)
   const initializedStatusIdRef = useRef<string | null>(null)
   const userHasEditedTextRef = useRef<boolean>(false)
 
@@ -105,7 +126,10 @@ export const StatusReplyBox: FC<Props> = ({
   // (permitting valid attachment-only replies per repository guidelines).
   const hasContent =
     text.trim().length > 0 || postExtension.attachments.length > 0
-  const allowPost = hasContent && text.length <= maxStatusCharacters
+  // A locked draft replays server-side before any content-limit check, so a
+  // lowered limit must not block its retry.
+  const allowPost =
+    hasContent && (draftLocked || text.length <= maxStatusCharacters)
 
   useEffect(() => {
     return () => {
@@ -129,6 +153,8 @@ export const StatusReplyBox: FC<Props> = ({
 
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
+    draftGenerationRef.current += 1
+    setLockedMessage(null)
 
     const draft = prepareReplyDraft({
       targetStatus: replyStatus,
@@ -186,6 +212,8 @@ export const StatusReplyBox: FC<Props> = ({
       return
     }
     isSubmittingRef.current = true
+    const generation = draftGenerationRef.current
+    const retryingLockedDraft = draftLocked
     setIsPosting(true)
     setWarningMsg(null)
     removedAttachmentIdsRef.current.clear()
@@ -264,6 +292,21 @@ export const StatusReplyBox: FC<Props> = ({
         )
         .map((a) => a.uploadedAttachment)
 
+      const replyFingerprint = JSON.stringify({
+        message,
+        contentWarning: contentWarning ?? null,
+        inReplyToId: replyStatus.id,
+        visibility: inheritedVisibility,
+        language: inheritedLanguage ?? null,
+        attachmentIds: attachments.map((attachment) => attachment.id)
+      })
+      if (submitIdempotencyRef.current?.fingerprint !== replyFingerprint) {
+        submitIdempotencyRef.current = {
+          fingerprint: replyFingerprint,
+          key: generatePublicId()
+        }
+      }
+
       const response = await createNote({
         message,
         contentWarning,
@@ -271,9 +314,12 @@ export const StatusReplyBox: FC<Props> = ({
         inReplyToId: replyStatus.id,
         visibility: inheritedVisibility,
         language: inheritedLanguage,
-        attachments
+        attachments,
+        idempotencyKey: submitIdempotencyRef.current.key
       })
 
+      submitIdempotencyRef.current = null
+      setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
@@ -284,16 +330,47 @@ export const StatusReplyBox: FC<Props> = ({
     } catch (error) {
       isSubmittingRef.current = false
       setIsPosting(false)
+      // A stale failure belongs to a previous draft: say nothing on this one.
+      if (generation !== draftGenerationRef.current) return
       // Surface the server's message without wiping user draft, CW, or attachments.
-      setWarningMsg(
-        error instanceof Error && error.message
-          ? error.message
-          : 'Fail to create a reply'
-      )
+      const { action, message: failureMessage } = classifyFailedPost(error, {
+        retryingLocked: retryingLockedDraft,
+        fallbackMessage: 'Fail to create a reply',
+        wayOut: 'cancel the reply'
+      })
+      if (action === 'lock') {
+        setLockedMessage(failureMessage)
+      } else {
+        setWarningMsg(failureMessage)
+        if (action === 'unlock') {
+          // Nothing is kept under this key any more: let the draft be edited
+          // again under a new key instead of stranding it.
+          setLockedMessage(null)
+          submitIdempotencyRef.current = null
+        }
+      }
     }
   }
 
+  // Cancel on a locked draft discards it and its key. The reply box never
+  // deletes uploaded media, so the kept reply's media stays.
+  const onCancelReply = () => {
+    // A submit in flight owns the key: closing now would lose its result.
+    if (isSubmittingRef.current) return
+    if (draftLocked) {
+      draftGenerationRef.current += 1
+      submitIdempotencyRef.current = null
+      setLockedMessage(null)
+      setWarningMsg(null)
+      setText('')
+      postExtensionRef.current = createDefaultState()
+      dispatch(resetExtension())
+    }
+    onCancel()
+  }
+
   const onRemoveAttachment = (attachmentIndex: number) => {
+    if (draftLocked) return
     const attachment = postExtension.attachments[attachmentIndex]
     if (!attachment) return
 
@@ -382,6 +459,7 @@ export const StatusReplyBox: FC<Props> = ({
           <button
             type="button"
             onClick={() => handleMentionModeChange('all')}
+            disabled={draftLocked}
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'all'
@@ -394,6 +472,7 @@ export const StatusReplyBox: FC<Props> = ({
           <button
             type="button"
             onClick={() => handleMentionModeChange('author-first')}
+            disabled={draftLocked}
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-first'
@@ -406,6 +485,7 @@ export const StatusReplyBox: FC<Props> = ({
           <button
             type="button"
             onClick={() => handleMentionModeChange('author-only')}
+            disabled={draftLocked}
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-only'
@@ -440,6 +520,7 @@ export const StatusReplyBox: FC<Props> = ({
               name="message"
               placeholder={getPlaceholder()}
               value={text}
+              readOnly={draftLocked}
             />
 
             {postExtension.contentWarningVisible ? (
@@ -450,6 +531,7 @@ export const StatusReplyBox: FC<Props> = ({
                 name="contentWarning"
                 placeholder="Write your warning here"
                 value={postExtension.contentWarning}
+                readOnly={draftLocked}
                 onChange={(event) =>
                   dispatch(setContentWarning(event.target.value))
                 }
@@ -460,7 +542,11 @@ export const StatusReplyBox: FC<Props> = ({
               <div className="grid gap-2 grid-cols-8 mt-2">
                 {postExtension.attachments.map((item, index) => (
                   <div
-                    className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative rounded"
+                    className={cn(
+                      'w-full aspect-square bg-border bg-center bg-cover relative rounded',
+                      draftLocked ? 'cursor-default' : 'cursor-pointer'
+                    )}
+                    inert={draftLocked}
                     key={item.id}
                     style={{
                       backgroundImage: `url("${item.posterUrl || item.url}")`
@@ -486,6 +572,12 @@ export const StatusReplyBox: FC<Props> = ({
               </div>
             ) : null}
 
+            {lockedMessage ? (
+              <div role="status" className="text-xs text-muted-foreground mt-2">
+                {lockedMessage} {DRAFT_LOCKED_NOTICE}
+              </div>
+            ) : null}
+
             <div className="flex items-center mt-2">
               <Button
                 type="button"
@@ -499,6 +591,7 @@ export const StatusReplyBox: FC<Props> = ({
                     : 'Add content warning'
                 }
                 title="Content warning"
+                disabled={draftLocked}
                 onClick={() =>
                   dispatch(
                     setContentWarningVisibility(
@@ -512,10 +605,15 @@ export const StatusReplyBox: FC<Props> = ({
               <UploadMediaButton
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
+                disabled={isPosting || draftLocked}
                 onAddAttachment={(attachment) => {
+                  // A batch that settles after submit began or the draft
+                  // locked would change the retried payload, and its key.
                   if (
+                    isSubmittingRef.current ||
+                    draftLockedRef.current ||
                     postExtensionRef.current.attachments.length >=
-                    maxMediaAttachments
+                      maxMediaAttachments
                   ) {
                     if (attachment.url.startsWith('blob:')) {
                       URL.revokeObjectURL(attachment.url)
@@ -544,7 +642,7 @@ export const StatusReplyBox: FC<Props> = ({
                 <span
                   className={cn(
                     'text-xs tabular-nums',
-                    text.length > maxStatusCharacters
+                    !draftLocked && text.length > maxStatusCharacters
                       ? 'text-destructive'
                       : 'text-muted-foreground'
                   )}
@@ -555,7 +653,8 @@ export const StatusReplyBox: FC<Props> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={onCancel}
+                  disabled={isPosting}
+                  onClick={onCancelReply}
                 >
                   Cancel
                 </Button>

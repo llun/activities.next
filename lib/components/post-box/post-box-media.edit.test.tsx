@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 
 import { deleteAccountMedia, updateNote } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import { PostBox } from './post-box'
@@ -323,6 +324,28 @@ describe('PostBox media details', () => {
         mediaAttachments: [],
         status: { id: 'status-1', text: 'hello', createdAt: 1, reply: '' }
       } as never)
+    })
+
+    it('shows the plain error when an update answers 503 (nothing was saved)', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      vi.mocked(updateNote).mockRejectedValueOnce(
+        new ApiRequestError('Service unavailable', 503)
+      )
+      const { unmount } = renderEdit()
+      attach('new.png')
+      await screen.findByRole('button', { name: 'Remove media new.png' })
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalled())
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+      await waitFor(() =>
+        expect(alertSpy).toHaveBeenCalledWith('Service unavailable')
+      )
+      // Edits never keep the post on failure, so the new upload is cleaned up.
+      unmount()
+      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
     })
 
     it('does not require a description for legacy undescribed media', async () => {

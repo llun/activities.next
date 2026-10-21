@@ -1407,7 +1407,75 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   oldest band immediately after it (ascending, then reversed). Order each query
   accordingly.
 - Idempotency-key storage uses `.onConflict().ignore()`, not `.merge()`, so the
-  first stored resource id is preserved when a request is retried.
+  first stored resource id is preserved when a request is retried. On
+  `POST /api/v1/statuses`, the key and its normalized request `contentHash` are
+  claimed atomically inside the `createNoteWithResult` / `createPollWithResult`
+  transaction (`recoverFromDuplicateInsert` resolves a concurrent unique-key
+  collision back to the winning status, throwing `IdempotencyConflictError` on a
+  hash mismatch or `IdempotencyDeletedError` if the status was deleted);
+  `deleteStatus` leaves `idempotency_keys` rows intact so retries of a deleted
+  status answer `410 Gone`, while `discardUnpublishedStatus` (a create whose
+  completion steps failed before its federation job was queued) deletes the
+  status and its key in one transaction, so the retry creates it afresh. The
+  discard deletes the key only while it is still `pending` and otherwise keeps
+  the post, because a retry has taken the key over and sent it. It does not
+  decrement hashtag counters: a create counts its hashtags only after its
+  completion steps (just before the publish), so a discarded status's were
+  never counted. A retry that reads the key, then finds its status gone,
+  re-reads the key (as does a lost unique-key claim) and answers `410` only if
+  the key still names that status; otherwise the create was discarded in
+  between and the retry may create the post afresh.
+  `idempotency_keys.state` (`pending` from the claim, `publishing` while a
+  request waits for the queue, then `publish_failed` or `complete`; `complete`
+  by default for rows written before the column)
+  is what lets a retry tell a finished create from one whose publish failed,
+  which it re-queues under the same job id (`getHashFromString(statusId)`), and
+  from one still running in another process (`409` while a `pending` key is
+  younger than `IDEMPOTENCY_PENDING_STALE_MS`, 60 seconds, by its `createdAt`,
+  or a `publishing` key by its `stateChangedAt`; after that it is treated as
+  `publish_failed`). Whoever queues the job first takes the key with one
+  conditional `UPDATE … SET state = 'publishing', "stateChangedAt" = now`
+  (`claimIdempotencyKeyPublish`, checked through `numUpdatedRows`): the create
+  from `pending`, a retry from `publish_failed`, from a stale `pending` or from
+  a stale `publishing`. The key moves to `complete` only once the queue has
+  accepted the job, and to `publish_failed` when it refuses, each only while
+  it is still `publishing` (so a late answer from a request a retry took the
+  key over from is rejected once the retry has answered; a late `publish_failed`
+  that lands while the retry is itself `publishing` still matches and leaves the
+  key `publish_failed`, so the next retry re-queues the same job id, with the
+  deduplication described below); when either write
+  fails the key stays `publishing`, and a retry re-queues the same job id once
+  that is 60 seconds old. So of the create and its retries one queues the job
+  at a time. QStash (whose deduplication id is the
+  job id) and the database queue (`onConflict(id).doNothing()`) also
+  deduplicate a re-queue; **Cloud Tasks and the default in-process NoQueue do
+  not**: Cloud Tasks tasks carry no name, and NoQueue runs the whole
+  `SendNoteJob` inline on every publish. So a re-queue after a
+  `publish_failed` whose job was in fact accepted (on NoQueue, one that failed
+  part-way through its fan-out) can run `SendNoteJob` twice for the same status
+  and deliver the same `Create` (same object id) twice, which receiving servers
+  drop as a repeat. Crash caveats: a process that dies after the key claim
+  and before its publish claim leaves a `pending` key behind, and a
+  retry 60 seconds later sends that post as it was left, which may lack the
+  completion steps the crash skipped. That retry only re-queues the federation
+  job: the steps after the publish (the quote request, notifications and their
+  alerts, link preview sync) never run for the recovered post, and are not
+  re-run because a create that got further would notify twice. Hashtag
+  counters run before the publish, so they are counted unless the process died
+  before reaching them. A process that dies after taking the key to
+  `publishing` leaves it there, and a retry 60 seconds later re-queues the
+  same job id. What remains is a queue that accepted the job but whose answer
+  never reached the process, or a publish that outlasts 60 seconds (on NoQueue,
+  a slow inline fan-out): a stale retry then queues the same job id again,
+  which QStash and the database queue drop and Cloud Tasks and NoQueue run a
+  second time. A post kept
+  because a retry took its key over while its own completion step was failing
+  never had its hashtags counted, and its later deletion decrements them. The
+  key row is stamped with the
+  request time, not the status's (possibly backdated) `createdAt`;
+  `deleteExpiredIdempotencyKeys`, run by the actor-deletion sweep, deletes keys
+  older than 7 days (`IDEMPOTENCY_KEY_TTL_MS`), and `deleteActorData` deletes an
+  erased actor's keys.
 
 <a id="review-stored-media"></a>
 
