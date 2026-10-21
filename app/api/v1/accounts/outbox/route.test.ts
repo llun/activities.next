@@ -289,9 +289,9 @@ describe('POST /api/v1/accounts/outbox', () => {
     })
   })
 
-  // This is the endpoint the web composer creates through, so the resolved
-  // posts.maxCharacters / polls.* limits have to be enforced here too — not
-  // only on POST /api/v1/statuses.
+  // This route is deprecated and kept for backward compatibility, but it still
+  // enforces the same posts.maxCharacters / polls.* limits as
+  // POST /api/v1/statuses.
   it.each([
     {
       description: 'rejects a note past the configured post length',

@@ -56,9 +56,8 @@ export const POST = traceApiRoute(
       const request = parsed.data
       // Enforce the admin-configured status/poll limits (server settings), the
       // same way POST /api/v1/statuses and PUT /api/v1/statuses/:id do. This is
-      // the endpoint the web composer creates through, so without it the
-      // resolved `posts.maxCharacters` was advertised and shown in the composer
-      // but never actually enforced on a create.
+      // This route is deprecated and kept for backward compatibility, but it
+      // still creates statuses, so it enforces the same status and poll limits.
       const serverSettings = await getResolvedServerSettings(database)
       const limitError = validateStatusContentLimits(
         request.type === 'poll'

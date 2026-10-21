@@ -231,8 +231,9 @@ export const PostBox: FC<Props> = ({
   const isMountedRef = useRef(true)
   // Media details live beside the attachments, keyed by media id, rather than
   // on PostBoxAttachment: that type is what the deprecated outbox route takes
-  // (the composer sends only `media_ids`), and the details (subject, gear,
-  // place) are already saved on the media row by the dialog.
+  // (the composer sends only media ids, and on edit their descriptions), and
+  // the details (subject, gear, place) are already saved on the media row by
+  // the dialog.
   const [gallerySettings, setGallerySettings] =
     useState<GallerySettingsEntity | null>(null)
   const [detailsById, setDetailsById] = useState<
