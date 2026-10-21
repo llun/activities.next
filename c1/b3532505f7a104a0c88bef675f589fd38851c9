@@ -1,0 +1,79 @@
+app/(timeline)/layout.test.tsx
+  s_512188f2b1db53::t_ac2bc92b77883a 95-119,200-229
+app/(timeline)/layout.tsx
+  s_512188f2b1db53::t_59a8ce19a1d198 8-12,159-203
+lib/client.ts
+  s_512188f2b1db53::t_e8612bf607dc76 59
+lib/client/connection.test.ts
+  s_512188f2b1db53::t_af6448230d2ca3 1-334
+lib/client/connection.ts
+  s_512188f2b1db53::t_48ed6e490f8661 1-179
+lib/client/drafts/draftMedia.test.ts
+  s_512188f2b1db53::t_568f69b6aaa9aa 1-208
+lib/client/drafts/draftMedia.ts
+  s_512188f2b1db53::t_208fdfff494bc6 1-82
+lib/client/drafts/draftsChannel.test.ts
+  s_512188f2b1db53::t_b04b8fc2c924ef 1-100
+lib/client/drafts/draftsChannel.ts
+  s_512188f2b1db53::t_29e67056be020f 1-75
+lib/client/drafts/draftsDb.test.ts
+  s_512188f2b1db53::t_2b0bc341e78081 1-474
+lib/client/drafts/draftsDb.ts
+  s_512188f2b1db53::t_e3b78b19d8edcd 1-427
+lib/client/drafts/index.ts
+  s_512188f2b1db53::t_81f05cbbfe7614 1-7
+lib/client/drafts/types.ts
+  s_512188f2b1db53::t_211686fd32858f 1-92
+lib/client/health.test.ts
+  s_512188f2b1db53::t_da7ce084934597 1-40
+lib/client/health.ts
+  s_512188f2b1db53::t_7043dff5d87936 1-9
+lib/components/connection/ConnectionStatus.test.tsx
+  s_512188f2b1db53::t_bba67d6f55bd68 1-90
+lib/components/connection/ConnectionStatus.tsx
+  s_512188f2b1db53::t_6a8085c2047519 1-39
+lib/components/connection/slotMessage.test.ts
+  s_512188f2b1db53::t_3087e9437a5834 1-59
+lib/components/connection/slotMessage.ts
+  s_512188f2b1db53::t_547624e6af777a 1-41
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_8d528032b2420b 1-199
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_1f7100f597edfe 1-126
+lib/components/layout/mobile-compact-header.test.tsx
+  s_512188f2b1db53::t_36a633da5f5378 10-13,86-104
+lib/components/layout/mobile-compact-header.tsx
+  s_512188f2b1db53::t_697258cd1c955d 5,57-61,63-80
+lib/components/offline/OfflineAppShell.test.tsx
+  s_512188f2b1db53::t_eeee4f6df1e12a 12,67-91,231-253
+lib/components/offline/OfflineAppShell.tsx
+  s_512188f2b1db53::t_e45d89bbb89ec7 31-35,398-462
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_1a5120afc1e15b 28,153-161
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_0a95d284fc252d 15,55-56
+lib/hooks/useConnectionStatus.ts
+  s_512188f2b1db53::t_0c7937cdbefd55 1-18
+lib/testing/fakeBroadcastChannel.ts
+  s_512188f2b1db53::t_db56407df85cf0 1-46
+package.json
+  s_512188f2b1db53::t_6d1eacf39341c2 142
+yarn.lock
+  s_512188f2b1db53::t_9aeb317d2e8194 3789,4812-4818
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c1b3532505f7a104a0c88bef675f589fd38851c9",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
