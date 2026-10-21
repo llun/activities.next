@@ -107,6 +107,7 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
   afterEach(() => {
     vi.useRealTimers()
     resetConnectionForTesting()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -253,6 +254,33 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
     expect(document.querySelector('[data-connection-strip]')).toBeNull()
     expect(disconnect).toHaveBeenCalled()
     expect(root.style.getPropertyValue('--status-strip-h')).toBe('')
-    vi.unstubAllGlobals()
+  })
+
+  it('leave the height to the stylesheet while the strip is hidden (zero height)', async () => {
+    let report: () => void = () => undefined
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          report = callback
+        }
+        observe() {}
+        disconnect() {}
+      }
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ height: 76 } as DOMRect)
+    const root = document.documentElement
+    render(<ConnectionStatusStrip />)
+    await goUnreachable()
+    act(() => report())
+    expect(root.style.getPropertyValue('--status-strip-h')).toBe('76px')
+
+    // Resized to a desktop width: `md:hidden` collapses it to zero.
+    rect.mockReturnValue({ height: 0 } as DOMRect)
+    act(() => report())
+
+    expect(root.style.getPropertyValue('--status-strip-h')).toBe('')
   })
 })

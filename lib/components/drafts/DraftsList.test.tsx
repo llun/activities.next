@@ -299,7 +299,7 @@ describe('DraftsList', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it("keeps a row's delete error through another row's delete, and its Retry deletes the newest save", async () => {
+  it("keeps a row's delete error through another row's delete, and its Retry never deletes a save made since", async () => {
     await seed({ id: 'a', text: 'drop me', updatedAt: NOW - 2 })
     await seed({ id: 'b', text: 'and me', updatedAt: NOW - 1 })
     renderList()
@@ -328,7 +328,8 @@ describe('DraftsList', () => {
     expect(alert).toBeInTheDocument()
     expect(alert).toHaveTextContent('Something went wrong')
 
-    // Another tab saves a newer revision, and the list re-reads it.
+    // The draft is edited after the failure (the editor, or another tab), and
+    // the list re-reads it.
     await saveDraft(draftRecord({ id: 'a', text: 'drop me, edited' }), {
       expectedRevision: 1,
       epoch: 0
@@ -347,8 +348,35 @@ describe('DraftsList', () => {
       fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
     })
 
-    await waitFor(async () => expect(await getDraft('a')).toBeUndefined())
-    expect(screen.queryByText(/changed in another tab/)).toBeNull()
+    expect(
+      await screen.findByText(/changed in another tab/)
+    ).toBeInTheDocument()
+    expect((await getDraft('a'))?.text).toBe('drop me, edited')
+  })
+
+  it('clears a failed delete when Retry finds the draft already gone', async () => {
+    await seed({ id: 'a', text: 'drop me' })
+    renderList()
+    await screen.findByText('drop me')
+    vi.mocked(deleteDraftAndOwnedMedia).mockRejectedValueOnce(
+      new Error('storage failed')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: 'Delete'
+        })
+      )
+    })
+    const alert = await screen.findByRole('alert')
+    await deleteDraft('a')
+
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    })
+
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   })
 
   it('on a delete conflict shows the newest save and lets Delete be retried', async () => {

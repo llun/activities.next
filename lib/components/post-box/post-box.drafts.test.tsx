@@ -433,7 +433,7 @@ describe('PostBox on-device drafts', () => {
       )
     })
 
-    it('does not send after another tab changed the draft', async () => {
+    it('sends once, from a new draft, after another tab changed the draft', async () => {
       await saveThenFailToCheckpoint()
       const [draft] = await storedDrafts()
       await saveDraft(
@@ -443,11 +443,44 @@ describe('PostBox on-device drafts', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'nothing was sent'
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      expect(createNoteMock.mock.calls[0][0].message).toBe('hello')
+      // The other tab's draft stays; the sent fork is released.
+      await waitFor(async () =>
+        expect((await storedDrafts()).map((d) => d.text)).toEqual([
+          'written in another tab'
+        ])
       )
-      expect(createNoteMock).not.toHaveBeenCalled()
-      expect((await storedDrafts())[0].text).toBe('written in another tab')
+    })
+
+    it('does not send after another tab changed a draft that already holds a key', async () => {
+      createNoteMock.mockRejectedValueOnce(new Error('lost response'))
+      await saveThenFailToCheckpoint()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      await waitFor(async () =>
+        expect((await storedDrafts())[0].submit).toBeDefined()
+      )
+      const [draft] = await storedDrafts()
+      await saveDraft(
+        { ...draft, text: 'written in another tab' },
+        { expectedRevision: draft.revision, epoch: 0 }
+      )
+
+      // An edit after the failed send needs a new key, so the checkpoint
+      // must write (an unchanged one is already stored under the old key).
+      type('hello again')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent('nothing was sent')
+      )
+      expect(createNoteMock).toHaveBeenCalledTimes(1)
+      const all = await storedDrafts()
+      expect(all).toHaveLength(1)
+      expect(all[0].submit?.key).toBe(
+        createNoteMock.mock.calls[0][0].idempotencyKey
+      )
     })
 
     it('writes the key and the attempt before the request leaves', async () => {

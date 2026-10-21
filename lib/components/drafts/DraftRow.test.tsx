@@ -280,14 +280,13 @@ describe('DraftRow', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(announceDraftsChanged).not.toHaveBeenCalled()
 
-    // The Retry the list shows deletes again, the save stored by then.
-    const newer = draftRecord({ revision: 2, text: 'edited since' })
-    vi.mocked(getDraft).mockResolvedValue(newer)
+    // The Retry the list shows deletes the same revision again: a newer save
+    // since then is the delete's own conflict, never deleted.
     vi.mocked(deleteDraftAndOwnedMedia).mockResolvedValue(undefined)
     const retry = onDeleteError.mock.lastCall?.[1] as () => void
     await act(async () => retry())
-    expect(getDraft).toHaveBeenCalledWith('draft-1')
-    expect(deleteDraftAndOwnedMedia).toHaveBeenLastCalledWith(newer)
+    expect(getDraft).not.toHaveBeenCalled()
+    expect(deleteDraftAndOwnedMedia).toHaveBeenLastCalledWith(draftRecord())
     expect(onDeleteError).toHaveBeenLastCalledWith(null)
   })
 

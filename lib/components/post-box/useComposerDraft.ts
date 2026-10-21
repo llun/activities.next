@@ -99,6 +99,10 @@ interface DraftState {
   lockedMessage?: string
   attemptedAt?: number
   lastError: unknown
+  /** The record this tab last stored or opened holds a send key or a lock. */
+  keyHeld: boolean
+  /** Attachments it shares with the draft it forked from: never owned. */
+  shared: Set<string>
 }
 
 const newDraftState = (): DraftState => ({
@@ -111,7 +115,9 @@ const newDraftState = (): DraftState => ({
   pending: 0,
   conflicted: false,
   settled: false,
-  lastError: null
+  lastError: null,
+  keyHeld: false,
+  shared: new Set()
 })
 
 const recordKey = (record: DraftRecord): string => {
@@ -131,7 +137,8 @@ const stateFromDraft = (draft: DraftRecord): DraftState => ({
   lastKey: recordKey(draft),
   submit: draft.submit,
   lockedMessage: draft.lockedMessage,
-  attemptedAt: draft.attemptedAt
+  attemptedAt: draft.attemptedAt,
+  keyHeld: Boolean(draft.submit || draft.lockedMessage)
 })
 
 interface Snapshot {
@@ -169,11 +176,15 @@ const assemble = (snap: Snapshot, content: DraftContent): DraftRecord => ({
   poll: content.poll,
   attachments: content.attachments.map((attachment) => ({
     ...attachment,
+    owned: attachment.owned && !snap.d.shared.has(attachment.localId),
     hasBlob: snap.d.blobIds.has(attachment.localId)
   })),
   fitnessFile: content.fitnessFile
     ? {
         ...content.fitnessFile,
+        owned:
+          content.fitnessFile.owned &&
+          !snap.d.shared.has(content.fitnessFile.localId),
         hasBlob: snap.d.blobIds.has(content.fitnessFile.localId)
       }
     : undefined,
@@ -300,7 +311,8 @@ export const fromDraftAttachment = (
 /**
  * Autosaves a composer's content as an on-device draft. Every method is a
  * no-op while `useDrafts()` is null (no provider), while editing a published
- * post, and while another tab signs the account out.
+ * post, and while another tab signs the account out (`keep` then only offers
+ * the text in the note).
  */
 export const useComposerDraft = ({
   composer,
@@ -479,6 +491,34 @@ export const useComposerDraft = ({
       }
     }
 
+    // A draft holding a send key or a lock never forks: it stays on that key,
+    // so a retry cannot send the post twice.
+    const isLocked = (snap: Snapshot) =>
+      snap.d.keyHeld || snap.lockedMessage !== undefined
+
+    // Another tab saved or deleted this draft: its record stays as it is, and
+    // this composer carries on as a new draft (in place, so saves already
+    // queued follow it). The other draft keeps the bytes and owns the media.
+    const fork = (d: DraftState, content: DraftContent) => {
+      d.id = generatePublicId()
+      d.createdAt = Date.now()
+      d.revision = 0
+      d.lastKey = ''
+      d.blobIds = new Set()
+      d.shared = new Set([
+        ...content.attachments.map((a) => a.localId),
+        ...(content.fitnessFile ? [content.fitnessFile.localId] : [])
+      ])
+      // Bytes of what is not uploaded yet stay with the other draft: never
+      // silent, the status line says this one does not hold them.
+      d.blobFailures = new Set([
+        ...content.attachments.filter((a) => !a.mediaId).map((a) => a.localId),
+        ...(content.fitnessFile && !content.fitnessFile.fitnessFileId
+          ? [content.fitnessFile.localId]
+          : [])
+      ])
+    }
+
     // Serialized through the chain, so revisions never race each other.
     const runSave = async (snap: Snapshot): Promise<boolean> => {
       const { d, content } = snap
@@ -496,7 +536,9 @@ export const useComposerDraft = ({
               await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
               announceChanged(snap)
             } catch (error) {
-              if (!(error instanceof DraftConflictError)) throw error
+              if (!(error instanceof DraftConflictError) || isLocked(snap)) {
+                throw error
+              }
             }
           } else {
             // Never stored, so no record will ever reference these bytes.
@@ -504,6 +546,7 @@ export const useComposerDraft = ({
           }
           d.blobIds.clear()
           d.blobFailures.clear()
+          d.shared.clear()
           if (s.d === d) {
             // Empty: the draft is gone, the next content starts a new one.
             d.id = null
@@ -534,6 +577,7 @@ export const useComposerDraft = ({
         })
         d.revision = saved.revision
         d.lastKey = key
+        d.keyHeld = Boolean(record.submit || record.lockedMessage)
         d.lastError = null
         reconcileBlobs(d, record)
         if (s.d === d && s.mounted) setDraftId(saved.id)
@@ -545,7 +589,12 @@ export const useComposerDraft = ({
         }
         return true
       } catch (error) {
-        // Another tab saved, deleted or signed out: stop, never overwrite.
+        if (error instanceof DraftConflictError && content && !isLocked(snap)) {
+          fork(d, content)
+          return runSave(snap)
+        }
+        // A locked draft another tab changed, or a sign-out: stop, never
+        // overwrite.
         if (
           error instanceof DraftConflictError ||
           error instanceof DraftSignedOutError
@@ -603,15 +652,16 @@ export const useComposerDraft = ({
       if (!live.current.enabled || !live.current.drafts) return
       const ctx = live.current.drafts
       const d = s.d
-      if (!d.id) {
-        d.id = generatePublicId()
-        d.createdAt = Date.now()
-      }
-      const draftIdForBlob = d.id
       const write = () =>
         void enqueue(async () => {
           // The composer moved on (posted, discarded): nothing owns these bytes.
           if (s.d !== d) return
+          // Read now: a save queued ahead may have emptied or forked the draft.
+          if (!d.id) {
+            d.id = generatePublicId()
+            d.createdAt = Date.now()
+          }
+          const draftIdForBlob = d.id
           try {
             const { fileToBlobRecord, putDraftBlob } = await loadDrafts()
             const record = await fileToBlobRecord({
@@ -683,7 +733,12 @@ export const useComposerDraft = ({
       const ctx = live.current.drafts
       forget()
       return enqueue(async () => {
-        if (!d.id || d.revision === 0) return
+        if (!d.id) return
+        if (d.revision === 0) {
+          // Never stored, so no record will ever reference these bytes.
+          d.blobIds.forEach(dropBlob)
+          return
+        }
         try {
           await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
           if (ctx) announceDraftsChanged(ctx.accountId, ctx.actorId, d.id)
@@ -733,10 +788,15 @@ export const useComposerDraft = ({
     // When it cannot be kept, the note says so and still holds the text, so
     // closing never drops it silently.
     const keep = async (): Promise<boolean> => {
-      if (!live.current.enabled) return false
       const d = s.d
       const ctx = live.current.drafts
       const text = live.current.getContent(true)?.text ?? ''
+      // Another tab is signing out, or a reopened draft is still loading its
+      // bytes: nothing can be saved now, so the note holds the text.
+      if (!live.current.enabled || live.current.isSeeding?.()) {
+        ctx?.notifyNotSavedToDrafts(text)
+        return false
+      }
       await saveNow(true)
       // Photo bytes that failed alone leave a usable draft: the inline status
       // already says so, and the record is in Drafts.
@@ -745,7 +805,7 @@ export const useComposerDraft = ({
         return false
       }
       d.settled = true
-      ctx?.notifySavedToDrafts(d.id)
+      ctx?.notifySavedToDrafts(d.id, d.revision)
       return true
     }
 

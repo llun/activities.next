@@ -12,11 +12,8 @@ import {
   getDraft
 } from '@/lib/client/drafts'
 
-import {
-  NotSavedToDraftsNote,
-  SAVED_NOTE_MS,
-  SavedToDraftsNote
-} from './SavedToDraftsNote'
+import { NotSavedToDraftsNote } from './NotSavedToDraftsNote'
+import { SAVED_NOTE_MS, SavedToDraftsNote } from './SavedToDraftsNote'
 
 vi.mock('@/lib/client/drafts', () => ({
   DraftConflictError: class DraftConflictError extends Error {},
@@ -35,6 +32,7 @@ const renderNote = (onDismiss = vi.fn()) => {
   render(
     <SavedToDraftsNote
       draftId="d1"
+      revision={1}
       accountId="account-1"
       actorId="actor-1"
       onDismiss={onDismiss}
@@ -139,9 +137,8 @@ describe('SavedToDraftsNote', () => {
     expect(onDismiss).not.toHaveBeenCalled()
   })
 
-  it('does not delete a draft another tab edited after the note appeared', async () => {
+  it('does not delete a draft another tab edited after it was kept', async () => {
     renderNote()
-    await act(async () => {})
     vi.mocked(getDraft).mockResolvedValue({
       ...record,
       revision: 2

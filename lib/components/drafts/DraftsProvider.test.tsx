@@ -296,27 +296,23 @@ describe('DraftsProvider', () => {
 
   describe('Saved to Drafts note', () => {
     const renderWithNotify = () => {
-      let notify: ((id: string) => void) | undefined
+      let notify: ((id: string, revision: number) => void) | undefined
       const Grab = () => {
-        const drafts = useDrafts()
-        notify = drafts?.notifySavedToDrafts
-        return (
-          <p data-testid="saved">{`saved=${drafts?.savedDraftId ?? 'none'}`}</p>
-        )
+        notify = useDrafts()?.notifySavedToDrafts
+        return null
       }
       render(
         <DraftsProvider accountId="account-1" actorId="actor-1">
           <Grab />
         </DraftsProvider>
       )
-      return (id: string) => act(() => notify?.(id))
+      return (id: string) => act(() => notify?.(id, 1))
     }
 
-    it('exposes savedDraftId and renders the note once notified', async () => {
+    it('renders the note once notified', async () => {
       const notify = renderWithNotify()
       await act(async () => {})
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
-      expect(screen.getByTestId('saved')).toHaveTextContent('saved=none')
 
       notify('d1')
 
@@ -324,10 +320,9 @@ describe('DraftsProvider', () => {
       expect(await screen.findByRole('status')).toHaveTextContent(
         'Saved to Drafts'
       )
-      expect(screen.getByTestId('saved')).toHaveTextContent('saved=d1')
     })
 
-    it('dismiss clears savedDraftId and the note', async () => {
+    it('dismiss clears the note', async () => {
       const notify = renderWithNotify()
       await act(async () => {})
       notify('d1')
@@ -337,12 +332,11 @@ describe('DraftsProvider', () => {
       )
 
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
-      expect(screen.getByTestId('saved')).toHaveTextContent('saved=none')
     })
 
     it('Discard deletes the stored draft and the count drops to 0', async () => {
       await saveDraft(draft('d1'), { expectedRevision: 0, epoch: 0 })
-      let notify: ((id: string) => void) | undefined
+      let notify: ((id: string, revision: number) => void) | undefined
       const Grab = () => {
         const drafts = useDrafts()
         notify = drafts?.notifySavedToDrafts
@@ -356,7 +350,7 @@ describe('DraftsProvider', () => {
       await waitFor(() =>
         expect(screen.getByTestId('count')).toHaveTextContent('count=1')
       )
-      act(() => notify?.('d1'))
+      act(() => notify?.('d1', 1))
 
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
@@ -377,14 +371,20 @@ describe('DraftsProvider', () => {
           drafts = useDrafts()
           return null
         }
-        render(
-          <DraftsProvider accountId="account-1" actorId="actor-1">
+        const view = (accountId: string) => (
+          <DraftsProvider accountId={accountId} actorId="actor-1">
             <Grab />
           </DraftsProvider>
         )
+        const { rerender } = render(view('account-1'))
         await act(async () => {})
         return {
-          saved: (id: string) => act(() => drafts?.notifySavedToDrafts(id)),
+          switchAccount: async (accountId: string) => {
+            rerender(view(accountId))
+            await act(async () => {})
+          },
+          saved: (id: string, revision = 1) =>
+            act(() => drafts?.notifySavedToDrafts(id, revision)),
           unsaved: (text: string) =>
             act(() => drafts?.notifyNotSavedToDrafts(text))
         }
@@ -423,6 +423,44 @@ describe('DraftsProvider', () => {
         )
       })
 
+      it('a Saved note that waited compares Discard with the kept revision, not the one at its mount', async () => {
+        await saveDraft(draft('d1'), { expectedRevision: 0, epoch: 0 })
+        const { saved, unsaved } = await renderBoth()
+        unsaved('First thought')
+        await screen.findByRole('alert')
+        saved('d1', 1)
+
+        // Another tab edits the kept draft while the Saved note waits.
+        await saveDraft(
+          { ...draft('d1'), text: 'edited elsewhere' },
+          { expectedRevision: 1, epoch: 0 }
+        )
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Dismiss notification' })
+        )
+        await screen.findByRole('status')
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+        })
+
+        await waitFor(() =>
+          expect(screen.getByRole('status')).toHaveTextContent(
+            'Changed in another tab'
+          )
+        )
+        expect((await getDraft('d1'))?.text).toBe('edited elsewhere')
+      })
+
+      it('is dropped, with its text, when the account changes', async () => {
+        const { unsaved, switchAccount } = await renderBoth()
+        unsaved('First thought')
+        expect(screen.getByRole('alert')).toBeInTheDocument()
+
+        await switchAccount('account-2')
+
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      })
+
       it('keeps both texts when a second close fails too', async () => {
         const { unsaved } = await renderBoth()
         unsaved('First thought')
@@ -439,7 +477,7 @@ describe('DraftsProvider', () => {
     })
 
     it('drops a pending note when the actor changes', async () => {
-      let notify: ((id: string) => void) | undefined
+      let notify: ((id: string, revision: number) => void) | undefined
       const Grab = () => {
         notify = useDrafts()?.notifySavedToDrafts
         return null
@@ -450,7 +488,7 @@ describe('DraftsProvider', () => {
         </DraftsProvider>
       )
       await act(async () => {})
-      act(() => notify?.('d1'))
+      act(() => notify?.('d1', 1))
       expect(screen.getByRole('status')).toBeInTheDocument()
 
       rerender(

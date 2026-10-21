@@ -13,23 +13,16 @@ import {
 } from 'react'
 
 import { subscribeDraftsMessages } from '@/lib/client/drafts/draftsChannel'
+import { NotSavedToDraftsNote } from '@/lib/components/drafts/NotSavedToDraftsNote'
 
-// The IndexedDB code and the note load after mount, so neither is part of any
-// page's first-load JavaScript.
+// The IndexedDB code and the Saved note load after mount, so neither is part
+// of any page's first-load JavaScript.
 const loadDrafts = () => import('@/lib/client/drafts')
 
 const SavedToDraftsNote = dynamic(
   () =>
     import('@/lib/components/drafts/SavedToDraftsNote').then(
       (module) => module.SavedToDraftsNote
-    ),
-  { ssr: false }
-)
-
-const NotSavedToDraftsNote = dynamic(
-  () =>
-    import('@/lib/components/drafts/SavedToDraftsNote').then(
-      (module) => module.NotSavedToDraftsNote
     ),
   { ssr: false }
 )
@@ -43,10 +36,8 @@ export interface DraftsContextValue {
   count: number
   /** Another tab is signing this account out: composers stop saving. */
   signingOut: boolean
-  /** The draft the "Saved to Drafts" note is showing for, if any. */
-  savedDraftId: string | null
-  /** Asks for the "Saved to Drafts" note for a draft that was just kept. */
-  notifySavedToDrafts: (draftId: string) => void
+  /** Asks for the "Saved to Drafts" note for the revision that was kept. */
+  notifySavedToDrafts: (draftId: string, revision: number) => void
   /** A closed composer's draft could not be kept: the note offers its text. */
   notifyNotSavedToDrafts: (text: string) => void
 }
@@ -71,15 +62,17 @@ export function DraftsProvider({
   const [epoch, setEpoch] = useState<number | null>(null)
   const [count, setCount] = useState(0)
   const [signingOut, setSigningOut] = useState(false)
-  const [savedDraftId, setSavedDraftId] = useState<string | null>(null)
+  const [saved, setSaved] = useState<{ id: string; revision: number } | null>(
+    null
+  )
   // The text of a closed composer whose draft could not be kept.
   const [unsavedText, setUnsavedText] = useState<string | null>(null)
-  const dismissNote = useCallback(() => setSavedDraftId(null), [])
+  const dismissNote = useCallback(() => setSaved(null), [])
   const dismissUnsaved = useCallback(() => setUnsavedText(null), [])
   // The unsaved note holds text kept nowhere else: only Dismiss clears it, a
   // second failure adds its text, and a Saved note waits until it is gone.
   const notifySavedToDrafts = useCallback(
-    (draftId: string) => setSavedDraftId(draftId),
+    (id: string, revision: number) => setSaved({ id, revision }),
     []
   )
   const notifyNotSavedToDrafts = useCallback(
@@ -131,7 +124,7 @@ export function DraftsProvider({
     epochRef.current = null
     setEpoch(null)
     setSigningOut(false)
-    setSavedDraftId(null)
+    setSaved(null)
     setUnsavedText(null)
     // A sign-out whose deletion failed is finished first: it bumps the epoch
     // and removes this account's drafts, so the epoch is read only afterwards.
@@ -187,7 +180,6 @@ export function DraftsProvider({
             epoch,
             count,
             signingOut,
-            savedDraftId,
             notifySavedToDrafts,
             notifyNotSavedToDrafts
           }
@@ -198,7 +190,6 @@ export function DraftsProvider({
       epoch,
       count,
       signingOut,
-      savedDraftId,
       notifySavedToDrafts,
       notifyNotSavedToDrafts
     ]
@@ -207,9 +198,10 @@ export function DraftsProvider({
   return (
     <DraftsContext.Provider value={value}>
       {children}
-      {value && savedDraftId && unsavedText === null ? (
+      {value && saved && unsavedText === null ? (
         <SavedToDraftsNote
-          draftId={savedDraftId}
+          draftId={saved.id}
+          revision={saved.revision}
           accountId={accountId}
           actorId={actorId}
           onDismiss={dismissNote}

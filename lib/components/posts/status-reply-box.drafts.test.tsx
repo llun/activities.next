@@ -273,7 +273,7 @@ describe('StatusReplyBox on-device drafts', () => {
       expect(createNoteMock).not.toHaveBeenCalled()
     })
 
-    it('does not send after another tab changed the draft', async () => {
+    it('sends once, from a new draft, after another tab changed the draft', async () => {
       renderBox()
       type('Reply body')
       await waitForSaved()
@@ -285,10 +285,43 @@ describe('StatusReplyBox on-device drafts', () => {
 
       post()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'nothing was sent'
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      await waitFor(async () =>
+        expect((await stored()).map((d) => d.text)).toEqual([
+          'written in another tab'
+        ])
       )
-      expect(createNoteMock).not.toHaveBeenCalled()
+    })
+
+    it('does not send after another tab changed a draft that already holds a key', async () => {
+      createNoteMock.mockRejectedValueOnce(new Error('lost response'))
+      renderBox()
+      type('Reply body')
+      await waitForSaved()
+      post()
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      await waitFor(async () =>
+        expect((await stored())[0].submit).toBeDefined()
+      )
+      const [draft] = await stored()
+      await saveDraft(
+        { ...draft, text: 'written in another tab' },
+        { expectedRevision: draft.revision, epoch: 0 }
+      )
+
+      // An edit after the failed send needs a new key, so the checkpoint
+      // must write (an unchanged one is already stored under the old key).
+      type('Reply body, edited')
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+      )
+      post()
+
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent('nothing was sent')
+      )
+      expect(createNoteMock).toHaveBeenCalledTimes(1)
+      expect(await stored()).toHaveLength(1)
     })
   })
 

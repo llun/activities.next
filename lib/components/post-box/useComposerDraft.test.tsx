@@ -40,7 +40,6 @@ const context = (patch = {}) => ({
   epoch: 0,
   count: 0,
   signingOut: false,
-  savedDraftId: null,
   notifySavedToDrafts,
   notifyNotSavedToDrafts,
   ...patch
@@ -79,6 +78,18 @@ const setup = (options: { editing?: boolean; draft?: DraftRecord } = {}) =>
   )
 
 const stored = async () => (await listDrafts({ actorId: 'actor-1' }))[0]
+
+// A second tab (the Drafts page editor) that opens `draft` and saves `text`.
+const editElsewhere = async (draft: DraftRecord, text: string) => {
+  const other: DraftContent = { ...content(), ...draft, text }
+  const tab = renderHook(() =>
+    useComposerDraft({ composer: 'post-box', draft, getContent: () => other })
+  )
+  act(() => tab.result.current.schedule())
+  await advance(DRAFT_SAVE_DEBOUNCE_MS)
+  await vi.waitFor(() => expect(tab.result.current.saveState).toBe('saved'))
+  return tab
+}
 
 const advance = async (ms: number) => {
   await act(async () => {
@@ -219,30 +230,150 @@ describe('useComposerDraft', () => {
     }
   })
 
-  it('shows "error" and never overwrites when another tab saved the draft first', async () => {
-    const { result } = setup()
-    act(() => result.current.schedule())
-    await advance(DRAFT_SAVE_DEBOUNCE_MS)
-    await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
-    const draft = await stored()
-    // Another tab saves revision 2 of the same draft.
-    await saveDraft(
-      { ...draft, text: 'written in the other tab' },
-      { expectedRevision: 1, epoch: 0 }
+  describe('two tabs on one draft', () => {
+    const key = { key: 'key-1', fingerprint: 'fp-1' }
+
+    it("forks: keeps the other tab's save and carries on as a new draft that can be sent", async () => {
+      const { result } = setup()
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      const original = await stored()
+      const tabB = await editElsewhere(original, 'written in the other tab')
+
+      current = content({ text: 'typed here' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() =>
+        expect(result.current.draftId).not.toBe(original.id)
+      )
+      expect(result.current.saveState).toBe('saved')
+      const fork = result.current.draftId as string
+      expect((await getDraft(fork))?.text).toBe('typed here')
+      expect((await getDraft(original.id))?.text).toBe(
+        'written in the other tab'
+      )
+
+      // It carries on in the fork, never touching the other tab's draft.
+      current = content({ text: 'typed here, more' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(async () =>
+        expect((await getDraft(fork))?.revision).toBe(2)
+      )
+      expect((await getDraft(fork))?.text).toBe('typed here, more')
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(2)
+
+      // Post is allowed, from the fork, with its own key.
+      await act(async () => {
+        await expect(result.current.recordAttempt(key)).resolves.toBe(true)
+      })
+      expect((await getDraft(fork))?.submit).toEqual(key)
+      const other = await getDraft(original.id)
+      expect(other?.text).toBe('written in the other tab')
+      expect(other?.submit).toBeUndefined()
+      tabB.unmount()
+    })
+
+    it('a fork owns none of the media it shares with the other draft, and says it lacks their bytes', async () => {
+      const { result } = setup()
+      current = content({
+        attachments: [
+          attachment({ mediaId: 'shared-media' }),
+          attachment({ localId: 'local-2', mediaId: undefined })
+        ]
+      })
+      act(() =>
+        result.current.attachBlob(
+          'local-2',
+          new File(['bytes'], 'b.png', { type: 'image/png' })
+        )
+      )
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      const original = await stored()
+      const tabB = await editElsewhere(original, 'written in the other tab')
+
+      current = { ...current, text: 'typed here' } as DraftContent
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() =>
+        expect(result.current.draftId).not.toBe(original.id)
+      )
+      const fork = await getDraft(result.current.draftId as string)
+      expect(fork?.attachments.map((a) => [a.owned, a.hasBlob])).toEqual([
+        [false, false],
+        [false, false]
+      ])
+      // Its photo without an upload has no bytes of its own: never silent.
+      expect(result.current.saveState).toBe('error')
+
+      await act(async () => {
+        await result.current.discard()
+      })
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      expect((await getDraft(original.id))?.text).toBe(
+        'written in the other tab'
+      )
+      expect((await getDraftBlob('local-2'))?.draftId).toBe(original.id)
+      tabB.unmount()
+    })
+
+    it.each<
+      [string, (hook: ReturnType<typeof useComposerDraft>) => Promise<unknown>]
+    >([
+      ['a send key', (hook) => hook.recordAttempt(key)],
+      ['a lock', (hook) => hook.recordLock('kept it', key)]
+    ])(
+      'a draft holding %s never forks: it stops on that key and blocks the send',
+      async (_name, hold) => {
+        const { result } = setup()
+        await act(async () => {
+          await hold(result.current)
+        })
+        const original = await stored()
+        const tabB = await editElsewhere(original, 'written in the other tab')
+
+        current = content({ text: 'typed here' })
+        act(() => result.current.schedule())
+        await advance(DRAFT_SAVE_DEBOUNCE_MS)
+        await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
+        await act(async () => {
+          await expect(result.current.recordAttempt(key)).resolves.toBe(false)
+        })
+
+        const all = await listDrafts({ actorId: 'actor-1' })
+        expect(all).toHaveLength(1)
+        expect(all[0].text).toBe('written in the other tab')
+        expect(all[0].submit).toEqual(key)
+        expect(result.current.draftId).toBe(original.id)
+
+        tabB.unmount()
+      }
     )
 
-    current = content({ text: 'typed here' })
-    act(() => result.current.schedule())
-    await advance(DRAFT_SAVE_DEBOUNCE_MS)
-    await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
-    expect((await stored()).text).toBe('written in the other tab')
+    it('an emptied draft holding a send key does not fork either', async () => {
+      const { result } = setup()
+      await act(async () => {
+        await result.current.recordAttempt(key)
+      })
+      const original = await stored()
+      const tabB = await editElsewhere(original, 'written in the other tab')
 
-    // It has stopped for good: later edits do not try again.
-    current = content({ text: 'typed here, more' })
-    act(() => result.current.schedule())
-    await advance(DRAFT_SAVE_DEBOUNCE_MS * 2)
-    expect((await stored()).text).toBe('written in the other tab')
-    expect(result.current.saveState).toBe('error')
+      current = null
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+
+      await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
+      expect(result.current.draftId).toBe(original.id)
+      current = content({ text: 'typed after emptying' })
+      await act(async () => {
+        await expect(result.current.recordAttempt(key)).resolves.toBe(false)
+      })
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(1)
+      tabB.unmount()
+    })
   })
 
   describe('a stale tab never deletes a newer revision another tab saved', () => {
@@ -314,19 +445,23 @@ describe('useComposerDraft', () => {
     })
   })
 
-  it('never recreates a draft another tab deleted', async () => {
+  it('never recreates a draft another tab deleted: its text carries on as a new draft', async () => {
     const { result } = setup()
     act(() => result.current.schedule())
     await advance(DRAFT_SAVE_DEBOUNCE_MS)
     await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
     const { deleteDraft } = await import('@/lib/client/drafts')
-    await deleteDraft((await stored()).id)
+    const deleted = (await stored()).id
+    await deleteDraft(deleted)
 
     current = content({ text: 'more' })
     act(() => result.current.schedule())
     await advance(DRAFT_SAVE_DEBOUNCE_MS)
-    await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
-    expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+    await vi.waitFor(async () =>
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(1)
+    )
+    expect(await getDraft(deleted)).toBeUndefined()
+    expect((await stored()).text).toBe('more')
   })
 
   it('shows "error" when the account signed out under a stale tab (epoch)', async () => {
@@ -457,7 +592,7 @@ describe('useComposerDraft', () => {
       expect((await stored()).submit).toBeUndefined()
     })
 
-    it('blocks the send on a revision conflict', async () => {
+    it('forks on a revision conflict before the first send: the send goes out from a new draft with its own key and attempt', async () => {
       const { result } = setup()
       act(() => result.current.schedule())
       await advance(DRAFT_SAVE_DEBOUNCE_MS)
@@ -466,10 +601,16 @@ describe('useComposerDraft', () => {
       await saveDraft(draft, { expectedRevision: 1, epoch: 0 })
 
       await act(async () => {
-        await expect(result.current.recordAttempt(key)).resolves.toBe(false)
+        await expect(result.current.recordAttempt(key)).resolves.toBe(true)
       })
 
-      expect((await stored()).submit).toBeUndefined()
+      const fork = await getDraft(result.current.draftId as string)
+      expect(fork?.id).not.toBe(draft.id)
+      expect(fork?.submit).toEqual(key)
+      expect(fork?.attemptedAt).toEqual(expect.any(Number))
+      const other = await getDraft(draft.id)
+      expect(other?.submit).toBeUndefined()
+      expect(other?.attemptedAt).toBeUndefined()
     })
 
     it('blocks the send when the account signed out', async () => {
@@ -623,6 +764,7 @@ describe('useComposerDraft', () => {
     })
 
     it('a blob write still queued when the draft is discarded stores nothing', async () => {
+      const put = vi.spyOn(IDBObjectStore.prototype, 'put')
       const { result } = setup()
       current = content({
         attachments: [
@@ -637,7 +779,61 @@ describe('useComposerDraft', () => {
         await result.current.discard()
       })
 
+      // Not written at all, not merely deleted afterwards.
+      const blobPuts = put.mock.contexts.filter(
+        (store) => (store as IDBObjectStore).name === 'blobs'
+      )
+      expect(blobPuts).toHaveLength(0)
       expect(await getDraftBlob('local-2')).toBeUndefined()
+    })
+
+    it('stores bytes attached while an emptied draft is deleted under the draft that follows', async () => {
+      const { result } = setup()
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      const old = await stored()
+
+      current = null
+      act(() => result.current.schedule())
+      await act(async () => {
+        const emptied = result.current.flush()
+        result.current.attachBlob('local-1', file)
+        await emptied
+      })
+      await vi.waitFor(async () =>
+        expect(await getDraftBlob('local-1')).toBeDefined()
+      )
+      const blob = await getDraftBlob('local-1')
+      expect(blob?.draftId).not.toBe(old.id)
+
+      current = content({ attachments: [attachment({ mediaId: undefined })] })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      const next = await stored()
+      expect(next.id).toBe(blob?.draftId)
+      expect(next.attachments[0].hasBlob).toBe(true)
+    })
+
+    it('release drops the bytes of a draft that was never stored', async () => {
+      const { result } = setup()
+      current = content({
+        attachments: [attachment({ mediaId: undefined })]
+      })
+      act(() => result.current.attachBlob('local-1', file))
+      await vi.waitFor(async () =>
+        expect(await getDraftBlob('local-1')).toBeDefined()
+      )
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+
+      await act(async () => {
+        await result.current.release()
+      })
+
+      await vi.waitFor(async () =>
+        expect(await getDraftBlob('local-1')).toBeUndefined()
+      )
     })
 
     it('discarding a draft that was never saved deletes its stored bytes', async () => {
@@ -725,7 +921,8 @@ describe('useComposerDraft', () => {
       })
 
       const draft = await stored()
-      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id)
+      // The kept revision: the note's baseline for "changed in another tab".
+      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id, 1)
       current = content({ text: 'typed after closing' })
       act(() => result.current.schedule())
       await advance(DRAFT_SAVE_DEBOUNCE_MS * 2)
@@ -746,6 +943,45 @@ describe('useComposerDraft', () => {
       expect(notifySavedToDrafts).not.toHaveBeenCalled()
       // Closing must not drop the text silently: the note offers it.
       expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
+    })
+
+    it('keep offers the text when another tab is signing out', async () => {
+      vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
+      const { result } = setup()
+
+      await act(async () => {
+        await expect(result.current.keep()).resolves.toBe(false)
+      })
+
+      expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+    })
+
+    it('keep does not claim a save skipped while a reopened draft is loading', async () => {
+      const first = setup()
+      act(() => first.result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() =>
+        expect(first.result.current.saveState).toBe('saved')
+      )
+      first.unmount()
+      const reopened = await stored()
+      const { result } = renderHook(() =>
+        useComposerDraft({
+          composer: 'post-box',
+          draft: reopened,
+          isSeeding: () => true,
+          getContent: () => current
+        })
+      )
+      current = content({ text: 'typed while loading' })
+
+      await act(async () => {
+        await expect(result.current.keep()).resolves.toBe(false)
+      })
+
+      expect(notifySavedToDrafts).not.toHaveBeenCalled()
+      expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('typed while loading')
     })
 
     it('keep says "Saved" when the record saved but a photo\'s bytes did not', async () => {
@@ -777,7 +1013,7 @@ describe('useComposerDraft', () => {
 
       const draft = await stored()
       expect(draft.attachments[0].hasBlob).toBe(false)
-      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id)
+      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id, draft.revision)
       expect(notifyNotSavedToDrafts).not.toHaveBeenCalled()
     })
 
