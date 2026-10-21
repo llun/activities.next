@@ -776,9 +776,12 @@ export function Sidebar({
                                 }
                                 showItem(item.id)
                               }}
-                              title="Show in navigation"
                               className={cn(
-                                'absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 justify-center p-0',
+                                'absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 justify-center rounded-md p-0',
+                                // On touch the eye takes the row's whole height
+                                // and the link's right padding, so a near miss
+                                // restores instead of navigating away.
+                                '[@media(pointer:coarse)]:right-0 [@media(pointer:coarse)]:h-8 [@media(pointer:coarse)]:w-10',
                                 // Radix marks the keyboard-focused item with
                                 // data-highlighted rather than :focus-visible, so
                                 // arrowing onto it is what reveals it.
