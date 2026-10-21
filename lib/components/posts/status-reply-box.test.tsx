@@ -365,7 +365,7 @@ describe('StatusReplyBox', () => {
     ).toBeDisabled()
   })
 
-  it.each([422, 400, 404, 500])(
+  it.each([422, 400, 404, 500, 401, 403])(
     'does not lock the reply for a first failure of %i',
     async (status) => {
       createNoteMock.mockRejectedValueOnce(new ApiRequestError('no', status))
@@ -379,6 +379,55 @@ describe('StatusReplyBox', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     }
   )
+
+  it('discards a locked reply and its key on Cancel', async () => {
+    const { textarea, postButton } = await lockReplyDraft()
+    const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    // The parent keeps the box open here, so the next reply needs a new key.
+    fireEvent.change(textarea, { target: { value: 'Reply body' } })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).not.toBe(
+      lockedKey
+    )
+  })
+
+  it('drops a media batch that lands after the reply locked', async () => {
+    const resized = createDeferred<File>()
+    resizeImageMock.mockReturnValueOnce(resized.promise)
+    const { textarea, postButton } = await (async () => {
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+      renderReplyBox()
+      const textarea = screen.getByPlaceholderText('Reply to Llun...')
+      fireEvent.change(textarea, { target: { value: 'Reply body' } })
+      const file = new File(['late'], 'late.png', { type: 'image/png' })
+      fireEvent.change(
+        document.querySelector<HTMLInputElement>('input[type="file"]')!,
+        { target: { files: [file] } }
+      )
+      const postButton = screen.getByRole('button', { name: 'Post' })
+      fireEvent.click(postButton)
+      await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+      await act(async () => {
+        resized.resolve(file)
+        await resized.promise
+      })
+      return { textarea, postButton }
+    })()
+
+    expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
+    expect(textarea).toHaveAttribute('readonly')
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+    expect(retry).toEqual(first)
+  })
 
   it('unlocks when the reply target changes', async () => {
     const { textarea, retarget } = await lockReplyDraft()
@@ -405,21 +454,17 @@ describe('StatusReplyBox', () => {
       await pending.promise.catch(() => undefined)
     })
 
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        "Your post was saved but couldn't be sent yet."
-      )
-    )
+    // The failure belongs to the old reply: the new one shows nothing.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
   })
 
-  it.each([410, 422, 400, 404])(
-    'unlocks a locked reply and mints a new key when the retry is refused with %i',
-    async (status) => {
+  it('unlocks a locked reply and mints a new key only when the retry gets a 410', async () => {
+    {
       const { textarea, postButton } = await lockReplyDraft()
       const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
-      createNoteMock.mockRejectedValueOnce(new ApiRequestError('gone', status))
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('gone', 410))
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
@@ -433,14 +478,17 @@ describe('StatusReplyBox', () => {
       expect(isPublicId(nextKey!)).toBe(true)
       expect(nextKey).not.toBe(lockedKey)
     }
-  )
+  })
 
   it.each([
     ['a network error', () => new Error('offline'), 'offline'],
-    ['a 429', () => new ApiRequestError('slow', 429), 'slow']
+    ['a 429', () => new ApiRequestError('slow', 429), 'slow'],
+    ['a 400', () => new ApiRequestError('Bad Request', 400), 'Bad Request'],
+    ['a 422', () => new ApiRequestError('Too long', 422), 'Too long'],
+    ['a 404', () => new ApiRequestError('Not found', 404), 'Not found']
   ])(
-    'keeps a locked reply and its key when the retry fails with %s',
-    async (_name, makeError) => {
+    'keeps a locked reply and its key and shows the message when the retry fails with %s',
+    async (_name, makeError, message) => {
       const { textarea, postButton } = await lockReplyDraft()
       const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
       createNoteMock.mockRejectedValueOnce(makeError())
@@ -449,6 +497,7 @@ describe('StatusReplyBox', () => {
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
       await waitFor(() => expect(postButton).toBeEnabled())
       expect(textarea).toHaveAttribute('readonly')
+      expect(screen.getByRole('status')).toHaveTextContent(message)
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))

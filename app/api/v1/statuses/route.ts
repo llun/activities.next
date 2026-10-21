@@ -242,6 +242,42 @@ export const POST = traceApiRoute(
         }
         const note = parsed.data
 
+        // Honor Idempotency-Key: a repeated key with matching normalized
+        // content returns the original status rather than creating a duplicate
+        // (sending it first if its federation job was never queued); different
+        // content returns 422; a deleted status returns 410; a create still
+        // running elsewhere returns 409. It runs before the checks below: the
+        // hash binds the payload a kept post was accepted with, so a retry is
+        // answered even after an admin tightened a limit. Scheduled requests
+        // claim their key only when they publish.
+        const idempotency = idempotencyKey
+          ? {
+              key: idempotencyKey,
+              contentHash: computeStatusIdempotencyHash(note)
+            }
+          : undefined
+        if (idempotency && !note.scheduled_at?.trim()) {
+          const existingStatus = await resolveExistingIdempotentStatus({
+            database,
+            actorId: currentActor.id,
+            idempotency
+          })
+          if (existingStatus) {
+            const existingMastodonStatus = await getMastodonStatus(
+              database,
+              existingStatus,
+              currentActor.id
+            )
+            if (existingMastodonStatus) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: existingMastodonStatus
+              })
+            }
+          }
+        }
+
         // A status carries either media/fitness or a poll, never both.
         if (
           note.poll &&
@@ -436,39 +472,6 @@ export const POST = traceApiRoute(
               currentActor.account?.id
             )
           })
-        }
-
-        // Honor Idempotency-Key: a repeated key with matching normalized
-        // content returns the original status rather than creating a duplicate
-        // (sending it first if its federation job was never queued); different
-        // content returns 422; a deleted status returns 410; a create still
-        // running elsewhere returns 409.
-        const idempotency = idempotencyKey
-          ? {
-              key: idempotencyKey,
-              contentHash: computeStatusIdempotencyHash(note)
-            }
-          : undefined
-        if (idempotency) {
-          const existingStatus = await resolveExistingIdempotentStatus({
-            database,
-            actorId: currentActor.id,
-            idempotency
-          })
-          if (existingStatus) {
-            const existingMastodonStatus = await getMastodonStatus(
-              database,
-              existingStatus,
-              currentActor.id
-            )
-            if (existingMastodonStatus) {
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: existingMastodonStatus
-              })
-            }
-          }
         }
 
         // When the request authenticated via an OAuth app token, record the

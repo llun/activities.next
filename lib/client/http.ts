@@ -31,24 +31,40 @@ export const isPostKeptByServer = (error: unknown): error is ApiRequestError =>
 // Shown beside a locked draft, after the saved-post message.
 export const DRAFT_LOCKED_NOTICE = 'Editing is locked until it is sent.'
 
-// A retry of a kept post that the server definitively refused (410 deleted, 422
-// key reuse, 400, ...): the key can never replay, so the lock and key must go.
-// 408/429 are transient, 409 means kept, and 401/403 (see
-// `isSessionExpiredError`) only need a new session; network and 5xx failures
-// leave the saved post's state unknown. All of those keep the lock and key,
-// because a new key after signing back in would duplicate the kept post.
-export const isKeyRejectedByServer = (error: unknown): boolean =>
-  error instanceof ApiRequestError &&
-  error.status >= 400 &&
-  error.status < 500 &&
-  ![401, 403, 408, 409, 429].includes(error.status)
-
 export const SESSION_EXPIRED_NOTICE =
   'Your session has expired. Sign in again, then press Post to retry.'
 
 export const isSessionExpiredError = (error: unknown): boolean =>
   error instanceof ApiRequestError &&
   (error.status === 401 || error.status === 403)
+
+export type FailedPostAction = 'lock' | 'unlock' | 'none'
+
+// How a composer reacts to a failed create. A kept post (503/409) locks the
+// draft under its key. On a locked retry only 410 (the kept post was deleted)
+// proves nothing is kept, so only 410 unlocks the draft and drops the key.
+// Every other failure keeps both: the route answers 400 for an unexpected
+// error and 422 for a validation failure while the post may still be kept,
+// and a new key would duplicate it. 401/403 ask the user to sign in again.
+export const classifyFailedPost = (
+  error: unknown,
+  {
+    retryingLocked,
+    fallbackMessage,
+    kept = isPostKeptByServer(error)
+  }: { retryingLocked: boolean; fallbackMessage: string; kept?: boolean }
+): { action: FailedPostAction; message: string } => {
+  const message = describePostError(error, fallbackMessage, kept)
+  if (kept) return { action: 'lock', message }
+  if (!retryingLocked) return { action: 'none', message }
+  if (isSessionExpiredError(error)) {
+    return { action: 'lock', message: SESSION_EXPIRED_NOTICE }
+  }
+  if (error instanceof ApiRequestError && error.status === 410) {
+    return { action: 'unlock', message }
+  }
+  return { action: 'lock', message }
+}
 
 // `kept` is false on the edit path, where nothing was saved.
 export const describePostError = (

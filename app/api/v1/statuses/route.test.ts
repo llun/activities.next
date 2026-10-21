@@ -884,6 +884,52 @@ describe('POST /api/v1/statuses', () => {
     })
   })
 
+  it('replays a kept Idempotency-Key before the content limits, so a retry after the limit was lowered gets the kept status', async () => {
+    const idempotencyKey = 'idem-key-limit-lowered'
+    const makeRequest = (status: string) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': idempotencyKey
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+    const kept = 'x'.repeat(20)
+    const firstResponse = await makeRequest(kept)
+    expect(firstResponse.status).toBe(200)
+    const firstStatus = await firstResponse.json()
+
+    await database.setServerSettings([
+      { key: 'posts.maxCharacters', value: 10 }
+    ])
+    invalidateServerSettingsCache(database)
+    try {
+      const retry = await makeRequest(kept)
+      expect(retry.status).toBe(200)
+      await expect(retry.json()).resolves.toMatchObject({ id: firstStatus.id })
+
+      // A different payload under the same key is still the key conflict,
+      // not the limit error.
+      const mismatched = await makeRequest('y'.repeat(20))
+      expect(mismatched.status).toBe(422)
+      await expect(mismatched.json()).resolves.toEqual({
+        error: expect.stringContaining('Idempotency-Key')
+      })
+    } finally {
+      await deleteServerSetting(db, { key: 'posts.maxCharacters' })
+      invalidateServerSettingsCache(database)
+    }
+    const owned = await database.getActorStatuses({ actorId: ACTOR1_ID })
+    expect(
+      owned.filter((status) => status.id === firstStatus.uri)
+    ).toHaveLength(1)
+  })
+
   it('creates and federates only one status under concurrent duplicate Idempotency-Key requests', async () => {
     const idempotencyKey = 'idem-key-concurrent-race'
     const publishMock = vi.mocked(getQueue().publish)

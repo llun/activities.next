@@ -27,11 +27,8 @@ import {
 } from '@/lib/client'
 import {
   DRAFT_LOCKED_NOTICE,
-  SESSION_EXPIRED_NOTICE,
-  describePostError,
-  isKeyRejectedByServer,
-  isPostKeptByServer,
-  isSessionExpiredError
+  classifyFailedPost,
+  isPostKeptByServer
 } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import type {
@@ -181,9 +178,15 @@ export const PostBox: FC<Props> = ({
   // Set once the server kept a create (503/409): the draft is locked so Post
   // retries the same payload under the same Idempotency-Key. Any edit would
   // mint a new key and strand the kept post (or duplicate it).
-  const [lockedMessage, setLockedMessage] = useState<string | null>(null)
+  const [lockedMessage, setLockedMessageState] = useState<string | null>(null)
   const draftLocked = lockedMessage !== null
+  // Written with the lock, not after render: a media batch that settles
+  // between the two must already see it.
   const draftLockedRef = useRef(draftLocked)
+  const setLockedMessage = (message: string | null) => {
+    draftLockedRef.current = message !== null
+    setLockedMessageState(message)
+  }
   // Bumped when the composer is re-targeted: a submit still in flight belongs
   // to the previous draft and must not lock the new one.
   const draftGenerationRef = useRef(0)
@@ -267,10 +270,6 @@ export const PostBox: FC<Props> = ({
   // fetched once and re-applied after each post so it stays sticky across the
   // resetExtension() that follows a successful create.
   const defaultQuotePolicyRef = useRef<QuoteApprovalPolicy>('public')
-
-  useEffect(() => {
-    draftLockedRef.current = draftLocked
-  }, [draftLocked])
 
   useEffect(() => {
     postExtensionRef.current = postExtension
@@ -1108,15 +1107,15 @@ export const PostBox: FC<Props> = ({
           keptFitnessFileIdsRef.current.add(createFitnessFileId)
         }
       }
-      // A locked retry that lost its session keeps the lock and the key.
-      const sessionExpired = retryingLockedDraft && isSessionExpiredError(error)
-      const failureMessage = sessionExpired
-        ? SESSION_EXPIRED_NOTICE
-        : describePostError(error, fallbackMessage, keptByServer)
+      const { action, message: failureMessage } = classifyFailedPost(error, {
+        retryingLocked: retryingLockedDraft,
+        fallbackMessage,
+        kept: keptByServer
+      })
       if (generation === draftGenerationRef.current) {
-        if (keptByServer || sessionExpired) {
+        if (action === 'lock') {
           setLockedMessage(failureMessage)
-        } else if (retryingLockedDraft && isKeyRejectedByServer(error)) {
+        } else if (action === 'unlock') {
           // Nothing is kept under this key any more: let the draft be edited
           // again under a new key instead of stranding it.
           setLockedMessage(null)
@@ -1127,6 +1126,24 @@ export const PostBox: FC<Props> = ({
     } finally {
       submitInFlightRef.current = false
     }
+  }
+
+  // The way out of a locked draft: clear it and its key. Its media and
+  // fitness file belong to the kept post (marked kept when the server kept
+  // it), so they are only dropped from the composer, never deleted.
+  const onDiscardLockedDraft = () => {
+    if (submitInFlightRef.current) return
+    draftGenerationRef.current += 1
+    submitIdempotencyRef.current = null
+    setLockedMessage(null)
+    setWarningMsg(null)
+    setText('')
+    textRef.current = ''
+    postExtensionRef.current = createDefaultState()
+    dispatch(resetExtension())
+    resetMediaState()
+    dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
+    setAllowPost(false)
   }
 
   const onCloseReply = () => {
@@ -1784,8 +1801,20 @@ export const PostBox: FC<Props> = ({
           </div>
         ) : null}
         {lockedMessage ? (
-          <div role="status" className="mt-3 text-xs text-muted-foreground">
-            {lockedMessage} {DRAFT_LOCKED_NOTICE}
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div role="status" className="text-xs text-muted-foreground">
+              {lockedMessage} {DRAFT_LOCKED_NOTICE}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              disabled={isPosting}
+              onClick={onDiscardLockedDraft}
+            >
+              Discard draft
+            </Button>
           </div>
         ) : null}
         {missingDescription ? (

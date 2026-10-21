@@ -12,14 +12,7 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
-import {
-  DRAFT_LOCKED_NOTICE,
-  SESSION_EXPIRED_NOTICE,
-  describePostError,
-  isKeyRejectedByServer,
-  isPostKeptByServer,
-  isSessionExpiredError
-} from '@/lib/client/http'
+import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   addAttachment,
@@ -77,8 +70,15 @@ export const StatusReplyBox: FC<Props> = ({
   // Set once the server kept the reply (503/409): the draft is locked so Post
   // retries the same payload under the same Idempotency-Key. Any edit would
   // mint a new key and strand the kept reply (or duplicate it).
-  const [lockedMessage, setLockedMessage] = useState<string | null>(null)
+  const [lockedMessage, setLockedMessageState] = useState<string | null>(null)
   const draftLocked = lockedMessage !== null
+  // Written with the lock, not after render: a media batch that settles
+  // between the two must already see it.
+  const draftLockedRef = useRef(draftLocked)
+  const setLockedMessage = (message: string | null) => {
+    draftLockedRef.current = message !== null
+    setLockedMessageState(message)
+  }
   // Bumped when the reply target changes: a submit still in flight belongs to
   // the previous draft and must not lock the new one.
   const draftGenerationRef = useRef(0)
@@ -327,19 +327,18 @@ export const StatusReplyBox: FC<Props> = ({
     } catch (error) {
       isSubmittingRef.current = false
       setIsPosting(false)
+      // A stale failure belongs to a previous draft: say nothing on this one.
+      if (generation !== draftGenerationRef.current) return
       // Surface the server's message without wiping user draft, CW, or attachments.
-      // A locked retry that lost its session keeps the lock and the key.
-      const sessionExpired = retryingLockedDraft && isSessionExpiredError(error)
-      const failureMessage = sessionExpired
-        ? SESSION_EXPIRED_NOTICE
-        : describePostError(error, 'Fail to create a reply')
-      if (generation !== draftGenerationRef.current) {
-        setWarningMsg(failureMessage)
-      } else if (isPostKeptByServer(error) || sessionExpired) {
+      const { action, message: failureMessage } = classifyFailedPost(error, {
+        retryingLocked: retryingLockedDraft,
+        fallbackMessage: 'Fail to create a reply'
+      })
+      if (action === 'lock') {
         setLockedMessage(failureMessage)
       } else {
         setWarningMsg(failureMessage)
-        if (retryingLockedDraft && isKeyRejectedByServer(error)) {
+        if (action === 'unlock') {
           // Nothing is kept under this key any more: let the draft be edited
           // again under a new key instead of stranding it.
           setLockedMessage(null)
@@ -347,6 +346,21 @@ export const StatusReplyBox: FC<Props> = ({
         }
       }
     }
+  }
+
+  // Cancel on a locked draft discards it and its key. The reply box never
+  // deletes uploaded media, so the kept reply's media stays.
+  const onCancelReply = () => {
+    if (draftLocked && !isSubmittingRef.current) {
+      draftGenerationRef.current += 1
+      submitIdempotencyRef.current = null
+      setLockedMessage(null)
+      setWarningMsg(null)
+      setText('')
+      postExtensionRef.current = createDefaultState()
+      dispatch(resetExtension())
+    }
+    onCancel()
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
@@ -585,11 +599,15 @@ export const StatusReplyBox: FC<Props> = ({
               <UploadMediaButton
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
-                disabled={draftLocked}
+                disabled={isPosting || draftLocked}
                 onAddAttachment={(attachment) => {
+                  // A batch that settles after submit began or the draft
+                  // locked would change the retried payload, and its key.
                   if (
+                    isSubmittingRef.current ||
+                    draftLockedRef.current ||
                     postExtensionRef.current.attachments.length >=
-                    maxMediaAttachments
+                      maxMediaAttachments
                   ) {
                     if (attachment.url.startsWith('blob:')) {
                       URL.revokeObjectURL(attachment.url)
@@ -629,7 +647,7 @@ export const StatusReplyBox: FC<Props> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={onCancel}
+                  onClick={onCancelReply}
                 >
                   Cancel
                 </Button>

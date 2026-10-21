@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ApiRequestError,
-  isKeyRejectedByServer,
+  SESSION_EXPIRED_NOTICE,
+  classifyFailedPost,
   isSessionExpiredError,
   parseApiError,
   throwApiError
@@ -20,24 +21,68 @@ describe('http client utilities', () => {
     })
   })
 
-  describe('isKeyRejectedByServer', () => {
-    it.each([400, 404, 410, 422])('is true for a %i', (status) => {
-      expect(isKeyRejectedByServer(new ApiRequestError('no', status))).toBe(
-        true
+  describe('classifyFailedPost', () => {
+    const classify = (error: unknown, retryingLocked: boolean) =>
+      classifyFailedPost(error, { retryingLocked, fallbackMessage: 'Failed' })
+
+    it.each([503, 409])('locks a kept post (%i)', (status) => {
+      expect(classify(new ApiRequestError('no', status), false).action).toBe(
+        'lock'
       )
     })
 
-    it.each([401, 403, 408, 409, 429, 500, 503])(
-      'is false for a %i',
+    it('unlocks a locked retry only on 410, with the server message', () => {
+      expect(classify(new ApiRequestError('Deleted', 410), true)).toEqual({
+        action: 'unlock',
+        message: 'Deleted'
+      })
+    })
+
+    it.each([400, 404, 408, 422, 429, 500])(
+      'keeps the lock on a locked retry that fails with %i, with the server message',
       (status) => {
-        expect(isKeyRejectedByServer(new ApiRequestError('no', status))).toBe(
-          false
-        )
+        expect(classify(new ApiRequestError('Busy', status), true)).toEqual({
+          action: 'lock',
+          message: 'Busy'
+        })
       }
     )
 
-    it('is false for a network error', () => {
-      expect(isKeyRejectedByServer(new Error('offline'))).toBe(false)
+    it('keeps the lock on a locked retry that fails offline', () => {
+      expect(classify(new Error('offline'), true)).toEqual({
+        action: 'lock',
+        message: 'offline'
+      })
+    })
+
+    it.each([401, 403])(
+      'keeps the lock and asks to sign in again on a locked %i',
+      (status) => {
+        expect(classify(new ApiRequestError('no', status), true)).toEqual({
+          action: 'lock',
+          message: SESSION_EXPIRED_NOTICE
+        })
+      }
+    )
+
+    it.each([400, 401, 410, 422])(
+      'leaves an unlocked draft alone on %i',
+      (status) => {
+        expect(classify(new ApiRequestError('no', status), false)).toEqual({
+          action: 'none',
+          message: 'no'
+        })
+      }
+    )
+
+    it('does not lock an edit, where nothing is kept', () => {
+      expect(
+        classifyFailedPost(new ApiRequestError('no', 503), {
+          retryingLocked: false,
+          fallbackMessage: 'Failed',
+          kept: false
+        })
+      ).toEqual({ action: 'none', message: 'no' })
     })
   })
 

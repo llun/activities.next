@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { getCustomEmojis } from '@/lib/client'
+import { deleteAccountMedia, getCustomEmojis } from '@/lib/client'
 import { ApiRequestError, SESSION_EXPIRED_NOTICE } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -806,6 +806,10 @@ describe('PostBox automatic vertical growth', () => {
   })
 })
 
+const flushMicrotasks = async () => {
+  for (let i = 0; i < 20; i += 1) await Promise.resolve()
+}
+
 describe('PostBox idempotency key', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -953,12 +957,11 @@ describe('PostBox idempotency key', () => {
     return { ...view, textarea, postButton }
   }
 
-  it.each([410, 422, 400, 404])(
-    'unlocks a locked draft and mints a new key when the retry is refused with %i',
-    async (status) => {
+  it('unlocks a locked draft and mints a new key only when the retry gets a 410', async () => {
+    {
       const { textarea, postButton } = await lockDraft()
       const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
-      createNoteMock.mockRejectedValueOnce(new ApiRequestError('gone', status))
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('gone', 410))
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
@@ -972,7 +975,7 @@ describe('PostBox idempotency key', () => {
       expect(isPublicId(nextKey!)).toBe(true)
       expect(nextKey).not.toBe(lockedKey)
     }
-  )
+  })
 
   it.each([401, 403])(
     'keeps a locked draft and its key and asks to sign in again when the retry gets a %i',
@@ -999,7 +1002,7 @@ describe('PostBox idempotency key', () => {
     }
   )
 
-  it.each([422, 400, 404, 500])(
+  it.each([422, 400, 404, 500, 401, 403])(
     'does not lock the draft for a first failure of %i',
     async (status) => {
       createNoteMock.mockRejectedValueOnce(new ApiRequestError('no', status))
@@ -1084,18 +1087,24 @@ describe('PostBox idempotency key', () => {
   it.each([
     ['a network error', () => new Error('offline')],
     ['a 500', () => new ApiRequestError('boom', 500)],
-    ['a 429', () => new ApiRequestError('slow down', 429)]
+    ['a 429', () => new ApiRequestError('slow down', 429)],
+    ['a 400', () => new ApiRequestError('Bad Request', 400)],
+    ['a 422', () => new ApiRequestError('Text too long', 422)],
+    ['a 404', () => new ApiRequestError('Record not found', 404)]
   ])(
-    'keeps a locked draft and its key when the retry fails with %s',
+    'keeps a locked draft and its key and shows the message when the retry fails with %s',
     async (_name, makeError) => {
       const { textarea, postButton } = await lockDraft()
       const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
-      createNoteMock.mockRejectedValueOnce(makeError())
+      const error = makeError()
+      createNoteMock.mockRejectedValueOnce(error)
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
       await waitFor(() => expect(postButton).toBeEnabled())
       expect(textarea).toHaveAttribute('readonly')
+      expect(screen.getByRole('status')).toHaveTextContent(error.message)
+      expect(window.alert).toHaveBeenLastCalledWith(error.message)
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
@@ -1149,6 +1158,84 @@ describe('PostBox idempotency key', () => {
     )
     expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
     expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
+  })
+
+  it('discards a locked draft and its key without deleting the kept media', async () => {
+    resetEditMediaMocks()
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const { unmount } = renderComposer()
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['kept'], 'kept.png', { type: 'image/png' })] }
+    })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    await waitFor(() => expect(postButton).toBeEnabled())
+    fireEvent.click(postButton)
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+    expect(createNoteMock.mock.calls[0]?.[0]?.attachments).toHaveLength(1)
+    const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Remove media/ })
+    ).not.toBeInTheDocument()
+
+    createNoteMock.mockResolvedValueOnce({
+      status: editStatus,
+      attachments: []
+    })
+    fireEvent.change(textarea, { target: { value: 'Next post' } })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).not.toBe(
+      lockedKey
+    )
+    unmount()
+    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+  })
+
+  it('drops a media batch that settles in the same tick the draft locks', async () => {
+    const resized = createDeferred<File>()
+    resizeImageMock.mockReturnValueOnce(resized.promise)
+    const pending = createDeferred<never>()
+    createNoteMock.mockReturnValueOnce(pending.promise)
+    renderComposer()
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
+    ).at(-1)!
+    const file = new File(['late'], 'late.png', { type: 'image/png' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    // Both settle before React renders the lock.
+    await act(async () => {
+      pending.reject(new ApiRequestError('kept', 503))
+      await pending.promise.catch(() => undefined)
+      await flushMicrotasks()
+      resized.resolve(file)
+      await resized.promise
+      await flushMicrotasks()
+    })
+
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+    expect(
+      screen.queryByRole('button', { name: 'Remove media late.png' })
+    ).not.toBeInTheDocument()
   })
 
   it('drops a media batch that lands after the draft locked', async () => {

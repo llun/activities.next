@@ -493,7 +493,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   and identical payload returns `200 OK` with the existing serialized `Status`
   without creating a second status or enqueuing a second federation delivery;
   a repeat with the same key and different request parameters returns
-  `422 Unprocessable Entity` (`{ error }`). A key stored before content hashing
+  `422 Unprocessable Entity` (`{ error }`). An immediate (unscheduled) request
+  is checked against its key right after the body parses, before the
+  poll/media, content-limit and `created_at` checks: the hash binds the payload
+  the kept post was accepted with, so a retry is answered with that post even
+  after an admin lowered a limit. A scheduled request does not look its key
+  up; it claims it when it publishes (below). A key stored before content hashing
   (a `NULL` hash) matches any payload. Concurrent requests for the same
   `(actorId, key)` in one process wait for the first request's create; across
   processes the `(actorId, key)` unique constraint inside the status creation
