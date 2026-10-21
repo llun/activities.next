@@ -407,3 +407,91 @@ describe('email design conformance', () => {
     }
   )
 })
+
+describe('email design brand', () => {
+  const BRAND_HOST = 'run.example'
+  const brand = { name: 'Run Club', domain: BRAND_HOST }
+  const localActor: ActorProfile = {
+    ...hostileActor,
+    id: 'https://run.example/users/ann',
+    username: 'ann',
+    domain: BRAND_HOST,
+    name: 'Ann'
+  }
+  // A local post whose markdown yields a root-relative hashtag link.
+  const hashtagStatus = {
+    ...hostileStatus,
+    id: 'https://run.example/users/ann/statuses/1',
+    actorId: localActor.id,
+    actor: localActor,
+    isLocalActor: true,
+    text: 'Morning #run'
+  } as unknown as EditableStatus
+
+  const branded: Array<[string, RenderedEmail]> = [
+    [
+      'verify email',
+      buildVerifyEmail({
+        recipientEmail: 'a@b.c',
+        verificationCode: CODE,
+        brand
+      })
+    ],
+    [
+      'reset password',
+      buildResetPasswordEmail({
+        recipientEmail: 'a@b.c',
+        passwordResetCode: CODE,
+        brand
+      })
+    ],
+    [
+      'follow',
+      buildFollowEmail({ recipient: localActor, actor: localActor, brand })
+    ],
+    [
+      'like',
+      buildLikeEmail({
+        recipient: localActor,
+        actor: localActor,
+        status: hashtagStatus,
+        brand
+      })
+    ]
+  ]
+
+  it.each(branded)('%s carries the wordmark and the brand host', (_, email) => {
+    expect(email.html).toContain('Run Club')
+    expect(email.html).toContain(BRAND_HOST)
+    expect(email.html).not.toContain(HOST)
+  })
+
+  it.each(branded)('%s builds every link on the brand domain', (_, email) => {
+    const urls = [...email.html.matchAll(/(?:href|src)="(https?:[^"]+)"/g)].map(
+      (match) => match[1]
+    )
+    expect(urls.length).toBeGreaterThan(0)
+    for (const url of urls) expect(url).toContain(`//${BRAND_HOST}`)
+  })
+
+  it('absolutizes a post body link and the actor link on the brand', () => {
+    const email = buildLikeEmail({
+      recipient: localActor,
+      actor: localActor,
+      status: hashtagStatus,
+      brand
+    })
+    expect(email.html).toContain(`href="https://${BRAND_HOST}/tags/run"`)
+    expect(email.html).toContain(`https://${BRAND_HOST}/@ann`)
+    expect(email.html).not.toContain(`https://${HOST}/`)
+  })
+
+  it('keeps the primary host in the body links without a brand', () => {
+    const email = buildLikeEmail({
+      recipient: localActor,
+      actor: localActor,
+      status: hashtagStatus
+    })
+    expect(email.html).toContain(`href="https://${HOST}/tags/run"`)
+  })
+})

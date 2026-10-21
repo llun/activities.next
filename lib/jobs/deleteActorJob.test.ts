@@ -26,11 +26,18 @@ vi.mock('@/lib/services/domains/domainIdentity', () => ({
       source: host ? 'database' : 'primary',
       name: host ? `${host} name` : 'Main name',
       description: '',
-      contactEmail: '',
+      contactEmail: host ? `contact@${host}` : '',
       termsOfService: null,
       privacyPolicy: null
     })
   )
+}))
+
+const mockServedLinkDomain = vi.hoisted(() =>
+  vi.fn<(domain: string) => string | null>(() => null)
+)
+vi.mock('@/lib/services/domains/localDomains', () => ({
+  getServedLinkDomain: mockServedLinkDomain
 }))
 
 vi.mock('@/lib/services/queue', () => ({
@@ -165,6 +172,37 @@ describe('deleteActorJob', () => {
       })
     )
     expect(loggedCalls()).not.toContain(`${username}@test.social`)
+  })
+
+  it('names the served domain and its contact address in the deletion email', async () => {
+    const suffix = Date.now().toString()
+    const username = `delete-job-brand-${suffix}`
+    const actorId = `https://test.social/users/${username}`
+    mockServedLinkDomain.mockReturnValue('run.example')
+
+    await database.createAccount({
+      email: `${username}@test.social`,
+      username,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+    await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+
+    await deleteActorJob(database, {
+      id: `delete-job-brand-${suffix}`,
+      name: DELETE_ACTOR_JOB_NAME,
+      data: { actorId }
+    })
+
+    const { sendMail } = await vi.importMock<
+      typeof import('@/lib/services/email')
+    >('@/lib/services/email')
+    const message = sendMail.mock.calls.at(-1)?.[0]
+    expect(message?.content.html).toContain('contact@run.example')
+    expect(message?.content.text).toContain('contact@run.example')
+    mockServedLinkDomain.mockReturnValue(null)
   })
 
   it('completes actor deletion when the email notification fails', async () => {

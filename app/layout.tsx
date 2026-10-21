@@ -49,12 +49,18 @@ const icons: Metadata['icons'] = {
 // every page request-time, which they already were (see `yarn build`'s route
 // table); the server settings and domain identity caches keep most of them
 // off the database.
+// Next fills the template with `template.replace(/%s/g, pageTitle)` and has no
+// escape for a literal `%s`, so a name such as "100%s Club" would swallow the
+// page title. A zero-width space between the two characters keeps it visibly
+// the same and stops it matching.
+const escapeTitleTemplate = (name: string) => name.replace(/%s/g, '%\u200Bs')
+
 export const generateMetadata = async (): Promise<Metadata> => {
   const name = getDomainDisplayName(await getVisitedDomainIdentity())
   return {
     title: {
       default: name,
-      template: `%s · ${name}`
+      template: `%s · ${escapeTitleTemplate(name)}`
     },
     manifest: '/manifest.webmanifest',
     icons

@@ -1091,16 +1091,19 @@ legacy shape left to copy.
   land they will need to pass an already-sanitized post body through; that must
   go through the existing `convertMarkdownText`/`sanitizeText` pipeline and be
   the single, explicitly-typed exception — never markup assembled by hand.
-- **An email carries the name of the domain it is for.** Every builder takes an optional `brand: { name, domain }` (`lib/services/email/brand.ts`) that `renderEmail` turns into the wordmark (`brand.name`, escaped; without a brand the literal "Activities", because `renderEmail` is synchronous and the server name is an async setting), the header host, the logo and every link and copy line (`brandBaseURL(brand)`, `brandHost(brand)`). The brand is a `resolveDomainIdentity` result (`lib/services/email/sender.ts`: `resolveEmailIdentity(database, host)`, `resolveActorEmailBrand(database, actor)`): the visited domain for the password reset (`headerHost` of the request), the account's served domain (`getServedLinkDomain`) for the confirmation, email-change, actor-deleted and notification emails, so callers resolve it where they are already async (`lib/actions/*`, the fitness and delete jobs) and pass it in. `getEmailSender(identity)` picks the From: the primary keeps `ACTIVITIES_EMAIL_FROM` exactly as set, any other domain sends `{ name: identity.name, email: <bare address of ACTIVITIES_EMAIL_FROM> }` so one verified mailbox serves every domain. `sendNotificationAlerts` looks up the recipient actor's domain for it. `getAddressFromEmail` (`lib/services/email/address.ts`) strips CR, LF, `"` and `\` from a display name, once, for every provider, because domain names are admin text and must not inject headers.
-- **Every `href`/`src` is absolute and built from `getBaseURL()`, except the quoted-actor avatar (see below).** A
+- **An email carries the name of the domain it is for.** Every builder takes an optional `brand: { name, domain }` (`lib/services/email/brand.ts`) that `renderEmail` turns into the wordmark (`brand.name`, escaped; without a brand the literal "Activities", because `renderEmail` is synchronous and the server name is an async setting), the header host, the logo and every link and copy line (`brandBaseURL(brand)`, `brandHost(brand)`). The brand is a `resolveDomainIdentity` result (`lib/services/email/sender.ts`: `resolveEmailIdentity(database, host)`, `resolveActorEmailBrand(database, actor)`): the visited domain for the password reset (`headerHost` of the request), the account's served domain (`getServedLinkDomain`) for the confirmation, email-change, actor-deleted and notification emails, so callers resolve it where they are already async (`lib/actions/*`, the fitness and delete jobs) and pass it in. `getEmailSender(identity)` picks the From: the primary keeps `ACTIVITIES_EMAIL_FROM` exactly as set, any other domain sends `{ name: identity.name, email: <bare address of ACTIVITIES_EMAIL_FROM> }` so one verified mailbox serves every domain. `sendNotificationAlerts` looks up the recipient actor's domain for it. `getAddressFromEmail` (`lib/services/email/address.ts`) normalises a display name once for every provider (CR, LF, `"`, `\` removed; other control characters and U+2028/U+2029 become spaces; whitespace collapsed), because domain names are admin text and must not inject headers. SES alone passes `encodeName: true`, which writes a non-ASCII name as RFC 2047 `=?UTF-8?B?…?=` words (each at most 75 characters), since its `Source` must be 7-bit ASCII; nodemailer encodes names itself and would quote an encoded-word, so SMTP gets the raw name.
+- **Every `href`/`src` is absolute and built from `brandBaseURL(brand)`, except the quoted-actor avatar (see below).**
+  That is `buildBaseURL` of the brand's domain, and `getBaseURL()` when no brand is passed or the brand
+  is the primary (`toEmailBrand` leaves the primary's `domain` empty, so a configured host that
+  carries a scheme keeps the link it always had). A
   root-relative URL is unresolvable in a mail client (note `convertMarkdownText`
   emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
   wrong under `ACTIVITIES_INSECURE_AUTH=true`. URLs are protocol-checked to
   http/https/mailto; anything else degrades to plain text rather than shipping a
-  dead or dangerous link, since remote actors control `status.url`. The one
-  variation is the account's own domain: the confirmation and email-change
-  links (`buildVerifyEmail`, `buildChangeEmail`) take an optional `domain` and
-  use `buildBaseURL(domain)` instead. Registration's first confirmation email
+  dead or dangerous link, since remote actors control `status.url`. The brand's
+  domain is the account's own domain: every builder takes it through `brand`, and
+  the confirmation and email-change links (`buildVerifyEmail`, `buildChangeEmail`)
+  also take an optional `domain` for their verify link. Registration's first confirmation email
   passes the domain sign-up created the first actor on (the domain the visitor
   signed up on, see Served Domains below), so it links back there. A resend (`POST /api/v1/emails/confirmations`) and an email
   change (`POST /api/v1/accounts/email`) pass the selected actor's domain, and
@@ -1116,9 +1119,9 @@ legacy shape left to copy.
 - **The plain-text alternative is derived from the same block list**, never
   hand-written beside the HTML. Both used to be maintained by hand and had
   already drifted apart.
-- **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`,
-  and `buildBaseURL` too when the code under test can build an account-domain
-  link.** It shadows the global mock from `test/setup/vitest.setup.ts`, and because most email call
+- **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`
+  and `buildBaseURL`, for every email builder (each link goes through
+  `brandBaseURL`, which calls `buildBaseURL` for a branded email).** It shadows the global mock from `test/setup/vitest.setup.ts`, and because most email call
   sites deliberately catch delivery errors, omitting it does **not** fail loudly:
   the template throws, the catch swallows it, and the test keeps passing while
   the email silently stops sending. This has already happened twice
@@ -2699,15 +2702,15 @@ legacy shape left to copy.
   through `renderEmail`; they never write markup. Escaping belongs to the block
   builders, so a template hands in plain strings, and nothing in the layout emits
   an unescaped value today.
-- Every `href`/`src` is absolute and built from `getBaseURL()` (or, for the
-  account-confirmation links, `buildBaseURL` of a domain `getServedLinkDomain`
-  accepted). Root-relative URLs are unresolvable in a mail client, and a
+- Every `href`/`src` is absolute and built from `brandBaseURL(brand)`
+  (`buildBaseURL` of the brand's domain, a domain `getServedLinkDomain`
+  accepted; `getBaseURL()` when no brand is passed or the brand is the primary). Root-relative URLs are unresolvable in a mail client, and a
   hardcoded `https://${config.host}` is wrong under
   `ACTIVITIES_INSECURE_AUTH=true`.
 - The plain-text part is derived from the same block list, never hand-written
   alongside the HTML.
-- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL`** (and
-  `buildBaseURL` where an account-domain link can be built). It shadows
+- **A local `vi.mock('@/lib/config', …)` must include `getBaseURL` and
+  `buildBaseURL`** for every email builder. It shadows
   the global mock, and because most email call sites catch delivery errors, an
   omission does not fail loudly: the template throws, the catch swallows it, and
   the test passes while the email silently stops sending. This has bitten twice.

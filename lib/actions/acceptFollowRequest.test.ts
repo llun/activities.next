@@ -156,7 +156,7 @@ describe('Accept follow action', () => {
                   recipient: actor1,
                   actor: actor5,
                   // Named after the recipient's domain (the mocked primary).
-                  brand: { name: 'Main name', domain: 'llun.test' }
+                  brand: { name: 'Main name', domain: '' }
                 })
               })
             }

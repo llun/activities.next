@@ -313,14 +313,15 @@ export const deleteActorJob = createJobHandle(
             // case the notice falls back to naming no address rather than
             // pointing the user at the no-reply sender.
             const { instance } = await getResolvedServerSettings(database)
-            const { brand, from } = await resolveEmailIdentity(
+            const { brand, from, contactEmail } = await resolveEmailIdentity(
               database,
               getServedLinkDomain(actor.domain)
             )
             const email = buildActorDeletedEmail({
               recipient: actor,
               recipientEmail: accountEmail,
-              contactEmail: instance.contactEmail || undefined,
+              // The domain's own contact, else the server's.
+              contactEmail: contactEmail || instance.contactEmail || undefined,
               brand
             })
             await sendMail({

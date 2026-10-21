@@ -33,9 +33,15 @@ export const getEmailSender = (identity: DomainIdentity): Email => {
   return identity.name.trim() ? { name: identity.name, email } : email
 }
 
+// The primary leaves `domain` empty so its links and header host stay on
+// `getBaseURL()` and `config.host` exactly as before (a configured host can
+// carry a scheme, which the normalised domain does not).
 export const toEmailBrand = (identity: DomainIdentity): EmailBrand => ({
   name: identity.name,
-  domain: identity.domain
+  domain:
+    identity.source === 'primary' || identity.domain === getConfig().host
+      ? ''
+      : identity.domain
 })
 
 /**
@@ -46,9 +52,13 @@ export const toEmailBrand = (identity: DomainIdentity): EmailBrand => ({
 export const resolveEmailIdentity = async (
   database: Database | null,
   host: string | null | undefined
-): Promise<{ brand: EmailBrand; from: Email }> => {
+): Promise<{ brand: EmailBrand; from: Email; contactEmail: string }> => {
   const identity = await resolveDomainIdentity(database, host)
-  return { brand: toEmailBrand(identity), from: getEmailSender(identity) }
+  return {
+    brand: toEmailBrand(identity),
+    from: getEmailSender(identity),
+    contactEmail: identity.contactEmail
+  }
 }
 
 /**

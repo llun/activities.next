@@ -42,13 +42,22 @@ export interface SendNotificationAlertsParams {
 
 // The From for mail to `actorId`: their domain's name on the shared mailbox.
 // A missing actor or a domain this server does not serve sends as the primary.
+// A failed lookup must not drop the email: it goes out as the primary's.
 const resolveRecipientSender = async (database: Database, actorId: string) => {
-  const recipient = await database.getActorFromId({ id: actorId })
-  const { from } = await resolveEmailIdentity(
-    database,
-    getServedLinkDomain(recipient?.domain)
-  )
-  return from
+  try {
+    const recipient = await database.getActorFromId({ id: actorId })
+    const { from } = await resolveEmailIdentity(
+      database,
+      getServedLinkDomain(recipient?.domain)
+    )
+    return from
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to resolve notification email sender, using primary',
+      err: toLoggableError(error)
+    })
+    return getConfig().email?.serviceFromAddress ?? ''
+  }
 }
 
 /**

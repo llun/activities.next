@@ -1,7 +1,7 @@
 import type { DomainIdentity } from '@/lib/services/domains/domainIdentity'
 
 import { getAddressFromEmail } from './address'
-import { getEmailSender, resolveActorEmailBrand } from './sender'
+import { getEmailSender, resolveActorEmailBrand, toEmailBrand } from './sender'
 
 const mockConfig = vi.hoisted(() => ({
   host: 'primary.example',
@@ -79,17 +79,93 @@ describe('getAddressFromEmail', () => {
     )
   })
 
-  it('strips CR, LF, quotes and backslashes from the name', () => {
+  it('removes quotes and backslashes and turns CR and LF into spaces', () => {
     expect(
       getAddressFromEmail({
         name: 'Evil"\r\nBcc: x@y.z\\',
         email: 'a@b.c'
       })
-    ).toBe('"EvilBcc: x@y.z" <a@b.c>')
+    ).toBe('"Evil Bcc: x@y.z" <a@b.c>')
+  })
+
+  it('turns other control characters and line separators into spaces', () => {
+    expect(
+      getAddressFromEmail({
+        name: 'A\u0000B\u000bC\u001bD\u0085E\u2028F\u2029G  H',
+        email: 'a@b.c'
+      })
+    ).toBe('"A B C D E F G H" <a@b.c>')
+  })
+
+  it('leaves a non-ASCII name raw unless encoding is asked for', () => {
+    expect(getAddressFromEmail({ name: 'Café Run', email: 'a@b.c' })).toBe(
+      '"Café Run" <a@b.c>'
+    )
+  })
+
+  it('encodes a non-ASCII name as an RFC 2047 encoded-word', () => {
+    const base64 = Buffer.from('Café Run').toString('base64')
+    expect(
+      getAddressFromEmail(
+        { name: 'Café Run', email: 'a@b.c' },
+        { encodeName: true }
+      )
+    ).toBe(`=?UTF-8?B?${base64}?= <a@b.c>`)
+  })
+
+  it('keeps an ASCII name quoted when encoding is asked for', () => {
+    expect(
+      getAddressFromEmail(
+        { name: 'Acme', email: 'a@b.c' },
+        { encodeName: true }
+      )
+    ).toBe('"Acme" <a@b.c>')
+  })
+
+  it('splits a long non-ASCII name into encoded-words of at most 75 characters', () => {
+    const name = 'ランニングクラブ'.repeat(6)
+    const header = getAddressFromEmail(
+      { name, email: 'a@b.c' },
+      { encodeName: true }
+    )
+    const words = header.replace(/ <a@b\.c>$/, '').split(' ')
+    expect(words.length).toBeGreaterThan(1)
+    for (const word of words) {
+      expect(word).toMatch(/^=\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=$/)
+      expect(word.length).toBeLessThanOrEqual(75)
+    }
+    const decoded = words
+      .map((word) => Buffer.from(word.slice(10, -2), 'base64').toString('utf8'))
+      .join('')
+    expect(decoded).toBe(name)
+  })
+
+  it('cannot inject a header through an encoded name', () => {
+    const header = getAddressFromEmail(
+      { name: 'é\r\nBcc: x@y.z', email: 'a@b.c' },
+      { encodeName: true }
+    )
+    expect(header).not.toMatch(/[\r\n]/)
+    expect(header).toMatch(/^=\?UTF-8\?B\?/)
   })
 
   it('drops a name that is empty after sanitising', () => {
     expect(getAddressFromEmail({ name: '"\r\n', email: 'a@b.c' })).toBe('a@b.c')
+  })
+})
+
+describe('toEmailBrand', () => {
+  it('leaves the domain empty for the primary so links stay on getBaseURL()', () => {
+    expect(
+      toEmailBrand(identity({ source: 'primary', domain: 'primary.example' }))
+    ).toEqual({ name: 'Acme', domain: '' })
+  })
+
+  it('names the domain of any other identity', () => {
+    expect(toEmailBrand(identity({}))).toEqual({
+      name: 'Acme',
+      domain: 'acme.example'
+    })
   })
 })
 
@@ -110,7 +186,7 @@ describe('resolveActorEmailBrand', () => {
     )
     await expect(
       resolveActorEmailBrand(null, { domain: 'other.example' })
-    ).resolves.toEqual({ name: 'Main', domain: 'primary.example' })
+    ).resolves.toEqual({ name: 'Main', domain: '' })
     expect(mockResolve).toHaveBeenLastCalledWith(null, null)
   })
 })

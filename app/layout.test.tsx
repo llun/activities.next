@@ -106,6 +106,21 @@ describe('generateMetadata', () => {
     }
   )
 
+  it('keeps a literal %s in the name out of the title template', async () => {
+    vi.mocked(getVisitedDomainIdentity).mockResolvedValue(
+      anIdentity('run.example', '100%s Club')
+    )
+
+    const { title } = await generateMetadata()
+    const { template } = title as { template: string }
+
+    // Next fills the template with `template.replace(/%s/g, pageTitle)`.
+    expect(template.replace(/%s/g, 'Timeline')).toBe(
+      'Timeline · 100%\u200Bs Club'
+    )
+    expect(title).toMatchObject({ default: '100%s Club' })
+  })
+
   it('links the web app manifest', async () => {
     expect((await generateMetadata()).manifest).toBe('/manifest.webmanifest')
   })
