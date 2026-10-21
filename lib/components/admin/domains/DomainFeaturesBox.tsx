@@ -149,7 +149,8 @@ export const DomainFeaturesBox: FC<Props> = ({
           actionLabel="Save features"
           idleNote={
             <>
-              Changes apply to <span className="break-words">{name}</span> only.
+              Changes apply to <span className="wrap-anywhere">{name}</span>{' '}
+              only.
             </>
           }
           dirty={dirty}

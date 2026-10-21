@@ -93,7 +93,7 @@ describe('SaveBar with an actionLabel and an idleNote', () => {
       actionLabel: 'Save',
       idleNote: (
         <>
-          Changes apply to <span className="break-words">run.example</span>{' '}
+          Changes apply to <span className="wrap-anywhere">run.example</span>{' '}
           only.
         </>
       )

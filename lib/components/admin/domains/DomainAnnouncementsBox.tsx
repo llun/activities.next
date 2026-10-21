@@ -78,7 +78,7 @@ export const DomainAnnouncementsBox: FC<Props> = ({
       <div className="space-y-4 p-4">
         {announcements.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            <span className="break-words">{domain}</span> has no announcements
+            <span className="wrap-anywhere">{domain}</span> has no announcements
             of its own.
           </p>
         ) : (
@@ -100,7 +100,7 @@ export const DomainAnnouncementsBox: FC<Props> = ({
                       </Badge>
                       <Badge
                         tone="primary"
-                        className="max-w-full break-words whitespace-normal"
+                        className="max-w-full wrap-anywhere whitespace-normal"
                       >
                         {domain}
                       </Badge>

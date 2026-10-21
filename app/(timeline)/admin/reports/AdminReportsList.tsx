@@ -38,7 +38,10 @@ const TABS = [
 
 const DomainChip = ({ domain }: { domain: string | null }) =>
   domain ? (
-    <Badge tone="primary" className="max-w-full break-words whitespace-normal">
+    <Badge
+      tone="primary"
+      className="max-w-full wrap-anywhere whitespace-normal"
+    >
       {domain}
     </Badge>
   ) : (
@@ -224,7 +227,7 @@ export const AdminReportsList = ({
                     {acct(report.account)}
                   </Link>
                   <div className={PHONE_DETAIL_CLASS}>
-                    <span className="min-w-0 break-words">
+                    <span className="min-w-0 wrap-anywhere">
                       Reported {acct(report.target_account)}
                     </span>
                     <span>

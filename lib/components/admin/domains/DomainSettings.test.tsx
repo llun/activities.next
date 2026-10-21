@@ -358,7 +358,10 @@ describe('DomainSettings', () => {
       renderPage(RUN)
       expect(
         screen.getByText(
-          'What visitors to run.example see as the name of this server.'
+          (_, el) =>
+            el?.tagName === 'P' &&
+            el.textContent ===
+              'What visitors to run.example see as the name of this server.'
         )
       ).toBeInTheDocument()
       expect(screen.getByLabelText('Name')).toHaveValue('Activities')
@@ -457,7 +460,10 @@ describe('DomainSettings', () => {
       renderPage(RUN)
       expect(
         screen.getByText(
-          'Shown on run.example/terms-of-service and run.example/privacy-policy and linked from sign-up.'
+          (_, el) =>
+            el?.tagName === 'P' &&
+            el.textContent ===
+              'Shown on run.example/terms-of-service and run.example/privacy-policy and linked from sign-up.'
         )
       ).toBeInTheDocument()
       expect(

@@ -291,7 +291,7 @@ export const DomainRulesBox: FC<Props> = ({
           actionLabel="Save rules"
           idleNote={
             <>
-              Changes apply to <span className="break-words">{domain}</span>{' '}
+              Changes apply to <span className="wrap-anywhere">{domain}</span>{' '}
               only.
             </>
           }
@@ -322,12 +322,12 @@ export const DomainRulesBox: FC<Props> = ({
 
         <div className="space-y-2">
           <h3 className="text-sm font-medium">
-            Rules for <span className="break-words">{domain}</span>
+            Rules for <span className="wrap-anywhere">{domain}</span>
           </h3>
           {drafts.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              <span className="break-words">{domain}</span> has no rules of its
-              own yet.
+              <span className="wrap-anywhere">{domain}</span> has no rules of
+              its own yet.
             </p>
           ) : (
             <ul className="space-y-2">

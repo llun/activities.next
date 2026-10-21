@@ -470,7 +470,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                         announcement.domain ? (
                           <Badge
                             tone="primary"
-                            className="max-w-full break-words whitespace-normal"
+                            className="max-w-full wrap-anywhere whitespace-normal"
                           >
                             {announcement.domain}
                           </Badge>

@@ -56,7 +56,7 @@ const Page = async ({ searchParams }: Props) => {
         title={
           domain ? (
             <>
-              Reports on <span className="break-words">{domain}</span>
+              Reports on <span className="wrap-anywhere">{domain}</span>
             </>
           ) : (
             'Reports'
@@ -67,7 +67,7 @@ const Page = async ({ searchParams }: Props) => {
             <>
               {capped ? `${open}+` : open}{' '}
               {open === 1 ? 'open report' : 'open reports'} about profiles on{' '}
-              <span className="break-words">{domain}</span>.
+              <span className="wrap-anywhere">{domain}</span>.
             </>
           ) : (
             'Review and resolve moderation reports.'
