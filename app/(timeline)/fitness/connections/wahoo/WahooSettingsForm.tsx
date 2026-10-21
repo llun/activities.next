@@ -166,7 +166,43 @@ export const WahooSettingsForm = () => {
         title="Application settings"
         description="Create a confidential Wahoo application with workouts_read, offline_data, and user_read scopes. power_zones_read may remain enabled, but is not required for workout imports. Choose the same environment here as in the Wahoo developer portal; external sharing can remain disabled."
       >
-        <form onSubmit={save}>
+        <form onSubmit={save} className="space-y-3">
+          {(defaultVisibility === 'public' ||
+            defaultVisibility === 'unlisted' ||
+            settings?.connected ||
+            settings?.configured ||
+            settings?.lastError) && (
+            <div className="space-y-3">
+              {(defaultVisibility === 'public' ||
+                defaultVisibility === 'unlisted') && (
+                <Alert
+                  tone="warning"
+                  title="Anyone on the fediverse can read imported workouts, including route maps and stats."
+                />
+              )}
+              {settings?.connected ? (
+                <Alert
+                  tone="success"
+                  title={`Connected to Wahoo${
+                    settings.providerUserId
+                      ? ` (user ${settings.providerUserId})`
+                      : ''
+                  }.`}
+                />
+              ) : settings?.configured ? (
+                <p role="status" className="text-muted-foreground text-sm">
+                  Application saved. Connect to authorize your Wahoo account.
+                </p>
+              ) : null}
+              {settings?.lastError && (
+                // Standing state read from the saved settings at load, not news.
+                <Alert
+                  live={false}
+                  title={`Wahoo error: ${settings.lastError}`}
+                />
+              )}
+            </div>
+          )}
           <Frame
             form
             footer={
@@ -302,43 +338,6 @@ export const WahooSettingsForm = () => {
                 </div>
               )}
             </FormRow>
-
-            {(defaultVisibility === 'public' ||
-              defaultVisibility === 'unlisted' ||
-              settings?.connected ||
-              settings?.configured ||
-              settings?.lastError) && (
-              <div className="space-y-3 px-4 py-2.5">
-                {(defaultVisibility === 'public' ||
-                  defaultVisibility === 'unlisted') && (
-                  <Alert
-                    tone="warning"
-                    title="Anyone on the fediverse can read imported workouts, including route maps and stats."
-                  />
-                )}
-                {settings?.connected ? (
-                  <Alert
-                    tone="success"
-                    title={`Connected to Wahoo${
-                      settings.providerUserId
-                        ? ` (user ${settings.providerUserId})`
-                        : ''
-                    }.`}
-                  />
-                ) : settings?.configured ? (
-                  <p role="status" className="text-muted-foreground text-sm">
-                    Application saved. Connect to authorize your Wahoo account.
-                  </p>
-                ) : null}
-                {settings?.lastError && (
-                  // Standing state read from the saved settings at load, not news.
-                  <Alert
-                    live={false}
-                    title={`Wahoo error: ${settings.lastError}`}
-                  />
-                )}
-              </div>
-            )}
           </Frame>
         </form>
       </Section>

@@ -342,7 +342,7 @@ describe('InstanceSettingsForm', () => {
         withPolicies({ termsOfService: '', privacyPolicy: '' })
       )
 
-      expect(screen.queryByText(/^Set by ACTIVITIES_/)).toBeNull()
+      expect(document.querySelector('[data-slot=alert]')).toBeNull()
     })
 
     it('saves the unlocked document alone while the other is pinned', async () => {

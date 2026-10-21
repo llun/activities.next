@@ -202,9 +202,11 @@ describe('PrivacyLocationsEditor', () => {
     const save = vi.fn()
     renderEditor({ load, save })
 
-    expect(
-      await screen.findByText(/Failed to load your saved privacy locations/)
-    ).toBeInTheDocument()
+    const failed = await screen.findByText(
+      /Failed to load your saved privacy locations/
+    )
+    expect(failed).toBeInTheDocument()
+    expect(failed.closest('[data-slot=frame]')).toBeNull()
     expect(
       screen.getByRole('button', { name: 'Save custom places' })
     ).toBeDisabled()

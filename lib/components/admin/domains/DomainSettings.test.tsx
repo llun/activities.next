@@ -290,9 +290,9 @@ describe('DomainSettings', () => {
     mockCheck.mockRejectedValue(new Error('Failed to check the domain.'))
     renderPage(RUN)
     fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Failed to check the domain.'
-    )
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Failed to check the domain.')
+    expect(alert.closest('[data-slot=frame]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2))
   })

@@ -251,9 +251,9 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
         description="Markdown is supported. Leave the event window empty to show it immediately and indefinitely."
       >
         <form onSubmit={handleCreate} className="space-y-3">
+          {formError && <Alert title={formError} />}
           <Frame
             form
-            className="overflow-hidden"
             footer={
               <SaveBar
                 variant="create"
@@ -339,7 +339,6 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                 onCheckedChange={setNewPublished}
               />
             </FormRow>
-            {formError && <Alert flush title={formError} />}
           </Frame>
         </form>
       </Section>

@@ -51,18 +51,6 @@ describe('Alert', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
-  it('keeps its tone and announcement when it sits flush as a frame row', () => {
-    render(
-      <Alert tone="warning" flush title="Heads up">
-        Mind the gap.
-      </Alert>
-    )
-    const alert = screen.getByRole('alert')
-    expect(alert).toHaveAttribute('data-tone', 'warning')
-    expect(alert).toHaveTextContent('Heads up')
-    expect(alert).toHaveTextContent('Mind the gap.')
-  })
-
   it('drops the live role for a row that is just part of the page', () => {
     render(
       <Alert tone="warning" live={false} title="Two-factor is off">
@@ -85,23 +73,14 @@ describe('Alert', () => {
     ['success', 'success'],
     ['info', 'info']
   ] as const)(
-    'fills the %s tone with an opaque tinted surface, card and flush',
+    'fills the %s tone with an opaque tinted surface card',
     (tone: AlertTone, color) => {
-      const { rerender } = render(<Alert tone={tone} title="Heads up" />)
+      render(<Alert tone={tone} title="Heads up" />)
       const card = screen.getByRole(
         tone === 'error' || tone === 'warning' ? 'alert' : 'status'
       )
       expect(card).toHaveClass(`bg-${color}-surface`, `border-${color}/25`)
-      expect(card).toHaveClass(`border-l-${color}`, 'border-l-4')
-
-      rerender(<Alert tone={tone} flush title="Heads up" />)
-      const flush = screen.getByRole(
-        tone === 'error' || tone === 'warning' ? 'alert' : 'status'
-      )
-      expect(flush).toHaveClass(`bg-${color}-surface`, `border-l-${color}`)
-      expect(flush).not.toHaveClass(`border-${color}/25`)
-      expect(flush).not.toHaveClass('rounded-lg')
-      expect(flush).toHaveClass('border-l-4', 'border-y-0', 'border-r-0')
+      expect(card).toHaveClass(`border-l-${color}`, 'border-l-4', 'rounded-lg')
     }
   )
 })

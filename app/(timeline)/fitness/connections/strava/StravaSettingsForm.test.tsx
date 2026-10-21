@@ -678,6 +678,7 @@ describe('StravaSettingsForm', () => {
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveAttribute('data-tone', 'warning')
       expect(alert).toHaveTextContent('Anyone on the fediverse can read')
+      expect(alert.closest('[data-slot=frame]')).toBeNull()
       expect(alert).toHaveTextContent('Only you')
     })
 

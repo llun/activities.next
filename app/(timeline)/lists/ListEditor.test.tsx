@@ -528,6 +528,10 @@ describe('ListEditor', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Could not delete the list. Please try again.'
       )
+      // The danger zone is the Alert itself, not a row of a box.
+      expect(
+        screen.getByText('Delete this list').closest('[data-slot=frame]')
+      ).toBeNull()
       expect(screen.getByRole('button', { name: 'Delete list' })).toBeEnabled()
       expect(mockPush).not.toHaveBeenCalled()
     })
