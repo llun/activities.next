@@ -24,14 +24,14 @@ export const DomainReportsBox: FC<Props> = ({
   const count = capped ? `${openReports}+` : `${openReports}`
   return (
     <Frame>
-      <div className="flex flex-wrap items-center gap-3 p-4">
+      <div className="flex flex-wrap items-center gap-3 p-4 min-[24.375rem]:flex-nowrap">
         <span
           aria-hidden="true"
           className="bg-primary/10 text-primary-text flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full px-1.5 text-sm font-semibold tabular-nums"
         >
           {count}
         </span>
-        <div className="min-w-[10rem] flex-1 text-sm break-words">
+        <div className="min-w-[10rem] min-[24.375rem]:min-w-0 flex-1 text-sm break-words">
           <p className="font-medium">
             {openReports === 0
               ? 'No open reports about profiles on '
