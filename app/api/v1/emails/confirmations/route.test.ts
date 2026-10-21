@@ -477,6 +477,8 @@ describe('POST /api/v1/emails/confirmations', () => {
         domain: 'club.example',
         status,
         name: null,
+        description: null,
+        contactEmail: null,
         signupsOpen: true,
         allowedEmails: ['ana@club.test'],
         allowExistingUsers: false,

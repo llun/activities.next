@@ -4,6 +4,7 @@ import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
+import { invalidateDomainIdentityCache } from '@/lib/services/domains/domainIdentity'
 import {
   SERVED_DOMAIN_REFRESH_MS,
   refreshServedDomains,
@@ -238,6 +239,42 @@ describe('GET /api/v1/instance', () => {
 
   // Sign-ups are per domain: the request's domain decides, and a served domain
   // without open sign-ups of its own reports closed, whatever the primary says.
+  it('describes the visited domain with its own identity', async () => {
+    invalidateDomainIdentityCache(database)
+    await database.createServedDomain({
+      domain: 'alias.llun.test',
+      name: 'Alias Club',
+      description: 'The alias',
+      contactEmail: 'hello@alias.llun.test'
+    })
+    const visit = async (host: string) =>
+      (
+        await GET(
+          new NextRequest('https://llun.test/api/v1/instance', {
+            headers: { host }
+          }),
+          params
+        )
+      ).json()
+    try {
+      await expect(visit('alias.llun.test')).resolves.toMatchObject({
+        uri: 'alias.llun.test',
+        title: 'Alias Club',
+        short_description: 'The alias',
+        description: 'The alias',
+        email: 'hello@alias.llun.test'
+      })
+      // The primary keeps the server's.
+      await expect(visit('llun.test')).resolves.toMatchObject({
+        title: 'Activities.next',
+        email: 'admin@llun.test'
+      })
+    } finally {
+      await database.deleteServedDomain({ domain: 'alias.llun.test' })
+      invalidateDomainIdentityCache(database)
+    }
+  })
+
   it('reports the registrations of the domain the request arrived on', async () => {
     await database.createServedDomain({
       domain: 'alias.llun.test',

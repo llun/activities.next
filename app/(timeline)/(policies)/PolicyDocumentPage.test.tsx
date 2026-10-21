@@ -136,6 +136,33 @@ describe('PolicyDocumentPage', () => {
     expect(screen.queryByRole('link', { name: 'Terms of service' })).toBeNull()
   })
 
+  it('shows a domain’s own text and date, or the server’s when it has none', async () => {
+    const own: PolicyDocument = {
+      markdown: 'Run Club terms.',
+      updatedAt: Date.UTC(2026, 6, 8, 9),
+      source: 'domain'
+    }
+    mockIdentity.mockResolvedValue(
+      identity({
+        source: 'database',
+        termsOfService: own,
+        privacyPolicy: doc('Server privacy.', null)
+      })
+    )
+
+    const terms = render(await PolicyDocumentPage({ kind: 'terms' }))
+    expect(screen.getByText('Run Club terms.')).toBeInTheDocument()
+    expect(screen.queryByText('Welcome to run.example.')).toBeNull()
+    expect(screen.getByText(/Last updated/)).toHaveTextContent(
+      'Last updated 8 July 2026'
+    )
+    terms.unmount()
+
+    render(await PolicyDocumentPage({ kind: 'privacy' }))
+    expect(screen.getByText('Server privacy.')).toBeInTheDocument()
+    expect(screen.queryByText(/Last updated/)).toBeNull()
+  })
+
   it('is not found when the visited domain has no such document', async () => {
     mockIdentity.mockResolvedValue(identity({ termsOfService: null }))
     await expect(PolicyDocumentPage({ kind: 'terms' })).rejects.toBe(

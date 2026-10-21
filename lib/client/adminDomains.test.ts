@@ -10,6 +10,8 @@ import {
   getAdminDomains,
   removeAdminDomain,
   setAdminDomainStatus,
+  updateAdminDomainIdentity,
+  updateAdminDomainPolicies,
   updateAdminDomainRegistrations
 } from './adminDomains'
 
@@ -81,6 +83,28 @@ describe('adminDomains client module', () => {
     expect(lastCall().body).toEqual({ signupsOpen: true })
     await removeAdminDomain(DOMAIN.domain)
     expect(lastCall().method).toBe('DELETE')
+  })
+
+  it('PATCHes identity and policies, with null for "Same as server"', async () => {
+    fetchMock.mockResponse(JSON.stringify(DOMAIN))
+    await updateAdminDomainIdentity(DOMAIN.domain, {
+      name: 'Run Club',
+      description: null,
+      contactEmail: null
+    })
+    expect(lastCall()).toEqual({
+      url: '/api/v1/admin/domains/photos.example%3A8443',
+      method: 'PATCH',
+      body: { name: 'Run Club', description: null, contactEmail: null }
+    })
+    await updateAdminDomainPolicies(DOMAIN.domain, {
+      termsOfService: null,
+      privacyPolicy: '# Privacy'
+    })
+    expect(lastCall().body).toEqual({
+      termsOfService: null,
+      privacyPolicy: '# Privacy'
+    })
   })
 
   it('throws the server message, code and domain', async () => {

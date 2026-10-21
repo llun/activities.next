@@ -355,7 +355,13 @@ CREATE TABLE public.domains (
     "lastCheckStatus" character varying(16),
     "lastCheckResult" text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    description text,
+    "contactEmail" character varying(255),
+    "termsOfService" text,
+    "termsOfServiceUpdatedAt" timestamp with time zone,
+    "privacyPolicy" text,
+    "privacyPolicyUpdatedAt" timestamp with time zone
 );
 
 CREATE TABLE public.endorsements (

@@ -1,6 +1,9 @@
 import type {
   AdminDomain,
-  AdminDomainList
+  AdminDomainDetail,
+  AdminDomainIdentityPatch,
+  AdminDomainList,
+  AdminDomainPoliciesPatch
 } from '@/lib/services/domains/adminDomainTypes'
 
 // Admin › Domains. Every call throws an Error carrying the server's message,
@@ -9,12 +12,12 @@ import type {
 export class AdminDomainRequestError extends Error {
   readonly code: string | null
   // The domain as it stands after a failed "Turn on" (with the new check).
-  readonly domain: AdminDomain | null
+  readonly domain: AdminDomainDetail | null
 
   constructor(
     message: string,
     code: string | null,
-    domain: AdminDomain | null
+    domain: AdminDomainDetail | null
   ) {
     super(message)
     this.name = 'AdminDomainRequestError'
@@ -40,7 +43,7 @@ const readResponse = async <T>(
     typeof body?.error === 'string' ? body.error : fallback,
     typeof body?.code === 'string' ? body.code : null,
     body?.domain && typeof body.domain === 'object'
-      ? (body.domain as AdminDomain)
+      ? (body.domain as AdminDomainDetail)
       : null
   )
 }
@@ -69,7 +72,9 @@ export const addAdminDomain = async (domain: string): Promise<AdminDomain> =>
     'Failed to add the domain. Please try again.'
   )
 
-export const checkAdminDomain = async (domain: string): Promise<AdminDomain> =>
+export const checkAdminDomain = async (
+  domain: string
+): Promise<AdminDomainDetail> =>
   readResponse(
     await send(`${domainPath(domain)}/check`, 'POST'),
     'Failed to check the domain. Please try again.'
@@ -78,7 +83,7 @@ export const checkAdminDomain = async (domain: string): Promise<AdminDomain> =>
 export const setAdminDomainStatus = async (
   domain: string,
   status: 'on' | 'off'
-): Promise<AdminDomain> =>
+): Promise<AdminDomainDetail> =>
   readResponse(
     await send(domainPath(domain), 'PATCH', { status }),
     status === 'on'
@@ -95,9 +100,29 @@ export interface AdminDomainRegistrations {
 export const updateAdminDomainRegistrations = async (
   domain: string,
   registrations: AdminDomainRegistrations
-): Promise<AdminDomain> =>
+): Promise<AdminDomainDetail> =>
   readResponse(
     await send(domainPath(domain), 'PATCH', registrations),
+    'Failed to save changes. Please try again.'
+  )
+
+// Identity fields: trimmed text, or null for "Same as server".
+export const updateAdminDomainIdentity = async (
+  domain: string,
+  identity: Required<AdminDomainIdentityPatch>
+): Promise<AdminDomainDetail> =>
+  readResponse(
+    await send(domainPath(domain), 'PATCH', identity),
+    'Failed to save changes. Please try again.'
+  )
+
+// Terms and privacy: Markdown text, or null for "Same as server".
+export const updateAdminDomainPolicies = async (
+  domain: string,
+  policies: Required<AdminDomainPoliciesPatch>
+): Promise<AdminDomainDetail> =>
+  readResponse(
+    await send(domainPath(domain), 'PATCH', policies),
     'Failed to save changes. Please try again.'
   )
 

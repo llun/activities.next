@@ -4,6 +4,7 @@ import type { Config } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import type { Database } from '@/lib/database/types'
+import { invalidateDomainIdentityCache } from '@/lib/services/domains/domainIdentity'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
 import { GET as GET_BY_DATE } from './[date]/route'
@@ -117,6 +118,61 @@ describe('GET /api/v1/instance/terms_of_service', () => {
     ).json()
 
     expect(body.content).toBe('<p>Welcome to alias.llun.test.</p>')
+  })
+
+  it('serves the visited domain’s own terms, dated when they last changed', async () => {
+    await storeTerms('Server terms', '2026-03-04T10:00:00.000Z')
+    invalidateDomainIdentityCache(database)
+    await database.createServedDomain({
+      domain: 'alias.llun.test',
+      termsOfService: 'Alias terms for %{domain}',
+      termsOfServiceUpdatedAt: Date.UTC(2026, 6, 8, 9)
+    })
+    try {
+      const alias = await (
+        await GET(request('', { host: 'alias.llun.test' }), params)
+      ).json()
+      expect(alias).toMatchObject({
+        effective_date: '2026-07-08',
+        content: '<p>Alias terms for alias.llun.test</p>'
+      })
+      const dated = await GET_BY_DATE(
+        new NextRequest(
+          'https://llun.test/api/v1/instance/terms_of_service/2026-07-08',
+          { headers: { host: 'alias.llun.test' } }
+        ),
+        { params: Promise.resolve({ date: '2026-07-08' }) }
+      )
+      expect(dated.status).toBe(200)
+      await expect(dated.json()).resolves.toMatchObject({
+        effective_date: '2026-07-08',
+        content: '<p>Alias terms for alias.llun.test</p>'
+      })
+      // The server's date belongs to the server's terms, not this domain's.
+      const serverDate = await GET_BY_DATE(
+        new NextRequest(
+          'https://llun.test/api/v1/instance/terms_of_service/2026-03-04',
+          { headers: { host: 'alias.llun.test' } }
+        ),
+        { params: Promise.resolve({ date: '2026-03-04' }) }
+      )
+      expect(serverDate.status).toBe(404)
+      // And the domain's date is unknown on the primary.
+      const onPrimary = await GET_BY_DATE(
+        new NextRequest(
+          'https://llun.test/api/v1/instance/terms_of_service/2026-07-08'
+        ),
+        { params: Promise.resolve({ date: '2026-07-08' }) }
+      )
+      expect(onPrimary.status).toBe(404)
+
+      // The primary keeps the server's.
+      const primary = await (await GET(request(), params)).json()
+      expect(primary.content).toBe('<p>Server terms</p>')
+    } finally {
+      await database.deleteServedDomain({ domain: 'alias.llun.test' })
+      invalidateDomainIdentityCache(database)
+    }
   })
 
   it('serves env-pinned terms with the epoch as their effective date', async () => {

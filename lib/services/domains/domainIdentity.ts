@@ -15,6 +15,10 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { getEnvDomainKind, getEnvDomains } from './adminDomains'
 import {
+  type DomainOverrides,
+  readDomainOverrides
+} from './domainIdentityCache'
+import {
   ensureServedDomainsFresh,
   getActiveServedDomainNames
 } from './servedDomainSnapshot'
@@ -80,6 +84,35 @@ const serverIdentity = (
   )
 })
 
+// A domain's own policy wins while it has text; otherwise the server's.
+const domainPolicy = (
+  markdown: string | null,
+  updatedAt: number | null,
+  fallback: PolicyDocument | null
+): PolicyDocument | null =>
+  markdown?.trim() ? { markdown, updatedAt, source: 'domain' } : fallback
+
+// Per field: the domain's own value when it sets one, else the server's.
+const applyOverrides = (
+  identity: DomainIdentity,
+  overrides: DomainOverrides
+): DomainIdentity => ({
+  ...identity,
+  name: overrides.name || identity.name,
+  description: overrides.description || identity.description,
+  contactEmail: overrides.contactEmail || identity.contactEmail,
+  termsOfService: domainPolicy(
+    overrides.termsOfService,
+    overrides.termsOfServiceUpdatedAt,
+    identity.termsOfService
+  ),
+  privacyPolicy: domainPolicy(
+    overrides.privacyPolicy,
+    overrides.privacyPolicyUpdatedAt,
+    identity.privacyPolicy
+  )
+})
+
 // The primary host from the config, for when the domain lists cannot be read.
 const configuredHost = () => {
   try {
@@ -92,11 +125,15 @@ const configuredHost = () => {
 /**
  * The identity of the domain `host` names. `host` must come from
  * `headerHost` (trust-filtered); anything it does not name falls back to the
- * primary. Never throws: a failed read logs and serves the server identity
- * from env + defaults.
+ * primary.
  *
- * For now every domain uses the server identity; a domain's own overrides
- * (Admin › Domains) are layered on here, per field, once domains store them.
+ * Each field is the domain's own override (Admin › Domains) while its row is
+ * usable, else the resolved server setting (Admin › Instance: env → database
+ * → default). Only an env domain (ACTIVITIES_TRUSTED_HOSTS) or an active row
+ * in the served-domain snapshot can carry overrides; the primary, a wildcard
+ * preview host and an off or removed domain use the server identity. Never
+ * throws: a failed read logs and serves the server identity (from env +
+ * defaults when the settings cannot be read either).
  */
 export const resolveDomainIdentity = async (
   database: Database | null,
@@ -130,7 +167,22 @@ export const resolveDomainIdentity = async (
     })
     view = await getServerSettingsView(null)
   }
-  return serverIdentity(view, domain, source)
+  const identity = serverIdentity(view, domain, source)
+  if (!database || (source !== 'env' && source !== 'database')) {
+    return identity
+  }
+
+  try {
+    const overrides = await readDomainOverrides(database, domain, source)
+    return overrides ? applyOverrides(identity, overrides) : identity
+  } catch (error) {
+    logger.error({
+      message: 'Failed to read the domain identity overrides',
+      domain,
+      err: toLoggableError(error)
+    })
+    return identity
+  }
 }
 
 /**
@@ -146,12 +198,5 @@ export const getVisitedDomainIdentity = cache(
   }
 )
 
-/**
- * Drops cached per-domain overrides so the next read sees an admin's change.
- * Nothing is cached per domain yet (the server identity rides on the server
- * settings cache, which `updateServerSettings` invalidates itself); domain
- * writes call this once domains carry their own identity.
- */
-export const invalidateDomainIdentityCache = (
-  _database?: Database | null
-): void => {}
+// Every admin domain write (identity, policies, status, remove) calls it.
+export { invalidateDomainIdentityCache } from './domainIdentityCache'

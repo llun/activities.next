@@ -10,12 +10,14 @@ import {
   getAdminDomain,
   getAdminDomainList,
   getEnvDomains,
+  getServerIdentityView,
   recheckDomain,
   removeDomain,
   setDomainStatus,
-  updateDomainRegistrations
+  updateDomainSettings
 } from './adminDomains'
 import { getDomainCheckProof } from './domainCheck'
+import * as identityCache from './domainIdentityCache'
 import {
   getActiveServedDomainNames,
   refreshServedDomains,
@@ -270,7 +272,7 @@ describe('adminDomains', () => {
 
     // With its sign-up row in place, so only the env guard can answer null.
     it('has nothing to check for an env domain', async () => {
-      await updateDomainRegistrations(database, 'club.example', {
+      await updateDomainSettings(database, 'club.example', {
         signupsOpen: true
       })
       const check = vi.fn(async () => PASSED)
@@ -281,18 +283,14 @@ describe('adminDomains', () => {
     })
   })
 
-  describe('updateDomainRegistrations', () => {
+  describe('updateDomainSettings', () => {
     it('saves a database domain’s sign-up settings', async () => {
       await addDomain(database, 'photos.example', passes)
-      const result = await updateDomainRegistrations(
-        database,
-        'photos.example',
-        {
-          signupsOpen: true,
-          allowedEmails: ['ana@mail.example'],
-          allowExistingUsers: true
-        }
-      )
+      const result = await updateDomainSettings(database, 'photos.example', {
+        signupsOpen: true,
+        allowedEmails: ['ana@mail.example'],
+        allowExistingUsers: true
+      })
       expect(result).toMatchObject({
         type: 'updated',
         domain: {
@@ -305,7 +303,7 @@ describe('adminDomains', () => {
     })
 
     it('gives an env domain a row that never puts it in trust by itself', async () => {
-      const result = await updateDomainRegistrations(database, 'club.example', {
+      const result = await updateDomainSettings(database, 'club.example', {
         signupsOpen: true,
         allowExistingUsers: false
       })
@@ -325,7 +323,7 @@ describe('adminDomains', () => {
 
     it('sends the primary to Admin › Instance', async () => {
       await expect(
-        updateDomainRegistrations(database, 'social.example', {
+        updateDomainSettings(database, 'social.example', {
           signupsOpen: false
         })
       ).resolves.toEqual({ type: 'primary' })
@@ -333,10 +331,174 @@ describe('adminDomains', () => {
 
     it('reports an unknown domain', async () => {
       await expect(
-        updateDomainRegistrations(database, 'nope.example', {
+        updateDomainSettings(database, 'nope.example', {
           signupsOpen: true
         })
       ).resolves.toEqual({ type: 'not-found' })
+    })
+  })
+
+  describe('updateDomainSettings: identity and policies', () => {
+    it('saves an added domain’s identity and policies, and null means Same as server', async () => {
+      await addDomain(database, 'photos.example', passes)
+      const saved = await updateDomainSettings(database, 'photos.example', {
+        name: 'Photos',
+        description: 'Pictures',
+        contactEmail: 'hello@photos.example',
+        termsOfService: '# Terms',
+        privacyPolicy: '# Privacy'
+      })
+      expect(saved).toMatchObject({
+        type: 'updated',
+        domain: {
+          name: 'Photos',
+          description: 'Pictures',
+          contactEmail: 'hello@photos.example',
+          termsOfService: '# Terms',
+          privacyPolicy: '# Privacy'
+        }
+      })
+
+      const cleared = await updateDomainSettings(database, 'photos.example', {
+        description: null,
+        privacyPolicy: null
+      })
+      expect(cleared).toMatchObject({
+        type: 'updated',
+        domain: {
+          name: 'Photos',
+          description: null,
+          termsOfService: '# Terms',
+          privacyPolicy: null,
+          privacyPolicyUpdatedAt: null
+        }
+      })
+    })
+
+    it('moves a policy’s date only when its text changes', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        await addDomain(database, 'photos.example', passes)
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+        await updateDomainSettings(database, 'photos.example', {
+          termsOfService: '# Terms'
+        })
+
+        vi.setSystemTime(new Date('2026-02-01T00:00:00.000Z'))
+        // The Policies box sends both texts; only the edited one moves.
+        const result = await updateDomainSettings(database, 'photos.example', {
+          termsOfService: '# Terms',
+          privacyPolicy: '# Privacy'
+        })
+        expect(result).toMatchObject({
+          type: 'updated',
+          domain: {
+            termsOfServiceUpdatedAt: Date.UTC(2026, 0, 1),
+            privacyPolicyUpdatedAt: Date.UTC(2026, 1, 1)
+          }
+        })
+
+        vi.setSystemTime(new Date('2026-03-01T00:00:00.000Z'))
+        const edited = await updateDomainSettings(database, 'photos.example', {
+          termsOfService: '# Terms, revised'
+        })
+        expect(edited).toMatchObject({
+          domain: { termsOfServiceUpdatedAt: Date.UTC(2026, 2, 1) }
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('creates an env domain’s row, stored off, on its first identity save', async () => {
+      const result = await updateDomainSettings(database, 'club.example', {
+        name: 'Club',
+        termsOfService: 'Club terms'
+      })
+      expect(result).toMatchObject({
+        type: 'updated',
+        domain: {
+          source: 'env',
+          status: 'on',
+          name: 'Club',
+          termsOfService: 'Club terms'
+        }
+      })
+      expect(
+        typeof (result as { domain: { termsOfServiceUpdatedAt: unknown } })
+          .domain.termsOfServiceUpdatedAt
+      ).toBe('number')
+      await expect(
+        database.getServedDomain({ domain: 'club.example' })
+      ).resolves.toMatchObject({ status: 'off', name: 'Club' })
+      expect(await database.getActiveServedDomains()).toEqual([])
+    })
+
+    it('refuses the primary', async () => {
+      await expect(
+        updateDomainSettings(database, 'social.example', { name: 'Social' })
+      ).resolves.toEqual({ type: 'primary' })
+    })
+
+    it('invalidates the identity cache on every domain write', async () => {
+      const invalidate = vi.spyOn(
+        identityCache,
+        'invalidateDomainIdentityCache'
+      )
+      try {
+        await addDomain(database, 'photos.example', passes)
+        await updateDomainSettings(database, 'photos.example', { name: 'P' })
+        expect(invalidate).toHaveBeenCalledTimes(1)
+        await setDomainStatus(database, 'photos.example', 'on', passes)
+        expect(invalidate).toHaveBeenCalledTimes(2)
+        await setDomainStatus(database, 'photos.example', 'off', passes)
+        expect(invalidate).toHaveBeenCalledTimes(3)
+        await removeDomain(database, 'photos.example')
+        expect(invalidate).toHaveBeenCalledTimes(4)
+        expect(invalidate).toHaveBeenCalledWith(database)
+      } finally {
+        invalidate.mockRestore()
+      }
+    })
+
+    it('returns the detail of a domain with nulls for Same as server', async () => {
+      await expect(
+        getAdminDomain(database, 'social.example')
+      ).resolves.toMatchObject({
+        source: 'primary',
+        description: null,
+        contactEmail: null,
+        termsOfService: null,
+        privacyPolicy: null,
+        termsOfServiceUpdatedAt: null,
+        privacyPolicyUpdatedAt: null
+      })
+      await expect(
+        getAdminDomain(database, 'club.example')
+      ).resolves.toMatchObject({ source: 'env', termsOfService: null })
+    })
+  })
+
+  describe('getServerIdentityView', () => {
+    it('says whether the server has policies without their texts', async () => {
+      await database.setServerSettings([
+        { key: 'policies.termsOfService', value: '# Server terms' }
+      ])
+      const { invalidateServerSettingsCache } =
+        await import('@/lib/services/serverSettings')
+      invalidateServerSettingsCache(database)
+
+      const view = await getServerIdentityView(database)
+      expect(view).toMatchObject({
+        name: 'Activities.next',
+        description: 'Personal activity pub server with Next.js',
+        contactAccount: null,
+        terms: { set: true },
+        privacy: { set: false, updatedAt: null }
+      })
+      expect(typeof view.terms.updatedAt).toBe('number')
+      expect(JSON.stringify(view)).not.toContain('Server terms')
+      invalidateServerSettingsCache(database)
     })
   })
 
@@ -406,7 +568,7 @@ describe('adminDomains', () => {
     })
 
     it('shows a removed env entry’s leftover row as an ordinary off domain', async () => {
-      await updateDomainRegistrations(database, 'club.example', {
+      await updateDomainSettings(database, 'club.example', {
         signupsOpen: true
       })
       useEnv([])

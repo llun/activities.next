@@ -61,6 +61,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
       getResolvedServerSettings(database),
       // Sign-ups on the domain this request arrived on.
       resolveSignUpOpenSafely(database, domain),
+      // Its name, description, contact email and policies.
       resolveDomainIdentity(database, domain)
     ])
   return apiResponse({
@@ -68,10 +69,10 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
     allowedMethods: CORS_HEADERS,
     data: {
       domain,
-      title: serverSettings.instance.name,
+      title: identity.name,
       version: VERSION,
       source_url: 'https://github.com/llun/activities.next',
-      description: serverSettings.instance.description,
+      description: identity.description,
       usage: {
         users: {
           active_month: stats.activeMonth
@@ -146,9 +147,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         url: null
       },
       contact: {
-        email:
-          serverSettings.instance.contactEmail ||
-          getInstanceContactEmail(config),
+        email: identity.contactEmail || getInstanceContactEmail(config),
         account: contactAccount
       },
       rules: rules.map((rule): Rule => ({
