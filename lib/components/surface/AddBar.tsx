@@ -33,7 +33,7 @@ interface AddBarProps {
   hint?: ReactNode
   /**
    * A field validation error, shown in the box under the row. A failed
-   * request is an `Alert` passed as `children` instead.
+   * request is an `Alert` card placed above the bar instead.
    */
   error?: ReactNode
   /** A server action; the form submits to it. Use `onSubmit` for client state. */

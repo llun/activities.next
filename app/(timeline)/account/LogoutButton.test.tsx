@@ -28,7 +28,7 @@ describe('LogoutButton', () => {
     render(
       <>
         <p id="hint">You can sign in again at any time.</p>
-        <LogoutButton describedBy="hint" />
+        <LogoutButton describedBy="hint" onError={vi.fn()} />
       </>
     )
 
@@ -41,7 +41,7 @@ describe('LogoutButton', () => {
     render(
       <>
         <span id="label">Sign out of this device</span>
-        <LogoutButton labelledBy="label" />
+        <LogoutButton labelledBy="label" onError={vi.fn()} />
       </>
     )
 
@@ -50,25 +50,27 @@ describe('LogoutButton', () => {
     ).toHaveAttribute('aria-labelledby', 'label')
   })
 
-  it('shows an error when sign out fails', async () => {
+  it('reports the error when sign out fails', async () => {
     vi.mocked(authClient.signOut).mockImplementation(((options: {
       fetchOptions?: { onError?: () => void }
     }) => {
       options.fetchOptions?.onError?.()
     }) as unknown as typeof authClient.signOut)
-    render(<LogoutButton />)
+    const onError = vi.fn()
+    render(<LogoutButton onError={onError} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Sign out failed. Please try again.')
-      ).toBeVisible()
+      expect(onError).toHaveBeenLastCalledWith(
+        'Sign out failed. Please try again.'
+      )
     })
+    expect(onError).toHaveBeenNthCalledWith(1, null)
   })
 
   it('clears all offline data when logout button is clicked', async () => {
-    render(<LogoutButton />)
+    render(<LogoutButton onError={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
 

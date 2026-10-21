@@ -61,9 +61,11 @@ describe('Notification settings', () => {
       />
     )
 
-    expect(
-      await screen.findByText(/Push notifications are not configured/i)
-    ).toBeInTheDocument()
+    const notice = await screen.findByText(
+      /Push notifications are not configured/i
+    )
+    expect(notice).toBeInTheDocument()
+    expect(notice.closest('[data-slot=frame]')).toBeNull()
     expect(screen.queryByText(/ACTIVITIES_/)).not.toBeInTheDocument()
   })
 })

@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
+import { ReactNode } from 'react'
 
 import Page from './page'
 
@@ -36,8 +37,17 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('./ActorModerationPanel', () => ({
-  ActorModerationPanel: ({ username }: { username: string }) => (
-    <div data-testid="moderation">{username}</div>
+  ActorModerationPanel: ({
+    username,
+    children
+  }: {
+    username: string
+    children: ReactNode
+  }) => (
+    <div>
+      {children}
+      <div data-testid="moderation">{username}</div>
+    </div>
   )
 }))
 

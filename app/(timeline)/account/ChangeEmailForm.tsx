@@ -59,25 +59,27 @@ export const ChangeEmailForm: FC<Props> = ({
 
   if (!isChanging) {
     return (
-      <Frame form className="overflow-hidden">
-        {children}
-        <FormRow
-          label="Change email address"
-          hint="We will send a verification link to the new address."
-        >
-          {({ describedBy }) => (
-            <Button
-              type="button"
-              variant="outline"
-              aria-describedby={describedBy}
-              onClick={() => setIsChanging(true)}
-            >
-              Change email
-            </Button>
-          )}
-        </FormRow>
-        {message && <Alert tone="success" flush title={message} />}
-      </Frame>
+      <div className="space-y-3">
+        {message && <Alert tone="success" title={message} />}
+        <Frame form>
+          {children}
+          <FormRow
+            label="Change email address"
+            hint="We will send a verification link to the new address."
+          >
+            {({ describedBy }) => (
+              <Button
+                type="button"
+                variant="outline"
+                aria-describedby={describedBy}
+                onClick={() => setIsChanging(true)}
+              >
+                Change email
+              </Button>
+            )}
+          </FormRow>
+        </Frame>
+      </div>
     )
   }
 
@@ -86,10 +88,10 @@ export const ChangeEmailForm: FC<Props> = ({
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the email out of the URL if
     // a `name` attribute is added later.
-    <form onSubmit={handleSubmit} method="post">
+    <form onSubmit={handleSubmit} method="post" className="space-y-3">
+      {error && <Alert title={error} />}
       <Frame
         form
-        className="overflow-hidden"
         footer={
           <div className="flex justify-end gap-2">
             <Button
@@ -128,8 +130,6 @@ export const ChangeEmailForm: FC<Props> = ({
             />
           )}
         </FormRow>
-
-        {error && <Alert flush title={error} />}
       </Frame>
     </form>
   )

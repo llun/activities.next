@@ -19,10 +19,10 @@ interface DeleteActorSectionProps {
 }
 
 /**
- * The body of Settings › General › Danger zone: one frame holding a row for
- * the irreversible action. Deleting is an error-tone alert whose action is the
- * destructive button; when the actor cannot be deleted, or is already going,
- * the row says so without offering the button.
+ * The body of Settings › General › Danger zone: the irreversible action is an
+ * error-tone alert card whose action is the destructive button; when the actor
+ * cannot be deleted, or is already going, it says so without offering the
+ * button.
  */
 export function DeleteActorSection({
   actorId,
@@ -50,37 +50,32 @@ export function DeleteActorSection({
   // If already being deleted, show status
   if (deletionStatus) {
     return (
-      <Frame className="overflow-hidden">
-        <Alert tone="warning" title="Deletion in progress" flush live={false}>
-          {deletionStatus === 'deleting'
-            ? 'This actor is currently being deleted…'
-            : 'This actor is scheduled for deletion.'}
-        </Alert>
-      </Frame>
+      <Alert tone="warning" title="Deletion in progress" live={false}>
+        {deletionStatus === 'deleting'
+          ? 'This actor is currently being deleted…'
+          : 'This actor is scheduled for deletion.'}
+      </Alert>
     )
   }
 
   return (
     <>
-      <Frame className="overflow-hidden">
-        <Alert
-          title="Delete this actor"
-          flush
-          live={false}
-          action={
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setIsDialogOpen(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete actor
-            </Button>
-          }
-        >
-          Permanently delete this actor and all associated data.
-        </Alert>
-      </Frame>
+      <Alert
+        title="Delete this actor"
+        live={false}
+        action={
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete actor
+          </Button>
+        }
+      >
+        Permanently delete this actor and all associated data.
+      </Alert>
 
       <DeleteActorDialog
         open={isDialogOpen}

@@ -52,13 +52,7 @@ export const Frame: FC<Props> = ({
     {form ? (
       <div
         data-slot="frame-content"
-        className={cn(
-          'py-1.5',
-          // A flush Alert (a filled row) at either end meets the frame edge or
-          // the footer rule instead of leaving the 6px padding as an untinted strip.
-          '[&>[data-slot=alert]:first-child]:-mt-1.5 [&>[data-slot=alert]:last-child]:-mb-1.5',
-          stickyFooter && '[&_*]:scroll-mb-24'
-        )}
+        className={cn('py-1.5', stickyFooter && '[&_*]:scroll-mb-24')}
       >
         {children}
       </div>
