@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import { headline, note, paragraph } from '@/lib/services/email/layout/blocks'
 import { renderEmail } from '@/lib/services/email/layout/renderEmail'
 import { RenderedEmail } from '@/lib/services/email/types'
@@ -10,6 +10,8 @@ export interface ActorDeletedParams {
   recipientEmail: string
   /** Instance contact address, if the admin has configured one. */
   contactEmail?: string
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /**
@@ -19,12 +21,14 @@ export interface ActorDeletedParams {
 export const buildActorDeletedEmail = ({
   recipient,
   recipientEmail,
-  contactEmail
+  contactEmail,
+  brand
 }: ActorDeletedParams): RenderedEmail => {
-  const { host } = getConfig()
+  const host = brandHost(brand)
   const handle = getMention(recipient, true)
 
   return renderEmail({
+    brand,
     subject: `Your actor ${handle} has been deleted from ${host}`,
     preheader: `Your actor ${handle} and all associated data have been permanently removed.`,
     blocks: [

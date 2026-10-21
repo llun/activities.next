@@ -213,11 +213,11 @@ When configuring email through individual variables rather than JSON,
 provider type is invalid and fails configuration; leave all email variables
 unset when email should be disabled.
 
-| Variable                | Description                                             |
-| ----------------------- | ------------------------------------------------------- |
-| `ACTIVITIES_EMAIL`      | Full email configuration as a JSON string.              |
-| `ACTIVITIES_EMAIL_TYPE` | Email provider: `smtp`, `resend`, or `ses`.             |
-| `ACTIVITIES_EMAIL_FROM` | Sender email address (e.g., `noreply@your-domain.tld`). |
+| Variable                | Description                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_EMAIL`      | Full email configuration as a JSON string.                                                                                                                                                                                                                                                                                                                |
+| `ACTIVITIES_EMAIL_TYPE` | Email provider: `smtp`, `resend`, or `ses`.                                                                                                                                                                                                                                                                                                               |
+| `ACTIVITIES_EMAIL_FROM` | Sender email address (e.g., `noreply@your-domain.tld`). Used as written for the primary domain. Mail for any other served domain is sent from the same address (the part inside `<>` if you wrote `Name <address>`) under that domain's name (Admin › Domains, else Admin › Instance), so the address must be allowed to send for every domain you serve. |
 
 ### SMTP
 

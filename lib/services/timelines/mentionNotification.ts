@@ -1,6 +1,7 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { getConfig } from '@/lib/config'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -110,6 +111,7 @@ export const notifyRemoteReplyAndMention = async ({
                   recipientEmail: account.email,
                   ...buildReplyEmail({
                     recipient: currentActor,
+                    brand: await resolveActorEmailBrand(database, currentActor),
                     actor: status.actor,
                     status
                   })
@@ -173,6 +175,7 @@ export const notifyRemoteReplyAndMention = async ({
               recipientEmail: account.email,
               ...buildMentionEmail({
                 recipient: currentActor,
+                brand: await resolveActorEmailBrand(database, currentActor),
                 actor: status.actor,
                 status
               })

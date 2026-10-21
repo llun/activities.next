@@ -17,6 +17,22 @@ import { logger } from '@/lib/utils/logger'
 enableFetchMocks()
 
 const publish = vi.fn().mockResolvedValue(undefined)
+// The visited or recipient domain's identity: another domain is named after
+// itself, a missing host is the primary.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(
+    async (_database: unknown, host?: string | null) => ({
+      domain: host || 'test.social',
+      source: host ? 'database' : 'primary',
+      name: host ? `${host} name` : 'Main name',
+      description: '',
+      contactEmail: '',
+      termsOfService: null,
+      privacyPolicy: null
+    })
+  )
+}))
+
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn()
 }))
@@ -45,7 +61,8 @@ vi.mock('@/lib/config', () => ({
       serviceFromAddress: 'noreply@test.social'
     }
   }),
-  getBaseURL: vi.fn().mockReturnValue('https://test.social')
+  getBaseURL: vi.fn().mockReturnValue('https://test.social'),
+  buildBaseURL: (host: string) => `https://${host}`
 }))
 
 // Account email addresses are personal data and must never reach the logs

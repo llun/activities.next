@@ -18,6 +18,22 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
+// The visited or recipient domain's identity: another domain is named after
+// itself, a missing host is the primary.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(
+    async (_database: unknown, host?: string | null) => ({
+      domain: host || 'llun.test',
+      source: host ? 'database' : 'primary',
+      name: host ? `${host} name` : 'Main name',
+      description: '',
+      contactEmail: '',
+      termsOfService: null,
+      privacyPolicy: null
+    })
+  )
+}))
+
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
 }))
@@ -136,7 +152,12 @@ describe('Accept follow action', () => {
                 recipientEmail: 'test1@llun.test',
                 // The recipient is threaded through so the footer can name the
                 // account whose notification settings control this email.
-                ...buildFollowEmail({ recipient: actor1, actor: actor5 })
+                ...buildFollowEmail({
+                  recipient: actor1,
+                  actor: actor5,
+                  // Named after the recipient's domain (the mocked primary).
+                  brand: { name: 'Main name', domain: 'llun.test' }
+                })
               })
             }
           ]

@@ -1,4 +1,5 @@
-import { buildBaseURL, getBaseURL, getConfig } from '@/lib/config'
+import { buildBaseURL, getBaseURL } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   button,
   fallbackUrl,
@@ -18,19 +19,25 @@ export interface ChangeEmailParams {
    * serves (`getServedLinkDomain`); omitted or null means the primary host.
    */
   domain?: string | null
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /** Confirms a requested email-address change before it is applied. */
 export const buildChangeEmail = ({
   recipientEmail,
   emailChangeCode,
-  domain
+  domain,
+  brand
 }: ChangeEmailParams): RenderedEmail => {
-  const host = domain || getConfig().host
-  const baseURL = domain ? buildBaseURL(domain) : getBaseURL()
+  // The brand's domain wins; `domain` alone (no brand) keeps its own link and copy.
+  const linkDomain = brand?.domain || domain
+  const host = linkDomain || brandHost(brand)
+  const baseURL = linkDomain ? buildBaseURL(linkDomain) : getBaseURL()
   const url = `${baseURL}/account/verify-email?code=${encodeURIComponent(emailChangeCode)}`
 
   return renderEmail({
+    brand,
     subject: 'Verify your new email address',
     preheader: `Confirm the new email address for your ${host} account. The link expires in 24 hours.`,
     blocks: [

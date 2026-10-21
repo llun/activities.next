@@ -177,6 +177,7 @@ export const registerAccount = async ({
   if (verificationCode) {
     try {
       await sendConfirmationEmail({
+        database,
         recipient: email,
         verificationCode,
         actorDomain: domain

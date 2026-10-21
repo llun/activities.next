@@ -680,6 +680,12 @@ describe('registerAccount on another served domain', () => {
       const { sendMail } = await vi.importMock<{ sendMail: jest.Mock }>(
         '@/lib/services/email'
       )
+      vi.mocked(resolveDomainIdentity).mockResolvedValue({
+        ...identityWith({}),
+        domain: 'run.llun.test',
+        source: 'database',
+        name: 'Run Name'
+      })
       const result = await registerAccount({
         database: databaseWith(rowFor('run.llun.test')),
         username: 'ana',
@@ -690,6 +696,12 @@ describe('registerAccount on another served domain', () => {
       expect(result.type).toBe('success')
       const [{ content }] = sendMail.mock.calls[0]
       expect(content.text).toContain('https://run.llun.test/auth/confirmation')
+      // Sent under the domain's own name, from the one configured mailbox.
+      expect(sendMail.mock.calls[0][0].from).toEqual({
+        name: 'Run Name',
+        email: 'noreply@llun.test'
+      })
+      expect(content.html).toContain('>Run Name</td>')
     } finally {
       resetServedDomainsForTests()
     }
