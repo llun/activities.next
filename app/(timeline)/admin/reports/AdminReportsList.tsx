@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 import { getAdminReports } from '@/lib/client'
@@ -21,6 +22,8 @@ import {
   TableFrame
 } from '@/lib/components/surface/TableFrame'
 import { Badge } from '@/lib/components/ui/badge'
+import { Label } from '@/lib/components/ui/label'
+import { Select } from '@/lib/components/ui/select'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
 const acct = (account: AdminReport['account']) =>
@@ -32,6 +35,13 @@ const TABS = [
   { value: 'open', label: 'Unresolved' },
   { value: 'resolved', label: 'Resolved' }
 ]
+
+const DomainChip = ({ domain }: { domain: string | null }) =>
+  domain ? (
+    <Badge tone="primary">{domain}</Badge>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  )
 
 const statusCount = (report: AdminReport) =>
   report.statuses.length > 0 ? (
@@ -47,7 +57,20 @@ const formatCreated = (value: string | undefined) => {
   return Number.isNaN(time) ? '—' : new Date(time).toLocaleDateString()
 }
 
-export const AdminReportsList = () => {
+interface Props {
+  /** Every domain this server serves; the filter and column need more than one. */
+  servedDomains?: string[]
+  /** The `domain` query parameter, already checked against the served domains. */
+  domain?: string | null
+}
+
+export const AdminReportsList = ({
+  servedDomains = [],
+  domain = null
+}: Props) => {
+  const router = useRouter()
+  const pathname = usePathname()
+  const multiDomain = servedDomains.length > 1
   const [resolved, setResolved] = useState(false)
   const [reports, setReports] = useState<AdminReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,14 +79,14 @@ export const AdminReportsList = () => {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setReports(await getAdminReports(resolved))
+      setReports(await getAdminReports(resolved, domain))
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load reports')
     } finally {
       setLoading(false)
     }
-  }, [resolved])
+  }, [resolved, domain])
 
   useEffect(() => {
     load()
@@ -72,13 +95,41 @@ export const AdminReportsList = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedControl
-          aria-label="Report status"
-          size="sm"
-          items={TABS}
-          value={resolved ? 'resolved' : 'open'}
-          onValueChange={(value) => setResolved(value === 'resolved')}
-        />
+        <div className="flex min-w-0 flex-wrap items-center gap-3 max-sm:w-full">
+          <SegmentedControl
+            aria-label="Report status"
+            size="sm"
+            items={TABS}
+            value={resolved ? 'resolved' : 'open'}
+            onValueChange={(value) => setResolved(value === 'resolved')}
+          />
+          {multiDomain ? (
+            <div className="flex items-center gap-2 max-sm:w-full">
+              <Label htmlFor="reports-domain" className="text-muted-foreground">
+                Domain
+              </Label>
+              <Select
+                id="reports-domain"
+                className="w-auto max-w-full min-w-0 max-sm:flex-1"
+                value={domain ?? ''}
+                onChange={(event) =>
+                  router.replace(
+                    event.target.value
+                      ? `${pathname}?domain=${encodeURIComponent(event.target.value)}`
+                      : pathname
+                  )
+                }
+              >
+                <option value="">All domains</option>
+                {servedDomains.map((served) => (
+                  <option key={served} value={served}>
+                    {served}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+        </div>
         <RefreshButton
           accessibleName="Refresh reports"
           refreshing={loading}
@@ -102,7 +153,10 @@ export const AdminReportsList = () => {
             : 'Reports from people on this server and others show up here.'}
         </EmptyState>
       ) : (
-        <TableFrame aria-label="Reports" tableClassName="sm:min-w-[40rem]">
+        <TableFrame
+          aria-label="Reports"
+          tableClassName={multiDomain ? 'sm:min-w-[46rem]' : 'sm:min-w-[40rem]'}
+        >
           <thead>
             <tr className={TABLE_HEAD_ROW_CLASS}>
               <th scope="col" className={HEAD_CELL_CLASS}>
@@ -114,6 +168,14 @@ export const AdminReportsList = () => {
               >
                 Target
               </th>
+              {multiDomain ? (
+                <th
+                  scope="col"
+                  className={`${HEAD_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
+                >
+                  Domain
+                </th>
+              ) : null}
               <th
                 scope="col"
                 className={`${HEAD_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
@@ -155,6 +217,9 @@ export const AdminReportsList = () => {
                     <Badge tone={report.action_taken ? 'gray' : 'primary'}>
                       {report.action_taken ? 'Resolved' : 'Open'}
                     </Badge>
+                    {multiDomain && report.domain ? (
+                      <DomainChip domain={report.domain} />
+                    ) : null}
                     <span>{formatCreated(report.created_at)}</span>
                   </div>
                 </td>
@@ -163,6 +228,13 @@ export const AdminReportsList = () => {
                 >
                   {acct(report.target_account)}
                 </td>
+                {multiDomain ? (
+                  <td
+                    className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
+                  >
+                    <DomainChip domain={report.domain} />
+                  </td>
+                ) : null}
                 <td className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}>
                   <span className="capitalize">{report.category}</span>
                   {statusCount(report)}

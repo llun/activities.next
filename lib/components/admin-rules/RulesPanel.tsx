@@ -10,6 +10,7 @@ import {
   getServerRules,
   updateServerRule
 } from '@/lib/client'
+import { RuleNumber } from '@/lib/components/admin-rules/RuleNumber'
 import { reorder } from '@/lib/components/admin-rules/reorder'
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { PageHeader } from '@/lib/components/page-header'
@@ -35,13 +36,6 @@ const sortRules = (rules: ServerRule[]): ServerRule[] =>
 // rule number shown in the UI is also the stored order.
 const normalize = (rules: ServerRule[]): ServerRule[] =>
   rules.map((rule, index) => ({ ...rule, position: index }))
-
-// The numbered chip that fronts every rule, matching the design system.
-const RuleNumber: FC<{ n: number }> = ({ n }) => (
-  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary-text">
-    {n}
-  </span>
-)
 
 export const RulesPanel: FC = () => {
   const [rules, setRules] = useState<ServerRule[]>([])

@@ -25,6 +25,7 @@ import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 
@@ -73,11 +74,27 @@ interface AnnouncementsPanelProps {
   // Wall clock as a number (never a Date) from the server component, used to
   // compute lifecycle status badges without a hydration mismatch.
   currentTime: number
+  // Every domain this server serves (the primary included), for "Show on" and
+  // the domain chips. They show only while more than one is served.
+  servedDomains?: string[]
+  primaryDomain?: string | null
+  // A served domain to preselect in "Show on" (the domain page's "New
+  // announcement for <domain>" link).
+  presetDomain?: string | null
 }
 
 export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
-  currentTime
+  currentTime,
+  servedDomains = [],
+  primaryDomain = null,
+  presetDomain = null
 }) => {
+  const multiDomain = servedDomains.length > 1
+  const [newDomain, setNewDomain] = useState(
+    multiDomain && presetDomain && servedDomains.includes(presetDomain)
+      ? presetDomain
+      : ''
+  )
   const [announcements, setAnnouncements] = useState<ServerAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
@@ -123,6 +140,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
     setFormError(null)
     try {
       const input: ServerAnnouncementInput = {
+        ...(newDomain ? { domain: newDomain } : null),
         text,
         // For an all-day event the time-of-day is not meaningful and the picked
         // date must be treated as a zone-less calendar date. The Home banner
@@ -235,7 +253,11 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
     <div className="space-y-6">
       <PageHeader
         title="Announcements"
-        description="Instance-wide announcements served from the Mastodon announcements API. Published announcements within their active window are shown to everyone."
+        description={
+          multiDomain
+            ? 'Announcements served from the Mastodon announcements API. A published announcement within its active window is shown on the domain it is for, or on every domain.'
+            : 'Instance-wide announcements served from the Mastodon announcements API. Published announcements within their active window are shown to everyone.'
+        }
       />
 
       {listError && (
@@ -248,7 +270,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
 
       <Section
         title="Add an announcement"
-        description="Markdown is supported. Leave the event window empty to show it immediately and indefinitely."
+        description={`Markdown is supported. Leave the event window empty to show it immediately and indefinitely.${multiDomain ? ' Choose which domain shows it.' : ''}`}
       >
         <form onSubmit={handleCreate} className="space-y-3">
           <Frame
@@ -282,6 +304,35 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                 />
               )}
             </FormRow>
+            {multiDomain ? (
+              <FormRow
+                label="Show on"
+                htmlFor="announcement-domain"
+                hint={
+                  newDomain
+                    ? `Only people visiting ${newDomain} see it.`
+                    : 'People on every domain see it.'
+                }
+              >
+                {({ describedBy }) => (
+                  <Select
+                    id="announcement-domain"
+                    aria-describedby={describedBy}
+                    value={newDomain}
+                    onChange={(event) => setNewDomain(event.target.value)}
+                  >
+                    <option value="">All domains</option>
+                    {servedDomains.map((domain) => (
+                      <option key={domain} value={domain}>
+                        {domain === primaryDomain
+                          ? `${domain} (primary)`
+                          : domain}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </FormRow>
+            ) : null}
             <FormRow
               label="Event starts"
               htmlFor="announcement-starts-at"
@@ -374,10 +425,21 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
               )
               return (
                 <FramedListItem key={announcement.id} className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <div
+                    id={`announcement-${announcement.id}`}
+                    className="flex scroll-mt-20 flex-wrap items-center gap-x-4 gap-y-1"
+                  >
                     <Badge tone={STATUS_TONES[status.tone]}>
                       {status.label}
                     </Badge>
+                    {multiDomain ? (
+                      <Badge
+                        tone={announcement.domain ? 'primary' : 'gray'}
+                        className="-ml-2"
+                      >
+                        {announcement.domain ?? 'All domains'}
+                      </Badge>
+                    ) : null}
                     <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                       {announcement.starts_at !== null && (
                         <span>

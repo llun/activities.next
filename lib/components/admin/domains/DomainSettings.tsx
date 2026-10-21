@@ -34,24 +34,50 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
+import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
 import {
   ADMIN_DOMAIN_FIELD_LIMITS,
   type AdminDomain,
   type AdminDomainDetail,
   type ServerIdentityView
 } from '@/lib/services/domains/adminDomainTypes'
+import type { FeatureFlags } from '@/lib/services/domains/domainFeatures'
+import type { AdminRule } from '@/lib/services/rules/adminRule'
 
+import { DomainAnnouncementsBox } from './DomainAnnouncementsBox'
 import { DomainCheckItems } from './DomainCheckItems'
+import { DomainFeaturesBox } from './DomainFeaturesBox'
+import { DomainReportsBox } from './DomainReportsBox'
+import { DomainRulesBox } from './DomainRulesBox'
 import {
   getDomainCheckBadge,
   getDomainOnOffBadge,
   getDomainSourceNote
 } from './domainLabels'
 
+/** What the page shows beyond the domain's own settings (step 5), read on the server. */
+export interface DomainPageScope {
+  /** The server rules (every domain). */
+  serverRules: AdminRule[]
+  /** The domain's own rules; empty on the primary, which has none. */
+  ownRules: AdminRule[]
+  /** The announcements shown on this domain only, newest first. */
+  announcements: AdminAnnouncement[]
+  /** Published announcements for every domain, which also show here. */
+  allDomainsAnnouncements: number
+  /** The server's own feature switches (Admin › Instance). */
+  serverFeatures: FeatureFlags
+  /** Open reports about profiles on this domain. */
+  openReports: number
+  /** The server's wall clock, epoch ms, for the announcement badges. */
+  currentTime: number
+}
+
 interface Props {
   domain: AdminDomainDetail
   primaryDomain: string | null
   server: ServerIdentityView
+  scope: DomainPageScope
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -796,11 +822,15 @@ const PoliciesBox: FC<{
   )
 }
 
-/** Admin › Domains › one domain: the header, Registrations, Identity, Terms and privacy and the Turn off box. */
+/**
+ * Admin › Domains › one domain: the header, Registrations, Identity, Terms and
+ * privacy, Rules, Announcements, Features, Reports and the Turn off box.
+ */
 export const DomainSettings: FC<Props> = ({
   domain: initial,
   primaryDomain,
-  server
+  server,
+  scope
 }) => {
   const [domain, setDomain] = useState(initial)
   const checkBadge = getDomainCheckBadge(domain)
@@ -844,7 +874,7 @@ export const DomainSettings: FC<Props> = ({
       {isPrimary ? (
         <Alert
           tone="info"
-          title="The primary domain uses the server’s identity, terms and privacy."
+          title="The primary domain uses the server’s identity, terms and privacy, rules and features."
           live={false}
           action={
             <Button variant="outline" size="sm" asChild>
@@ -852,7 +882,7 @@ export const DomainSettings: FC<Props> = ({
             </Button>
           }
         >
-          Edit them on Admin › Instance.
+          Edit them on Admin › Instance, and the rules on Admin › Server rules.
         </Alert>
       ) : null}
 
@@ -912,6 +942,61 @@ export const DomainSettings: FC<Props> = ({
           server={server}
           readOnly={isPrimary}
           onSaved={setDomain}
+        />
+      </Section>
+
+      <Section
+        title="Rules"
+        description={
+          isPrimary
+            ? `What people see on the about page and in the rules API on ${domain.domain}.`
+            : `What people see on the about page and in the rules API on ${domain.domain}: the server rules first, then the rules of this domain.`
+        }
+      >
+        <DomainRulesBox
+          key={`rules-${domain.domain}`}
+          domain={domain.domain}
+          serverRules={scope.serverRules}
+          ownRules={scope.ownRules}
+          readOnly={isPrimary}
+        />
+      </Section>
+
+      <Section
+        title="Announcements"
+        description={`Notices people see in the announcement panel on ${domain.domain}.`}
+      >
+        <DomainAnnouncementsBox
+          domain={domain.domain}
+          announcements={scope.announcements}
+          allDomainsCount={scope.allDomainsAnnouncements}
+          currentTime={scope.currentTime}
+        />
+      </Section>
+
+      <Section
+        title="Features"
+        description={
+          isPrimary
+            ? `What shows in the navigation on ${domain.domain}.`
+            : `What shows in the navigation on ${domain.domain}. Pages stay reachable by link; only the navigation entry is hidden.`
+        }
+      >
+        <DomainFeaturesBox
+          key={`features-${domain.domain}`}
+          domain={domain}
+          serverFeatures={scope.serverFeatures}
+          onSaved={setDomain}
+        />
+      </Section>
+
+      <Section
+        title="Reports"
+        description={`Reports about profiles on ${domain.domain}. They stay in one queue for the whole server.`}
+      >
+        <DomainReportsBox
+          domain={domain.domain}
+          openReports={scope.openReports}
         />
       </Section>
 

@@ -9,9 +9,11 @@ export interface UpdateAdminReportParams {
 }
 
 export const getAdminReports = async (
-  resolved?: boolean
+  resolved?: boolean,
+  domain?: string | null
 ): Promise<AdminReport[]> => {
   const params = new URLSearchParams()
+  if (domain) params.set('domain', domain)
   if (resolved !== undefined)
     params.set('resolved', resolved ? 'true' : 'false')
   const query = params.toString()

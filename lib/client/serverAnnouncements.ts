@@ -3,6 +3,9 @@ import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnoun
 export type ServerAnnouncement = AdminAnnouncement
 
 export interface ServerAnnouncementInput {
+  // The served domain it is shown on; null shows it on every domain. On an
+  // update, absent keeps the audience.
+  domain?: string | null
   text: string
   starts_at?: string | null
   ends_at?: string | null

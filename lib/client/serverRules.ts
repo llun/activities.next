@@ -6,10 +6,16 @@ export interface ServerRuleInput {
   text: string
   hint: string
   position?: number
+  // The served domain the rule is for; absent is a server rule (every domain).
+  domain?: string | null
 }
 
-export const getServerRules = async (): Promise<ServerRule[]> => {
-  const response = await fetch('/api/v2/admin/rules', {
+// The server rules, or, with `domain`, that domain's own rules.
+export const getServerRules = async (
+  domain?: string
+): Promise<ServerRule[]> => {
+  const query = domain ? `?domain=${encodeURIComponent(domain)}` : ''
+  const response = await fetch(`/api/v2/admin/rules${query}`, {
     method: 'GET',
     headers: { Accept: 'application/json' }
   })
