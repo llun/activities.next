@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { getActorEmojiTags } from '@/lib/actions/utils'
 import { PageHeader } from '@/lib/components/page-header'
 import { AppearanceSection } from '@/lib/components/settings/AppearanceSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
@@ -20,7 +21,10 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { getActorProfileUrl } from '@/lib/utils/getPersonFromActor'
+import {
+  getActorProfileUrl,
+  getPersonFromActor
+} from '@/lib/utils/getPersonFromActor'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +45,7 @@ const Page = async () => {
   }
 
   const profile = getActorProfile(actor)
+  const emojiTags = getActorEmojiTags(getPersonFromActor(actor))
   const settings = await database.getActorSettings({ actorId: actor.id })
   const actors = await database.getActorsForAccount({
     accountId: actor.account.id
@@ -139,6 +144,7 @@ const Page = async () => {
                   profileUrl={getActorProfileUrl(actor)}
                   describedBy={describedBy}
                   labelledBy={labelledBy}
+                  tags={emojiTags}
                 />
               )}
             </FormRow>

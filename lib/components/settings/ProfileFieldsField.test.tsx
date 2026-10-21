@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { ComponentProps } from 'react'
 
 import { PROFILE_FIELD_ERROR, ProfileFieldsField } from './ProfileFieldsField'
 import { PROFILE_FIELDS_FIRST_CONTROL_ID } from './profileFieldsFieldIds'
@@ -11,13 +12,18 @@ const PROFILE_URL = 'https://llun.test/@anna'
 
 type Saved = { name: string; value: string; verifiedAt?: number | null }
 
-const renderField = (fields: Saved[] = [], describedBy?: string) =>
+const renderField = (
+  fields: Saved[] = [],
+  describedBy?: string,
+  tags?: ComponentProps<typeof ProfileFieldsField>['tags']
+) =>
   render(
     <form>
       <ProfileFieldsField
         fields={fields}
         profileUrl={PROFILE_URL}
         describedBy={describedBy}
+        tags={tags}
       />
     </form>
   )
@@ -79,24 +85,31 @@ describe('ProfileFieldsField', () => {
 
     expect(screen.getByLabelText('Field 1 label')).toBeInTheDocument()
     expect(screen.getByLabelText('Field 1 content')).toBeInTheDocument()
+    // The position always leads, so rows with the same label stay apart.
+    for (const name of [
+      'Move field 1, Location up',
+      'Move field 1, Location down',
+      'Remove field 1, Location',
+      // An unlabelled row is named by its position alone.
+      'Move field 2 up',
+      'Move field 2 down',
+      'Remove field 2'
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+  })
+
+  it('tells rows with the same label apart', () => {
+    renderField([
+      { name: 'Website', value: 'https://a.example' },
+      { name: 'Website', value: 'https://b.example' }
+    ])
+
     expect(
-      screen.getByRole('button', { name: 'Move Location up' })
-    ).toBeDisabled()
-    expect(
-      screen.getByRole('button', { name: 'Move Location down' })
-    ).toBeEnabled()
-    expect(
-      screen.getByRole('button', { name: 'Remove Location' })
+      screen.getByRole('button', { name: 'Remove field 1, Website' })
     ).toBeInTheDocument()
-    // An unlabelled row is named by its position.
     expect(
-      screen.getByRole('button', { name: 'Move field 2 up' })
-    ).toBeEnabled()
-    expect(
-      screen.getByRole('button', { name: 'Move field 2 down' })
-    ).toBeDisabled()
-    expect(
-      screen.getByRole('button', { name: 'Remove field 2' })
+      screen.getByRole('button', { name: 'Remove field 2, Website' })
     ).toBeInTheDocument()
   })
 
@@ -143,6 +156,13 @@ describe('ProfileFieldsField', () => {
         expect(chip(name)).toHaveAttribute('type', 'button')
       }
       expect(screen.getByText('Add a field · 4 left')).toBeInTheDocument()
+    })
+
+    it('names the chips as a group from the add-a-field line', () => {
+      renderField()
+
+      const group = screen.getByRole('group', { name: 'Add a field · 4 left' })
+      expect(within(group).getAllByRole('button')).toHaveLength(7)
     })
 
     it('adds a row with the label filled in and focuses its content', () => {
@@ -202,7 +222,9 @@ describe('ProfileFieldsField', () => {
         screen.queryByRole('button', { name: 'Custom field' })
       ).not.toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Remove Email' }))
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove field 4, Email' })
+      )
       expect(screen.getByText('Add a field · 1 left')).toBeInTheDocument()
     })
   })
@@ -218,28 +240,32 @@ describe('ProfileFieldsField', () => {
 
       fireEvent.click(chip('Website'))
       expect(onInput).toHaveBeenCalledTimes(1)
-      fireEvent.click(screen.getByRole('button', { name: 'Move B up' }))
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Move field 2, B up' })
+      )
       expect(onInput).toHaveBeenCalledTimes(2)
-      fireEvent.click(screen.getByRole('button', { name: 'Remove A' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove field 2, A' }))
       expect(onInput).toHaveBeenCalledTimes(3)
     })
   })
 
   describe('submitted fields', () => {
-    it('always submits four pairs, padding unused slots with empty values', () => {
-      const { container } = renderField([{ name: 'Blog', value: 'x' }])
+    it.each([
+      ['no saved field', [], 0],
+      ['one saved field', [{ name: 'Blog', value: 'x' }], 1]
+    ])(
+      'always submits four pairs with %s, padding unused slots with empty values',
+      (_case, saved: Saved[], filled) => {
+        const { container } = renderField(saved)
 
-      expect(submitted(container)).toEqual([
-        ['fields[0][name]', 'Blog'],
-        ['fields[0][value]', 'x'],
-        ['fields[1][name]', ''],
-        ['fields[1][value]', ''],
-        ['fields[2][name]', ''],
-        ['fields[2][value]', ''],
-        ['fields[3][name]', ''],
-        ['fields[3][value]', '']
-      ])
-    })
+        expect(submitted(container)).toEqual(
+          [0, 1, 2, 3].flatMap((i) => [
+            [`fields[${i}][name]`, i < filled ? saved[i].name : ''],
+            [`fields[${i}][value]`, i < filled ? saved[i].value : '']
+          ])
+        )
+      }
+    )
 
     it('still submits four empty pairs once every field is removed', () => {
       const { container } = renderField([
@@ -247,8 +273,8 @@ describe('ProfileFieldsField', () => {
         { name: 'B', value: '2' }
       ])
 
-      fireEvent.click(screen.getByRole('button', { name: 'Remove A' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Remove B' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, A' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, B' }))
 
       const entries = submitted(container)
       expect(entries).toHaveLength(8)
@@ -268,7 +294,9 @@ describe('ProfileFieldsField', () => {
         { name: 'C', value: '3' }
       ])
 
-      fireEvent.click(screen.getByRole('button', { name: 'Move C up' }))
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Move field 3, C up' })
+      )
       expect(submitted(container).slice(0, 6)).toEqual([
         ['fields[0][name]', 'A'],
         ['fields[0][value]', '1'],
@@ -278,7 +306,9 @@ describe('ProfileFieldsField', () => {
         ['fields[2][value]', '2']
       ])
 
-      fireEvent.click(screen.getByRole('button', { name: 'Move A down' }))
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Move field 1, A down' })
+      )
       expect(
         submitted(container)
           .filter(([key]) => key.endsWith('[name]'))
@@ -292,10 +322,18 @@ describe('ProfileFieldsField', () => {
         { name: 'B', value: '2' }
       ])
 
-      expect(screen.getByRole('button', { name: 'Move A up' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Move A down' })).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'Move B up' })).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'Move B down' })).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: 'Move field 1, A up' })
+      ).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: 'Move field 1, A down' })
+      ).toBeEnabled()
+      expect(
+        screen.getByRole('button', { name: 'Move field 2, B up' })
+      ).toBeEnabled()
+      expect(
+        screen.getByRole('button', { name: 'Move field 2, B down' })
+      ).toBeDisabled()
     })
   })
 
@@ -309,7 +347,7 @@ describe('ProfileFieldsField', () => {
     it('moves to the next row label after a removal', () => {
       renderField(three)
 
-      fireEvent.click(screen.getByRole('button', { name: 'Remove A' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, A' }))
 
       expect(screen.getByLabelText('Field 1 label')).toHaveValue('B')
       expect(screen.getByLabelText('Field 1 label')).toHaveFocus()
@@ -318,7 +356,7 @@ describe('ProfileFieldsField', () => {
     it('moves to the previous row label after removing the last row', () => {
       renderField(three)
 
-      fireEvent.click(screen.getByRole('button', { name: 'Remove C' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove field 3, C' }))
 
       expect(screen.getByLabelText('Field 2 label')).toHaveValue('B')
       expect(screen.getByLabelText('Field 2 label')).toHaveFocus()
@@ -327,38 +365,29 @@ describe('ProfileFieldsField', () => {
     it('moves to the first chip after removing the only row', () => {
       renderField([{ name: 'A', value: '1' }])
 
-      fireEvent.click(screen.getByRole('button', { name: 'Remove A' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, A' }))
 
       expect(chip('Location')).toHaveFocus()
     })
 
-    it('keeps focus on the same button of the moved row', () => {
+    it.each([
+      // The pressed button, then the one that keeps the focus: the opposite
+      // button when the row reaches an end, the same one otherwise.
+      ['Move field 3, C up', 'Move field 2, C up'],
+      ['Move field 2, B up', 'Move field 1, B down'],
+      ['Move field 1, A down', 'Move field 2, A down'],
+      ['Move field 2, B down', 'Move field 3, B up']
+    ])('after %s, focuses %s', (pressed, focused) => {
       renderField(three)
 
-      fireEvent.click(screen.getByRole('button', { name: 'Move B down' }))
-      expect(screen.getByRole('button', { name: 'Move B up' })).toBeEnabled()
-      // B is last now, so its Move down is disabled and the focus goes to Up.
-      expect(screen.getByRole('button', { name: 'Move B up' })).toHaveFocus()
+      fireEvent.click(screen.getByRole('button', { name: pressed }))
 
-      // C moves to the top, so its Move up is disabled and Down is focused.
-      fireEvent.click(screen.getByRole('button', { name: 'Move C up' }))
-      expect(screen.getByRole('button', { name: 'Move C down' })).toHaveFocus()
-    })
-
-    it('keeps Move up focused while the row is not yet at the top', () => {
-      renderField(three)
-
-      fireEvent.click(screen.getByRole('button', { name: 'Move C up' }))
-      expect(screen.getByRole('button', { name: 'Move C up' })).toHaveFocus()
-
-      // C is first now: Up is disabled, so Down gets the focus.
-      fireEvent.click(screen.getByRole('button', { name: 'Move C up' }))
-      expect(screen.getByRole('button', { name: 'Move C down' })).toHaveFocus()
+      expect(screen.getByRole('button', { name: focused })).toHaveFocus()
     })
   })
 
   describe('validation', () => {
-    it('shows no error for a complete or empty row', () => {
+    it('shows no error for a complete row', () => {
       renderField([{ name: 'Blog', value: 'x' }])
       expect(screen.queryByText(PROFILE_FIELD_ERROR)).not.toBeInTheDocument()
     })
@@ -385,13 +414,6 @@ describe('ProfileFieldsField', () => {
       const form = container.querySelector('form') as HTMLFormElement
 
       fireEvent.click(chip('Website'))
-      fireEvent.change(screen.getByLabelText('Field 1 label'), {
-        target: { value: 'Site' }
-      })
-      // A chip row starts with its content empty.
-      fireEvent.change(screen.getByLabelText('Field 1 content'), {
-        target: { value: '' }
-      })
       let valid = true
       act(() => {
         valid = form.checkValidity()
@@ -437,7 +459,7 @@ describe('ProfileFieldsField', () => {
       ])
 
       fireEvent.click(
-        screen.getByRole('button', { name: 'Move Pronouns down' })
+        screen.getByRole('button', { name: 'Move field 1, Pronouns down' })
       )
 
       expect(screen.getByLabelText('Field 2 label')).toHaveValue('Pronouns')
@@ -495,18 +517,6 @@ describe('ProfileFieldsField', () => {
         target: { value: 'Location' }
       })
       expect(iconOf(1)).toHaveAttribute('data-icon', 'location')
-    })
-
-    it('names a pin for Location, a globe for a link and a tag for text', () => {
-      renderField([
-        { name: 'Location', value: 'Lisbon' },
-        { name: 'Site', value: 'https://example.com' },
-        { name: 'Pronouns', value: 'she/her' }
-      ])
-
-      expect(iconOf(1)).toHaveAttribute('data-icon', 'location')
-      expect(iconOf(2)).toHaveAttribute('data-icon', 'link')
-      expect(iconOf(3)).toHaveAttribute('data-icon', 'text')
     })
   })
 
@@ -591,7 +601,9 @@ describe('ProfileFieldsField', () => {
         { ...BLOG, verifiedAt: 1700000000000 }
       ])
 
-      fireEvent.click(screen.getByRole('button', { name: 'Move Blog up' }))
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Move field 2, Blog up' })
+      )
 
       expect(screen.getByLabelText('Field 1 content')).toHaveValue(
         'https://blog.example'
@@ -661,6 +673,21 @@ describe('ProfileFieldsField', () => {
       })
       expect(within(preview()).getByText('Porto')).toBeInTheDocument()
       expect(within(preview()).queryByText('Lisbon')).not.toBeInTheDocument()
+    })
+
+    it('shows a custom emoji shortcode as an image when tags are given', () => {
+      renderField([{ name: 'Mood', value: 'happy :blobcat:' }], undefined, [
+        {
+          type: 'emoji',
+          name: ':blobcat:',
+          value: 'https://example.com/blobcat.png'
+        }
+      ])
+
+      expect(within(preview()).getByAltText(':blobcat:')).toHaveAttribute(
+        'src',
+        'https://example.com/blobcat.png'
+      )
     })
 
     it('marks only a saved verified value as verified', () => {

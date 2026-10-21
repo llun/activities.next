@@ -26,6 +26,12 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
     username: 'anna',
     domain: 'llun.test',
     name: 'Anna',
+    createdAt: 1700000000000,
+    updatedAt: 1700000000000,
+    inboxUrl: 'https://llun.test/users/anna/inbox',
+    sharedInboxUrl: 'https://llun.test/inbox',
+    followersUrl: 'https://llun.test/users/anna/followers',
+    publicKey: 'public-key',
     account: { id: 'acct-1', defaultActorId: null }
   })
 }))
@@ -192,20 +198,6 @@ describe('/settings', () => {
       expect(data.get('fields[0][name]')).toBe('Blog')
       expect(data.get('fields[0][value]')).toBe('https://blog.example')
       expect(data.get('fields[3][name]')).toBe('')
-    })
-
-    it('still posts four empty pairs when no field is saved', async () => {
-      getActorSettings.mockResolvedValue(null)
-
-      render(await Page())
-
-      const form = (screen.getByLabelText('Summary') as HTMLTextAreaElement)
-        .form as HTMLFormElement
-      const data = new FormData(form)
-      for (const index of [0, 1, 2, 3]) {
-        expect(data.get(`fields[${index}][name]`)).toBe('')
-        expect(data.get(`fields[${index}][value]`)).toBe('')
-      }
     })
 
     it('shows each saved link\u2019s verification next to its inputs', async () => {

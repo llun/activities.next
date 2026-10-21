@@ -1,8 +1,9 @@
 'use client'
 
 import { Check, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useEffect, useId, useMemo, useRef, useState } from 'react'
 
+import type { CustomEmojiTextProps } from '@/lib/components/actors/ActorDisplayName'
 import { ProfileFieldsBlock } from '@/lib/components/profile/ProfileFieldsBlock'
 import { chooseProfileFieldIcon } from '@/lib/components/profile/profileFieldIcon'
 import { PROFILE_FIELD_ICONS } from '@/lib/components/profile/profileFieldIcons'
@@ -33,6 +34,8 @@ interface Props {
   describedBy?: string
   /** The row's label id (the `FormRow` render prop), naming the group. */
   labelledBy?: string
+  /** The actor's custom emoji, so the preview shows shortcodes as images. */
+  tags?: CustomEmojiTextProps['tags']
 }
 
 interface Row {
@@ -78,8 +81,10 @@ export const ProfileFieldsField: FC<Props> = ({
   fields,
   profileUrl,
   describedBy,
-  labelledBy
+  labelledBy,
+  tags
 }) => {
+  const chipsLabelId = useId()
   const nextId = useRef(0)
   const [rows, setRows] = useState<Row[]>(() =>
     fields
@@ -101,7 +106,7 @@ export const ProfileFieldsField: FC<Props> = ({
   const valueRefs = useRef(new Map<number, HTMLInputElement | null>())
   const upRefs = useRef(new Map<number, HTMLButtonElement | null>())
   const downRefs = useRef(new Map<number, HTMLButtonElement | null>())
-  const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const firstChipRef = useRef<HTMLButtonElement | null>(null)
   const pendingFocus = useRef<PendingFocus | null>(null)
   const groupRef = useRef<HTMLDivElement>(null)
   const edited = useRef(false)
@@ -135,7 +140,7 @@ export const ProfileFieldsField: FC<Props> = ({
     if (!target) return
     pendingFocus.current = null
     if (target.kind === 'chip') {
-      chipRefs.current[0]?.focus()
+      firstChipRef.current?.focus()
     } else if (target.kind === 'name') {
       nameRefs.current.get(target.id)?.focus()
     } else if (target.kind === 'value') {
@@ -258,7 +263,12 @@ export const ProfileFieldsField: FC<Props> = ({
           [inputDescribedBy, hasStatus ? statusId : null]
             .filter(Boolean)
             .join(' ') || undefined
-        const fieldName = row.name.trim() || `field ${index + 1}`
+        // Always the position, like the inputs' names, so rows with the same
+        // label stay apart.
+        const label = row.name.trim()
+        const fieldName = label
+          ? `field ${index + 1}, ${label}`
+          : `field ${index + 1}`
         return (
           <div key={row.id}>
             <div
@@ -401,18 +411,20 @@ export const ProfileFieldsField: FC<Props> = ({
       ))}
       {left > 0 ? (
         <div className="space-y-2 pt-1">
-          <p className="text-xs text-muted-foreground">
+          <p id={chipsLabelId} className="text-xs text-muted-foreground">
             Add a field · {left} left
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div
+            role="group"
+            aria-labelledby={chipsLabelId}
+            className="flex flex-wrap gap-2"
+          >
             {SUGGESTIONS.map(({ label, icon }, chipIndex) => {
               const Icon = PROFILE_FIELD_ICONS[icon]
               return (
                 <Button
                   key={label}
-                  ref={(node) => {
-                    chipRefs.current[chipIndex] = node
-                  }}
+                  ref={chipIndex === 0 ? firstChipRef : undefined}
                   type="button"
                   variant="pill"
                   size="sm"
@@ -425,9 +437,6 @@ export const ProfileFieldsField: FC<Props> = ({
               )
             })}
             <Button
-              ref={(node) => {
-                chipRefs.current[SUGGESTIONS.length] = node
-              }}
               type="button"
               variant="pill"
               size="sm"
@@ -449,7 +458,7 @@ export const ProfileFieldsField: FC<Props> = ({
         </p>
         {previewFields.length > 0 ? (
           <div className="-mt-1">
-            <ProfileFieldsBlock fields={previewFields} />
+            <ProfileFieldsBlock fields={previewFields} tags={tags} />
           </div>
         ) : (
           <p className="mt-1 text-sm text-muted-foreground">
