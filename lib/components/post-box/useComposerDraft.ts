@@ -2,27 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import {
-  DraftConflictError,
-  DraftSignedOutError,
-  DraftsUnavailableError,
-  blobRecordToFile,
-  blobRecordToPosterFile,
-  deleteDraft,
-  deleteDraftAndOwnedMedia,
-  deleteDraftBlob,
-  fileToBlobRecord,
-  getDraftBlob,
-  postDraftsMessage,
-  putDraftBlob,
-  saveDraft
-} from '@/lib/client/drafts'
 import type {
   DraftAttachment,
   DraftFitnessFile,
   DraftPoll,
   DraftRecord
 } from '@/lib/client/drafts'
+import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
+import {
+  DraftConflictError,
+  DraftSignedOutError,
+  DraftsUnavailableError
+} from '@/lib/client/drafts/errors'
 import { requestPersistentOfflineStorage } from '@/lib/client/offline'
 import {
   type DraftsContextValue,
@@ -32,6 +23,10 @@ import type { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import type { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
+
+// The IndexedDB code loads on first use (DraftsProvider asks for it right after
+// mount), so it stays out of every page's first-load JavaScript.
+const loadDrafts = () => import('@/lib/client/drafts')
 
 export const DRAFT_SAVE_DEBOUNCE_MS = 800
 
@@ -207,6 +202,8 @@ export const loadDraftFiles = async (
   await Promise.all(
     wanted.map(async (localId) => {
       try {
+        const { getDraftBlob, blobRecordToFile, blobRecordToPosterFile } =
+          await loadDrafts()
         const blob = await getDraftBlob(localId)
         if (!blob || blob.draftId !== draft.id) return
         files.set(localId, {
@@ -391,7 +388,9 @@ export const useComposerDraft = ({
       for (const id of [...d.blobIds]) {
         if (referenced.has(id)) continue
         d.blobIds.delete(id)
-        deleteDraftBlob(id).catch(() => undefined)
+        void loadDrafts()
+          .then((m) => m.deleteDraftBlob(id))
+          .catch(() => undefined)
       }
       // A failed attachment the composer no longer holds is not a failure.
       for (const id of [...d.blobFailures]) {
@@ -410,12 +409,14 @@ export const useComposerDraft = ({
       try {
         if (!content) {
           if (d.id && d.revision > 0) {
-            await deleteDraft(d.id)
+            await (await loadDrafts()).deleteDraft(d.id)
             announceChanged(snap)
           } else {
             // Never stored, so no record will ever reference these bytes.
             for (const id of d.blobIds) {
-              deleteDraftBlob(id).catch(() => undefined)
+              void loadDrafts()
+                .then((m) => m.deleteDraftBlob(id))
+                .catch(() => undefined)
             }
           }
           d.blobIds.clear()
@@ -438,7 +439,9 @@ export const useComposerDraft = ({
         }
         setStatus(d, 'saving')
         const epoch = epochFor(snap.ctx)
-        const saved = await saveDraft(record, {
+        const saved = await (
+          await loadDrafts()
+        ).saveDraft(record, {
           expectedRevision: d.revision,
           epoch
         })
@@ -523,6 +526,7 @@ export const useComposerDraft = ({
           // The composer moved on (posted, discarded): nothing owns these bytes.
           if (s.d !== d) return
           try {
+            const { fileToBlobRecord, putDraftBlob } = await loadDrafts()
             const record = await fileToBlobRecord({
               id: localId,
               draftId: draftIdForBlob,
@@ -594,7 +598,7 @@ export const useComposerDraft = ({
       return enqueue(async () => {
         if (!d.id || d.revision === 0) return
         try {
-          await deleteDraft(d.id)
+          await (await loadDrafts()).deleteDraft(d.id)
           if (ctx) {
             postDraftsMessage({
               type: 'changed',
@@ -618,9 +622,10 @@ export const useComposerDraft = ({
         if (!d.id) return
         try {
           if (content) {
-            await deleteDraftAndOwnedMedia(assemble(snap, content))
+            const drafts = await loadDrafts()
+            await drafts.deleteDraftAndOwnedMedia(assemble(snap, content))
           } else {
-            await deleteDraft(d.id)
+            await (await loadDrafts()).deleteDraft(d.id)
           }
           announceChanged(snap)
         } catch {

@@ -7,11 +7,24 @@
 // Every promise settles on `tx.oncomplete` or `tx.onabort`, never on a
 // request's `onsuccess`, so a resolved write is a committed write.
 import {
+  DraftConflictError,
+  DraftQuotaError,
+  DraftSignedOutError,
+  DraftsUnavailableError
+} from './errors'
+import {
   DRAFTS_DB_NAME,
   DRAFTS_DB_VERSION,
   type DraftBlobRecord,
   type DraftRecord
 } from './types'
+
+export {
+  DraftConflictError,
+  DraftQuotaError,
+  DraftSignedOutError,
+  DraftsUnavailableError
+} from './errors'
 
 /** An open that has not finished by now is reported as unavailable. */
 export const DRAFTS_OPEN_TIMEOUT_MS = 5_000
@@ -19,41 +32,6 @@ export const DRAFTS_OPEN_TIMEOUT_MS = 5_000
 const DRAFTS_STORE = 'drafts'
 const BLOBS_STORE = 'blobs'
 const META_STORE = 'meta'
-
-class DraftsDbError extends Error {
-  constructor(name: string, message: string) {
-    super(message)
-    this.name = name
-  }
-}
-
-/** `indexedDB` is missing, the open failed, was blocked or took too long. */
-export class DraftsUnavailableError extends DraftsDbError {
-  constructor(message = 'Drafts storage is unavailable') {
-    super('DraftsUnavailableError', message)
-  }
-}
-
-/** The browser refused a write for lack of storage space. */
-export class DraftQuotaError extends DraftsDbError {
-  constructor(message = 'Not enough storage space for this draft') {
-    super('DraftQuotaError', message)
-  }
-}
-
-/** Another tab saved this draft first, or deleted it. */
-export class DraftConflictError extends DraftsDbError {
-  constructor(message = 'This draft changed in another tab') {
-    super('DraftConflictError', message)
-  }
-}
-
-/** The account signed out since this tab read its epoch. */
-export class DraftSignedOutError extends DraftsDbError {
-  constructor(message = 'The account signed out') {
-    super('DraftSignedOutError', message)
-  }
-}
 
 let customFactory: IDBFactory | null = null
 let cachedDb: IDBDatabase | null = null

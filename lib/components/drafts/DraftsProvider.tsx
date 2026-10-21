@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import {
   type ReactNode,
   createContext,
@@ -11,13 +12,19 @@ import {
   useState
 } from 'react'
 
-import {
-  countDrafts,
-  getAccountEpoch,
-  runPendingPurges,
-  subscribeDraftsMessages
-} from '@/lib/client/drafts'
-import { SavedToDraftsNote } from '@/lib/components/drafts/SavedToDraftsNote'
+import { subscribeDraftsMessages } from '@/lib/client/drafts/draftsChannel'
+
+// The IndexedDB code and the note load after mount, so neither is part of any
+// page's first-load JavaScript.
+const loadDrafts = () => import('@/lib/client/drafts')
+
+const SavedToDraftsNote = dynamic(
+  () =>
+    import('@/lib/components/drafts/SavedToDraftsNote').then(
+      (module) => module.SavedToDraftsNote
+    ),
+  { ssr: false }
+)
 
 export interface DraftsContextValue {
   accountId: string
@@ -63,7 +70,8 @@ export function DraftsProvider({
 
   const refreshCount = useCallback(() => {
     const token = ++refreshToken.current
-    countDrafts({ actorId })
+    loadDrafts()
+      .then((m) => m.countDrafts({ actorId }))
       .then((next) => {
         if (token === refreshToken.current) setCount(next)
       })
@@ -75,7 +83,8 @@ export function DraftsProvider({
 
   const loadEpoch = useCallback(() => {
     const token = ++epochToken.current
-    getAccountEpoch(accountId)
+    loadDrafts()
+      .then((m) => m.getAccountEpoch(accountId))
       .then((value) => {
         if (token !== epochToken.current) return
         epochRef.current = value
@@ -101,12 +110,16 @@ export function DraftsProvider({
     // and removes this account's drafts, so the epoch is read only afterwards.
     let cancelled = false
     purgingRef.current = true
-    void runPendingPurges().finally(() => {
-      purgingRef.current = false
-      if (cancelled) return
-      loadEpoch()
-      refreshCount()
-    })
+    void loadDrafts()
+      .then((m) => m.runPendingPurges())
+      // A chunk that failed to load is the same as unavailable storage.
+      .catch(() => {})
+      .finally(() => {
+        purgingRef.current = false
+        if (cancelled) return
+        loadEpoch()
+        refreshCount()
+      })
     return () => {
       cancelled = true
       epochToken.current += 1

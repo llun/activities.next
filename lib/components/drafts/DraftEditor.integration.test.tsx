@@ -26,7 +26,10 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
-import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import {
+  DraftsProvider,
+  useDrafts
+} from '@/lib/components/drafts/DraftsProvider'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import {
   createNoteMock,
@@ -113,6 +116,15 @@ const record = (patch: Partial<DraftRecord>): DraftRecord => ({
   ...patch
 })
 
+// The provider reads the account epoch after mount, and until it has, every
+// save is refused ("Drafts are not ready yet"). A test that edits and then
+// unmounts or posts straight away loses that save under load, so each tree
+// carries this marker and the test waits for it.
+const EpochReady = () =>
+  useDrafts()?.epoch != null ? <span data-testid="drafts-ready" /> : null
+
+const waitForEpoch = () => screen.findByTestId('drafts-ready')
+
 const open = async (
   draft: DraftRecord,
   { strict = false, bytes }: { strict?: boolean; bytes?: File } = {}
@@ -132,6 +144,7 @@ const open = async (
   const onClose = vi.fn()
   const tree = (
     <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+      <EpochReady />
       <DraftEditor
         draft={stored}
         host="activities.local"
@@ -142,7 +155,17 @@ const open = async (
     </DraftsProvider>
   )
   const { unmount } = render(strict ? <StrictMode>{tree}</StrictMode> : tree)
+  await waitForEpoch()
   return { stored, onClose, unmount }
+}
+
+// A seeded draft enables Post a render after it shows its text (allowPost
+// recomputes once the draft lands); a click in between hits a disabled button
+// and is lost, which is a flake under load.
+const postWhenReady = async () => {
+  const button = await screen.findByRole('button', { name: 'Post' })
+  await waitFor(() => expect(button).toBeEnabled())
+  fireEvent.click(button)
 }
 
 describe('DraftEditor with the real composers', () => {
@@ -169,6 +192,7 @@ describe('DraftEditor with the real composers', () => {
     createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
     const first = render(
       <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <EpochReady />
         <PostBox
           host="activities.local"
           profile={profile}
@@ -180,10 +204,11 @@ describe('DraftEditor with the real composers', () => {
         />
       </DraftsProvider>
     )
+    await waitForEpoch()
     fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
       target: { value: 'Locked post' }
     })
-    fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
+    await postWhenReady()
     await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
     const key = createNoteMock.mock.calls[0][0].idempotencyKey
     await waitFor(async () =>
@@ -211,7 +236,7 @@ describe('DraftEditor with the real composers', () => {
     const textarea = await screen.findByPlaceholderText('What is on your mind?')
     expect(textarea).toHaveValue('Locked post')
     await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
-    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await postWhenReady()
 
     await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
     expect(createNoteMock.mock.calls[0][0]).toMatchObject({
@@ -236,7 +261,7 @@ describe('DraftEditor with the real composers', () => {
       expect(textarea).toHaveValue('@bob@activities.local Reply body')
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await postWhenReady()
 
     await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
     expect(createNoteMock.mock.calls[0][0]).toMatchObject({
@@ -263,6 +288,14 @@ describe('DraftEditor with the real composers', () => {
     const pastDebounce = () =>
       new Promise((resolve) => setTimeout(resolve, 1700))
 
+    // The save runs after the debounce plus a lazy import and an IndexedDB
+    // write; polling for the stored state beats a fixed sleep under load.
+    const expectStored = (expected: object) =>
+      waitFor(
+        async () => expect(await getDraft('draft-1')).toMatchObject(expected),
+        { timeout: 5000 }
+      )
+
     const clearText = async () => {
       const textarea = await screen.findByPlaceholderText(
         'What is on your mind?'
@@ -274,9 +307,7 @@ describe('DraftEditor with the real composers', () => {
     it('keeps the draft and the editor open after the text is cleared', async () => {
       const { onClose } = await open(record({}))
       await clearText()
-      await pastDebounce()
-
-      expect(await getDraft('draft-1')).toMatchObject({ text: '' })
+      await expectStored({ text: '' })
       expect(onClose).not.toHaveBeenCalled()
       expect(screen.getByPlaceholderText('What is on your mind?')).toBeVisible()
     })
@@ -299,9 +330,8 @@ describe('DraftEditor with the real composers', () => {
       await pastDebounce()
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       unmount()
-      await pastDebounce()
 
-      expect(await getDraft('draft-1')).toMatchObject({
+      await expectStored({
         text: '',
         attachments: [expect.objectContaining({ localId: 'photo-1' })]
       })
@@ -321,9 +351,8 @@ describe('DraftEditor with the real composers', () => {
       const { unmount } = await open(record({ attachments: [photo] }))
       await clearText()
       unmount()
-      await pastDebounce()
 
-      expect(await getDraft('draft-1')).toMatchObject({ text: '' })
+      await expectStored({ text: '' })
     })
 
     it('does not delete a reopened empty draft under React StrictMode', async () => {

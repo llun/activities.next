@@ -75,7 +75,10 @@ const kib = (n: number) => n * 1024
 export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
   '/': { gzipBytes: kib(556), rawBytes: kib(1710) },
   '/[actor]': { gzipBytes: kib(508), rawBytes: kib(1571) },
-  '/[actor]/[status]': { gzipBytes: kib(509), rawBytes: kib(1573) },
+  // Raised from 509 / 1573 for the drafts provider and connection status that the
+  // signed-in timeline layout now mounts: main measured 508.2 / 1562.8 here (under
+  // 1 KiB of headroom), this PR 513.5 / 1574.4 with the drafts DB and note lazy.
+  '/[actor]/[status]': { gzipBytes: kib(516), rawBytes: kib(1580) },
   '/tags/[tag]': { gzipBytes: kib(506), rawBytes: kib(1560) },
   '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1247) },
   '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1247) },

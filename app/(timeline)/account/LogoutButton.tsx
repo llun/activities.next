@@ -2,11 +2,7 @@
 
 import { useState } from 'react'
 
-import {
-  countDrafts,
-  postDraftsMessage,
-  purgeAccountDrafts
-} from '@/lib/client/drafts'
+import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
 import { clearAllOfflineData } from '@/lib/client/offline'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
@@ -53,7 +49,10 @@ export const LogoutButton = ({
       await authClient.signOut({
         fetchOptions: {
           onSuccess: async () => {
-            if (accountId) await purgeAccountDrafts(accountId)
+            if (accountId)
+              await (
+                await import('@/lib/client/drafts')
+              ).purgeAccountDrafts(accountId)
             window.location.href = '/auth/signin'
           },
           onError: failed
@@ -68,7 +67,9 @@ export const LogoutButton = ({
     onError(null)
     // Unavailable storage means there is nothing to count, so nothing to ask.
     const count = accountId
-      ? await countDrafts({ accountId }).catch(() => 0)
+      ? await import('@/lib/client/drafts')
+          .then((m) => m.countDrafts({ accountId }))
+          .catch(() => 0)
       : 0
     if (count === 0) return signOut()
     setUnsentCount(count)

@@ -315,7 +315,10 @@ describe('DraftsProvider', () => {
 
       notify('d1')
 
-      expect(screen.getByRole('status')).toHaveTextContent('Saved to Drafts')
+      // The note is a lazy chunk, so it appears a tick after the notify.
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Saved to Drafts'
+      )
       expect(screen.getByTestId('saved')).toHaveTextContent('saved=d1')
     })
 
@@ -325,7 +328,7 @@ describe('DraftsProvider', () => {
       notify('d1')
 
       fireEvent.click(
-        screen.getByRole('button', { name: 'Dismiss notification' })
+        await screen.findByRole('button', { name: 'Dismiss notification' })
       )
 
       expect(screen.queryByRole('status')).not.toBeInTheDocument()

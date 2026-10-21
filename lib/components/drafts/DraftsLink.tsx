@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
-import { listDrafts, subscribeDraftsMessages } from '@/lib/client/drafts'
+import { subscribeDraftsMessages } from '@/lib/client/drafts/draftsChannel'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 
 interface Props {
@@ -22,7 +22,8 @@ export const DraftsLink: FC<Props> = ({ excludeId }) => {
     if (!actorId) return
     let current = true
     const refresh = () => {
-      listDrafts({ actorId })
+      import('@/lib/client/drafts')
+        .then((m) => m.listDrafts({ actorId }))
         .then((rows) => {
           if (current) setIds(rows.map((row) => row.id))
         })
