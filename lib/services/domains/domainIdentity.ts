@@ -193,9 +193,10 @@ export const resolveDomainIdentity = async (
 export const getVisitedDomainIdentity = cache(
   async (): Promise<DomainIdentity> => {
     // Refresh first: `headerHost` trusts the visited host from the snapshot.
+    // The refresh may read the database, so it runs before `headers()`, which
+    // is what tells a prerender to stop (the root layout's metadata calls this
+    // on every page).
     await ensureServedDomainsFresh()
-    // Read the request before the database: the root layout's metadata calls
-    // this on every page, and `headers()` is what tells a prerender to stop.
     const host = headerHost(await headers())
     return resolveDomainIdentity(getDatabase(), host)
   }
