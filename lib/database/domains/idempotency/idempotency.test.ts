@@ -229,6 +229,37 @@ describe('IdempotencyDatabase', () => {
     ).resolves.toMatchObject({ state: 'publish_failed' })
   })
 
+  it("moves only the asking actor's key row to a new state", async () => {
+    const actorA = actor('state-a')
+    const actorB = actor('state-b')
+    for (const actorId of [actorA, actorB]) {
+      await database.saveIdempotencyKey({
+        actorId,
+        key: 'state-shared',
+        statusId: 'status-state-both'
+      })
+    }
+    await db
+      .updateTable('idempotency_keys')
+      .set({ state: 'publishing' })
+      .where('key', '=', 'state-shared')
+      .execute()
+
+    await database.setIdempotencyKeyState({
+      actorId: actorA,
+      key: 'state-shared',
+      statusId: 'status-state-both',
+      state: 'publish_failed'
+    })
+
+    await expect(
+      database.getIdempotencyKey({ actorId: actorA, key: 'state-shared' })
+    ).resolves.toMatchObject({ state: 'publish_failed' })
+    await expect(
+      database.getIdempotencyKey({ actorId: actorB, key: 'state-shared' })
+    ).resolves.toMatchObject({ state: 'publishing' })
+  })
+
   const createKeyedActor = async (name: string) => {
     const actorId = actor(name)
     await database.createActor({

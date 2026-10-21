@@ -12,7 +12,14 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
-import { describePostError, isPostKeptByServer } from '@/lib/client/http'
+import {
+  DRAFT_LOCKED_NOTICE,
+  SESSION_EXPIRED_NOTICE,
+  describePostError,
+  isKeyRejectedByServer,
+  isPostKeptByServer,
+  isSessionExpiredError
+} from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   addAttachment,
@@ -70,7 +77,11 @@ export const StatusReplyBox: FC<Props> = ({
   // Set once the server kept the reply (503/409): the draft is locked so Post
   // retries the same payload under the same Idempotency-Key. Any edit would
   // mint a new key and strand the kept reply (or duplicate it).
-  const [draftLocked, setDraftLocked] = useState<boolean>(false)
+  const [lockedMessage, setLockedMessage] = useState<string | null>(null)
+  const draftLocked = lockedMessage !== null
+  // Bumped when the reply target changes: a submit still in flight belongs to
+  // the previous draft and must not lock the new one.
+  const draftGenerationRef = useRef(0)
   const [mentionMode, setMentionMode] = useState<ReplyMentionMode>('all')
   const [targetPreview, setTargetPreview] = useState<ReplyTargetPreview | null>(
     null
@@ -139,6 +150,8 @@ export const StatusReplyBox: FC<Props> = ({
 
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
+    draftGenerationRef.current += 1
+    setLockedMessage(null)
 
     const draft = prepareReplyDraft({
       targetStatus: replyStatus,
@@ -196,6 +209,8 @@ export const StatusReplyBox: FC<Props> = ({
       return
     }
     isSubmittingRef.current = true
+    const generation = draftGenerationRef.current
+    const retryingLockedDraft = draftLocked
     setIsPosting(true)
     setWarningMsg(null)
     removedAttachmentIdsRef.current.clear()
@@ -301,7 +316,7 @@ export const StatusReplyBox: FC<Props> = ({
       })
 
       submitIdempotencyRef.current = null
-      setDraftLocked(false)
+      setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
@@ -313,8 +328,24 @@ export const StatusReplyBox: FC<Props> = ({
       isSubmittingRef.current = false
       setIsPosting(false)
       // Surface the server's message without wiping user draft, CW, or attachments.
-      setWarningMsg(describePostError(error, 'Fail to create a reply'))
-      if (isPostKeptByServer(error)) setDraftLocked(true)
+      // A locked retry that lost its session keeps the lock and the key.
+      const sessionExpired = retryingLockedDraft && isSessionExpiredError(error)
+      const failureMessage = sessionExpired
+        ? SESSION_EXPIRED_NOTICE
+        : describePostError(error, 'Fail to create a reply')
+      if (generation !== draftGenerationRef.current) {
+        setWarningMsg(failureMessage)
+      } else if (isPostKeptByServer(error) || sessionExpired) {
+        setLockedMessage(failureMessage)
+      } else {
+        setWarningMsg(failureMessage)
+        if (retryingLockedDraft && isKeyRejectedByServer(error)) {
+          // Nothing is kept under this key any more: let the draft be edited
+          // again under a new key instead of stranding it.
+          setLockedMessage(null)
+          submitIdempotencyRef.current = null
+        }
+      }
     }
   }
 
@@ -491,7 +522,11 @@ export const StatusReplyBox: FC<Props> = ({
               <div className="grid gap-2 grid-cols-8 mt-2">
                 {postExtension.attachments.map((item, index) => (
                   <div
-                    className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative rounded"
+                    className={cn(
+                      'w-full aspect-square bg-border bg-center bg-cover relative rounded',
+                      draftLocked ? 'cursor-default' : 'cursor-pointer'
+                    )}
+                    inert={draftLocked}
                     key={item.id}
                     style={{
                       backgroundImage: `url("${item.posterUrl || item.url}")`
@@ -514,6 +549,12 @@ export const StatusReplyBox: FC<Props> = ({
             {warningMsg ? (
               <div role="alert" className="text-xs text-destructive-text mt-2">
                 {warningMsg}
+              </div>
+            ) : null}
+
+            {lockedMessage ? (
+              <div role="status" className="text-xs text-muted-foreground mt-2">
+                {lockedMessage} {DRAFT_LOCKED_NOTICE}
               </div>
             ) : null}
 

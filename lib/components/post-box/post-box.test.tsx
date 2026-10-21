@@ -5,7 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getCustomEmojis } from '@/lib/client'
-import { ApiRequestError } from '@/lib/client/http'
+import { ApiRequestError, SESSION_EXPIRED_NOTICE } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -913,7 +913,7 @@ describe('PostBox idempotency key', () => {
 
       await waitFor(() => expect(postButton).toBeEnabled())
       expect(textarea).toHaveAttribute('readonly')
-      expect(screen.getByText(/Editing is locked/)).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent(/Editing is locked/)
       await expectPostOptionsLocked()
 
       fireEvent.click(postButton)
@@ -924,7 +924,259 @@ describe('PostBox idempotency key', () => {
       await waitFor(() => expect(textarea).toHaveValue(''))
       expect(textarea).not.toHaveAttribute('readonly')
       expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Post options' })).toBeEnabled()
+      await expectPostOptionsLocked(false)
     }
   )
+
+  const renderComposer = () =>
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+  const lockDraft = async () => {
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const view = renderComposer()
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+    await waitFor(() => expect(postButton).toBeEnabled())
+    return { ...view, textarea, postButton }
+  }
+
+  it.each([410, 422, 400, 404])(
+    'unlocks a locked draft and mints a new key when the retry is refused with %i',
+    async (status) => {
+      const { textarea, postButton } = await lockDraft()
+      const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('gone', status))
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(textarea).not.toHaveAttribute('readonly'))
+      expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+      await waitFor(() => expect(postButton).toBeEnabled())
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+      const nextKey = createNoteMock.mock.calls[2]?.[0]?.idempotencyKey
+      expect(isPublicId(nextKey!)).toBe(true)
+      expect(nextKey).not.toBe(lockedKey)
+    }
+  )
+
+  it.each([401, 403])(
+    'keeps a locked draft and its key and asks to sign in again when the retry gets a %i',
+    async (status) => {
+      const { textarea, postButton } = await lockDraft()
+      const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+      createNoteMock.mockRejectedValueOnce(
+        new ApiRequestError('The access token is invalid', status)
+      )
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          SESSION_EXPIRED_NOTICE
+        )
+      )
+      expect(window.alert).toHaveBeenLastCalledWith(SESSION_EXPIRED_NOTICE)
+      expect(textarea).toHaveAttribute('readonly')
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+      expect(createNoteMock.mock.calls[2]?.[0]?.idempotencyKey).toBe(lockedKey)
+    }
+  )
+
+  it.each([422, 400, 404, 500])(
+    'does not lock the draft for a first failure of %i',
+    async (status) => {
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('no', status))
+      renderComposer()
+      const textarea = screen.getByPlaceholderText('What is on your mind?')
+      fireEvent.change(textarea, { target: { value: 'First post' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(window.alert).toHaveBeenCalledWith('no'))
+      expect(textarea).not.toHaveAttribute('readonly')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    }
+  )
+
+  it('locks every control of a kept draft and unlocks them on a re-target', async () => {
+    const target = (id: string) =>
+      ({
+        id: `https://activities.local/users/bob/statuses/${id}`,
+        actorId: 'https://activities.local/users/bob',
+        actor: {
+          id: 'https://activities.local/users/bob',
+          username: 'bob',
+          domain: 'activities.local',
+          name: 'Bob'
+        },
+        type: StatusType.enum.Note,
+        text: 'target',
+        tags: [],
+        to: [],
+        cc: []
+      }) as unknown as Status
+    const composer = (replyId: string) => (
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        replyStatus={target(replyId)}
+        quotedStatus={target('quoted')}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const { rerender } = render(composer('one'))
+    await choosePostOption('Content warning')
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    const textarea = document.querySelector('textarea')!
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+
+    expect(screen.getByRole('status')).toHaveTextContent(/Editing is locked/)
+    expect(
+      screen.getByRole('textbox', { name: 'Content warning' })
+    ).toHaveAttribute('readonly')
+    for (const name of [
+      'Dismiss reply',
+      'Dismiss quote',
+      /Add media/,
+      'Add emoji or sticker'
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
+
+    rerender(composer('two'))
+
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+    expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
+    for (const name of [
+      'Dismiss reply',
+      'Dismiss quote',
+      /Add media/,
+      'Add emoji or sticker'
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeEnabled()
+    }
+  })
+
+  it.each([
+    ['a network error', () => new Error('offline')],
+    ['a 500', () => new ApiRequestError('boom', 500)],
+    ['a 429', () => new ApiRequestError('slow down', 429)]
+  ])(
+    'keeps a locked draft and its key when the retry fails with %s',
+    async (_name, makeError) => {
+      const { textarea, postButton } = await lockDraft()
+      const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+      createNoteMock.mockRejectedValueOnce(makeError())
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(postButton).toBeEnabled())
+      expect(textarea).toHaveAttribute('readonly')
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+      expect(createNoteMock.mock.calls[2]?.[0]?.idempotencyKey).toBe(lockedKey)
+    }
+  )
+
+  it('does not lock the new draft when a kept failure lands after a re-target', async () => {
+    const pending = createDeferred<never>()
+    createNoteMock.mockReturnValueOnce(pending.promise)
+    const { rerender } = renderComposer()
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'First post' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        isMediaUploadEnabled
+        replyStatus={
+          {
+            id: 'https://activities.local/users/llun/statuses/1',
+            type: 'Note',
+            actorId: profile.id,
+            actor: null,
+            text: 'hi',
+            to: [],
+            cc: [],
+            attachments: [],
+            tags: []
+          } as never
+        }
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+    await act(async () => {
+      pending.reject(new ApiRequestError('kept', 503))
+      await pending.promise.catch(() => undefined)
+    })
+
+    await waitFor(() =>
+      expect(window.alert).toHaveBeenCalledWith(
+        "Your post was saved but couldn't be sent yet. Press Post again to retry."
+      )
+    )
+    expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+    expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
+  })
+
+  it('drops a media batch that lands after the draft locked', async () => {
+    const resized = createDeferred<File>()
+    resizeImageMock.mockReturnValueOnce(resized.promise)
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    renderComposer()
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
+    ).at(-1)!
+    const file = new File(['late'], 'late.png', { type: 'image/png' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+
+    await act(async () => {
+      resized.resolve(file)
+      await resized.promise
+    })
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByRole('button', { name: 'Remove media late.png' })
+    ).not.toBeInTheDocument()
+    expect(uploadAttachmentMock).not.toHaveBeenCalled()
+  })
 })

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { ApiRequestError, parseApiError, throwApiError } from './http'
+import {
+  ApiRequestError,
+  isKeyRejectedByServer,
+  isSessionExpiredError,
+  parseApiError,
+  throwApiError
+} from './http'
 
 describe('http client utilities', () => {
   describe('ApiRequestError', () => {
@@ -11,6 +17,45 @@ describe('http client utilities', () => {
       expect(error.name).toBe('ApiRequestError')
       expect(error.message).toBe('Not found')
       expect(error.status).toBe(404)
+    })
+  })
+
+  describe('isKeyRejectedByServer', () => {
+    it.each([400, 404, 410, 422])('is true for a %i', (status) => {
+      expect(isKeyRejectedByServer(new ApiRequestError('no', status))).toBe(
+        true
+      )
+    })
+
+    it.each([401, 403, 408, 409, 429, 500, 503])(
+      'is false for a %i',
+      (status) => {
+        expect(isKeyRejectedByServer(new ApiRequestError('no', status))).toBe(
+          false
+        )
+      }
+    )
+
+    it('is false for a network error', () => {
+      expect(isKeyRejectedByServer(new Error('offline'))).toBe(false)
+    })
+  })
+
+  describe('isSessionExpiredError', () => {
+    it.each([401, 403])('is true for a %i', (status) => {
+      expect(isSessionExpiredError(new ApiRequestError('no', status))).toBe(
+        true
+      )
+    })
+
+    it.each([400, 410, 422, 500])('is false for a %i', (status) => {
+      expect(isSessionExpiredError(new ApiRequestError('no', status))).toBe(
+        false
+      )
+    })
+
+    it('is false for a network error', () => {
+      expect(isSessionExpiredError(new Error('offline'))).toBe(false)
     })
   })
 

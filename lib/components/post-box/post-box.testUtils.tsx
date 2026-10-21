@@ -174,12 +174,12 @@ export const openPostOptions = async () => {
 }
 
 /** The composer is locked: the options that change the payload are refused. */
-export const expectPostOptionsLocked = async () => {
+export const expectPostOptionsLocked = async (locked = true) => {
   const menu = await openPostOptions()
   for (const name of ['Poll', 'Content warning']) {
-    expect(
-      within(menu).getByRole('menuitemcheckbox', { name })
-    ).toHaveAttribute('aria-disabled', 'true')
+    const item = within(menu).getByRole('menuitemcheckbox', { name })
+    if (locked) expect(item).toHaveAttribute('aria-disabled', 'true')
+    else expect(item).not.toHaveAttribute('aria-disabled', 'true')
   }
   fireEvent.keyDown(menu, { key: 'Escape' })
 }

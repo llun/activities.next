@@ -12,8 +12,13 @@ import {
 } from '@testing-library/react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
-import { ApiRequestError } from '@/lib/client/http'
+import {
+  ApiRequestError,
+  DRAFT_LOCKED_NOTICE,
+  SESSION_EXPIRED_NOTICE
+} from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { isPublicId } from '@/lib/utils/publicId'
@@ -236,6 +241,245 @@ describe('StatusReplyBox', () => {
     }
   )
 
+  const renderReplyBox = (target: StatusNote = replyStatus) => {
+    const props = {
+      profile,
+      isMediaUploadEnabled: true,
+      onCancel: vi.fn(),
+      onPostCreated: vi.fn()
+    }
+    const view = render(<StatusReplyBox {...props} replyStatus={target} />)
+    return {
+      ...view,
+      retarget: (next: StatusNote) =>
+        view.rerender(<StatusReplyBox {...props} replyStatus={next} />)
+    }
+  }
+
+  const lockReplyDraft = async () => {
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const view = renderReplyBox()
+    const textarea = screen.getByPlaceholderText('Reply to Llun...')
+    fireEvent.change(textarea, { target: { value: 'Reply body' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+    await waitFor(() => expect(postButton).toBeEnabled())
+    return { ...view, textarea, postButton }
+  }
+
+  it('announces the lock in a persistent status line', async () => {
+    const { postButton } = await lockReplyDraft()
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(
+      "Your post was saved but couldn't be sent yet. Press Post again to retry."
+    )
+    expect(status).toHaveTextContent(DRAFT_LOCKED_NOTICE)
+
+    // The line survives the retry attempt, unlike the alert.
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 409))
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Your post is still being sent.'
+      )
+    )
+  })
+
+  it('locks every control, including the attachment tiles', async () => {
+    resizeImageMock.mockImplementation((file) => Promise.resolve(file))
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const alice = {
+      ...profile,
+      id: 'https://activities.local/users/alice',
+      username: 'alice',
+      name: 'Alice'
+    }
+    render(
+      <StatusReplyBox
+        profile={profile}
+        isMediaUploadEnabled
+        replyStatus={{
+          ...replyStatus,
+          id: 'https://activities.local/users/alice/statuses/post-lock',
+          actorId: alice.id,
+          actor: alice,
+          summary: 'Spoiler',
+          tags: [
+            {
+              id: 'tag-1',
+              statusId: 'status-lock',
+              type: 'mention',
+              name: '@bob',
+              value: 'https://activities.local/users/bob',
+              createdAt: currentTime,
+              updatedAt: currentTime
+            }
+          ]
+        }}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      {
+        target: {
+          files: [new File(['image-bytes'], 'test.png', { type: 'image/png' })]
+        }
+      }
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /Add media \(1\// })
+      ).toBeInTheDocument()
+    )
+    const tile = document.querySelector<HTMLElement>('div.aspect-square')!
+    expect(tile).not.toHaveAttribute('inert')
+    expect(tile).toHaveClass('cursor-pointer')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
+
+    // The tile is re-keyed once its upload resolves, so look it up again.
+    const lockedTile = document.querySelector<HTMLElement>('div.aspect-square')!
+    expect(lockedTile).toHaveAttribute('inert')
+    expect(lockedTile).toHaveClass('cursor-default')
+    expect(lockedTile).not.toHaveClass('cursor-pointer')
+    // Removing a tile would change the payload, so a click does nothing.
+    fireEvent.click(lockedTile)
+    expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    for (const name of ['All (2)', 'Author first', 'Author only']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
+    expect(
+      screen.getByRole('textbox', { name: 'Content warning' })
+    ).toHaveAttribute('readonly')
+    expect(
+      screen.getByRole('button', { name: 'Remove content warning' })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /Add media \(1\// })
+    ).toBeDisabled()
+  })
+
+  it.each([422, 400, 404, 500])(
+    'does not lock the reply for a first failure of %i',
+    async (status) => {
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('no', status))
+      renderReplyBox()
+      const textarea = screen.getByPlaceholderText('Reply to Llun...')
+      fireEvent.change(textarea, { target: { value: 'Reply body' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+      expect(textarea).not.toHaveAttribute('readonly')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    }
+  )
+
+  it('unlocks when the reply target changes', async () => {
+    const { textarea, retarget } = await lockReplyDraft()
+
+    retarget({ ...replyStatus, id: `${replyStatus.id}-next` })
+
+    await waitFor(() => expect(textarea).not.toHaveAttribute('readonly'))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('does not lock the new reply when a kept failure lands after a re-target', async () => {
+    const pending = createDeferred<never>()
+    createNoteMock.mockReturnValueOnce(pending.promise)
+    const { retarget } = renderReplyBox()
+    fireEvent.change(screen.getByPlaceholderText('Reply to Llun...'), {
+      target: { value: 'Reply body' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    retarget({ ...replyStatus, id: `${replyStatus.id}-next` })
+    await act(async () => {
+      pending.reject(new ApiRequestError('kept', 503))
+      await pending.promise.catch(() => undefined)
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Your post was saved but couldn't be sent yet."
+      )
+    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
+  })
+
+  it.each([410, 422, 400, 404])(
+    'unlocks a locked reply and mints a new key when the retry is refused with %i',
+    async (status) => {
+      const { textarea, postButton } = await lockReplyDraft()
+      const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('gone', status))
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(textarea).not.toHaveAttribute('readonly'))
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      await waitFor(() => expect(postButton).toBeEnabled())
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+      const nextKey = createNoteMock.mock.calls[2]?.[0]?.idempotencyKey
+      expect(isPublicId(nextKey!)).toBe(true)
+      expect(nextKey).not.toBe(lockedKey)
+    }
+  )
+
+  it.each([
+    ['a network error', () => new Error('offline'), 'offline'],
+    ['a 429', () => new ApiRequestError('slow', 429), 'slow']
+  ])(
+    'keeps a locked reply and its key when the retry fails with %s',
+    async (_name, makeError) => {
+      const { textarea, postButton } = await lockReplyDraft()
+      const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+      createNoteMock.mockRejectedValueOnce(makeError())
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(postButton).toBeEnabled())
+      expect(textarea).toHaveAttribute('readonly')
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+      expect(createNoteMock.mock.calls[2]?.[0]?.idempotencyKey).toBe(lockedKey)
+    }
+  )
+
+  it.each([401, 403])(
+    'keeps the lock and key and asks to sign in again when the retry gets a %i',
+    async (status) => {
+      const { textarea, postButton } = await lockReplyDraft()
+      const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+      createNoteMock.mockRejectedValueOnce(
+        new ApiRequestError('The access token is invalid', status)
+      )
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          SESSION_EXPIRED_NOTICE
+        )
+      )
+      expect(textarea).toHaveAttribute('readonly')
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
+      expect(createNoteMock.mock.calls[2]?.[0]?.idempotencyKey).toBe(lockedKey)
+    }
+  )
+
   it('toggles mention modes between all, author-first, and author-only', async () => {
     const multiMentionStatus: StatusNote = {
       ...replyStatus,
@@ -402,7 +646,7 @@ describe('StatusReplyBox', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-    expect(await screen.findByText(copy)).toBeInTheDocument()
+    expect(await screen.findByText(copy, { exact: false })).toBeInTheDocument()
     expect(
       screen.queryByText(/Idempotency-Key/, { exact: false })
     ).not.toBeInTheDocument()

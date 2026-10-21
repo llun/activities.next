@@ -1183,7 +1183,7 @@ describe('PostBox media details', () => {
       expect(
         screen.getByPlaceholderText('What is on your mind?')
       ).not.toHaveAttribute('readonly')
-      expect(screen.getByRole('button', { name: 'Post options' })).toBeEnabled()
+      await expectPostOptionsLocked(false)
     })
 
     it('does not delete the kept media on unmount', async () => {
@@ -1214,7 +1214,81 @@ describe('PostBox media details', () => {
         ).not.toBeInTheDocument()
       )
       expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Post options' })).toBeEnabled()
+      await expectPostOptionsLocked(false)
+    })
+  })
+
+  describe('re-targeting a locked draft', () => {
+    const retarget = (view: ReturnType<typeof renderPostBox>) =>
+      view.rerender(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          replyStatus={
+            {
+              id: 'https://activities.local/users/llun/statuses/1',
+              type: 'Note',
+              actorId: 'https://activities.local/users/llun',
+              actor: null,
+              text: 'hi',
+              to: [],
+              cc: [],
+              attachments: [],
+              tags: []
+            } as never
+          }
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+
+    it('does not delete the media a kept post uses', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+      const view = renderPostBox()
+      attach('a.png')
+      await screen.findByText('Review')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+
+      retarget(view)
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Remove media a.png' })
+        ).not.toBeInTheDocument()
+      )
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('does not delete the fitness file a kept post uses', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
+        id: 'fitness-1'
+      } as never)
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+      const view = renderPostBox()
+      fireEvent.change(
+        view.container.querySelector(
+          'input[type="file"][accept=".fit,.gpx,.tcx"]'
+        ) as HTMLInputElement,
+        { target: { files: [new File(['data'], 'run.gpx')] } }
+      )
+      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+        target: { value: 'Morning run' }
+      })
+      fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+
+      retarget(view)
+
+      await waitFor(() =>
+        expect(screen.queryByText('run.gpx')).not.toBeInTheDocument()
+      )
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
     })
   })
 

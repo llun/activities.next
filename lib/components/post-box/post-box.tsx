@@ -25,7 +25,14 @@ import {
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
-import { describePostError, isPostKeptByServer } from '@/lib/client/http'
+import {
+  DRAFT_LOCKED_NOTICE,
+  SESSION_EXPIRED_NOTICE,
+  describePostError,
+  isKeyRejectedByServer,
+  isPostKeptByServer,
+  isSessionExpiredError
+} from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import type {
   MediaDetailsDialogItem,
@@ -176,6 +183,10 @@ export const PostBox: FC<Props> = ({
   // mint a new key and strand the kept post (or duplicate it).
   const [lockedMessage, setLockedMessage] = useState<string | null>(null)
   const draftLocked = lockedMessage !== null
+  const draftLockedRef = useRef(draftLocked)
+  // Bumped when the composer is re-targeted: a submit still in flight belongs
+  // to the previous draft and must not lock the new one.
+  const draftGenerationRef = useRef(0)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(postBoxRef, text)
   const formRef = useRef<HTMLFormElement>(null)
@@ -256,6 +267,10 @@ export const PostBox: FC<Props> = ({
   // fetched once and re-applied after each post so it stays sticky across the
   // resetExtension() that follows a successful create.
   const defaultQuotePolicyRef = useRef<QuoteApprovalPolicy>('public')
+
+  useEffect(() => {
+    draftLockedRef.current = draftLocked
+  }, [draftLocked])
 
   useEffect(() => {
     postExtensionRef.current = postExtension
@@ -856,6 +871,8 @@ export const PostBox: FC<Props> = ({
     if (!isWithinLengthLimit(textRef.current, maxStatusCharacters)) return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
+    const generation = draftGenerationRef.current
+    const retryingLockedDraft = draftLocked
 
     setAllowPost(false)
     setIsPosting(true)
@@ -1091,12 +1108,21 @@ export const PostBox: FC<Props> = ({
           keptFitnessFileIdsRef.current.add(createFitnessFileId)
         }
       }
-      const failureMessage = describePostError(
-        error,
-        fallbackMessage,
-        keptByServer
-      )
-      if (keptByServer) setLockedMessage(failureMessage)
+      // A locked retry that lost its session keeps the lock and the key.
+      const sessionExpired = retryingLockedDraft && isSessionExpiredError(error)
+      const failureMessage = sessionExpired
+        ? SESSION_EXPIRED_NOTICE
+        : describePostError(error, fallbackMessage, keptByServer)
+      if (generation === draftGenerationRef.current) {
+        if (keptByServer || sessionExpired) {
+          setLockedMessage(failureMessage)
+        } else if (retryingLockedDraft && isKeyRejectedByServer(error)) {
+          // Nothing is kept under this key any more: let the draft be edited
+          // again under a new key instead of stranding it.
+          setLockedMessage(null)
+          submitIdempotencyRef.current = null
+        }
+      }
       alert(failureMessage)
     } finally {
       submitInFlightRef.current = false
@@ -1378,6 +1404,7 @@ export const PostBox: FC<Props> = ({
       discardUploadedMedia(postExtensionRef.current.attachments)
     }
     setLockedMessage(null)
+    draftGenerationRef.current += 1
     if (editStatus) {
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
@@ -1611,7 +1638,7 @@ export const PostBox: FC<Props> = ({
                 // A picker batch that resolves after submit began must not
                 // change what is being posted: the submit already captured
                 // the attachments, and a late one would upload for nothing.
-                if (submitInFlightRef.current) {
+                if (submitInFlightRef.current || draftLockedRef.current) {
                   if (attachment.url.startsWith('blob:')) {
                     URL.revokeObjectURL(attachment.url)
                   }
@@ -1758,7 +1785,7 @@ export const PostBox: FC<Props> = ({
         ) : null}
         {lockedMessage ? (
           <div role="status" className="mt-3 text-xs text-muted-foreground">
-            {lockedMessage} Editing is locked until it is sent.
+            {lockedMessage} {DRAFT_LOCKED_NOTICE}
           </div>
         ) : null}
         {missingDescription ? (
