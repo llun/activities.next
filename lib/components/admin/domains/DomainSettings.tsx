@@ -549,7 +549,12 @@ const IdentityBox: FC<{
         readOnly ? undefined : (
           <SaveBar
             actionLabel="Save identity"
-            idleNote={`Changes apply to ${name} only.`}
+            idleNote={
+              <>
+                Changes apply to <span className="break-words">{name}</span>{' '}
+                only.
+              </>
+            }
             dirty={dirty}
             saving={saving}
             saved={saved}
@@ -742,7 +747,12 @@ const PoliciesBox: FC<{
         readOnly ? undefined : (
           <SaveBar
             actionLabel="Save policies"
-            idleNote={`Changes apply to ${name} only.`}
+            idleNote={
+              <>
+                Changes apply to <span className="break-words">{name}</span>{' '}
+                only.
+              </>
+            }
             dirty={dirty}
             saving={saving}
             saved={saved}

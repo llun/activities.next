@@ -291,7 +291,8 @@ export const DomainRulesBox: FC<Props> = ({
           actionLabel="Save rules"
           idleNote={
             <>
-              Changes apply to <span className="break-all">{domain}</span> only.
+              Changes apply to <span className="break-words">{domain}</span>{' '}
+              only.
             </>
           }
           dirty={dirty}
@@ -321,11 +322,11 @@ export const DomainRulesBox: FC<Props> = ({
 
         <div className="space-y-2">
           <h3 className="text-sm font-medium">
-            Rules for <span className="break-all">{domain}</span>
+            Rules for <span className="break-words">{domain}</span>
           </h3>
           {drafts.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              <span className="break-all">{domain}</span> has no rules of its
+              <span className="break-words">{domain}</span> has no rules of its
               own yet.
             </p>
           ) : (
