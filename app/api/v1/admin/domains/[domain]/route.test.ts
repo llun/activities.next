@@ -251,6 +251,17 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
   })
 
   describe('disabled features', () => {
+    it('collapses repeated values instead of answering 422', async () => {
+      const response = await patch('run.example', {
+        disabledFeatures: ['messages', 'messages', 'messages', 'messages']
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        disabledFeatures: ['messages']
+      })
+      await patch('run.example', { disabledFeatures: [] })
+    })
+
     it('reads as none and saves the list a domain turns off', async () => {
       await expect((await get('run.example')).json()).resolves.toMatchObject({
         disabledFeatures: []

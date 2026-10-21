@@ -109,6 +109,23 @@ describe('POST /api/v1/reports rules and domain', () => {
     })
   })
 
+  it('forces the violation category when rules are cited', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/reports', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', host: 'llun.test' },
+        body: JSON.stringify({
+          account_id: urlToId(ACTOR2_ID),
+          category: 'spam',
+          rule_ids: [serverRuleId]
+        })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    expect((await response.json()).category).toBe('violation')
+  })
+
   it('refuses a rule that is not visible on the visited host', async () => {
     const before = (await database.getAdminReports({})).length
 
@@ -121,7 +138,7 @@ describe('POST /api/v1/reports rules and domain', () => {
       const response = await report(host, [...ruleIds])
       expect(response.status).toBe(422)
       await expect(response.json()).resolves.toEqual({
-        error: 'Unknown rule id'
+        error: 'Validation failed: Rule ids does not reference valid rules'
       })
     }
 

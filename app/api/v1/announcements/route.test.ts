@@ -198,6 +198,80 @@ describe('/api/v1/announcements', () => {
     expect(announcement.read).toBe(true)
   })
 
+  it('dismiss and reactions answer 404 for an unpublished announcement or one of another domain', async () => {
+    const baseConfig = getConfig()
+    vi.mocked(getConfig).mockReturnValue({
+      ...baseConfig,
+      trustedHosts: ['club.llun.test', 'other.llun.test']
+    })
+    const unpublished = await database.createAnnouncement({
+      text: 'draft',
+      published: false
+    })
+    const other = await database.createAnnouncement({
+      text: 'for the other',
+      domain: 'other.llun.test',
+      published: true
+    })
+    const club = await database.createAnnouncement({
+      text: 'for the club',
+      domain: 'club.llun.test',
+      published: true
+    })
+    const call = (
+      handler: typeof DISMISS,
+      path: string,
+      method: string,
+      id: string,
+      host: string,
+      name?: string
+    ) => {
+      const request = new NextRequest(
+        `https://llun.test/api/v1/announcements/${path}`,
+        { method, headers: { origin: 'https://llun.test', host } }
+      )
+      return handler(request, {
+        params: Promise.resolve(name ? { id, name } : { id })
+      } as never)
+    }
+    try {
+      for (const [id, host] of [
+        [unpublished.id, 'llun.test'],
+        [other.id, 'club.llun.test'],
+        [club.id, 'llun.test']
+      ]) {
+        expect(
+          (await call(DISMISS, `${id}/dismiss`, 'POST', id, host)).status
+        ).toBe(404)
+        expect(
+          (
+            await call(
+              ADD_REACTION as never,
+              `${id}/reactions/%F0%9F%91%8D`,
+              'PUT',
+              id,
+              host,
+              '👍'
+            )
+          ).status
+        ).toBe(404)
+      }
+      expect(
+        (
+          await call(
+            DISMISS,
+            `${club.id}/dismiss`,
+            'POST',
+            club.id,
+            'club.llun.test'
+          )
+        ).status
+      ).toBe(200)
+    } finally {
+      vi.mocked(getConfig).mockReturnValue(baseConfig)
+    }
+  })
+
   it('dismiss on an unknown announcement returns 404', async () => {
     const response = await DISMISS(
       writeRequest('missing-announcement/dismiss', 'POST'),

@@ -55,9 +55,8 @@ export const GET = traceApiRoute(
   AdminApiGuard(
     CORS_HEADERS,
     async (req: NextRequest, { database, moderator }) => {
-      const parsed = QueryParams.safeParse(
-        Object.fromEntries(new URL(req.url).searchParams)
-      )
+      const params = new URL(req.url).searchParams
+      const parsed = QueryParams.safeParse(Object.fromEntries(params))
       if (!parsed.success) {
         return apiResponse({
           req,
@@ -101,7 +100,15 @@ export const GET = traceApiRoute(
           host: headerHost(req.headers),
           path: '/api/v1/admin/reports',
           limit: q.limit,
-          extraParams: { domain: q.domain },
+          // Every filter, as Mastodon's pagination_params does, so a page of a
+          // filtered list links to filtered pages. `resolved` is the raw param.
+          extraParams: {
+            domain: q.domain,
+            resolved: params.get('resolved') ?? undefined,
+            account_id: q.account_id,
+            target_account_id: q.target_account_id,
+            by_target_domain: q.by_target_domain
+          },
           nextMaxId:
             reports.length === q.limit ? reports[reports.length - 1].id : null,
           prevMinId: reports.length > 0 ? reports[0].id : null

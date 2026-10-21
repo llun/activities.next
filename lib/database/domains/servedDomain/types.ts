@@ -126,6 +126,11 @@ export interface ServedDomainDatabase {
   getActiveServedDomains(): Promise<ServedDomainData[]>
   // True when a row was removed.
   deleteServedDomain(params: DeleteServedDomainParams): Promise<boolean>
+  // Removes the domain with its rules and announcements, in one transaction.
+  // True when the domain row was removed.
+  deleteServedDomainWithScopes(
+    params: DeleteServedDomainParams
+  ): Promise<boolean>
   // Local actors (with an account) per domain, for the given domains only.
   // A domain with none is absent from the map.
   countLocalActorsByDomain(

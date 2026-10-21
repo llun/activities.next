@@ -158,7 +158,10 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: { error: 'Unknown rule id' },
+            data: {
+              error:
+                'Validation failed: Rule ids does not reference valid rules'
+            },
             responseStatusCode: 422
           })
         }
@@ -169,7 +172,8 @@ export const POST = traceApiRoute(
       const report = await database.createReport({
         actorId: currentActor.id,
         targetActorId,
-        category: parsed.data.category,
+        // Citing rules makes it a violation report (Mastodon's ReportService).
+        category: ruleIds.length > 0 ? 'violation' : parsed.data.category,
         comment: parsed.data.comment ?? '',
         forward: parsed.data.forward ?? false,
         statusIds,

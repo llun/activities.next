@@ -35,9 +35,12 @@ export const UpdateDomainRequest = z
     allowExistingUsers: z.boolean().optional(),
     // The features this domain turns off (the Features box): the whole list,
     // [] or null for none.
+    // Repeated values collapse before the length check, not into a 422.
     disabledFeatures: z
-      .array(z.enum(DOMAIN_FEATURES))
-      .max(DOMAIN_FEATURES.length)
+      .preprocess(
+        (value) => (Array.isArray(value) ? [...new Set(value)] : value),
+        z.array(z.enum(DOMAIN_FEATURES)).max(DOMAIN_FEATURES.length)
+      )
       .nullable()
       .optional()
       .transform((features) =>

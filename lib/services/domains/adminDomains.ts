@@ -445,13 +445,9 @@ export const removeDomain = async (
   if (existing.status === 'on') return { type: 'on' }
   const counts = await database.countLocalActorsByDomain({ domains: [domain] })
   if ((counts[domain] ?? 0) > 0) return { type: 'has-profiles' }
-  // The domain's own rules and announcements go with it; nothing could show
-  // them any more.
-  await database.deleteInstanceRulesForDomain({ domain })
-  for (const announcement of await database.getAnnouncements({ domain })) {
-    await database.deleteAnnouncement({ id: announcement.id })
-  }
-  await database.deleteServedDomain({ domain })
+  // The domain's own rules and announcements go with it, in one transaction;
+  // nothing could show them any more.
+  await database.deleteServedDomainWithScopes({ domain })
   await refreshServedDomainsAfterWrite(database)
   invalidateDomainIdentityCache(database)
   return { type: 'removed' }

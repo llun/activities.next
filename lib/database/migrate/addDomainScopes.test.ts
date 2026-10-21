@@ -1,5 +1,5 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { down, up } from '@/migrations/20261021120000_add_domain_scopes'
+import { down, up } from '@/migrations/20261021072844_add_domain_scopes'
 
 const testDb = createTestDatabase()
 
@@ -18,7 +18,7 @@ const domainsOf = async () =>
     ).map((row) => [row.id, row.domain])
   )
 
-describe('20261021120000_add_domain_scopes', () => {
+describe('20261021072844_add_domain_scopes', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await testDb.database.migrate()

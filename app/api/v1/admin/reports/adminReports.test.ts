@@ -359,5 +359,18 @@ describe('admin reports API', () => {
       expect(link).toContain('domain=club.llun.test')
       expect(link).toContain(`max_id=${clubReportId}`)
     })
+
+    it('keeps resolved and domain together in the next link', async () => {
+      const response = await list(
+        '?domain=club.llun.test&resolved=false&limit=1'
+      )
+      const link = response.headers.get('link') ?? ''
+      const next = link
+        .split(', ')
+        .find((entry) => entry.endsWith('rel="next"'))
+      expect(next).toContain('domain=club.llun.test')
+      expect(next).toContain('resolved=false')
+      expect(next).toContain('limit=1')
+    })
   })
 })
