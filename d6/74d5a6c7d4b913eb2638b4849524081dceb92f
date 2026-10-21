@@ -1,0 +1,49 @@
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_2812ecd2b2ec59 496
+  s_512188f2b1db53::t_537dc41d4bb84c 494-495,497-500
+  s_512188f2b1db53::t_96d3693aae0b15 741-743,791,813-814,826
+lib/components/drafts/DraftRow.tsx
+  s_512188f2b1db53::t_e06468f884d949 12,150,153-156,171
+docs/architecture.md
+  s_512188f2b1db53::t_f2762152a5d7b4 3070
+  s_512188f2b1db53::t_3d319aee344bb4 3069
+  s_512188f2b1db53::t_bb10af435db0a3 966
+lib/components/layout/mobile-compact-header.tsx
+  s_512188f2b1db53::t_3b47a1ceb70d26 35-39,65-69,91
+lib/components/drafts/DraftRow.test.tsx
+  s_512188f2b1db53::t_cea41d24dc49fd 11,21,283-285,289-290
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_6a8918cbf69e23 79-91,210
+lib/components/drafts/DraftsProvider.test.tsx
+  s_512188f2b1db53::t_efcfa5c0aa568d 372-434,438-440
+  s_512188f2b1db53::t_2812ecd2b2ec59 435-437
+lib/components/drafts/DraftsList.tsx
+  s_512188f2b1db53::t_e06468f884d949 45-49,112-124,146-148
+lib/components/layout/mobile-compact-header.test.tsx
+  s_512188f2b1db53::t_3b47a1ceb70d26 11-13,17-33,35-37
+  s_512188f2b1db53::t_3c0e97df6e917a 34
+lib/components/post-box/useComposerDraft.test.tsx
+  s_512188f2b1db53::t_21f52d148ae24f 751-788
+  s_512188f2b1db53::t_b4fce5bf048471 265,267,272-273,275-292
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_81831713a41b1b 302-335,344-353
+  s_512188f2b1db53::t_6c02fea33237e3 336-343
+lib/components/connection/ConnectionStatus.tsx
+  s_512188f2b1db53::t_3b47a1ceb70d26 144,154-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d674d5a6c7d4b913eb2638b4849524081dceb92f",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
