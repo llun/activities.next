@@ -185,6 +185,43 @@ describe('DomainRulesBox', () => {
     })
   })
 
+  it('refocuses the grip after a keyboard move', () => {
+    renderBox()
+    const grip = screen.getByRole('button', { name: /^Reorder rule 3/ })
+    grip.focus()
+    fireEvent.keyDown(grip, { key: 'ArrowDown' })
+    expect(
+      screen.getByRole('button', { name: /^Reorder rule 4/ })
+    ).toHaveFocus()
+  })
+
+  it('reorders by dragging the grip, but not by dragging from the text field', () => {
+    renderBox()
+    const field = (n: number) =>
+      screen.getByRole('textbox', { name: `Rule ${n} text` })
+    const row = (n: number) => field(n).closest('li') as HTMLElement
+    expect(row(3)).not.toHaveAttribute('draggable', 'true')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+
+    // A drag that starts in the textarea (text selection) moves nothing.
+    fireEvent.dragStart(field(3), { dataTransfer })
+    fireEvent.drop(row(4), { dataTransfer })
+    expect(field(3)).toHaveValue('Share only routes you may share')
+
+    // Pressing the grip arms its row; dragging then reorders.
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: /^Reorder rule 3/ })
+    )
+    expect(row(3)).toHaveAttribute('draggable', 'true')
+    fireEvent.dragStart(row(3), { dataTransfer })
+    expect(dataTransfer.setData).toHaveBeenCalledWith(
+      'text/plain',
+      'Share only routes you may share'
+    )
+    fireEvent.drop(row(4), { dataTransfer })
+    expect(field(3)).toHaveValue('Keep home addresses private')
+  })
+
   it('does not take Enter as a new line in a rule', () => {
     renderBox()
     const field = screen.getByRole('textbox', { name: 'Rule 3 text' })

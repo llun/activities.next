@@ -217,6 +217,37 @@ describe('AdminReportsList', () => {
       )
     })
 
+    it('ignores a slow earlier answer after the domain changed', async () => {
+      const first = createDeferred<AdminReport[]>()
+      const second = createDeferred<AdminReport[]>()
+      mockGetAdminReports.mockReset()
+      mockGetAdminReports
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+      render(<AdminReportsList servedDomains={DOMAINS} />)
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Domain' }), {
+        target: { value: 'birds.example' }
+      })
+      await waitFor(() => expect(mockGetAdminReports).toHaveBeenCalledTimes(2))
+      expect(mockGetAdminReports).toHaveBeenLastCalledWith(
+        false,
+        'birds.example'
+      )
+
+      second.resolve([report({ id: 'new', account: { username: 'newer' } })])
+      expect(await screen.findByText('newer')).toBeInTheDocument()
+      first.resolve([report({ id: 'old', account: { username: 'older' } })])
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(screen.getByText('newer')).toBeInTheDocument()
+      expect(screen.queryByText('older')).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Refresh reports' })
+      ).not.toHaveAttribute('aria-disabled')
+    })
+
     it('syncs the choice to the domain query parameter', async () => {
       render(<AdminReportsList servedDomains={DOMAINS} />)
       await screen.findByRole('table', { name: 'Reports' })

@@ -12,6 +12,7 @@ import {
   updateServerAnnouncement
 } from '@/lib/client'
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
+import { AllDomainsChip } from '@/lib/components/admin/domains/AllDomainsChip'
 import { PageHeader } from '@/lib/components/page-header'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -142,7 +143,13 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
   const hashHandled = useRef(false)
   useEffect(() => {
     if (loading || hashHandled.current) return
-    const hash = decodeURIComponent(window.location.hash.slice(1))
+    let hash = window.location.hash.slice(1)
+    try {
+      hash = decodeURIComponent(hash)
+    } catch {
+      // A malformed hash is not one of our links.
+      return
+    }
     if (!hash.startsWith('announcement-')) return
     const id = hash.slice('announcement-'.length)
     const row = announcements.find((item) => item.id === id)
@@ -455,17 +462,18 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                     id={`announcement-${announcement.id}`}
                     className="flex scroll-mt-20 flex-wrap items-center gap-x-4 gap-y-1"
                   >
-                    <Badge tone={STATUS_TONES[status.tone]}>
-                      {status.label}
-                    </Badge>
-                    {multiDomain ? (
-                      <Badge
-                        tone={announcement.domain ? 'primary' : 'gray'}
-                        className="-ml-2"
-                      >
-                        {announcement.domain ?? 'All domains'}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={STATUS_TONES[status.tone]}>
+                        {status.label}
                       </Badge>
-                    ) : null}
+                      {multiDomain ? (
+                        announcement.domain ? (
+                          <Badge tone="primary">{announcement.domain}</Badge>
+                        ) : (
+                          <AllDomainsChip />
+                        )
+                      ) : null}
+                    </div>
                     <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                       {announcement.starts_at !== null && (
                         <span>

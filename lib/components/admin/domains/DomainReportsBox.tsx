@@ -27,7 +27,7 @@ export const DomainReportsBox: FC<Props> = ({
       <div className="flex items-center gap-3 p-4">
         <span
           aria-hidden="true"
-          className="bg-primary/10 text-primary-text flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular-nums"
+          className="bg-primary/10 text-primary-text flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full px-1.5 text-sm font-semibold tabular-nums"
         >
           {count}
         </span>

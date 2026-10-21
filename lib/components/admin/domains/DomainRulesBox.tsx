@@ -12,10 +12,10 @@ import {
 } from '@/lib/client'
 import { RuleNumber } from '@/lib/components/admin-rules/RuleNumber'
 import { reorder } from '@/lib/components/admin-rules/reorder'
+import { AllDomainsChip } from '@/lib/components/admin/domains/AllDomainsChip'
 import { AddBar } from '@/lib/components/surface/AddBar'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
-import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { AdminRule } from '@/lib/services/rules/adminRule'
@@ -64,14 +64,7 @@ const ServerRuleRows: FC<{ rules: AdminRule[]; chip: boolean }> = ({
             </p>
           ) : null}
         </div>
-        {chip ? (
-          <Badge
-            tone="primary"
-            className="border-primary/30 bg-background shrink-0 border"
-          >
-            All domains
-          </Badge>
-        ) : null}
+        {chip ? <AllDomainsChip /> : null}
       </li>
     ))}
   </ul>
@@ -102,6 +95,12 @@ export const DomainRulesBox: FC<Props> = ({
   const [nextKey, setNextKey] = useState(0)
   const fieldRefs = useRef(new Map<string, HTMLTextAreaElement>())
   const addRef = useRef<HTMLInputElement>(null)
+  const gripRefs = useRef(new Map<string, HTMLButtonElement>())
+  // The row whose grip the pointer is down on: only then is its row draggable,
+  // so the rule's text field keeps native caret placement and text selection.
+  const [armedKey, setArmedKey] = useState<string | null>(null)
+  // The grip to focus once a keyboard move has re-rendered the rows.
+  const focusGripAfterMove = useRef<string | null>(null)
   // Where focus goes once a removed rule's row is gone: a draft key, or null
   // for the add field. `undefined` means nothing is pending.
   const focusAfterRemove = useRef<string | null | undefined>(undefined)
@@ -113,6 +112,22 @@ export const DomainRulesBox: FC<Props> = ({
       target === null ? addRef.current : fieldRefs.current.get(target)
     ;(field ?? addRef.current)?.focus()
   }, [drafts])
+  useEffect(() => {
+    const key = focusGripAfterMove.current
+    if (key === null) return
+    focusGripAfterMove.current = null
+    gripRefs.current.get(key)?.focus()
+  }, [drafts])
+  useEffect(() => {
+    if (armedKey === null) return
+    const disarm = () => setArmedKey(null)
+    window.addEventListener('pointerup', disarm)
+    window.addEventListener('pointercancel', disarm)
+    return () => {
+      window.removeEventListener('pointerup', disarm)
+      window.removeEventListener('pointercancel', disarm)
+    }
+  }, [armedKey])
 
   const sortedServerRules = sortRules(serverRules)
 
@@ -308,8 +323,23 @@ export const DomainRulesBox: FC<Props> = ({
               {drafts.map((draft, index) => (
                 <li
                   key={draft.key}
-                  draggable={!saving}
-                  onDragStart={() => !saving && setDragIndex(index)}
+                  draggable={!saving && armedKey === draft.key}
+                  onDragStart={(event) => {
+                    // Only a drag that starts on the row itself (armed by the
+                    // grip) reorders; a text drag from the field bubbles here.
+                    if (
+                      saving ||
+                      armedKey !== draft.key ||
+                      event.target !== event.currentTarget
+                    ) {
+                      event.preventDefault()
+                      return
+                    }
+                    // Firefox starts no drag without data.
+                    event.dataTransfer.setData('text/plain', draft.text)
+                    event.dataTransfer.effectAllowed = 'move'
+                    setDragIndex(index)
+                  }}
                   onDragOver={(event) => {
                     if (dragIndex === null) return
                     event.preventDefault()
@@ -328,6 +358,7 @@ export const DomainRulesBox: FC<Props> = ({
                     if (from !== null) moveRule(from, index)
                   }}
                   onDragEnd={() => {
+                    setArmedKey(null)
                     setDragIndex(null)
                     setOverIndex(null)
                   }}
@@ -343,14 +374,22 @@ export const DomainRulesBox: FC<Props> = ({
                     type="button"
                     aria-label={`Reorder rule ${offset + index + 1}: use arrow up and arrow down keys to move`}
                     disabled={saving}
+                    ref={(element) => {
+                      if (element) gripRefs.current.set(draft.key, element)
+                      else gripRefs.current.delete(draft.key)
+                    }}
+                    onPointerDown={() => setArmedKey(draft.key)}
                     onKeyDown={(event) => {
-                      if (event.key === 'ArrowUp') {
-                        event.preventDefault()
-                        moveRule(index, index - 1)
-                      } else if (event.key === 'ArrowDown') {
-                        event.preventDefault()
-                        moveRule(index, index + 1)
-                      }
+                      const to =
+                        event.key === 'ArrowUp'
+                          ? index - 1
+                          : event.key === 'ArrowDown'
+                            ? index + 1
+                            : null
+                      if (to === null) return
+                      event.preventDefault()
+                      focusGripAfterMove.current = draft.key
+                      moveRule(index, to)
                     }}
                     className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 mt-2 cursor-grab rounded transition-colors focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   >
