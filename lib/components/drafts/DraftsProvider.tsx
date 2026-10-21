@@ -26,6 +26,14 @@ const SavedToDraftsNote = dynamic(
   { ssr: false }
 )
 
+const NotSavedToDraftsNote = dynamic(
+  () =>
+    import('@/lib/components/drafts/SavedToDraftsNote').then(
+      (module) => module.NotSavedToDraftsNote
+    ),
+  { ssr: false }
+)
+
 export interface DraftsContextValue {
   accountId: string
   actorId: string
@@ -39,6 +47,8 @@ export interface DraftsContextValue {
   savedDraftId: string | null
   /** Asks for the "Saved to Drafts" note for a draft that was just kept. */
   notifySavedToDrafts: (draftId: string) => void
+  /** A closed composer's draft could not be kept: the note offers its text. */
+  notifyNotSavedToDrafts: (text: string) => void
 }
 
 const DraftsContext = createContext<DraftsContextValue | null>(null)
@@ -62,7 +72,19 @@ export function DraftsProvider({
   const [count, setCount] = useState(0)
   const [signingOut, setSigningOut] = useState(false)
   const [savedDraftId, setSavedDraftId] = useState<string | null>(null)
+  // The text of a closed composer whose draft could not be kept.
+  const [unsavedText, setUnsavedText] = useState<string | null>(null)
   const dismissNote = useCallback(() => setSavedDraftId(null), [])
+  const dismissUnsaved = useCallback(() => setUnsavedText(null), [])
+  // One note at a time: the latest close wins.
+  const notifySavedToDrafts = useCallback((draftId: string) => {
+    setUnsavedText(null)
+    setSavedDraftId(draftId)
+  }, [])
+  const notifyNotSavedToDrafts = useCallback((text: string) => {
+    setSavedDraftId(null)
+    setUnsavedText(text)
+  }, [])
   const refreshToken = useRef(0)
   const epochToken = useRef(0)
   const epochRef = useRef<number | null>(null)
@@ -106,6 +128,7 @@ export function DraftsProvider({
     setEpoch(null)
     setSigningOut(false)
     setSavedDraftId(null)
+    setUnsavedText(null)
     // A sign-out whose deletion failed is finished first: it bumps the epoch
     // and removes this account's drafts, so the epoch is read only afterwards.
     let cancelled = false
@@ -161,10 +184,20 @@ export function DraftsProvider({
             count,
             signingOut,
             savedDraftId,
-            notifySavedToDrafts: setSavedDraftId
+            notifySavedToDrafts,
+            notifyNotSavedToDrafts
           }
         : null,
-    [accountId, actorId, epoch, count, signingOut, savedDraftId]
+    [
+      accountId,
+      actorId,
+      epoch,
+      count,
+      signingOut,
+      savedDraftId,
+      notifySavedToDrafts,
+      notifyNotSavedToDrafts
+    ]
   )
 
   return (
@@ -177,6 +210,9 @@ export function DraftsProvider({
           actorId={actorId}
           onDismiss={dismissNote}
         />
+      ) : null}
+      {value && unsavedText !== null ? (
+        <NotSavedToDraftsNote text={unsavedText} onDismiss={dismissUnsaved} />
       ) : null}
     </DraftsContext.Provider>
   )

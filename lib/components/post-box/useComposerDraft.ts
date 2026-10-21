@@ -513,6 +513,10 @@ export const useComposerDraft = ({
         const record = assemble(snap, content)
         const key = recordKey(record)
         if (d.revision > 0 && key === d.lastKey) {
+          // The composer is back to exactly what is stored: a failure since
+          // (a save, or bytes it no longer holds) no longer applies.
+          d.lastError = null
+          reconcileBlobs(d, record)
           setStatus(d, d.blobFailures.size > 0 ? 'error' : 'saved')
           return true
         }
@@ -694,6 +698,8 @@ export const useComposerDraft = ({
       return enqueue(async () => {
         const { d, content } = snap
         if (!d.id) return
+        // Never stored, so no record will ever reference these bytes.
+        if (d.revision === 0) d.blobIds.forEach(dropBlob)
         try {
           if (content) {
             const drafts = await loadDrafts()
@@ -720,10 +726,13 @@ export const useComposerDraft = ({
     }
 
     // Closing with content: the draft stays, and the composer stops saving.
+    // When it cannot be kept, the note says so and still holds the text, so
+    // closing never drops it silently.
     const keep = async (): Promise<boolean> => {
       if (!live.current.enabled) return false
       const d = s.d
       const ctx = live.current.drafts
+      const text = live.current.getContent(true)?.text ?? ''
       await saveNow(true)
       if (
         !d.id ||
@@ -732,6 +741,7 @@ export const useComposerDraft = ({
         d.lastError ||
         d.blobFailures.size > 0
       ) {
+        ctx?.notifyNotSavedToDrafts(text)
         return false
       }
       d.settled = true

@@ -9,8 +9,25 @@ import {
   deleteDraftAndOwnedMedia,
   getDraft
 } from '@/lib/client/drafts'
+import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 
 export const SAVED_NOTE_MS = 6_000
+
+const NOTE_CLASS =
+  'fixed right-5 bottom-5 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg'
+const ACTION_CLASS =
+  'rounded font-semibold text-primary-text hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+
+const DismissButton = ({ onDismiss }: { onDismiss: () => void }) => (
+  <button
+    type="button"
+    onClick={onDismiss}
+    aria-label="Dismiss notification"
+    className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+  >
+    <X className="size-4" />
+  </button>
+)
 
 interface Props {
   draftId: string
@@ -70,11 +87,7 @@ export function SavedToDraftsNote({
   }
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="fixed right-5 bottom-5 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg"
-    >
+    <div role="status" aria-live="polite" className={NOTE_CLASS}>
       <span className="font-medium">
         {status === 'failed'
           ? 'Couldn’t discard. Try again.'
@@ -86,19 +99,42 @@ export function SavedToDraftsNote({
         <button
           type="button"
           onClick={() => void discard()}
-          className="rounded font-semibold text-primary-text hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className={ACTION_CLASS}
         >
           Discard
         </button>
       )}
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss notification"
-        className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <X className="size-4" />
-      </button>
+      <DismissButton onDismiss={onDismiss} />
+    </div>
+  )
+}
+
+/**
+ * Shown instead when a closed reply or quote could not be kept (storage full
+ * or blocked, or another tab changed the draft). The note is the only place
+ * left that holds the text, so it stays until dismissed.
+ */
+export function NotSavedToDraftsNote({
+  text,
+  onDismiss
+}: {
+  text: string
+  onDismiss: () => void
+}) {
+  const { copied, copy } = useCopyToClipboard()
+  return (
+    <div role="alert" className={NOTE_CLASS}>
+      <span className="font-medium">Couldn’t save to Drafts</span>
+      {text ? (
+        <button
+          type="button"
+          onClick={() => void copy(text)}
+          className={ACTION_CLASS}
+        >
+          {copied ? 'Copied' : 'Copy text'}
+        </button>
+      ) : null}
+      <DismissButton onDismiss={onDismiss} />
     </div>
   )
 }

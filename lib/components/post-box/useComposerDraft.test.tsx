@@ -33,6 +33,7 @@ vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
 }))
 
 const notifySavedToDrafts = vi.fn()
+const notifyNotSavedToDrafts = vi.fn()
 const context = (patch = {}) => ({
   accountId: 'account-1',
   actorId: 'actor-1',
@@ -41,6 +42,7 @@ const context = (patch = {}) => ({
   signingOut: false,
   savedDraftId: null,
   notifySavedToDrafts,
+  notifyNotSavedToDrafts,
   ...patch
 })
 
@@ -99,6 +101,7 @@ describe('useComposerDraft', () => {
       .mockResolvedValue(true as never)
     vi.mocked(deleteFitnessFile).mockReset().mockResolvedValue(undefined)
     notifySavedToDrafts.mockReset()
+    notifyNotSavedToDrafts.mockReset()
     current = content()
     useFakeClock()
   })
@@ -618,6 +621,56 @@ describe('useComposerDraft', () => {
       expect(await getDraftBlob('local-2')).toBeUndefined()
     })
 
+    it('discarding a draft that was never saved deletes its stored bytes', async () => {
+      const { result } = setup()
+      current = content({
+        attachments: [attachment({ mediaId: undefined })]
+      })
+      act(() => result.current.attachBlob('local-1', file))
+      await vi.waitFor(async () =>
+        expect(await getDraftBlob('local-1')).toBeDefined()
+      )
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+
+      await act(async () => {
+        await result.current.discard()
+      })
+
+      await vi.waitFor(async () =>
+        expect(await getDraftBlob('local-1')).toBeUndefined()
+      )
+    })
+
+    it('a composer back to what is stored is saved again, so it can be kept', async () => {
+      const { result } = setup()
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      // A photo whose bytes, and the record holding it, cannot be stored.
+      const put = vi
+        .spyOn(IDBObjectStore.prototype, 'put')
+        .mockImplementation(() => {
+          throw new DOMException('full', 'QuotaExceededError')
+        })
+      current = content({ attachments: [attachment({ mediaId: undefined })] })
+      act(() => result.current.attachBlob('local-1', file))
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
+      put.mockRestore()
+
+      // The photo is removed: the composer holds exactly the stored record.
+      current = content()
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      await act(async () => {
+        await expect(result.current.keep()).resolves.toBe(true)
+      })
+      expect(notifySavedToDrafts).toHaveBeenCalled()
+    })
+
     it('discard deletes only the media the draft owns', async () => {
       const { result } = setup()
       current = content({
@@ -672,6 +725,8 @@ describe('useComposerDraft', () => {
       })
 
       expect(notifySavedToDrafts).not.toHaveBeenCalled()
+      // Closing must not drop the text silently: the note offers it.
+      expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
     })
 
     it('detach saves what is there and lets the composer start a new draft', async () => {

@@ -7,7 +7,8 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor
+  waitFor,
+  within
 } from '@testing-library/react'
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 
@@ -216,6 +217,26 @@ describe('StatusReplyBox on-device drafts', () => {
 
     expect(onCancel).toHaveBeenCalled()
     await waitFor(async () => expect(await stored()).toHaveLength(0))
+  })
+
+  it('says the reply was not saved, and offers its text, when Cancel cannot keep it', async () => {
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    const { onCancel } = renderBox()
+    type('A reply that cannot be stored')
+
+    cancel()
+
+    expect(onCancel).toHaveBeenCalled()
+    const note = (await screen.findByText('Couldn’t save to Drafts')).closest(
+      '[role="alert"]'
+    ) as HTMLElement
+    expect(note).not.toBeNull()
+    expect(
+      within(note).getByRole('button', { name: 'Copy text' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Saved to Drafts')).toBeNull()
   })
 
   it('shows "Not saved, copy your text" when the device storage is full', async () => {

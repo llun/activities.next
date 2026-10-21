@@ -12,7 +12,11 @@ import {
   getDraft
 } from '@/lib/client/drafts'
 
-import { SAVED_NOTE_MS, SavedToDraftsNote } from './SavedToDraftsNote'
+import {
+  NotSavedToDraftsNote,
+  SAVED_NOTE_MS,
+  SavedToDraftsNote
+} from './SavedToDraftsNote'
 
 vi.mock('@/lib/client/drafts', () => ({
   DraftConflictError: class DraftConflictError extends Error {},
@@ -162,5 +166,46 @@ describe('SavedToDraftsNote', () => {
 
     expect(onDismiss).toHaveBeenCalledTimes(1)
     expect(deleteDraftAndOwnedMedia).not.toHaveBeenCalled()
+  })
+})
+
+describe('NotSavedToDraftsNote', () => {
+  const writeText = vi.fn()
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    writeText.mockReset().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('says the draft was not saved, copies the text, and stays until dismissed', async () => {
+    const onDismiss = vi.fn()
+    render(<NotSavedToDraftsNote text="Half a thought" onDismiss={onDismiss} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Couldn’t save to Drafts'
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy text' }))
+    })
+    expect(writeText).toHaveBeenCalledWith('Half a thought')
+
+    // The note is the only place left with the text: it never hides itself.
+    act(() => vi.advanceTimersByTime(SAVED_NOTE_MS * 2))
+    expect(onDismiss).not.toHaveBeenCalled()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Dismiss notification' })
+    )
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no Copy text when there is no text', () => {
+    render(<NotSavedToDraftsNote text="" onDismiss={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Copy text' })).toBeNull()
   })
 })
