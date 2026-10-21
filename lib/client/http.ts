@@ -46,13 +46,22 @@ export type FailedPostAction = 'lock' | 'unlock' | 'none'
 // Every other failure keeps both: the route answers 400 for an unexpected
 // error and 422 for a validation failure while the post may still be kept,
 // and a new key would duplicate it. 401/403 ask the user to sign in again.
+// A locked failure keeps the raw reason as its own sentence and names the way
+// out (`wayOut`: "discard the draft" in PostBox, "cancel the reply" in the
+// reply box).
 export const classifyFailedPost = (
   error: unknown,
   {
     retryingLocked,
     fallbackMessage,
+    wayOut,
     kept = isPostKeptByServer(error)
-  }: { retryingLocked: boolean; fallbackMessage: string; kept?: boolean }
+  }: {
+    retryingLocked: boolean
+    fallbackMessage: string
+    wayOut: string
+    kept?: boolean
+  }
 ): { action: FailedPostAction; message: string } => {
   const message = describePostError(error, fallbackMessage, kept)
   if (kept) return { action: 'lock', message }
@@ -63,7 +72,11 @@ export const classifyFailedPost = (
   if (error instanceof ApiRequestError && error.status === 410) {
     return { action: 'unlock', message }
   }
-  return { action: 'lock', message }
+  const reason = message.replace(/[.\s]+$/, '')
+  return {
+    action: 'lock',
+    message: `Couldn't send your saved post (${reason}). Press Post to retry or ${wayOut}.`
+  }
 }
 
 // `kept` is false on the edit path, where nothing was saved.

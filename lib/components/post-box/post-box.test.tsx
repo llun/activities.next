@@ -5,7 +5,11 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { deleteAccountMedia, getCustomEmojis } from '@/lib/client'
-import { ApiRequestError, SESSION_EXPIRED_NOTICE } from '@/lib/client/http'
+import {
+  ApiRequestError,
+  DRAFT_LOCKED_NOTICE,
+  SESSION_EXPIRED_NOTICE
+} from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -1098,13 +1102,16 @@ describe('PostBox idempotency key', () => {
       const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
       const error = makeError()
       createNoteMock.mockRejectedValueOnce(error)
+      const lockedMessage = `Couldn't send your saved post (${error.message}). Press Post to retry or discard the draft.`
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
       await waitFor(() => expect(postButton).toBeEnabled())
       expect(textarea).toHaveAttribute('readonly')
-      expect(screen.getByRole('status')).toHaveTextContent(error.message)
-      expect(window.alert).toHaveBeenLastCalledWith(error.message)
+      expect(screen.getByRole('status')).toHaveTextContent(
+        `${lockedMessage} ${DRAFT_LOCKED_NOTICE}`
+      )
+      expect(window.alert).toHaveBeenLastCalledWith(lockedMessage)
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
@@ -1151,11 +1158,8 @@ describe('PostBox idempotency key', () => {
       await pending.promise.catch(() => undefined)
     })
 
-    await waitFor(() =>
-      expect(window.alert).toHaveBeenCalledWith(
-        "Your post was saved but couldn't be sent yet. Press Post again to retry."
-      )
-    )
+    // The failure belongs to the old draft: the new one hears nothing.
+    expect(window.alert).not.toHaveBeenCalled()
     expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
     expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
   })
@@ -1202,6 +1206,25 @@ describe('PostBox idempotency key', () => {
     )
     unmount()
     expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+  })
+
+  it('mints a new key when the same text is retyped after Discard draft', async () => {
+    const { textarea, postButton } = await lockDraft()
+    const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await waitFor(() => expect(textarea).toHaveValue(''))
+
+    createNoteMock.mockResolvedValueOnce({
+      status: editStatus,
+      attachments: []
+    })
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).not.toBe(
+      lockedKey
+    )
   })
 
   it('drops a media batch that settles in the same tick the draft locks', async () => {

@@ -332,7 +332,8 @@ export const StatusReplyBox: FC<Props> = ({
       // Surface the server's message without wiping user draft, CW, or attachments.
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
-        fallbackMessage: 'Fail to create a reply'
+        fallbackMessage: 'Fail to create a reply',
+        wayOut: 'cancel the reply'
       })
       if (action === 'lock') {
         setLockedMessage(failureMessage)
@@ -351,7 +352,9 @@ export const StatusReplyBox: FC<Props> = ({
   // Cancel on a locked draft discards it and its key. The reply box never
   // deletes uploaded media, so the kept reply's media stays.
   const onCancelReply = () => {
-    if (draftLocked && !isSubmittingRef.current) {
+    // A submit in flight owns the key: closing now would lose its result.
+    if (isSubmittingRef.current) return
+    if (draftLocked) {
       draftGenerationRef.current += 1
       submitIdempotencyRef.current = null
       setLockedMessage(null)
@@ -647,6 +650,7 @@ export const StatusReplyBox: FC<Props> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
+                  disabled={isPosting}
                   onClick={onCancelReply}
                 >
                   Cancel

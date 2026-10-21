@@ -251,6 +251,7 @@ describe('StatusReplyBox', () => {
     const view = render(<StatusReplyBox {...props} replyStatus={target} />)
     return {
       ...view,
+      onCancel: props.onCancel,
       retarget: (next: StatusNote) =>
         view.rerender(<StatusReplyBox {...props} replyStatus={next} />)
     }
@@ -381,11 +382,12 @@ describe('StatusReplyBox', () => {
   )
 
   it('discards a locked reply and its key on Cancel', async () => {
-    const { textarea, postButton } = await lockReplyDraft()
+    const { textarea, postButton, onCancel } = await lockReplyDraft()
     const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
+    expect(onCancel).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(textarea).toHaveValue(''))
     expect(textarea).not.toHaveAttribute('readonly')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -396,6 +398,66 @@ describe('StatusReplyBox', () => {
     expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).not.toBe(
       lockedKey
     )
+  })
+
+  it('keeps the box open and Cancel disabled while a submit is in flight', async () => {
+    const pending = createDeferred<never>()
+    const { postButton, onCancel } = await lockReplyDraft()
+    createNoteMock.mockReturnValueOnce(pending.promise)
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel).toBeDisabled()
+    fireEvent.click(cancel)
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    await act(async () => {
+      pending.reject(new ApiRequestError('kept', 503))
+      await pending.promise.catch(() => undefined)
+    })
+    await waitFor(() => expect(cancel).toBeEnabled())
+    fireEvent.click(cancel)
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes an unlocked reply on Cancel', () => {
+    const { onCancel } = renderReplyBox()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a media batch that lands while a submit is in flight and disables upload', async () => {
+    const resized = createDeferred<File>()
+    resizeImageMock.mockReturnValueOnce(resized.promise)
+    const pending = createDeferred<never>()
+    createNoteMock.mockReturnValueOnce(pending.promise)
+    renderReplyBox()
+    fireEvent.change(screen.getByPlaceholderText('Reply to Llun...'), {
+      target: { value: 'Reply body' }
+    })
+    const file = new File(['late'], 'late.png', { type: 'image/png' })
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [file] } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: /Add media \(/ })).toBeDisabled()
+
+    await act(async () => {
+      resized.resolve(file)
+      await resized.promise
+    })
+
+    expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
+    await act(async () => {
+      pending.reject(new ApiRequestError('no', 400))
+      await pending.promise.catch(() => undefined)
+    })
   })
 
   it('drops a media batch that lands after the reply locked', async () => {
@@ -497,7 +559,9 @@ describe('StatusReplyBox', () => {
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
       await waitFor(() => expect(postButton).toBeEnabled())
       expect(textarea).toHaveAttribute('readonly')
-      expect(screen.getByRole('status')).toHaveTextContent(message)
+      expect(screen.getByRole('status')).toHaveTextContent(
+        `Couldn't send your saved post (${message}). Press Post to retry or cancel the reply. ${DRAFT_LOCKED_NOTICE}`
+      )
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))

@@ -1110,6 +1110,7 @@ export const PostBox: FC<Props> = ({
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
         fallbackMessage,
+        wayOut: 'discard the draft',
         kept: keptByServer
       })
       if (generation === draftGenerationRef.current) {
@@ -1121,8 +1122,9 @@ export const PostBox: FC<Props> = ({
           setLockedMessage(null)
           submitIdempotencyRef.current = null
         }
+        // A stale failure belongs to a previous draft: say nothing on this one.
+        alert(failureMessage)
       }
-      alert(failureMessage)
     } finally {
       submitInFlightRef.current = false
     }

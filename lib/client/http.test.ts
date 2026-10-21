@@ -23,7 +23,11 @@ describe('http client utilities', () => {
 
   describe('classifyFailedPost', () => {
     const classify = (error: unknown, retryingLocked: boolean) =>
-      classifyFailedPost(error, { retryingLocked, fallbackMessage: 'Failed' })
+      classifyFailedPost(error, {
+        retryingLocked,
+        fallbackMessage: 'Failed',
+        wayOut: 'discard the draft'
+      })
 
     it.each([503, 409])('locks a kept post (%i)', (status) => {
       expect(classify(new ApiRequestError('no', status), false).action).toBe(
@@ -43,7 +47,8 @@ describe('http client utilities', () => {
       (status) => {
         expect(classify(new ApiRequestError('Busy', status), true)).toEqual({
           action: 'lock',
-          message: 'Busy'
+          message:
+            "Couldn't send your saved post (Busy). Press Post to retry or discard the draft."
         })
       }
     )
@@ -51,8 +56,24 @@ describe('http client utilities', () => {
     it('keeps the lock on a locked retry that fails offline', () => {
       expect(classify(new Error('offline'), true)).toEqual({
         action: 'lock',
-        message: 'offline'
+        message:
+          "Couldn't send your saved post (offline). Press Post to retry or discard the draft."
       })
+    })
+
+    it('keeps the server reason as its own sentence without doubling the period', () => {
+      expect(
+        classifyFailedPost(
+          new ApiRequestError('Text character limit of 100 exceeded.', 422),
+          {
+            retryingLocked: true,
+            fallbackMessage: 'Failed',
+            wayOut: 'cancel the reply'
+          }
+        ).message
+      ).toBe(
+        "Couldn't send your saved post (Text character limit of 100 exceeded). Press Post to retry or cancel the reply."
+      )
     })
 
     it.each([401, 403])(
@@ -80,6 +101,7 @@ describe('http client utilities', () => {
         classifyFailedPost(new ApiRequestError('no', 503), {
           retryingLocked: false,
           fallbackMessage: 'Failed',
+          wayOut: 'discard the draft',
           kept: false
         })
       ).toEqual({ action: 'none', message: 'no' })
