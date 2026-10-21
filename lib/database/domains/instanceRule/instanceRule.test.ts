@@ -213,3 +213,154 @@ describe('deleteInstanceRule', () => {
     })
   })
 })
+
+describe('rules per domain', () => {
+  it('creates server rules with a null domain and domain rules with theirs', async () => {
+    await withFreshDatabase(async (database) => {
+      const server = await database.createInstanceRule({
+        text: 'Be kind',
+        hint: ''
+      })
+      const own = await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'No spoilers',
+        hint: 'Race results wait a day'
+      })
+
+      expect(server.domain).toBeNull()
+      expect(own.domain).toBe('run.example')
+      await expect(database.getInstanceRule({ id: own.id })).resolves.toEqual(
+        own
+      )
+      await expect(
+        database.getInstanceRule({ id: 'no-such-rule' })
+      ).resolves.toBeNull()
+    })
+  })
+
+  it('lists the server rules, then the visited domain’s own, each by position', async () => {
+    await withFreshDatabase(async (database) => {
+      const own2 = await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'Run second',
+        hint: '',
+        position: 1
+      })
+      const own1 = await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'Run first',
+        hint: '',
+        position: 0
+      })
+      const server2 = await database.createInstanceRule({
+        text: 'Server second',
+        hint: '',
+        position: 5
+      })
+      const server1 = await database.createInstanceRule({
+        text: 'Server first',
+        hint: '',
+        position: 4
+      })
+      const other = await database.createInstanceRule({
+        domain: 'photo.example',
+        text: 'Photo only',
+        hint: '',
+        position: 0
+      })
+
+      // Server rules come first even when the domain's positions are lower.
+      expect(
+        await database.getInstanceRules({ domain: 'run.example' })
+      ).toEqual([server1, server2, own1, own2])
+      expect(
+        await database.getInstanceRules({ domain: 'photo.example' })
+      ).toEqual([server1, server2, other])
+      // No domain (the primary, an unknown host): the server rules only.
+      expect(await database.getInstanceRules()).toEqual([server1, server2])
+      expect(await database.getInstanceRules({ domain: null })).toEqual([
+        server1,
+        server2
+      ])
+    })
+  })
+
+  it('lists exactly one scope, or every rule for resolving report ids', async () => {
+    await withFreshDatabase(async (database) => {
+      const server = await database.createInstanceRule({
+        text: 'Server',
+        hint: ''
+      })
+      const own = await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'Own',
+        hint: ''
+      })
+      const other = await database.createInstanceRule({
+        domain: 'photo.example',
+        text: 'Other',
+        hint: ''
+      })
+
+      expect(await database.getOwnInstanceRules({ domain: null })).toEqual([
+        server
+      ])
+      expect(
+        await database.getOwnInstanceRules({ domain: 'run.example' })
+      ).toEqual([own])
+      expect(await database.getAllInstanceRules()).toEqual([server, other, own])
+    })
+  })
+
+  it('keeps the domain when a rule is updated', async () => {
+    await withFreshDatabase(async (database) => {
+      const own = await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'Old',
+        hint: ''
+      })
+
+      const updated = await database.updateInstanceRule({
+        id: own.id,
+        text: 'New',
+        position: 3
+      })
+
+      expect(updated).toMatchObject({
+        domain: 'run.example',
+        text: 'New',
+        position: 3
+      })
+    })
+  })
+
+  it('removes every rule of a domain and leaves the others', async () => {
+    await withFreshDatabase(async (database) => {
+      const server = await database.createInstanceRule({
+        text: 'Server',
+        hint: ''
+      })
+      await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'One',
+        hint: ''
+      })
+      await database.createInstanceRule({
+        domain: 'run.example',
+        text: 'Two',
+        hint: ''
+      })
+      const other = await database.createInstanceRule({
+        domain: 'photo.example',
+        text: 'Other',
+        hint: ''
+      })
+
+      await expect(
+        database.deleteInstanceRulesForDomain({ domain: 'run.example' })
+      ).resolves.toBe(2)
+
+      expect(await database.getAllInstanceRules()).toEqual([server, other])
+    })
+  })
+})

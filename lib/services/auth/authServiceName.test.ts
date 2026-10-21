@@ -13,7 +13,8 @@ const anIdentity = (domain: string, name: string) => ({
   description: '',
   contactEmail: '',
   termsOfService: null,
-  privacyPolicy: null
+  privacyPolicy: null,
+  disabledFeatures: []
 })
 
 describe('resolveAuthServiceName', () => {

@@ -37,6 +37,7 @@ const buildServerAnnouncement = (
   overrides: Partial<ServerAnnouncement> = {}
 ): ServerAnnouncement => ({
   id: 'announcement-1',
+  domain: null,
   text: 'Scheduled maintenance tonight',
   published: true,
   all_day: false,

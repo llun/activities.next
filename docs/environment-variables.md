@@ -56,7 +56,9 @@ and mobile drawer. Settings → Navigation still lists it, greyed out and marked
 where a nav item went. It does **not** disable the
 section: its pages and API keep working, so an existing link or bookmark still
 resolves, and nobody's saved navigation is deleted, so re-enabling a feature
-restores each account's layout exactly as they left it.
+restores each account's layout exactly as they left it. A served domain
+(**Admin → Domains**) can turn off, for its own visitors, a feature the server
+has on; it can never turn on one the server has off.
 
 `posts.maxMediaAttachments` is the exception to the status-limit enforcement
 described at the top of this section: it is advertised to clients and honoured

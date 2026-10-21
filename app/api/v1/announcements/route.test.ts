@@ -5,6 +5,7 @@ import {
   PUT as ADD_REACTION,
   DELETE as REMOVE_REACTION
 } from '@/app/api/v1/announcements/[id]/reactions/[name]/route'
+import { getConfig } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_ANNOUNCEMENT_REACTION_NAMES } from '@/lib/services/announcements/reactionLimits'
 import { seedDatabase } from '@/lib/stub/database'
@@ -88,6 +89,64 @@ describe('/api/v1/announcements', () => {
     expect(announcement).toBeDefined()
     expect(announcement.read).toBe(false)
     expect(announcement.reactions).toEqual([])
+  })
+
+  it('GET returns the every-domain announcements plus those of the visited host only', async () => {
+    const baseConfig = getConfig()
+    vi.mocked(getConfig).mockReturnValue({
+      ...baseConfig,
+      trustedHosts: ['club.llun.test', 'other.llun.test']
+    })
+    const everywhere = await database.createAnnouncement({
+      text: 'for every domain',
+      published: true
+    })
+    const primaryOnly = await database.createAnnouncement({
+      text: 'for the primary',
+      domain: 'llun.test',
+      published: true
+    })
+    const club = await database.createAnnouncement({
+      text: 'for the club',
+      domain: 'club.llun.test',
+      published: true
+    })
+    const other = await database.createAnnouncement({
+      text: 'for the other',
+      domain: 'other.llun.test',
+      published: true
+    })
+    const idsOn = async (host?: string) => {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/announcements', {
+          headers: host ? { host } : {}
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      return (await response.json()).map((item: { id: string }) => item.id)
+    }
+    try {
+      const onClub = await idsOn('club.llun.test')
+      expect(onClub).toEqual(expect.arrayContaining([everywhere.id, club.id]))
+      expect(onClub).not.toContain(primaryOnly.id)
+      expect(onClub).not.toContain(other.id)
+
+      const onPrimary = await idsOn()
+      expect(onPrimary).toEqual(
+        expect.arrayContaining([everywhere.id, primaryOnly.id])
+      )
+      expect(onPrimary).not.toContain(club.id)
+      expect(onPrimary).not.toContain(other.id)
+
+      // An untrusted host is served as the primary.
+      expect(await idsOn('evil.example')).toContain(primaryOnly.id)
+    } finally {
+      vi.mocked(getConfig).mockReturnValue(baseConfig)
+      for (const announcement of [everywhere, primaryOnly, club, other]) {
+        await database.deleteAnnouncement({ id: announcement.id })
+      }
+    }
   })
 
   it('GET does not return an unpublished announcement', async () => {

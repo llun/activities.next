@@ -5,6 +5,7 @@ import { Database } from '@/lib/database/types'
 import { serializeAdminReports } from '@/lib/services/admin/serializeAdminReports'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { normalizeServedDomainChoice } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
 import { isPublicId } from '@/lib/utils/publicId'
@@ -39,6 +40,8 @@ const QueryParams = z.object({
   account_id: z.string().max(512).optional(),
   target_account_id: z.string().max(512).optional(),
   by_target_domain: z.string().max(255).optional(),
+  // Extension: only reports about profiles on this served domain.
+  domain: z.string().trim().min(1).max(255).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   max_id: z.string().max(255).optional(),
   since_id: z.string().max(255).optional(),
@@ -75,6 +78,10 @@ export const GET = traceApiRoute(
           ? await resolveActorIdFilter(database, q.target_account_id)
           : undefined,
         byTargetDomain: q.by_target_domain,
+        // Stored in the normalised served form (lower case, no default port).
+        domain: q.domain
+          ? (normalizeServedDomainChoice(q.domain) ?? q.domain.toLowerCase())
+          : undefined,
         limit: q.limit,
         maxId: q.max_id,
         minId: q.min_id,
@@ -94,6 +101,7 @@ export const GET = traceApiRoute(
           host: headerHost(req.headers),
           path: '/api/v1/admin/reports',
           limit: q.limit,
+          extraParams: { domain: q.domain },
           nextMaxId:
             reports.length === q.limit ? reports[reports.length - 1].id : null,
           prevMinId: reports.length > 0 ? reports[0].id : null

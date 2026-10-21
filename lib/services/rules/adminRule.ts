@@ -11,6 +11,10 @@ export const MAX_RULE_POSITION = 2147483647
 // columns are unbounded `text`, so the caps here are product limits that keep
 // rules readable rather than database constraints.
 export const RuleCreateInput = z.object({
+  // The served domain the rule is for; null or absent is a server rule, which
+  // applies on every domain. Validated against the served domains by the route
+  // (`resolveAdminDomainScope`); the primary has no rules of its own.
+  domain: z.string().trim().max(255).nullable().optional(),
   text: z.string().trim().min(1).max(1000),
   hint: z.string().trim().max(2000).optional().default(''),
   position: z.coerce.number().int().min(0).max(MAX_RULE_POSITION).optional()
@@ -35,9 +39,11 @@ export const RuleUpdateInput = z
   )
 
 // Admin shape — unlike the public Mastodon Rule entity this includes
-// `position` so the admin panel can reorder rules by editing it.
+// `position` so the admin panel can reorder rules by editing it, and `domain`
+// (null for a server rule, which applies on every domain).
 export const getAdminRule = (rule: InstanceRuleData) => ({
   id: rule.id,
+  domain: rule.domain,
   text: rule.text,
   hint: rule.hint,
   position: rule.position

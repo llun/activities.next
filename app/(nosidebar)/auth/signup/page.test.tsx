@@ -48,6 +48,7 @@ const renderPage = async (overrides: Partial<DomainIdentity> = {}) => {
     contactEmail: '',
     termsOfService: null,
     privacyPolicy: null,
+    disabledFeatures: [],
     ...overrides
   })
   render(await Page({}))

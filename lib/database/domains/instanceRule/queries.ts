@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto'
 import type {
   CreateInstanceRuleParams,
   DeleteInstanceRuleParams,
+  DeleteInstanceRulesForDomainParams,
+  GetInstanceRuleParams,
+  GetInstanceRulesParams,
+  GetOwnInstanceRulesParams,
   InstanceRuleData,
   UpdateInstanceRuleParams
 } from '@/lib/database/domains/instanceRule/types'
@@ -10,6 +14,7 @@ import type { Db } from '@/lib/database/kysely'
 
 const COLUMNS = [
   'id',
+  'domain',
   'position',
   'text',
   'hint',
@@ -19,7 +24,7 @@ const COLUMNS = [
 
 export const createInstanceRule = async (
   db: Db,
-  { text, hint, position = 0 }: CreateInstanceRuleParams
+  { domain = null, text, hint, position = 0 }: CreateInstanceRuleParams
 ): Promise<InstanceRuleData> => {
   const currentTime = new Date()
   const id = randomUUID()
@@ -27,6 +32,7 @@ export const createInstanceRule = async (
     .insertInto('instance_rules')
     .values({
       id,
+      domain,
       position,
       text,
       hint,
@@ -36,6 +42,7 @@ export const createInstanceRule = async (
     .execute()
   return {
     id,
+    domain,
     position,
     text,
     hint,
@@ -82,19 +89,83 @@ export const deleteInstanceRule = async (
   return Number(numDeletedRows) > 0
 }
 
-export const getInstanceRules = async (db: Db): Promise<InstanceRuleData[]> => {
+export const getInstanceRules = async (
+  db: Db,
+  { domain = null }: GetInstanceRulesParams = {}
+): Promise<InstanceRuleData[]> => {
   const rows = await db
     .selectFrom('instance_rules')
     .select(COLUMNS)
+    .where((eb) =>
+      domain === null
+        ? eb('domain', 'is', null)
+        : eb.or([eb('domain', 'is', null), eb('domain', '=', domain)])
+    )
+    // Server rules first, then the domain's own.
+    .orderBy((eb) => eb.case().when('domain', 'is', null).then(0).else(1).end())
     .orderBy('position', 'asc')
     .orderBy('createdAt', 'asc')
     .execute()
   return rows
 }
 
+export const getOwnInstanceRules = async (
+  db: Db,
+  { domain }: GetOwnInstanceRulesParams
+): Promise<InstanceRuleData[]> =>
+  db
+    .selectFrom('instance_rules')
+    .select(COLUMNS)
+    .where((eb) =>
+      domain === null ? eb('domain', 'is', null) : eb('domain', '=', domain)
+    )
+    .orderBy('position', 'asc')
+    .orderBy('createdAt', 'asc')
+    .execute()
+
+export const getAllInstanceRules = async (
+  db: Db
+): Promise<InstanceRuleData[]> =>
+  db
+    .selectFrom('instance_rules')
+    .select(COLUMNS)
+    .orderBy((eb) => eb.case().when('domain', 'is', null).then(0).else(1).end())
+    .orderBy('domain', 'asc')
+    .orderBy('position', 'asc')
+    .orderBy('createdAt', 'asc')
+    .execute()
+
+export const getInstanceRule = async (
+  db: Db,
+  { id }: GetInstanceRuleParams
+): Promise<InstanceRuleData | null> => {
+  const row = await db
+    .selectFrom('instance_rules')
+    .select(COLUMNS)
+    .where('id', '=', id)
+    .limit(1)
+    .executeTakeFirst()
+  return row ?? null
+}
+
+export const deleteInstanceRulesForDomain = async (
+  db: Db,
+  { domain }: DeleteInstanceRulesForDomainParams
+): Promise<number> => {
+  const { numDeletedRows } = await db
+    .deleteFrom('instance_rules')
+    .where('domain', '=', domain)
+    .executeTakeFirst()
+  return Number(numDeletedRows)
+}
+
 export const instanceRuleQueries = {
   createInstanceRule,
   updateInstanceRule,
   deleteInstanceRule,
-  getInstanceRules
+  getInstanceRules,
+  getOwnInstanceRules,
+  getAllInstanceRules,
+  getInstanceRule,
+  deleteInstanceRulesForDomain
 }

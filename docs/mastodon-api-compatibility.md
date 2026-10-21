@@ -696,7 +696,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   Lemmy `Flag`s name only posts and communities, so they never match. A
   reporter whose domain has a domain block with `reject_reports` is ignored,
   whatever the block's severity. The report is stored through `createReport`
-  with the sending actor as reporter, category `other` and the `content`
+  with the sending actor as reporter, category `other`, the reported profile's
+  domain in `reports.domain` and the `content`
   (capped at 5000 characters, as Mastodon does) as the comment, so it appears
   in `/api/v1/admin/reports` and the admin reports queue like any other. The
   reports table has no origin column: a report whose reporter is a remote actor
@@ -775,6 +776,36 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
   announcements, filters, and rules management under `/api/v1/admin/*` and
   `/api/v2/admin/*`.
+- **Rules, announcements and reports per served domain** — Mastodon has one
+  list of each per server; with several served domains each can be scoped.
+  `instance_rules.domain` and `announcements.domain` are nullable, null meaning
+  every domain (a server rule, an announcement for all). On the visited host
+  (`headerHost`), `GET /api/v1/instance/rules` and the `rules` of
+  `GET /api/v1/instance` and `GET /api/v2/instance` return the server rules
+  followed by that domain's own rules (the primary and an unknown host get the
+  server rules only; ids are unique, one table), `GET /api/v1/announcements`
+  returns the every-domain announcements plus the visited host's, and
+  `POST /api/v1/reports` answers `422 { "error": "Unknown rule id" }` for a
+  `rule_ids` entry that is not visible on that host (it used to store any id).
+  A report stores `reports.domain`, the domain of the reported profile (the host
+  of its actor id, also for a forwarded `Flag`); the migration backfilled it.
+  Admin: `GET /api/v2/admin/rules` lists one scope (no `domain`: the server
+  rules; `?domain=<served domain>`: that domain's own rules), `POST` takes
+  `domain` (null/absent: a server rule), a rule keeps its domain, reordering is
+  a `position` update within its scope, and the primary domain has no rules of
+  its own (`422`, `code: primary`; `unknown` and `invalid` for other refusals).
+  `POST`/`PATCH /api/v2/admin/announcements` take `domain` (null: every domain;
+  any served domain, the primary included) and `GET` takes `?domain=` to list
+  one domain's own announcements. `GET /api/v1/admin/reports` takes `domain`
+  (reports about profiles on that served domain, kept in the `Link` pagination
+  URLs) and every Admin::Report carries `domain`. Moderators and the report
+  queue stay server-wide, and a report may cite any rule.
+- **Per-domain feature switches** — `GET`/`PATCH /api/v1/admin/domains/:domain`
+  carry `disabledFeatures` (a list of `fitness`, `explore`, `messages`; `[]` or
+  null for none; the primary is refused with `422`, `code: primary`). A feature
+  is on for a visitor when the server switch (Admin › Instance) is on and the
+  visited domain does not list it. Like the server switches it only changes
+  navigation and the bootstrap `features`, never routes.
 
 The standard Mastodon **admin moderation** cluster is implemented:
 `GET /api/v1/admin/accounts`, `GET /api/v2/admin/accounts`,

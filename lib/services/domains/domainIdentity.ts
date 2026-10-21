@@ -14,6 +14,7 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { getEnvDomainKind, getEnvDomains } from './adminDomains'
+import type { DomainFeature } from './domainFeatures'
 import {
   type DomainOverrides,
   readDomainOverrides
@@ -51,6 +52,10 @@ export type DomainIdentity = {
   // null when no document is set (blank counts as none).
   termsOfService: PolicyDocument | null
   privacyPolicy: PolicyDocument | null
+  // The optional features this domain turns off (never on the primary, an off
+  // domain or an unknown host). The effective switch is the server's AND not
+  // listed here.
+  disabledFeatures: DomainFeature[]
 }
 
 const serverPolicy = (
@@ -81,7 +86,8 @@ const serverIdentity = (
     view,
     'policies.privacyPolicy',
     view.settings.policies.privacyPolicy
-  )
+  ),
+  disabledFeatures: []
 })
 
 // A domain's own policy wins while it has text; otherwise the server's.
@@ -110,7 +116,8 @@ const applyOverrides = (
     overrides.privacyPolicy,
     overrides.privacyPolicyUpdatedAt,
     identity.privacyPolicy
-  )
+  ),
+  disabledFeatures: overrides.disabledFeatures
 })
 
 // The primary host from the config, for when the domain lists cannot be read.

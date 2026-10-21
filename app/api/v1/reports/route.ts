@@ -1,7 +1,10 @@
 import { z } from 'zod'
 
 import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
+import { getRulesForHost } from '@/lib/services/domains/domainAudience'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { OAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import {
   resolveActorIdParam,
   resolveStatusIdParams
@@ -139,6 +142,30 @@ export const POST = traceApiRoute(
       )
       const ruleIds = toArray(parsed.data.rule_ids)
 
+      // A report may only cite the rules visible on the host it is filed from:
+      // the server rules and that domain's own. Another domain's rule id is as
+      // unknown here as one that never existed (the admin report update
+      // answers an unknown rule the same way).
+      if (ruleIds.length > 0) {
+        // Refresh first: `headerHost` trusts the visited host from the snapshot.
+        await ensureServedDomainsFresh()
+        const visibleRuleIds = new Set(
+          (await getRulesForHost(database, headerHost(req.headers))).map(
+            (rule) => rule.id
+          )
+        )
+        if (ruleIds.some((ruleId) => !visibleRuleIds.has(ruleId))) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: 'Unknown rule id' },
+            responseStatusCode: 422
+          })
+        }
+      }
+
+      // The report keeps the reported profile's domain (the host of its actor
+      // id; `createReport` derives it), so the admin queue can filter by it.
       const report = await database.createReport({
         actorId: currentActor.id,
         targetActorId,

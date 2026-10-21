@@ -16,6 +16,9 @@ export type Report = {
   statusIds: string[]
   ruleIds: string[]
   actionTaken: boolean
+  // The domain of the reported profile when the report was filed (the host of
+  // its actor id), null when it could not be told.
+  domain: string | null
   // Workflow columns (Admin moderation API). Actor ids in URL form.
   assignedActorId: string | null
   actionTakenAt: number | null
@@ -31,6 +34,8 @@ export type CreateReportParams = {
   forward?: boolean
   statusIds?: string[]
   ruleIds?: string[]
+  // The reported profile's domain. Defaults to the host of `targetActorId`.
+  domain?: string | null
 }
 
 export type GetAdminReportsParams = {
@@ -40,6 +45,8 @@ export type GetAdminReportsParams = {
   accountId?: string
   targetActorId?: string
   byTargetDomain?: string
+  // Reports about profiles on this served domain (`reports.domain`).
+  domain?: string
   limit?: number
   maxId?: string | null
   minId?: string | null

@@ -11,6 +11,7 @@ import type {
   GetAnnouncementParams,
   GetAnnouncementReactionsParams,
   GetAnnouncementReadIdsParams,
+  GetAnnouncementsParams,
   MarkAnnouncementReadParams,
   UpdateAnnouncementParams
 } from '@/lib/database/domains/announcement/types'
@@ -23,6 +24,7 @@ const toAnnouncementData = (
   row: Selectable<Announcements>
 ): AnnouncementData => ({
   id: row.id,
+  domain: row.domain ?? null,
   text: row.text,
   published: row.published,
   allDay: row.allDay,
@@ -44,6 +46,7 @@ const findAnnouncement = (db: Db, id: string) =>
 export const createAnnouncement = async (
   db: Db,
   {
+    domain = null,
     text,
     startsAt = null,
     endsAt = null,
@@ -58,6 +61,7 @@ export const createAnnouncement = async (
     .insertInto('announcements')
     .values({
       id,
+      domain,
       text,
       published,
       allDay,
@@ -70,6 +74,7 @@ export const createAnnouncement = async (
     .execute()
   return {
     id,
+    domain,
     text,
     published,
     allDay,
@@ -83,7 +88,15 @@ export const createAnnouncement = async (
 
 export const updateAnnouncement = async (
   db: Db,
-  { id, text, startsAt, endsAt, allDay, published }: UpdateAnnouncementParams
+  {
+    id,
+    domain,
+    text,
+    startsAt,
+    endsAt,
+    allDay,
+    published
+  }: UpdateAnnouncementParams
 ): Promise<AnnouncementData | null> => {
   const existing = await findAnnouncement(db, id)
   if (!existing) return null
@@ -97,6 +110,7 @@ export const updateAnnouncement = async (
   await db
     .updateTable('announcements')
     .set({
+      ...(domain !== undefined ? { domain } : null),
       ...(text !== undefined ? { text } : null),
       ...(startsAt !== undefined
         ? { startsAt: startsAt === null ? null : new Date(startsAt) }
@@ -131,12 +145,14 @@ export const deleteAnnouncement = async (
   await db.deleteFrom('announcements').where('id', '=', id).execute()
 }
 
-export const getAnnouncements = async (db: Db): Promise<AnnouncementData[]> => {
-  const rows = await db
-    .selectFrom('announcements')
-    .selectAll()
-    .orderBy('createdAt', 'desc')
-    .execute()
+export const getAnnouncements = async (
+  db: Db,
+  { domain }: GetAnnouncementsParams = {}
+): Promise<AnnouncementData[]> => {
+  let query = db.selectFrom('announcements').selectAll()
+  if (domain === null) query = query.where('domain', 'is', null)
+  else if (domain !== undefined) query = query.where('domain', '=', domain)
+  const rows = await query.orderBy('createdAt', 'desc').execute()
   return rows.map(toAnnouncementData)
 }
 
@@ -150,13 +166,18 @@ export const getAnnouncement = async (
 
 export const getActiveAnnouncements = async (
   db: Db,
-  { now }: GetActiveAnnouncementsParams
+  { now, domain = null }: GetActiveAnnouncementsParams
 ): Promise<AnnouncementData[]> => {
   const currentTime = timestampValue(now)
   const rows = await db
     .selectFrom('announcements')
     .selectAll()
     .where('published', '=', true)
+    .where((eb) =>
+      domain === null
+        ? eb('domain', 'is', null)
+        : eb.or([eb('domain', 'is', null), eb('domain', '=', domain)])
+    )
     .where((eb) =>
       eb.or([eb('startsAt', 'is', null), eb('startsAt', '<=', currentTime)])
     )

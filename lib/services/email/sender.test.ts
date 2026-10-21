@@ -27,6 +27,7 @@ const identity = (overrides: Partial<DomainIdentity>): DomainIdentity => ({
   contactEmail: '',
   termsOfService: null,
   privacyPolicy: null,
+  disabledFeatures: [],
   ...overrides
 })
 

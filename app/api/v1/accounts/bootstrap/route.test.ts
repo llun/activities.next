@@ -39,6 +39,21 @@ vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn(async () => mockServerSettings)
 }))
 
+// The visited domain's own switches (Admin › Domains): none turned off unless
+// a test says so.
+const mockDisabledFeatures = vi.hoisted(() => ({ list: [] as string[] }))
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(async () => ({
+    disabledFeatures: mockDisabledFeatures.list
+  }))
+}))
+vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
+  ensureServedDomainsFresh: vi.fn(async () => {})
+}))
+vi.mock('@/lib/services/guards/headerHost', () => ({
+  headerHost: vi.fn(() => 'llun.test')
+}))
+
 let mockCurrentActor: Actor
 let mockDatabase: {
   getActorsForAccount: ReturnType<typeof vi.fn>
@@ -71,6 +86,7 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
 describe('GET /api/v1/accounts/bootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDisabledFeatures.list = []
     vi.mocked(getConfig).mockReset()
     vi.mocked(getResolvedServerSettings).mockReset()
     vi.mocked(getConfig).mockReturnValue(
@@ -266,6 +282,30 @@ describe('GET /api/v1/accounts/bootstrap', () => {
 
     expect(data.isAdmin).toBe(false)
     expect(data.fitnessUrl).toBeUndefined()
+  })
+
+  it('drops fitness from the bootstrap when the visited domain turns it off', async () => {
+    mockDisabledFeatures.list = ['fitness']
+
+    const req = new NextRequest('https://llun.test/api/v1/accounts/bootstrap')
+    const res = await GET(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+
+    expect(data.fitnessUrl).toBeUndefined()
+    expect(data.features.fitness).toBe(false)
+  })
+
+  it('keeps fitness when the domain turns off other features', async () => {
+    mockDisabledFeatures.list = ['explore', 'messages']
+
+    const req = new NextRequest('https://llun.test/api/v1/accounts/bootstrap')
+    const res = await GET(req, { params: Promise.resolve({}) })
+
+    const data = await res.json()
+    expect(data.fitnessUrl).toBe('/fitness')
+    expect(data.features.fitness).toBe(true)
   })
 
   it('rejects with 401 when currentActor has no account', async () => {

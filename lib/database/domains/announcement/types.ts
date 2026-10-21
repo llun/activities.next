@@ -9,9 +9,11 @@
 // `allDay`/`startsAt`/`endsAt` describe an optional active window.
 // `startsAt`/`endsAt`/`publishedAt` are epoch milliseconds (or null) in the
 // domain shape regardless of the backend's timestamp storage; `createdAt` and
-// `updatedAt` are always epoch milliseconds.
+// `updatedAt` are always epoch milliseconds. `domain` is the served domain the
+// announcement is shown on; null shows it on every domain.
 export type AnnouncementData = {
   id: string
+  domain: string | null
   text: string
   published: boolean
   allDay: boolean
@@ -23,6 +25,8 @@ export type AnnouncementData = {
 }
 
 export type CreateAnnouncementParams = {
+  // Null or absent: every domain.
+  domain?: string | null
   text: string
   startsAt?: number | null
   endsAt?: number | null
@@ -31,6 +35,8 @@ export type CreateAnnouncementParams = {
 }
 export type UpdateAnnouncementParams = {
   id: string
+  // Undefined leaves the audience as it is; null means every domain.
+  domain?: string | null
   text?: string
   startsAt?: number | null
   endsAt?: number | null
@@ -42,6 +48,14 @@ export type GetAnnouncementParams = { id: string }
 export type GetActiveAnnouncementsParams = {
   // Epoch milliseconds used to evaluate the active window.
   now: number
+  // The visited domain: announcements for every domain plus this domain's.
+  // Null or absent returns the every-domain announcements only.
+  domain?: string | null
+}
+export type GetAnnouncementsParams = {
+  // Undefined lists every announcement; a string only that domain's own;
+  // null only the ones for every domain.
+  domain?: string | null
 }
 export type MarkAnnouncementReadParams = {
   announcementId: string
@@ -85,14 +99,16 @@ export interface AnnouncementDatabase {
   ): Promise<AnnouncementData | null>
   // Admin: delete an announcement and clean up its reads and reactions.
   deleteAnnouncement(params: DeleteAnnouncementParams): Promise<void>
-  // Admin: all announcements, newest first by createdAt.
-  getAnnouncements(): Promise<AnnouncementData[]>
+  // Admin: announcements, newest first by createdAt; all of them unless
+  // `domain` narrows the audience.
+  getAnnouncements(params?: GetAnnouncementsParams): Promise<AnnouncementData[]>
   // Get a single announcement by id, or null when it does not exist.
   getAnnouncement(
     params: GetAnnouncementParams
   ): Promise<AnnouncementData | null>
   // Public: published announcements whose optional active window contains `now`
-  // (startsAt is null or <= now, and endsAt is null or >= now), newest first.
+  // (startsAt is null or <= now, and endsAt is null or >= now), newest first,
+  // for every domain and for the visited `domain`.
   getActiveAnnouncements(
     params: GetActiveAnnouncementsParams
   ): Promise<AnnouncementData[]>

@@ -5,6 +5,10 @@ import {
   getAdminAnnouncement,
   isoToStorageTime
 } from '@/lib/services/announcements/adminAnnouncement'
+import {
+  domainScopeErrorBody,
+  resolveAdminDomainScope
+} from '@/lib/services/domains/domainScope'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -55,8 +59,25 @@ export const PUT = traceApiRoute(
           responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
         })
 
+      // Only a given `domain` is checked; null moves the announcement to
+      // every domain.
+      const scope =
+        parsed.data.domain === undefined
+          ? null
+          : await resolveAdminDomainScope(database, parsed.data.domain, {
+              allowPrimary: true
+            })
+      if (scope && scope.type !== 'ok')
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: domainScopeErrorBody(scope.type),
+          responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+        })
+
       const updated = await database.updateAnnouncement({
         id,
+        domain: scope ? scope.domain : undefined,
         text: parsed.data.text,
         startsAt: isoToStorageTime(parsed.data.starts_at),
         endsAt: isoToStorageTime(parsed.data.ends_at),

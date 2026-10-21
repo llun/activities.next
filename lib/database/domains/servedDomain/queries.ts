@@ -14,6 +14,7 @@ import type {
 import type { Db } from '@/lib/database/kysely'
 import type { Domains } from '@/lib/database/kysely/db'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
+import { parseDisabledFeatures } from '@/lib/services/domains/domainFeatures'
 import { logger } from '@/lib/utils/logger'
 
 // Null when the stored value is not a JSON array of strings: an empty list
@@ -57,6 +58,7 @@ const SERVED_DOMAIN_COLUMNS = [
   'name',
   'description',
   'contactEmail',
+  'disabledFeatures',
   'signupsOpen',
   'allowedEmails',
   'allowExistingUsers',
@@ -87,6 +89,7 @@ const toServedDomain = (row: ServedDomainRow): ServedDomainData => {
     name: row.name ?? null,
     description: row.description ?? null,
     contactEmail: row.contactEmail ?? null,
+    disabledFeatures: parseDisabledFeatures(row.disabledFeatures),
     signupsOpen: Boolean(allowedEmails && row.signupsOpen),
     allowedEmails,
     allowExistingUsers: Boolean(row.allowExistingUsers),
@@ -110,6 +113,7 @@ const identityValues = ({
   name,
   description,
   contactEmail,
+  disabledFeatures,
   termsOfService,
   termsOfServiceUpdatedAt,
   privacyPolicy,
@@ -118,6 +122,13 @@ const identityValues = ({
   ...(name !== undefined ? { name } : null),
   ...(description !== undefined ? { description } : null),
   ...(contactEmail !== undefined ? { contactEmail } : null),
+  ...(disabledFeatures !== undefined
+    ? {
+        disabledFeatures: disabledFeatures?.length
+          ? JSON.stringify(disabledFeatures)
+          : null
+      }
+    : null),
   ...(termsOfService !== undefined ? { termsOfService } : null),
   ...(termsOfServiceUpdatedAt !== undefined
     ? { termsOfServiceUpdatedAt: toDate(termsOfServiceUpdatedAt) }

@@ -269,4 +269,95 @@ describe('admin reports API', () => {
     )
     expect(response.status).toBe(422)
   })
+
+  describe('domain filter (extension)', () => {
+    let clubReportId = ''
+
+    beforeAll(async () => {
+      // A report filed about a profile on another served domain.
+      const report = await database.createReport({
+        actorId: ADMIN_ACTOR_ID,
+        targetActorId: TARGET_ACTOR_ID,
+        domain: 'club.llun.test'
+      })
+      clubReportId = report.id
+    })
+
+    const list = async (query: string) => {
+      const response = await listRoute.GET(
+        adminRequest(`/api/v1/admin/reports${query}`),
+        { params: Promise.resolve({}) }
+      )
+      return response
+    }
+
+    it('serializes the reported profile’s domain on every report', async () => {
+      const entities = (await (await list('')).json()) as {
+        id: string
+        domain: string | null
+      }[]
+
+      // The first report's domain came from its target actor id.
+      expect(entities.find((r) => r.id === reportId)?.domain).toBe(TEST_DOMAIN)
+      expect(entities.find((r) => r.id === clubReportId)?.domain).toBe(
+        'club.llun.test'
+      )
+    })
+
+    it('lists only the reports about profiles on the given domain', async () => {
+      const club = await list('?domain=club.llun.test')
+      expect(club.status).toBe(200)
+      expect(
+        (await club.json()).map((report: { id: string }) => report.id)
+      ).toEqual([clubReportId])
+
+      const primary = await list(`?domain=${TEST_DOMAIN.toUpperCase()}`)
+      expect(
+        (await primary.json()).map((report: { id: string }) => report.id)
+      ).toEqual([reportId])
+
+      // A domain with no reports (or one that is not a domain) lists none,
+      // never every report.
+      for (const domain of ['none.example', 'not%20a%20domain']) {
+        const none = await list(`?domain=${domain}`)
+        expect(none.status).toBe(200)
+        expect(await none.json()).toEqual([])
+      }
+    })
+
+    it('lets a moderator cite any domain’s own rule: moderators are server-wide', async () => {
+      const own = await database.createInstanceRule({
+        domain: 'club.llun.test',
+        text: 'Club only',
+        hint: ''
+      })
+      const response = await idRoute.PUT(
+        adminRequest(`/api/v1/admin/reports/${clubReportId}`, {
+          method: 'PUT',
+          body: { rule_ids: [own.id] }
+        }),
+        { params: Promise.resolve({ id: clubReportId }) }
+      )
+      expect(response.status).toBe(200)
+      expect(
+        (await response.json()).rules.map((rule: { id: string }) => rule.id)
+      ).toEqual([own.id])
+    })
+
+    it('combines with the resolved filter', async () => {
+      const open = await list('?domain=club.llun.test&resolved=false')
+      expect(
+        (await open.json()).map((report: { id: string }) => report.id)
+      ).toEqual([clubReportId])
+      const resolved = await list('?domain=club.llun.test&resolved=true')
+      expect(await resolved.json()).toEqual([])
+    })
+
+    it('keeps the domain in the pagination links', async () => {
+      const response = await list('?domain=club.llun.test&limit=1')
+      const link = response.headers.get('link') ?? ''
+      expect(link).toContain('domain=club.llun.test')
+      expect(link).toContain(`max_id=${clubReportId}`)
+    })
+  })
 })

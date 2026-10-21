@@ -50,6 +50,7 @@ const identity = (overrides: Partial<DomainIdentity> = {}): DomainIdentity => ({
     '# Terms of service\n\nWelcome to %{domain}.\n\n## Your account\n\n- one\n- two'
   ),
   privacyPolicy: doc('We keep your email.'),
+  disabledFeatures: [],
   ...overrides
 })
 

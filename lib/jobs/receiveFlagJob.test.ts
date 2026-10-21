@@ -61,12 +61,46 @@ describe('receiveFlagJob', () => {
       category: 'other',
       comment: 'Spam links',
       statusIds: [LOCAL_POST],
-      actionTaken: false
+      actionTaken: false,
+      // The reported profile's domain, for the admin queue's domain filter.
+      domain: 'llun.test'
     })
     // The reporter is recorded, so the admin report can show it.
     expect(await database.getActorFromId({ id: INSTANCE_ACTOR })).toMatchObject(
       { id: INSTANCE_ACTOR }
     )
+  })
+
+  it('files the report under the domain the reported profile lives on', async () => {
+    const accountId = await database.createAccount({
+      email: 'ana@club.llun.test',
+      username: 'ana',
+      passwordHash: 'password',
+      domain: 'club.llun.test',
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    expect(accountId).toBeTruthy()
+    const target = 'https://club.llun.test/users/ana'
+
+    await run({
+      id: 'https://mastodon.example/flag-club',
+      actor: INSTANCE_ACTOR,
+      object: [target],
+      content: 'Spam on the club'
+    })
+
+    const reports = await database.getAdminReports({
+      targetActorId: target
+    })
+    expect(reports).toHaveLength(1)
+    expect(reports[0].domain).toBe('club.llun.test')
+    await expect(
+      database.getAdminReports({ domain: 'club.llun.test' })
+    ).resolves.toHaveLength(1)
+    await expect(
+      database.getAdminReports({ domain: 'llun.test', targetActorId: target })
+    ).resolves.toHaveLength(0)
   })
 
   it('files an account-only report from a Misskey user', async () => {

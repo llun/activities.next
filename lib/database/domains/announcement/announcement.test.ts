@@ -799,3 +799,103 @@ describe('announcement queries only touch their own rows', () => {
     })
   })
 })
+
+describe('announcements per domain', () => {
+  it('stores a null domain (every domain) by default and the given domain', async () => {
+    await withFreshDatabase(async (database) => {
+      const everywhere = await database.createAnnouncement({ text: 'All' })
+      const own = await database.createAnnouncement({
+        text: 'Run only',
+        domain: 'run.example'
+      })
+
+      expect(everywhere.domain).toBeNull()
+      expect(own.domain).toBe('run.example')
+      await expect(
+        database.getAnnouncement({ id: own.id })
+      ).resolves.toMatchObject({ domain: 'run.example' })
+    })
+  })
+
+  it('shows the visited domain the every-domain announcements plus its own', async () => {
+    await withFreshDatabase(async (database) => {
+      const everywhere = await database.createAnnouncement({
+        text: 'All',
+        published: true
+      })
+      await delay(5)
+      const run = await database.createAnnouncement({
+        text: 'Run only',
+        domain: 'run.example',
+        published: true
+      })
+      await delay(5)
+      await database.createAnnouncement({
+        text: 'Photo only',
+        domain: 'photo.example',
+        published: true
+      })
+      await database.createAnnouncement({
+        text: 'Run draft',
+        domain: 'run.example',
+        published: false
+      })
+
+      const ids = async (domain?: string | null) =>
+        (
+          await database.getActiveAnnouncements({ now: Date.now(), domain })
+        ).map((announcement) => announcement.id)
+
+      // Newest first, like the unscoped list.
+      expect(await ids('run.example')).toEqual([run.id, everywhere.id])
+      expect(await ids('photo.example')).toHaveLength(2)
+      expect(await ids('other.example')).toEqual([everywhere.id])
+      expect(await ids(null)).toEqual([everywhere.id])
+      expect(await ids()).toEqual([everywhere.id])
+    })
+  })
+
+  it('narrows the admin list by audience', async () => {
+    await withFreshDatabase(async (database) => {
+      const everywhere = await database.createAnnouncement({ text: 'All' })
+      const run = await database.createAnnouncement({
+        text: 'Run',
+        domain: 'run.example'
+      })
+
+      const texts = async (params?: { domain?: string | null }) =>
+        (await database.getAnnouncements(params)).map((a) => a.id).sort()
+
+      expect(await texts()).toEqual([everywhere.id, run.id].sort())
+      expect(await texts({ domain: 'run.example' })).toEqual([run.id])
+      expect(await texts({ domain: null })).toEqual([everywhere.id])
+    })
+  })
+
+  it('moves an announcement between audiences and leaves it alone when no domain is given', async () => {
+    await withFreshDatabase(async (database) => {
+      const announcement = await database.createAnnouncement({
+        text: 'Hello',
+        domain: 'run.example'
+      })
+
+      const kept = await database.updateAnnouncement({
+        id: announcement.id,
+        text: 'Hello again'
+      })
+      expect(kept?.domain).toBe('run.example')
+
+      const everywhere = await database.updateAnnouncement({
+        id: announcement.id,
+        domain: null
+      })
+      expect(everywhere?.domain).toBeNull()
+
+      const moved = await database.updateAnnouncement({
+        id: announcement.id,
+        domain: 'photo.example'
+      })
+      expect(moved?.domain).toBe('photo.example')
+    })
+  })
+})

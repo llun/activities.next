@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getRulesForHost } from '@/lib/services/domains/domainAudience'
 import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveSignUpOpenSafely } from '@/lib/services/domains/signUpDomain'
@@ -44,7 +45,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
   let rules: InstanceRuleData[] = []
   if (database) {
     try {
-      rules = await database.getInstanceRules()
+      rules = await getRulesForHost(database, domain)
     } catch (error) {
       // A query failure (timeout, lock, etc.) must not take down the public
       // metadata endpoint — fall back to an empty rules list.

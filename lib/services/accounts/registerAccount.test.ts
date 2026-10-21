@@ -60,6 +60,7 @@ const identityWith = (
   contactEmail: '',
   termsOfService: null,
   privacyPolicy: null,
+  disabledFeatures: [],
   ...policies
 })
 

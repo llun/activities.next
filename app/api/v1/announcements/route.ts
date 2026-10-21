@@ -1,4 +1,7 @@
+import { getAnnouncementsDomainForHost } from '@/lib/services/domains/domainAudience'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { OAuthGuard, corsErrorResponse } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonAnnouncement } from '@/lib/services/mastodon/getMastodonAnnouncement'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -16,8 +19,16 @@ export const GET = traceApiRoute(
   OAuthGuard<{}>(
     [Scope.enum.read],
     async (req, { database, currentActor }) => {
+      // The announcements for every domain, plus those for the visited one
+      // (an extension: Mastodon has one list per server). Refresh first:
+      // `headerHost` trusts the visited host from the snapshot.
+      await ensureServedDomainsFresh()
       const announcements = await database.getActiveAnnouncements({
-        now: Date.now()
+        now: Date.now(),
+        domain: await getAnnouncementsDomainForHost(
+          database,
+          headerHost(req.headers)
+        )
       })
       const ids = announcements.map((announcement) => announcement.id)
 

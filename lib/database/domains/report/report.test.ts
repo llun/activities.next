@@ -54,6 +54,63 @@ describe('ReportDatabase', () => {
     })
   })
 
+  describe('domain of the reported profile', () => {
+    it('is the host of the target actor id unless one is given', async () => {
+      await withFreshDatabase(async (database) => {
+        const derived = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'https://Club.Example/users/ana'
+        })
+        const withPort = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'http://localhost:3000/users/ana'
+        })
+        const explicit = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET,
+          domain: 'run.example'
+        })
+        const unknown = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'not a url'
+        })
+
+        expect(derived.domain).toBe('club.example')
+        expect(withPort.domain).toBe('localhost:3000')
+        expect(explicit.domain).toBe('run.example')
+        expect(unknown.domain).toBeNull()
+        await expect(
+          database.getReportById({ reportId: derived.id })
+        ).resolves.toMatchObject({ domain: 'club.example' })
+      })
+    })
+
+    it('filters the admin list to one domain', async () => {
+      await withFreshDatabase(async (database) => {
+        const club = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'https://club.example/users/ana'
+        })
+        const run = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'https://run.example/users/bo'
+        })
+
+        const ids = async (domain?: string) =>
+          (await database.getAdminReports({ domain })).map((r) => r.id).sort()
+
+        expect(await ids('club.example')).toEqual([club.id])
+        expect(await ids('RUN.example')).toEqual([run.id])
+        expect(await ids('none.example')).toEqual([])
+        expect(await ids()).toEqual([club.id, run.id].sort())
+        // Resolved/open still apply on top of the domain.
+        await expect(
+          database.getAdminReports({ domain: 'club.example', resolved: true })
+        ).resolves.toEqual([])
+      })
+    })
+  })
+
   describe('getAdminReports', () => {
     it('filters by resolved and by reporter/target', async () => {
       await withFreshDatabase(async (database) => {

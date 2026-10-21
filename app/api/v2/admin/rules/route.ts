@@ -1,5 +1,9 @@
 import { NextRequest } from 'next/server'
 
+import {
+  domainScopeErrorBody,
+  resolveAdminDomainScope
+} from '@/lib/services/domains/domainScope'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { RuleCreateInput, getAdminRule } from '@/lib/services/rules/adminRule'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -19,10 +23,31 @@ const CORS_HEADERS = [
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+const scopeError = (
+  req: NextRequest,
+  type: 'invalid' | 'unknown' | 'primary'
+) =>
+  apiResponse({
+    req,
+    allowedMethods: CORS_HEADERS,
+    data: domainScopeErrorBody(type),
+    responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+  })
+
+// GET lists one scope in position order: the server rules, or, with
+// `?domain=<served domain>`, that domain's own rules (an extension: Mastodon
+// has no per-domain rules). The primary has none of its own: asking for it is a
+// 422.
 export const GET = traceApiRoute(
   'adminListInstanceRules',
   AdminApiGuard(CORS_HEADERS, async (req: NextRequest, { database }) => {
-    const rules = await database.getInstanceRules()
+    const scope = await resolveAdminDomainScope(
+      database,
+      new URL(req.url).searchParams.get('domain'),
+      { allowPrimary: false }
+    )
+    if (scope.type !== 'ok') return scopeError(req, scope.type)
+    const rules = await database.getOwnInstanceRules({ domain: scope.domain })
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
@@ -55,7 +80,13 @@ export const POST = traceApiRoute(
       })
     }
 
+    const scope = await resolveAdminDomainScope(database, parsed.data.domain, {
+      allowPrimary: false
+    })
+    if (scope.type !== 'ok') return scopeError(req, scope.type)
+
     const rule = await database.createInstanceRule({
+      domain: scope.domain,
       text: parsed.data.text,
       hint: parsed.data.hint,
       position: parsed.data.position

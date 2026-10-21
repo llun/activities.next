@@ -1,5 +1,6 @@
 import type { ClientBootstrapSnapshot } from '@/lib/client/offline/types'
 import { getConfig } from '@/lib/config'
+import { getRequestFeatures } from '@/lib/services/domains/visitedFeatures'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
@@ -43,7 +44,13 @@ export const GET = traceApiRoute(
             database.getActorSettings({ actorId: currentActor.id })
           ])
 
-        const { posts, media, polls, features } = serverSettings
+        const { posts, media, polls } = serverSettings
+        // The server's switches, minus what the visited domain turned off.
+        const features = await getRequestFeatures(
+          database,
+          req.headers,
+          serverSettings.features
+        )
 
         const instanceLimits = {
           maxStatusCharacters: posts.maxCharacters,

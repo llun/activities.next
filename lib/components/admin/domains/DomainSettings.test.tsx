@@ -66,6 +66,7 @@ const RUN: AdminDomainDetail = {
   privacyPolicy: null,
   termsOfServiceUpdatedAt: null,
   privacyPolicyUpdatedAt: null,
+  disabledFeatures: [],
   status: 'on',
   profiles: 34,
   signupsOpen: true,
