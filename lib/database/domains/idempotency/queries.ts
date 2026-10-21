@@ -89,8 +89,9 @@ export const setIdempotencyKeyState = async (
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .where('statusId', '=', statusId)
-    // Only the request holding the key records the queue's answer: a late
-    // write from one a retry has taken over since must not move the key.
+    // Stops a late answer once the retry has answered. A late publish_failed
+    // that lands while the retry is itself 'publishing' still matches and leaves
+    // the key publish_failed, so the next retry re-queues the same job id.
     .where('state', '=', 'publishing')
     .execute()
 }

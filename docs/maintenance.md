@@ -1440,7 +1440,10 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   a stale `publishing`. The key moves to `complete` only once the queue has
   accepted the job, and to `publish_failed` when it refuses, each only while
   it is still `publishing` (so a late answer from a request a retry took the
-  key over from cannot move it back); when either write
+  key over from is rejected once the retry has answered; a late `publish_failed`
+  that lands while the retry is itself `publishing` still matches and leaves the
+  key `publish_failed`, so the next retry re-queues the same job id, with the
+  deduplication described below); when either write
   fails the key stays `publishing`, and a retry re-queues the same job id once
   that is 60 seconds old. So of the create and its retries one queues the job
   at a time. QStash (whose deduplication id is the
