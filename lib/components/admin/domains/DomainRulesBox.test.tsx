@@ -195,6 +195,17 @@ describe('DomainRulesBox', () => {
     ).toHaveFocus()
   })
 
+  it('does not steal focus after a keyboard move that goes nowhere', () => {
+    renderBox()
+    const grip = screen.getByRole('button', { name: /^Reorder rule 3/ })
+    grip.focus()
+    fireEvent.keyDown(grip, { key: 'ArrowUp' })
+    const other = screen.getByRole('textbox', { name: 'Rule 4 text' })
+    other.focus()
+    fireEvent.change(other, { target: { value: 'Changed rule' } })
+    expect(other).toHaveFocus()
+  })
+
   it('reorders by dragging the grip, but not by dragging from the text field', () => {
     renderBox()
     const field = (n: number) =>
@@ -220,6 +231,31 @@ describe('DomainRulesBox', () => {
     )
     fireEvent.drop(row(4), { dataTransfer })
     expect(field(3)).toHaveValue('Keep home addresses private')
+  })
+
+  it('stops being draggable after the pointer is released', () => {
+    renderBox()
+    const row = screen
+      .getByRole('textbox', { name: 'Rule 3 text' })
+      .closest('li') as HTMLElement
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: /^Reorder rule 3/ })
+    )
+    expect(row).toHaveAttribute('draggable', 'true')
+    fireEvent.pointerUp(window)
+    expect(row).not.toHaveAttribute('draggable', 'true')
+  })
+
+  it('stays draggable through a pointercancel that precedes dragstart', () => {
+    renderBox()
+    const row = screen
+      .getByRole('textbox', { name: 'Rule 3 text' })
+      .closest('li') as HTMLElement
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: /^Reorder rule 3/ })
+    )
+    fireEvent.pointerCancel(window)
+    expect(row).toHaveAttribute('draggable', 'true')
   })
 
   it('does not take Enter as a new line in a rule', () => {

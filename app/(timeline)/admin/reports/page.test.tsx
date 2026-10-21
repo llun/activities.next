@@ -2,6 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
+import { redirect } from 'next/navigation'
+
+import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 import Page from './page'
 
@@ -88,9 +91,29 @@ describe('/admin/reports loader', () => {
     expect(list.domain).toBeNull()
   })
 
-  it('marks a full page of open reports as capped', async () => {
+  it('shows exactly the cap as is, and asks for one more to tell', async () => {
     getAdminReports.mockResolvedValue(new Array(1000).fill({}))
     const { header } = await load('run.example')
+    expect(header.description).toContain('1000 open reports')
+    expect(header.description).not.toContain('1000+')
+    expect(getAdminReports).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1001 })
+    )
+  })
+
+  it('marks more than the cap of open reports as capped', async () => {
+    getAdminReports.mockResolvedValue(new Array(1001).fill({}))
+    const { header } = await load('run.example')
     expect(header.description).toContain('1000+ open reports')
+  })
+
+  it('redirects a non-admin to the home page', async () => {
+    vi.mocked(getAdminFromSession).mockResolvedValueOnce(null as never)
+    vi.mocked(redirect).mockImplementationOnce((() => {
+      throw new Error('NEXT_REDIRECT')
+    }) as never)
+    await expect(load('run.example')).rejects.toThrow('NEXT_REDIRECT')
+    expect(redirect).toHaveBeenCalledWith('/')
+    expect(getAdminReports).not.toHaveBeenCalled()
   })
 })

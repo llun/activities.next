@@ -121,12 +121,10 @@ export const DomainRulesBox: FC<Props> = ({
   useEffect(() => {
     if (armedKey === null) return
     const disarm = () => setArmedKey(null)
+    // Not pointercancel: iOS Safari may send it before dragstart, once the
+    // browser takes the gesture over for a drag.
     window.addEventListener('pointerup', disarm)
-    window.addEventListener('pointercancel', disarm)
-    return () => {
-      window.removeEventListener('pointerup', disarm)
-      window.removeEventListener('pointercancel', disarm)
-    }
+    return () => window.removeEventListener('pointerup', disarm)
   }, [armedKey])
 
   const sortedServerRules = sortRules(serverRules)
@@ -189,12 +187,13 @@ export const DomainRulesBox: FC<Props> = ({
     setNewText('')
   }
 
-  const moveRule = (from: number, to: number) => {
-    if (saving) return
+  const moveRule = (from: number, to: number): boolean => {
+    if (saving) return false
     const moved = reorder(drafts, from, to)
-    if (moved === drafts) return
+    if (moved === drafts) return false
     edit(() => moved)
     setReorderStatus(`Moved rule to position ${to + 1} of ${moved.length}.`)
+    return true
   }
 
   const resync = (rules: AdminRule[]) => {
@@ -325,16 +324,10 @@ export const DomainRulesBox: FC<Props> = ({
                   key={draft.key}
                   draggable={!saving && armedKey === draft.key}
                   onDragStart={(event) => {
-                    // Only a drag that starts on the row itself (armed by the
-                    // grip) reorders; a text drag from the field bubbles here.
-                    if (
-                      saving ||
-                      armedKey !== draft.key ||
-                      event.target !== event.currentTarget
-                    ) {
-                      event.preventDefault()
-                      return
-                    }
+                    // Only a drag that starts on the row itself reorders (the
+                    // row is draggable only while armed by the grip). A text
+                    // drag from the field bubbles here and is left alone.
+                    if (saving || event.target !== event.currentTarget) return
                     // Firefox starts no drag without data.
                     event.dataTransfer.setData('text/plain', draft.text)
                     event.dataTransfer.effectAllowed = 'move'
@@ -378,7 +371,9 @@ export const DomainRulesBox: FC<Props> = ({
                       if (element) gripRefs.current.set(draft.key, element)
                       else gripRefs.current.delete(draft.key)
                     }}
-                    onPointerDown={() => setArmedKey(draft.key)}
+                    onPointerDown={(event) => {
+                      if (event.button === 0) setArmedKey(draft.key)
+                    }}
                     onKeyDown={(event) => {
                       const to =
                         event.key === 'ArrowUp'
@@ -388,8 +383,9 @@ export const DomainRulesBox: FC<Props> = ({
                             : null
                       if (to === null) return
                       event.preventDefault()
-                      focusGripAfterMove.current = draft.key
-                      moveRule(index, to)
+                      if (moveRule(index, to)) {
+                        focusGripAfterMove.current = draft.key
+                      }
                     }}
                     className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 mt-2 cursor-grab rounded transition-colors focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   >

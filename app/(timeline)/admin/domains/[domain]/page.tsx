@@ -14,6 +14,10 @@ import {
   getEnvDomains,
   getServerIdentityView
 } from '@/lib/services/domains/adminDomains'
+import {
+  OPEN_REPORTS_FETCH_LIMIT,
+  countOpenReports
+} from '@/lib/services/domains/openReports'
 import { getAdminRule } from '@/lib/services/rules/adminRule'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
@@ -38,9 +42,6 @@ const isShowing = (
   )
   return status === 'published' || status === 'scheduled'
 }
-
-// The open-report count is the length of one capped page of the queue.
-const OPEN_REPORTS_LIMIT = 1000
 
 interface Props {
   params: Promise<{ domain: string }>
@@ -82,7 +83,7 @@ const Page = async ({ params }: Props) => {
     database.getAdminReports({
       domain: domain.domain,
       resolved: false,
-      limit: OPEN_REPORTS_LIMIT
+      limit: OPEN_REPORTS_FETCH_LIMIT
     }),
     getResolvedServerSettings(database)
   ])
@@ -108,8 +109,8 @@ const Page = async ({ params }: Props) => {
         ).status === 'published'
     ).length,
     serverFeatures: settings.features,
-    openReports: reports.length,
-    openReportsCapped: reports.length >= OPEN_REPORTS_LIMIT,
+    openReports: countOpenReports(reports.length).count,
+    openReportsCapped: countOpenReports(reports.length).capped,
     currentTime
   }
 
