@@ -409,6 +409,33 @@ describe('ProfileFieldsField', () => {
       expect(content).toHaveAttribute('aria-invalid', 'true')
     })
 
+    it('does not reveal the error when the blur comes from pressing the row\u2019s own button', () => {
+      renderField([{ name: 'Blog', value: 'x' }])
+      const content = screen.getByLabelText('Field 1 content')
+      fireEvent.change(content, { target: { value: '' } })
+
+      // Safari and Firefox on macOS do not focus the button, so the input
+      // blurs with no relatedTarget.
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'Move field 1, Blog down' })
+      )
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.queryByText(PROFILE_FIELD_ERROR)).not.toBeInTheDocument()
+
+      // A later plain blur is a real departure again.
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
+    })
+
+    it('reveals the error on a blur with no relatedTarget and no press in the row', () => {
+      renderField([{ name: 'Blog', value: 'x' }])
+      const content = screen.getByLabelText('Field 1 content')
+      fireEvent.change(content, { target: { value: '' } })
+
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
+    })
+
     it('blocks the native submit for a half-filled row and clears once it is complete', () => {
       const { container } = renderField()
       const form = container.querySelector('form') as HTMLFormElement
@@ -542,12 +569,18 @@ describe('ProfileFieldsField', () => {
       expect(status.querySelector('svg')).not.toBeInTheDocument()
     })
 
-    it('shows no status for an http link, plain text or a half-filled row', () => {
-      renderField([
-        { name: 'Old', value: 'http://old.example', verifiedAt: 1 },
-        { name: 'Pronouns', value: 'they/them', verifiedAt: 1700000000000 },
-        { name: 'Half', value: '' }
-      ])
+    it.each([
+      [
+        'an http link',
+        { name: 'Old', value: 'http://old.example', verifiedAt: 1 }
+      ],
+      [
+        'plain text',
+        { name: 'Pronouns', value: 'they/them', verifiedAt: 1700000000000 }
+      ],
+      ['a half-filled row', { name: 'Half', value: '' }]
+    ])('shows no status for %s', (_case, row) => {
+      renderField([row])
 
       expect(
         document.querySelector('[data-slot="profile-link-status"]')

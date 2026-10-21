@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
 
@@ -217,6 +219,32 @@ describe('/settings', () => {
 
       expect(screen.getAllByText('Verified')).toHaveLength(1)
       expect(screen.getAllByText('Not verified')).toHaveLength(1)
+    })
+
+    it('renders the actor\u2019s custom emoji in the fields preview', async () => {
+      vi.mocked(getActorFromSession).mockResolvedValueOnce({
+        ...(await getActorFromSession(mockDatabase as never, null)),
+        tags: [
+          {
+            type: 'emoji',
+            name: ':blobcat:',
+            value: 'https://llun.test/emoji/blobcat.png'
+          }
+        ]
+      } as never)
+      getActorSettings.mockResolvedValue({
+        fields: [{ name: 'Mood', value: 'happy :blobcat:' }]
+      })
+
+      render(await Page())
+
+      const preview = document.querySelector(
+        '[data-slot="profile-fields-preview"]'
+      ) as HTMLElement
+      expect(within(preview).getByAltText(':blobcat:')).toHaveAttribute(
+        'src',
+        'https://llun.test/emoji/blobcat.png'
+      )
     })
 
     it('shows the rel me snippet with the real profile URL', async () => {

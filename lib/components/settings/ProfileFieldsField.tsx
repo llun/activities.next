@@ -110,6 +110,10 @@ export const ProfileFieldsField: FC<Props> = ({
   const pendingFocus = useRef<PendingFocus | null>(null)
   const groupRef = useRef<HTMLDivElement>(null)
   const edited = useRef(false)
+  // Safari and Firefox on macOS do not focus a button on click, so pressing a
+  // row's own button blurs its input with no relatedTarget. This marks that
+  // press so the blur is not mistaken for leaving the row.
+  const pressedInRow = useRef(false)
 
   useEffect(() => {
     rows.forEach((row) => {
@@ -273,11 +277,24 @@ export const ProfileFieldsField: FC<Props> = ({
           <div key={row.id}>
             <div
               className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-2 sm:grid-cols-[1.25rem_7.75rem_minmax(0,1fr)_auto]"
+              onPointerDown={(event) => {
+                pressedInRow.current = Boolean(
+                  (event.target as Element).closest('button')
+                )
+              }}
+              onPointerUp={() => {
+                pressedInRow.current = false
+              }}
+              onPointerCancel={() => {
+                pressedInRow.current = false
+              }}
               onBlur={(event) => {
+                const pressed = pressedInRow.current
+                pressedInRow.current = false
                 // Moving within a row is not leaving it.
-                if (!event.currentTarget.contains(event.relatedTarget)) {
-                  reveal(row.id)
-                }
+                if (event.currentTarget.contains(event.relatedTarget)) return
+                if (pressed && event.relatedTarget === null) return
+                reveal(row.id)
               }}
             >
               <Icon
