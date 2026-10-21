@@ -76,15 +76,19 @@ export function DraftsProvider({
   const [unsavedText, setUnsavedText] = useState<string | null>(null)
   const dismissNote = useCallback(() => setSavedDraftId(null), [])
   const dismissUnsaved = useCallback(() => setUnsavedText(null), [])
-  // One note at a time: the latest close wins.
-  const notifySavedToDrafts = useCallback((draftId: string) => {
-    setUnsavedText(null)
-    setSavedDraftId(draftId)
-  }, [])
-  const notifyNotSavedToDrafts = useCallback((text: string) => {
-    setSavedDraftId(null)
-    setUnsavedText(text)
-  }, [])
+  // The unsaved note holds text kept nowhere else: only Dismiss clears it, a
+  // second failure adds its text, and a Saved note waits until it is gone.
+  const notifySavedToDrafts = useCallback(
+    (draftId: string) => setSavedDraftId(draftId),
+    []
+  )
+  const notifyNotSavedToDrafts = useCallback(
+    (text: string) =>
+      setUnsavedText((prev) =>
+        prev === null ? text : [prev, text].filter(Boolean).join('\n\n')
+      ),
+    []
+  )
   const refreshToken = useRef(0)
   const epochToken = useRef(0)
   const epochRef = useRef<number | null>(null)
@@ -203,7 +207,7 @@ export function DraftsProvider({
   return (
     <DraftsContext.Provider value={value}>
       {children}
-      {value && savedDraftId ? (
+      {value && savedDraftId && unsavedText === null ? (
         <SavedToDraftsNote
           draftId={savedDraftId}
           accountId={accountId}

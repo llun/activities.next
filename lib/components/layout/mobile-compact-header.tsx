@@ -32,6 +32,11 @@ export interface MobileCompactHeaderProps {
    * the content below.
    */
   actions?: ReactNode
+  /**
+   * Spacing for the bar. The offline strip under it continues the bar, so it
+   * takes the same classes, and the bar drops its margin while the strip shows:
+   * the pair keeps one gap, under the strip.
+   */
   className?: string
 }
 
@@ -57,7 +62,11 @@ export function MobileCompactHeader({
     <>
       <div
         data-mobile-compact-header=""
-        className={cn(MOBILE_COMPACT_HEADER_CLASS, className)}
+        className={cn(
+          MOBILE_COMPACT_HEADER_CLASS,
+          className,
+          'has-[+[data-connection-strip]]:mb-0'
+        )}
         style={breakoutStyle}
       >
         <MobileNavigationTrigger className="shrink-0" />
@@ -79,7 +88,7 @@ export function MobileCompactHeader({
           </div>
         ) : null}
       </div>
-      <ConnectionStatusStrip />
+      <ConnectionStatusStrip className={className} />
     </>
   )
 }

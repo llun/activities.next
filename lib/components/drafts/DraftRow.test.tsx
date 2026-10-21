@@ -8,6 +8,7 @@ import {
   DraftConflictError,
   announceDraftsChanged,
   deleteDraftAndOwnedMedia,
+  getDraft,
   getDraftBlob
 } from '@/lib/client/drafts'
 
@@ -17,6 +18,7 @@ import { NOW, draftRecord, targetStatus } from './draftFixtures.testUtils'
 vi.mock('@/lib/client/drafts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/client/drafts')>()),
   deleteDraftAndOwnedMedia: vi.fn(),
+  getDraft: vi.fn(),
   getDraftBlob: vi.fn(),
   announceDraftsChanged: vi.fn()
 }))
@@ -278,11 +280,14 @@ describe('DraftRow', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(announceDraftsChanged).not.toHaveBeenCalled()
 
-    // The Retry the list shows deletes again.
+    // The Retry the list shows deletes again, the save stored by then.
+    const newer = draftRecord({ revision: 2, text: 'edited since' })
+    vi.mocked(getDraft).mockResolvedValue(newer)
     vi.mocked(deleteDraftAndOwnedMedia).mockResolvedValue(undefined)
     const retry = onDeleteError.mock.lastCall?.[1] as () => void
     await act(async () => retry())
-    expect(deleteDraftAndOwnedMedia).toHaveBeenCalledTimes(2)
+    expect(getDraft).toHaveBeenCalledWith('draft-1')
+    expect(deleteDraftAndOwnedMedia).toHaveBeenLastCalledWith(newer)
     expect(onDeleteError).toHaveBeenLastCalledWith(null)
   })
 

@@ -299,6 +299,58 @@ describe('DraftsList', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it("keeps a row's delete error through another row's delete, and its Retry deletes the newest save", async () => {
+    await seed({ id: 'a', text: 'drop me', updatedAt: NOW - 2 })
+    await seed({ id: 'b', text: 'and me', updatedAt: NOW - 1 })
+    renderList()
+    await screen.findByText('drop me')
+    const deleteRow = async (text: string) => {
+      const row = screen.getByText(text).closest('[data-slot="draft-row"]')
+      fireEvent.click(
+        within(row as HTMLElement).getByRole('button', { name: 'Delete' })
+      )
+      await act(async () => {
+        fireEvent.click(
+          within(screen.getByRole('dialog')).getByRole('button', {
+            name: 'Delete'
+          })
+        )
+      })
+    }
+    vi.mocked(deleteDraftAndOwnedMedia).mockRejectedValueOnce(
+      new Error('storage failed')
+    )
+
+    await deleteRow('drop me')
+    const alert = await screen.findByRole('alert')
+    await deleteRow('and me')
+    await waitFor(() => expect(screen.queryByText('and me')).toBeNull())
+    expect(alert).toBeInTheDocument()
+    expect(alert).toHaveTextContent('Something went wrong')
+
+    // Another tab saves a newer revision, and the list re-reads it.
+    await saveDraft(draftRecord({ id: 'a', text: 'drop me, edited' }), {
+      expectedRevision: 1,
+      epoch: 0
+    })
+    act(() =>
+      postDraftsMessage({
+        type: 'changed',
+        accountId: 'account-1',
+        actorId: ACTOR_ID,
+        draftId: 'a'
+      })
+    )
+    expect(await screen.findByText('drop me, edited')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    })
+
+    await waitFor(async () => expect(await getDraft('a')).toBeUndefined())
+    expect(screen.queryByText(/changed in another tab/)).toBeNull()
+  })
+
   it('on a delete conflict shows the newest save and lets Delete be retried', async () => {
     await seed({ id: 'a', text: 'before' })
     renderList()

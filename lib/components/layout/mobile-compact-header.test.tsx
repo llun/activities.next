@@ -8,10 +8,33 @@ import { MobileCompactHeader } from './mobile-compact-header'
 import { MobileNavigationProvider } from './mobile-navigation-context'
 
 vi.mock('@/lib/components/connection/ConnectionStatus', () => ({
-  ConnectionStatusStrip: () => <div data-testid="connection-strip" />
+  ConnectionStatusStrip: ({ className }: { className?: string }) => (
+    <div data-testid="connection-strip" className={className} />
+  )
 }))
 
 describe('MobileCompactHeader', () => {
+  it.each([
+    { className: undefined, flush: false },
+    { className: 'mb-0', flush: true }
+  ])(
+    'gives the offline strip the bar’s spacing, so the pair keeps one gap under the strip ($className)',
+    ({ className, flush }) => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <MobileCompactHeader title="Edit list" className={className} />
+        </MobileNavigationProvider>
+      )
+
+      const bar = container.querySelector('[data-mobile-compact-header]')
+      // While the strip follows, the bar hands its gap to the strip.
+      expect(bar).toHaveClass('has-[+[data-connection-strip]]:mb-0')
+      const strip = screen.getByTestId('connection-strip')
+      expect(strip.previousElementSibling).toBe(bar)
+      expect(strip.classList.contains('mb-0')).toBe(flush)
+    }
+  )
+
   it('renders nothing without a MobileNavigationProvider', () => {
     const { container } = render(<MobileCompactHeader title="Timeline" />)
     expect(container).toBeEmptyDOMElement()

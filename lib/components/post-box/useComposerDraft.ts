@@ -491,9 +491,13 @@ export const useComposerDraft = ({
         if (!content) {
           if (d.id && d.revision > 0) {
             // Only the revision this tab saved: a newer one from another tab
-            // is a conflict (caught below), and that record stays.
-            await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
-            announceChanged(snap)
+            // stays as that tab's draft, and this composer starts afresh.
+            try {
+              await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
+              announceChanged(snap)
+            } catch (error) {
+              if (!(error instanceof DraftConflictError)) throw error
+            }
           } else {
             // Never stored, so no record will ever reference these bytes.
             d.blobIds.forEach(dropBlob)
@@ -734,13 +738,9 @@ export const useComposerDraft = ({
       const ctx = live.current.drafts
       const text = live.current.getContent(true)?.text ?? ''
       await saveNow(true)
-      if (
-        !d.id ||
-        d.revision === 0 ||
-        d.conflicted ||
-        d.lastError ||
-        d.blobFailures.size > 0
-      ) {
+      // Photo bytes that failed alone leave a usable draft: the inline status
+      // already says so, and the record is in Drafts.
+      if (!d.id || d.revision === 0 || d.conflicted || d.lastError) {
         ctx?.notifyNotSavedToDrafts(text)
         return false
       }
@@ -788,6 +788,7 @@ export const useComposerDraft = ({
       clearTimer
     }
   }, [s])
+  const { clearTimer, ...methods } = api
 
   // Another tab (or the browser) may go away at any moment: save when hidden.
   useEffect(() => {
@@ -809,8 +810,8 @@ export const useComposerDraft = ({
   // Signing out in another tab: drop the pending save (the epoch would abort
   // it anyway).
   useEffect(() => {
-    if (!enabled) api.clearTimer()
-  }, [enabled, api])
+    if (!enabled) clearTimer()
+  }, [enabled, clearTimer])
 
   // The provider's epoch resolving is what lets a refused save go through.
   const epoch = drafts?.epoch
@@ -822,5 +823,5 @@ export const useComposerDraft = ({
     if (s.status === 'error') api.schedule()
   }, [epoch, api, s])
 
-  return { saveState, draftId, ...api }
+  return { saveState, draftId, ...methods }
 }

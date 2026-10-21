@@ -9,6 +9,7 @@ import {
   type DraftRecord,
   announceDraftsChanged,
   deleteDraftAndOwnedMedia,
+  getDraft,
   getDraftBlob
 } from '@/lib/client/drafts'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
@@ -146,10 +147,13 @@ export const DraftRow: FC<Props> = ({
     `Saved ${formatDistance(draft.updatedAt, currentTime)} ago`
   ].join(' · ')
 
-  const onDelete = async () => {
+  const onDelete = async (reread = false) => {
     setConfirmingDelete(false)
     try {
-      await deleteDraftAndOwnedMedia(draft)
+      // A Retry deletes what is stored now: the list may have re-read the draft
+      // since the failure, so the row's earlier copy would look like a conflict.
+      const target = reread ? await getDraft(draft.id) : draft
+      if (target) await deleteDraftAndOwnedMedia(target)
       onDeleteError(null)
       // Nothing else announces a delete from this page: the sidebar count and
       // other tabs listen for this.
@@ -164,7 +168,7 @@ export const DraftRow: FC<Props> = ({
         onConflict()
       } else {
         onDeleteError('Something went wrong on this device. Try again.', () => {
-          void onDelete()
+          void onDelete(true)
         })
       }
     }

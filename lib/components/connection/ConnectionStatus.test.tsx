@@ -221,8 +221,6 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
     )
     const strip = container.querySelector('[data-connection-strip]')
     expect(strip).toHaveClass('md:hidden', 'sticky', 'bg-info-surface')
-    // A sibling of the compact header in a `space-y-*` stack: no gap under it.
-    expect(strip).toHaveClass('mb-0')
   })
 
   it('publish the strip’s measured height while it shows, and drop it when it goes', async () => {

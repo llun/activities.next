@@ -42,11 +42,11 @@ export const DraftsList: FC<Props> = ({
   // A snapshot taken at Edit: the editor keeps it while saves rewrite the row.
   // A draft that vanishes (sent, deleted elsewhere) drops its row and editor.
   const [editing, setEditing] = useState<DraftRecord | null>(null)
-  // A failed row delete, shown above the list (never inside it).
-  const [deleteError, setDeleteError] = useState<{
-    message: string
-    retry?: () => void
-  } | null>(null)
+  // Failed row deletes by draft id, shown above the list (never inside it).
+  // Only that row's next delete clears its error.
+  const [deleteErrors, setDeleteErrors] = useState<
+    Record<string, { message: string; retry?: () => void }>
+  >({})
   const loadToken = useRef(0)
 
   const load = useCallback(() => {
@@ -109,11 +109,19 @@ export const DraftsList: FC<Props> = ({
       title="Drafts on this device"
       meta={`${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`}
     >
-      {deleteError ? (
-        <Alert title="Couldn't delete draft" onRetry={deleteError.retry}>
-          {deleteError.message}
-        </Alert>
-      ) : null}
+      {drafts.map((draft) => {
+        // A draft that vanished takes its error with it.
+        const error = deleteErrors[draft.id]
+        return error ? (
+          <Alert
+            key={draft.id}
+            title="Couldn't delete draft"
+            onRetry={error.retry}
+          >
+            {error.message}
+          </Alert>
+        ) : null
+      })}
       <FramedList>
         {drafts.map((draft) => (
           <FramedListItem key={draft.id}>
@@ -135,7 +143,9 @@ export const DraftsList: FC<Props> = ({
                 onEdit={() => setEditing(draft)}
                 onConflict={load}
                 onDeleteError={(message, retry) =>
-                  setDeleteError(message ? { message, retry } : null)
+                  setDeleteErrors(({ [draft.id]: _, ...rest }) =>
+                    message ? { ...rest, [draft.id]: { message, retry } } : rest
+                  )
                 }
               />
             )}

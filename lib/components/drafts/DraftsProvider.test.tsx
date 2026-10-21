@@ -369,6 +369,75 @@ describe('DraftsProvider', () => {
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
+    describe('Couldn’t save to Drafts', () => {
+      const writeText = vi.fn()
+      const renderBoth = async () => {
+        let drafts: ReturnType<typeof useDrafts> = null
+        const Grab = () => {
+          drafts = useDrafts()
+          return null
+        }
+        render(
+          <DraftsProvider accountId="account-1" actorId="actor-1">
+            <Grab />
+          </DraftsProvider>
+        )
+        await act(async () => {})
+        return {
+          saved: (id: string) => act(() => drafts?.notifySavedToDrafts(id)),
+          unsaved: (text: string) =>
+            act(() => drafts?.notifyNotSavedToDrafts(text))
+        }
+      }
+      const copy = async () => {
+        await act(async () => {
+          fireEvent.click(
+            await screen.findByRole('button', { name: 'Copy text' })
+          )
+        })
+      }
+
+      beforeEach(() => {
+        writeText.mockReset().mockResolvedValue(undefined)
+        Object.assign(navigator, { clipboard: { writeText } })
+      })
+
+      it('is not replaced by a later Saved note, which waits until it is dismissed', async () => {
+        const { saved, unsaved } = await renderBoth()
+        unsaved('First thought')
+        expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+        saved('d1')
+        await act(async () => {})
+
+        await copy()
+        expect(writeText).toHaveBeenCalledWith('First thought')
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Dismiss notification' })
+        )
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Saved to Drafts'
+        )
+      })
+
+      it('keeps both texts when a second close fails too', async () => {
+        const { unsaved } = await renderBoth()
+        unsaved('First thought')
+        await screen.findByRole('alert')
+
+        unsaved('Second thought')
+        await copy()
+
+        expect(screen.getAllByRole('alert')).toHaveLength(1)
+        expect(writeText).toHaveBeenCalledWith(
+          'First thought\n\nSecond thought'
+        )
+      })
+    })
+
     it('drops a pending note when the actor changes', async () => {
       let notify: ((id: string) => void) | undefined
       const Grab = () => {

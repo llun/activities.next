@@ -141,7 +141,7 @@ const trackStripHeight = (strip: HTMLDivElement | null) => {
  * `data-connection-strip` is what globals.css keys `--status-strip-h` on, so
  * scroll padding and the new-posts pill clear it.
  */
-export function ConnectionStatusStrip() {
+export function ConnectionStatusStrip({ className }: { className?: string }) {
   const message = useSlotMessage()
   if (!message) return null
   const Icon = ICONS[message.kind]
@@ -151,8 +151,9 @@ export function ConnectionStatusStrip() {
       data-connection-strip=""
       className={cn(
         'sticky top-[calc(56px+env(safe-area-inset-top,0px))] z-30 md:hidden',
-        // A sibling of the compact header: no `space-y-*` gap under it.
-        'mb-0 flex min-h-[52px] items-center gap-3 border-b bg-info-surface px-4'
+        'flex min-h-[52px] items-center gap-3 border-b bg-info-surface px-4',
+        // The compact header's spacing: it continues the bar.
+        className
       )}
       style={breakoutStyle}
     >

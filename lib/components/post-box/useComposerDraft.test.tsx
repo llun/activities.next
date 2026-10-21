@@ -262,15 +262,34 @@ describe('useComposerDraft', () => {
       return hook
     }
 
-    it('emptying the composer keeps it and says "Not saved"', async () => {
+    it('emptying the composer keeps it, and new text starts a new draft that can be sent', async () => {
       const { result } = await savedThenEditedElsewhere()
+      const other = await stored()
 
       current = null
       act(() => result.current.schedule())
       await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('idle'))
+      expect((await getDraft(other.id))?.text).toBe('written in the other tab')
 
-      await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
-      expect((await stored()).text).toBe('written in the other tab')
+      // The composer is not stuck: new text autosaves as a new draft.
+      current = content({ text: 'a fresh start' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      const all = await listDrafts({ actorId: 'actor-1' })
+      expect(all.map((draft) => draft.text).sort()).toEqual([
+        'a fresh start',
+        'written in the other tab'
+      ])
+
+      // And Post is allowed.
+      await act(async () => {
+        await expect(
+          result.current.recordAttempt({ key: 'key-1', fingerprint: 'fp-1' })
+        ).resolves.toBe(true)
+      })
+      expect((await getDraft(other.id))?.text).toBe('written in the other tab')
     })
 
     it('release after a send keeps it', async () => {
@@ -727,6 +746,44 @@ describe('useComposerDraft', () => {
       expect(notifySavedToDrafts).not.toHaveBeenCalled()
       // Closing must not drop the text silently: the note offers it.
       expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
+    })
+
+    it('keep says "Saved" when the record saved but a photo\'s bytes did not', async () => {
+      const put = IDBObjectStore.prototype.put
+      vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+        this: IDBObjectStore,
+        ...args: Parameters<IDBObjectStore['put']>
+      ) {
+        if (this.name === 'blobs') {
+          throw new DOMException('full', 'QuotaExceededError')
+        }
+        return put.apply(this, args)
+      })
+      const { result } = setup()
+      current = content({
+        attachments: [attachment({ mediaId: undefined })]
+      })
+      act(() =>
+        result.current.attachBlob(
+          'local-1',
+          new File(['bytes'], 'a.png', { type: 'image/png' })
+        )
+      )
+      await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
+
+      await act(async () => {
+        await expect(result.current.keep()).resolves.toBe(true)
+      })
+
+      const draft = await stored()
+      expect(draft.attachments[0].hasBlob).toBe(false)
+      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id)
+      expect(notifyNotSavedToDrafts).not.toHaveBeenCalled()
+    })
+
+    it('does not expose its internal timer', () => {
+      const { result } = setup()
+      expect(result.current).not.toHaveProperty('clearTimer')
     })
 
     it('detach saves what is there and lets the composer start a new draft', async () => {
