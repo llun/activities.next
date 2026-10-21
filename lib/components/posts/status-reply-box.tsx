@@ -12,6 +12,7 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import type { DraftRecord } from '@/lib/client/drafts'
 import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
@@ -51,6 +52,8 @@ interface Props {
   isMediaUploadEnabled?: boolean
   onCancel: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
+  /** A saved draft to reopen: seeds the reply box on its first run. */
+  draft?: DraftRecord
 }
 
 export const StatusReplyBox: FC<Props> = ({

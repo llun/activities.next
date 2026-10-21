@@ -25,6 +25,7 @@ import {
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
+import type { DraftRecord } from '@/lib/client/drafts'
 import {
   DRAFT_LOCKED_NOTICE,
   classifyFailedPost,
@@ -149,6 +150,15 @@ interface Props {
   onPostCreated: (status: Status, attachments: Attachment[]) => void
   onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
+  /** A saved draft to reopen: seeds the composer on its first run. */
+  draft?: DraftRecord
+  /**
+   * When set, the form is wrapped in a `<section>` with these classes and the
+   * submit Alert renders after it, outside the framed card.
+   */
+  frameClassName?: string
+  /** The home composer only: shows the "N drafts · Open" link. */
+  showDraftsLink?: boolean
 }
 
 export const PostBox: FC<Props> = ({

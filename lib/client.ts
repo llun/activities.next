@@ -56,6 +56,7 @@ export * from './client/strava'
 export * from './client/wahoo'
 
 // --- Offline & Sync ---
+export * from './client/health'
 export * from './client/offline'
 
 // --- Telemetry ---

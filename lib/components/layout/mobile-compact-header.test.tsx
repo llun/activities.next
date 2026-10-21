@@ -7,6 +7,10 @@ import { render, screen, within } from '@testing-library/react'
 import { MobileCompactHeader } from './mobile-compact-header'
 import { MobileNavigationProvider } from './mobile-navigation-context'
 
+vi.mock('@/lib/components/connection/ConnectionStatus', () => ({
+  ConnectionStatusStrip: () => <div data-testid="connection-strip" />
+}))
+
 describe('MobileCompactHeader', () => {
   it('renders nothing without a MobileNavigationProvider', () => {
     const { container } = render(<MobileCompactHeader title="Timeline" />)
@@ -78,5 +82,24 @@ describe('MobileCompactHeader', () => {
 
     const heading = screen.getByRole('heading', { name: longTitle })
     expect(heading).toHaveAttribute('title', longTitle)
+  })
+
+  it('renders the status strip right after the bar, as its sibling', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader title="Timeline" />
+      </MobileNavigationProvider>
+    )
+
+    const bar = container.querySelector('[data-mobile-compact-header]')
+    const strip = screen.getByTestId('connection-strip')
+    expect(bar?.nextElementSibling).toBe(strip)
+    expect(bar).not.toContainElement(strip)
+  })
+
+  it('renders no strip without a MobileNavigationProvider', () => {
+    render(<MobileCompactHeader title="Timeline" />)
+
+    expect(screen.queryByTestId('connection-strip')).not.toBeInTheDocument()
   })
 })
