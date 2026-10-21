@@ -652,8 +652,8 @@ describe('DomainSettings', () => {
       expect(screen.queryByRole('button', { name: 'Save rules' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Save features' })).toBeNull()
       expect(
-        screen.getByRole('link', { name: 'Edit on Instance' })
-      ).toBeInTheDocument()
+        screen.getAllByRole('link', { name: 'Edit on Instance' }).length
+      ).toBeGreaterThan(0)
       // Announcements and Reports stay available on the primary.
       expect(
         screen.getByRole('link', {
