@@ -7,11 +7,11 @@ import { collectSourceFiles } from '@/lib/testing/moduleImports'
 // Every `Alert` is the standalone card in the page or section stack, beside
 // the boxes and never inside one (see **Surfaces** in docs/architecture.md).
 // This parses each `.tsx` of `app/` and `lib/` and fails on an `<Alert` nested
-// in a `<Frame>` or `<FramedList>` of the same file, so a message moved back
+// in a `<Frame>`, `<FramedList>` or `<AddBar>` of the same file, so a message moved back
 // into its box is caught wherever it is. An Alert in an `AuthCard` is not
 // seen: the card is another component, and the page's surface.
 const ROOT = process.cwd()
-const BOX_TAGS = new Set(['Frame', 'FramedList'])
+const BOX_TAGS = new Set(['Frame', 'FramedList', 'AddBar'])
 
 // The Messages chat panes are the page's surface: their Alerts are the pane's
 // own rows, so they stay inside the `Frame`.
@@ -60,12 +60,15 @@ const alertsInBoxes = (source: string): number[] => {
 }
 
 describe('Alert outside Frame', () => {
-  it('finds an Alert in a Frame or FramedList, and only there', () => {
+  it('finds an Alert in a Frame, FramedList or AddBar, and only there', () => {
     const inFrame =
       'const A = () => (\n  <Frame form footer={<SaveBar />}>\n    <Alert title="x" />\n  </Frame>\n)'
     expect(alertsInBoxes(inFrame)).toEqual([3])
     expect(
       alertsInBoxes('const A = () => <FramedList><Alert /></FramedList>')
+    ).toEqual([1])
+    expect(
+      alertsInBoxes('const A = () => <AddBar label="x"><Alert /></AddBar>')
     ).toEqual([1])
     expect(
       alertsInBoxes(
