@@ -146,6 +146,22 @@ describe('IdempotencyDatabase', () => {
       database.getIdempotencyKey({ actorId, key: 'state-key' })
     ).resolves.toMatchObject({ state: 'pending' })
 
+    // Nor while no request holds it to publish.
+    await database.setIdempotencyKeyState({
+      actorId,
+      key: 'state-key',
+      statusId,
+      state: 'publish_failed'
+    })
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'state-key' })
+    ).resolves.toMatchObject({ state: 'pending' })
+
+    await database.claimIdempotencyKeyPublish({
+      actorId,
+      key: 'state-key',
+      statusId
+    })
     await database.setIdempotencyKeyState({
       actorId,
       key: 'state-key',
@@ -267,6 +283,63 @@ describe('IdempotencyDatabase', () => {
       await expect(claim('claim-abandoned', abandoned.id, true)).resolves.toBe(
         false
       )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ignores a late queue answer from a request whose key a retry took over and completed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const actorId = await createKeyedActor('late-answer')
+      const note = keyedNote(actorId, 'late', 'late-answer-key')
+      await database.createNoteWithResult(note)
+      const stateOf = async () =>
+        (await database.getIdempotencyKey({ actorId, key: 'late-answer-key' }))
+          ?.state
+      // Request A takes the key, then its queue call hangs past the stale
+      // window, so retry B takes the key over and the queue accepts B's job.
+      const takenAt = Date.now()
+      await expect(
+        database.claimIdempotencyKeyPublish({
+          actorId,
+          key: 'late-answer-key',
+          statusId: note.id
+        })
+      ).resolves.toBe(true)
+      vi.setSystemTime(takenAt + IDEMPOTENCY_PENDING_STALE_MS)
+      const staleBefore = new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)
+      await expect(
+        database.claimIdempotencyKeyPublish({
+          actorId,
+          key: 'late-answer-key',
+          statusId: note.id,
+          staleBefore
+        })
+      ).resolves.toBe(true)
+      await database.setIdempotencyKeyState({
+        actorId,
+        key: 'late-answer-key',
+        statusId: note.id,
+        state: 'complete'
+      })
+
+      // A's queue call then fails: its late write must not move the key back.
+      await database.setIdempotencyKeyState({
+        actorId,
+        key: 'late-answer-key',
+        statusId: note.id,
+        state: 'publish_failed'
+      })
+      await expect(stateOf()).resolves.toBe('complete')
+      await expect(
+        database.claimIdempotencyKeyPublish({
+          actorId,
+          key: 'late-answer-key',
+          statusId: note.id,
+          staleBefore
+        })
+      ).resolves.toBe(false)
     } finally {
       vi.useRealTimers()
     }

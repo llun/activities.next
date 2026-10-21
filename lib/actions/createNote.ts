@@ -277,12 +277,6 @@ export const loadIdempotentStatus = async ({
     return null
   }
   if (claim?.statusId !== statusId || claim.state === 'complete') return status
-  if (
-    claim.state === 'pending' &&
-    Date.now() - (claim.createdAt ?? 0) < IDEMPOTENCY_PENDING_STALE_MS
-  ) {
-    throw new IdempotencyInProgressError()
-  }
   const taken = await database.claimIdempotencyKeyPublish({
     actorId,
     key,

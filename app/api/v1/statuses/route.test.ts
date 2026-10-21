@@ -1346,12 +1346,12 @@ describe('POST /api/v1/statuses', () => {
     const created = await postStatus(body, idempotencyKey)
     expect(created.status).toBe(200)
     const { uri } = await created.json()
-    await database.setIdempotencyKeyState({
-      actorId: ACTOR1_ID,
-      key: idempotencyKey,
-      statusId: uri,
-      state: 'pending'
-    })
+    await db
+      .updateTable('idempotency_keys')
+      .set({ state: 'pending' })
+      .where('actorId', '=', ACTOR1_ID)
+      .where('key', '=', idempotencyKey)
+      .execute()
     const publishMock = vi.mocked(getQueue().publish)
     publishMock.mockClear()
 
@@ -1419,12 +1419,12 @@ describe('POST /api/v1/statuses', () => {
       .mockImplementationOnce(async (params) => {
         const result = await createNoteWithResult(params)
         // A create is discarded only while its key is still 'pending'.
-        await database.setIdempotencyKeyState({
-          actorId: ACTOR1_ID,
-          key: idempotencyKey,
-          statusId: result.status.id,
-          state: 'pending'
-        })
+        await db
+          .updateTable('idempotency_keys')
+          .set({ state: 'pending' })
+          .where('actorId', '=', ACTOR1_ID)
+          .where('key', '=', idempotencyKey)
+          .execute()
         await database.discardUnpublishedStatus({
           actorId: ACTOR1_ID,
           statusId: result.status.id,

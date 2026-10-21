@@ -106,7 +106,15 @@ describe('idempotent status lookup', () => {
     name: string,
     statusId: string,
     state: IdempotencyKeyState
-  ) => database.setIdempotencyKeyState({ actorId, key: name, statusId, state })
+  ) =>
+    // Written directly: setIdempotencyKeyState moves only a 'publishing' key.
+    db
+      .updateTable('idempotency_keys')
+      .set({ state })
+      .where('actorId', '=', actorId)
+      .where('key', '=', name)
+      .where('statusId', '=', statusId)
+      .execute()
 
   const stateOf = async (name: string) =>
     (await database.getIdempotencyKey({ actorId, key: name }))?.state

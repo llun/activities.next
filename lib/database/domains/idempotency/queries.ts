@@ -31,15 +31,7 @@ export const getIdempotencyKey = async (
 ): Promise<IdempotencyKeyRecord | null> => {
   const row = await db
     .selectFrom('idempotency_keys')
-    .select([
-      'actorId',
-      'key',
-      'statusId',
-      'contentHash',
-      'state',
-      'createdAt',
-      'stateChangedAt'
-    ])
+    .select(['actorId', 'key', 'statusId', 'contentHash', 'state', 'createdAt'])
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .limit(1)
@@ -51,8 +43,7 @@ export const getIdempotencyKey = async (
     statusId: row.statusId,
     contentHash: row.contentHash ?? null,
     state: row.state as IdempotencyKeyState,
-    createdAt: row.createdAt ?? null,
-    stateChangedAt: row.stateChangedAt ?? null
+    createdAt: row.createdAt ?? null
   }
 }
 
@@ -98,6 +89,9 @@ export const setIdempotencyKeyState = async (
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .where('statusId', '=', statusId)
+    // Only the request holding the key records the queue's answer: a late
+    // write from one a retry has taken over since must not move the key.
+    .where('state', '=', 'publishing')
     .execute()
 }
 

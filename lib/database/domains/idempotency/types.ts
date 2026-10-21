@@ -33,7 +33,8 @@ export type SaveIdempotencyKeyParams = {
 export type SetIdempotencyKeyStateParams = {
   actorId: string
   key: string
-  // Only the key still bound to this status is updated.
+  // Only the key still bound to this status, and still 'publishing', is
+  // updated.
   statusId: string
   state: IdempotencyKeyState
 }
@@ -58,8 +59,6 @@ export type IdempotencyKeyRecord = {
   contentHash: string | null
   state: IdempotencyKeyState
   createdAt: number | null
-  // When a request last moved the key out of 'pending'; null before that.
-  stateChangedAt: number | null
 }
 
 export class IdempotencyConflictError extends Error {

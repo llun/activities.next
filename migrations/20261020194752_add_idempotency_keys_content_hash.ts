@@ -7,10 +7,10 @@ import type { Kysely } from 'kysely'
 //   returning a status created from different parameters. Null on keys written
 //   before this migration: readers accept null as matching any body.
 // - `state`: how far the create that claimed the key got. 'pending' while it
-//   runs, 'publish_failed' when its post was saved but the federation job could
-//   not be queued, 'complete' once the job was queued. Rows written before this
-//   migration, and keys saved by anything other than a status create, default
-//   to 'complete'.
+//   runs, 'publishing' while a request waits for the queue to take its
+//   federation job, 'publish_failed' when the queue refused it, 'complete' once
+//   the queue accepted it. Rows written before this migration, and keys saved
+//   by anything other than a status create, default to 'complete'.
 
 // oxlint-disable-next-line typescript/no-explicit-any
 export const up = async (db: Kysely<any>): Promise<void> => {
