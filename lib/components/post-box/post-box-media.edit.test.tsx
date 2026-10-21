@@ -327,7 +327,6 @@ describe('PostBox media details', () => {
     })
 
     it('shows the plain error when an update answers 503 (nothing was saved)', async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       vi.mocked(updateNote).mockRejectedValueOnce(
         new ApiRequestError('Service unavailable', 503)
       )
@@ -340,9 +339,9 @@ describe('PostBox media details', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-      await waitFor(() =>
-        expect(alertSpy).toHaveBeenCalledWith('Service unavailable')
-      )
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent("Couldn't update.")
+      expect(alert).toHaveTextContent('Service unavailable')
       // Edits never keep the post on failure, so the new upload is cleaned up.
       unmount()
       expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)

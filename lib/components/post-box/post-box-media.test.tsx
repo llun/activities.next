@@ -320,19 +320,16 @@ describe('PostBox media details', () => {
   })
 
   it('marks a failed upload, retries it, and blocks submit while it is failed', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     uploadAttachmentMock.mockRejectedValueOnce(new Error('disk full'))
-    try {
+    {
       renderPostBox()
 
       attach('heron.png')
 
       expect(await screen.findByText('Upload failed')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() =>
-        expect(alertMock).toHaveBeenCalledWith(
-          'Fail to upload heron.png: disk full'
-        )
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Fail to upload heron.png: disk full'
       )
       expect(createNoteMock).not.toHaveBeenCalled()
 
@@ -347,8 +344,6 @@ describe('PostBox media details', () => {
         expect(getMediaMock).toHaveBeenCalledWith('media-heron.png')
       )
       expect(uploadAttachmentMock).toHaveBeenCalledTimes(2)
-    } finally {
-      alertMock.mockRestore()
     }
   })
 
@@ -1116,7 +1111,6 @@ describe('PostBox media details', () => {
     [409, 'Your post is still being sent. Please wait a moment.']
   ])('when the server kept the post (%i)', (status, message) => {
     const failWith = async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       createNoteMock.mockRejectedValueOnce(
         new ApiRequestError('retry with the same Idempotency-Key', status)
       )
@@ -1124,7 +1118,11 @@ describe('PostBox media details', () => {
       attach('a.png')
       await screen.findByText('Review')
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+      // A lock shows only its own status line, never an Alert.
+      expect(await screen.findByText(/Editing is locked/)).toHaveTextContent(
+        message
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       return view
     }
 
@@ -1133,7 +1131,6 @@ describe('PostBox media details', () => {
     })
 
     it('locks the fitness draft and retries the same file under the same key', async () => {
-      vi.spyOn(window, 'alert').mockImplementation(() => {})
       vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
         id: 'fitness-1'
       } as never)
@@ -1152,7 +1149,9 @@ describe('PostBox media details', () => {
       })
       fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      await waitFor(() => expect(window.alert).toHaveBeenCalledWith(message))
+      expect(await screen.findByText(/Editing is locked/)).toHaveTextContent(
+        message
+      )
 
       expect(screen.getByText(/Editing is locked/)).toHaveTextContent(message)
       expect(
@@ -1246,13 +1245,12 @@ describe('PostBox media details', () => {
       )
 
     it('does not delete the media a kept post uses', async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
       const view = renderPostBox()
       attach('a.png')
       await screen.findByText('Review')
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+      await screen.findByText(/Editing is locked/)
 
       retarget(view)
 
@@ -1265,7 +1263,6 @@ describe('PostBox media details', () => {
     })
 
     it('does not delete the fitness file a kept post uses', async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
         id: 'fitness-1'
       } as never)
@@ -1281,7 +1278,7 @@ describe('PostBox media details', () => {
         target: { value: 'Morning run' }
       })
       fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+      await screen.findByText(/Editing is locked/)
 
       retarget(view)
 
@@ -1296,13 +1293,12 @@ describe('PostBox media details', () => {
     ['500', new ApiRequestError('Server exploded', 500), 'Server exploded'],
     ['plain Error', new Error('offline'), 'offline']
   ])('still discards media after a %s failure', async (_n, err, message) => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     createNoteMock.mockRejectedValueOnce(err)
     const { unmount } = renderPostBox()
     attach('a.png')
     await screen.findByText('Review')
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
     unmount()
     expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
   })

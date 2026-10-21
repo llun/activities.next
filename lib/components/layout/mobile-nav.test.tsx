@@ -10,12 +10,21 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { IDBFactory } from 'fake-indexeddb'
 import { type AnchorHTMLAttributes, ReactElement, type ReactNode } from 'react'
 
+import {
+  resetDraftsChannelForTesting,
+  resetDraftsDbForTesting,
+  saveDraft,
+  setDraftsIndexedDBFactory
+} from '@/lib/client/drafts'
+import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
+import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
 vi.mock('next/link', () => ({
   default: ({
@@ -150,6 +159,50 @@ describe('MobileNav', () => {
     const notifications = screen.getByRole('link', { name: /Notifications/ })
     expect(within(notifications).getByText('4')).toBeInTheDocument()
     expect(screen.getAllByText('4')).toHaveLength(1)
+  })
+
+  it('shows the Drafts count on the drawer row and never on the menu button', async () => {
+    installFakeBroadcastChannel()
+    setDraftsIndexedDBFactory(new IDBFactory())
+    try {
+      await saveDraft(
+        {
+          id: 'd1',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          revision: 0,
+          createdAt: 1,
+          updatedAt: 1,
+          composer: 'post-box',
+          text: 'hello',
+          contentWarning: '',
+          contentWarningVisible: false,
+          visibility: 'public',
+          quoteApprovalPolicy: 'public',
+          attachments: []
+        },
+        { expectedRevision: 0, epoch: 0 }
+      )
+      renderMobileNav(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <MobileNav />
+        </DraftsProvider>
+      )
+
+      const trigger = screen.getByTestId('mobile-trigger')
+      expect(trigger.textContent).toBe('')
+      fireEvent.click(trigger)
+
+      const drafts = await screen.findByRole('link', {
+        name: /Drafts\s*\(1 unsent\)/
+      })
+      expect(within(drafts).getByText('1')).toHaveAttribute('data-tone', 'gray')
+    } finally {
+      resetDraftsChannelForTesting()
+      setDraftsIndexedDBFactory(null)
+      resetDraftsDbForTesting()
+      vi.unstubAllGlobals()
+    }
   })
 
   it.each([

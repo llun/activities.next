@@ -10,14 +10,24 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { IDBFactory } from 'fake-indexeddb'
 import {
   type AnchorHTMLAttributes,
   type ReactElement,
   type ReactNode
 } from 'react'
 
+import {
+  type DraftRecord,
+  resetDraftsChannelForTesting,
+  resetDraftsDbForTesting,
+  saveDraft,
+  setDraftsIndexedDBFactory
+} from '@/lib/client/drafts'
+import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
+import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
 vi.mock('next/link', () => ({
   default: ({
@@ -702,6 +712,124 @@ describe('Sidebar', () => {
 
       expect(preventedBySidebar).toBe(false)
       expect(scrollTo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Drafts item', () => {
+    const draft = (id: string): DraftRecord => ({
+      id,
+      accountId: 'account-1',
+      actorId: 'actor-1',
+      revision: 0,
+      createdAt: 1,
+      updatedAt: 1,
+      composer: 'post-box',
+      text: 'hello',
+      contentWarning: '',
+      contentWarningVisible: false,
+      visibility: 'public',
+      quoteApprovalPolicy: 'public',
+      attachments: []
+    })
+
+    const renderWithDrafts = async (
+      ui: ReactElement,
+      saved: number,
+      provided = true
+    ) => {
+      for (let i = 0; i < saved; i++) {
+        await saveDraft(draft(`d${i}`), { expectedRevision: 0, epoch: 0 })
+      }
+      return renderSidebar(
+        provided ? (
+          <DraftsProvider accountId="account-1" actorId="actor-1">
+            {ui}
+          </DraftsProvider>
+        ) : (
+          ui
+        )
+      )
+    }
+
+    beforeEach(() => {
+      installFakeBroadcastChannel()
+      setDraftsIndexedDBFactory(new IDBFactory())
+    })
+
+    afterEach(() => {
+      resetDraftsChannelForTesting()
+      setDraftsIndexedDBFactory(null)
+      resetDraftsDbForTesting()
+      vi.unstubAllGlobals()
+    })
+
+    it('links to /drafts after Messages, with no badge at 0', async () => {
+      await renderWithDrafts(<Sidebar lists={[]} />, 0)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const names = within(nav)
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+      expect(names.indexOf('Drafts')).toBe(names.indexOf('Messages') + 1)
+      expect(within(nav).getByRole('link', { name: 'Drafts' })).toHaveAttribute(
+        'href',
+        '/drafts'
+      )
+    })
+
+    it('shows a gray count badge with sr-only text in the full sidebar', async () => {
+      await renderWithDrafts(<Sidebar lists={[]} />, 3)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const link = await within(nav).findByRole('link', {
+        name: /Drafts\s*\(3 unsent\)/
+      })
+      const badge = within(link).getByText('3')
+      expect(badge).toHaveAttribute('data-tone', 'gray')
+      expect(badge).toHaveAttribute('aria-hidden', 'true')
+      expect(within(link).getByText('(3 unsent)')).toHaveClass('sr-only')
+    })
+
+    it('shows the badge in the phone drawer', async () => {
+      await renderWithDrafts(<Sidebar variant="drawer" lists={[]} />, 2)
+
+      const link = await screen.findByRole('link', {
+        name: /Drafts\s*\(2 unsent\)/
+      })
+      expect(within(link).getByText('2')).toHaveAttribute('data-tone', 'gray')
+    })
+
+    it('overlays the badge on the tablet rail icon and names it on the link', async () => {
+      await renderWithDrafts(<Sidebar lists={[]} />, 4)
+
+      const rail = screen.getAllByRole('navigation')[1]
+      const link = await within(rail).findByRole('link', {
+        name: 'Drafts (4 unsent)'
+      })
+      const badge = within(link).getByText('4')
+      expect(badge).toHaveAttribute('data-tone', 'gray')
+      expect(badge).toHaveClass('absolute', '-top-1', '-right-1')
+      // A solid fill with real contrast on the light rail, not bg-muted.
+      expect(badge).toHaveClass(
+        'bg-muted-foreground',
+        'text-background',
+        'dark:bg-muted-foreground',
+        'dark:text-background'
+      )
+      expect(badge).not.toHaveClass('bg-muted', 'dark:bg-[#383838]')
+    })
+
+    it('caps the count at 99+', async () => {
+      await renderWithDrafts(<Sidebar variant="drawer" lists={[]} />, 100)
+
+      expect(await screen.findByText('99+')).toBeInTheDocument()
+    })
+
+    it('shows no badge outside a DraftsProvider', async () => {
+      await renderWithDrafts(<Sidebar variant="drawer" lists={[]} />, 2, false)
+
+      const link = screen.getByRole('link', { name: 'Drafts' })
+      expect(within(link).queryByText('2')).not.toBeInTheDocument()
     })
   })
 })

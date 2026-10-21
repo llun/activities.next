@@ -3,7 +3,9 @@ import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import {
   addAttachment,
   addPollChoice,
+  createChoices,
   createDefaultState,
+  loadExtension,
   removeAttachment,
   removeFitnessFile,
   removePollChoice,
@@ -566,6 +568,41 @@ describe('post-box reducers', () => {
       const next = statusExtensionReducer(attached, setPollVisibility(true))
 
       expect(next.fitnessFile).toBeUndefined()
+    })
+  })
+
+  describe('a reopened draft', () => {
+    it('replaces the whole state with the one it loads', () => {
+      const loaded = {
+        ...createDefaultState(),
+        contentWarning: 'cw',
+        contentWarningVisible: true,
+        attachments: [attachment('a')],
+        poll: {
+          showing: true,
+          choices: createChoices(['one', 'two', 'three']),
+          durationInSeconds: 3600 as const,
+          pollType: 'anyOf' as const
+        }
+      }
+
+      const next = statusExtensionReducer(
+        { ...createDefaultState(), visibility: 'private' },
+        loadExtension(loaded)
+      )
+
+      expect(next).toBe(loaded)
+    })
+
+    it('mints a distinct key for every restored choice', () => {
+      const choices = createChoices(['one', 'two', 'three'])
+
+      expect(choices.map((choice) => choice.text)).toEqual([
+        'one',
+        'two',
+        'three'
+      ])
+      expect(new Set(choices.map((choice) => choice.key)).size).toBe(3)
     })
   })
 })

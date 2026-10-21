@@ -71,7 +71,10 @@ export function MobileCompactHeader({
         </Title>
         {actions ? <div className="shrink-0">{actions}</div> : null}
         {bottomSlot ? (
-          <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center px-4 pt-2">
+          <div
+            data-compact-header-overlay
+            className="pointer-events-none absolute inset-x-0 top-full flex justify-center px-4 pt-2"
+          >
             {bottomSlot}
           </div>
         ) : null}

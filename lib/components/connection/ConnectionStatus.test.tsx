@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   getConnectionSnapshot,
@@ -18,6 +18,9 @@ import {
 } from './ConnectionStatus'
 
 vi.mock('@/lib/client/health', () => ({ checkServerHealth: vi.fn() }))
+
+let mockPathname: string | null = '/notifications'
+vi.mock('next/navigation', () => ({ usePathname: () => mockPathname }))
 
 const mockHealth = vi.mocked(checkServerHealth)
 
@@ -77,7 +80,37 @@ describe('ConnectionAnnouncer', () => {
 })
 
 describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
-  it('are placeholders that render nothing yet', () => {
+  const host = window.location.host
+
+  const goOffline = async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    mockHealth.mockRejectedValue(new TypeError('Failed to fetch'))
+    await act(async () => {
+      await probeNow()
+    })
+  }
+
+  const goUnreachable = async () => {
+    mockHealth.mockResolvedValue(false)
+    await act(async () => {
+      await probeNow()
+    })
+  }
+
+  beforeEach(() => {
+    resetConnectionForTesting()
+    mockHealth.mockReset()
+    mockPathname = '/notifications'
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    resetConnectionForTesting()
+    vi.restoreAllMocks()
+  })
+
+  it('render nothing while online', () => {
     const { container } = render(
       <>
         <ConnectionStatusBar />
@@ -86,5 +119,107 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
     )
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('show "You\'re offline." with the WifiOff icon and no Retry', async () => {
+    const { container } = render(
+      <>
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+    await goOffline()
+
+    expect(screen.getAllByText("You're offline.")).toHaveLength(2)
+    expect(container.querySelectorAll('svg.lucide-wifi-off')).toHaveLength(2)
+    expect(container.querySelector('svg.lucide-triangle-alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(screen.queryByText('Showing saved posts')).toBeNull()
+  })
+
+  it('add "Showing saved posts" on Home only', async () => {
+    mockPathname = '/'
+    render(<ConnectionStatusBar />)
+    await goOffline()
+
+    expect(screen.getByText('Showing saved posts')).toBeInTheDocument()
+  })
+
+  it('show the host, a countdown and Retry with the AlertTriangle icon when unreachable', async () => {
+    const { container } = render(
+      <>
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+    await goUnreachable()
+
+    expect(screen.getAllByText(`Can't reach ${host}.`)).toHaveLength(2)
+    expect(screen.getAllByText(/Trying again in \d+ s/)).toHaveLength(2)
+    expect(
+      container.querySelectorAll('svg.lucide-triangle-alert')
+    ).toHaveLength(2)
+    expect(container.querySelector('svg.lucide-wifi-off')).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(2)
+  })
+
+  it('Retry probes the server again', async () => {
+    render(<ConnectionStatusBar />)
+    await goUnreachable()
+    mockHealth.mockClear()
+    mockHealth.mockResolvedValue(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    })
+
+    expect(mockHealth).toHaveBeenCalledTimes(1)
+    expect(getConnectionSnapshot().state).toBe('online')
+  })
+
+  it('keep the countdown out of the accessibility tree and tick it every second', async () => {
+    vi.useFakeTimers()
+    render(<ConnectionStatusBar />)
+    await goUnreachable()
+
+    const countdown = screen.getByText('Trying again in 5 s')
+    expect(countdown).toHaveAttribute('aria-hidden', 'true')
+    expect(countdown).toHaveClass('tabular-nums')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    expect(screen.getByText('Trying again in 3 s')).toBeInTheDocument()
+  })
+
+  it('never add a second live region: only the announcer is a status or alert', async () => {
+    render(
+      <>
+        <ConnectionAnnouncer />
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+    await goUnreachable()
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent(`Can't reach ${host}.`)
+  })
+
+  it('mark the bar desktop-only and the strip phone-only, with the hook for CSS', async () => {
+    const { container } = render(
+      <>
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+    await goUnreachable()
+
+    expect(container.querySelector('[data-slot="alert"]')).toHaveClass(
+      'max-md:hidden'
+    )
+    const strip = container.querySelector('[data-connection-strip]')
+    expect(strip).toHaveClass('md:hidden', 'sticky', 'bg-info-surface')
   })
 })

@@ -12,6 +12,26 @@ import {
 
 const allAvailable = new Set<NavItemId>(DEFAULT_NAV_ORDER)
 
+describe('the Drafts item', () => {
+  it('sits right after Messages', () => {
+    expect(DEFAULT_NAV_ORDER.indexOf('drafts')).toBe(
+      DEFAULT_NAV_ORDER.indexOf('messages') + 1
+    )
+  })
+
+  it('is not pinned, so it can be hidden under More', () => {
+    expect(sanitizeNavHidden(['drafts'])).toEqual(['drafts'])
+  })
+
+  it('shows up for an account whose saved order predates it', () => {
+    const { shown } = splitNav(
+      { navOrder: ['search', 'timeline'] },
+      allAvailable
+    )
+    expect(shown.map((id) => id)).toContain('drafts')
+  })
+})
+
 describe('normalizedOrder', () => {
   it('returns the shipped order when the user has no preference', () => {
     expect(normalizedOrder({})).toEqual([...DEFAULT_NAV_ORDER])

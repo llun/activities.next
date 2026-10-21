@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         '/auth/',
         '/authorize_interaction',
         '/bookmarks',
+        '/drafts',
         '/favorites',
         '/fitness',
         '/gallery',

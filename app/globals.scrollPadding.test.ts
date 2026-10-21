@@ -39,13 +39,14 @@ const bodyOf = (source: string, prelude: RegExp): string => {
 // padding must stop at exactly the width the chrome does.
 const mobileQuery = bodyOf(css, /@media\s*\(width\s*<\s*48rem\)\s*\{/)
 
-// Returns the rem term of `calc(env(safe-area-inset-top, 0px) + <n>rem)`; the
-// pattern requires the safe-area term, so a block without it throws here.
+// Returns the rem term of `calc(env(safe-area-inset-top, 0px) + <n>rem)`, with
+// the connection strip's height (`var(--status-strip-h, 0px)`) allowed after
+// it; the pattern requires the safe-area term, so a block without it throws.
 const offsetOf = (selector: string): number => {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const body = bodyOf(mobileQuery, new RegExp(`${escaped}\\s*\\{`))
   const match = body.match(
-    /scroll-padding-top\s*:\s*calc\(\s*env\(safe-area-inset-top,\s*0px\)\s*\+\s*([\d.]+)rem\s*\)\s*;/
+    /scroll-padding-top\s*:\s*calc\(\s*env\(safe-area-inset-top,\s*0px\)\s*\+\s*([\d.]+)rem\s*(?:\+\s*var\(--status-strip-h,\s*0px\)\s*)?\)\s*;/
   )
   if (!match) throw new Error(`No safe-area scroll-padding-top in ${selector}`)
   return Number(match[1])
@@ -64,10 +65,29 @@ describe('mobile scroll-padding for fixed chrome', () => {
     expect(rem).toBeGreaterThanOrEqual(3.75)
   })
 
+  it('offsets the new-posts pill below the strip through its data attribute, not a utility class', () => {
+    // `.top-full` is a Tailwind utility on that element: a selector coupled to
+    // it breaks silently when the markup's classes change.
+    expect(css).toMatch(
+      /html:has\(\[data-connection-strip\]\)\s+\[data-compact-header-overlay\]\s*\{[^}]*top\s*:\s*calc\(\s*100%\s*\+\s*var\(--status-strip-h/
+    )
+    expect(css).not.toMatch(/\[data-mobile-compact-header\]\s*>\s*\.top-full/)
+  })
+
   it('applies both blocks only below the md breakpoint', () => {
     // Outside the media query the same selectors must not pad the page: the
     // chrome is `md:hidden`, so a desktop offset would be dead space.
-    const outside = css.replace(mobileQuery, '')
+    // Every below-md block goes, not only the first: the strip's pill offset
+    // lives in a second one.
+    let outside = css
+    for (;;) {
+      const match = /@media\s*\(width\s*<\s*48rem\)\s*\{/.exec(outside)
+      if (!match) break
+      const body = bodyOf(outside, /@media\s*\(width\s*<\s*48rem\)\s*\{/)
+      outside =
+        outside.slice(0, match.index) +
+        outside.slice(match.index + match[0].length + body.length + 1)
+    }
     expect(outside).not.toContain('data-mobile-compact-header')
     expect(outside).not.toContain('data-floating-nav-trigger')
   })

@@ -16,7 +16,12 @@ import {
   createStatus,
   installIntersectionObserver,
   profile,
-  resetIntersectionObserver
+  resetConnectionSimulation,
+  resetIntersectionObserver,
+  simulateBackOnline,
+  simulateOffline,
+  simulateServerRecovered,
+  simulateServerUnreachable
 } from './MainPageTimeline.testUtils'
 
 vi.mock('next/navigation', () => ({
@@ -29,6 +34,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/client', () => ({
   getTimeline: vi.fn()
 }))
+
+vi.mock('@/lib/client/health', () => ({ checkServerHealth: vi.fn() }))
 
 vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
   useAnnouncements: () => ({ hasAnnouncements: true })
@@ -74,6 +81,10 @@ describe('MainPageTimeline', () => {
     await clearAllOfflineData()
     vi.mocked(getTimeline).mockReset()
     resetIntersectionObserver()
+  })
+
+  afterEach(() => {
+    resetConnectionSimulation()
   })
 
   describe('metadata reconciliation from updated statuses prop', () => {
@@ -748,9 +759,8 @@ describe('MainPageTimeline', () => {
         [post1.id]: -400,
         [post2.id]: 120
       }
-      await act(async () => {
-        window.dispatchEvent(new Event('online'))
-      })
+      await simulateOffline()
+      await simulateBackOnline()
 
       expect(
         await screen.findByRole('button', { name: '2 new posts' })
@@ -861,9 +871,8 @@ describe('MainPageTimeline', () => {
           prevMinStatusId: newA.id
         }
       })
-      await act(async () => {
-        window.dispatchEvent(new Event('online'))
-      })
+      await simulateOffline()
+      await simulateBackOnline()
 
       const pill = await screen.findByRole('button', { name: '1 new post' })
       vi.mocked(getTimeline).mockClear()
@@ -915,9 +924,8 @@ describe('MainPageTimeline', () => {
         }
       })
 
-      await act(async () => {
-        window.dispatchEvent(new Event('online'))
-      })
+      await simulateOffline()
+      await simulateBackOnline()
 
       // Because capturedAnchor.offsetTop (120px) was clamped to 80px, scrollBy
       // shifts by 370 - 80 = 290px, placing post1 at 80px, post0 at -190px,
@@ -951,9 +959,8 @@ describe('MainPageTimeline', () => {
         prevMinStatusId: post1.id
       })
 
-      await act(async () => {
-        window.dispatchEvent(new Event('online'))
-      })
+      await simulateOffline()
+      await simulateBackOnline()
 
       expect(scrollByMock).not.toHaveBeenCalled()
       expect(
@@ -983,15 +990,84 @@ describe('MainPageTimeline', () => {
       })
       rowTops = { [newA.id]: 310, [post1.id]: 560 }
 
-      await act(async () => {
-        window.dispatchEvent(new Event('online'))
-      })
+      await simulateOffline()
+      await simulateBackOnline()
 
       expect(screen.getByTestId(`post-${newA.id}`)).toBeInTheDocument()
       expect(scrollByMock).not.toHaveBeenCalled()
       expect(
         screen.queryByRole('button', { name: /new post|Back to top/ })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('connection store', () => {
+    const renderHome = () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+      return post1
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('refreshes in place when the server answers again, even without a browser online event', async () => {
+      const post1 = renderHome()
+      vi.mocked(getTimeline).mockResolvedValue({
+        statuses: [post1],
+        nextMaxStatusId: null,
+        prevMinStatusId: post1.id
+      })
+      await simulateServerUnreachable()
+      expect(getTimeline).not.toHaveBeenCalled()
+
+      await simulateServerRecovered()
+
+      expect(getTimeline).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not refresh while the connection is merely hinted offline and the probe has not recovered', async () => {
+      renderHome()
+
+      await simulateOffline()
+      await simulateServerUnreachable()
+
+      expect(getTimeline).not.toHaveBeenCalled()
+    })
+
+    it('polls for newer posts while online and skips the poll while not online', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      const post1 = renderHome()
+      vi.mocked(getTimeline).mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null,
+        prevMinStatusId: post1.id
+      })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000)
+      })
+      expect(getTimeline).toHaveBeenCalledTimes(1)
+      expect(getTimeline).toHaveBeenLastCalledWith(
+        expect.objectContaining({ minStatusId: post1.id })
+      )
+
+      await simulateServerUnreachable()
+      vi.mocked(getTimeline).mockClear()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
+
+      expect(getTimeline).not.toHaveBeenCalled()
     })
   })
 

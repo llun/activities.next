@@ -39,6 +39,21 @@ describe('MobileCompactHeader', () => {
     expect(bar?.textContent).toBe('Notifications')
   })
 
+  it('marks the bottom slot with the attribute the strip offset in globals.css targets', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader
+          title="Timeline"
+          bottomSlot={<span>3 new posts</span>}
+        />
+      </MobileNavigationProvider>
+    )
+
+    const overlay = container.querySelector('[data-compact-header-overlay]')
+    expect(overlay).toHaveTextContent('3 new posts')
+    expect(overlay?.parentElement).toHaveAttribute('data-mobile-compact-header')
+  })
+
   it('ends with the actions a page opts into, after the title', () => {
     const { container } = render(
       <MobileNavigationProvider>

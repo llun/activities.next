@@ -293,85 +293,73 @@ describe('PostBox edit media', () => {
   })
 
   it('shows an edit-specific alert when updating a post fails', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     updateNoteMock.mockRejectedValueOnce(new Error('update failed'))
 
-    try {
-      render(
-        <PostBox
-          host="activities.local"
-          profile={profile}
-          editStatus={editStatus}
-          isMediaUploadEnabled
-          onDiscardReply={vi.fn()}
-          onPostCreated={vi.fn()}
-          onPostUpdated={vi.fn()}
-          onDiscardEdit={vi.fn()}
-        />
-      )
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
 
-      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
-        target: { value: 'Updated post text' }
-      })
-      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'Updated post text' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-      await waitFor(() => {
-        expect(alertMock).toHaveBeenCalledWith('update failed')
-      })
-    } finally {
-      alertMock.mockRestore()
-    }
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't update.")
+    expect(alert).toHaveTextContent('update failed')
   })
 
   it('shows media upload failure details when edit media upload fails', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     uploadAttachmentMock.mockRejectedValueOnce(new Error('unsupported file'))
 
-    try {
-      render(
-        <PostBox
-          host="activities.local"
-          profile={profile}
-          editStatus={editStatus}
-          isMediaUploadEnabled
-          onDiscardReply={vi.fn()}
-          onPostCreated={vi.fn()}
-          onPostUpdated={vi.fn()}
-          onDiscardEdit={vi.fn()}
-        />
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media existing.jpg' })
+    )
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
       )
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
 
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Remove media existing.jpg' })
-      )
-      const fileInput = Array.from(
-        document.querySelectorAll<HTMLInputElement>(
-          'input[type="file"][name="file"]'
-        )
-      ).at(-1)!
-      fireEvent.change(fileInput, {
-        target: {
-          files: [
-            new File(['replacement'], 'replacement.png', { type: 'image/png' })
-          ]
-        }
-      })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
-      })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
-
-      await waitFor(() => {
-        expect(alertMock).toHaveBeenCalledWith(
-          'Fail to upload replacement.png: unsupported file'
-        )
-      })
-      expect(updateNoteMock).not.toHaveBeenCalled()
-    } finally {
-      alertMock.mockRestore()
-    }
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Fail to upload replacement.png: unsupported file'
+    )
+    expect(updateNoteMock).not.toHaveBeenCalled()
   })
 
   it('does not submit an edit when text, warning, and media are unchanged', async () => {

@@ -4,4 +4,5 @@
 export * from './draftMedia'
 export * from './draftsChannel'
 export * from './draftsDb'
+export * from './pendingPurge'
 export * from './types'

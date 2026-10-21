@@ -14,8 +14,10 @@ import {
 import {
   countDrafts,
   getAccountEpoch,
+  runPendingPurges,
   subscribeDraftsMessages
 } from '@/lib/client/drafts'
+import { SavedToDraftsNote } from '@/lib/components/drafts/SavedToDraftsNote'
 
 export interface DraftsContextValue {
   accountId: string
@@ -26,6 +28,8 @@ export interface DraftsContextValue {
   count: number
   /** Another tab is signing this account out: composers stop saving. */
   signingOut: boolean
+  /** The draft the "Saved to Drafts" note is showing for, if any. */
+  savedDraftId: string | null
   /** Asks for the "Saved to Drafts" note for a draft that was just kept. */
   notifySavedToDrafts: (draftId: string) => void
 }
@@ -50,10 +54,12 @@ export function DraftsProvider({
   const [epoch, setEpoch] = useState<number | null>(null)
   const [count, setCount] = useState(0)
   const [signingOut, setSigningOut] = useState(false)
-  // The draft the "Saved to Drafts" note is for. The note itself is not
-  // rendered yet; `SavedToDraftsNote` will read this.
-  const [, setSavedDraftId] = useState<string | null>(null)
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(null)
+  const dismissNote = useCallback(() => setSavedDraftId(null), [])
   const refreshToken = useRef(0)
+  const epochToken = useRef(0)
+  const epochRef = useRef<number | null>(null)
+  const purgingRef = useRef(false)
 
   const refreshCount = useCallback(() => {
     const token = ++refreshToken.current
@@ -67,43 +73,70 @@ export function DraftsProvider({
       })
   }, [actorId])
 
-  useEffect(() => {
-    let cancelled = false
-    setEpoch(null)
-    setSigningOut(false)
+  const loadEpoch = useCallback(() => {
+    const token = ++epochToken.current
     getAccountEpoch(accountId)
       .then((value) => {
-        if (!cancelled) setEpoch(value)
+        if (token !== epochToken.current) return
+        epochRef.current = value
+        setEpoch(value)
       })
-      .catch(() => {
-        if (!cancelled) setEpoch(null)
-      })
-    refreshCount()
+      // Unavailable storage: stay null; `retryEpoch` tries again on recovery.
+      .catch(() => {})
+  }, [accountId])
+
+  // Only an epoch that never resolved is re-read. One that is established is
+  // never replaced: a sign-out bumps it, and a stale tab must keep the old
+  // value so its saves are refused.
+  const retryEpoch = useCallback(() => {
+    if (epochRef.current === null && !purgingRef.current) loadEpoch()
+  }, [loadEpoch])
+
+  useEffect(() => {
+    epochRef.current = null
+    setEpoch(null)
+    setSigningOut(false)
+    setSavedDraftId(null)
+    // A sign-out whose deletion failed is finished first: it bumps the epoch
+    // and removes this account's drafts, so the epoch is read only afterwards.
+    let cancelled = false
+    purgingRef.current = true
+    void runPendingPurges().finally(() => {
+      purgingRef.current = false
+      if (cancelled) return
+      loadEpoch()
+      refreshCount()
+    })
     return () => {
       cancelled = true
+      epochToken.current += 1
       refreshToken.current += 1
     }
-  }, [accountId, refreshCount])
+  }, [accountId, loadEpoch, refreshCount])
 
   useEffect(
     () =>
       subscribeDraftsMessages((message) => {
         if (message.accountId !== accountId) return
+        retryEpoch()
         if (message.type === 'changed') refreshCount()
         else if (message.type === 'signing-out') setSigningOut(true)
         else setSigningOut(false)
       }),
-    [accountId, refreshCount]
+    [accountId, refreshCount, retryEpoch]
   )
 
   // Without BroadcastChannel, other tabs are only noticed on return.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshCount()
+      if (document.visibilityState === 'visible') {
+        retryEpoch()
+        refreshCount()
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [refreshCount])
+  }, [refreshCount, retryEpoch])
 
   const value = useMemo<DraftsContextValue | null>(
     () =>
@@ -114,13 +147,24 @@ export function DraftsProvider({
             epoch,
             count,
             signingOut,
+            savedDraftId,
             notifySavedToDrafts: setSavedDraftId
           }
         : null,
-    [accountId, actorId, epoch, count, signingOut]
+    [accountId, actorId, epoch, count, signingOut, savedDraftId]
   )
 
   return (
-    <DraftsContext.Provider value={value}>{children}</DraftsContext.Provider>
+    <DraftsContext.Provider value={value}>
+      {children}
+      {value && savedDraftId ? (
+        <SavedToDraftsNote
+          draftId={savedDraftId}
+          accountId={accountId}
+          actorId={actorId}
+          onDismiss={dismissNote}
+        />
+      ) : null}
+    </DraftsContext.Provider>
   )
 }

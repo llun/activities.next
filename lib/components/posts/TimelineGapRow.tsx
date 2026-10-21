@@ -1,8 +1,9 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC } from 'react'
 
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { cn } from '@/lib/utils'
 
 export interface TimelineGapRowProps {
@@ -16,19 +17,8 @@ export const TimelineGapRow: FC<TimelineGapRowProps> = ({
   isLoading = false,
   onLoadGap
 }) => {
-  const [isOffline, setIsOffline] = useState(false)
-
-  useEffect(() => {
-    setIsOffline(!navigator.onLine)
-    const handleOnline = () => setIsOffline(false)
-    const handleOffline = () => setIsOffline(true)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
+  // "Can't reach" stays enabled: the status slot has Retry for it.
+  const isOffline = useConnectionStatus().state === 'offline'
 
   const isDisabled = isLoading || isOffline
 

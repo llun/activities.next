@@ -451,8 +451,16 @@
      button at a 16px inset on the profile. Pad the scroll snapport so a
      keyboard focus or an in-page jump never lands under it (WCAG 2.4.11). */
   @media (width < 48rem) {
+    /* The connection status strip (52px, sticky under the compact bar) only
+       exists while the app is not online; this is the height it takes. */
+    html:has([data-connection-strip]) {
+      --status-strip-h: 52px;
+    }
+
     html:has([data-mobile-compact-header]) {
-      scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
+      scroll-padding-top: calc(
+        env(safe-area-inset-top, 0px) + 4rem + var(--status-strip-h, 0px)
+      );
     }
 
     html:has([data-floating-nav-trigger]) {
@@ -460,9 +468,11 @@
     }
 
     /* Where the app backdrop starts (see below): signed in, the 56px compact
-       bar under the top safe area. */
+       bar under the top safe area, and the strip when it is showing. */
     html:has([data-mobile-compact-header]) {
-      --backdrop-top: calc(env(safe-area-inset-top, 0px) + 56px);
+      --backdrop-top: calc(
+        env(safe-area-inset-top, 0px) + 56px + var(--status-strip-h, 0px)
+      );
     }
   }
 
@@ -661,6 +671,16 @@
     .skeleton::after {
       display: none;
     }
+  }
+}
+
+/* The compact bar's overlay slot (the home "N new posts" pill) hangs at
+   `top-full` under the bar. While the connection strip is showing it sits
+   there too, so push the pill below it. Unlayered on purpose: it has to beat
+   the `top-full` utility on that element. */
+@media (width < 48rem) {
+  html:has([data-connection-strip]) [data-compact-header-overlay] {
+    top: calc(100% + var(--status-strip-h, 0px));
   }
 }
 

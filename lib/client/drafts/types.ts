@@ -25,9 +25,11 @@ export interface DraftAttachment {
   decorative: boolean
   /**
    * The bytes are in the `blobs` store. They stay there after the upload id
-   * exists, until the post is confirmed sent or the draft is deleted: the
-   * server may clean up an unattached upload, and the bytes let the draft
-   * re-upload it.
+   * exists, until the post is confirmed sent or the draft is deleted, as the
+   * draft's own copy. A reopened draft reuses `mediaId` while the server still
+   * has it and rebuilds the attachment from these bytes only when it has no
+   * `mediaId`; a server copy that has gone missing is for the pre-flight
+   * attachment check to catch, not for a re-upload.
    */
   hasBlob: boolean
 }

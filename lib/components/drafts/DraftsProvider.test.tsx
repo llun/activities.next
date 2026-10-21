@@ -2,12 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 
 import {
   type DraftRecord,
   deleteAccountDrafts,
+  getDraft,
   postDraftsMessage,
   resetDraftsChannelForTesting,
   resetDraftsDbForTesting,
@@ -181,19 +182,208 @@ describe('DraftsProvider', () => {
     expect(screen.getByTestId('probe')).toHaveTextContent('count=0 epoch=null')
   })
 
-  it('exposes notifySavedToDrafts without throwing', async () => {
-    let notify: ((id: string) => void) | undefined
-    const Grab = () => {
-      notify = useDrafts()?.notifySavedToDrafts
-      return null
+  describe('a purge pending from an earlier sign-out', () => {
+    const KEY = 'activities-drafts-pending-purge'
+    afterEach(() => window.localStorage.clear())
+
+    it('is finished before the epoch is read, and this account sees no drafts', async () => {
+      await saveDraft(draft('a'), { expectedRevision: 0, epoch: 0 })
+      window.localStorage.setItem(KEY, JSON.stringify(['account-1']))
+
+      renderProvider()
+
+      await waitFor(() =>
+        expect(screen.getByTestId('probe')).toHaveTextContent('count=0 epoch=1')
+      )
+      expect(await getDraft('a')).toBeUndefined()
+      expect(window.localStorage.getItem(KEY)).toBeNull()
+    })
+
+    it('also purges another account that signed out on this device', async () => {
+      await saveDraft(draft('a'), { expectedRevision: 0, epoch: 0 })
+      window.localStorage.setItem(KEY, JSON.stringify(['account-2']))
+
+      renderProvider()
+
+      await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull())
+      expect(await getDraft('a')).toBeDefined()
+      expect(screen.getByTestId('probe')).toHaveTextContent('count=1 epoch=0')
+    })
+  })
+
+  describe('an epoch that failed to load', () => {
+    // The first open fails, then storage recovers; the real factory serves
+    // every open after `failing` is switched off.
+    const failFirstOpen = () => {
+      const factory = new IDBFactory()
+      const state = { failing: true }
+      setDraftsIndexedDBFactory({
+        open: (name: string, version?: number) => {
+          if (!state.failing) return factory.open(name, version)
+          const request = {} as IDBOpenDBRequest
+          queueMicrotask(() => request.onerror?.(new Event('error')))
+          return request
+        },
+        deleteDatabase: vi.fn()
+      } as unknown as IDBFactory)
+      return state
     }
-    render(
-      <DraftsProvider accountId="account-1" actorId="actor-1">
-        <Grab />
-      </DraftsProvider>
+
+    it('is read again when the tab becomes visible', async () => {
+      const state = failFirstOpen()
+      renderProvider()
+      await act(async () => {})
+      expect(screen.getByTestId('probe')).toHaveTextContent('epoch=null')
+
+      state.failing = false
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+
+      await waitFor(() =>
+        expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
+      )
+    })
+
+    it('is read again on a channel message for this account', async () => {
+      const state = failFirstOpen()
+      renderProvider()
+      await act(async () => {})
+      expect(screen.getByTestId('probe')).toHaveTextContent('epoch=null')
+
+      state.failing = false
+      await act(async () => {
+        postDraftsMessage({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          draftId: 'd1'
+        })
+      })
+
+      await waitFor(() =>
+        expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
+      )
+    })
+  })
+
+  it('never replaces an established epoch, so a stale tab stays refused after a sign-out', async () => {
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
     )
+
+    // Another tab signs out: the stored epoch moves to 1.
+    await deleteAccountDrafts('account-1')
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      postDraftsMessage({
+        type: 'changed',
+        accountId: 'account-1',
+        actorId: 'actor-1',
+        draftId: 'd1'
+      })
+    })
     await act(async () => {})
 
-    expect(() => act(() => notify?.('d1'))).not.toThrow()
+    expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
+  })
+
+  describe('Saved to Drafts note', () => {
+    const renderWithNotify = () => {
+      let notify: ((id: string) => void) | undefined
+      const Grab = () => {
+        const drafts = useDrafts()
+        notify = drafts?.notifySavedToDrafts
+        return (
+          <p data-testid="saved">{`saved=${drafts?.savedDraftId ?? 'none'}`}</p>
+        )
+      }
+      render(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <Grab />
+        </DraftsProvider>
+      )
+      return (id: string) => act(() => notify?.(id))
+    }
+
+    it('exposes savedDraftId and renders the note once notified', async () => {
+      const notify = renderWithNotify()
+      await act(async () => {})
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(screen.getByTestId('saved')).toHaveTextContent('saved=none')
+
+      notify('d1')
+
+      expect(screen.getByRole('status')).toHaveTextContent('Saved to Drafts')
+      expect(screen.getByTestId('saved')).toHaveTextContent('saved=d1')
+    })
+
+    it('dismiss clears savedDraftId and the note', async () => {
+      const notify = renderWithNotify()
+      await act(async () => {})
+      notify('d1')
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Dismiss notification' })
+      )
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(screen.getByTestId('saved')).toHaveTextContent('saved=none')
+    })
+
+    it('Discard deletes the stored draft and the count drops to 0', async () => {
+      await saveDraft(draft('d1'), { expectedRevision: 0, epoch: 0 })
+      let notify: ((id: string) => void) | undefined
+      const Grab = () => {
+        const drafts = useDrafts()
+        notify = drafts?.notifySavedToDrafts
+        return <p data-testid="count">{`count=${drafts?.count}`}</p>
+      }
+      render(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <Grab />
+        </DraftsProvider>
+      )
+      await waitFor(() =>
+        expect(screen.getByTestId('count')).toHaveTextContent('count=1')
+      )
+      act(() => notify?.('d1'))
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+      })
+
+      await waitFor(() =>
+        expect(screen.getByTestId('count')).toHaveTextContent('count=0')
+      )
+      expect(await getDraft('d1')).toBeUndefined()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+
+    it('drops a pending note when the actor changes', async () => {
+      let notify: ((id: string) => void) | undefined
+      const Grab = () => {
+        notify = useDrafts()?.notifySavedToDrafts
+        return null
+      }
+      const { rerender } = render(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <Grab />
+        </DraftsProvider>
+      )
+      await act(async () => {})
+      act(() => notify?.('d1'))
+      expect(screen.getByRole('status')).toBeInTheDocument()
+
+      rerender(
+        <DraftsProvider accountId="account-1" actorId="actor-2">
+          <Grab />
+        </DraftsProvider>
+      )
+      await act(async () => {})
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
   })
 })

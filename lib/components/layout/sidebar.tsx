@@ -17,12 +17,14 @@ import {
   ActorInfo,
   ActorSwitcher
 } from '@/lib/components/actor-switcher/ActorSwitcher'
+import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { Logo } from '@/lib/components/layout/logo'
 import { type NavItem, buildNavLayout } from '@/lib/components/layout/nav-items'
 import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { NotificationBadge } from '@/lib/components/notification-badge/NotificationBadge'
 import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPageToTop'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { Badge } from '@/lib/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -179,6 +181,29 @@ const NavRowMenu = ({
   )
 }
 
+// The gray 18 px count pill on the Drafts row. Decorative: the count is read
+// out by the sr-only text beside it (row) or the link's label (rail).
+function DraftsBadge({
+  count,
+  className
+}: {
+  count: number
+  className?: string
+}) {
+  return (
+    <Badge
+      tone="gray"
+      aria-hidden="true"
+      className={cn(
+        'h-[18px] min-w-[18px] justify-center px-1 py-0 tabular-nums',
+        className
+      )}
+    >
+      {count > 99 ? '99+' : count}
+    </Badge>
+  )
+}
+
 export function Sidebar({
   variant = 'responsive',
   onNavigate,
@@ -196,6 +221,7 @@ export function Sidebar({
 }: SidebarProps) {
   const isDrawer = variant === 'drawer'
   const pathname = usePathname()
+  const draftsCount = useDrafts()?.count ?? 0
   const { order, hidden, hideItem, showItem, move } = useNavPreferences()
   const { shown, more } = useMemo(
     () =>
@@ -483,6 +509,12 @@ export function Sidebar({
                       className={cn('h-5 w-5', isActive && 'text-primary')}
                     />
                     {item.label}
+                    {item.id === 'drafts' && draftsCount > 0 && (
+                      <>
+                        <DraftsBadge count={draftsCount} className="ml-auto" />
+                        <span className="sr-only"> ({draftsCount} unsent)</span>
+                      </>
+                    )}
                     {isNotifications && unreadCount > 0 && (
                       <>
                         <NotificationBadge
@@ -680,7 +712,11 @@ export function Sidebar({
                           // describes: without this the rail reads out as a list
                           // of unnamed links — including to whoever has just been
                           // handed one by restoring an item.
-                          aria-label={item.label}
+                          aria-label={
+                            item.id === 'drafts' && draftsCount > 0
+                              ? `${item.label} (${draftsCount} unsent)`
+                              : item.label
+                          }
                           aria-current={isActive ? 'page' : undefined}
                           className={cn(
                             'flex items-center justify-center rounded-lg p-3 transition-colors relative',
@@ -690,6 +726,17 @@ export function Sidebar({
                           )}
                         >
                           <item.icon className="h-6 w-6" />
+                          {item.id === 'drafts' && draftsCount > 0 && (
+                            <DraftsBadge
+                              count={draftsCount}
+                              // Over the rail icon the default pale gray fill is
+                              // ~1.1:1 on the light rail (and #383838 is dim on
+                              // the dark one): a solid muted-foreground fill with
+                              // background-coloured text, in both themes, reads as
+                              // the sibling of the notification badge.
+                              className="absolute -top-1 -right-1 bg-muted-foreground text-background dark:bg-muted-foreground dark:text-background"
+                            />
+                          )}
                           {isNotifications && unreadCount > 0 && (
                             <NotificationBadge
                               count={unreadCount}

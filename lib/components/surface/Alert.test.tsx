@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { WifiOff } from 'lucide-react'
 
 import { Alert, type AlertTone } from './Alert'
 
@@ -31,6 +32,17 @@ describe('Alert', () => {
       )
     }
   )
+
+  it('replaces the tone icon with `icon`, keeping the tone colour and a hidden icon', () => {
+    const { container } = render(
+      <Alert tone="info" icon={WifiOff} title="You're offline." />
+    )
+    const icons = container.querySelectorAll('svg')
+    expect(icons).toHaveLength(1)
+    expect(icons[0]).toHaveClass('lucide-wifi-off', 'text-info-text')
+    expect(icons[0]).not.toHaveClass('lucide-info')
+    expect(icons[0]).toHaveAttribute('aria-hidden', 'true')
+  })
 
   it('offers Retry when given onRetry', () => {
     const onRetry = vi.fn()
