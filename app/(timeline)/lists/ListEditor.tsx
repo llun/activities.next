@@ -520,26 +520,23 @@ export const ListEditor: FC<ListEditorProps> = ({
 
       {mode === 'edit' && list && (
         <Section title="Danger zone">
-          <Frame className="overflow-hidden">
-            <Alert
-              flush
-              live={false}
-              title="Delete this list"
-              action={
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={isDeleting || isSaving}
-                  onClick={handleDelete}
-                >
-                  <Trash2 className="size-4" />
-                  Delete list
-                </Button>
-              }
-            >
-              This removes the list but not the accounts on it.
-            </Alert>
-          </Frame>
+          <Alert
+            live={false}
+            title="Delete this list"
+            action={
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isDeleting || isSaving}
+                onClick={handleDelete}
+              >
+                <Trash2 className="size-4" />
+                Delete list
+              </Button>
+            }
+          >
+            This removes the list but not the accounts on it.
+          </Alert>
           {deleteError && <Alert title={deleteError} />}
         </Section>
       )}

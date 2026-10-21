@@ -40,6 +40,7 @@ import {
   type AdminDomainDetail,
   type ServerIdentityView
 } from '@/lib/services/domains/adminDomainTypes'
+import { cn } from '@/lib/utils'
 
 import { DomainCheckItems } from './DomainCheckItems'
 import {
@@ -235,14 +236,10 @@ const StatusBox: FC<{
   const isOn = domain.status === 'on'
 
   return (
-    <Frame
-      className="border-destructive/40 overflow-hidden"
-      footer={<p className="text-muted-foreground text-sm">{primaryNote}</p>}
-    >
+    <>
       {isOn ? (
         <Alert
           title={`Turn off ${name}`}
-          flush
           live={false}
           action={
             <Button
@@ -265,7 +262,6 @@ const StatusBox: FC<{
         <Alert
           tone="info"
           title={`${name} is off`}
-          flush
           live={false}
           action={
             <div className="flex flex-wrap gap-2">
@@ -299,8 +295,6 @@ const StatusBox: FC<{
       )}
       {error ? (
         <Alert
-          flush
-          className="border-t"
           title={error.title}
           onRetry={() =>
             void (error.action === 'remove'
@@ -309,7 +303,8 @@ const StatusBox: FC<{
           }
         />
       ) : null}
-    </Frame>
+      <p className="text-muted-foreground text-sm">{primaryNote}</p>
+    </>
   )
 }
 
@@ -346,45 +341,43 @@ const CheckBox: FC<{
           CHECKED_AT_PATTERN
         )
 
+  const bar = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-muted-foreground min-w-0 text-sm">
+        {checkedAt !== null ? (
+          <>
+            Last checked{' '}
+            <time dateTime={new Date(checkedAt).toISOString()}>
+              {checkedAtText}
+            </time>
+            .
+          </>
+        ) : (
+          'Not checked yet.'
+        )}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="ml-auto"
+        disabled={checking}
+        onClick={() => void recheck()}
+      >
+        {checking ? (
+          <Loader2 aria-hidden="true" className="animate-spin" />
+        ) : (
+          <RefreshCw aria-hidden="true" />
+        )}
+        {checking ? 'Checking…' : 'Check again'}
+      </Button>
+    </div>
+  )
+
   return (
-    <Frame
-      className="overflow-hidden"
-      footer={
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-muted-foreground min-w-0 text-sm">
-            {checkedAt !== null ? (
-              <>
-                Last checked{' '}
-                <time dateTime={new Date(checkedAt).toISOString()}>
-                  {checkedAtText}
-                </time>
-                .
-              </>
-            ) : (
-              'Not checked yet.'
-            )}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto"
-            disabled={checking}
-            onClick={() => void recheck()}
-          >
-            {checking ? (
-              <Loader2 aria-hidden="true" className="animate-spin" />
-            ) : (
-              <RefreshCw aria-hidden="true" />
-            )}
-            {checking ? 'Checking…' : 'Check again'}
-          </Button>
-        </div>
-      }
-    >
+    <>
       {check ? (
         <Alert
           tone={check.passed ? 'success' : 'error'}
-          flush
           live={false}
           title={
             check.passed
@@ -394,20 +387,18 @@ const CheckBox: FC<{
         >
           <DomainCheckItems domain={domain.domain} check={check} />
         </Alert>
-      ) : (
-        <p className="text-muted-foreground px-4 py-4 text-sm">
-          Check that {domain.domain} reaches this server before turning it on.
-        </p>
-      )}
-      {error ? (
-        <Alert
-          flush
-          className="border-t"
-          title={error}
-          onRetry={() => void recheck()}
-        />
       ) : null}
-    </Frame>
+      {error ? <Alert title={error} onRetry={() => void recheck()} /> : null}
+      {/* One tree for both states, so the first check keeps the button (and its focus). */}
+      <Frame>
+        {check ? null : (
+          <p className="text-muted-foreground px-4 py-4 text-sm">
+            Check that {domain.domain} reaches this server before turning it on.
+          </p>
+        )}
+        <div className={cn('px-4 py-3', !check && 'border-t')}>{bar}</div>
+      </Frame>
+    </>
   )
 }
 

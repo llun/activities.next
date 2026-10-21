@@ -52,12 +52,6 @@ interface Props {
   /** Shorthand for an outline "Retry" action; `action` wins if both are given. */
   onRetry?: () => void
   /**
-   * A row of a `Frame` rather than a card of its own: no outline or rounded
-   * corners, only the tone's tinted fill and its rule down the left edge. The
-   * frame (give it `overflow-hidden`) draws the outline around it.
-   */
-  flush?: boolean
-  /**
    * Whether it speaks when it appears (default). Turn it off for a row that is
    * simply part of the page at load, such as the danger zone or a standing
    * "two-factor is off" state: that is content to read, not news to announce,
@@ -66,8 +60,7 @@ interface Props {
   live?: boolean
   /**
    * Extra classes for layout (margin, width). Do not override the fill with a
-   * `bg-*` class: the tone's opaque surface is part of the component, in both
-   * the card and the flush form.
+   * `bg-*` class: the tone's opaque surface is part of the component.
    */
   className?: string
 }
@@ -79,7 +72,10 @@ interface Props {
  * the tone's full colour, the tone's icon, a bold line saying what happened
  * and a muted one saying what to do, and an optional action. Errors and
  * warnings are live `alert`s, so a failure that lands after the page settled
- * announces itself; success and info are polite `status` regions.
+ * announces itself; success and info are polite `status` regions. Every Alert
+ * is this standalone card: it sits in the page or section stack beside the
+ * boxes, aligned with their edges, never inside a `Frame` (the exceptions are
+ * an `AuthCard` and the Messages chat panes, which are the page's surface).
  */
 export const Alert: FC<Props> = ({
   tone = 'error',
@@ -87,7 +83,6 @@ export const Alert: FC<Props> = ({
   children,
   action,
   onRetry,
-  flush = false,
   live = true,
   className
 }) => {
@@ -100,9 +95,8 @@ export const Alert: FC<Props> = ({
       className={cn(
         'flex flex-wrap items-center gap-3 p-4',
         surface,
-        flush
-          ? 'border-y-0 border-r-0 border-l-4'
-          : ['rounded-lg border border-l-4', outline],
+        'rounded-lg border border-l-4',
+        outline,
         rule,
         className
       )}

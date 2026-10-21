@@ -81,6 +81,10 @@ describe('ChangeEmailForm', () => {
     await waitFor(() => {
       expect(screen.getByText('Email already in use')).toBeInTheDocument()
     })
+    // The alert sits above the box, not inside it.
+    expect(
+      screen.getByText('Email already in use').closest('[data-slot=frame]')
+    ).toBeNull()
 
     expect(
       screen.getByRole('button', { name: /send verification email/i })

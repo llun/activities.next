@@ -256,8 +256,8 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
         title="Hidden locations"
         description="Media taken inside these areas never shows a place to others, at any precision."
       >
-        {/* The editor is itself the flat `rounded-lg border` frame (Fitness's
-            privacy page shares it), so it is not wrapped in a second one. */}
+        {/* The editor lays out its own Alerts and `Frame` (Fitness's privacy
+            page shares it), so it is not wrapped in a second box. */}
         <PrivacyLocationsEditor
           mapProvider={mapProvider}
           load={loadHiddenLocations}

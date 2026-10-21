@@ -303,14 +303,46 @@ describe('InstanceSettingsForm', () => {
       expect(screen.getByLabelText(/^Privacy policy/)).toBeDisabled()
       expect(screen.getByLabelText('Terms of service')).toBeEnabled()
       expect(screen.getByText('Set by environment')).toBeInTheDocument()
-      const alert = screen.getByText('Set by ACTIVITIES_PRIVACY_POLICY.')
-      expect(alert).toBeInTheDocument()
-      expect(
-        screen.getByText('Remove the variable to edit it here.')
-      ).toBeInTheDocument()
+      const alert = screen
+        .getByText('Set by ACTIVITIES_PRIVACY_POLICY.')
+        .closest('[data-slot=alert]')
+      expect(alert).toHaveTextContent('Remove the variable to edit it here.')
+      // A standing message sits above the box, never inside it.
+      expect(alert?.closest('[data-slot=frame]')).toBeNull()
+      expect(alert?.nextElementSibling).toHaveAttribute('data-slot', 'frame')
       expect(screen.queryByText(/Last updated/)).toBeNull()
       expect(document.getElementById('policies-privacy-help')).toBeNull()
       expect(document.getElementById('policies-terms-help')).not.toBeNull()
+    })
+
+    it('names both variables in one warning when both documents are pinned', () => {
+      renderForm(
+        {
+          [TERMS_KEY]: { locked: true, envVar: 'ACTIVITIES_TERMS_OF_SERVICE' },
+          [PRIVACY_KEY]: { locked: true, envVar: 'ACTIVITIES_PRIVACY_POLICY' }
+        },
+        {},
+        withPolicies({ termsOfService: '# Terms', privacyPolicy: '# Privacy' })
+      )
+
+      expect(
+        screen.getByText(
+          'Set by ACTIVITIES_TERMS_OF_SERVICE and ACTIVITIES_PRIVACY_POLICY.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Remove the variables to edit them here.')
+      ).toBeInTheDocument()
+    })
+
+    it('shows no warning while neither document is pinned', () => {
+      renderForm(
+        {},
+        {},
+        withPolicies({ termsOfService: '', privacyPolicy: '' })
+      )
+
+      expect(document.querySelector('[data-slot=alert]')).toBeNull()
     })
 
     it('saves the unlocked document alone while the other is pinned', async () => {
