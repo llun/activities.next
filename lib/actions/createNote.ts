@@ -3,7 +3,6 @@ import {
   IdempotencyConflictError,
   IdempotencyDeletedError,
   IdempotencyInProgressError,
-  type IdempotencyKeyState,
   StatusPublishFailedError
 } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
@@ -137,11 +136,55 @@ const getStatusCreationJob = (
       }
 }
 
+// Queues the federation job of a status whose key the caller has just taken
+// (claimIdempotencyKeyPublish), or that has no key. A queue error is ambiguous
+// (the job may have been accepted, or run inline), so the post is kept: its
+// key moves back to 'publish_failed', so a retry with the key queues the job
+// again, and the request fails with StatusPublishFailedError. A failed state
+// write leaves the key 'complete', and nothing re-sends the post.
+const queueStatusCreationJob = async ({
+  database,
+  actorId,
+  status,
+  fitnessFileId,
+  key
+}: {
+  database: Database
+  actorId: string
+  status: Status
+  fitnessFileId?: string
+  key?: string
+}): Promise<void> => {
+  const job = getStatusCreationJob(actorId, status, fitnessFileId)
+  try {
+    if (job) await getQueue().publish(job)
+  } catch (error) {
+    logger.error({
+      message: 'Status create: federation job could not be queued',
+      statusId: status.id,
+      err: toLoggableError(error)
+    })
+    if (key) {
+      await runBestEffortStep(status.id, 'Idempotency-Key publish_failed', () =>
+        database.setIdempotencyKeyState({
+          actorId,
+          key,
+          statusId: status.id,
+          state: 'publish_failed'
+        })
+      )
+    }
+    throw new StatusPublishFailedError(Boolean(key))
+  }
+}
+
 // The commit point of a status create, after which the post is never
-// discarded: a queue error is ambiguous (the job may have been accepted, or
-// run inline), so the post is kept. Its key is marked 'publish_failed' so a
-// retry with the key queues the job again, and the request fails with
-// StatusPublishFailedError. On success the key is marked 'complete'.
+// discarded. With a key, the job is queued only if this request takes the
+// key from 'pending' to 'complete' first: a retry that took over a stale
+// 'pending' key has queued it already, and a discard keeps a post whose key
+// has moved on. A failed claim leaves the key 'pending' (a retry gets 409
+// until it is IDEMPOTENCY_PENDING_STALE_MS old, then queues the job) and fails
+// the request with StatusPublishFailedError.
 export const publishCreatedStatus = async ({
   database,
   actorId,
@@ -155,40 +198,40 @@ export const publishCreatedStatus = async ({
   fitnessFileId?: string
   idempotency?: { key: string }
 }): Promise<void> => {
-  // A failed state write leaves the key 'pending': a retry gets 409 until the
-  // key is IDEMPOTENCY_PENDING_STALE_MS old, then queues the job again.
-  const setKeyState = async (state: IdempotencyKeyState) => {
-    if (!idempotency) return
-    await runBestEffortStep(status.id, `Idempotency-Key ${state}`, () =>
-      database.setIdempotencyKeyState({
+  if (idempotency) {
+    let claimed: boolean
+    try {
+      claimed = await database.claimIdempotencyKeyPublish({
         actorId,
         key: idempotency.key,
-        statusId: status.id,
-        state
+        statusId: status.id
       })
-    )
+    } catch (error) {
+      logger.error({
+        message: 'Status create: Idempotency-Key could not be claimed',
+        statusId: status.id,
+        err: toLoggableError(error)
+      })
+      throw new StatusPublishFailedError(true)
+    }
+    if (!claimed) return
   }
-  const job = getStatusCreationJob(actorId, status, fitnessFileId)
-  try {
-    if (job) await getQueue().publish(job)
-  } catch (error) {
-    logger.error({
-      message: 'Status create: federation job could not be queued',
-      statusId: status.id,
-      err: toLoggableError(error)
-    })
-    await setKeyState('publish_failed')
-    throw new StatusPublishFailedError(status.id, Boolean(idempotency))
-  }
-  await setKeyState('complete')
+  await queueStatusCreationJob({
+    database,
+    actorId,
+    status,
+    fitnessFileId,
+    key: idempotency?.key
+  })
 }
 
 // Answers a retry with the key that claimed `statusId`, after waiting out an
 // in-process create of it, by the key's state:
 // - 'complete': the status;
 // - 'publish_failed', or 'pending' for longer than IDEMPOTENCY_PENDING_STALE_MS
-//   (its process most likely stopped): queues the job again, then the status
-//   (StatusPublishFailedError when the queue refuses again);
+//   (its process most likely stopped): takes the key and queues the job again,
+//   then the status (StatusPublishFailedError when the queue refuses again);
+//   when another request took the key first, answers by its new state;
 // - a fresher 'pending': IdempotencyInProgressError, as another process may
 //   still be creating it.
 // Null when that create failed and discarded its status and key, so a retry
@@ -211,8 +254,13 @@ export const loadIdempotentStatus = async ({
   const claim = await database.getIdempotencyKey({ actorId, key })
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) {
-    if (claim?.statusId === statusId)
+    if (claim?.statusId !== statusId) return null
+    // A discard may have committed between the two reads: only a key that
+    // still names the status means the status was deleted.
+    const current = await database.getIdempotencyKey({ actorId, key })
+    if (current?.statusId === statusId) {
       throw new IdempotencyDeletedError(statusId)
+    }
     return null
   }
   if (claim?.statusId !== statusId || claim.state === 'complete') return status
@@ -222,15 +270,29 @@ export const loadIdempotentStatus = async ({
   ) {
     throw new IdempotencyInProgressError()
   }
-  await publishCreatedStatus({
-    database,
+  const taken = await database.claimIdempotencyKeyPublish({
     actorId,
-    status,
-    fitnessFileId:
-      status.type === StatusType.enum.Note ? status.fitness?.id : undefined,
-    idempotency: { key }
+    key,
+    statusId,
+    staleBefore: new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)
   })
-  return status
+  if (taken) {
+    await queueStatusCreationJob({
+      database,
+      actorId,
+      status,
+      fitnessFileId:
+        status.type === StatusType.enum.Note ? status.fitness?.id : undefined,
+      key
+    })
+    return status
+  }
+  // Another request moved the key since it was read.
+  const current = await database.getIdempotencyKey({ actorId, key })
+  if (current?.statusId !== statusId) return null
+  if (current.state === 'complete') return status
+  if (current.state === 'pending') throw new IdempotencyInProgressError()
+  throw new StatusPublishFailedError(true)
 }
 
 export const resolveExistingIdempotentStatus = async ({
@@ -262,7 +324,8 @@ export const resolveExistingIdempotentStatus = async ({
 }
 
 // Undoes a create whose completion steps failed before its job was queued, so
-// a retry (with the same Idempotency-Key, if any) creates the post afresh.
+// a retry (with the same Idempotency-Key, if any) creates the post afresh. A
+// post whose key a retry has taken over (and sent) is kept as it was left.
 // When the discard itself fails, the status and its 'pending' key remain: a
 // retry gets 409 until the key is IDEMPOTENCY_PENDING_STALE_MS old, then sends
 // the post as it was left.
@@ -278,11 +341,18 @@ export const discardFailedStatusCreate = async ({
   idempotency?: { key: string }
 }): Promise<void> => {
   try {
-    await database.discardUnpublishedStatus({
+    const discarded = await database.discardUnpublishedStatus({
       actorId,
       statusId,
       idempotencyKey: idempotency?.key
     })
+    if (!discarded) {
+      logger.warn({
+        message:
+          'Kept a status whose create failed: a retry with its Idempotency-Key already sent it',
+        statusId
+      })
+    }
   } catch (error) {
     logger.error({
       message: 'Failed to discard a status whose create failed',
@@ -955,6 +1025,31 @@ export const createNoteFromUserInput = async ({
         throw error
       }
 
+      // After every completion step, so a discarded post was never counted,
+      // and before the publish, which on the in-process queue runs the whole
+      // fan-out inline: a request that dies there still leaves a counted
+      // post, which a retry sends and a later delete decrements.
+      await runBestEffortStep(
+        statusId,
+        'hashtag counters and search',
+        async () => {
+          // The count is served to anonymous /tags/<tag> visitors; a
+          // followers-only or direct post must not move it.
+          if (isPublicOrUnlisted({ to, cc })) {
+            await Promise.all(
+              hashtags.map((hashtag) =>
+                database.increaseHashtagCounter({ hashtag: hashtag.name })
+              )
+            )
+          }
+          if (hashtags.length > 0) {
+            await database.indexHashtagSearchDocuments({
+              hashtags: hashtags.map((hashtag) => hashtag.name)
+            })
+          }
+        }
+      )
+
       try {
         await publishCreatedStatus({
           database,
@@ -973,27 +1068,6 @@ export const createNoteFromUserInput = async ({
 
     // Best-effort steps after the publish, so a discarded post never reached
     // them. They run when the publish failed too, because that post is kept.
-    await runBestEffortStep(
-      statusId,
-      'hashtag counters and search',
-      async () => {
-        // The count is served to anonymous /tags/<tag> visitors; a
-        // followers-only or direct post must not move it.
-        if (isPublicOrUnlisted({ to, cc })) {
-          await Promise.all(
-            hashtags.map((hashtag) =>
-              database.increaseHashtagCounter({ hashtag: hashtag.name })
-            )
-          )
-        }
-        if (hashtags.length > 0) {
-          await database.indexHashtagSearchDocuments({
-            hashtags: hashtags.map((hashtag) => hashtag.name)
-          })
-        }
-      }
-    )
-
     if (remoteQuoteRequest && quotedStatusId) {
       const quoteRequestId = `${statusId}#quote-request`
       await runBestEffortStep(statusId, 'quote request enqueue', () =>

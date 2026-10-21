@@ -718,14 +718,27 @@ export const deleteStatus = async (
 // deleteStatus of a status whose create failed before it was federated, and,
 // in the same transaction, the idempotency key that create claimed for it, so
 // a retry with the same key creates the post afresh instead of getting 410.
-// The create counts hashtags only after its federation job is queued, so a
-// discarded status's hashtags were never counted and are not decremented.
+// With a key, only while it is still 'pending': a retry that took the key to
+// send the post (claimIdempotencyKeyPublish) has federated it, so it is kept.
+// Returns whether the status was discarded. The create counts hashtags only
+// after its completion steps, so a discarded status's hashtags were never
+// counted and are not decremented.
 export const discardUnpublishedStatus = async (
   db: Db,
   { actorId, statusId, idempotencyKey }: DiscardUnpublishedStatusParams
-): Promise<void> => {
+): Promise<boolean> => {
   const collectedHashtags: string[] = []
-  await inTransaction(db, async (trx) => {
+  const discarded = await inTransaction(db, async (trx) => {
+    if (idempotencyKey) {
+      const { numDeletedRows } = await trx
+        .deleteFrom('idempotency_keys')
+        .where('actorId', '=', actorId)
+        .where('key', '=', idempotencyKey)
+        .where('statusId', '=', statusId)
+        .where('state', '=', 'pending')
+        .executeTakeFirst()
+      if (Number(numDeletedRows) === 0) return false
+    }
     await executeStatusDeletion({
       actorId,
       affectedHashtags: collectedHashtags,
@@ -733,16 +746,12 @@ export const discardUnpublishedStatus = async (
       statusId,
       trx
     })
-    if (idempotencyKey) {
-      await trx
-        .deleteFrom('idempotency_keys')
-        .where('actorId', '=', actorId)
-        .where('key', '=', idempotencyKey)
-        .where('statusId', '=', statusId)
-        .execute()
-    }
+    return true
   })
-  await refreshAffectedHashtags(db, { collectedHashtags, statusId })
+  if (discarded) {
+    await refreshAffectedHashtags(db, { collectedHashtags, statusId })
+  }
+  return discarded
 }
 
 // deleteStatus with `actorId` plus a queue job, inserted in the same

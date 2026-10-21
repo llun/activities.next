@@ -1135,6 +1135,31 @@ describe('POST /api/v1/statuses', () => {
     await expect(statusesWithText(text)).resolves.toHaveLength(0)
   })
 
+  it('discards the poll without publishing when its emoji tags cannot be saved', async () => {
+    const text = 'Poll emoji tags fail :blobcat:'
+    const idempotencyKey = 'idem-key-poll-emoji-fails'
+    const discardSpy = vi.spyOn(database, 'discardUnpublishedStatus')
+    const emojiSpy = vi
+      .spyOn(database, 'getCustomEmojis')
+      .mockRejectedValueOnce(new Error('Database hiccup'))
+    try {
+      const failed = await postStatus(
+        { status: text, poll: { options: ['Yes', 'No'], expires_in: 3600 } },
+        idempotencyKey
+      )
+      expect(failed.status).toBe(400)
+      expect(discardSpy).toHaveBeenCalled()
+    } finally {
+      emojiSpy.mockRestore()
+      discardSpy.mockRestore()
+    }
+
+    await expect(statusesWithText(text)).resolves.toHaveLength(0)
+    await expect(
+      database.getIdempotencyKey({ actorId: ACTOR1_ID, key: idempotencyKey })
+    ).resolves.toBeNull()
+  })
+
   it('waits for every sibling insert to settle before discarding, so none lands after the discard', async () => {
     const text = 'Sibling inserts settle first'
     const [first, second] = await Promise.all([
@@ -1205,6 +1230,27 @@ describe('POST /api/v1/statuses', () => {
     }
 
     await expect(counterValue()).resolves.toBe(1)
+  })
+
+  it('counts hashtags before the publish, so a request that dies in an inline fan-out leaves them counted', async () => {
+    const counterId = CounterKey.totalHashtag('countedfirst')
+    const counterValue = async () =>
+      (
+        await db
+          .selectFrom('counters')
+          .select('value')
+          .where('id', '=', counterId)
+          .executeTakeFirst()
+      )?.value
+    let valueAtPublish: number | undefined
+    vi.mocked(getQueue().publish).mockImplementationOnce(async () => {
+      valueAtPublish = await counterValue()
+    })
+
+    const created = await postStatus({ status: 'Counted first #countedfirst' })
+
+    expect(created.status).toBe(200)
+    expect(valueAtPublish).toBe(1)
   })
 
   it('responds 409 while another process may still hold a pending key, and sends the post once the key is stale', async () => {
@@ -1285,6 +1331,13 @@ describe('POST /api/v1/statuses', () => {
       .spyOn(database, 'createNoteWithResult')
       .mockImplementationOnce(async (params) => {
         const result = await createNoteWithResult(params)
+        // A create is discarded only while its key is still 'pending'.
+        await database.setIdempotencyKeyState({
+          actorId: ACTOR1_ID,
+          key: idempotencyKey,
+          statusId: result.status.id,
+          state: 'pending'
+        })
         await database.discardUnpublishedStatus({
           actorId: ACTOR1_ID,
           statusId: result.status.id,

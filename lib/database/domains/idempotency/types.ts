@@ -13,7 +13,8 @@ export const IDEMPOTENCY_PENDING_STALE_MS = 60_000
 // - 'pending': the create is still running (or its process stopped);
 // - 'publish_failed': the post is saved but its federation job could not be
 //   queued, so a retry with the key queues it again;
-// - 'complete': the job was queued. Keys written before the column existed,
+// - 'complete': a request took the key to queue the job (and moves it back to
+//   'publish_failed' if the queue refuses). Keys written before the column existed,
 //   and keys saved by saveIdempotencyKey, are 'complete'.
 export type IdempotencyKeyState = 'pending' | 'publish_failed' | 'complete'
 
@@ -31,6 +32,15 @@ export type SetIdempotencyKeyStateParams = {
   // Only the key still bound to this status is updated.
   statusId: string
   state: IdempotencyKeyState
+}
+export type ClaimIdempotencyKeyPublishParams = {
+  actorId: string
+  key: string
+  statusId: string
+  // Omitted for the create's own request, which takes the key from 'pending'.
+  // A retry passes now - IDEMPOTENCY_PENDING_STALE_MS and takes it from
+  // 'publish_failed', or from a 'pending' claimed at or before this time.
+  staleBefore?: Date
 }
 export type DeleteExpiredIdempotencyKeysParams = {
   olderThan?: Date
@@ -81,16 +91,13 @@ export class IdempotencyInProgressError extends Error {
 // The post is saved but its federation job could not be queued (503). A retry
 // with the same Idempotency-Key queues it again; without a key nothing will.
 export class StatusPublishFailedError extends Error {
-  readonly statusId: string
-
-  constructor(statusId: string, hasIdempotencyKey: boolean) {
+  constructor(hasIdempotencyKey: boolean) {
     super(
       hasIdempotencyKey
         ? 'Your post was saved but could not be sent yet; retry with the same Idempotency-Key'
         : 'Your post was saved but could not be sent'
     )
     this.name = 'StatusPublishFailedError'
-    this.statusId = statusId
   }
 }
 
@@ -103,6 +110,11 @@ export interface IdempotencyDatabase {
   ): Promise<IdempotencyKeyRecord | null>
   saveIdempotencyKey(params: SaveIdempotencyKeyParams): Promise<void>
   setIdempotencyKeyState(params: SetIdempotencyKeyStateParams): Promise<void>
+  // Moves the key to 'complete' if the caller may queue its status's job, and
+  // returns whether it did (see ClaimIdempotencyKeyPublishParams).
+  claimIdempotencyKeyPublish(
+    params: ClaimIdempotencyKeyPublishParams
+  ): Promise<boolean>
   deleteExpiredIdempotencyKeys(
     params?: DeleteExpiredIdempotencyKeysParams
   ): Promise<number>

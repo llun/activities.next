@@ -1,4 +1,5 @@
 import {
+  createNoteFromUserInput,
   loadIdempotentStatus,
   resolveExistingIdempotentStatus,
   settleAll,
@@ -17,6 +18,8 @@ import {
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { createDeferred } from '@/lib/testing/deferred'
+import type { Actor } from '@/lib/types/domain/actor'
+import type { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -268,5 +271,98 @@ describe('idempotent status lookup', () => {
     await expect(load('deleted', statusId)).rejects.toBeInstanceOf(
       IdempotencyDeletedError
     )
+  })
+
+  // Another process's retry does not see this process's in-flight create.
+  const forgetInFlight = (statusId: string) =>
+    trackInFlightStatusCreation(statusId)()
+
+  // A create whose emoji step (a completion step) waits on `emojis`, and the
+  // id of the status it claimed the key for, once it reaches that step.
+  const startSlowCreate = async (name: string) => {
+    const emojis = createDeferred<CustomEmojiData[]>()
+    const emojiSpy = vi
+      .spyOn(database, 'getCustomEmojis')
+      .mockReturnValueOnce(emojis.promise)
+    const actor = (await database.getActorFromId({ id: actorId })) as Actor
+    const create = createNoteFromUserInput({
+      text: name,
+      currentActor: actor,
+      idempotency: { key: name, contentHash: `hash-${name}` },
+      database
+    })
+    create.catch(() => undefined)
+    await vi.waitFor(() => expect(emojiSpy).toHaveBeenCalled())
+    const claim = await database.getIdempotencyKey({ actorId, key: name })
+    return { create, emojis, statusId: claim!.statusId }
+  }
+
+  const retry = (name: string) =>
+    resolveExistingIdempotentStatus({
+      database,
+      actorId,
+      idempotency: { key: name, contentHash: `hash-${name}` }
+    })
+
+  it('sends the post once when a retry takes over a slow create that then finishes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const { create, emojis, statusId } = await startSlowCreate('slow-create')
+    forgetInFlight(statusId)
+    vi.setSystemTime(Date.now() + IDEMPOTENCY_PENDING_STALE_MS)
+
+    await expect(retry('slow-create')).resolves.toMatchObject({ id: statusId })
+    expect(mockPublish).toHaveBeenCalledTimes(1)
+
+    emojis.resolve([])
+    await expect(create).resolves.toMatchObject({ id: statusId })
+    expect(mockPublish).toHaveBeenCalledTimes(1)
+    await expect(stateOf('slow-create')).resolves.toBe('complete')
+  })
+
+  it('keeps a post a retry has sent when its slow create then fails', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const { create, emojis, statusId } = await startSlowCreate('slow-fails')
+    forgetInFlight(statusId)
+    vi.setSystemTime(Date.now() + IDEMPOTENCY_PENDING_STALE_MS)
+    await expect(retry('slow-fails')).resolves.toMatchObject({ id: statusId })
+
+    emojis.reject(new Error('Emoji lookup failed'))
+    await expect(create).rejects.toThrow('Emoji lookup failed')
+
+    expect(mockPublish).toHaveBeenCalledTimes(1)
+    await expect(
+      database.getStatus({ statusId, withReplies: false })
+    ).resolves.toMatchObject({ id: statusId })
+    await expect(stateOf('slow-fails')).resolves.toBe('complete')
+    await expect(retry('slow-fails')).resolves.toMatchObject({ id: statusId })
+    expect(mockPublish).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues the job once for concurrent retries of a failed publish', async () => {
+    const statusId = await createKeyedNote('concurrent-retries')
+    await setState('concurrent-retries', statusId, 'publish_failed')
+
+    const results = await Promise.all([
+      load('concurrent-retries', statusId),
+      load('concurrent-retries', statusId)
+    ])
+
+    expect(results).toMatchObject([{ id: statusId }, { id: statusId }])
+    expect(mockPublish).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null, not 410, when the create is discarded between the key and status reads', async () => {
+    const statusId = await createKeyedNote('discard-race')
+    const getStatus = database.getStatus.bind(database)
+    vi.spyOn(database, 'getStatus').mockImplementationOnce(async (params) => {
+      await database.discardUnpublishedStatus({
+        actorId,
+        statusId,
+        idempotencyKey: 'discard-race'
+      })
+      return getStatus(params)
+    })
+
+    await expect(load('discard-race', statusId)).resolves.toBeNull()
   })
 })

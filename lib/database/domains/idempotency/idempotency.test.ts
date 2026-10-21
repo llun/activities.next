@@ -3,12 +3,15 @@ import {
   IdempotencyConflictError,
   IdempotencyDeletedError
 } from '@/lib/database/domains/idempotency/types'
+import { statusHydrationFor } from '@/lib/database/domains/status/queries'
+import { createNoteWithResult } from '@/lib/database/domains/status/writes'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('IdempotencyDatabase', () => {
   const testDb = createTestDatabase()
-  const { database } = testDb
+  const { database, db } = testDb
 
   // Each test uses its own actor so the tests don't depend on order.
   const actor = (name: string) => `https://llun.test/users/idempotent-${name}`
@@ -151,6 +154,148 @@ describe('IdempotencyDatabase', () => {
     await expect(
       database.getIdempotencyKey({ actorId, key: 'state-key' })
     ).resolves.toMatchObject({ state: 'publish_failed' })
+  })
+
+  const createKeyedActor = async (name: string) => {
+    const actorId = actor(name)
+    await database.createActor({
+      actorId,
+      username: `idempotent_${name.replaceAll('-', '_')}`,
+      domain: 'llun.test',
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      publicKey: 'pub',
+      privateKey: 'priv',
+      createdAt: Date.now()
+    })
+    return actorId
+  }
+
+  const keyedNote = (actorId: string, name: string, key: string) => ({
+    id: `${actorId}/statuses/${name}`,
+    url: `${actorId}/statuses/${name}`,
+    actorId,
+    text: `Keyed ${key}`,
+    to: [ACTIVITY_STREAM_PUBLIC],
+    cc: [],
+    idempotency: { key, contentHash: `hash-${key}` }
+  })
+
+  it('lets exactly one of the create and its retries take the key to publish', async () => {
+    const actorId = await createKeyedActor('claim-publish')
+    const stale = new Date(Date.now() + 1_000)
+    const pending = keyedNote(actorId, 'pending', 'claim-pending')
+    await database.createNoteWithResult(pending)
+    const claim = (key: string, statusId: string, staleBefore?: Date) =>
+      database.claimIdempotencyKeyPublish({
+        actorId,
+        key,
+        statusId,
+        staleBefore
+      })
+
+    // Not for another status, nor for a retry while the claim is fresh.
+    await expect(
+      claim('claim-pending', `${actorId}/statuses/other`)
+    ).resolves.toBe(false)
+    await expect(
+      claim('claim-pending', pending.id, new Date(Date.now() - 60_000))
+    ).resolves.toBe(false)
+    // The create's own request takes it once.
+    await expect(claim('claim-pending', pending.id)).resolves.toBe(true)
+    await expect(claim('claim-pending', pending.id)).resolves.toBe(false)
+    await expect(claim('claim-pending', pending.id, stale)).resolves.toBe(false)
+
+    // A retry takes a stale 'pending' key, once.
+    const abandoned = keyedNote(actorId, 'abandoned', 'claim-abandoned')
+    await database.createNoteWithResult(abandoned)
+    await expect(claim('claim-abandoned', abandoned.id, stale)).resolves.toBe(
+      true
+    )
+    await expect(claim('claim-abandoned', abandoned.id, stale)).resolves.toBe(
+      false
+    )
+    await expect(claim('claim-abandoned', abandoned.id)).resolves.toBe(false)
+
+    // A retry takes a 'publish_failed' key whatever its age; the create's own
+    // request does not.
+    await database.setIdempotencyKeyState({
+      actorId,
+      key: 'claim-abandoned',
+      statusId: abandoned.id,
+      state: 'publish_failed'
+    })
+    await expect(claim('claim-abandoned', abandoned.id)).resolves.toBe(false)
+    await expect(
+      claim('claim-abandoned', abandoned.id, new Date(0))
+    ).resolves.toBe(true)
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'claim-abandoned' })
+    ).resolves.toMatchObject({ state: 'complete' })
+  })
+
+  it('keeps an unpublished status whose key a retry has taken over', async () => {
+    const actorId = await createKeyedActor('discard-taken')
+    const note = keyedNote(actorId, 'taken', 'discard-taken-key')
+    await database.createNoteWithResult(note)
+    await database.claimIdempotencyKeyPublish({
+      actorId,
+      key: 'discard-taken-key',
+      statusId: note.id,
+      staleBefore: new Date(Date.now() + 1_000)
+    })
+
+    await expect(
+      database.discardUnpublishedStatus({
+        actorId,
+        statusId: note.id,
+        idempotencyKey: 'discard-taken-key'
+      })
+    ).resolves.toBe(false)
+
+    await expect(
+      database.getStatus({ statusId: note.id, withReplies: false })
+    ).resolves.toMatchObject({ id: note.id })
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'discard-taken-key' })
+    ).resolves.toMatchObject({ statusId: note.id, state: 'complete' })
+  })
+
+  it('fails a lost key claim with its unique error, not 410, when the winner is discarded after its key was read', async () => {
+    const actorId = await createKeyedActor('dup-discarded')
+    const winner = keyedNote(actorId, 'winner', 'dup-discarded-key')
+    await database.createNoteWithResult(winner)
+    const hydration = statusHydrationFor(db)
+    // The winner's discard commits between the loser's key and status reads.
+    const racingHydration = {
+      ...hydration,
+      getStatus: async (params: Parameters<typeof hydration.getStatus>[0]) => {
+        if (params.statusId === winner.id) {
+          await database.discardUnpublishedStatus({
+            actorId,
+            statusId: winner.id,
+            idempotencyKey: 'dup-discarded-key'
+          })
+        }
+        return hydration.getStatus(params)
+      }
+    }
+
+    const error = await createNoteWithResult(
+      db,
+      racingHydration,
+      keyedNote(actorId, 'loser', 'dup-discarded-key')
+    ).catch((caught: unknown) => caught)
+
+    expect(error).not.toBeInstanceOf(IdempotencyDeletedError)
+    expect(isUniqueConstraintError(error)).toBe(true)
+    await expect(
+      database.getStatus({
+        statusId: `${actorId}/statuses/loser`,
+        withReplies: false
+      })
+    ).resolves.toBeNull()
   })
 
   it('discards an unpublished status without deleting a key bound to another status', async () => {

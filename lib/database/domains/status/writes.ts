@@ -245,7 +245,16 @@ const resolveDuplicateStatus = async (
     withReplies: false
   })
   if (!existingStatus) {
-    throw new IdempotencyDeletedError(existingKey.statusId)
+    // A discard that committed after the key was read removes the key too:
+    // that is a create to retry, not a deleted post.
+    const currentKey = await getIdempotencyKey(db, {
+      actorId,
+      key: idempotency.key
+    })
+    if (currentKey?.statusId === existingKey.statusId) {
+      throw new IdempotencyDeletedError(existingKey.statusId)
+    }
+    return null
   }
   return existingStatus
 }

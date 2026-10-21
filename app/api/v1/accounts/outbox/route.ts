@@ -6,6 +6,7 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
+import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
@@ -299,6 +300,16 @@ export const POST = traceApiRoute(
         }
       }
     } catch (error) {
+      // The post is saved and stays visible, but was not sent: not a 400, or
+      // the client would post it again as a duplicate.
+      if (error instanceof StatusPublishFailedError) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: error.message },
+          responseStatusCode: 503
+        })
+      }
       const nodeError = error as NodeJS.ErrnoException
       logger.error(nodeError)
       return apiResponse({

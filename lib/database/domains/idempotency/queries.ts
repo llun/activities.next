@@ -1,4 +1,5 @@
 import {
+  type ClaimIdempotencyKeyPublishParams,
   type DeleteExpiredIdempotencyKeysParams,
   type GetIdempotentStatusIdParams,
   IDEMPOTENCY_KEY_TTL_MS,
@@ -91,6 +92,34 @@ export const setIdempotencyKeyState = async (
     .execute()
 }
 
+// One conditional UPDATE, so of the create and its retries exactly one takes
+// the key and queues the job: the create's own request from 'pending', a retry
+// from 'publish_failed' or from a 'pending' claimed at or before `staleBefore`.
+export const claimIdempotencyKeyPublish = async (
+  db: Db,
+  { actorId, key, statusId, staleBefore }: ClaimIdempotencyKeyPublishParams
+): Promise<boolean> => {
+  const { numUpdatedRows } = await db
+    .updateTable('idempotency_keys')
+    .set({ state: 'complete' })
+    .where('actorId', '=', actorId)
+    .where('key', '=', key)
+    .where('statusId', '=', statusId)
+    .where((eb) =>
+      staleBefore
+        ? eb.or([
+            eb('state', '=', 'publish_failed'),
+            eb.and([
+              eb('state', '=', 'pending'),
+              eb('createdAt', '<=', timestampValue(staleBefore))
+            ])
+          ])
+        : eb('state', '=', 'pending')
+    )
+    .executeTakeFirst()
+  return Number(numUpdatedRows) > 0
+}
+
 export const deleteExpiredIdempotencyKeys = async (
   db: Db,
   {
@@ -109,5 +138,6 @@ export const idempotencyQueries = {
   getIdempotencyKey,
   saveIdempotencyKey,
   setIdempotencyKeyState,
+  claimIdempotencyKeyPublish,
   deleteExpiredIdempotencyKeys
 }

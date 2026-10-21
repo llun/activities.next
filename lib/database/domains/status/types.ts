@@ -574,10 +574,11 @@ export interface StatusDeletionDatabase {
   deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
   deleteStatus(params: DeleteStatusParams): Promise<void>
   // Undoes a local create that failed before it was federated: the status
-  // (as deleteStatus, no Delete activity) and the idempotency key it claimed.
+  // (as deleteStatus, no Delete activity) and the idempotency key it claimed,
+  // unless a retry has taken that key over. Returns whether it discarded.
   discardUnpublishedStatus(
     params: DiscardUnpublishedStatusParams
-  ): Promise<void>
+  ): Promise<boolean>
   deleteStatusWithQueueJob(
     params: DeleteStatusWithQueueJobParams
   ): Promise<boolean>

@@ -254,6 +254,61 @@ describe('publishScheduledStatusJob', () => {
     ).resolves.toBeNull()
   })
 
+  it('publishes afresh instead of dropping the row when its key’s create is discarded during the lookup', async () => {
+    const text = `Discarded-key scheduled note ${Date.now()}`
+    const idempotency = `idem-discarded-${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() - 1_000,
+      params: baseParams({ text, idempotency })
+    })
+    const row = await database.getScheduledStatusById({ id: scheduled.id })
+    // An overlapping delivery's create, still 'pending', with this job's key.
+    const pendingId = `${actor1.id}/statuses/discarded-during-lookup`
+    await database.createNoteWithResult({
+      id: pendingId,
+      url: pendingId,
+      actorId: actor1.id,
+      text,
+      to: [],
+      cc: [],
+      idempotency: {
+        key: idempotency,
+        contentHash: getHashFromString(JSON.stringify(row!.params))
+      }
+    })
+    // It is discarded after this job read the key, before it read the status.
+    const getStatus = database.getStatus.bind(database)
+    const getStatusSpy = vi
+      .spyOn(database, 'getStatus')
+      .mockImplementationOnce(async (params) => {
+        await database.discardUnpublishedStatus({
+          actorId: actor1.id,
+          statusId: pendingId,
+          idempotencyKey: idempotency
+        })
+        return getStatus(params)
+      })
+
+    try {
+      await publishScheduledStatusJob(database, {
+        id: 'job-discarded-key',
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id }
+      })
+    } finally {
+      getStatusSpy.mockRestore()
+    }
+
+    const after = await database.getActorStatuses({ actorId: actor1.id })
+    const published = after.filter((status) => hasText(status, text))
+    expect(published).toHaveLength(1)
+    expect(published[0].id).not.toBe(pendingId)
+    await expect(
+      database.getScheduledStatusById({ id: scheduled.id })
+    ).resolves.toBeNull()
+  })
+
   it('keeps the row and fails the job when the post is saved but not sent, and the retry sends it', async () => {
     const text = `Publish-failed scheduled note ${Date.now()}`
     const scheduled = await database.createScheduledStatus({

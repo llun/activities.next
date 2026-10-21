@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
@@ -131,6 +132,27 @@ describe('POST /api/v1/accounts/outbox', () => {
     expect(res.status).toBe(422)
     await expect(res.json()).resolves.toEqual({
       error: 'Unprocessable entity'
+    })
+  })
+
+  it('returns 503 with the saved-but-not-sent error when the note could not be queued', async () => {
+    mockCreateNoteFromUserInput.mockRejectedValueOnce(
+      new StatusPublishFailedError(false)
+    )
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'note', message: 'Saved but not sent' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(503)
+    await expect(res.json()).resolves.toEqual({
+      error: 'Your post was saved but could not be sent'
     })
   })
 
