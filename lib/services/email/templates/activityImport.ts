@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   EmailStat,
   button,
@@ -29,6 +29,8 @@ export interface ActivityImportEmailParams {
   fitness?: FitnessFile
   /** Absolute URL of the stored route map, when the activity had one. */
   mapImageUrl?: string
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 const MAX_TITLE_LENGTH = 80
@@ -128,13 +130,15 @@ export const buildActivityImportEmail = ({
   recipient,
   status,
   fitness,
-  mapImageUrl
+  mapImageUrl,
+  brand
 }: ActivityImportEmailParams): RenderedEmail => {
   const stats = getStats(fitness)
   const hasCard = Boolean(mapImageUrl) || stats.length > 0 || Boolean(fitness)
 
   return renderEmail({
-    subject: `Your fitness activity was imported in ${getConfig().host}`,
+    brand,
+    subject: `Your fitness activity was imported in ${brandHost(brand)}`,
     preheader:
       'Your fitness activity has been imported and posted as a status.',
     blocks: [
@@ -160,7 +164,7 @@ export const buildActivityImportEmail = ({
             })
           ]
         : []),
-      button({ label: 'View status', url: getEmailStatusUrl(status) })
+      button({ label: 'View status', url: getEmailStatusUrl(status, brand) })
     ],
     footer: {
       kind: 'notification',

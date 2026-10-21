@@ -1,4 +1,5 @@
-import { buildBaseURL, getBaseURL, getConfig } from '@/lib/config'
+import { buildBaseURL, getBaseURL } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   button,
   fallbackUrl,
@@ -19,6 +20,8 @@ export interface VerifyEmailParams {
    * host.
    */
   domain?: string | null
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /**
@@ -29,17 +32,21 @@ export interface VerifyEmailParams {
 export const buildVerifyEmail = ({
   recipientEmail,
   verificationCode,
-  domain
+  domain,
+  brand
 }: VerifyEmailParams): RenderedEmail => {
-  const host = domain || getConfig().host
+  // The brand's domain wins; `domain` alone (no brand) keeps its own link and copy.
+  const linkDomain = brand?.domain || domain
+  const host = linkDomain || brandHost(brand)
   // getBaseURL()/buildBaseURL() honour the configured scheme and port, so the
   // link is correct on http/local/custom-port deployments rather than assuming
   // https. The code is base64url, so encoding is a no-op today — it is here so
   // a future code format cannot silently produce a broken query string.
-  const baseURL = domain ? buildBaseURL(domain) : getBaseURL()
+  const baseURL = linkDomain ? buildBaseURL(linkDomain) : getBaseURL()
   const url = `${baseURL}/auth/confirmation?verificationCode=${encodeURIComponent(verificationCode)}`
 
   return renderEmail({
+    brand,
     subject: 'Email verification',
     preheader: `Confirm your email address to finish creating your account on ${host}.`,
     blocks: [

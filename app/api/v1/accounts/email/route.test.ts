@@ -6,6 +6,22 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { POST } from './route'
 
 const mockGetServerSession = vi.fn()
+// The visited or recipient domain's identity: another domain is named after
+// itself, a missing host is the primary.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(
+    async (_database: unknown, host?: string | null) => ({
+      domain: host || 'llun.test',
+      source: host ? 'database' : 'primary',
+      name: host ? `${host} name` : 'Main name',
+      description: '',
+      contactEmail: '',
+      termsOfService: null,
+      privacyPolicy: null
+    })
+  )
+}))
+
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))

@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildGearServiceDueEmail } from '@/lib/services/email/templates/gearServiceDue'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -100,6 +101,7 @@ const notifyGearServiceDue = async (
               recipientEmail: actor.account.email,
               ...buildGearServiceDueEmail({
                 recipient: actor,
+                brand: await resolveActorEmailBrand(database, actor),
                 gearId: reminder.gear.id,
                 gearName: reminder.gear.name,
                 componentName: reminder.componentName,

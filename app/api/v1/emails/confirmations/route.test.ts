@@ -10,6 +10,22 @@ import { Scope } from '@/lib/types/database/operations'
 
 import { POST } from './route'
 
+// The visited or recipient domain's identity: another domain is named after
+// itself, a missing host is the primary.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(
+    async (_database: unknown, host?: string | null) => ({
+      domain: host || 'llun.test',
+      source: host ? 'database' : 'primary',
+      name: host ? `${host} name` : 'Main name',
+      description: '',
+      contactEmail: '',
+      termsOfService: null,
+      privacyPolicy: null
+    })
+  )
+}))
+
 vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn()
 }))

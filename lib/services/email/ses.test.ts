@@ -49,6 +49,22 @@ describe('sendSESMail', () => {
     sesMocks.send.mockResolvedValue({})
   })
 
+  it('writes a non-ASCII From name as an RFC 2047 encoded-word', async () => {
+    await sendSESMail(
+      {
+        ...messageWithoutReplyTo,
+        from: { name: 'Café Run', email: 'f@e.com' }
+      },
+      sesConfig('encoded-name-region')
+    )
+
+    expect(sesMocks.SendEmailCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Source: `=?UTF-8?B?${Buffer.from('Café Run').toString('base64')}?= <f@e.com>`
+      })
+    )
+  })
+
   it('maps addresses, message formats, and optional replyTo for SES', async () => {
     const config = sesConfig()
 

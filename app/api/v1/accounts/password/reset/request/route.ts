@@ -8,8 +8,11 @@ import {
   PASSWORD_RESET_REQUEST_COOLDOWN_MS,
   hashPasswordResetCode
 } from '@/lib/services/auth/passwordResetCode'
+import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { sendMail } from '@/lib/services/email'
+import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildResetPasswordEmail } from '@/lib/services/email/templates/resetPassword'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -114,12 +117,19 @@ export const POST = traceApiRoute(
         }
 
         try {
+          // The domain the request came in on: its name, its link, its sender.
+          await ensureServedDomainsFresh()
+          const { brand, from } = await resolveEmailIdentity(
+            database,
+            headerHost(request.headers)
+          )
           const message = buildResetPasswordEmail({
             recipientEmail: email,
-            passwordResetCode
+            passwordResetCode,
+            brand
           })
           await sendMail({
-            from: config.email.serviceFromAddress,
+            from,
             to: [email],
             subject: message.subject,
             content: { text: message.text, html: message.html }

@@ -17,6 +17,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
@@ -534,6 +535,10 @@ export const importStravaActivityJob = createJobHandle(
                           recipientEmail: actor.account.email,
                           ...buildActivityImportEmail({
                             recipient: actor,
+                            brand: await resolveActorEmailBrand(
+                              database,
+                              actor
+                            ),
                             status: status as EditableStatus
                           })
                         }

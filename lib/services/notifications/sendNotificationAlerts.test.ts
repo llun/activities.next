@@ -8,9 +8,27 @@ import { shouldSendPushForNotification } from './pushNotificationSettings'
 import { sendNotificationAlerts } from './sendNotificationAlerts'
 
 const mockLoggerError = vi.fn()
+const mockLoggerWarn = vi.fn()
+// The visited or recipient domain's identity: another domain is named after
+// itself, a missing host is the primary.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(
+    async (_database: unknown, host?: string | null) => ({
+      domain: host || 'llun.test',
+      source: host ? 'database' : 'primary',
+      name: host ? `${host} name` : 'Main name',
+      description: '',
+      contactEmail: '',
+      termsOfService: null,
+      privacyPolicy: null
+    })
+  )
+}))
+
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
-    error: (...args: unknown[]) => mockLoggerError(...args)
+    error: (...args: unknown[]) => mockLoggerError(...args),
+    warn: (...args: unknown[]) => mockLoggerWarn(...args)
   }
 }))
 
@@ -205,6 +223,80 @@ describe('sendNotificationAlerts', () => {
       subject: 'You were mentioned',
       content: { text: 'Hello text', html: '<p>Hello html</p>' }
     })
+  })
+
+  it('sends under the name of the recipient actor’s domain', async () => {
+    const { setServedDomainsForTests, resetServedDomainsForTests } =
+      await import('@/lib/services/domains/servedDomainSnapshot')
+    setServedDomainsForTests(['run.llun.test'])
+    try {
+      const db = makeDb({
+        getActorFromId: vi.fn().mockResolvedValue({
+          ...sourceActor,
+          domain: 'run.llun.test'
+        })
+      })
+      sendNotificationAlerts({
+        database: db,
+        actorId: 'actor1',
+        sourceActorId: 'source1',
+        events: [
+          {
+            type: NotificationType.enum.mention,
+            emailContent: {
+              recipientEmail: 'user@example.com',
+              subject: 'You were mentioned',
+              text: 'Hello text',
+              html: '<p>Hello html</p>'
+            }
+          }
+        ]
+      })
+      await flushPromises()
+
+      expect(db.getActorFromId).toHaveBeenCalledWith({ id: 'actor1' })
+      expect(sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: { name: 'run.llun.test name', email: 'noreply@llun.test' }
+        })
+      )
+    } finally {
+      resetServedDomainsForTests()
+    }
+  })
+
+  it('still sends from the primary when the recipient lookup fails', async () => {
+    const db = makeDb({
+      getActorFromId: vi.fn().mockRejectedValue(new Error('db down'))
+    })
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      sourceActor,
+      events: [
+        {
+          type: NotificationType.enum.mention,
+          emailContent: {
+            recipientEmail: 'user@example.com',
+            subject: 'You were mentioned',
+            text: 'Hello text',
+            html: '<p>Hello html</p>'
+          }
+        }
+      ]
+    })
+    await flushPromises()
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'noreply@llun.test' })
+    )
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('using primary')
+      })
+    )
+    expect(mockLoggerError).not.toHaveBeenCalled()
   })
 
   it('skips email when emailContent is not provided', async () => {

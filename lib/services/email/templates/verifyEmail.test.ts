@@ -52,3 +52,21 @@ describe('buildVerifyEmail', () => {
     expect(html).not.toContain(`href="${BASE_URL}/auth/confirmation`)
   })
 })
+
+describe('buildVerifyEmail brand', () => {
+  const brand = { name: 'Run Club', domain: 'run.example' }
+
+  it('names the brand in the wordmark, copy and link', () => {
+    const { html, text } = buildVerifyEmail({
+      recipientEmail: 'anna@example.com',
+      verificationCode: 'code-123',
+      brand
+    })
+    expect(html).toContain('>Run Club</td>')
+    expect(html).toContain(
+      'href="https://run.example/auth/confirmation?verificationCode=code-123"'
+    )
+    expect(text).toContain('creating your account on run.example.')
+    expect(text).not.toContain(HOST)
+  })
+})

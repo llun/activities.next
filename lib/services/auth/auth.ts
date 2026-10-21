@@ -5,6 +5,7 @@ import { betterAuth } from 'better-auth'
 import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
+import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getDatabase, getKysely } from '@/lib/database'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
@@ -19,12 +20,18 @@ import {
   OAUTH_GRANT_TYPES
 } from './constants'
 import { kyselyAdapter } from './kyselyAdapter'
+import { toTotpIssuer } from './totpIssuer'
 import { createTrustedOriginsResolver } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
 
-const buildAuth = (baseURL: string) => {
+// `serviceName` is the visited domain's name (see `resolveAuthServiceName`):
+// the passkey relying party name and the 2FA issuer. Both are labels only.
+// WebAuthn binds a credential to its rpID (the host, unchanged here), never to
+// rpName, and a TOTP secret does not depend on the issuer in its URI, so a
+// rename leaves every saved passkey and authenticator working.
+const buildAuth = (baseURL: string, serviceName: string) => {
   const config = getConfig()
   const database = getDatabase()
   const db = getKysely()
@@ -142,11 +149,11 @@ const buildAuth = (baseURL: string) => {
       // `getAuth` and `resolveAuthBaseURL` for how the host is chosen per request.
       passkey({
         rpID,
-        rpName: config.serviceName ?? 'Activities.next',
+        rpName: serviceName,
         origin: new URL(baseURL).origin
       }),
       twoFactor({
-        issuer: config.serviceName ?? 'Activities.next',
+        issuer: toTotpIssuer(serviceName),
         allowPasswordless: false
       }),
       oauthProvider({
@@ -272,29 +279,43 @@ const buildAuth = (baseURL: string) => {
   })
 }
 
-// Cache one better-auth instance per resolved base URL. Instances differ only in
-// their passkey rpID/origin; everything else (database, secret, trusted-origin
-// union) is shared, so they all read/write the same sessions and accounts.
+// Cache one better-auth instance per resolved base URL and service name.
+// Instances differ only in their passkey rpID/origin and the rpName/issuer
+// labels; everything else (database, secret, trusted-origin union) is shared,
+// so they all read/write the same sessions and accounts. Each instance keeps
+// its own in-memory rate-limit counters, so a domain renamed in Admin starts
+// fresh counters under its new name.
 //
 // The cache is LRU-bounded: with a concrete ACTIVITIES_TRUSTED_HOSTS list the key
 // set is small, but a wildcard entry (e.g. `*.example.com`) lets
 // `resolveAuthBaseURL` yield a different concrete subdomain per request — and the
 // host is request-influenced — so an unbounded map would be a memory-exhaustion
-// vector. Capping with oldest-entry eviction keeps it bounded while still serving
-// every legitimately-used domain.
-const MAX_AUTH_INSTANCES = 32
+// vector. A name only comes from the admin settings of a served domain, so it
+// adds at most one key per rename. Capping with oldest-entry eviction keeps it
+// bounded while still serving every legitimately-used domain.
+export const MAX_AUTH_INSTANCES = 32
 const authInstances = new Map<string, ReturnType<typeof buildAuth>>()
 
-// Get the auth instance for a base URL, defaulting to the configured host. Pass
-// a per-request base URL (from `resolveAuthBaseURL`) for passkey ceremonies so
-// they use the domain the request arrived on; callers that only need session or
-// OAuth handling can omit it and use the configured host.
-export const getAuth = (baseURL: string = getBaseURL()) => {
-  const cached = authInstances.get(baseURL)
+// The primary's name from the config, for callers that only need session or
+// OAuth handling and never show the name.
+const configuredServiceName = (): string =>
+  getConfig().serviceName || DEFAULT_SERVER_SETTINGS.instance.name
+
+// Get the auth instance for a base URL, defaulting to the configured host and
+// its configured name. Pass a per-request base URL (from `resolveAuthBaseURL`)
+// and that domain's name (from `resolveAuthServiceName`) for passkey and 2FA
+// ceremonies so they use the domain the request arrived on; callers that only
+// need session or OAuth handling can omit both.
+export const getAuth = (
+  baseURL: string = getBaseURL(),
+  serviceName: string = configuredServiceName()
+) => {
+  const key = `${baseURL}\n${serviceName}`
+  const cached = authInstances.get(key)
   if (cached) {
     // Refresh recency so the most-used domains survive eviction.
-    authInstances.delete(baseURL)
-    authInstances.set(baseURL, cached)
+    authInstances.delete(key)
+    authInstances.set(key, cached)
     return cached
   }
 
@@ -303,7 +324,7 @@ export const getAuth = (baseURL: string = getBaseURL()) => {
     if (oldest !== undefined) authInstances.delete(oldest)
   }
 
-  const instance = buildAuth(baseURL)
-  authInstances.set(baseURL, instance)
+  const instance = buildAuth(baseURL, serviceName)
+  authInstances.set(key, instance)
   return instance
 }

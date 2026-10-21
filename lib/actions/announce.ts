@@ -1,5 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildBoostEmail } from '@/lib/services/email/templates/reblog'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -165,7 +166,7 @@ export const userAnnounce = async ({
         // Fire-and-forget: notification delivery must not fail the announce action
         database
           .getActorFromId({ id: originalStatus.actorId })
-          .then((targetActor) => {
+          .then(async (targetActor) => {
             const editableStatus = getOriginalStatus(originalStatus)
             sendNotificationAlerts({
               database,
@@ -182,6 +183,10 @@ export const userAnnounce = async ({
                         recipientEmail: targetActor.account.email,
                         ...buildBoostEmail({
                           recipient: targetActor,
+                          brand: await resolveActorEmailBrand(
+                            database,
+                            targetActor
+                          ),
                           actor: currentActor,
                           status: editableStatus
                         })

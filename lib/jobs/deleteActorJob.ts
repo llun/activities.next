@@ -8,7 +8,9 @@ import {
   MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
   runWithConcurrencyLimit
 } from '@/lib/jobs/sendNoteJob'
+import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
+import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { getQueue } from '@/lib/services/queue'
@@ -311,13 +313,19 @@ export const deleteActorJob = createJobHandle(
             // case the notice falls back to naming no address rather than
             // pointing the user at the no-reply sender.
             const { instance } = await getResolvedServerSettings(database)
+            const { brand, from, contactEmail } = await resolveEmailIdentity(
+              database,
+              getServedLinkDomain(actor.domain)
+            )
             const email = buildActorDeletedEmail({
               recipient: actor,
               recipientEmail: accountEmail,
-              contactEmail: instance.contactEmail || undefined
+              // The domain's own contact, else the server's.
+              contactEmail: contactEmail || instance.contactEmail || undefined,
+              brand
             })
             await sendMail({
-              from: config.email.serviceFromAddress,
+              from,
               to: [accountEmail],
               subject: email.subject,
               content: { text: email.text, html: email.html }
