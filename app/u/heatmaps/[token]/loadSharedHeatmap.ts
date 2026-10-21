@@ -2,6 +2,7 @@ import { cache } from 'react'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import {
   buildHeatmapTileSource,
@@ -11,7 +12,6 @@ import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
 } from '@/lib/services/fitness-files/publicHeatmap'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -19,7 +19,7 @@ import { SharedHeatmapView, buildSharedHeatmapView } from './sharedHeatmapView'
 
 export interface SharedHeatmapPageData {
   view: SharedHeatmapView
-  /** Instance display name, for the card's `og:site_name`. */
+  /** The visited domain's name, for the card's `og:site_name`. */
   siteName: string
   /**
    * The actor's own canonical origin, which the card builds its image URL
@@ -119,14 +119,14 @@ export const loadSharedHeatmap = cache(
       token
     })
 
-    const [{ instance }, signUpDomain] = await Promise.all([
-      getResolvedServerSettings(database),
+    const [identity, signUpDomain] = await Promise.all([
+      getVisitedDomainIdentity(),
       getVisitedSignUpDomain(database)
     ])
 
     return {
       view,
-      siteName: instance.name,
+      siteName: identity.name,
       origin,
       signupOpen: signUpDomain.open
     }

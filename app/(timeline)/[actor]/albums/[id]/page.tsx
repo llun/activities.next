@@ -7,13 +7,13 @@ import { profileName } from '@/lib/components/navigation-history/backDestination
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import {
   getGalleryAlbumShare,
   getGalleryAlbumView
 } from '@/lib/services/gallery/galleryAlbumQueries'
 import { getGalleryAlbumPublicUrl } from '@/lib/services/gallery/galleryAlbumUrls'
 import { resolveGalleryAudience } from '@/lib/services/gallery/resolveGalleryAccount'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -71,12 +71,13 @@ export const generateMetadata = async ({
   const share = await getGalleryAlbumShare({ database, owner, albumId: id })
   if (!share) return UNAVAILABLE_ALBUM_METADATA
 
-  const { instance } = await getResolvedServerSettings(database)
+  // The card is named after the domain it is fetched from.
+  const identity = await getVisitedDomainIdentity()
   const pageUrl = getGalleryAlbumPublicUrl({ actor: owner, albumId: id })
   return buildGalleryAlbumMetadata({
     share,
     ownerName: profileName(owner),
-    siteName: instance.name,
+    siteName: identity.name,
     origin: new URL(pageUrl).origin,
     pageUrl
   })

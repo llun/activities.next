@@ -6,6 +6,8 @@ import { OfflineCacheSeeder } from '@/lib/components/offline/OfflineCacheSeeder'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import {
   COMPOSER_MEDIA_QUERY_PARAM,
@@ -43,7 +45,7 @@ interface PageProps {
 }
 
 const Page = async ({ searchParams }: PageProps = {}) => {
-  const { host, serviceName, mediaStorage } = getConfig()
+  const { host, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
     throw new Error('Fail to load database')
@@ -93,16 +95,14 @@ const Page = async ({ searchParams }: PageProps = {}) => {
         message: 'Failed to load public posts for the landing page'
       })
     }
+    // The visited domain's name, the same one the page title uses.
+    const serviceName = getDomainDisplayName(await getVisitedDomainIdentity())
     return (
       <Landing
         host={host}
         currentTime={Date.now()}
         statuses={publicStatuses.map((item) => cleanJson(item))}
-        serviceName={
-          signUpDomain.source === 'primary'
-            ? (serviceName ?? 'Activities')
-            : signUpDomain.displayName
-        }
+        serviceName={serviceName}
         signupOpen={signUpDomain.open}
         domain={signUpDomain.domain}
       />
