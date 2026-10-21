@@ -80,6 +80,12 @@ describe('Alert outside Frame', () => {
     expect(alertsInBoxes(source)).toEqual([6])
   })
 
+  it('counts lines in UTF-8 bytes when non-ASCII text precedes the Alert', () => {
+    const source =
+      '// 日本語日本語日本語日本語\n\nconst A = () => (\n  <Frame>\n    <p>日本語日本語</p>\n    <Alert />\n  </Frame>\n)'
+    expect(alertsInBoxes(source)).toEqual([6])
+  })
+
   it('keeps every Alert out of its Frame', () => {
     const files = ['app', 'lib']
       .flatMap(collectSourceFiles)
