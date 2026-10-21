@@ -4,6 +4,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
   ADMIN_DOMAIN_FIELD_LIMITS,
+  PRIMARY_DOMAIN_FEATURES_ERROR,
   PRIMARY_DOMAIN_IDENTITY_ERROR
 } from '@/lib/services/domains/adminDomainTypes'
 import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
@@ -246,6 +247,123 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
       contactEmail: null,
       termsOfService: null,
       privacyPolicy: null
+    })
+  })
+
+  describe('disabled features', () => {
+    it('collapses repeated values instead of answering 422', async () => {
+      const response = await patch('run.example', {
+        disabledFeatures: ['messages', 'messages', 'messages', 'messages']
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        disabledFeatures: ['messages']
+      })
+      await patch('run.example', { disabledFeatures: [] })
+    })
+
+    it('reads as none and saves the list a domain turns off', async () => {
+      await expect((await get('run.example')).json()).resolves.toMatchObject({
+        disabledFeatures: []
+      })
+
+      const response = await patch('run.example', {
+        disabledFeatures: ['messages', 'fitness', 'messages']
+      })
+      expect(response.status).toBe(200)
+      // Deduplicated, in the registry's order.
+      await expect(response.json()).resolves.toMatchObject({
+        domain: 'run.example',
+        disabledFeatures: ['fitness', 'messages']
+      })
+      await expect((await get('run.example')).json()).resolves.toMatchObject({
+        disabledFeatures: ['fitness', 'messages']
+      })
+    })
+
+    it('leaves the list alone when other fields are saved, and clears it with [] or null', async () => {
+      await patch('run.example', { disabledFeatures: ['explore'] })
+      await expect(
+        (await patch('run.example', { name: 'Run Club' })).json()
+      ).resolves.toMatchObject({ disabledFeatures: ['explore'] })
+
+      await expect(
+        (await patch('run.example', { disabledFeatures: [] })).json()
+      ).resolves.toMatchObject({ disabledFeatures: [] })
+      await patch('run.example', { disabledFeatures: ['explore'] })
+      await expect(
+        (await patch('run.example', { disabledFeatures: null })).json()
+      ).resolves.toMatchObject({ disabledFeatures: [] })
+    })
+
+    it('applies to visitors of that domain at once, through the identity cache', async () => {
+      const database = holder.db as Database
+      await expect(
+        resolveDomainIdentity(database, 'run.example')
+      ).resolves.toMatchObject({ disabledFeatures: [] })
+
+      await patch('run.example', { disabledFeatures: ['messages'] })
+
+      await expect(
+        resolveDomainIdentity(database, 'run.example')
+      ).resolves.toMatchObject({ disabledFeatures: ['messages'] })
+      // Another domain is not touched.
+      await expect(
+        resolveDomainIdentity(database, 'club.example')
+      ).resolves.toMatchObject({ disabledFeatures: [] })
+    })
+
+    it('gives an env domain a row on its first save', async () => {
+      const response = await patch('club.example', {
+        disabledFeatures: ['fitness']
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        domain: 'club.example',
+        source: 'env',
+        disabledFeatures: ['fitness']
+      })
+    })
+
+    it('refuses the primary domain, which has no features of its own', async () => {
+      const response = await patch('social.example', {
+        disabledFeatures: ['fitness']
+      })
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({
+        code: 'primary',
+        error: PRIMARY_DOMAIN_FEATURES_ERROR
+      })
+      await expect((await get('social.example')).json()).resolves.toMatchObject(
+        { disabledFeatures: [] }
+      )
+    })
+
+    it.each([
+      { description: 'an unknown feature', value: ['fitness', 'gallery'] },
+      { description: 'a string', value: 'fitness' }
+    ])('refuses $description', async ({ value }) => {
+      const response = await patch('run.example', { disabledFeatures: value })
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toMatchObject({
+        code: 'invalid',
+        field: 'disabledFeatures'
+      })
+    })
+
+    it('answers 404 for a domain it does not know', async () => {
+      const response = await patch('nope.example', {
+        disabledFeatures: ['fitness']
+      })
+      expect(response.status).toBe(404)
+    })
+
+    it('is not mixed into a status change', async () => {
+      const response = await patch('run.example', {
+        status: 'off',
+        disabledFeatures: ['fitness']
+      })
+      expect(response.status).toBe(422)
     })
   })
 })

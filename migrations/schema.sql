@@ -116,7 +116,8 @@ CREATE TABLE public.announcements (
     "endsAt" timestamp with time zone,
     "publishedAt" timestamp with time zone,
     "createdAt" timestamp with time zone NOT NULL,
-    "updatedAt" timestamp with time zone NOT NULL
+    "updatedAt" timestamp with time zone NOT NULL,
+    domain character varying(255)
 );
 
 CREATE TABLE public.attachments (
@@ -361,7 +362,8 @@ CREATE TABLE public.domains (
     "termsOfService" text,
     "termsOfServiceUpdatedAt" timestamp with time zone,
     "privacyPolicy" text,
-    "privacyPolicyUpdatedAt" timestamp with time zone
+    "privacyPolicyUpdatedAt" timestamp with time zone,
+    "disabledFeatures" text
 );
 
 CREATE TABLE public.endorsements (
@@ -736,7 +738,8 @@ CREATE TABLE public.instance_rules (
     text text NOT NULL,
     hint text DEFAULT ''::text NOT NULL,
     "createdAt" timestamp with time zone NOT NULL,
-    "updatedAt" timestamp with time zone NOT NULL
+    "updatedAt" timestamp with time zone NOT NULL,
+    domain character varying(255)
 );
 
 CREATE TABLE public.jwks (
@@ -1187,7 +1190,8 @@ CREATE TABLE public.reports (
     "collectionIds" text DEFAULT '[]'::text NOT NULL,
     "assignedActorId" character varying(255),
     "actionTakenAt" timestamp with time zone,
-    "actionTakenByActorId" character varying(255)
+    "actionTakenByActorId" character varying(255),
+    domain character varying(255)
 );
 
 CREATE TABLE public.scheduled_statuses (

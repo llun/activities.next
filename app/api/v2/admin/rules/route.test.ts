@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
+import { PATCH } from './[id]/route'
 import { GET, POST } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
@@ -25,6 +26,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
+    trustedHosts: ['club.llun.test'],
     secretPhase: 'test-secret'
   })
 }))
@@ -140,5 +142,133 @@ describe('/api/v2/admin/rules', () => {
       params: Promise.resolve({})
     })
     expect(response.status).toBe(422)
+  })
+
+  describe('rules per domain', () => {
+    const listRequest = (domain?: string) =>
+      new NextRequest(
+        `https://llun.test/api/v2/admin/rules${
+          domain === undefined ? '' : `?domain=${encodeURIComponent(domain)}`
+        }`,
+        { headers: { Origin: 'https://llun.test' } }
+      )
+    const list = async (domain?: string) => {
+      const response = await GET(listRequest(domain), {
+        params: Promise.resolve({})
+      })
+      return {
+        response,
+        rules: (await response.json()) as {
+          id: string
+          domain: string | null
+          text: string
+          position: number
+        }[]
+      }
+    }
+    const create = (body: object) =>
+      POST(baseRequest({ method: 'POST', body }), {
+        params: Promise.resolve({})
+      })
+
+    it('creates a domain rule that only that domain’s list shows', async () => {
+      const server = await (
+        await create({ text: 'Server wide', position: 1 })
+      ).json()
+      const response = await create({
+        text: 'Club only',
+        domain: 'Club.Llun.Test',
+        position: 0
+      })
+      expect(response.status).toBe(200)
+      const own = await response.json()
+      expect(own).toMatchObject({ domain: 'club.llun.test', text: 'Club only' })
+      expect(server.domain).toBeNull()
+
+      const club = await list('club.llun.test')
+      expect(club.response.status).toBe(200)
+      expect(club.rules.map((rule) => rule.id)).toEqual([own.id])
+
+      // With no domain the list is the server rules, never a domain's own.
+      const serverList = await list()
+      expect(serverList.rules.map((rule) => rule.id)).toContain(server.id)
+      expect(serverList.rules.map((rule) => rule.id)).not.toContain(own.id)
+      expect(serverList.rules.every((rule) => rule.domain === null)).toBe(true)
+    })
+
+    it('accepts an added domain, on or off', async () => {
+      await database.createServedDomain({ domain: 'run.example' })
+
+      const response = await create({ text: 'Runners', domain: 'run.example' })
+
+      expect(response.status).toBe(200)
+      expect((await list('run.example')).rules).toHaveLength(1)
+    })
+
+    it('treats a null or blank domain as a server rule', async () => {
+      for (const domain of [null, '', '  ']) {
+        const response = await create({ text: 'For all', domain })
+        expect(response.status).toBe(200)
+        expect((await response.json()).domain).toBeNull()
+      }
+    })
+
+    it.each([
+      {
+        description: 'the primary domain, which has no rules of its own',
+        domain: 'llun.test',
+        code: 'primary'
+      },
+      {
+        description: 'a domain this server does not serve',
+        domain: 'nowhere.example',
+        code: 'unknown'
+      },
+      {
+        description: 'something that is not a domain',
+        domain: 'not a domain/path',
+        code: 'invalid'
+      }
+    ])('refuses own rules for $description', async ({ domain, code }) => {
+      const created = await create({ text: 'Nope', domain })
+      expect(created.status).toBe(422)
+      expect(await created.json()).toMatchObject({ code })
+
+      const listed = await list(domain)
+      expect(listed.response.status).toBe(422)
+    })
+
+    it('updates and reorders a domain rule within its own scope', async () => {
+      const first = await (
+        await create({ text: 'A', domain: 'club.llun.test', position: 0 })
+      ).json()
+      const second = await (
+        await create({ text: 'B', domain: 'club.llun.test', position: 1 })
+      ).json()
+
+      for (const [rule, position] of [
+        [first, 1],
+        [second, 0]
+      ] as const) {
+        const response = await PATCH(
+          new NextRequest(`https://llun.test/api/v2/admin/rules/${rule.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test',
+              Referer: 'https://llun.test/'
+            },
+            body: JSON.stringify({ position })
+          }),
+          { params: Promise.resolve({ id: rule.id }) }
+        )
+        expect(response.status).toBe(200)
+        expect((await response.json()).domain).toBe('club.llun.test')
+      }
+
+      const club = await list('club.llun.test')
+      const texts = club.rules.map((rule) => rule.text)
+      expect(texts.indexOf('B')).toBeLessThan(texts.indexOf('A'))
+    })
   })
 })

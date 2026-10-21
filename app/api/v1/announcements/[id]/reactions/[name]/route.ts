@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { getVisibleAnnouncement } from '@/lib/services/announcements/getVisibleAnnouncement'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import {
   getCustomEmojiShortcode,
@@ -48,7 +50,11 @@ const reactionHandler =
       return apiCorsError(req, CORS_HEADERS, 422)
     }
 
-    const announcement = await database.getAnnouncement({ id })
+    const announcement = await getVisibleAnnouncement(
+      database,
+      headerHost(req.headers),
+      id
+    )
     if (!announcement) return apiCorsError(req, CORS_HEADERS, 404)
 
     if (mode === 'add') {

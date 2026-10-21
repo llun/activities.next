@@ -8,6 +8,7 @@ import * as addFitnessFileRouteData from './20261015000000_add_fitness_file_rout
 import * as addDomains from './20261018170047_add_domains'
 import * as addAccountsSignUpDomain from './20261018204230_add_accounts_sign_up_domain'
 import * as addDomainsIdentity from './20261020232218_add_domains_identity'
+import * as addDomainScopes from './20261021072844_add_domain_scopes'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -22,5 +23,6 @@ export const migrations: MigrationRegistry = {
   '20261015000000_add_fitness_file_route_data': addFitnessFileRouteData,
   '20261018170047_add_domains': addDomains,
   '20261018204230_add_accounts_sign_up_domain': addAccountsSignUpDomain,
-  '20261020232218_add_domains_identity': addDomainsIdentity
+  '20261020232218_add_domains_identity': addDomainsIdentity,
+  '20261021072844_add_domain_scopes': addDomainScopes
 } satisfies Record<MigrationName, MigrationModule>

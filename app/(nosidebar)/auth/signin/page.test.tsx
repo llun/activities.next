@@ -30,7 +30,8 @@ const anIdentity = (name: string, domain = 'test.llun.dev') => ({
   description: '',
   contactEmail: '',
   termsOfService: null,
-  privacyPolicy: null
+  privacyPolicy: null,
+  disabledFeatures: []
 })
 
 vi.mock('@/lib/config')

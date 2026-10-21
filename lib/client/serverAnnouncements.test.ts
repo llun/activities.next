@@ -17,6 +17,7 @@ describe('serverAnnouncements client module', () => {
 
   const mockAnnouncement: ServerAnnouncement = {
     id: 'announcement-1',
+    domain: null,
     text: 'Scheduled maintenance tonight',
     published: true,
     all_day: false,

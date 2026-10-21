@@ -8,7 +8,8 @@ export const MIGRATION_NAMES = [
   '20261015000000_add_fitness_file_route_data',
   '20261018170047_add_domains',
   '20261018204230_add_accounts_sign_up_domain',
-  '20261020232218_add_domains_identity'
+  '20261020232218_add_domains_identity',
+  '20261021072844_add_domain_scopes'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

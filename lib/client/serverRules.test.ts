@@ -17,6 +17,7 @@ describe('serverRules client module', () => {
 
   const mockRule: ServerRule = {
     id: 'rule-1',
+    domain: null,
     text: 'Be respectful',
     hint: 'Treat everyone with kindness',
     position: 0

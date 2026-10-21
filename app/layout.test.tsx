@@ -18,7 +18,8 @@ const anIdentity = (domain: string, name: string) => ({
   description: '',
   contactEmail: '',
   termsOfService: null,
-  privacyPolicy: null
+  privacyPolicy: null,
+  disabledFeatures: []
 })
 
 vi.mock('@/lib/components/navigation-history/InAppHistoryTracker', () => ({

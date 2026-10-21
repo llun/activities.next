@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { NavigationSettings } from '@/lib/components/settings/NavigationSettings'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedFeatures } from '@/lib/services/domains/visitedFeatures'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -25,7 +26,8 @@ const Page = async () => {
     return redirect('/auth/signin')
   }
 
-  const { features } = await getResolvedServerSettings(database)
+  const serverSettings = await getResolvedServerSettings(database)
+  const features = await getVisitedFeatures(serverSettings.features)
 
   // Only the availability inputs: the order and hidden items come from the
   // shared store the (timeline) layout seeded, which is what keeps the sidebar

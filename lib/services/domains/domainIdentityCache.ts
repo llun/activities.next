@@ -3,7 +3,9 @@ import { Database } from '@/lib/database/types'
 
 /**
  * A served domain's own identity and policy overrides, as stored on its
- * Admin › Domains row. Null in a field means "Same as server".
+ * Admin › Domains row. Null in a field means "Same as server". The disabled
+ * features ride along: they come from the same row and are invalidated by the
+ * same admin writes.
  */
 export type DomainOverrides = Pick<
   ServedDomainWithPoliciesData,
@@ -14,6 +16,7 @@ export type DomainOverrides = Pick<
   | 'termsOfServiceUpdatedAt'
   | 'privacyPolicy'
   | 'privacyPolicyUpdatedAt'
+  | 'disabledFeatures'
 >
 
 // Short, like the server settings cache: an admin's own write invalidates at
@@ -50,7 +53,8 @@ const toOverrides = (row: ServedDomainWithPoliciesData): DomainOverrides => ({
   termsOfService: row.termsOfService,
   termsOfServiceUpdatedAt: row.termsOfServiceUpdatedAt,
   privacyPolicy: row.privacyPolicy,
-  privacyPolicyUpdatedAt: row.privacyPolicyUpdatedAt
+  privacyPolicyUpdatedAt: row.privacyPolicyUpdatedAt,
+  disabledFeatures: row.disabledFeatures
 })
 
 const remember = (

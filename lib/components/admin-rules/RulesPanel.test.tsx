@@ -34,6 +34,7 @@ const mockDelete = deleteServerRule as jest.MockedFunction<
 
 const rule = (over: Partial<ServerRule>): ServerRule => ({
   id: '1',
+  domain: null,
   text: 'Be kind',
   hint: '',
   position: 0,

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { ADMIN_DOMAIN_FIELD_LIMITS } from '@/lib/services/domains/adminDomainTypes'
+import { DOMAIN_FEATURES } from '@/lib/services/domains/domainFeatures'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 // Request bodies of the Admin › Domains API.
@@ -32,6 +33,21 @@ export const UpdateDomainRequest = z
       .transform((emails) => emails.map(normalizeEmail).filter(Boolean))
       .optional(),
     allowExistingUsers: z.boolean().optional(),
+    // The features this domain turns off (the Features box): the whole list,
+    // [] or null for none.
+    // Repeated values collapse before the length check, not into a 422.
+    disabledFeatures: z
+      .preprocess(
+        (value) => (Array.isArray(value) ? [...new Set(value)] : value),
+        z.array(z.enum(DOMAIN_FEATURES)).max(DOMAIN_FEATURES.length)
+      )
+      .nullable()
+      .optional()
+      .transform((features) =>
+        features
+          ? DOMAIN_FEATURES.filter((f) => features.includes(f))
+          : features
+      ),
     name: override(ADMIN_DOMAIN_FIELD_LIMITS.name),
     description: override(ADMIN_DOMAIN_FIELD_LIMITS.description),
     contactEmail: z
@@ -53,6 +69,7 @@ export const UpdateDomainRequest = z
       (value.signupsOpen === undefined &&
         value.allowedEmails === undefined &&
         value.allowExistingUsers === undefined &&
+        value.disabledFeatures === undefined &&
         IDENTITY_AND_POLICY_KEYS.every((key) => value[key] === undefined)),
     { message: 'Send status on its own' }
   )

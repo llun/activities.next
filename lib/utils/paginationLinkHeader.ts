@@ -4,6 +4,9 @@ interface PaginationLinkHeaderParams {
   limit: number
   nextMaxId?: string | null
   prevMinId?: string | null
+  // Filters of the request to carry into the next and prev links, so a page of
+  // a filtered list links to filtered pages. Undefined values are left out.
+  extraParams?: Record<string, string | undefined>
 }
 
 /**
@@ -17,13 +20,17 @@ export const buildPaginationLinkHeader = ({
   path,
   limit,
   nextMaxId,
-  prevMinId
+  prevMinId,
+  extraParams
 }: PaginationLinkHeaderParams): [string, string][] => {
   if (!host) return []
 
   const buildLink = (cursor: 'max_id' | 'min_id', value: string) => {
     const params = new URLSearchParams()
     params.set('limit', `${limit}`)
+    for (const [name, extra] of Object.entries(extraParams ?? {})) {
+      if (extra !== undefined) params.set(name, extra)
+    }
     params.set(cursor, value)
     return `<https://${host}${path}?${params.toString()}>; rel="${
       cursor === 'max_id' ? 'next' : 'prev'

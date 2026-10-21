@@ -26,6 +26,15 @@ vi.mock('@/lib/database', () => ({
   }))
 }))
 
+// The visited domain's own switches (Admin › Domains): none turned off unless
+// a test says so.
+const mockDisabledFeatures = vi.hoisted(() => ({ list: [] as string[] }))
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: vi.fn(async () => ({
+    disabledFeatures: mockDisabledFeatures.list
+  }))
+}))
+
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: vi.fn()
 }))
@@ -125,6 +134,7 @@ const renderLayout = async () => {
 describe('(timeline) Layout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDisabledFeatures.list = []
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorsForAccount.mockResolvedValue([])
     mockGetNotificationsCount.mockResolvedValue(0)
@@ -189,6 +199,39 @@ describe('(timeline) Layout', () => {
     mockGetAllServerSettings.mockResolvedValue([
       { key: 'features.fitness', value: false }
     ])
+
+    await renderLayout()
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-fitness', '')
+  })
+
+  it('shows fitness when the server has it on and the domain has not turned it off', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockDisabledFeatures.list = ['explore', 'messages']
+
+    await renderLayout()
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute(
+      'data-fitness',
+      '/fitness'
+    )
+  })
+
+  it('drops fitness from navigation when the visited domain turns it off', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockDisabledFeatures.list = ['fitness']
+
+    await renderLayout()
+
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-fitness', '')
+  })
+
+  it('does not turn a feature the server has off back on for a domain', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockGetAllServerSettings.mockResolvedValue([
+      { key: 'features.fitness', value: false }
+    ])
+    mockDisabledFeatures.list = []
 
     await renderLayout()
 

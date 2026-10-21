@@ -84,6 +84,7 @@ describe('/api/v2/admin/rules/[id]', () => {
     const updated = await response.json()
     expect(updated).toEqual({
       id: rule.id,
+      domain: null,
       text: 'Updated rule',
       hint: 'Original hint',
       position: 5

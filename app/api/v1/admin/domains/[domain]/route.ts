@@ -6,6 +6,7 @@ import {
   hasIdentityOrPolicyFields
 } from '@/app/api/v1/admin/domains/schema'
 import {
+  PRIMARY_DOMAIN_FEATURES_ERROR,
   PRIMARY_DOMAIN_IDENTITY_ERROR,
   readDomainRouteParam
 } from '@/lib/services/domains/adminDomainTypes'
@@ -68,7 +69,8 @@ const FIELD_LABELS: Record<string, string> = {
   contactEmail: 'Contact email',
   termsOfService: 'Terms of service',
   privacyPolicy: 'Privacy policy',
-  allowedEmails: 'Allowed emails'
+  allowedEmails: 'Allowed emails',
+  disabledFeatures: 'Features'
 }
 
 // The first problem of a refused body, as a sentence the page can show. The
@@ -185,9 +187,11 @@ export const PATCH = traceApiRoute(
           req,
           HTTP_STATUS.UNPROCESSABLE_ENTITY,
           'primary',
-          hasIdentityOrPolicyFields(parsed.data)
-            ? PRIMARY_DOMAIN_IDENTITY_ERROR
-            : 'The primary domain’s sign-ups are set in Admin › Instance.'
+          parsed.data.disabledFeatures !== undefined
+            ? PRIMARY_DOMAIN_FEATURES_ERROR
+            : hasIdentityOrPolicyFields(parsed.data)
+              ? PRIMARY_DOMAIN_IDENTITY_ERROR
+              : 'The primary domain’s sign-ups are set in Admin › Instance.'
         )
       case 'updated':
         return apiResponse({

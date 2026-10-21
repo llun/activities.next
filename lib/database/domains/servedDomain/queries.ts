@@ -11,9 +11,10 @@ import type {
   ServedDomainWithPoliciesData,
   UpdateServedDomainParams
 } from '@/lib/database/domains/servedDomain/types'
-import type { Db } from '@/lib/database/kysely'
+import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { Domains } from '@/lib/database/kysely/db'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
+import { parseDisabledFeatures } from '@/lib/services/domains/domainFeatures'
 import { logger } from '@/lib/utils/logger'
 
 // Null when the stored value is not a JSON array of strings: an empty list
@@ -57,6 +58,7 @@ const SERVED_DOMAIN_COLUMNS = [
   'name',
   'description',
   'contactEmail',
+  'disabledFeatures',
   'signupsOpen',
   'allowedEmails',
   'allowExistingUsers',
@@ -87,6 +89,7 @@ const toServedDomain = (row: ServedDomainRow): ServedDomainData => {
     name: row.name ?? null,
     description: row.description ?? null,
     contactEmail: row.contactEmail ?? null,
+    disabledFeatures: parseDisabledFeatures(row.disabledFeatures),
     signupsOpen: Boolean(allowedEmails && row.signupsOpen),
     allowedEmails,
     allowExistingUsers: Boolean(row.allowExistingUsers),
@@ -110,6 +113,7 @@ const identityValues = ({
   name,
   description,
   contactEmail,
+  disabledFeatures,
   termsOfService,
   termsOfServiceUpdatedAt,
   privacyPolicy,
@@ -118,6 +122,13 @@ const identityValues = ({
   ...(name !== undefined ? { name } : null),
   ...(description !== undefined ? { description } : null),
   ...(contactEmail !== undefined ? { contactEmail } : null),
+  ...(disabledFeatures !== undefined
+    ? {
+        disabledFeatures: disabledFeatures?.length
+          ? JSON.stringify(disabledFeatures)
+          : null
+      }
+    : null),
   ...(termsOfService !== undefined ? { termsOfService } : null),
   ...(termsOfServiceUpdatedAt !== undefined
     ? { termsOfServiceUpdatedAt: toDate(termsOfServiceUpdatedAt) }
@@ -273,6 +284,38 @@ export const deleteServedDomain = async (
   return Number(numDeletedRows) > 0
 }
 
+// Removes the domain row together with the rules and announcements scoped to
+// it (and their reactions and reads) in one transaction, so a failure leaves
+// nothing half-removed. True when the domain row was removed.
+export const deleteServedDomainWithScopes = (
+  db: Db,
+  { domain }: DeleteServedDomainParams
+): Promise<boolean> =>
+  inTransaction(db, async (trx) => {
+    const announcementIds = trx
+      .selectFrom('announcements')
+      .select('id')
+      .where('domain', '=', domain)
+    await trx
+      .deleteFrom('announcement_reactions')
+      .where('announcementId', 'in', announcementIds)
+      .execute()
+    await trx
+      .deleteFrom('announcement_reads')
+      .where('announcementId', 'in', announcementIds)
+      .execute()
+    await trx.deleteFrom('announcements').where('domain', '=', domain).execute()
+    await trx
+      .deleteFrom('instance_rules')
+      .where('domain', '=', domain)
+      .execute()
+    const { numDeletedRows } = await trx
+      .deleteFrom('domains')
+      .where('domain', '=', domain)
+      .executeTakeFirst()
+    return Number(numDeletedRows) > 0
+  })
+
 export const countLocalActorsByDomain = async (
   db: Db,
   { domains }: CountLocalActorsByDomainParams
@@ -301,5 +344,6 @@ export const servedDomainQueries = {
   getServedDomains,
   getActiveServedDomains,
   deleteServedDomain,
+  deleteServedDomainWithScopes,
   countLocalActorsByDomain
 }

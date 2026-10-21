@@ -26,6 +26,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
+    trustedHosts: ['club.llun.test'],
     secretPhase: 'test-secret'
   })
 }))
@@ -166,5 +167,117 @@ describe('/api/v2/admin/announcements', () => {
       params: Promise.resolve({ id: 'does-not-exist' })
     })
     expect(response.status).toBe(404)
+  })
+
+  describe('announcements per domain', () => {
+    const call = <T extends typeof POST | typeof PATCH>(
+      handler: T,
+      method: string,
+      body: object,
+      id?: string
+    ) =>
+      handler(baseRequest({ method, body }), {
+        params: Promise.resolve(id ? { id } : {})
+      } as never)
+
+    it('creates for every domain by default and for a named served domain', async () => {
+      const everywhere = await (
+        await call(POST, 'POST', { text: 'For all' })
+      ).json()
+      expect(everywhere.domain).toBeNull()
+
+      const response = await call(POST, 'POST', {
+        text: 'For the club',
+        domain: 'CLUB.llun.test'
+      })
+      expect(response.status).toBe(200)
+      const club = await response.json()
+      expect(club.domain).toBe('club.llun.test')
+
+      // The primary is a valid audience: an announcement may be for it alone.
+      const primary = await (
+        await call(POST, 'POST', {
+          text: 'For the primary',
+          domain: 'llun.test'
+        })
+      ).json()
+      expect(primary.domain).toBe('llun.test')
+
+      const ids = async (query = '') => {
+        const listed = await GET(
+          new NextRequest(
+            `https://llun.test/api/v2/admin/announcements${query}`,
+            { headers: { Origin: 'https://llun.test' } }
+          ),
+          { params: Promise.resolve({}) }
+        )
+        expect(listed.status).toBe(200)
+        return (await listed.json()).map((item: { id: string }) => item.id)
+      }
+      expect(await ids()).toEqual(
+        expect.arrayContaining([everywhere.id, club.id, primary.id])
+      )
+      expect(await ids('?domain=club.llun.test')).toEqual([club.id])
+      expect(await ids('?domain=llun.test')).toEqual([primary.id])
+    })
+
+    it('accepts an added domain, on or off', async () => {
+      await database.createServedDomain({ domain: 'run.example' })
+
+      const response = await call(POST, 'POST', {
+        text: 'Runners',
+        domain: 'run.example'
+      })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).domain).toBe('run.example')
+    })
+
+    it.each([
+      { domain: 'nowhere.example', code: 'unknown' },
+      { domain: 'not a domain/path', code: 'invalid' }
+    ])('refuses $code domain on create', async ({ domain, code }) => {
+      const response = await call(POST, 'POST', { text: 'Nope', domain })
+      expect(response.status).toBe(422)
+      expect(await response.json()).toMatchObject({ code })
+    })
+
+    it('refuses an unserved domain in the list filter', async () => {
+      const listed = await GET(
+        new NextRequest(
+          'https://llun.test/api/v2/admin/announcements?domain=nowhere.example',
+          { headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({}) }
+      )
+      expect(listed.status).toBe(422)
+    })
+
+    it('moves an announcement between audiences and keeps it when no domain is sent', async () => {
+      const created = await (
+        await call(POST, 'POST', { text: 'Move me', domain: 'club.llun.test' })
+      ).json()
+
+      const kept = await (
+        await call(PATCH, 'PATCH', { text: 'Moved?' }, created.id)
+      ).json()
+      expect(kept.domain).toBe('club.llun.test')
+
+      const everywhere = await (
+        await call(PATCH, 'PATCH', { domain: null }, created.id)
+      ).json()
+      expect(everywhere.domain).toBeNull()
+
+      const refused = await call(
+        PATCH,
+        'PATCH',
+        { domain: 'nowhere.example' },
+        created.id
+      )
+      expect(refused.status).toBe(422)
+      expect(
+        (await database.getAnnouncement({ id: created.id }))?.domain
+      ).toBeNull()
+    })
   })
 })

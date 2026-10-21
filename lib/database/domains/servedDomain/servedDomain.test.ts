@@ -245,6 +245,83 @@ describe('identity and policies', () => {
   })
 })
 
+describe('disabled features', () => {
+  it('defaults to none and round-trips a list, which an empty list clears', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createServedDomain({
+        domain: 'run.example'
+      })
+      expect(created.disabledFeatures).toEqual([])
+
+      const updated = await database.updateServedDomain({
+        domain: 'run.example',
+        disabledFeatures: ['messages', 'fitness']
+      })
+      // Read back in the registry's order.
+      expect(updated?.disabledFeatures).toEqual(['fitness', 'messages'])
+      expect(
+        (await database.getServedDomainWithPolicies({ domain: 'run.example' }))
+          ?.disabledFeatures
+      ).toEqual(['fitness', 'messages'])
+      expect((await database.getActiveServedDomains()).length).toBe(0)
+
+      // Other updates leave the list alone.
+      const renamed = await database.updateServedDomain({
+        domain: 'run.example',
+        name: 'Run Club'
+      })
+      expect(renamed?.disabledFeatures).toEqual(['fitness', 'messages'])
+
+      const cleared = await database.updateServedDomain({
+        domain: 'run.example',
+        disabledFeatures: []
+      })
+      expect(cleared?.disabledFeatures).toEqual([])
+      const again = await database.updateServedDomain({
+        domain: 'run.example',
+        disabledFeatures: ['explore']
+      })
+      expect(again?.disabledFeatures).toEqual(['explore'])
+      expect(
+        (
+          await database.updateServedDomain({
+            domain: 'run.example',
+            disabledFeatures: null
+          })
+        )?.disabledFeatures
+      ).toEqual([])
+    })
+  })
+
+  it('reads an unreadable stored value as none', async () => {
+    const testDb = createTestDatabase()
+    await testDb.prepare()
+    await testDb.database.migrate()
+    try {
+      await testDb.database.createServedDomain({ domain: 'run.example' })
+      await testDb.db
+        .updateTable('domains')
+        .set({ disabledFeatures: '{"not":"a list"}' })
+        .execute()
+      expect(
+        (await testDb.database.getServedDomain({ domain: 'run.example' }))
+          ?.disabledFeatures
+      ).toEqual([])
+
+      await testDb.db
+        .updateTable('domains')
+        .set({ disabledFeatures: '["explore","unknown","explore"]' })
+        .execute()
+      expect(
+        (await testDb.database.getServedDomain({ domain: 'run.example' }))
+          ?.disabledFeatures
+      ).toEqual(['explore'])
+    } finally {
+      await testDb.destroy()
+    }
+  })
+})
+
 describe('getActiveServedDomains', () => {
   it('returns only rows that are on, in domain order', async () => {
     await withFreshDatabase(async (database) => {

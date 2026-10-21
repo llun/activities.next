@@ -1,7 +1,9 @@
+import { getVisibleAnnouncement } from '@/lib/services/announcements/getVisibleAnnouncement'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -24,7 +26,11 @@ export const POST = traceApiRoute(
     async (req, { database, currentActor, params }) => {
       const { id } = await params
 
-      const announcement = await database.getAnnouncement({ id })
+      const announcement = await getVisibleAnnouncement(
+        database,
+        headerHost(req.headers),
+        id
+      )
       if (!announcement) return apiCorsError(req, CORS_HEADERS, 404)
 
       await database.markAnnouncementRead({
