@@ -88,6 +88,62 @@ describe('IdempotencyDatabase', () => {
     ).resolves.toBe('their-status')
   })
 
+  it("reads and claims only the asking actor's key row", async () => {
+    const actorA = actor('isolation-a')
+    const actorB = actor('isolation-b')
+    await database.saveIdempotencyKey({
+      actorId: actorA,
+      key: 'shared-key',
+      statusId: 'status-a',
+      contentHash: 'hash-a'
+    })
+    await database.saveIdempotencyKey({
+      actorId: actorB,
+      key: 'shared-key',
+      statusId: 'status-b',
+      contentHash: 'hash-b'
+    })
+
+    await expect(
+      database.getIdempotencyKey({ actorId: actorA, key: 'shared-key' })
+    ).resolves.toMatchObject({ statusId: 'status-a', contentHash: 'hash-a' })
+    await expect(
+      database.getIdempotencyKey({ actorId: actorB, key: 'shared-key' })
+    ).resolves.toMatchObject({ statusId: 'status-b', contentHash: 'hash-b' })
+
+    // Even a status id both rows name (the claim also filters on it) is
+    // claimed only for the actor that asked.
+    await database.saveIdempotencyKey({
+      actorId: actorA,
+      key: 'same-status-key',
+      statusId: 'status-both'
+    })
+    await database.saveIdempotencyKey({
+      actorId: actorB,
+      key: 'same-status-key',
+      statusId: 'status-both'
+    })
+    // saveIdempotencyKey stores a legacy 'complete' key; a create's is pending.
+    await db
+      .updateTable('idempotency_keys')
+      .set({ state: 'pending' })
+      .where('key', '=', 'same-status-key')
+      .execute()
+    await expect(
+      database.claimIdempotencyKeyPublish({
+        actorId: actorA,
+        key: 'same-status-key',
+        statusId: 'status-both'
+      })
+    ).resolves.toBe(true)
+    await expect(
+      database.getIdempotencyKey({ actorId: actorA, key: 'same-status-key' })
+    ).resolves.toMatchObject({ state: 'publishing' })
+    await expect(
+      database.getIdempotencyKey({ actorId: actorB, key: 'same-status-key' })
+    ).resolves.toMatchObject({ state: 'pending' })
+  })
+
   it('stores and retrieves contentHash via getIdempotencyKey', async () => {
     const actorId = actor('hash')
     await database.saveIdempotencyKey({

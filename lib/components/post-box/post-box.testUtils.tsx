@@ -1,5 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react'
-import { vi } from 'vitest'
+import { fireEvent, screen, within } from '@testing-library/react'
+import { expect, vi } from 'vitest'
 
 import {
   createNote,
@@ -171,6 +171,17 @@ export const openPostOptions = async () => {
     })
   }
   return screen.findByRole('menu')
+}
+
+/** The composer is locked: the options that change the payload are refused. */
+export const expectPostOptionsLocked = async () => {
+  const menu = await openPostOptions()
+  for (const name of ['Poll', 'Content warning']) {
+    expect(
+      within(menu).getByRole('menuitemcheckbox', { name })
+    ).toHaveAttribute('aria-disabled', 'true')
+  }
+  fireEvent.keyDown(menu, { key: 'Escape' })
 }
 
 /** Opens the Post options menu and activates one of its items. */

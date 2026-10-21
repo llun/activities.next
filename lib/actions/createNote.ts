@@ -266,7 +266,11 @@ export const loadIdempotentStatus = async ({
   // The key first: a discard removes the status and the key together, so a
   // key read before the status cannot vouch for a status discarded since.
   const claim = await database.getIdempotencyKey({ actorId, key })
-  const status = await database.getStatus({ statusId, withReplies: false })
+  const status = await database.getStatus({
+    statusId,
+    currentActorId: actorId,
+    withReplies: false
+  })
   if (!status) {
     if (claim?.statusId !== statusId) return null
     // A discard may have committed between the two reads: only a key that

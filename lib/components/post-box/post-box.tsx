@@ -171,6 +171,11 @@ export const PostBox: FC<Props> = ({
   const [showPreview, setShowPreview] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
+  // Set once the server kept a create (503/409): the draft is locked so Post
+  // retries the same payload under the same Idempotency-Key. Any edit would
+  // mint a new key and strand the kept post (or duplicate it).
+  const [lockedMessage, setLockedMessage] = useState<string | null>(null)
+  const draftLocked = lockedMessage !== null
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(postBoxRef, text)
   const formRef = useRef<HTMLFormElement>(null)
@@ -902,6 +907,7 @@ export const PostBox: FC<Props> = ({
         })
 
         submitIdempotencyRef.current = null
+        setLockedMessage(null)
         dispatch(resetExtension())
         resetMediaState()
         // Clear the draft like the note branch does. Leaving the question text
@@ -1059,6 +1065,7 @@ export const PostBox: FC<Props> = ({
       })
 
       submitIdempotencyRef.current = null
+      setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
       onPostCreated(status, storedAttachments)
@@ -1084,7 +1091,13 @@ export const PostBox: FC<Props> = ({
           keptFitnessFileIdsRef.current.add(createFitnessFileId)
         }
       }
-      alert(describePostError(error, fallbackMessage, keptByServer))
+      const failureMessage = describePostError(
+        error,
+        fallbackMessage,
+        keptByServer
+      )
+      if (keptByServer) setLockedMessage(failureMessage)
+      alert(failureMessage)
     } finally {
       submitInFlightRef.current = false
     }
@@ -1364,6 +1377,7 @@ export const PostBox: FC<Props> = ({
     if (!submitInFlightRef.current) {
       discardUploadedMedia(postExtensionRef.current.attachments)
     }
+    setLockedMessage(null)
     if (editStatus) {
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
@@ -1489,11 +1503,13 @@ export const PostBox: FC<Props> = ({
               host={host}
               status={replyStatus}
               onClose={onCloseReply}
+              disabled={draftLocked}
             />
             <QuotedPreview
               host={host}
               status={quotedStatus}
               onClose={onCloseQuote}
+              disabled={draftLocked}
             />
             {postExtension.contentWarningVisible ? (
               <input
@@ -1503,6 +1519,7 @@ export const PostBox: FC<Props> = ({
                 name="contentWarning"
                 placeholder="Write your warning here"
                 value={postExtension.contentWarning}
+                readOnly={draftLocked}
                 onChange={(event) => onContentWarningChange(event.target.value)}
               />
             ) : null}
@@ -1516,6 +1533,7 @@ export const PostBox: FC<Props> = ({
               name="message"
               placeholder="What is on your mind?"
               value={text}
+              readOnly={draftLocked}
             />
 
             {showPreview ? (
@@ -1573,6 +1591,7 @@ export const PostBox: FC<Props> = ({
           choices={postExtension.poll.choices}
           durationInSeconds={postExtension.poll.durationInSeconds}
           pollType={postExtension.poll.pollType}
+          disabled={draftLocked}
           onAddChoice={() => dispatch(addPollChoice(maxPollOptions))}
           onRemoveChoice={(index) => dispatch(removePollChoice(index))}
           onChooseDuration={(durationInSeconds: Duration) =>
@@ -1587,7 +1606,7 @@ export const PostBox: FC<Props> = ({
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
               fileNames={fileNames}
-              disabled={isPosting}
+              disabled={isPosting || draftLocked}
               onAddAttachment={(attachment) => {
                 // A picker batch that resolves after submit began must not
                 // change what is being posted: the submit already captured
@@ -1664,10 +1683,10 @@ export const PostBox: FC<Props> = ({
             <EmojiPickerButton
               customEmojis={customEmojis}
               onSelect={insertAtCaret}
-              disabled={isPosting}
+              disabled={isPosting || draftLocked}
             />
             <PostOptionsMenu
-              disabled={isPosting}
+              disabled={isPosting || draftLocked}
               showFitnessFile={!replyStatus && !editStatus}
               onChooseFitnessFile={() => fitnessFileInputRef.current?.open()}
               pollShowing={postExtension.poll.showing}
@@ -1737,6 +1756,11 @@ export const PostBox: FC<Props> = ({
             {warningMsg}
           </div>
         ) : null}
+        {lockedMessage ? (
+          <div role="status" className="mt-3 text-xs text-muted-foreground">
+            {lockedMessage} Editing is locked until it is sent.
+          </div>
+        ) : null}
         {missingDescription ? (
           <div className="mt-3 text-xs text-destructive-text" role="status">
             Add a description to every item, or mark it decorative
@@ -1764,6 +1788,7 @@ export const PostBox: FC<Props> = ({
               variant="ghost"
               size="icon-sm"
               aria-label="Remove selected fitness file"
+              disabled={draftLocked}
               onClick={() => void onRemoveFitnessFile()}
             >
               <X className="size-4" />
@@ -1784,7 +1809,7 @@ export const PostBox: FC<Props> = ({
             Boolean(gallerySettings?.subjectSuggestionsAvailable) &&
             gallerySettings?.subjectSuggestionMode === 'model'
           }
-          disabled={isPosting}
+          disabled={isPosting || draftLocked}
           onOpen={(id) => void openDetails(id)}
           onRemove={onRemoveAttachment}
           onRetry={(id) => {

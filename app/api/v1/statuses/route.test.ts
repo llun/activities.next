@@ -1043,6 +1043,67 @@ describe('POST /api/v1/statuses', () => {
     await expect(statusesWithText(text)).resolves.toHaveLength(1)
   })
 
+  it('keeps a keyless post and responds 503 when the federation publish fails', async () => {
+    const text = 'Keyless saved then queue fails'
+    vi.mocked(getQueue().publish).mockRejectedValueOnce(
+      new Error('Queue unavailable')
+    )
+
+    const response = await postStatus({ status: text })
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Your post was saved but could not be sent'
+    })
+    await expect(statusesWithText(text)).resolves.toHaveLength(1)
+  })
+
+  it('rejects a fitness file that another status already holds with 422 and creates nothing', async () => {
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      fileName: 'taken.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 4096,
+      path: 'fitness/taken.fit'
+    })
+    const first = await postStatus({
+      status: 'Holds the file',
+      fitness_file_id: fitnessFile!.id
+    })
+    expect(first.status).toBe(200)
+
+    const second = await postStatus({
+      status: 'Wants the same file',
+      fitness_file_id: fitnessFile!.id
+    })
+
+    expect(second.status).toBe(422)
+    await expect(statusesWithText('Wants the same file')).resolves.toHaveLength(
+      0
+    )
+  })
+
+  it("reports the replaying actor's favourite on a repeated Idempotency-Key", async () => {
+    const idempotencyKey = 'idem-key-viewer-state'
+    const created = await (
+      await postStatus({ status: 'Favourite me' }, idempotencyKey)
+    ).json()
+    expect(created.favourited).toBe(false)
+    await database.createLike({ actorId: ACTOR1_ID, statusId: created.uri })
+
+    const replayed = await postStatus(
+      { status: 'Favourite me' },
+      idempotencyKey
+    )
+
+    expect(replayed.status).toBe(200)
+    await expect(replayed.json()).resolves.toMatchObject({
+      id: created.id,
+      favourited: true
+    })
+  })
+
   // Ages a key past IDEMPOTENCY_PENDING_STALE_MS, as if its request stopped.
   const ageKey = (key: string) => {
     const past = new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)

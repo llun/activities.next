@@ -12,7 +12,7 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
-import { describePostError } from '@/lib/client/http'
+import { describePostError, isPostKeptByServer } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   addAttachment,
@@ -67,6 +67,10 @@ export const StatusReplyBox: FC<Props> = ({
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
+  // Set once the server kept the reply (503/409): the draft is locked so Post
+  // retries the same payload under the same Idempotency-Key. Any edit would
+  // mint a new key and strand the kept reply (or duplicate it).
+  const [draftLocked, setDraftLocked] = useState<boolean>(false)
   const [mentionMode, setMentionMode] = useState<ReplyMentionMode>('all')
   const [targetPreview, setTargetPreview] = useState<ReplyTargetPreview | null>(
     null
@@ -297,6 +301,7 @@ export const StatusReplyBox: FC<Props> = ({
       })
 
       submitIdempotencyRef.current = null
+      setDraftLocked(false)
       const { status, attachments: storedAttachments } = response
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
@@ -309,10 +314,12 @@ export const StatusReplyBox: FC<Props> = ({
       setIsPosting(false)
       // Surface the server's message without wiping user draft, CW, or attachments.
       setWarningMsg(describePostError(error, 'Fail to create a reply'))
+      if (isPostKeptByServer(error)) setDraftLocked(true)
     }
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
+    if (draftLocked) return
     const attachment = postExtension.attachments[attachmentIndex]
     if (!attachment) return
 
@@ -401,6 +408,7 @@ export const StatusReplyBox: FC<Props> = ({
           <button
             type="button"
             onClick={() => handleMentionModeChange('all')}
+            disabled={draftLocked}
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'all'
@@ -413,6 +421,7 @@ export const StatusReplyBox: FC<Props> = ({
           <button
             type="button"
             onClick={() => handleMentionModeChange('author-first')}
+            disabled={draftLocked}
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-first'
@@ -425,6 +434,7 @@ export const StatusReplyBox: FC<Props> = ({
           <button
             type="button"
             onClick={() => handleMentionModeChange('author-only')}
+            disabled={draftLocked}
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-only'
@@ -459,6 +469,7 @@ export const StatusReplyBox: FC<Props> = ({
               name="message"
               placeholder={getPlaceholder()}
               value={text}
+              readOnly={draftLocked}
             />
 
             {postExtension.contentWarningVisible ? (
@@ -469,6 +480,7 @@ export const StatusReplyBox: FC<Props> = ({
                 name="contentWarning"
                 placeholder="Write your warning here"
                 value={postExtension.contentWarning}
+                readOnly={draftLocked}
                 onChange={(event) =>
                   dispatch(setContentWarning(event.target.value))
                 }
@@ -518,6 +530,7 @@ export const StatusReplyBox: FC<Props> = ({
                     : 'Add content warning'
                 }
                 title="Content warning"
+                disabled={draftLocked}
                 onClick={() =>
                   dispatch(
                     setContentWarningVisibility(
@@ -531,6 +544,7 @@ export const StatusReplyBox: FC<Props> = ({
               <UploadMediaButton
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
+                disabled={draftLocked}
                 onAddAttachment={(attachment) => {
                   if (
                     postExtensionRef.current.attachments.length >=

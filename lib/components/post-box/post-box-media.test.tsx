@@ -42,7 +42,7 @@ import {
   uploadAttachmentMock,
   uploaded
 } from './post-box-media.testUtils'
-import { choosePostOption } from './post-box.testUtils'
+import { choosePostOption, expectPostOptionsLocked } from './post-box.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -1132,7 +1132,7 @@ describe('PostBox media details', () => {
       await failWith()
     })
 
-    it('does not delete the kept fitness file when it is removed', async () => {
+    it('locks the fitness draft and retries the same file under the same key', async () => {
       vi.spyOn(window, 'alert').mockImplementation(() => {})
       vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
         id: 'fitness-1'
@@ -1147,19 +1147,43 @@ describe('PostBox media details', () => {
         ) as HTMLInputElement,
         { target: { files: [new File(['data'], 'run.gpx')] } }
       )
+      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+        target: { value: 'Morning run' }
+      })
       fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      expect(createNoteMock.mock.calls[0][0].fitnessFileId).toBe('fitness-1')
       await waitFor(() => expect(window.alert).toHaveBeenCalledWith(message))
 
-      fireEvent.click(
+      expect(screen.getByText(/Editing is locked/)).toHaveTextContent(message)
+      expect(
+        screen.getByPlaceholderText('What is on your mind?')
+      ).toHaveAttribute('readonly')
+      expect(
         screen.getByRole('button', { name: 'Remove selected fitness file' })
-      )
+      ).toBeDisabled()
+      await expectPostOptionsLocked()
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
 
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(retry.idempotencyKey).toBe(first.idempotencyKey)
+      expect(retry).toMatchObject({
+        message: 'Morning run',
+        fitnessFileId: 'fitness-1'
+      })
+      expect(vi.mocked(uploadFitnessFile)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+
+      // A success unlocks and clears the composer.
       await waitFor(() =>
         expect(screen.queryByText('run.gpx')).not.toBeInTheDocument()
       )
-      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+      expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+      expect(
+        screen.getByPlaceholderText('What is on your mind?')
+      ).not.toHaveAttribute('readonly')
+      expect(screen.getByRole('button', { name: 'Post options' })).toBeEnabled()
     })
 
     it('does not delete the kept media on unmount', async () => {
@@ -1168,12 +1192,29 @@ describe('PostBox media details', () => {
       expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
     })
 
-    it('does not delete the kept media when it is removed', async () => {
+    it('locks the media draft and retries the same attachment under the same key', async () => {
       await failWith()
-      fireEvent.click(
+
+      expect(screen.getByText(/Editing is locked/)).toHaveTextContent(message)
+      expect(
         screen.getByRole('button', { name: 'Remove media a.png' })
-      )
+      ).toBeDisabled()
+      await expectPostOptionsLocked()
       expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(retry.idempotencyKey).toBe(first.idempotencyKey)
+      expect(retry.attachments).toEqual(first.attachments)
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Remove media a.png' })
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Post options' })).toBeEnabled()
     })
   })
 

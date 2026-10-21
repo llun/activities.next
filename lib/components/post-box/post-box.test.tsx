@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getCustomEmojis } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -16,6 +17,7 @@ import {
   createNoteMock,
   createPollMock,
   editStatus,
+  expectPostOptionsLocked,
   profile,
   resetEditMediaMocks,
   resizeImageMock,
@@ -552,6 +554,45 @@ describe('PostBox poll creation', () => {
     expect(isPublicId(editedKey!)).toBe(true)
     expect(editedKey).not.toBe(firstKey)
   })
+
+  it('locks a poll draft after a 503 and retries the same poll under the same key', async () => {
+    createPollMock
+      .mockRejectedValueOnce(new ApiRequestError('kept', 503))
+      .mockResolvedValue(undefined)
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Best framework?' } })
+    await choosePostOption('Poll')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(1))
+
+    await waitFor(() => expect(postButton).toBeEnabled())
+    expect(textarea).toHaveAttribute('readonly')
+    expect(screen.getByPlaceholderText('Choice 1')).toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'Add choice' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove poll' })).toBeDisabled()
+    expect(screen.getByRole('switch')).toBeDisabled()
+
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createPollMock).toHaveBeenCalledTimes(2))
+    const [first, retry] = createPollMock.mock.calls.map(([call]) => call)
+    expect(retry).toEqual(first)
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+  })
 })
 
 describe('PostBox new post character limit with attachments', () => {
@@ -846,4 +887,44 @@ describe('PostBox idempotency key', () => {
     expect(isPublicId(editedKey!)).toBe(true)
     expect(editedKey).not.toBe(firstKey)
   })
+
+  it.each([503, 409])(
+    'locks a note draft after a %i and retries the same payload under the same key',
+    async (status) => {
+      createNoteMock
+        .mockRejectedValueOnce(new ApiRequestError('kept', status))
+        .mockResolvedValue({ status: editStatus, attachments: [] })
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+
+      const textarea = screen.getByPlaceholderText('What is on your mind?')
+      fireEvent.change(textarea, { target: { value: 'First post' } })
+      const postButton = screen.getByRole('button', { name: 'Post' })
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      await waitFor(() => expect(postButton).toBeEnabled())
+      expect(textarea).toHaveAttribute('readonly')
+      expect(screen.getByText(/Editing is locked/)).toBeInTheDocument()
+      await expectPostOptionsLocked()
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(retry).toEqual(first)
+
+      await waitFor(() => expect(textarea).toHaveValue(''))
+      expect(textarea).not.toHaveAttribute('readonly')
+      expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Post options' })).toBeEnabled()
+    }
+  )
 })

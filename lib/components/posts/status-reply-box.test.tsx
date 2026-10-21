@@ -196,6 +196,46 @@ describe('StatusReplyBox', () => {
     expect(editedKey).not.toBe(firstKey)
   })
 
+  it.each([503, 409])(
+    'locks the reply draft after a %i and retries the same payload under the same key',
+    async (status) => {
+      createNoteMock
+        .mockRejectedValueOnce(new ApiRequestError('kept', status))
+        .mockResolvedValue({ status: replyStatus, attachments: [] })
+      render(
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={replyStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      )
+
+      const textarea = screen.getByPlaceholderText('Reply to Llun...')
+      fireEvent.change(textarea, { target: { value: 'Reply body' } })
+      const postButton = screen.getByRole('button', { name: 'Post' })
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      await waitFor(() => expect(postButton).toBeEnabled())
+      expect(textarea).toHaveAttribute('readonly')
+      expect(
+        screen.getByRole('button', { name: 'Add content warning' })
+      ).toBeDisabled()
+
+      fireEvent.click(postButton)
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(retry).toEqual(first)
+
+      await waitFor(() => expect(textarea).toHaveValue(''))
+      expect(textarea).not.toHaveAttribute('readonly')
+      expect(
+        screen.getByRole('button', { name: 'Add content warning' })
+      ).toBeEnabled()
+    }
+  )
+
   it('toggles mention modes between all, author-first, and author-only', async () => {
     const multiMentionStatus: StatusNote = {
       ...replyStatus,
