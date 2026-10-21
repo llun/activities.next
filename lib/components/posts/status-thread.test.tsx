@@ -21,7 +21,7 @@ import {
   vi
 } from 'vitest'
 
-import { createNote } from '@/lib/client'
+import { createNote, deleteStatus, updateNote } from '@/lib/client'
 import {
   BASE_TIME,
   createMockNote,
@@ -31,6 +31,7 @@ import {
   mockCarol
 } from '@/lib/components/posts/__fixtures__/timeline-context'
 import { StatusThread } from '@/lib/components/posts/status-thread'
+import type { Status } from '@/lib/types/domain/status'
 
 import { preloadInlineStatusComposer } from './lazy-inline-status-composer'
 
@@ -69,7 +70,9 @@ vi.mock('@/lib/client', async (importOriginal) => {
   return {
     ...actual,
     createNote: vi.fn(),
+    deleteStatus: vi.fn(),
     likeStatus: vi.fn(),
+    updateNote: vi.fn(),
     undoLikeStatus: vi.fn(),
     getTranslationCapability: vi.fn().mockResolvedValue({ enabled: false }),
     getTranslationLanguages: vi.fn().mockResolvedValue([])
@@ -91,6 +94,8 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 }))
 
 const mockCreateNote = vi.mocked(createNote)
+const mockDeleteStatus = vi.mocked(deleteStatus)
+const mockUpdateNote = vi.mocked(updateNote)
 
 // The inline composer is loaded lazily; preload it so it renders synchronously.
 beforeAll(async () => {
@@ -962,6 +967,27 @@ describe('StatusThread', () => {
       return notes
     }
 
+    const makeTwoRuns = () => {
+      const [a1, a2] = makeAliceRun(2)
+      const a3 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/later-1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a2.id,
+        text: 'Later run part 1',
+        createdAt: BASE_TIME + 25 * MINUTE
+      })
+      const a4 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/later-2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a3.id,
+        text: 'Later run part 2',
+        createdAt: BASE_TIME + 27 * MINUTE
+      })
+      return { a1, a2, a3, a4 }
+    }
+
     it('renders opened last part inside a combined run with time span header, per-part actions, and focusedFooter inside opened part', () => {
       const [a1, a2, a3] = makeAliceRun(3)
 
@@ -1164,6 +1190,39 @@ describe('StatusThread', () => {
       expect(insetGroup).toHaveTextContent('Quick plain reply from Bob')
       // Tucked reply is excluded from Replies section below
       expect(screen.queryByTestId('thread-descendants')).not.toBeInTheDocument()
+    })
+
+    it('opens the reply composer for a tucked reply inside the run', async () => {
+      const [a1, a2] = makeAliceRun(2)
+      const bobInset = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-inset',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a1.id,
+        text: 'Quick plain reply from Bob',
+        createdAt: BASE_TIME + MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[bobInset, a2]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      fireEvent.click(
+        within(
+          screen.getByRole('group', { name: 'Reply by Bob Jones' })
+        ).getByRole('button', { name: /^Reply to Bob Jones/ })
+      )
+
+      expect(
+        await screen.findByPlaceholderText(/Reply to Bob/i)
+      ).toBeInTheDocument()
     })
 
     it('keeps an untucked reply with media under Replies (1) with "Replying to 1 of 3" without splitting the run', () => {
@@ -1490,28 +1549,39 @@ describe('StatusThread', () => {
       ).not.toBeInTheDocument()
     })
 
-    describe('runs above and below the opened post', () => {
-      const makeTwoRuns = () => {
-        const [a1, a2] = makeAliceRun(2)
-        const a3 = createMockNote({
-          id: 'https://activities.local/users/alice/statuses/later-1',
-          actor: mockAlice,
-          actorId: mockAlice.id,
-          reply: a2.id,
-          text: 'Later run part 1',
-          createdAt: BASE_TIME + 25 * MINUTE
-        })
-        const a4 = createMockNote({
-          id: 'https://activities.local/users/alice/statuses/later-2',
-          actor: mockAlice,
-          actorId: mockAlice.id,
-          reply: a3.id,
-          text: 'Later run part 2',
-          createdAt: BASE_TIME + 27 * MINUTE
-        })
-        return { a1, a2, a3, a4 }
-      }
+    it('does not clamp a long tucked reply inside the run', () => {
+      mockClampCollapsible = true
+      const [a1, a2] = makeAliceRun(2)
+      const bobInset = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-long-inset',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a1.id,
+        text: 'Bob very long tucked reply content. '.repeat(12),
+        createdAt: BASE_TIME + MINUTE
+      })
 
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          ancestors={[]}
+          descendants={[bobInset, a2]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      const insetGroup = screen.getByRole('group', {
+        name: 'Reply by Bob Jones'
+      })
+      expect(insetGroup).toHaveTextContent('Bob very long tucked reply')
+      expect(
+        within(insetGroup).queryByRole('button', { name: 'Read full post' })
+      ).not.toBeInTheDocument()
+    })
+
+    describe('runs above and below the opened post', () => {
       it('nests a reply created on a part of an earlier run without an "unavailable" boundary, and never scrolls or marks the earlier run as opened', async () => {
         const { a1, a2, a3, a4 } = makeTwoRuns()
         const reply = createMockNote({
@@ -1622,6 +1692,400 @@ describe('StatusThread', () => {
           expect(document.activeElement).toHaveAttribute('data-node-id', a3.id)
         )
       })
+    })
+
+    const openPostMenu = (statusId: string) =>
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${statusId}`)).getByRole('button', {
+          name: /^More actions/
+        }),
+        { key: 'ArrowDown' }
+      )
+
+    describe('deleting a post', () => {
+      const deleteCases = () => {
+        const [a1, a2, a3] = makeAliceRun(3)
+        const bobRoot = createMockNote({
+          id: 'https://activities.local/users/bob/statuses/bob-root',
+          actor: mockBob,
+          actorId: mockBob.id,
+          text: 'Bob root',
+          createdAt: BASE_TIME
+        })
+        const aliceReply = createMockNote({
+          id: 'https://activities.local/users/alice/statuses/alice-reply',
+          actor: mockAlice,
+          actorId: mockAlice.id,
+          reply: bobRoot.id,
+          text: 'Alice reply to root',
+          createdAt: BASE_TIME + MINUTE
+        })
+        const bobInset = createMockNote({
+          id: 'https://activities.local/users/bob/statuses/bob-inset',
+          actor: mockBob,
+          actorId: mockBob.id,
+          reply: a1.id,
+          text: 'Bob tucked reply',
+          createdAt: BASE_TIME + MINUTE
+        })
+        const bobReply = createMockNote({
+          id: 'https://activities.local/users/bob/statuses/bob-plain',
+          actor: mockBob,
+          actorId: mockBob.id,
+          reply: aliceReply.id,
+          text: 'Bob plain reply',
+          createdAt: BASE_TIME + 30 * MINUTE
+        })
+        return [
+          {
+            name: 'part of the opened run below the opened post',
+            props: {
+              status: a1,
+              descendants: [a2, a3],
+              currentActor: mockAlice
+            },
+            deleted: a3,
+            text: 'Run part 3 content'
+          },
+          {
+            name: 'part of the opened run above the opened post',
+            props: {
+              status: a3,
+              ancestors: [a1, a2],
+              currentActor: mockAlice
+            },
+            deleted: a2,
+            text: 'Run part 2 content'
+          },
+          {
+            name: 'reply under the thread',
+            props: {
+              status: aliceReply,
+              ancestors: [bobRoot],
+              descendants: [bobReply],
+              currentActor: mockBob
+            },
+            deleted: bobReply,
+            text: 'Bob plain reply'
+          },
+          {
+            name: 'ancestor above the thread',
+            props: {
+              status: aliceReply,
+              ancestors: [bobRoot],
+              currentActor: mockBob
+            },
+            deleted: bobRoot,
+            text: 'Bob root'
+          },
+          {
+            name: 'tucked reply inside the run',
+            props: {
+              status: a1,
+              descendants: [bobInset, a2],
+              currentActor: mockBob
+            },
+            deleted: bobInset,
+            text: 'Bob tucked reply'
+          }
+        ]
+      }
+
+      it.each(deleteCases())(
+        'drops a deleted $name',
+        async ({ props, deleted, text }) => {
+          mockDeleteStatus.mockResolvedValue(true)
+          render(
+            <StatusThread
+              host={host}
+              currentTime={BASE_TIME + 40 * MINUTE}
+              {...props}
+            />
+          )
+          expect(screen.getByText(text)).toBeInTheDocument()
+
+          openPostMenu(deleted.id)
+          fireEvent.click(
+            await screen.findByRole('menuitem', { name: 'Delete post' })
+          )
+          fireEvent.click(
+            within(await screen.findByRole('dialog')).getByRole('button', {
+              name: 'Delete'
+            })
+          )
+
+          await waitFor(() => expect(screen.queryByText(text)).toBeNull())
+          expect(mockDeleteStatus).toHaveBeenCalledWith({
+            statusId: deleted.id
+          })
+        }
+      )
+    })
+
+    describe('replying to a part of the run', () => {
+      const replyOnPart = async (target: Status, reply: Status) => {
+        mockCreateNote.mockResolvedValueOnce({ status: reply, attachments: [] })
+        fireEvent.click(
+          within(screen.getByTestId(`status-${target.id}`)).getByRole(
+            'button',
+            { name: /Reply/i }
+          )
+        )
+        fireEvent.change(screen.getByPlaceholderText(/Reply to Alice/i), {
+          target: { value: 'Reply text' }
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+        await waitFor(() => expect(mockCreateNote).toHaveBeenCalled())
+      }
+
+      const bobLateReplyTo = (parent: Status) =>
+        createMockNote({
+          id: 'https://activities.local/users/bob/statuses/late-reply',
+          actor: mockBob,
+          actorId: mockBob.id,
+          reply: parent.id,
+          text: 'Reply to a part of the run',
+          createdAt: BASE_TIME + 60 * MINUTE
+        })
+
+      it.each([
+        { part: 'second', index: 1 },
+        { part: 'last', index: 2 }
+      ])(
+        'nests a reply to the $part part of the opened run without an "unavailable" boundary',
+        async ({ index }) => {
+          const parts = makeAliceRun(3)
+          const reply = bobLateReplyTo(parts[index])
+
+          render(
+            <StatusThread
+              host={host}
+              status={parts[0]}
+              descendants={[parts[1], parts[2]]}
+              currentActor={mockBob}
+              currentTime={BASE_TIME + 90 * MINUTE}
+            />
+          )
+          await replyOnPart(parts[index], reply)
+
+          expect(
+            await screen.findByText('Reply to a part of the run')
+          ).toBeInTheDocument()
+          expect(
+            screen.queryByTestId('parent-unavailable-boundary')
+          ).not.toBeInTheDocument()
+        }
+      )
+
+      it('nests a reply to a part of a later run without an "unavailable" boundary', async () => {
+        const { a1, a2, a3, a4 } = makeTwoRuns()
+        const reply = bobLateReplyTo(a4)
+
+        render(
+          <StatusThread
+            host={host}
+            status={a1}
+            descendants={[a2, a3, a4]}
+            currentActor={mockBob}
+            currentTime={BASE_TIME + 90 * MINUTE}
+          />
+        )
+        await replyOnPart(a4, reply)
+
+        expect(
+          await screen.findByText('Reply to a part of the run')
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByTestId('parent-unavailable-boundary')
+        ).not.toBeInTheDocument()
+      })
+    })
+
+    it('nests a reply that points at a run part by its URL without an "unavailable" boundary', () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      const bobReply = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/url-reply',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a2.url,
+        text: 'Reply addressed by URL',
+        createdAt: BASE_TIME + 60 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          descendants={[a2, a3, bobReply]}
+          currentTime={BASE_TIME + 90 * MINUTE}
+        />
+      )
+
+      expect(screen.getByText('Reply addressed by URL')).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('parent-unavailable-boundary')
+      ).not.toBeInTheDocument()
+    })
+
+    it('separates an earlier run from the thread when "Show as separate posts" is chosen on its first part', async () => {
+      const { a1, a2, a3, a4 } = makeTwoRuns()
+
+      render(
+        <StatusThread
+          host={host}
+          status={a3}
+          ancestors={[a1, a2]}
+          descendants={[a4]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 40 * MINUTE}
+        />
+      )
+      expect(screen.getAllByTestId('self-thread-run')).toHaveLength(2)
+
+      openPostMenu(a1.id)
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+
+      await waitFor(() =>
+        expect(screen.getAllByTestId('self-thread-run')).toHaveLength(1)
+      )
+      expect(screen.getByTestId('thread-ancestors')).toHaveTextContent(
+        'Run part 1 content'
+      )
+    })
+
+    it('drops "Replying to 1 of 3" once the run is separated into plain posts', async () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      const bobBase = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/bob-photo',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: a1.id,
+        text: 'Bob reply with photo to part 1',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const bobWithPhoto = {
+        ...bobBase,
+        attachments: [createMockPhoto(bobBase, 'bob-pic')]
+      }
+
+      render(
+        <StatusThread
+          host={host}
+          status={a1}
+          descendants={[bobWithPhoto, a2, a3]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+      expect(screen.getByText('Replying to 1 of 3')).toBeInTheDocument()
+
+      openPostMenu(a1.id)
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+
+      await waitFor(() =>
+        expect(screen.queryByTestId('self-thread-run')).not.toBeInTheDocument()
+      )
+      expect(screen.queryByText(/Replying to \d+ of \d+/)).toBeNull()
+    })
+
+    it.each([
+      { action: 'Edit post', mode: 'edit' },
+      { action: 'Quote post', mode: 'quote' }
+    ])(
+      'opens the $mode composer under the run part it was chosen on',
+      async ({ action }) => {
+        const [a1, a2, a3] = makeAliceRun(3)
+
+        render(
+          <StatusThread
+            host={host}
+            status={a3}
+            ancestors={[a1, a2]}
+            currentActor={mockAlice}
+            currentTime={BASE_TIME + 10 * MINUTE}
+          />
+        )
+
+        openPostMenu(a2.id)
+        fireEvent.click(await screen.findByRole('menuitem', { name: action }))
+
+        const part2 = screen.getByTestId(`status-${a2.id}`)
+        expect(await within(part2).findByRole('textbox')).toBeInTheDocument()
+        expect(
+          within(screen.getByTestId(`status-${a3.id}`)).queryByRole('textbox')
+        ).toBeNull()
+      }
+    )
+
+    it('closes the composer and refreshes once a quote of a run part is posted', async () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      mockCreateNote.mockResolvedValueOnce({ status: a3, attachments: [] })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a3}
+          ancestors={[a1, a2]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      openPostMenu(a2.id)
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Quote post' })
+      )
+      const part2 = screen.getByTestId(`status-${a2.id}`)
+      fireEvent.change(await within(part2).findByRole('textbox'), {
+        target: { value: 'Quoting this part' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
+      expect(within(part2).queryByRole('textbox')).toBeNull()
+    })
+
+    it('closes the composer and refreshes once an edit of a run part is saved', async () => {
+      const [a1, a2, a3] = makeAliceRun(3)
+      mockUpdateNote.mockResolvedValueOnce({
+        content: 'edited',
+        status: {
+          id: a2.id,
+          text: 'edited',
+          reply: a2.reply,
+          createdAt: a2.createdAt,
+          updatedAt: a2.createdAt + MINUTE
+        },
+        spoilerText: '',
+        mediaAttachments: []
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a3}
+          ancestors={[a1, a2]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      openPostMenu(a2.id)
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Edit post' })
+      )
+      const part2 = screen.getByTestId(`status-${a2.id}`)
+      fireEvent.change(await within(part2).findByRole('textbox'), {
+        target: { value: 'edited' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+      await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
+      expect(within(part2).queryByRole('textbox')).toBeNull()
     })
 
     it('tints the opened part and its left edge, reaching up through the card padding only for part 1', () => {

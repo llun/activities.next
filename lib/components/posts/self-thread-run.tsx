@@ -287,6 +287,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
                 currentTime={currentTime}
                 currentActor={currentActor}
                 showActions={showActions}
+                postLineLimit={0}
                 onReply={
                   canCompose
                     ? (target) => openReply(target, inset.id)

@@ -548,6 +548,46 @@ describe('selfThreadModel', () => {
         expect(model.replyingToByReplyId.get(bob.id)).toBe('Replying to 2 of 3')
       })
 
+      it('keeps the two oldest replies when the cap forces a choice, whatever the input order', () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: 6 * MINUTE, reply: a1.id })
+        const early = note('early', {
+          actor: mockBob,
+          at: MINUTE,
+          reply: a1.id
+        })
+        const mid = note('mid', {
+          actor: mockBob,
+          at: 2 * MINUTE,
+          reply: a1.id
+        })
+        const late = note('late', {
+          actor: mockBob,
+          at: 3 * MINUTE,
+          reply: a1.id
+        })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: a1,
+          descendants: [a2, late, mid, early]
+        })
+
+        expect(insetIds(model)).toEqual([early.id, mid.id])
+        expect(model.repliesOutsideRun.map((s) => s.id)).toEqual([late.id])
+      })
+
+      it('keeps the whole run when the data holds a reply loop', () => {
+        const a1 = note('a1', { at: 0 })
+        const a2 = note('a2', { at: MINUTE, reply: a1.id })
+
+        const model = buildSelfThreadModel({
+          focusedStatus: { ...a1, reply: a2.id },
+          descendants: [a2]
+        })
+
+        expect(model.parts.map((p) => p.status.id)).toEqual([a1.id, a2.id])
+      })
+
       // Deterministic generator so failures reproduce: mulberry32.
       const random = (seed: number) => () => {
         seed = (seed + 0x6d2b79f5) | 0

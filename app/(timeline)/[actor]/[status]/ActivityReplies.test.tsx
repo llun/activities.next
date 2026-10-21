@@ -1,8 +1,16 @@
 /** @vitest-environment jsdom */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { useState } from 'react'
 
+import { deleteStatus } from '@/lib/client'
 import {
   BASE_TIME,
   createMockNote,
@@ -25,6 +33,7 @@ import {
   REPLIES_EXPANDED_STORAGE_KEY,
   REPLIES_PAGE_SIZE
 } from './ActivityReplies'
+import { mockRefresh } from './FitnessStatusDetail.mocks'
 
 vi.mock('next/navigation', async () => {
   const { mockPush, mockRefresh } = await import('./FitnessStatusDetail.mocks')
@@ -35,19 +44,60 @@ vi.mock('@/lib/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/client')>()
   return {
     ...actual,
+    deleteStatus: vi.fn(),
     getTranslationCapability: vi.fn().mockResolvedValue({ enabled: false }),
     getTranslationLanguages: vi.fn().mockResolvedValue([])
   }
 })
 
-vi.mock('@/lib/components/posts/post', async () => ({
-  Post: (await import('./FitnessStatusDetail.mocks')).MockPost
-}))
+// MockPost ignores onPostDeleted; a reply's delete path needs a way to fire it.
+vi.mock('@/lib/components/posts/post', async () => {
+  const { MockPost } = await import('./FitnessStatusDetail.mocks')
+  return {
+    Post: (props: {
+      status: { id: string }
+      onPostDeleted?: (status: { id: string }) => void
+    }) => (
+      <>
+        <MockPost {...props} />
+        {props.onPostDeleted ? (
+          <button
+            type="button"
+            data-testid={`delete-${props.status.id}`}
+            onClick={() => props.onPostDeleted?.(props.status)}
+          >
+            Remove
+          </button>
+        ) : null}
+      </>
+    )
+  }
+})
 
-vi.mock('@/lib/components/posts/inline-status-composer', async () => ({
-  InlineStatusComposer: (await import('./FitnessStatusDetail.mocks'))
-    .MockInlineStatusComposer
-}))
+// The shared stub only opens in the right place; the rail's save callbacks
+// need something that fires them.
+vi.mock('@/lib/components/posts/inline-status-composer', async () => {
+  const { MockInlineStatusComposer } =
+    await import('./FitnessStatusDetail.mocks')
+  return {
+    InlineStatusComposer: (
+      props: React.ComponentProps<typeof MockInlineStatusComposer> & {
+        onCreated?: (status: unknown) => void
+        onUpdated?: (status: unknown) => void
+      }
+    ) => (
+      <>
+        <MockInlineStatusComposer {...props} />
+        <button type="button" onClick={() => props.onCreated?.(props.status)}>
+          Mock created
+        </button>
+        <button type="button" onClick={() => props.onUpdated?.(props.status)}>
+          Mock updated
+        </button>
+      </>
+    )
+  }
+})
 
 beforeAll(async () => {
   await preloadInlineStatusComposer()
@@ -417,6 +467,233 @@ describe('ActivityReplies', () => {
       expect(
         screen.queryByRole('button', { name: /Replies \(/ })
       ).not.toBeInTheDocument()
+    })
+
+    it('drops a deleted reply from the list', () => {
+      render(
+        <ActivityReplies
+          {...props}
+          replies={[buildReply('reply-1'), buildReply('reply-2')]}
+        />
+      )
+      expect(screen.getAllByTestId('reply-post')).toHaveLength(2)
+
+      fireEvent.click(screen.getByTestId('delete-reply-1'))
+
+      expect(
+        screen.getByRole('button', { name: /Replies \(1\)/ })
+      ).toBeVisible()
+      expect(screen.getAllByTestId('reply-post')).toHaveLength(1)
+      expect(screen.queryByText('reply-1')).not.toBeInTheDocument()
+    })
+
+    it('hands a rail photo to the media viewer at its index', () => {
+      const onShowAttachment = vi.fn()
+      const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
+      const followUp1WithPhoto: StatusNote = {
+        ...followUp1,
+        attachments: [createMockPhoto(followUp1, 'Stop photo')]
+      }
+
+      render(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 6 * MINUTE}
+          status={activity}
+          replies={[followUp1WithPhoto, followUp2]}
+          composer={composer}
+          onShowAttachment={onShowAttachment}
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open media: Stop photo' })
+      )
+
+      expect(onShowAttachment).toHaveBeenCalledTimes(1)
+      expect(onShowAttachment).toHaveBeenCalledWith(
+        followUp1WithPhoto.attachments,
+        0
+      )
+    })
+
+    // The rail's save callbacks belong to the quote and edit composers; a
+    // reply composer reports through onReplyCreated instead.
+    it.each([
+      { saved: 'Mock created', action: 'Quote post' },
+      { saved: 'Mock updated', action: 'Edit post' }
+    ])(
+      'closes the composer and refreshes once a rail part save fires "$saved"',
+      async ({ saved, action }) => {
+        mockRefresh.mockClear()
+        const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
+
+        render(
+          <StatefulActivityReplies
+            host="activities.local"
+            currentActor={mockAlice}
+            currentTime={BASE_TIME + 6 * MINUTE}
+            status={activity}
+            replies={[followUp1, followUp2]}
+            onShowAttachment={vi.fn()}
+          />
+        )
+
+        const part2El = screen.getByTestId(`status-${followUp1.id}`)
+        fireEvent.keyDown(
+          within(part2El).getByRole('button', { name: 'More actions' }),
+          { key: 'ArrowDown' }
+        )
+        fireEvent.click(await screen.findByRole('menuitem', { name: action }))
+        fireEvent.click(within(part2El).getByRole('button', { name: saved }))
+
+        expect(mockRefresh).toHaveBeenCalledTimes(1)
+        expect(
+          screen.queryByTestId('inline-status-composer')
+        ).not.toBeInTheDocument()
+      }
+    )
+
+    it('drops a deleted follow-up from the rail', async () => {
+      vi.mocked(deleteStatus).mockResolvedValue(true)
+      const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
+
+      render(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+          status={activity}
+          replies={[followUp1, followUp2]}
+          composer={composer}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${followUp2.id}`)).getByRole(
+          'button',
+          { name: 'More actions' }
+        ),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Delete post' })
+      )
+      fireEvent.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Delete'
+        })
+      )
+
+      await waitFor(() =>
+        expect(
+          screen.queryByText('New PR on the Lekdijk segment')
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.getByText('Stopped for appeltaart at km 30')).toBeVisible()
+    })
+
+    it('nests a photo reply to a follow-up without an "unavailable" boundary', () => {
+      const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
+      const carolBase = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/carol-photo',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: followUp2.id,
+        text: 'Carol photo reply to the last follow-up',
+        createdAt: BASE_TIME + 5 * MINUTE
+      })
+      const carolWithPhoto: StatusNote = {
+        ...carolBase,
+        attachments: [createMockPhoto(carolBase, 'carol-pic')]
+      }
+
+      render(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+          status={activity}
+          replies={[followUp1, followUp2, carolWithPhoto]}
+          composer={composer}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByTestId('activity-replies-list')).toHaveTextContent(
+        carolWithPhoto.id
+      )
+      expect(
+        screen.queryByTestId('parent-unavailable-boundary')
+      ).not.toBeInTheDocument()
+    })
+
+    it('opens the reply composer on the activity when only follow-ups exist', () => {
+      const { activity, followUp1, followUp2 } = makeActivityAndFollowUps()
+
+      render(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+          status={activity}
+          replies={[followUp1, followUp2]}
+          composer={
+            {
+              ...composer,
+              active: { mode: 'reply', anchorId: POST_ID, status: activity }
+            } as unknown as InlineComposerControls
+          }
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByTestId('inline-status-composer')).toHaveAttribute(
+        'data-status-id',
+        activity.id
+      )
+    })
+
+    it('keeps the activity out of a collapsed rail of a long thread', () => {
+      const { activity } = makeActivityAndFollowUps()
+      const followUps: StatusNote[] = []
+      for (let i = 0; i < 7; i++) {
+        followUps.push(
+          createMockNote({
+            id: `https://activities.local/users/alice/statuses/long-${i + 1}`,
+            actor: mockAlice,
+            actorId: mockAlice.id,
+            reply: i === 0 ? activity.id : followUps[i - 1].id,
+            text: `Follow-up ${i + 1} of the long thread`,
+            createdAt: BASE_TIME + (i + 1) * MINUTE
+          })
+        )
+      }
+
+      render(
+        <ActivityReplies
+          host="activities.local"
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 30 * MINUTE}
+          status={activity}
+          replies={followUps}
+          composer={composer}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const rail = screen.getByTestId('self-thread-run')
+      expect(
+        within(rail).getByRole('button', { name: /more posts in this thread/i })
+      ).toBeInTheDocument()
+      expect(
+        within(rail).queryByText('Morning ride activity')
+      ).not.toBeInTheDocument()
+      expect(
+        within(rail).getByText('Follow-up 1 of the long thread')
+      ).toBeInTheDocument()
     })
   })
 })
