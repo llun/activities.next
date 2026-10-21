@@ -185,6 +185,9 @@ export const PostBox: FC<Props> = ({
   // which `submitInFlightRef` is already false again), so every discard path
   // skips these: media that was posted must never be deleted.
   const postedMediaIdsRef = useRef(new Set<string>())
+  // Fitness files a saved-but-unsent post (503/409) still uses: clearing them
+  // from the composer must not delete them on the server.
+  const keptFitnessFileIdsRef = useRef(new Set<string>())
   const fitnessCleanupInFlightRef = useRef<{
     uploadedId: string
     promise: Promise<boolean>
@@ -857,6 +860,7 @@ export const PostBox: FC<Props> = ({
       ? postExtension.contentWarning
       : ''
     let createAttempt: PostBoxAttachment[] = []
+    let createFitnessFileId: string | undefined
     try {
       if (postExtension.poll.showing && postExtension.fitnessFile) {
         setWarningMsg(
@@ -1023,6 +1027,7 @@ export const PostBox: FC<Props> = ({
       }
 
       createAttempt = attachments
+      createFitnessFileId = fitnessFileId
       const noteFingerprint = JSON.stringify({
         type: 'note',
         message,
@@ -1077,7 +1082,12 @@ export const PostBox: FC<Props> = ({
       const keptByServer =
         error instanceof ApiRequestError &&
         (error.status === 503 || error.status === 409)
-      if (keptByServer) markAttachmentsPosted(createAttempt)
+      if (keptByServer) {
+        markAttachmentsPosted(createAttempt)
+        if (createFitnessFileId) {
+          keptFitnessFileIdsRef.current.add(createFitnessFileId)
+        }
+      }
       alert(
         keptByServer && error.status === 503
           ? "Your post was saved but couldn't be sent yet. Press Post again to retry."
@@ -1156,7 +1166,10 @@ export const PostBox: FC<Props> = ({
       )
     }
 
-    if (!fitnessFile.uploadedId) {
+    if (
+      !fitnessFile.uploadedId ||
+      keptFitnessFileIdsRef.current.has(fitnessFile.uploadedId)
+    ) {
       clearFitnessFile()
       return true
     }

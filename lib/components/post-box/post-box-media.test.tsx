@@ -14,8 +14,10 @@ import { StrictMode, useState } from 'react'
 import {
   createNote,
   deleteAccountMedia,
+  deleteFitnessFile,
   getGallerySettings,
-  getMedia
+  getMedia,
+  uploadFitnessFile
 } from '@/lib/client'
 import { ApiRequestError } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
@@ -1128,6 +1130,36 @@ describe('PostBox media details', () => {
 
     it('shows the retry message', async () => {
       await failWith()
+    })
+
+    it('does not delete the kept fitness file when it is removed', async () => {
+      vi.spyOn(window, 'alert').mockImplementation(() => {})
+      vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
+        id: 'fitness-1'
+      } as never)
+      createNoteMock.mockRejectedValueOnce(
+        new ApiRequestError('retry with the same Idempotency-Key', status)
+      )
+      const { container } = renderPostBox()
+      fireEvent.change(
+        container.querySelector(
+          'input[type="file"][accept=".fit,.gpx,.tcx"]'
+        ) as HTMLInputElement,
+        { target: { files: [new File(['data'], 'run.gpx')] } }
+      )
+      fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      expect(createNoteMock.mock.calls[0][0].fitnessFileId).toBe('fitness-1')
+      await waitFor(() => expect(window.alert).toHaveBeenCalledWith(message))
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove selected fitness file' })
+      )
+
+      await waitFor(() =>
+        expect(screen.queryByText('run.gpx')).not.toBeInTheDocument()
+      )
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
     })
 
     it('does not delete the kept media on unmount', async () => {
