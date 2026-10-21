@@ -1177,6 +1177,21 @@ describe('PostBox media details', () => {
     })
   })
 
+  it.each([
+    ['500', new ApiRequestError('Server exploded', 500), 'Server exploded'],
+    ['plain Error', new Error('offline'), 'offline']
+  ])('still discards media after a %s failure', async (_n, err, message) => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    createNoteMock.mockRejectedValueOnce(err)
+    const { unmount } = renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+    unmount()
+    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
+  })
+
   describe('photos from Gallery (initialMedia)', () => {
     const prefilled = [
       {

@@ -21,6 +21,29 @@ export class ApiRequestError extends Error {
   }
 }
 
+// 503 (saved, delivery pending) and 409 (still being processed) on a create
+// mean the server holds the post: media must be kept and a retry replays the
+// same Idempotency-Key.
+export const isPostKeptByServer = (error: unknown): error is ApiRequestError =>
+  error instanceof ApiRequestError &&
+  (error.status === 503 || error.status === 409)
+
+// `kept` is false on the edit path, where nothing was saved.
+export const describePostError = (
+  error: unknown,
+  fallbackMessage: string,
+  kept = isPostKeptByServer(error)
+): string => {
+  if (kept && isPostKeptByServer(error)) {
+    return error.status === 503
+      ? "Your post was saved but couldn't be sent yet. Press Post again to retry."
+      : 'Your post is still being sent. Please wait a moment.'
+  }
+  return error instanceof Error && error.message
+    ? error.message
+    : fallbackMessage
+}
+
 export const parseApiError = async (
   response: Response,
   fallbackMessage: string

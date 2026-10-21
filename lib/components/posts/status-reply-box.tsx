@@ -12,6 +12,7 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import { describePostError } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   addAttachment,
@@ -307,11 +308,7 @@ export const StatusReplyBox: FC<Props> = ({
       isSubmittingRef.current = false
       setIsPosting(false)
       // Surface the server's message without wiping user draft, CW, or attachments.
-      setWarningMsg(
-        error instanceof Error && error.message
-          ? error.message
-          : 'Fail to create a reply'
-      )
+      setWarningMsg(describePostError(error, 'Fail to create a reply'))
     }
   }
 

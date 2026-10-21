@@ -12,6 +12,7 @@ import {
 } from '@testing-library/react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -336,6 +337,35 @@ describe('StatusReplyBox', () => {
         })
       )
     })
+  })
+
+  it.each([
+    [
+      503,
+      "Your post was saved but couldn't be sent yet. Press Post again to retry."
+    ],
+    [409, 'Your post is still being sent. Please wait a moment.']
+  ])('shows friendly copy when the server answers %i', async (status, copy) => {
+    createNoteMock.mockRejectedValueOnce(
+      new ApiRequestError('retry with the same Idempotency-Key', status)
+    )
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={replyStatus}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+    fireEvent.change(screen.getByPlaceholderText('Reply to Llun...'), {
+      target: { value: 'Reply body' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    expect(await screen.findByText(copy)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Idempotency-Key/, { exact: false })
+    ).not.toBeInTheDocument()
   })
 
   it('preserves draft text and attachments on submit failure', async () => {
