@@ -816,7 +816,8 @@ describe('Sidebar', () => {
         'dark:bg-muted-foreground',
         'dark:text-background'
       )
-      expect(badge).not.toHaveClass('bg-muted', 'dark:bg-[#383838]')
+      expect(badge).not.toHaveClass('bg-muted')
+      expect(badge).not.toHaveClass('dark:bg-[#383838]')
     })
 
     it('caps the count at 99+', async () => {

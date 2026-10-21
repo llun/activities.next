@@ -42,6 +42,11 @@ export const DraftsList: FC<Props> = ({
   // A snapshot taken at Edit: the editor keeps it while saves rewrite the row.
   // A draft that vanishes (sent, deleted elsewhere) drops its row and editor.
   const [editing, setEditing] = useState<DraftRecord | null>(null)
+  // A failed row delete, shown above the list (never inside it).
+  const [deleteError, setDeleteError] = useState<{
+    message: string
+    retry?: () => void
+  } | null>(null)
   const loadToken = useRef(0)
 
   const load = useCallback(() => {
@@ -104,6 +109,11 @@ export const DraftsList: FC<Props> = ({
       title="Drafts on this device"
       meta={`${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`}
     >
+      {deleteError ? (
+        <Alert title="Couldn't delete draft" onRetry={deleteError.retry}>
+          {deleteError.message}
+        </Alert>
+      ) : null}
       <FramedList>
         {drafts.map((draft) => (
           <FramedListItem key={draft.id}>
@@ -124,6 +134,9 @@ export const DraftsList: FC<Props> = ({
                 currentTime={currentTime}
                 onEdit={() => setEditing(draft)}
                 onConflict={load}
+                onDeleteError={(message, retry) =>
+                  setDeleteError(message ? { message, retry } : null)
+                }
               />
             )}
           </FramedListItem>

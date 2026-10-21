@@ -124,7 +124,9 @@ import { ReplyPreview } from './reply-preview'
 import { UploadMediaButton } from './upload-media-button'
 import {
   type DraftContent,
+  fromDraftAttachment,
   loadDraftFiles,
+  toDraftAttachment,
   useComposerDraft
 } from './useComposerDraft'
 
@@ -329,28 +331,14 @@ export const PostBox: FC<Props> = ({
     // post uses. Discarding the draft never deletes these.
     const owned = (id: string) =>
       !keptMediaIdsRef.current.has(id) && !postedMediaIdsRef.current.has(id)
-    const attachments = extension.attachments.map((attachment) => {
-      const uploaded = !attachment.file
-      return {
-        localId: localIdByIdRef.current.get(attachment.id) ?? attachment.id,
-        mediaId: uploaded ? attachment.id : undefined,
-        owned: uploaded ? owned(attachment.id) : true,
-        mediaType: attachment.mediaType,
-        fileName:
-          fileNames[attachment.id] ??
-          attachment.file?.name ??
-          attachment.name ??
-          '',
-        width: attachment.width,
-        height: attachment.height,
-        url: attachment.url.startsWith('blob:') ? undefined : attachment.url,
-        posterUrl: attachment.posterUrl?.startsWith('blob:')
-          ? undefined
-          : attachment.posterUrl,
-        description: attachment.name ?? '',
+    const attachments = extension.attachments.map((attachment) =>
+      toDraftAttachment(attachment, {
+        localIds: localIdByIdRef.current,
+        isOwned: owned,
+        fileName: fileNames[attachment.id],
         decorative: Boolean(decorativeIdsRef.current[attachment.id])
-      }
-    })
+      })
+    )
     const poll = extension.poll.showing
       ? {
           choices: extension.poll.choices.map((choice) => choice.text),
@@ -1649,17 +1637,11 @@ export const PostBox: FC<Props> = ({
       const decorative: Record<string, true> = {}
       const keys: Record<string, string> = {}
       for (const item of seed.attachments) {
+        const restored = fromDraftAttachment(item, files)
+        // The bytes are gone and the server never had it: nothing to restore.
+        if (!restored) continue
         if (item.mediaId) {
-          attachments.push({
-            type: 'upload',
-            id: item.mediaId,
-            mediaType: item.mediaType,
-            url: item.url ?? '',
-            posterUrl: item.posterUrl,
-            width: item.width ?? 0,
-            height: item.height ?? 0,
-            name: item.description
-          })
+          attachments.push(restored)
           names[item.mediaId] = item.fileName
           keys[item.mediaId] = item.localId
           localIdByIdRef.current.set(item.mediaId, item.localId)
@@ -1668,24 +1650,7 @@ export const PostBox: FC<Props> = ({
           if (!item.owned) postedMediaIdsRef.current.add(item.mediaId)
           continue
         }
-        const stored = files.get(item.localId)
-        // The bytes are gone and the server never had it: nothing to restore.
-        if (!stored) continue
-        const attachment: PostBoxAttachment = {
-          type: 'upload',
-          id: item.localId,
-          mediaType: stored.mimeType || item.mediaType,
-          url: URL.createObjectURL(stored.file),
-          posterUrl: stored.posterFile
-            ? URL.createObjectURL(stored.posterFile)
-            : undefined,
-          width: item.width ?? 0,
-          height: item.height ?? 0,
-          name: item.description,
-          file: stored.file,
-          posterFile: stored.posterFile,
-          isLoading: true
-        }
+        const attachment: PostBoxAttachment = { ...restored, isLoading: true }
         attachments.push(attachment)
         pending.push(attachment)
       }

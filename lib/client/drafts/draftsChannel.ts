@@ -56,6 +56,13 @@ export const postDraftsMessage = (message: DraftsMessage): void => {
   notify(message)
 }
 
+/** Tells every view (this tab's and the others') that a draft was saved or deleted. */
+export const announceDraftsChanged = (
+  accountId: string,
+  actorId: string,
+  draftId: string
+): void => postDraftsMessage({ type: 'changed', accountId, actorId, draftId })
+
 export const subscribeDraftsMessages = (listener: Listener): (() => void) => {
   getChannel()
   listeners.add(listener)

@@ -273,10 +273,11 @@ describe('DraftsProvider', () => {
       expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
     )
 
-    // Another tab signs out: the stored epoch moves to 1.
+    // Another tab signs out (the stored epoch moves to 1), signs back in and
+    // saves a draft.
     await deleteAccountDrafts('account-1')
+    await saveDraft(draft('d1'), { expectedRevision: 0, epoch: 1 })
     await act(async () => {
-      document.dispatchEvent(new Event('visibilitychange'))
       postDraftsMessage({
         type: 'changed',
         accountId: 'account-1',
@@ -284,8 +285,12 @@ describe('DraftsProvider', () => {
         draftId: 'd1'
       })
     })
-    await act(async () => {})
 
+    // The message re-counts right after it would re-read the epoch, so once
+    // the new count shows, an epoch read would have landed too.
+    await waitFor(() =>
+      expect(screen.getByTestId('probe')).toHaveTextContent('count=1')
+    )
     expect(screen.getByTestId('probe')).toHaveTextContent('epoch=0')
   })
 

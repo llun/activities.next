@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { IDBFactory } from 'fake-indexeddb'
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
@@ -44,6 +44,7 @@ describe('pending purge', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     resetDraftsChannelForTesting()
     setDraftsIndexedDBFactory(null)
     resetDraftsDbForTesting()
@@ -87,6 +88,37 @@ describe('pending purge', () => {
     expect(await countDrafts({ accountId: 'account-1' })).toBe(0)
     expect(await countDrafts({ accountId: 'account-2' })).toBe(1)
     expect(window.localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('with two accounts pending, settles the one that purged and keeps the one that failed', async () => {
+    await saveDraft(draft('a'), { expectedRevision: 0, epoch: 0 })
+    await saveDraft(draft('b', 'account-2'), { expectedRevision: 0, epoch: 0 })
+    window.localStorage.setItem(KEY, JSON.stringify(['account-1', 'account-2']))
+    // account-2's epoch bump fails, so its whole purge transaction does.
+    const put = IDBObjectStore.prototype.put
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      if (JSON.stringify(args[0]).includes('account-2')) {
+        throw new DOMException('full', 'QuotaExceededError')
+      }
+      return put.apply(this, args)
+    })
+
+    await runPendingPurges()
+
+    expect(await countDrafts({ accountId: 'account-1' })).toBe(0)
+    expect(await countDrafts({ accountId: 'account-2' })).toBe(1)
+    expect(pending()).toEqual(['account-2'])
+  })
+
+  it('purgeAccountDrafts leaves another pending account pending', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify(['account-2']))
+
+    await purgeAccountDrafts('account-1')
+
+    expect(pending()).toEqual(['account-2'])
   })
 
   it('a second call while one is running joins it: one purge, one epoch bump', async () => {

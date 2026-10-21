@@ -284,10 +284,6 @@ describe('DraftEditor with the real composers', () => {
       hasBlob: false
     }
 
-    // Longer than the 800 ms autosave debounce.
-    const pastDebounce = () =>
-      new Promise((resolve) => setTimeout(resolve, 1700))
-
     // The save runs after the debounce plus a lazy import and an IndexedDB
     // write; polling for the stored state beats a fixed sleep under load.
     const expectStored = (expected: object) =>
@@ -315,7 +311,8 @@ describe('DraftEditor with the real composers', () => {
     it('deletes an empty draft without attachments when Close unmounts the editor', async () => {
       const { unmount } = await open(record({}))
       await clearText()
-      await pastDebounce()
+      // The emptied draft is saved before Close.
+      await expectStored({ text: '' })
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       unmount()
 
@@ -327,7 +324,8 @@ describe('DraftEditor with the real composers', () => {
     it('keeps an empty draft that still has an attachment on Close', async () => {
       const { unmount } = await open(record({ attachments: [photo] }))
       await clearText()
-      await pastDebounce()
+      // The emptied draft is saved before Close.
+      await expectStored({ text: '' })
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       unmount()
 
@@ -372,6 +370,10 @@ describe('DraftEditor with the real composers', () => {
     })
 
     it('saves and discards nothing while the attachment bytes are still loading', async () => {
+      // Longer than the 800 ms autosave debounce: what must not happen has had
+      // its chance.
+      const pastDebounce = () =>
+        new Promise((resolve) => setTimeout(resolve, 1700))
       const pending = {
         ...photo,
         localId: 'pending-1',

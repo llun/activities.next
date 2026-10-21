@@ -221,5 +221,40 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
     )
     const strip = container.querySelector('[data-connection-strip]')
     expect(strip).toHaveClass('md:hidden', 'sticky', 'bg-info-surface')
+    // A sibling of the compact header in a `space-y-*` stack: no gap under it.
+    expect(strip).toHaveClass('mb-0')
+  })
+
+  it('publish the strip’s measured height while it shows, and drop it when it goes', async () => {
+    let report: () => void = () => undefined
+    const disconnect = vi.fn()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          report = callback
+        }
+        observe() {}
+        disconnect = disconnect
+      }
+    )
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      height: 76
+    } as DOMRect)
+    const root = document.documentElement
+    render(<ConnectionStatusStrip />)
+    await goUnreachable()
+
+    act(() => report())
+    expect(root.style.getPropertyValue('--status-strip-h')).toBe('76px')
+
+    mockHealth.mockResolvedValue(true)
+    await act(async () => {
+      await probeNow()
+    })
+    expect(document.querySelector('[data-connection-strip]')).toBeNull()
+    expect(disconnect).toHaveBeenCalled()
+    expect(root.style.getPropertyValue('--status-strip-h')).toBe('')
+    vi.unstubAllGlobals()
   })
 })

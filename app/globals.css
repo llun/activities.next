@@ -451,8 +451,9 @@
      button at a 16px inset on the profile. Pad the scroll snapport so a
      keyboard focus or an in-page jump never lands under it (WCAG 2.4.11). */
   @media (width < 48rem) {
-    /* The connection status strip (52px, sticky under the compact bar) only
-       exists while the app is not online; this is the height it takes. */
+    /* The connection status strip (sticky under the compact bar) only exists
+       while the app is not online. 52px is its minimum height; the strip
+       sets its measured height on <html> inline, which wins over this. */
     html:has([data-connection-strip]) {
       --status-strip-h: 52px;
     }

@@ -1,40 +1,9 @@
 import { deleteAccountDrafts } from './draftsDb'
-
-/**
- * Accounts that signed out here but whose drafts could not be deleted yet.
- * Kept outside IndexedDB, because that is the store whose failure left the
- * drafts behind. Sign-out is the only writer, and only after the server
- * confirmed it, so a failed sign-out never schedules a purge.
- */
-const STORAGE_KEY = 'activities-drafts-pending-purge'
-
-const readPending = (): string[] => {
-  try {
-    const parsed: unknown = JSON.parse(
-      window.localStorage.getItem(STORAGE_KEY) ?? '[]'
-    )
-    return Array.isArray(parsed)
-      ? parsed.filter((id): id is string => typeof id === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
-const writePending = (accountIds: string[]) => {
-  try {
-    if (accountIds.length > 0) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(accountIds))
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY)
-    }
-  } catch {
-    // Without localStorage the purge cannot be remembered; it was still tried.
-  }
-}
-
-const settle = (accountId: string) =>
-  writePending(readPending().filter((id) => id !== accountId))
+import {
+  markPurgePending,
+  readPendingPurges,
+  settlePurge
+} from './pendingPurgeMarker'
 
 /**
  * Deletes an account's drafts after a confirmed sign-out. The account is
@@ -42,11 +11,10 @@ const settle = (accountId: string) =>
  * purge that `runPendingPurges` finishes on the next app load. Never throws.
  */
 export const purgeAccountDrafts = async (accountId: string): Promise<void> => {
-  const pending = readPending()
-  if (!pending.includes(accountId)) writePending([...pending, accountId])
+  markPurgePending(accountId)
   try {
     await deleteAccountDrafts(accountId)
-    settle(accountId)
+    settlePurge(accountId)
   } catch {
     // Stays pending: retried when `DraftsProvider` next mounts.
   }
@@ -63,10 +31,10 @@ let inFlight: Promise<void> | null = null
  */
 export const runPendingPurges = (): Promise<void> => {
   inFlight ??= Promise.all(
-    readPending().map(async (accountId) => {
+    readPendingPurges().map(async (accountId) => {
       try {
         await deleteAccountDrafts(accountId)
-        settle(accountId)
+        settlePurge(accountId)
       } catch {
         // Stays pending for the next load.
       }

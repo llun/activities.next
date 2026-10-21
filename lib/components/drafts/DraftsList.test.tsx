@@ -264,6 +264,41 @@ describe('DraftsList', () => {
     )
   })
 
+  it('shows a failed delete as an Alert above the list, whose Retry deletes and clears it', async () => {
+    await seed({ id: 'a', text: 'drop me' })
+    renderList()
+    await screen.findByText('drop me')
+    vi.mocked(deleteDraftAndOwnedMedia).mockRejectedValueOnce(
+      new Error('storage failed')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: 'Delete'
+        })
+      )
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't delete draft")
+    // Above the box, never inside it.
+    expect(alert.closest('ul')).toBeNull()
+    expect(
+      alert.compareDocumentPosition(screen.getByRole('list')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(await getDraft('a')).toBeDefined()
+
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    })
+
+    await waitFor(async () => expect(await getDraft('a')).toBeUndefined())
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('on a delete conflict shows the newest save and lets Delete be retried', async () => {
     await seed({ id: 'a', text: 'before' })
     renderList()
@@ -290,9 +325,11 @@ describe('DraftsList', () => {
 
     await confirmDelete()
     expect(await screen.findByText('after')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'changed in another tab'
-    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't delete draft")
+    expect(alert).toHaveTextContent('changed in another tab')
+    expect(alert.closest('li')).toBeNull()
+    expect(within(alert).queryByRole('button', { name: 'Retry' })).toBeNull()
     expect(await getDraft('a')).toBeDefined()
 
     await confirmDelete()

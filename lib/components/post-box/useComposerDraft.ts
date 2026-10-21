@@ -8,7 +8,7 @@ import type {
   DraftPoll,
   DraftRecord
 } from '@/lib/client/drafts'
-import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
+import { announceDraftsChanged } from '@/lib/client/drafts/draftsChannel'
 import {
   DraftConflictError,
   DraftSignedOutError,
@@ -19,6 +19,7 @@ import {
   type DraftsContextValue,
   useDrafts
 } from '@/lib/components/drafts/DraftsProvider'
+import type { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import type { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import type { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -220,6 +221,83 @@ export const loadDraftFiles = async (
 }
 
 /**
+ * A composer attachment as its draft records it. `blob:` URLs are never kept.
+ * An attachment still uploading is always owned; an uploaded one is owned
+ * unless `isOwned` says the media belongs elsewhere (a kept post's).
+ */
+export const toDraftAttachment = (
+  attachment: PostBoxAttachment,
+  {
+    localIds,
+    isOwned,
+    fileName,
+    decorative = false
+  }: {
+    /** Media id -> the local id the draft first knew the attachment by. */
+    localIds: Map<string, string>
+    isOwned: (mediaId: string) => boolean
+    fileName?: string
+    decorative?: boolean
+  }
+): Omit<DraftAttachment, 'hasBlob'> => {
+  const uploaded = !attachment.file
+  return {
+    localId: localIds.get(attachment.id) ?? attachment.id,
+    mediaId: uploaded ? attachment.id : undefined,
+    owned: uploaded ? isOwned(attachment.id) : true,
+    mediaType: attachment.mediaType,
+    fileName: fileName ?? attachment.file?.name ?? attachment.name ?? '',
+    width: attachment.width,
+    height: attachment.height,
+    url: attachment.url.startsWith('blob:') ? undefined : attachment.url,
+    posterUrl: attachment.posterUrl?.startsWith('blob:')
+      ? undefined
+      : attachment.posterUrl,
+    description: attachment.name ?? '',
+    decorative
+  }
+}
+
+/**
+ * A draft attachment back in a composer: the server's copy when it has a media
+ * id, else one rebuilt from the kept bytes (`loadDraftFiles`), or null when
+ * neither the server nor the device has it.
+ */
+export const fromDraftAttachment = (
+  item: DraftAttachment,
+  files: Awaited<ReturnType<typeof loadDraftFiles>>
+): PostBoxAttachment | null => {
+  if (item.mediaId) {
+    return {
+      type: 'upload',
+      id: item.mediaId,
+      mediaType: item.mediaType,
+      url: item.url ?? '',
+      posterUrl: item.posterUrl,
+      width: item.width ?? 0,
+      height: item.height ?? 0,
+      name: item.description
+    }
+  }
+  const stored = files.get(item.localId)
+  if (!stored) return null
+  return {
+    type: 'upload',
+    id: item.localId,
+    mediaType: stored.mimeType || item.mediaType,
+    url: URL.createObjectURL(stored.file),
+    posterUrl: stored.posterFile
+      ? URL.createObjectURL(stored.posterFile)
+      : undefined,
+    width: item.width ?? 0,
+    height: item.height ?? 0,
+    name: item.description,
+    file: stored.file,
+    posterFile: stored.posterFile
+  }
+}
+
+/**
  * Autosaves a composer's content as an on-device draft. Every method is a
  * no-op while `useDrafts()` is null (no provider), while editing a published
  * post, and while another tab signs the account out.
@@ -373,12 +451,17 @@ export const useComposerDraft = ({
     }
 
     const announceChanged = (snap: Snapshot) =>
-      postDraftsMessage({
-        type: 'changed',
-        accountId: snap.ctx.accountId,
-        actorId: snap.ctx.actorId,
-        draftId: snap.d.id as string
-      })
+      announceDraftsChanged(
+        snap.ctx.accountId,
+        snap.ctx.actorId,
+        snap.d.id as string
+      )
+
+    // Best effort: bytes no record references are only wasted space.
+    const dropBlob = (id: string) =>
+      void loadDrafts()
+        .then((m) => m.deleteDraftBlob(id))
+        .catch(() => undefined)
 
     const reconcileBlobs = (d: DraftState, record: DraftRecord) => {
       const referenced = new Set([
@@ -388,9 +471,7 @@ export const useComposerDraft = ({
       for (const id of [...d.blobIds]) {
         if (referenced.has(id)) continue
         d.blobIds.delete(id)
-        void loadDrafts()
-          .then((m) => m.deleteDraftBlob(id))
-          .catch(() => undefined)
+        dropBlob(id)
       }
       // A failed attachment the composer no longer holds is not a failure.
       for (const id of [...d.blobFailures]) {
@@ -409,15 +490,13 @@ export const useComposerDraft = ({
       try {
         if (!content) {
           if (d.id && d.revision > 0) {
-            await (await loadDrafts()).deleteDraft(d.id)
+            // Only the revision this tab saved: a newer one from another tab
+            // is a conflict (caught below), and that record stays.
+            await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
             announceChanged(snap)
           } else {
             // Never stored, so no record will ever reference these bytes.
-            for (const id of d.blobIds) {
-              void loadDrafts()
-                .then((m) => m.deleteDraftBlob(id))
-                .catch(() => undefined)
-            }
+            d.blobIds.forEach(dropBlob)
           }
           d.blobIds.clear()
           d.blobFailures.clear()
@@ -598,17 +677,12 @@ export const useComposerDraft = ({
       return enqueue(async () => {
         if (!d.id || d.revision === 0) return
         try {
-          await (await loadDrafts()).deleteDraft(d.id)
-          if (ctx) {
-            postDraftsMessage({
-              type: 'changed',
-              accountId: ctx.accountId,
-              actorId: ctx.actorId,
-              draftId: d.id
-            })
-          }
+          await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
+          if (ctx) announceDraftsChanged(ctx.accountId, ctx.actorId, d.id)
         } catch {
-          // Reopening it later replays under the same key: no duplicate.
+          // Changed in another tab since this one saved it: that edit stays.
+          // Otherwise reopening it later replays under the same key: no
+          // duplicate.
         }
       })
     }
@@ -625,12 +699,12 @@ export const useComposerDraft = ({
             const drafts = await loadDrafts()
             await drafts.deleteDraftAndOwnedMedia(assemble(snap, content))
           } else {
-            await (await loadDrafts()).deleteDraft(d.id)
+            await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
           }
           announceChanged(snap)
         } catch {
-          // Nothing more to do: the record may stay and the Drafts page can
-          // delete it.
+          // Nothing more to do: the record may stay (another tab changed it,
+          // or storage failed) and the Drafts page can delete it.
         }
       })
     }
@@ -738,6 +812,5 @@ export const useComposerDraft = ({
     if (s.status === 'error') api.schedule()
   }, [epoch, api, s])
 
-  const { clearTimer: _clearTimer, ...methods } = api
-  return { saveState, draftId, enabled, ...methods }
+  return { saveState, draftId, ...api }
 }

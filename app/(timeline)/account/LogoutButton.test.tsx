@@ -248,6 +248,54 @@ describe('LogoutButton', () => {
       expect(await getAccountEpoch('account-1')).toBe(1)
     })
 
+    it('redirects only once the drafts are deleted', async () => {
+      await save('a')
+      finishSignOut('success')
+      // What the redirect would leave behind: a purge still marked pending
+      // means it left before the deletion finished.
+      let pendingAtRedirect: string | null | undefined
+      assign.mockImplementation(() => {
+        pendingAtRedirect = window.localStorage.getItem(
+          'activities-drafts-pending-purge'
+        )
+      })
+      renderLogout()
+      fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Sign out and delete' })
+      )
+
+      await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/signin'))
+      expect(pendingAtRedirect).toBeNull()
+    })
+
+    it('still redirects, with the purge marked pending, when the drafts code fails to load', async () => {
+      finishSignOut('success')
+      renderLogout()
+      // The account is resolved; from here every load of the drafts code fails
+      // (the count, then the purge).
+      vi.doMock('@/lib/client/drafts', () => {
+        throw new Error('Loading chunk failed')
+      })
+      try {
+        fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+
+        await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/signin'))
+      } finally {
+        vi.doUnmock('@/lib/client/drafts')
+      }
+      expect(
+        JSON.parse(
+          window.localStorage.getItem('activities-drafts-pending-purge') ?? '[]'
+        )
+      ).toEqual(['account-1'])
+      expect(onError).not.toHaveBeenCalledWith(
+        'Sign out failed. Please try again.'
+      )
+      expect(events).toEqual(['signing-out', 'signOut'])
+    })
+
     it('a failed sign-out keeps the drafts, cancels the broadcast and reports the error', async () => {
       await save('a')
       finishSignOut('error')

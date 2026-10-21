@@ -204,6 +204,9 @@ describe('useComposerDraft', () => {
       await act(async () => {
         document.dispatchEvent(new Event('visibilitychange'))
       })
+      // Drops the debounce timer still pending, unfired: only the flush itself
+      // can have saved the draft (vi.waitFor would advance fake timers).
+      vi.useRealTimers()
       await vi.waitFor(async () => expect((await stored())?.text).toBe('hello'))
     } finally {
       Object.defineProperty(document, 'visibilityState', {
@@ -237,6 +240,56 @@ describe('useComposerDraft', () => {
     await advance(DRAFT_SAVE_DEBOUNCE_MS * 2)
     expect((await stored()).text).toBe('written in the other tab')
     expect(result.current.saveState).toBe('error')
+  })
+
+  describe('a stale tab never deletes a newer revision another tab saved', () => {
+    const savedThenEditedElsewhere = async () => {
+      const hook = setup()
+      act(() => hook.result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() =>
+        expect(hook.result.current.saveState).toBe('saved')
+      )
+      const draft = await stored()
+      // Another tab (the Drafts page) saves revision 2 of the same draft.
+      await saveDraft(
+        { ...draft, text: 'written in the other tab' },
+        { expectedRevision: 1, epoch: 0 }
+      )
+      return hook
+    }
+
+    it('emptying the composer keeps it and says "Not saved"', async () => {
+      const { result } = await savedThenEditedElsewhere()
+
+      current = null
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+
+      await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
+      expect((await stored()).text).toBe('written in the other tab')
+    })
+
+    it('release after a send keeps it', async () => {
+      const { result } = await savedThenEditedElsewhere()
+
+      await act(async () => {
+        await result.current.release()
+      })
+
+      expect((await stored()).text).toBe('written in the other tab')
+    })
+
+    it('discarding an empty composer keeps it', async () => {
+      const { result } = await savedThenEditedElsewhere()
+
+      current = null
+      await act(async () => {
+        await result.current.discard()
+      })
+
+      expect((await stored()).text).toBe('written in the other tab')
+    })
   })
 
   it('never recreates a draft another tab deleted', async () => {
@@ -545,6 +598,24 @@ describe('useComposerDraft', () => {
       await advance(DRAFT_SAVE_DEBOUNCE_MS * 2)
 
       expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+    })
+
+    it('a blob write still queued when the draft is discarded stores nothing', async () => {
+      const { result } = setup()
+      current = content({
+        attachments: [
+          attachment({ mediaId: undefined }),
+          attachment({ localId: 'local-2', mediaId: undefined })
+        ]
+      })
+      act(() => result.current.attachBlob('local-1', file))
+      act(() => result.current.attachBlob('local-2', file))
+
+      await act(async () => {
+        await result.current.discard()
+      })
+
+      expect(await getDraftBlob('local-2')).toBeUndefined()
     })
 
     it('discard deletes only the media the draft owns', async () => {

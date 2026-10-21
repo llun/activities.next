@@ -7,9 +7,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import {
   DraftConflictError,
   type DraftRecord,
+  announceDraftsChanged,
   deleteDraftAndOwnedMedia,
-  getDraft,
-  postDraftsMessage
+  getDraft
 } from '@/lib/client/drafts'
 
 import { SAVED_NOTE_MS, SavedToDraftsNote } from './SavedToDraftsNote'
@@ -18,7 +18,7 @@ vi.mock('@/lib/client/drafts', () => ({
   DraftConflictError: class DraftConflictError extends Error {},
   deleteDraftAndOwnedMedia: vi.fn(),
   getDraft: vi.fn(),
-  postDraftsMessage: vi.fn()
+  announceDraftsChanged: vi.fn()
 }))
 
 const record = {
@@ -44,7 +44,7 @@ describe('SavedToDraftsNote', () => {
     vi.useFakeTimers()
     vi.mocked(getDraft).mockReset().mockResolvedValue(record)
     vi.mocked(deleteDraftAndOwnedMedia).mockReset().mockResolvedValue()
-    vi.mocked(postDraftsMessage).mockReset()
+    vi.mocked(announceDraftsChanged).mockReset()
   })
 
   afterEach(() => {
@@ -83,12 +83,11 @@ describe('SavedToDraftsNote', () => {
 
     expect(getDraft).toHaveBeenCalledWith('d1')
     expect(deleteDraftAndOwnedMedia).toHaveBeenCalledWith(record)
-    expect(postDraftsMessage).toHaveBeenCalledWith({
-      type: 'changed',
-      accountId: 'account-1',
-      actorId: 'actor-1',
-      draftId: 'd1'
-    })
+    expect(announceDraftsChanged).toHaveBeenCalledWith(
+      'account-1',
+      'actor-1',
+      'd1'
+    )
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
@@ -132,7 +131,7 @@ describe('SavedToDraftsNote', () => {
       'Changed in another tab'
     )
     expect(screen.queryByRole('button', { name: 'Discard' })).toBeNull()
-    expect(postDraftsMessage).not.toHaveBeenCalled()
+    expect(announceDraftsChanged).not.toHaveBeenCalled()
     expect(onDismiss).not.toHaveBeenCalled()
   })
 

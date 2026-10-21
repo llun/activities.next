@@ -36,6 +36,5 @@ export const DraftsPage: FC<Props> = ({
       currentTime={currentTime}
       isMediaUploadEnabled={isMediaUploadEnabled}
     />
-    {/* PR 3 adds the "Waiting to send" section here. */}
   </div>
 )

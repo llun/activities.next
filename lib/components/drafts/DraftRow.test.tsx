@@ -6,9 +6,9 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
 import {
   DraftConflictError,
+  announceDraftsChanged,
   deleteDraftAndOwnedMedia,
-  getDraftBlob,
-  postDraftsMessage
+  getDraftBlob
 } from '@/lib/client/drafts'
 
 import { DraftRow } from './DraftRow'
@@ -18,10 +18,12 @@ vi.mock('@/lib/client/drafts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/client/drafts')>()),
   deleteDraftAndOwnedMedia: vi.fn(),
   getDraftBlob: vi.fn(),
-  postDraftsMessage: vi.fn()
+  announceDraftsChanged: vi.fn()
 }))
 
 const writeText = vi.fn()
+
+const onDeleteError = vi.fn()
 
 const renderRow = (
   patch: Parameters<typeof draftRecord>[0] = {},
@@ -34,6 +36,7 @@ const renderRow = (
       currentTime={NOW}
       onEdit={onEdit}
       onConflict={onConflict}
+      onDeleteError={onDeleteError}
     />
   )
 
@@ -221,7 +224,7 @@ describe('DraftRow', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Keep draft' }))
 
     expect(deleteDraftAndOwnedMedia).not.toHaveBeenCalled()
-    expect(postDraftsMessage).not.toHaveBeenCalled()
+    expect(announceDraftsChanged).not.toHaveBeenCalled()
   })
 
   it('deletes the draft and its owned media, then tells the other views', async () => {
@@ -232,6 +235,7 @@ describe('DraftRow', () => {
         currentTime={NOW}
         onEdit={vi.fn()}
         onConflict={vi.fn()}
+        onDeleteError={onDeleteError}
       />
     )
 
@@ -245,15 +249,16 @@ describe('DraftRow', () => {
     })
 
     expect(deleteDraftAndOwnedMedia).toHaveBeenCalledWith(draft)
-    expect(postDraftsMessage).toHaveBeenCalledWith({
-      type: 'changed',
-      accountId: 'account-1',
-      actorId: draft.actorId,
-      draftId: 'draft-1'
-    })
+    // A success clears an earlier failure the list is showing.
+    expect(onDeleteError).toHaveBeenCalledWith(null)
+    expect(announceDraftsChanged).toHaveBeenCalledWith(
+      'account-1',
+      draft.actorId,
+      'draft-1'
+    )
   })
 
-  it('says so when the delete fails, and announces nothing', async () => {
+  it('reports a failed delete to the list with a Retry, draws nothing itself, and announces nothing', async () => {
     vi.mocked(deleteDraftAndOwnedMedia).mockRejectedValue(new Error('no db'))
     renderRow()
 
@@ -266,10 +271,19 @@ describe('DraftRow', () => {
       )
     })
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      "Couldn't delete this draft"
+    expect(onDeleteError).toHaveBeenLastCalledWith(
+      'Something went wrong on this device. Try again.',
+      expect.any(Function)
     )
-    expect(postDraftsMessage).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(announceDraftsChanged).not.toHaveBeenCalled()
+
+    // The Retry the list shows deletes again.
+    vi.mocked(deleteDraftAndOwnedMedia).mockResolvedValue(undefined)
+    const retry = onDeleteError.mock.lastCall?.[1] as () => void
+    await act(async () => retry())
+    expect(deleteDraftAndOwnedMedia).toHaveBeenCalledTimes(2)
+    expect(onDeleteError).toHaveBeenLastCalledWith(null)
   })
 
   it('on a conflict asks the list to re-read, says so, and announces nothing', async () => {
@@ -289,10 +303,11 @@ describe('DraftRow', () => {
     })
 
     expect(onConflict).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'This draft changed in another tab'
+    // No Retry: the list re-reads the newest save for a fresh Delete.
+    expect(onDeleteError).toHaveBeenLastCalledWith(
+      'This draft changed in another tab. Review it, then delete again.'
     )
-    expect(postDraftsMessage).not.toHaveBeenCalled()
+    expect(announceDraftsChanged).not.toHaveBeenCalled()
   })
 
   it('does not ask for a re-read when the failure is not a conflict', async () => {

@@ -12,7 +12,7 @@ import {
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 import { StrictMode } from 'react'
 
-import { deleteAccountMedia } from '@/lib/client'
+import { createPoll, deleteAccountMedia } from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
 import {
   type DraftRecord,
@@ -36,6 +36,7 @@ import {
   resetPostBoxMediaMocks,
   uploadAttachmentMock
 } from './post-box-media.testUtils'
+import { choosePostOption } from './post-box.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -391,6 +392,30 @@ describe('PostBox on-device drafts', () => {
       expect(createNoteMock).not.toHaveBeenCalled()
       expect(screen.getByText('Not saved, copy your text')).toBeVisible()
       expect(textarea()).not.toHaveAttribute('readonly')
+    })
+
+    it('does not create a poll when the key cannot be written to the saved draft', async () => {
+      // The poll editor's Radix Switch measures itself; jsdom has none.
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        }
+      )
+      vi.mocked(createPoll).mockClear()
+      await saveThenFailToCheckpoint()
+      await choosePostOption('Poll')
+      makeFull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'nothing was sent'
+      )
+      expect(createPoll).not.toHaveBeenCalled()
+      expect(createNoteMock).not.toHaveBeenCalled()
     })
 
     it('sends once the checkpoint can be written again', async () => {

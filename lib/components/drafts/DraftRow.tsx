@@ -7,9 +7,9 @@ import { FC, useEffect, useState } from 'react'
 import {
   DraftConflictError,
   type DraftRecord,
+  announceDraftsChanged,
   deleteDraftAndOwnedMedia,
-  getDraftBlob,
-  postDraftsMessage
+  getDraftBlob
 } from '@/lib/client/drafts'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { Button } from '@/lib/components/ui/button'
@@ -120,18 +120,23 @@ interface Props {
   onEdit: () => void
   /** The draft changed in another tab: read it again before a retry. */
   onConflict: () => void
+  /**
+   * A failed delete, for the list to show above its box (`retry` when the
+   * delete can simply be repeated), or null once a delete went through.
+   */
+  onDeleteError: (message: string | null, retry?: () => void) => void
 }
 
 export const DraftRow: FC<Props> = ({
   draft,
   currentTime,
   onEdit,
-  onConflict
+  onConflict,
+  onDeleteError
 }) => {
   const thumbnails = useThumbnails(draft)
   const { copied, copy } = useCopyToClipboard()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const contextStatus = draft.replyTo ?? draft.quoteOf
   const ContextIcon = draft.replyTo ? Reply : Quote
@@ -143,27 +148,24 @@ export const DraftRow: FC<Props> = ({
 
   const onDelete = async () => {
     setConfirmingDelete(false)
-    setDeleteError(null)
     try {
       await deleteDraftAndOwnedMedia(draft)
+      onDeleteError(null)
       // Nothing else announces a delete from this page: the sidebar count and
       // other tabs listen for this.
-      postDraftsMessage({
-        type: 'changed',
-        accountId: draft.accountId,
-        actorId: draft.actorId,
-        draftId: draft.id
-      })
+      announceDraftsChanged(draft.accountId, draft.actorId, draft.id)
     } catch (error) {
       if (error instanceof DraftConflictError) {
         // Another tab saved this draft since it was read: nothing was deleted.
         // The list re-reads it, so Delete retries against the newest save.
-        setDeleteError(
+        onDeleteError(
           'This draft changed in another tab. Review it, then delete again.'
         )
         onConflict()
       } else {
-        setDeleteError("Couldn't delete this draft. Try again.")
+        onDeleteError('Something went wrong on this device. Try again.', () => {
+          void onDelete()
+        })
       }
     }
   }
@@ -235,12 +237,6 @@ export const DraftRow: FC<Props> = ({
           Delete
         </Button>
       </div>
-
-      {deleteError ? (
-        <p role="alert" className="text-destructive-text text-xs">
-          {deleteError}
-        </p>
-      ) : null}
 
       <ConfirmDialog
         open={confirmingDelete}

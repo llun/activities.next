@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from 'react'
 
 import {
   DraftConflictError,
+  announceDraftsChanged,
   deleteDraftAndOwnedMedia,
-  getDraft,
-  postDraftsMessage
+  getDraft
 } from '@/lib/client/drafts'
 
 export const SAVED_NOTE_MS = 6_000
@@ -62,7 +62,7 @@ export function SavedToDraftsNote({
         }
         await deleteDraftAndOwnedMedia(draft)
       }
-      postDraftsMessage({ type: 'changed', accountId, actorId, draftId })
+      announceDraftsChanged(accountId, actorId, draftId)
       onDismiss()
     } catch (error) {
       setStatus(error instanceof DraftConflictError ? 'changed' : 'failed')

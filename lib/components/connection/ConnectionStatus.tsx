@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 
 // The host the browser is trying to reach. It only matters once the state is
 // not online, so the server render (always online) never needs it.
-export const getConnectionHost = () =>
+const getConnectionHost = () =>
   typeof window === 'undefined' ? '' : window.location.host
 
 /**
@@ -117,10 +117,29 @@ export function ConnectionStatusBar() {
   )
 }
 
+// The strip wraps taller than its 52px minimum (a long host, a large font), so
+// its real height goes in `--status-strip-h` while it shows; globals.css keeps
+// 52px as the fallback until the first measurement.
+const trackStripHeight = (strip: HTMLDivElement | null) => {
+  if (!strip || typeof ResizeObserver === 'undefined') return
+  const root = document.documentElement
+  const observer = new ResizeObserver(() => {
+    const height = strip.getBoundingClientRect().height
+    // Zero while `md:hidden`: leave the variable to the stylesheet.
+    if (height > 0) root.style.setProperty('--status-strip-h', `${height}px`)
+    else root.style.removeProperty('--status-strip-h')
+  })
+  observer.observe(strip)
+  return () => {
+    observer.disconnect()
+    root.style.removeProperty('--status-strip-h')
+  }
+}
+
 /**
- * Phone: the 52px strip sticky under the compact bar (56px plus the top safe
- * area). `data-connection-strip` is what globals.css keys `--status-strip-h`
- * on, so scroll padding and the new-posts pill clear it.
+ * Phone: the strip sticky under the compact bar (56px plus the top safe area).
+ * `data-connection-strip` is what globals.css keys `--status-strip-h` on, so
+ * scroll padding and the new-posts pill clear it.
  */
 export function ConnectionStatusStrip() {
   const message = useSlotMessage()
@@ -128,10 +147,12 @@ export function ConnectionStatusStrip() {
   const Icon = ICONS[message.kind]
   return (
     <div
+      ref={trackStripHeight}
       data-connection-strip=""
       className={cn(
         'sticky top-[calc(56px+env(safe-area-inset-top,0px))] z-30 md:hidden',
-        'flex min-h-[52px] items-center gap-3 border-b bg-info-surface px-4'
+        // A sibling of the compact header: no `space-y-*` gap under it.
+        'mb-0 flex min-h-[52px] items-center gap-3 border-b bg-info-surface px-4'
       )}
       style={breakoutStyle}
     >

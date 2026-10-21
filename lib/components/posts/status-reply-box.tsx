@@ -31,7 +31,9 @@ import {
 import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
 import {
   type DraftContent,
+  fromDraftAttachment,
   loadDraftFiles,
+  toDraftAttachment,
   useComposerDraft
 } from '@/lib/components/post-box/useComposerDraft'
 import { ActorInfo } from '@/lib/components/posts/actor'
@@ -158,24 +160,12 @@ export const StatusReplyBox: FC<Props> = ({
   const getDraftContent = (force = false): DraftContent | null => {
     const extension = postExtensionRef.current
     const value = textRef.current
-    const attachments = extension.attachments.map((attachment) => {
-      const uploaded = !attachment.file
-      return {
-        localId: localIdByIdRef.current.get(attachment.id) ?? attachment.id,
-        mediaId: uploaded ? attachment.id : undefined,
-        owned: !keptIdsRef.current.has(attachment.id),
-        mediaType: attachment.mediaType,
-        fileName: attachment.file?.name ?? attachment.name ?? '',
-        width: attachment.width,
-        height: attachment.height,
-        url: attachment.url.startsWith('blob:') ? undefined : attachment.url,
-        posterUrl: attachment.posterUrl?.startsWith('blob:')
-          ? undefined
-          : attachment.posterUrl,
-        description: attachment.name ?? '',
-        decorative: false
-      }
-    })
+    const attachments = extension.attachments.map((attachment) =>
+      toDraftAttachment(attachment, {
+        localIds: localIdByIdRef.current,
+        isOwned: (mediaId) => !keptIdsRef.current.has(mediaId)
+      })
+    )
     const worthKeeping =
       (value.trim() !== '' && value !== initialTextRef.current) ||
       attachments.some((attachment) => attachment.owned)
@@ -242,38 +232,14 @@ export const StatusReplyBox: FC<Props> = ({
     const apply = (files: Awaited<ReturnType<typeof loadDraftFiles>>) => {
       const attachments: PostBoxAttachment[] = []
       for (const item of seed.attachments) {
+        const restored = fromDraftAttachment(item, files)
+        // Neither the server nor the device has it: nothing to restore.
+        if (!restored) continue
+        attachments.push(restored)
         if (item.mediaId) {
-          attachments.push({
-            type: 'upload',
-            id: item.mediaId,
-            mediaType: item.mediaType,
-            url: item.url ?? '',
-            posterUrl: item.posterUrl,
-            width: item.width ?? 0,
-            height: item.height ?? 0,
-            name: item.description
-          })
           localIdByIdRef.current.set(item.mediaId, item.localId)
           if (!item.owned) keptIdsRef.current.add(item.mediaId)
-          continue
         }
-        const stored = files.get(item.localId)
-        // Neither the server nor the device has it: nothing to restore.
-        if (!stored) continue
-        attachments.push({
-          type: 'upload',
-          id: item.localId,
-          mediaType: stored.mimeType || item.mediaType,
-          url: URL.createObjectURL(stored.file),
-          posterUrl: stored.posterFile
-            ? URL.createObjectURL(stored.posterFile)
-            : undefined,
-          width: item.width ?? 0,
-          height: item.height ?? 0,
-          name: item.description,
-          file: stored.file,
-          posterFile: stored.posterFile
-        })
       }
       const nextExtension = {
         ...createDefaultState(),

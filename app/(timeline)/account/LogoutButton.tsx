@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
+import { markPurgePending } from '@/lib/client/drafts/pendingPurgeMarker'
 import { clearAllOfflineData } from '@/lib/client/offline'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
@@ -48,11 +49,21 @@ export const LogoutButton = ({
       // the catch every tab would stay in `signing-out` with autosave off.
       await authClient.signOut({
         fetchOptions: {
+          // The server has signed out: whatever happens to the drafts, the
+          // redirect follows. The marker is written before the drafts code
+          // loads, so a chunk that fails to load still leaves the purge for
+          // `DraftsProvider` to finish on the next app load.
           onSuccess: async () => {
-            if (accountId)
-              await (
-                await import('@/lib/client/drafts')
-              ).purgeAccountDrafts(accountId)
+            if (accountId) {
+              markPurgePending(accountId)
+              try {
+                await (
+                  await import('@/lib/client/drafts')
+                ).purgeAccountDrafts(accountId)
+              } catch {
+                // Stays pending.
+              }
+            }
             window.location.href = '/auth/signin'
           },
           onError: failed
