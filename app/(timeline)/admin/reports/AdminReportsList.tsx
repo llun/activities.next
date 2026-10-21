@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getAdminReports } from '@/lib/client'
 import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
@@ -66,7 +66,7 @@ interface Props {
 
 export const AdminReportsList = ({
   servedDomains = [],
-  domain = null
+  domain: domainProp = null
 }: Props) => {
   const router = useRouter()
   const pathname = usePathname()
@@ -76,15 +76,27 @@ export const AdminReportsList = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // The select follows the choice at once; the URL (and `domainProp`) catches
+  // up after the navigation.
+  const [domain, setDomain] = useState(domainProp)
+  useEffect(() => setDomain(domainProp), [domainProp])
+  // Only the latest request may write the list: switching quickly must not let
+  // a slow earlier answer replace the newer one.
+  const requestId = useRef(0)
+
   const load = useCallback(async () => {
+    const id = ++requestId.current
     setLoading(true)
     try {
-      setReports(await getAdminReports(resolved, domain))
+      const result = await getAdminReports(resolved, domain)
+      if (id !== requestId.current) return
+      setReports(result)
       setError(null)
     } catch (err) {
+      if (id !== requestId.current) return
       setError(err instanceof Error ? err.message : 'Failed to load reports')
     } finally {
-      setLoading(false)
+      if (id === requestId.current) setLoading(false)
     }
   }, [resolved, domain])
 
@@ -112,13 +124,16 @@ export const AdminReportsList = ({
                 id="reports-domain"
                 className="w-auto max-w-full min-w-0 max-sm:flex-1"
                 value={domain ?? ''}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const next = event.target.value
+                  setDomain(next || null)
                   router.replace(
-                    event.target.value
-                      ? `${pathname}?domain=${encodeURIComponent(event.target.value)}`
-                      : pathname
+                    next
+                      ? `${pathname}?domain=${encodeURIComponent(next)}`
+                      : pathname,
+                    { scroll: false }
                   )
-                }
+                }}
               >
                 <option value="">All domains</option>
                 {servedDomains.map((served) => (

@@ -38,4 +38,11 @@ describe('DomainReportsBox', () => {
       '/admin/reports?domain=run.example%3A8443'
     )
   })
+
+  it('shows a capped count as n+', () => {
+    render(<DomainReportsBox domain="run.example" openReports={1000} capped />)
+    expect(
+      screen.getByText('1000+ open reports about profiles on run.example')
+    ).toBeInTheDocument()
+  })
 })

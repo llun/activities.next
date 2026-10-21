@@ -30,11 +30,14 @@ const formatDateTime = (time: number, utc: boolean): string =>
     ...(utc ? { timeZone: 'UTC' } : null)
   })
 
+const truncate = (text: string, max = 80): string =>
+  text.length > max ? `${text.slice(0, max).trimEnd()}…` : text
+
 interface Props {
   domain: string
-  /** This domain's own announcements, newest first. */
+  /** This domain's published and scheduled announcements, newest first. */
   announcements: AdminAnnouncement[]
-  /** Published announcements for every domain, which also show here. */
+  /** Published announcements for every domain showing now, which also show here. */
   allDomainsCount: number
   /** Wall clock from the server, for the status badges. */
   currentTime: number
@@ -115,7 +118,7 @@ export const DomainAnnouncementsBox: FC<Props> = ({
                   <Button variant="outline" size="sm" asChild>
                     <Link
                       href={`/admin/announcements#announcement-${announcement.id}`}
-                      aria-label={`Edit announcement ${announcement.text}`}
+                      aria-label={`Edit announcement ${truncate(announcement.text)}`}
                     >
                       Edit
                     </Link>

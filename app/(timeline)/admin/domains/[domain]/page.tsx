@@ -20,6 +20,25 @@ import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
 
+const isShowing = (
+  announcement: {
+    published: boolean
+    startsAt: number | null
+    endsAt: number | null
+  },
+  currentTime: number
+): boolean => {
+  const { status } = computeAnnouncementStatus(
+    {
+      published: announcement.published,
+      starts_at: announcement.startsAt,
+      ends_at: announcement.endsAt
+    },
+    currentTime
+  )
+  return status === 'published' || status === 'scheduled'
+}
+
 // The open-report count is the length of one capped page of the queue.
 const OPEN_REPORTS_LIMIT = 1000
 
@@ -71,21 +90,26 @@ const Page = async ({ params }: Props) => {
   const scope: DomainPageScope = {
     serverRules: serverRules.map(getAdminRule),
     ownRules: ownRules.map(getAdminRule),
-    announcements: announcements.map(getAdminAnnouncement),
-    // The ones that actually show: published and not past their end.
-    allDomainsAnnouncements: everyDomainAnnouncements.filter((announcement) => {
-      const { status } = computeAnnouncementStatus(
-        {
-          published: announcement.published,
-          starts_at: announcement.startsAt,
-          ends_at: announcement.endsAt
-        },
-        currentTime
-      )
-      return status === 'published' || status === 'scheduled'
-    }).length,
+    // Only what shows or is about to: no drafts, nothing past its end.
+    announcements: announcements
+      .filter((announcement) => isShowing(announcement, currentTime))
+      .map(getAdminAnnouncement),
+    // The all-domains ones showing now (published and started), which also
+    // appear on this domain.
+    allDomainsAnnouncements: everyDomainAnnouncements.filter(
+      (announcement) =>
+        computeAnnouncementStatus(
+          {
+            published: announcement.published,
+            starts_at: announcement.startsAt,
+            ends_at: announcement.endsAt
+          },
+          currentTime
+        ).status === 'published'
+    ).length,
     serverFeatures: settings.features,
     openReports: reports.length,
+    openReportsCapped: reports.length >= OPEN_REPORTS_LIMIT,
     currentTime
   }
 

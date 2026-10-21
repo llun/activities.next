@@ -40,26 +40,38 @@ describe('DomainAnnouncementsBox', () => {
             text: 'Spring marathon sign-ups',
             starts_at: Date.parse('2026-11-01T09:00:00.000Z'),
             ends_at: null
-          }),
-          announcement({ id: 'a3', text: 'Draft idea', published: false })
+          })
         ]}
       />
     )
     const list = screen.getByRole('list', {
       name: 'Announcements on run.example'
     })
-    const [first, second, third] = within(list).getAllByRole('listitem')
+    const [first, second] = within(list).getAllByRole('listitem')
     expect(first).toHaveTextContent('Published')
     expect(first).toHaveTextContent('run.example')
     expect(first).toHaveTextContent(/Ends Oct 24, 2026/)
     expect(first).toHaveTextContent('Saturday long run at 7:00')
     expect(second).toHaveTextContent('Scheduled')
     expect(second).toHaveTextContent(/Starts Nov 1, 2026/)
-    expect(third).toHaveTextContent('Draft')
     expect(within(first).getByRole('link', { name: /Edit/ })).toHaveAttribute(
       'href',
       '/admin/announcements#announcement-a1'
     )
+  })
+
+  it('truncates a long announcement in the Edit link name', () => {
+    render(
+      <DomainAnnouncementsBox
+        domain="run.example"
+        currentTime={NOW}
+        allDomainsCount={0}
+        announcements={[announcement({ text: 'x'.repeat(200) })]}
+      />
+    )
+    expect(
+      screen.getByRole('link', { name: `Edit announcement ${'x'.repeat(80)}…` })
+    ).toBeInTheDocument()
   })
 
   it('says so when the domain has none, and mentions no all-domains line', () => {

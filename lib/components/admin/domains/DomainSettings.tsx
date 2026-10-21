@@ -62,14 +62,16 @@ export interface DomainPageScope {
   serverRules: AdminRule[]
   /** The domain's own rules; empty on the primary, which has none. */
   ownRules: AdminRule[]
-  /** The announcements shown on this domain only, newest first. */
+  /** The published and scheduled announcements on this domain only, newest first. */
   announcements: AdminAnnouncement[]
-  /** Published announcements for every domain, which also show here. */
+  /** Published announcements for every domain showing now, which also show here. */
   allDomainsAnnouncements: number
   /** The server's own feature switches (Admin › Instance). */
   serverFeatures: FeatureFlags
   /** Open reports about profiles on this domain. */
   openReports: number
+  /** The count hit the query's cap, so it reads "1000+". */
+  openReportsCapped?: boolean
   /** The server's wall clock, epoch ms, for the announcement badges. */
   currentTime: number
 }
@@ -988,6 +990,7 @@ export const DomainSettings: FC<Props> = ({
         <DomainReportsBox
           domain={domain.domain}
           openReports={scope.openReports}
+          capped={scope.openReportsCapped}
         />
       </Section>
 

@@ -200,7 +200,7 @@ describe('DomainRulesBox', () => {
     expect(screen.getByRole('button', { name: 'Save rules' })).toBeDisabled()
   })
 
-  it('shows an error and resyncs from the server when a write fails', async () => {
+  it('shows an error and keeps the unwritten rule on top of the server state when a write fails', async () => {
     mockCreate.mockResolvedValue(null)
     mockGet.mockResolvedValue(OWN)
     renderBox()
@@ -215,9 +215,65 @@ describe('DomainRulesBox', () => {
       )
     ).toBeInTheDocument()
     expect(mockGet).toHaveBeenCalledWith('run.example')
-    await waitFor(() =>
-      expect(screen.queryByDisplayValue('No bots')).toBeNull()
+    // The typed rule survives, and it is still unsaved.
+    expect(screen.getByDisplayValue('No bots')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save rules' })).toBeEnabled()
+  })
+
+  it('does not create or delete twice on a retry after a failed save and a failed resync', async () => {
+    mockDelete.mockResolvedValue(true)
+    mockCreate
+      .mockResolvedValueOnce(
+        rule({ id: 'o3', domain: 'run.example', text: 'No bots', position: 1 })
+      )
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(
+        rule({ id: 'o4', domain: 'run.example', text: 'No ads', position: 2 })
+      )
+    mockUpdate.mockImplementation(async (id, input) =>
+      rule({ id, ...input, domain: 'run.example' })
     )
+    mockGet.mockRejectedValue(new Error('offline'))
+    renderBox()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove rule 3' }))
+    for (const text of ['No bots', 'No ads']) {
+      fireEvent.change(screen.getByLabelText('New rule for run.example'), {
+        target: { value: text }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    }
+    save()
+    expect(
+      await screen.findByText(
+        'Failed to save the rules. Check the list and try again.'
+      )
+    ).toBeInTheDocument()
+    expect(mockDelete).toHaveBeenCalledTimes(1)
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save rules' })).toBeEnabled()
+    )
+    save()
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    // The deleted rule is not deleted again, "No bots" is not created again,
+    // and only "No ads" is.
+    expect(mockDelete).toHaveBeenCalledTimes(1)
+    expect(mockCreate).toHaveBeenCalledTimes(3)
+    expect(mockCreate).toHaveBeenLastCalledWith({
+      domain: 'run.example',
+      text: 'No ads',
+      hint: '',
+      position: 2
+    })
+  })
+
+  it('moves focus to the next rule after removing one, else the add field', () => {
+    renderBox()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove rule 3' }))
+    expect(screen.getByRole('textbox', { name: 'Rule 3 text' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove rule 3' }))
+    expect(screen.getByLabelText('New rule for run.example')).toHaveFocus()
   })
 
   it('says the domain has no rules of its own yet', () => {

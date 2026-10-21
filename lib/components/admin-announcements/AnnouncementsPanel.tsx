@@ -136,6 +136,24 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
 
   useEffect(() => loadAnnouncements(), [loadAnnouncements])
 
+  // The list loads after navigation, so a `#announcement-<id>` link (the
+  // domain page's Edit) has nothing to land on until now: scroll to the row
+  // and focus its text field, once.
+  const hashHandled = useRef(false)
+  useEffect(() => {
+    if (loading || hashHandled.current) return
+    const hash = decodeURIComponent(window.location.hash.slice(1))
+    if (!hash.startsWith('announcement-')) return
+    const id = hash.slice('announcement-'.length)
+    const row = announcements.find((item) => item.id === id)
+    if (!row) return
+    hashHandled.current = true
+    document
+      .getElementById(`announcement-${row.id}`)
+      ?.scrollIntoView?.({ block: 'center' })
+    document.getElementById(`announcement-text-${row.id}`)?.focus()
+  }, [loading, announcements])
+
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const text = newText.trim()

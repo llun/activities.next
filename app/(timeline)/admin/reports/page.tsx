@@ -54,7 +54,7 @@ const Page = async ({ searchParams }: Props) => {
         title={domain ? `Reports on ${domain}` : 'Reports'}
         description={
           domain
-            ? `${open} open ${open === 1 ? 'report' : 'reports'} about profiles on ${domain}.`
+            ? `${open >= OPEN_REPORTS_LIMIT ? `${open}+` : open} open ${open === 1 ? 'report' : 'reports'} about profiles on ${domain}.`
             : 'Review and resolve moderation reports.'
         }
       />

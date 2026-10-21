@@ -2,7 +2,7 @@
 
 import { GripVertical, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { FC, FormEvent, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import {
   createServerRule,
@@ -64,7 +64,14 @@ const ServerRuleRows: FC<{ rules: AdminRule[]; chip: boolean }> = ({
             </p>
           ) : null}
         </div>
-        {chip ? <Badge className="shrink-0">All domains</Badge> : null}
+        {chip ? (
+          <Badge
+            tone="primary"
+            className="border-primary/30 bg-background shrink-0 border"
+          >
+            All domains
+          </Badge>
+        ) : null}
       </li>
     ))}
   </ul>
@@ -93,6 +100,19 @@ export const DomainRulesBox: FC<Props> = ({
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const [reorderStatus, setReorderStatus] = useState('')
   const [nextKey, setNextKey] = useState(0)
+  const fieldRefs = useRef(new Map<string, HTMLTextAreaElement>())
+  const addRef = useRef<HTMLInputElement>(null)
+  // Where focus goes once a removed rule's row is gone: a draft key, or null
+  // for the add field. `undefined` means nothing is pending.
+  const focusAfterRemove = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    const target = focusAfterRemove.current
+    if (target === undefined) return
+    focusAfterRemove.current = undefined
+    const field =
+      target === null ? addRef.current : fieldRefs.current.get(target)
+    ;(field ?? addRef.current)?.focus()
+  }, [drafts])
 
   const sortedServerRules = sortRules(serverRules)
 
@@ -167,12 +187,18 @@ export const DomainRulesBox: FC<Props> = ({
     setDrafts(toDrafts(rules))
   }
 
-  // The writes run one after another (the first failure stops them), then the
-  // box shows what the server really has.
+  // The writes run one after another (the first failure stops them). Each
+  // success is recorded at once, in the baseline and in the draft's id, so a
+  // failure part-way leaves the box knowing what the server already has: a
+  // retry neither creates a rule twice nor deletes one again.
   const save = async () => {
     setSaving(true)
     setError(null)
-    const result: AdminRule[] = []
+    let base = [...baseline]
+    const recordBaseline = (next: AdminRule[]) => {
+      base = next
+      setBaseline(sortRules(next))
+    }
     try {
       const keep = new Set(trimmed.flatMap((draft) => draft.id ?? []))
       for (const rule of baseline) {
@@ -180,6 +206,7 @@ export const DomainRulesBox: FC<Props> = ({
         if (!(await deleteServerRule(rule.id))) {
           throw new Error('Failed to remove a rule.')
         }
+        recordBaseline(base.filter((item) => item.id !== rule.id))
       }
       for (const [index, draft] of trimmed.entries()) {
         if (draft.id === null) {
@@ -190,31 +217,47 @@ export const DomainRulesBox: FC<Props> = ({
             position: index
           })
           if (!created) throw new Error('Failed to add a rule.')
-          result.push(created)
+          recordBaseline([...base, created])
+          setDrafts((current) =>
+            current.map((item) =>
+              item.key === draft.key ? { ...item, id: created.id } : item
+            )
+          )
           continue
         }
-        const before = baseline.find((rule) => rule.id === draft.id)
+        const before = base.find((rule) => rule.id === draft.id)
         if (!before) continue
         const patch = {
           ...(draft.text !== before.text ? { text: draft.text } : null),
           ...(before.position !== index ? { position: index } : null)
         }
-        if (Object.keys(patch).length === 0) {
-          result.push(before)
-          continue
-        }
+        if (Object.keys(patch).length === 0) continue
         const updated = await updateServerRule(draft.id, patch)
         if (!updated) throw new Error('Failed to update a rule.')
-        result.push(updated)
+        recordBaseline(
+          base.map((rule) => (rule.id === updated.id ? updated : rule))
+        )
       }
-      resync(result)
+      resync(base)
       setSaved(true)
     } catch {
       setError('Failed to save the rules. Check the list and try again.')
       try {
-        resync(await getServerRules(domain))
+        // Show what the server really has, with the drafts that are not
+        // written yet kept on top of it.
+        const server = await getServerRules(domain)
+        const onServer = new Set(server.map((rule) => rule.id))
+        setBaseline(sortRules(server))
+        setDrafts((current) =>
+          current.map((item) =>
+            item.id !== null && !onServer.has(item.id)
+              ? { ...item, id: null }
+              : item
+          )
+        )
       } catch {
-        // Keep the draft: the admin can try again.
+        // The baseline already holds every write that succeeded, so the admin
+        // can try again from here.
       }
     } finally {
       setSaving(false)
@@ -317,6 +360,10 @@ export const DomainRulesBox: FC<Props> = ({
                     <RuleNumber n={offset + index + 1} />
                   </span>
                   <Textarea
+                    ref={(element) => {
+                      if (element) fieldRefs.current.set(draft.key, element)
+                      else fieldRefs.current.delete(draft.key)
+                    }}
                     aria-label={`Rule ${offset + index + 1} text`}
                     rows={1}
                     value={draft.text}
@@ -344,11 +391,13 @@ export const DomainRulesBox: FC<Props> = ({
                     aria-label={`Remove rule ${offset + index + 1}`}
                     disabled={saving}
                     className="text-muted-foreground hover:text-destructive-text shrink-0"
-                    onClick={() =>
+                    onClick={() => {
+                      // Focus moves to the next row's field, else the add field.
+                      focusAfterRemove.current = drafts[index + 1]?.key ?? null
                       edit((current) =>
                         current.filter((item) => item.key !== draft.key)
                       )
-                    }
+                    }}
                   >
                     <Trash2 />
                   </Button>
@@ -364,6 +413,7 @@ export const DomainRulesBox: FC<Props> = ({
           buttonDisabled={saving || newText.trim().length === 0}
           onSubmit={addRule}
           className="rounded-none border-0 bg-transparent p-0"
+          inputRef={addRef}
           inputProps={{
             placeholder: `Add a rule for ${domain}`,
             value: newText,

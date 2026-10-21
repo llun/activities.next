@@ -224,10 +224,15 @@ describe('AdminReportsList', () => {
 
       fireEvent.change(select, { target: { value: 'birds.example' } })
       expect(mockReplace).toHaveBeenLastCalledWith(
-        '/admin/reports?domain=birds.example'
+        '/admin/reports?domain=birds.example',
+        { scroll: false }
       )
+      // The select keeps the choice before the URL catches up.
+      expect(select).toHaveValue('birds.example')
       fireEvent.change(select, { target: { value: '' } })
-      expect(mockReplace).toHaveBeenLastCalledWith('/admin/reports')
+      expect(mockReplace).toHaveBeenLastCalledWith('/admin/reports', {
+        scroll: false
+      })
     })
   })
 })

@@ -358,6 +358,30 @@ describe('AnnouncementsPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('scrolls to and focuses the announcement named by the URL hash once the list loads', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    window.location.hash = '#announcement-announcement-2'
+    try {
+      mockGetServerAnnouncements.mockResolvedValue([
+        buildServerAnnouncement(),
+        buildServerAnnouncement({ id: 'announcement-2', text: 'Second one' })
+      ])
+      await act(async () => {
+        renderPanel()
+      })
+      const field = await screen.findByDisplayValue('Second one')
+      await waitFor(() => expect(field).toHaveFocus())
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        document.getElementById('announcement-announcement-2')
+      )
+    } finally {
+      window.location.hash = ''
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
   it('scrolls the save error into view, since the Save button is far below it', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
