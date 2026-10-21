@@ -34,25 +34,53 @@ import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
+import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
 import {
   ADMIN_DOMAIN_FIELD_LIMITS,
   type AdminDomain,
   type AdminDomainDetail,
   type ServerIdentityView
 } from '@/lib/services/domains/adminDomainTypes'
+import type { FeatureFlags } from '@/lib/services/domains/domainFeatures'
+import type { AdminRule } from '@/lib/services/rules/adminRule'
 import { cn } from '@/lib/utils'
 
+import { DomainAnnouncementsBox } from './DomainAnnouncementsBox'
 import { DomainCheckItems } from './DomainCheckItems'
+import { DomainFeaturesBox } from './DomainFeaturesBox'
+import { DomainReportsBox } from './DomainReportsBox'
+import { DomainRulesBox } from './DomainRulesBox'
 import {
   getDomainCheckBadge,
   getDomainOnOffBadge,
   getDomainSourceNote
 } from './domainLabels'
 
+/** What the page shows beyond the domain's own settings (step 5), read on the server. */
+export interface DomainPageScope {
+  /** The server rules (every domain). */
+  serverRules: AdminRule[]
+  /** The domain's own rules; empty on the primary, which has none. */
+  ownRules: AdminRule[]
+  /** The published and scheduled announcements on this domain only, newest first. */
+  announcements: AdminAnnouncement[]
+  /** Published announcements for every domain showing now, which also show here. */
+  allDomainsAnnouncements: number
+  /** The server's own feature switches (Admin › Instance). */
+  serverFeatures: FeatureFlags
+  /** Open reports about profiles on this domain. */
+  openReports: number
+  /** The count hit the query's cap, so it reads "1000+". */
+  openReportsCapped?: boolean
+  /** The server's wall clock, epoch ms, for the announcement badges. */
+  currentTime: number
+}
+
 interface Props {
   domain: AdminDomainDetail
   primaryDomain: string | null
   server: ServerIdentityView
+  scope: DomainPageScope
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -129,7 +157,12 @@ const RegistrationsBox: FC<{
     >
       <ControlRow
         label="Sign-ups open"
-        description={`People can create an account on ${name}.`}
+        description={
+          <>
+            People can create an account on{' '}
+            <span className="wrap-anywhere">{name}</span>.
+          </>
+        }
         htmlFor="domain-signups-open"
       >
         <Switch
@@ -152,9 +185,20 @@ const RegistrationsBox: FC<{
       <ControlRow
         label="Existing users can add profiles here"
         description={
-          isEnv
-            ? `On for people who signed up on the primary or on ${name}. Someone who joined through another domain can add a profile here only while this domain's sign-ups would admit them, or if they already have one here.`
-            : `People who already have an account can add a profile on ${name}.`
+          isEnv ? (
+            <>
+              On for people who signed up on the primary or on{' '}
+              <span className="wrap-anywhere">{name}</span>. Someone who joined
+              through another domain can add a profile here only while this
+              domain's sign-ups would admit them, or if they already have one
+              here.
+            </>
+          ) : (
+            <>
+              People who already have an account can add a profile on{' '}
+              <span className="wrap-anywhere">{name}</span>.
+            </>
+          )
         }
         htmlFor="domain-allow-existing-users"
       >
@@ -245,12 +289,12 @@ const StatusBox: FC<{
             <Button
               variant="outline"
               size="sm"
-              className="text-destructive-text"
+              className="text-destructive-text h-auto min-h-8 py-[5px] max-w-full text-left whitespace-normal"
               disabled={busy !== null}
               onClick={() => void setStatus('off')}
             >
               {busy === 'off' ? spinner : null}
-              Turn off {name}
+              <span className="wrap-anywhere">Turn off {name}</span>
             </Button>
           }
         >
@@ -264,12 +308,12 @@ const StatusBox: FC<{
           title={`${name} is off`}
           live={false}
           action={
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-start gap-2">
               {domain.profiles === 0 ? (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-destructive-text"
+                  className="text-destructive-text h-auto min-h-8 py-[5px] max-w-full"
                   disabled={busy !== null}
                   onClick={() => void remove()}
                 >
@@ -279,11 +323,12 @@ const StatusBox: FC<{
               ) : null}
               <Button
                 size="sm"
+                className="h-auto min-h-8 py-1.5 max-w-full text-left whitespace-normal"
                 disabled={busy !== null}
                 onClick={() => void setStatus('on')}
               >
                 {busy === 'on' ? spinner : null}
-                Turn on {name}
+                <span className="wrap-anywhere">Turn on {name}</span>
               </Button>
             </div>
           }
@@ -393,7 +438,8 @@ const CheckBox: FC<{
       <Frame>
         {check ? null : (
           <p className="text-muted-foreground px-4 py-4 text-sm">
-            Check that {domain.domain} reaches this server before turning it on.
+            Check that <span className="wrap-anywhere">{domain.domain}</span>{' '}
+            reaches this server before turning it on.
           </p>
         )}
         <div className={cn('px-4 py-3', !check && 'border-t')}>{bar}</div>
@@ -521,7 +567,12 @@ const IdentityBox: FC<{
         readOnly ? undefined : (
           <SaveBar
             actionLabel="Save identity"
-            idleNote={`Changes apply to ${name} only.`}
+            idleNote={
+              <>
+                Changes apply to <span className="wrap-anywhere">{name}</span>{' '}
+                only.
+              </>
+            }
             dirty={dirty}
             saving={saving}
             saved={saved}
@@ -714,7 +765,12 @@ const PoliciesBox: FC<{
         readOnly ? undefined : (
           <SaveBar
             actionLabel="Save policies"
-            idleNote={`Changes apply to ${name} only.`}
+            idleNote={
+              <>
+                Changes apply to <span className="wrap-anywhere">{name}</span>{' '}
+                only.
+              </>
+            }
             dirty={dirty}
             saving={saving}
             saved={saved}
@@ -787,11 +843,15 @@ const PoliciesBox: FC<{
   )
 }
 
-/** Admin › Domains › one domain: the header, Registrations, Identity, Terms and privacy and the Turn off box. */
+/**
+ * Admin › Domains › one domain: the header, Registrations, Identity, Terms and
+ * privacy, Rules, Announcements, Features, Reports and the Turn off box.
+ */
 export const DomainSettings: FC<Props> = ({
   domain: initial,
   primaryDomain,
-  server
+  server,
+  scope
 }) => {
   const [domain, setDomain] = useState(initial)
   const checkBadge = getDomainCheckBadge(domain)
@@ -835,7 +895,7 @@ export const DomainSettings: FC<Props> = ({
       {isPrimary ? (
         <Alert
           tone="info"
-          title="The primary domain uses the server’s identity, terms and privacy."
+          title="The primary domain uses the server’s identity, terms and privacy, rules and features."
           live={false}
           action={
             <Button variant="outline" size="sm" asChild>
@@ -843,14 +903,19 @@ export const DomainSettings: FC<Props> = ({
             </Button>
           }
         >
-          Edit them on Admin › Instance.
+          Edit them on Admin › Instance, and the rules on Admin › Server rules.
         </Alert>
       ) : null}
 
       {domain.source === 'database' ? (
         <Section
           title="Check"
-          description={`Whether ${domain.domain} reaches this server.`}
+          description={
+            <>
+              Whether <span className="wrap-anywhere">{domain.domain}</span>{' '}
+              reaches this server.
+            </>
+          }
         >
           <CheckBox domain={domain} onChange={setDomain} />
         </Section>
@@ -882,7 +947,13 @@ export const DomainSettings: FC<Props> = ({
 
       <Section
         title="Identity"
-        description={`What visitors to ${domain.domain} see as the name of this server.`}
+        description={
+          <>
+            What visitors to{' '}
+            <span className="wrap-anywhere">{domain.domain}</span> see as the
+            name of this server.
+          </>
+        }
       >
         <IdentityBox
           key={`identity-${domain.domain}`}
@@ -895,7 +966,14 @@ export const DomainSettings: FC<Props> = ({
 
       <Section
         title="Terms and privacy"
-        description={`Shown on ${domain.domain}/terms-of-service and ${domain.domain}/privacy-policy and linked from sign-up.`}
+        description={
+          <>
+            Shown on <span className="wrap-anywhere">{domain.domain}</span>
+            /terms-of-service and{' '}
+            <span className="wrap-anywhere">{domain.domain}</span>
+            /privacy-policy and linked from sign-up.
+          </>
+        }
       >
         <PoliciesBox
           key={`policies-${domain.domain}`}
@@ -903,6 +981,91 @@ export const DomainSettings: FC<Props> = ({
           server={server}
           readOnly={isPrimary}
           onSaved={setDomain}
+        />
+      </Section>
+
+      <Section
+        title="Rules"
+        description={
+          isPrimary ? (
+            <>
+              What people see on the about page and in the rules API on{' '}
+              <span className="wrap-anywhere">{domain.domain}</span>.
+            </>
+          ) : (
+            <>
+              What people see on the about page and in the rules API on{' '}
+              <span className="wrap-anywhere">{domain.domain}</span>: the server
+              rules first, then the rules of this domain.
+            </>
+          )
+        }
+      >
+        <DomainRulesBox
+          key={`rules-${domain.domain}`}
+          domain={domain.domain}
+          serverRules={scope.serverRules}
+          ownRules={scope.ownRules}
+          readOnly={isPrimary}
+        />
+      </Section>
+
+      <Section
+        title="Announcements"
+        description={
+          <>
+            Notices people see in the announcement panel on{' '}
+            <span className="wrap-anywhere">{domain.domain}</span>.
+          </>
+        }
+      >
+        <DomainAnnouncementsBox
+          domain={domain.domain}
+          announcements={scope.announcements}
+          allDomainsCount={scope.allDomainsAnnouncements}
+          currentTime={scope.currentTime}
+        />
+      </Section>
+
+      <Section
+        title="Features"
+        description={
+          isPrimary ? (
+            <>
+              What shows in the navigation on{' '}
+              <span className="wrap-anywhere">{domain.domain}</span>.
+            </>
+          ) : (
+            <>
+              What shows in the navigation on{' '}
+              <span className="wrap-anywhere">{domain.domain}</span>. Pages stay
+              reachable by link; only the navigation entry is hidden.
+            </>
+          )
+        }
+      >
+        <DomainFeaturesBox
+          key={`features-${domain.domain}`}
+          domain={domain}
+          serverFeatures={scope.serverFeatures}
+          onSaved={setDomain}
+        />
+      </Section>
+
+      <Section
+        title="Reports"
+        description={
+          <>
+            Reports about profiles on{' '}
+            <span className="wrap-anywhere">{domain.domain}</span>. They stay in
+            one queue for the whole server.
+          </>
+        }
+      >
+        <DomainReportsBox
+          domain={domain.domain}
+          openReports={scope.openReports}
+          capped={scope.openReportsCapped}
         />
       </Section>
 

@@ -17,6 +17,11 @@ import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 
+/** Match the element whose own text content is `text`, even when a child span splits it. */
+const byContent = (text: string) => (_: string, el: Element | null) =>
+  el?.textContent === text &&
+  !Array.from(el.children).some((child) => child.textContent === text)
+
 const mockGetServerAnnouncements = vi.fn()
 const mockCreateServerAnnouncement = vi.fn()
 const mockUpdateServerAnnouncement = vi.fn()
@@ -358,6 +363,30 @@ describe('AnnouncementsPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('scrolls to and focuses the announcement named by the URL hash once the list loads', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    window.location.hash = '#announcement-announcement-2'
+    try {
+      mockGetServerAnnouncements.mockResolvedValue([
+        buildServerAnnouncement(),
+        buildServerAnnouncement({ id: 'announcement-2', text: 'Second one' })
+      ])
+      await act(async () => {
+        renderPanel()
+      })
+      const field = await screen.findByDisplayValue('Second one')
+      await waitFor(() => expect(field).toHaveFocus())
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        document.getElementById('announcement-announcement-2')
+      )
+    } finally {
+      window.location.hash = ''
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
   it('scrolls the save error into view, since the Save button is far below it', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
@@ -397,5 +426,132 @@ describe('AnnouncementsPanel', () => {
       target: { value: 'Hello' }
     })
     expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled()
+  })
+
+  describe('Show on', () => {
+    const DOMAINS = ['social.example', 'run.example', 'birds.example']
+
+    const renderMulti = (presetDomain?: string) =>
+      render(
+        <AnnouncementsPanel
+          currentTime={NOW}
+          servedDomains={DOMAINS}
+          primaryDomain="social.example"
+          presetDomain={presetDomain}
+        />
+      )
+
+    it('is not shown while only one domain is served', async () => {
+      await act(async () => {
+        render(
+          <AnnouncementsPanel
+            currentTime={NOW}
+            servedDomains={['social.example']}
+            primaryDomain="social.example"
+          />
+        )
+      })
+      expect(screen.queryByLabelText('Show on')).toBeNull()
+    })
+
+    it('offers All domains and every served domain, the primary included', async () => {
+      await act(async () => {
+        renderMulti()
+      })
+      const select = screen.getByLabelText('Show on')
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((option) => option.textContent)
+      ).toEqual([
+        'All domains',
+        'social.example (primary)',
+        'run.example',
+        'birds.example'
+      ])
+      expect(select).toHaveValue('')
+      expect(
+        screen.getByText('People on every domain see it.')
+      ).toBeInTheDocument()
+    })
+
+    it('explains who sees it once a domain is picked and creates for that domain', async () => {
+      mockCreateServerAnnouncement.mockResolvedValue(
+        buildServerAnnouncement({ domain: 'run.example' })
+      )
+      await act(async () => {
+        renderMulti()
+      })
+      fireEvent.change(screen.getByLabelText('Show on'), {
+        target: { value: 'run.example' }
+      })
+      expect(
+        screen.getByText(byContent('Only people visiting run.example see it.'))
+      ).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Text'), {
+        target: { value: 'Run on Saturday' }
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
+      })
+      await waitFor(() =>
+        expect(mockCreateServerAnnouncement).toHaveBeenCalledWith(
+          expect.objectContaining({
+            domain: 'run.example',
+            text: 'Run on Saturday'
+          })
+        )
+      )
+    })
+
+    it('sends no domain for All domains', async () => {
+      mockCreateServerAnnouncement.mockResolvedValue(buildServerAnnouncement())
+      await act(async () => {
+        renderMulti()
+      })
+      fireEvent.change(screen.getByLabelText('Text'), {
+        target: { value: 'Hello everyone' }
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
+      })
+      await waitFor(() =>
+        expect(mockCreateServerAnnouncement).toHaveBeenCalled()
+      )
+      expect(mockCreateServerAnnouncement.mock.calls[0][0]).not.toHaveProperty(
+        'domain'
+      )
+    })
+
+    it('preselects the domain from the domain page link', async () => {
+      await act(async () => {
+        renderMulti('run.example')
+      })
+      expect(screen.getByLabelText('Show on')).toHaveValue('run.example')
+      expect(
+        screen.getByText(byContent('Only people visiting run.example see it.'))
+      ).toBeInTheDocument()
+    })
+
+    it('ignores a preset that is not a served domain', async () => {
+      await act(async () => {
+        renderMulti('nowhere.example')
+      })
+      expect(screen.getByLabelText('Show on')).toHaveValue('')
+    })
+
+    it('puts a domain chip on each row, All domains for the shared ones', async () => {
+      mockGetServerAnnouncements.mockResolvedValue([
+        buildServerAnnouncement({ id: 'a1', domain: 'run.example' }),
+        buildServerAnnouncement({ id: 'a2', domain: null, text: 'For all' })
+      ])
+      await act(async () => {
+        renderMulti()
+      })
+      const list = await screen.findByRole('list', { name: 'Announcements' })
+      const [first, second] = within(list).getAllByRole('listitem')
+      expect(within(first).getByText('run.example')).toBeInTheDocument()
+      expect(within(second).getByText('All domains')).toBeInTheDocument()
+    })
   })
 })

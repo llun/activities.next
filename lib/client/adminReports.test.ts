@@ -51,6 +51,22 @@ describe('adminReports client module', () => {
       })
     })
 
+    it('adds the domain filter next to resolved', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify([mockAdminReport]), {
+        status: 200
+      })
+
+      await getAdminReports(false, 'run.example')
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/admin/reports?domain=run.example&resolved=false',
+        {
+          headers: { Accept: 'application/json' },
+          credentials: 'include'
+        }
+      )
+    })
+
     it('fetches reports with resolved=true', async () => {
       fetchMock.mockResponseOnce(JSON.stringify([mockAdminReport]), {
         status: 200

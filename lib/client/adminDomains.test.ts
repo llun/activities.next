@@ -10,6 +10,7 @@ import {
   getAdminDomains,
   removeAdminDomain,
   setAdminDomainStatus,
+  updateAdminDomainFeatures,
   updateAdminDomainIdentity,
   updateAdminDomainPolicies,
   updateAdminDomainRegistrations
@@ -83,6 +84,18 @@ describe('adminDomains client module', () => {
     expect(lastCall().body).toEqual({ signupsOpen: true })
     await removeAdminDomain(DOMAIN.domain)
     expect(lastCall().method).toBe('DELETE')
+  })
+
+  it('PATCHes the list of turned-off features', async () => {
+    fetchMock.mockResponse(JSON.stringify(DOMAIN))
+    await updateAdminDomainFeatures(DOMAIN.domain, {
+      disabledFeatures: ['fitness', 'messages']
+    })
+    expect(lastCall()).toEqual({
+      url: '/api/v1/admin/domains/photos.example%3A8443',
+      method: 'PATCH',
+      body: { disabledFeatures: ['fitness', 'messages'] }
+    })
   })
 
   it('PATCHes identity and policies, with null for "Same as server"', async () => {

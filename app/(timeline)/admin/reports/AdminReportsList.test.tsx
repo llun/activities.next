@@ -20,6 +20,14 @@ vi.mock('@/lib/client', () => ({
   getAdminReports: vi.fn()
 }))
 
+const mockReplace = vi.fn()
+let mockPathname = '/admin/reports'
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  usePathname: () => mockPathname
+}))
+
 const mockGetAdminReports = vi.mocked(getAdminReports)
 
 const report = (overrides: Record<string, unknown>): AdminReport =>
@@ -60,7 +68,7 @@ describe('AdminReportsList', () => {
         .getAllByRole('columnheader')
         .map((header) => header.textContent)
     ).toEqual(['Reporter', 'Target', 'Category', 'Status', 'Created'])
-    expect(mockGetAdminReports).toHaveBeenCalledWith(false)
+    expect(mockGetAdminReports).toHaveBeenCalledWith(false, null)
 
     const [, first, second] = within(table).getAllByRole('row')
     expect(
@@ -89,7 +97,9 @@ describe('AdminReportsList', () => {
     mockGetAdminReports.mockResolvedValue([report({ action_taken: true })])
     fireEvent.click(screen.getByRole('radio', { name: 'Resolved' }))
 
-    await waitFor(() => expect(mockGetAdminReports).toHaveBeenCalledWith(true))
+    await waitFor(() =>
+      expect(mockGetAdminReports).toHaveBeenCalledWith(true, null)
+    )
     expect(screen.getByRole('radio', { name: 'Resolved' })).toBeChecked()
     const row = (await screen.findAllByRole('row'))[1]
     expect(within(row).getAllByRole('cell')[3]).toHaveTextContent('Resolved')
@@ -131,7 +141,7 @@ describe('AdminReportsList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh reports' }))
 
     await waitFor(() => expect(mockGetAdminReports).toHaveBeenCalledTimes(2))
-    expect(mockGetAdminReports).toHaveBeenLastCalledWith(false)
+    expect(mockGetAdminReports).toHaveBeenLastCalledWith(false, null)
   })
 
   it('shows an empty state for the tab when there are no reports', async () => {
@@ -143,5 +153,117 @@ describe('AdminReportsList', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'Resolved' }))
     expect(await screen.findByText('No resolved reports.')).toBeInTheDocument()
+  })
+
+  describe('Domain filter', () => {
+    const DOMAINS = ['social.example', 'run.example', 'birds.example']
+
+    beforeEach(() => {
+      mockReplace.mockReset()
+      mockGetAdminReports.mockResolvedValue([
+        report({ domain: 'run.example' }),
+        report({ id: 'report-2', domain: null })
+      ])
+    })
+
+    it('shows the Domain select and column while more than one domain is served', async () => {
+      render(<AdminReportsList servedDomains={DOMAINS} />)
+      const table = await screen.findByRole('table', { name: 'Reports' })
+
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .map((header) => header.textContent)
+      ).toEqual([
+        'Reporter',
+        'Target',
+        'Domain',
+        'Category',
+        'Status',
+        'Created'
+      ])
+      const select = screen.getByRole('combobox', { name: 'Domain' })
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((option) => option.textContent)
+      ).toEqual(['All domains', ...DOMAINS])
+      expect(select).toHaveValue('')
+      const [, first, second] = within(table).getAllByRole('row')
+      expect(within(first).getAllByRole('cell')[2]).toHaveTextContent(
+        'run.example'
+      )
+      // A report whose domain could not be told shows a dash.
+      expect(within(second).getAllByRole('cell')[2]).toHaveTextContent('—')
+    })
+
+    it('hides the select and the column with a single served domain', async () => {
+      render(<AdminReportsList servedDomains={['social.example']} />)
+      const table = await screen.findByRole('table', { name: 'Reports' })
+      expect(screen.queryByRole('combobox', { name: 'Domain' })).toBeNull()
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .map((header) => header.textContent)
+      ).not.toContain('Domain')
+    })
+
+    it('loads only the chosen domain and shows it selected', async () => {
+      render(<AdminReportsList servedDomains={DOMAINS} domain="run.example" />)
+      await screen.findByRole('table', { name: 'Reports' })
+      expect(mockGetAdminReports).toHaveBeenCalledWith(false, 'run.example')
+      expect(screen.getByRole('combobox', { name: 'Domain' })).toHaveValue(
+        'run.example'
+      )
+    })
+
+    it('ignores a slow earlier answer after the domain changed', async () => {
+      const first = createDeferred<AdminReport[]>()
+      const second = createDeferred<AdminReport[]>()
+      mockGetAdminReports.mockReset()
+      mockGetAdminReports
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+      render(<AdminReportsList servedDomains={DOMAINS} />)
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Domain' }), {
+        target: { value: 'birds.example' }
+      })
+      await waitFor(() => expect(mockGetAdminReports).toHaveBeenCalledTimes(2))
+      expect(mockGetAdminReports).toHaveBeenLastCalledWith(
+        false,
+        'birds.example'
+      )
+
+      second.resolve([report({ id: 'new', account: { username: 'newer' } })])
+      expect(await screen.findByText('newer')).toBeInTheDocument()
+      first.resolve([report({ id: 'old', account: { username: 'older' } })])
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(screen.getByText('newer')).toBeInTheDocument()
+      expect(screen.queryByText('older')).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Refresh reports' })
+      ).not.toHaveAttribute('aria-disabled')
+    })
+
+    it('syncs the choice to the domain query parameter', async () => {
+      render(<AdminReportsList servedDomains={DOMAINS} />)
+      await screen.findByRole('table', { name: 'Reports' })
+      const select = screen.getByRole('combobox', { name: 'Domain' })
+
+      fireEvent.change(select, { target: { value: 'birds.example' } })
+      expect(mockReplace).toHaveBeenLastCalledWith(
+        '/admin/reports?domain=birds.example',
+        { scroll: false }
+      )
+      // The select keeps the choice before the URL catches up.
+      expect(select).toHaveValue('birds.example')
+      fireEvent.change(select, { target: { value: '' } })
+      expect(mockReplace).toHaveBeenLastCalledWith('/admin/reports', {
+        scroll: false
+      })
+    })
   })
 })

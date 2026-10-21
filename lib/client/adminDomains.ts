@@ -1,6 +1,7 @@
 import type {
   AdminDomain,
   AdminDomainDetail,
+  AdminDomainFeaturesPatch,
   AdminDomainIdentityPatch,
   AdminDomainList,
   AdminDomainPoliciesPatch
@@ -123,6 +124,16 @@ export const updateAdminDomainPolicies = async (
 ): Promise<AdminDomainDetail> =>
   readResponse(
     await send(domainPath(domain), 'PATCH', policies),
+    'Failed to save changes. Please try again.'
+  )
+
+// Features: the whole list of features this domain turns off ([] = none).
+export const updateAdminDomainFeatures = async (
+  domain: string,
+  features: Required<AdminDomainFeaturesPatch>
+): Promise<AdminDomainDetail> =>
+  readResponse(
+    await send(domainPath(domain), 'PATCH', features),
     'Failed to save changes. Please try again.'
   )
 

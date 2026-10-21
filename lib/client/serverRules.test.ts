@@ -39,6 +39,17 @@ describe('serverRules client module', () => {
       })
     })
 
+    it("asks for one domain's own rules with the domain query", async () => {
+      fetchMock.mockResponseOnce(JSON.stringify([mockRule]), { status: 200 })
+
+      await getServerRules('run.example:8443')
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v2/admin/rules?domain=run.example%3A8443',
+        { method: 'GET', headers: { Accept: 'application/json' } }
+      )
+    })
+
     it('throws when response is not ok', async () => {
       fetchMock.mockResponseOnce('Server error', { status: 500 })
 

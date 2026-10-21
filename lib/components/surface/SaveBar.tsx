@@ -68,7 +68,7 @@ interface SaveBarProps {
    * ("Changes apply to every domain that uses the server terms."). Dirty,
    * Saved and the error still replace it. `edit` only.
    */
-  idleNote?: string
+  idleNote?: ReactNode
   dirty?: boolean
   saving?: boolean
   saved?: boolean
@@ -198,7 +198,9 @@ export const SaveBar: FC<SaveBarProps> = ({
                 Saved
               </>
             ) : (
-              (idleNote ?? 'No unsaved changes')
+              <span className="min-w-0">
+                {idleNote ?? 'No unsaved changes'}
+              </span>
             )}
           </p>
         )}
