@@ -17,6 +17,11 @@ import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 
+/** Match the element whose own text content is `text`, even when a child span splits it. */
+const byContent = (text: string) => (_: string, el: Element | null) =>
+  el?.textContent === text &&
+  !Array.from(el.children).some((child) => child.textContent === text)
+
 const mockGetServerAnnouncements = vi.fn()
 const mockCreateServerAnnouncement = vi.fn()
 const mockUpdateServerAnnouncement = vi.fn()
@@ -481,7 +486,7 @@ describe('AnnouncementsPanel', () => {
         target: { value: 'run.example' }
       })
       expect(
-        screen.getByText('Only people visiting run.example see it.')
+        screen.getByText(byContent('Only people visiting run.example see it.'))
       ).toBeInTheDocument()
       fireEvent.change(screen.getByLabelText('Text'), {
         target: { value: 'Run on Saturday' }
@@ -524,7 +529,7 @@ describe('AnnouncementsPanel', () => {
       })
       expect(screen.getByLabelText('Show on')).toHaveValue('run.example')
       expect(
-        screen.getByText('Only people visiting run.example see it.')
+        screen.getByText(byContent('Only people visiting run.example see it.'))
       ).toBeInTheDocument()
     })
 

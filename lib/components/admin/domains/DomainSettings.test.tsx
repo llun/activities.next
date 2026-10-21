@@ -15,6 +15,11 @@ import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { type DomainPageScope, DomainSettings } from './DomainSettings'
 
+/** Match the element whose own text content is `text`, even when a child span splits it. */
+const byContent = (text: string) => (_: string, el: Element | null) =>
+  el?.textContent === text &&
+  !Array.from(el.children).some((child) => child.textContent === text)
+
 const mockUpdate = vi.fn()
 const mockIdentity = vi.fn()
 const mockPolicies = vi.fn()
@@ -616,7 +621,9 @@ describe('DomainSettings', () => {
       ).toBeInTheDocument()
       expect(screen.getByRole('switch', { name: /Fitness/ })).toBeEnabled()
       expect(
-        screen.getByText('3 open reports about profiles on run.example')
+        screen.getByText(
+          byContent('3 open reports about profiles on run.example')
+        )
       ).toBeInTheDocument()
       expect(
         screen.getByText(/Also showing 1 announcement for all domains/)
@@ -671,7 +678,9 @@ describe('DomainSettings', () => {
         })
       ).toBeInTheDocument()
       expect(
-        screen.getByText('1 open report about profiles on social.example')
+        screen.getByText(
+          byContent('1 open report about profiles on social.example')
+        )
       ).toBeInTheDocument()
     })
 

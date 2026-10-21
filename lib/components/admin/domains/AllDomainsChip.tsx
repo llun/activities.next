@@ -6,7 +6,7 @@ import { Badge } from '@/lib/components/ui/badge'
 export const AllDomainsChip: FC = () => (
   <Badge
     tone="primary"
-    className="border-primary/30 bg-background shrink-0 border"
+    className="border-primary/30 bg-background dark:bg-background shrink-0 border"
   >
     All domains
   </Badge>

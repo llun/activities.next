@@ -313,7 +313,7 @@ const StatusBox: FC<{
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-destructive-text"
+                  className="text-destructive-text h-auto min-h-8 max-w-full"
                   disabled={busy !== null}
                   onClick={() => void remove()}
                 >
@@ -323,11 +323,12 @@ const StatusBox: FC<{
               ) : null}
               <Button
                 size="sm"
+                className="h-auto min-h-8 max-w-full text-left whitespace-normal"
                 disabled={busy !== null}
                 onClick={() => void setStatus('on')}
               >
                 {busy === 'on' ? spinner : null}
-                Turn on {name}
+                <span className="wrap-anywhere">Turn on {name}</span>
               </Button>
             </div>
           }

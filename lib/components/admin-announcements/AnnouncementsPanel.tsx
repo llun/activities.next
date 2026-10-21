@@ -343,9 +343,14 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                 label="Show on"
                 htmlFor="announcement-domain"
                 hint={
-                  newDomain
-                    ? `Only people visiting ${newDomain} see it.`
-                    : 'People on every domain see it.'
+                  newDomain ? (
+                    <>
+                      Only people visiting{' '}
+                      <span className="wrap-anywhere">{newDomain}</span> see it.
+                    </>
+                  ) : (
+                    'People on every domain see it.'
+                  )
                 }
               >
                 {({ describedBy }) => (

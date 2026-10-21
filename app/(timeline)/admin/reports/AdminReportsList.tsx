@@ -36,11 +36,22 @@ const TABS = [
   { value: 'resolved', label: 'Resolved' }
 ]
 
-const DomainChip = ({ domain }: { domain: string | null }) =>
+const DomainChip = ({
+  domain,
+  wrap = 'anywhere'
+}: {
+  domain: string | null
+  /** `nowrap` keeps the chip on one line (the table scrolls instead). */
+  wrap?: 'anywhere' | 'nowrap'
+}) =>
   domain ? (
     <Badge
       tone="primary"
-      className="max-w-full wrap-anywhere whitespace-normal"
+      className={
+        wrap === 'nowrap'
+          ? 'whitespace-nowrap'
+          : 'max-w-full wrap-anywhere whitespace-normal'
+      }
     >
       {domain}
     </Badge>
@@ -252,7 +263,7 @@ export const AdminReportsList = ({
                   <td
                     className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
                   >
-                    <DomainChip domain={report.domain} />
+                    <DomainChip domain={report.domain} wrap="nowrap" />
                   </td>
                 ) : null}
                 <td className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}>
