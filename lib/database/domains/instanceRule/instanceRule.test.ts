@@ -333,34 +333,4 @@ describe('rules per domain', () => {
       })
     })
   })
-
-  it('removes every rule of a domain and leaves the others', async () => {
-    await withFreshDatabase(async (database) => {
-      const server = await database.createInstanceRule({
-        text: 'Server',
-        hint: ''
-      })
-      await database.createInstanceRule({
-        domain: 'run.example',
-        text: 'One',
-        hint: ''
-      })
-      await database.createInstanceRule({
-        domain: 'run.example',
-        text: 'Two',
-        hint: ''
-      })
-      const other = await database.createInstanceRule({
-        domain: 'photo.example',
-        text: 'Other',
-        hint: ''
-      })
-
-      await expect(
-        database.deleteInstanceRulesForDomain({ domain: 'run.example' })
-      ).resolves.toBe(2)
-
-      expect(await database.getAllInstanceRules()).toEqual([server, other])
-    })
-  })
 })

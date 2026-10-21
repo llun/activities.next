@@ -41,7 +41,13 @@ const QueryParams = z.object({
   target_account_id: z.string().max(512).optional(),
   by_target_domain: z.string().max(255).optional(),
   // Extension: only reports about profiles on this served domain.
-  domain: z.string().trim().min(1).max(255).optional(),
+  // A blank value is no filter (Mastodon ignores blank filters).
+  domain: z
+    .string()
+    .trim()
+    .max(255)
+    .transform((v) => v || undefined)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   max_id: z.string().max(255).optional(),
   since_id: z.string().max(255).optional(),

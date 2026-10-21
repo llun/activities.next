@@ -304,6 +304,20 @@ describe('admin reports API', () => {
       )
     })
 
+    it('treats a blank domain as no filter', async () => {
+      const all = await list('')
+      const blank = await list('?domain=')
+      const spaces = await list('?domain=%20%20')
+      expect(blank.status).toBe(200)
+      expect(spaces.status).toBe(200)
+      const ids = async (r: Response) =>
+        (await r.json()).map((report: { id: string }) => report.id).sort()
+      const every = await ids(all)
+      expect(await ids(blank)).toEqual(every)
+      expect(await ids(spaces)).toEqual(every)
+      expect(every).toContain(clubReportId)
+    })
+
     it('lists only the reports about profiles on the given domain', async () => {
       const club = await list('?domain=club.llun.test')
       expect(club.status).toBe(200)

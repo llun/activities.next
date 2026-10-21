@@ -538,8 +538,39 @@ describe('adminDomains', () => {
         domain: 'photos.example'
       })
 
+      const photosNote = await database.createAnnouncement({
+        text: 'Photos own',
+        domain: 'photos.example'
+      })
+      const actorId = 'https://birds.example/users/reader'
+      for (const announcement of [everywhere, photosNote]) {
+        await database.markAnnouncementRead({
+          announcementId: announcement.id,
+          actorId
+        })
+        await database.addAnnouncementReaction({
+          announcementId: announcement.id,
+          actorId,
+          name: '👍'
+        })
+      }
+
       await removeDomain(database, 'photos.example')
 
+      expect(
+        await database.getAnnouncementReadIds({
+          actorId,
+          announcementIds: [everywhere.id, photosNote.id]
+        })
+      ).toEqual([everywhere.id])
+      expect(
+        (
+          await database.getAnnouncementReactions({
+            actorId,
+            announcementIds: [everywhere.id, photosNote.id]
+          })
+        ).map((r) => r.announcementId)
+      ).toEqual([everywhere.id])
       expect(
         (await database.getAllInstanceRules()).map((rule) => rule.id).sort()
       ).toEqual([server.id, birds.id].sort())

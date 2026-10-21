@@ -785,8 +785,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   followed by that domain's own rules (the primary and an unknown host get the
   server rules only; ids are unique, one table), `GET /api/v1/announcements`
   returns the every-domain announcements plus the visited host's, and
-  `POST /api/v1/reports` answers `422 { "error": "Unknown rule id" }` for a
-  `rule_ids` entry that is not visible on that host (it used to store any id).
+  `POST /api/v1/reports` answers
+  `422 { "error": "Validation failed: Rule ids does not reference valid rules" }`
+  for a `rule_ids` entry that is not visible on that host (it used to store any
+  id); citing rules makes the report a `violation`, as Mastodon's
+  ReportService does.
   A report stores `reports.domain`, the domain of the reported profile (the host
   of its actor id, also for a forwarded `Flag`); the migration backfilled it.
   Admin: `GET /api/v2/admin/rules` lists one scope (no `domain`: the server
@@ -799,7 +802,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   one domain's own announcements. `GET /api/v1/admin/reports` takes `domain`
   (reports about profiles on that served domain, kept in the `Link` pagination
   URLs) and every Admin::Report carries `domain`. Moderators and the report
-  queue stay server-wide, and a report may cite any rule.
+  queue stay server-wide, and a moderator may set any rule on a report (admin
+  `PUT /api/v1/admin/reports/:id`, which still answers "Unknown rule id").
 - **Per-domain feature switches** — `GET`/`PATCH /api/v1/admin/domains/:domain`
   carry `disabledFeatures` (a list of `fitness`, `explore`, `messages`; `[]` or
   null for none; the primary is refused with `422`, `code: primary`). A feature

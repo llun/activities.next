@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import type {
   CreateInstanceRuleParams,
   DeleteInstanceRuleParams,
-  DeleteInstanceRulesForDomainParams,
   GetInstanceRuleParams,
   GetInstanceRulesParams,
   GetOwnInstanceRulesParams,
@@ -148,17 +147,6 @@ export const getInstanceRule = async (
   return row ?? null
 }
 
-export const deleteInstanceRulesForDomain = async (
-  db: Db,
-  { domain }: DeleteInstanceRulesForDomainParams
-): Promise<number> => {
-  const { numDeletedRows } = await db
-    .deleteFrom('instance_rules')
-    .where('domain', '=', domain)
-    .executeTakeFirst()
-  return Number(numDeletedRows)
-}
-
 export const instanceRuleQueries = {
   createInstanceRule,
   updateInstanceRule,
@@ -166,6 +154,5 @@ export const instanceRuleQueries = {
   getInstanceRules,
   getOwnInstanceRules,
   getAllInstanceRules,
-  getInstanceRule,
-  deleteInstanceRulesForDomain
+  getInstanceRule
 }

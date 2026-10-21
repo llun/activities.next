@@ -44,7 +44,6 @@ export type GetOwnInstanceRulesParams = {
   // The scope to list: a domain's own rules, or null for the server rules.
   domain: string | null
 }
-export type DeleteInstanceRulesForDomainParams = { domain: string }
 
 export interface InstanceRuleDatabase {
   createInstanceRule(
@@ -73,9 +72,4 @@ export interface InstanceRuleDatabase {
   getInstanceRule(
     params: GetInstanceRuleParams
   ): Promise<InstanceRuleData | null>
-  // Removes every rule of a domain (when the domain is removed). Resolves the
-  // number removed.
-  deleteInstanceRulesForDomain(
-    params: DeleteInstanceRulesForDomainParams
-  ): Promise<number>
 }
