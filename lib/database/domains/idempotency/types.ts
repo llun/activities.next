@@ -21,7 +21,7 @@ export const IDEMPOTENCY_PENDING_STALE_MS = 60_000
 export type IdempotencyKeyState =
   'pending' | 'publishing' | 'publish_failed' | 'complete'
 
-export type GetIdempotentStatusIdParams = { actorId: string; key: string }
+export type GetIdempotencyKeyParams = { actorId: string; key: string }
 export type SetIdempotencyKeyStateParams = {
   actorId: string
   key: string
@@ -101,7 +101,7 @@ export class StatusPublishFailedError extends Error {
 
 export interface IdempotencyDatabase {
   getIdempotencyKey(
-    params: GetIdempotentStatusIdParams
+    params: GetIdempotencyKeyParams
   ): Promise<IdempotencyKeyRecord | null>
   setIdempotencyKeyState(params: SetIdempotencyKeyStateParams): Promise<void>
   // Moves the key to 'publishing' if the caller may queue its status's job,

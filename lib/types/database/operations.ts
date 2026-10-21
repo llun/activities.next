@@ -301,7 +301,7 @@ export {
 } from '@/lib/database/domains/idempotency/types'
 export type {
   DeleteExpiredIdempotencyKeysParams,
-  GetIdempotentStatusIdParams,
+  GetIdempotencyKeyParams,
   IdempotencyDatabase,
   IdempotencyKeyRecord
 } from '@/lib/database/domains/idempotency/types'

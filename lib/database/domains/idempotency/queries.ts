@@ -1,7 +1,7 @@
 import {
   type ClaimIdempotencyKeyPublishParams,
   type DeleteExpiredIdempotencyKeysParams,
-  type GetIdempotentStatusIdParams,
+  type GetIdempotencyKeyParams,
   IDEMPOTENCY_KEY_TTL_MS,
   type IdempotencyKeyRecord,
   type IdempotencyKeyState,
@@ -12,7 +12,7 @@ import { timestampValue } from '@/lib/database/kysely/dialect'
 
 export const getIdempotencyKey = async (
   db: Db,
-  { actorId, key }: GetIdempotentStatusIdParams
+  { actorId, key }: GetIdempotencyKeyParams
 ): Promise<IdempotencyKeyRecord | null> => {
   const row = await db
     .selectFrom('idempotency_keys')
