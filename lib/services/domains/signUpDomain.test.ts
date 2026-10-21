@@ -65,7 +65,7 @@ describe('signUpDomain', () => {
       expect(result.source).toBe('primary')
     })
 
-    it('uses an active row, named after its domain when it has no name', async () => {
+    it('uses an active row, named after the server when it has no name', async () => {
       await database.createServedDomain({
         domain: 'run.example',
         status: 'on',
@@ -76,11 +76,38 @@ describe('signUpDomain', () => {
         resolveSignUpDomain(database, 'run.example')
       ).resolves.toEqual({
         domain: 'run.example',
-        displayName: 'run.example',
+        // The identity name: the server's, as the row sets none.
+        displayName: 'Activities.next',
         source: 'database',
         open: true,
         allowEmails: ['ana@mail.example']
       })
+    })
+
+    it('names the domain after its row while the row is usable', async () => {
+      await database.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        name: 'Run Club'
+      })
+      await database.createServedDomain({
+        domain: 'old.example',
+        status: 'off',
+        name: 'Old Club'
+      })
+      await database.createServedDomain({
+        domain: 'club.example',
+        status: 'off',
+        name: 'Club'
+      })
+      const names = await Promise.all(
+        ['run.example', 'old.example', 'club.example'].map(
+          async (host) =>
+            (await resolveSignUpDomain(database, host)).displayName
+        )
+      )
+      // An off added domain is not usable; an env domain's row always is.
+      expect(names).toEqual(['Run Club', 'Activities.next', 'Club'])
     })
 
     it('is closed on an env domain without a row, a row that is off, and a wildcard host', async () => {

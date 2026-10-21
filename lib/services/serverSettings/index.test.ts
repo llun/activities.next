@@ -19,7 +19,9 @@ const ENV_KEYS = [
   'ACTIVITIES_REQUEST_RETRY',
   'ACTIVITIES_REQUEST_MAX_RESPONSE_SIZE_BYTES',
   'ACTIVITIES_FEDERATION_MODE',
-  'ACTIVITIES_ALLOW_ACTOR_DOMAINS'
+  'ACTIVITIES_ALLOW_ACTOR_DOMAINS',
+  'ACTIVITIES_TERMS_OF_SERVICE',
+  'ACTIVITIES_PRIVACY_POLICY'
 ]
 
 const freshDatabase = async () => {
@@ -91,6 +93,70 @@ describe('server settings resolver', () => {
     await database.destroy()
   })
 
+  it('reports when each stored value last changed, and null otherwise', async () => {
+    const database = await freshDatabase()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-03-04T05:06:07.000Z'))
+      await database.setServerSettings([
+        { key: 'policies.termsOfService', value: 'Be excellent' },
+        { key: 'instance.name', value: 'DB Name' },
+        { key: 'posts.maxCharacters', value: -5 }
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+    process.env.ACTIVITIES_SERVICE_NAME = 'Env Name'
+    invalidateServerSettingsCache(database)
+
+    const view = await getServerSettingsView(database)
+    expect(view.updatedAt['policies.termsOfService']).toBe(
+      Date.UTC(2026, 2, 4, 5, 6, 7)
+    )
+    // Env-pinned, invalid and never-stored values have no date.
+    expect(view.updatedAt['instance.name']).toBeNull()
+    expect(view.updatedAt['posts.maxCharacters']).toBeNull()
+    expect(view.updatedAt['policies.privacyPolicy']).toBeNull()
+    await database.destroy()
+  })
+
+  it('reports no date for a cleared policy', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'policies.termsOfService', value: '  \n' },
+      { key: 'policies.privacyPolicy', value: 'Privacy' }
+    ])
+    invalidateServerSettingsCache(database)
+
+    const { updatedAt } = await getServerSettingsView(database)
+    expect(updatedAt['policies.termsOfService']).toBeNull()
+    expect(updatedAt['policies.privacyPolicy']).toEqual(expect.any(Number))
+    await database.destroy()
+  })
+
+  it('pins a policy from a non-empty env variable and ignores an empty one', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'policies.privacyPolicy', value: 'Stored policy' },
+      { key: 'policies.termsOfService', value: 'Stored terms' }
+    ])
+    process.env.ACTIVITIES_PRIVACY_POLICY = 'Env policy'
+    process.env.ACTIVITIES_TERMS_OF_SERVICE = ''
+    invalidateServerSettingsCache(database)
+
+    const view = await getServerSettingsView(database)
+    expect(view.settings.policies).toEqual({
+      privacyPolicy: 'Env policy',
+      termsOfService: 'Stored terms'
+    })
+    expect(view.locks['policies.privacyPolicy']).toEqual({
+      locked: true,
+      envVar: 'ACTIVITIES_PRIVACY_POLICY'
+    })
+    expect(view.locks['policies.termsOfService'].locked).toBe(false)
+    await database.destroy()
+  })
+
   it('ignores an invalid stored value and falls back to the default', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([
@@ -136,6 +202,32 @@ describe('server settings resolver', () => {
     expect(spy).toHaveBeenCalledTimes(2)
 
     spy.mockRestore()
+    await database.destroy()
+  })
+
+  it("drops another module copy's cache when one copy invalidates", async () => {
+    // Next bundles the admin API route and the admin page as separate module
+    // graphs: each has its own copy of this module and so its own cache.
+    const database = await freshDatabase()
+    const first = await import('@/lib/services/serverSettings')
+    vi.resetModules()
+    const second = await import('@/lib/services/serverSettings')
+    expect(second.getServerSettingsView).not.toBe(first.getServerSettingsView)
+
+    await first.getResolvedServerSettings(database)
+    await second.getResolvedServerSettings(database)
+    // The page's copy (second) has the old name cached.
+    expect(
+      (await second.getResolvedServerSettings(database)).instance.name
+    ).toBe(DEFAULT_SERVER_SETTINGS.instance.name)
+
+    // The route's copy (first) saves, as the admin PATCH does.
+    await first.updateServerSettings(database, {
+      'instance.name': 'Saved Name'
+    })
+    expect(
+      (await second.getResolvedServerSettings(database)).instance.name
+    ).toBe('Saved Name')
     await database.destroy()
   })
 

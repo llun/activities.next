@@ -10,7 +10,9 @@ import {
 // A settings form keyed by dotted setting keys (e.g. `instance.name`). Sections
 // save independently: each SaveBar drives its own saving/saved/error status and
 // patches only its keys, matching the design where every section has its own
-// Save button.
+// Save button. `saveSection` resolves with the server's response (or nothing
+// when the save failed), for a form that shows more than the values, such as
+// each field's last-updated date.
 
 type Values = Record<string, unknown>
 
@@ -34,7 +36,12 @@ const getByPath = (source: unknown, path: string): unknown =>
 const valuesEqual = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b)
 
-export const useServerSettingsForm = (initial: Values) => {
+export const useServerSettingsForm = (
+  initial: Values,
+  // Keys pinned by the environment. The server rejects a patch naming one,
+  // even with its value unchanged, so a section's save leaves them out.
+  locks: Record<string, { locked: boolean }> = {}
+) => {
   const [values, setValues] = useState<Values>(initial)
   const [baseline, setBaseline] = useState<Values>(initial)
   const [statuses, setStatuses] = useState<Record<string, SectionStatus>>({})
@@ -55,7 +62,11 @@ export const useServerSettingsForm = (initial: Values) => {
   )
 
   const saveSection = useCallback(
-    async (id: string, keys: string[]) => {
+    async (
+      id: string,
+      allKeys: string[]
+    ): Promise<AdminServerSettingsResponse | undefined> => {
+      const keys = allKeys.filter((key) => !locks[key]?.locked)
       setStatuses((current) => ({
         ...current,
         [id]: { saving: true, saved: false, error: null }
@@ -81,6 +92,7 @@ export const useServerSettingsForm = (initial: Values) => {
           ...current,
           [id]: { saving: false, saved: true, error: null }
         }))
+        return result
       } catch (error) {
         setStatuses((current) => ({
           ...current,
@@ -90,9 +102,10 @@ export const useServerSettingsForm = (initial: Values) => {
             error: error instanceof Error ? error.message : 'Failed to save'
           }
         }))
+        return undefined
       }
     },
-    [values]
+    [values, locks]
   )
 
   return { values, setValue, isDirty, statusFor, saveSection }

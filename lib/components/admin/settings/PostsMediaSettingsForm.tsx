@@ -85,15 +85,18 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
   storageBackend
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
-    useServerSettingsForm({
-      'posts.maxCharacters': settings.posts.maxCharacters,
-      'posts.maxMediaAttachments': settings.posts.maxMediaAttachments,
-      'polls.maxOptions': settings.polls.maxOptions,
-      'polls.maxCharactersPerOption': settings.polls.maxCharactersPerOption,
-      'polls.minExpirationSeconds': settings.polls.minExpirationSeconds,
-      'polls.maxExpirationSeconds': settings.polls.maxExpirationSeconds,
-      'media.maxFileSize': settings.media.maxFileSize
-    })
+    useServerSettingsForm(
+      {
+        'posts.maxCharacters': settings.posts.maxCharacters,
+        'posts.maxMediaAttachments': settings.posts.maxMediaAttachments,
+        'polls.maxOptions': settings.polls.maxOptions,
+        'polls.maxCharactersPerOption': settings.polls.maxCharactersPerOption,
+        'polls.minExpirationSeconds': settings.polls.minExpirationSeconds,
+        'polls.maxExpirationSeconds': settings.polls.maxExpirationSeconds,
+        'media.maxFileSize': settings.media.maxFileSize
+      },
+      locks
+    )
 
   // The picked mode is its own state, never derived from the current value:
   // deriving it would re-evaluate on every keystroke and unmount the custom

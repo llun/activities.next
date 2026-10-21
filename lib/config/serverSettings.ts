@@ -51,6 +51,12 @@ export interface ResolvedServerSettings {
     open: boolean
     allowEmails: string[]
   }
+  // The server's terms of service and privacy policy, as Markdown. '' means
+  // none: the instance endpoints answer 404 and sign-up asks for no agreement.
+  policies: {
+    termsOfService: string
+    privacyPolicy: string
+  }
   posts: {
     maxCharacters: number
     maxMediaAttachments: number
@@ -110,6 +116,10 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
     open: true,
     allowEmails: []
   },
+  policies: {
+    termsOfService: '',
+    privacyPolicy: ''
+  },
   posts: {
     maxCharacters: DEFAULT_MAX_STATUS_CHARACTERS,
     maxMediaAttachments: MAX_STORED_MEDIA_ATTACHMENTS
@@ -150,6 +160,12 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
 
 const readEnvString = (name: string) => (): string | undefined =>
   process.env[name]
+
+// An empty value counts as unset, so it neither pins the field nor locks it in
+// the admin UI (the policies used to be optional config keys, where '' meant
+// "no document").
+const readEnvNonEmptyString = (name: string) => (): string | undefined =>
+  process.env[name] || undefined
 
 const readEnvBooleanDefaultTrue = (name: string) => (): boolean | undefined =>
   process.env[name] === undefined ? undefined : process.env[name] !== 'false'
@@ -227,6 +243,9 @@ const allowEmailsSchema = z
   .max(1000)
   .transform((emails) => emails.map(normalizeEmail))
 const domainsSchema = z.array(z.string().trim().max(255)).max(1000)
+// Markdown is stored as written: trimming could turn a leading indented block
+// into a paragraph. A blank document counts as none where it is read.
+const policySchema = z.string().max(100_000)
 
 export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
   // Instance identity
@@ -296,6 +315,30 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     get: (s) => s.registrations.allowEmails,
     set: (s, v) => {
       s.registrations.allowEmails = v
+    }
+  }),
+
+  // Terms of service and privacy policy (Markdown)
+  field<string>({
+    key: 'policies.termsOfService',
+    group: 'instance',
+    envVar: 'ACTIVITIES_TERMS_OF_SERVICE',
+    schema: policySchema,
+    readEnv: readEnvNonEmptyString('ACTIVITIES_TERMS_OF_SERVICE'),
+    get: (s) => s.policies.termsOfService,
+    set: (s, v) => {
+      s.policies.termsOfService = v
+    }
+  }),
+  field<string>({
+    key: 'policies.privacyPolicy',
+    group: 'instance',
+    envVar: 'ACTIVITIES_PRIVACY_POLICY',
+    schema: policySchema,
+    readEnv: readEnvNonEmptyString('ACTIVITIES_PRIVACY_POLICY'),
+    get: (s) => s.policies.privacyPolicy,
+    set: (s, v) => {
+      s.policies.privacyPolicy = v
     }
   }),
 

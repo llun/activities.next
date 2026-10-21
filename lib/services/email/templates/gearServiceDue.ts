@@ -1,4 +1,8 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import {
+  type EmailBrand,
+  brandBaseURL,
+  brandHost
+} from '@/lib/services/email/brand'
 import {
   EmailStat,
   button,
@@ -26,6 +30,8 @@ export interface GearServiceDueEmailParams {
   totalDistanceMeters: number
   /** The distance the owner asked to be reminded at. */
   thresholdMeters: number
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 const formatKilometres = (meters: number): string =>
@@ -47,7 +53,8 @@ export const buildGearServiceDueEmail = ({
   gearName,
   componentName,
   totalDistanceMeters,
-  thresholdMeters
+  thresholdMeters,
+  brand
 }: GearServiceDueEmailParams): RenderedEmail => {
   const subjectName = componentName
     ? `${gearName} · ${componentName}`
@@ -58,7 +65,8 @@ export const buildGearServiceDueEmail = ({
   ]
 
   return renderEmail({
-    subject: `${subjectName} has passed ${formatKilometres(thresholdMeters)} in ${getConfig().host}`,
+    brand,
+    subject: `${subjectName} has passed ${formatKilometres(thresholdMeters)} in ${brandHost(brand)}`,
     preheader: `${subjectName} has reached the distance you set a reminder for.`,
     blocks: [
       headline('Your gear is due for service'),
@@ -73,7 +81,7 @@ export const buildGearServiceDueEmail = ({
       }),
       button({
         label: 'View gear',
-        url: `${getBaseURL()}/fitness/gear/${encodeURIComponent(gearId)}`
+        url: `${brandBaseURL(brand)}/fitness/gear/${encodeURIComponent(gearId)}`
       })
     ],
     footer: {

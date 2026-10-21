@@ -39,10 +39,14 @@ export const setServerSettings = async (
           createdAt: currentTime,
           updatedAt: currentTime
         })
+        // The admin form saves a whole section, so most keys in a batch come
+        // back unchanged. Only a real change touches the row: `updatedAt` is
+        // what the terms of service and privacy policy report as their date.
         .onConflict((oc) =>
           oc
             .column('key')
             .doUpdateSet({ value: serialized, updatedAt: currentTime })
+            .where('server_settings.value', '<>', serialized)
         )
         .execute()
     }

@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   getShortName,
   toQuoteAuthor
@@ -24,25 +24,29 @@ export interface ReplyEmailParams {
   actor: ActorProfile
   /** The reply itself, not the post it answers. */
   status: EditableStatus
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /** Someone replied to your post. The quote block shows their reply. */
 export const buildReplyEmail = ({
   recipient,
   actor,
-  status
+  status,
+  brand
 }: ReplyEmailParams): RenderedEmail =>
   renderEmail({
-    subject: `@${actor.username} replied to your post in ${getConfig().host}`,
+    brand,
+    subject: `@${actor.username} replied to your post in ${brandHost(brand)}`,
     preheader: `${getShortName(actor)} replied to your post.`,
     blocks: [
       headline(`${getShortName(actor)} replied to your post`),
       label('Reply:'),
       quote({
         author: toQuoteAuthor(status.actor ?? actor),
-        body: getStatusBody(status)
+        body: getStatusBody(status, brand)
       }),
-      button({ label: 'View post', url: getEmailStatusUrl(status) })
+      button({ label: 'View post', url: getEmailStatusUrl(status, brand) })
     ],
     footer: {
       kind: 'notification',

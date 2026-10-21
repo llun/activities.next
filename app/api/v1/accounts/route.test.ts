@@ -345,6 +345,64 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
     expect(res.headers.get('location')).toContain('/auth/signin')
   })
 
+  const AGREEMENT_REQUIRED = {
+    error: 'Validation failed: Agreement must be accepted',
+    details: {
+      agreement: [
+        { error: 'ERR_ACCEPTED', description: 'Agreement must be accepted' }
+      ]
+    }
+  }
+
+  const postWebForm = (body: string) =>
+    POST(
+      new NextRequest('http://localhost/api/v1/accounts', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'text/html'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+  // Whether the agreement is needed depends on the domain's policies, which
+  // registerAccount checks; the form only passes the checkbox through.
+  it.each([
+    { body: '', agreement: undefined },
+    { body: '&agreement=true', agreement: true },
+    { body: '&agreement=false', agreement: false }
+  ])(
+    'passes the agreement checkbox ($body) to registerAccount',
+    async ({ body, agreement }) => {
+      vi.mocked(registerAccount).mockResolvedValueOnce({
+        type: 'success',
+        accountId: 'new-account-id',
+        username: 'alice',
+        actorId: 'https://llun.test/users/alice'
+      })
+      const res = await postWebForm(
+        `username=alice&email=alice@example.com&password=password123${body}`
+      )
+      expect(res.status).toBe(303)
+      expect(vi.mocked(registerAccount).mock.calls[0][0].agreement).toBe(
+        agreement
+      )
+    }
+  )
+
+  it('returns 422 ERR_ACCEPTED when the domain has policies and the box was not ticked', async () => {
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'agreement_required'
+    })
+    const res = await postWebForm(
+      'username=alice&email=alice@example.com&password=password123'
+    )
+    expect(res.status).toBe(422)
+    expect(await res.json()).toEqual(AGREEMENT_REQUIRED)
+  })
+
   it('lowercases the submitted email via the schema before registering', async () => {
     vi.mocked(registerAccount).mockResolvedValueOnce({
       type: 'success',
@@ -693,6 +751,43 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       expect(deepHasKey(data.details, detailKey)).toBe(true)
     }
   )
+
+  // Mastodon requires the agreement on every API registration, policies or
+  // not, so the route refuses before registerAccount and always tells it the
+  // agreement was accepted.
+  it('requires the agreement even when the domain has no policies', async () => {
+    const res = await postRegister(
+      APP_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=false`
+    )
+    expect(res.status).toBe(422)
+    expect(await res.json()).toEqual({
+      error: 'Validation failed: Agreement must be accepted',
+      details: {
+        agreement: [
+          { error: 'ERR_ACCEPTED', description: 'Agreement must be accepted' }
+        ]
+      }
+    })
+    expect(registerAccount).not.toHaveBeenCalled()
+  })
+
+  it('tells registerAccount the agreement was accepted', async () => {
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'success',
+      accountId,
+      username: NEW_USERNAME,
+      actorId
+    })
+    const res = await postRegister(
+      APP_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=1`
+    )
+    expect(res.status).toBe(200)
+    expect(registerAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ agreement: true })
+    )
+  })
 
   it('returns 403 when registration is closed', async () => {
     vi.mocked(registerAccount).mockResolvedValueOnce({

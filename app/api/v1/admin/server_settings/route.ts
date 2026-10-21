@@ -34,7 +34,11 @@ export const GET = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { settings: view.settings, locks: view.locks }
+      data: {
+        settings: view.settings,
+        locks: view.locks,
+        updatedAt: view.updatedAt
+      }
     })
   })
 )
@@ -70,7 +74,11 @@ export const PATCH = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { settings: result.view.settings, locks: result.view.locks }
+      data: {
+        settings: result.view.settings,
+        locks: result.view.locks,
+        updatedAt: result.view.updatedAt
+      }
     })
   })
 )

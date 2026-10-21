@@ -1,8 +1,9 @@
 'use client'
 
-import { FC } from 'react'
+import { FC, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
 import { formRowLabelId } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
@@ -16,8 +17,10 @@ import {
   type NavFeatureKey
 } from '@/lib/services/navigation/navPreferences'
 
+import { EnvLockLabel } from './EnvLockBadge'
 import { LanguagesPicker } from './LanguagesPicker'
 import { LinesTextarea } from './LinesTextarea'
+import { PolicyDate } from './PolicyDate'
 import { ControlRow, SettingsField } from './SettingsField'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
@@ -29,6 +32,9 @@ export type ServerSettingLocks = Record<
 interface InstanceSettingsFormProps {
   settings: ResolvedServerSettings
   locks: ServerSettingLocks
+  // When each field's stored value last changed (epoch ms; null from the env
+  // or the default), keyed like the settings. Only the policies show it.
+  updatedAt?: Record<string, number | null>
 }
 
 const DETAILS_KEYS = [
@@ -37,6 +43,7 @@ const DETAILS_KEYS = [
   'instance.contactEmail',
   'instance.languages'
 ]
+const POLICY_KEYS = ['policies.termsOfService', 'policies.privacyPolicy']
 const REGISTRATION_KEYS = ['registrations.open', 'registrations.allowEmails']
 // Optional sections of the product. Off removes the item from everyone's
 // navigation; the section itself keeps working for anyone who has a link.
@@ -70,34 +77,78 @@ const FEATURES = NAV_FEATURE_KEYS.map((feature) => ({
 
 const FEATURE_KEYS = FEATURES.map((feature) => feature.key)
 
+// "Markdown. Last updated 12 Oct 2026." under a policy's textarea. The date is
+// left out when there is none (a value pinned by the environment, or unset).
+const PolicyHelp: FC<{ id: string; updatedAt: number | null }> = ({
+  id,
+  updatedAt
+}) => {
+  return (
+    <p id={id} className="text-muted-foreground mt-1.5 text-xs">
+      Markdown.
+      {updatedAt !== null ? (
+        <>
+          {' '}
+          Last updated <PolicyDate at={updatedAt} />.
+        </>
+      ) : null}
+    </p>
+  )
+}
+
 export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
   settings,
-  locks
+  locks,
+  updatedAt: initialUpdatedAt = {}
 }) => {
-  const { values, setValue, isDirty, statusFor, saveSection } =
-    useServerSettingsForm({
-      'instance.name': settings.instance.name,
-      'instance.description': settings.instance.description,
-      'instance.contactEmail': settings.instance.contactEmail,
-      'instance.languages': settings.instance.languages,
-      'registrations.open': settings.registrations.open,
-      'registrations.allowEmails': settings.registrations.allowEmails,
-      // Derived like the rows above it: seeded by hand, a feature added later
-      // would start as undefined, which leaves its Switch uncontrolled and
-      // reading "off" for something that is on.
-      ...Object.fromEntries(
-        NAV_FEATURE_KEYS.map((feature) => [
-          `features.${feature}`,
-          settings.features[feature]
-        ])
-      )
-    })
-
+  const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt)
   const lock = (key: string) => locks[key] ?? { locked: false }
+  const { values, setValue, isDirty, statusFor, saveSection } =
+    useServerSettingsForm(
+      {
+        'instance.name': settings.instance.name,
+        'instance.description': settings.instance.description,
+        'instance.contactEmail': settings.instance.contactEmail,
+        'instance.languages': settings.instance.languages,
+        'policies.termsOfService': settings.policies.termsOfService,
+        'policies.privacyPolicy': settings.policies.privacyPolicy,
+        'registrations.open': settings.registrations.open,
+        'registrations.allowEmails': settings.registrations.allowEmails,
+        // Derived like the rows above it: seeded by hand, a feature added later
+        // would start as undefined, which leaves its Switch uncontrolled and
+        // reading "off" for something that is on.
+        ...Object.fromEntries(
+          NAV_FEATURE_KEYS.map((feature) => [
+            `features.${feature}`,
+            settings.features[feature]
+          ])
+        )
+      },
+      locks
+    )
   const detailsStatus = statusFor('details')
+  const policiesStatus = statusFor('policies')
   const registrationStatus = statusFor('registrations')
   const featuresStatus = statusFor('features')
   const registrationOpen = values['registrations.open'] as boolean
+
+  const savePolicies = async () => {
+    const result = await saveSection('policies', POLICY_KEYS)
+    if (result) setUpdatedAt(result.updatedAt)
+  }
+
+  const policyFields = [
+    {
+      key: 'policies.termsOfService',
+      id: 'policies-terms',
+      label: 'Terms of service'
+    },
+    {
+      key: 'policies.privacyPolicy',
+      id: 'policies-privacy',
+      label: 'Privacy policy'
+    }
+  ]
 
   return (
     <div className="space-y-6">
@@ -193,6 +244,75 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
               onChange={(next) => setValue('instance.languages', next)}
             />
           </SettingsField>
+        </Frame>
+      </Section>
+
+      <Section
+        title="Terms and privacy"
+        description="Used by every domain that doesn't set its own."
+      >
+        <Frame
+          form
+          footer={
+            <SaveBar
+              actionLabel="Save terms and privacy"
+              idleNote="Changes apply to every domain that uses the server terms."
+              dirty={isDirty(POLICY_KEYS)}
+              saving={policiesStatus.saving}
+              saved={policiesStatus.saved}
+              error={policiesStatus.error}
+              onSave={() => void savePolicies()}
+            />
+          }
+        >
+          {policyFields.map((field) => {
+            const { locked, envVar } = lock(field.key)
+            const helpId = `${field.id}-help`
+            return (
+              <SettingsField
+                key={field.key}
+                className="sm:items-start"
+                label={
+                  locked ? (
+                    <EnvLockLabel envVar={envVar}>{field.label}</EnvLockLabel>
+                  ) : (
+                    field.label
+                  )
+                }
+                htmlFor={field.id}
+              >
+                <div>
+                  <Textarea
+                    id={field.id}
+                    rows={16}
+                    className="font-mono"
+                    aria-describedby={locked ? undefined : helpId}
+                    value={values[field.key] as string}
+                    disabled={locked}
+                    onChange={(event) =>
+                      setValue(field.key, event.target.value)
+                    }
+                  />
+                  {locked ? null : (
+                    <PolicyHelp
+                      id={helpId}
+                      updatedAt={updatedAt[field.key] ?? null}
+                    />
+                  )}
+                  {locked ? (
+                    <Alert
+                      tone="warning"
+                      live={false}
+                      className="mt-3"
+                      title={`Set by ${envVar}.`}
+                    >
+                      Remove the variable to edit it here.
+                    </Alert>
+                  ) : null}
+                </div>
+              </SettingsField>
+            )
+          })}
         </Frame>
       </Section>
 

@@ -1,11 +1,17 @@
 import type { MetadataRoute } from 'next'
 
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { withVersion } from '@/lib/utils/version'
 
-export default function manifest(): MetadataRoute.Manifest {
+// Named after the domain it is fetched from, so an app installed from a
+// served domain carries that domain's name. Reading the request (through
+// `headers()`) keeps the route from being prerendered once with one name.
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const name = getDomainDisplayName(await getVisitedDomainIdentity())
   return {
-    name: 'Activities.next',
-    short_name: 'Activities',
+    name,
+    short_name: name,
     start_url: '/app',
     scope: '/',
     display: 'standalone',

@@ -4,6 +4,7 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { generateRouteAltText } from '@/lib/services/altText/openai'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { getActivityPresentation } from '@/lib/services/fitness-files/activityPresentation'
@@ -289,6 +290,7 @@ const notifyActivityImported = async ({
                 recipientEmail: actor.account.email,
                 ...buildActivityImportEmail({
                   recipient: actor,
+                  brand: await resolveActorEmailBrand(database, actor),
                   status: status as EditableStatus,
                   fitness: fitnessFile ?? undefined,
                   mapImageUrl

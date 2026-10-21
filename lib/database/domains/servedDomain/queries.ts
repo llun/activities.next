@@ -8,6 +8,7 @@ import type {
   DomainCheckResult,
   GetServedDomainParams,
   ServedDomainData,
+  ServedDomainWithPoliciesData,
   UpdateServedDomainParams
 } from '@/lib/database/domains/servedDomain/types'
 import type { Db } from '@/lib/database/kysely'
@@ -47,7 +48,31 @@ const parseCheck = (
   }
 }
 
-const toServedDomain = (row: Selectable<Domains>): ServedDomainData => {
+// Every column but the policy texts: the lists and the served-domain snapshot
+// (reloaded every 30 s) read only these.
+const SERVED_DOMAIN_COLUMNS = [
+  'id',
+  'domain',
+  'status',
+  'name',
+  'description',
+  'contactEmail',
+  'signupsOpen',
+  'allowedEmails',
+  'allowExistingUsers',
+  'lastCheckedAt',
+  'lastCheckStatus',
+  'lastCheckResult',
+  'createdAt',
+  'updatedAt'
+] as const
+
+type ServedDomainRow = Pick<
+  Selectable<Domains>,
+  (typeof SERVED_DOMAIN_COLUMNS)[number]
+>
+
+const toServedDomain = (row: ServedDomainRow): ServedDomainData => {
   const allowedEmails = parseEmails(row.allowedEmails)
   if (!allowedEmails) {
     logger.error({
@@ -60,6 +85,8 @@ const toServedDomain = (row: Selectable<Domains>): ServedDomainData => {
     domain: row.domain,
     status: row.status === 'on' ? 'on' : 'off',
     name: row.name ?? null,
+    description: row.description ?? null,
+    contactEmail: row.contactEmail ?? null,
     signupsOpen: Boolean(allowedEmails && row.signupsOpen),
     allowedEmails,
     allowExistingUsers: Boolean(row.allowExistingUsers),
@@ -74,31 +101,84 @@ const toServedDomain = (row: Selectable<Domains>): ServedDomainData => {
   }
 }
 
+const toDate = (value: number | null | undefined) =>
+  value === null || value === undefined ? null : new Date(value)
+
+// The identity and policy columns a create or update was given, as Kysely
+// values; absent keys are left out so the row keeps what it has.
+const identityValues = ({
+  name,
+  description,
+  contactEmail,
+  termsOfService,
+  termsOfServiceUpdatedAt,
+  privacyPolicy,
+  privacyPolicyUpdatedAt
+}: CreateServedDomainParams | UpdateServedDomainParams) => ({
+  ...(name !== undefined ? { name } : null),
+  ...(description !== undefined ? { description } : null),
+  ...(contactEmail !== undefined ? { contactEmail } : null),
+  ...(termsOfService !== undefined ? { termsOfService } : null),
+  ...(termsOfServiceUpdatedAt !== undefined
+    ? { termsOfServiceUpdatedAt: toDate(termsOfServiceUpdatedAt) }
+    : null),
+  ...(privacyPolicy !== undefined ? { privacyPolicy } : null),
+  ...(privacyPolicyUpdatedAt !== undefined
+    ? { privacyPolicyUpdatedAt: toDate(privacyPolicyUpdatedAt) }
+    : null)
+})
+
 export const getServedDomain = async (
   db: Db,
   { domain }: GetServedDomainParams
 ): Promise<ServedDomainData | null> => {
   const row = await db
     .selectFrom('domains')
-    .selectAll()
+    .select(SERVED_DOMAIN_COLUMNS)
     .where('domain', '=', domain)
     .limit(1)
     .executeTakeFirst()
   return row ? toServedDomain(row) : null
 }
 
+export const getServedDomainWithPolicies = async (
+  db: Db,
+  { domain }: GetServedDomainParams
+): Promise<ServedDomainWithPoliciesData | null> => {
+  const row = await db
+    .selectFrom('domains')
+    .select([
+      ...SERVED_DOMAIN_COLUMNS,
+      'termsOfService',
+      'termsOfServiceUpdatedAt',
+      'privacyPolicy',
+      'privacyPolicyUpdatedAt'
+    ])
+    .where('domain', '=', domain)
+    .limit(1)
+    .executeTakeFirst()
+  if (!row) return null
+  return {
+    ...toServedDomain(row),
+    termsOfService: row.termsOfService ?? null,
+    termsOfServiceUpdatedAt: row.termsOfServiceUpdatedAt ?? null,
+    privacyPolicy: row.privacyPolicy ?? null,
+    privacyPolicyUpdatedAt: row.privacyPolicyUpdatedAt ?? null
+  }
+}
+
 export const createServedDomain = async (
   db: Db,
-  {
+  params: CreateServedDomainParams
+): Promise<ServedDomainData> => {
+  const {
     domain,
     status = 'off',
-    name = null,
     signupsOpen = false,
     allowedEmails = [],
     allowExistingUsers = false,
     check = null
-  }: CreateServedDomainParams
-): Promise<ServedDomainData> => {
+  } = params
   const currentTime = new Date()
   await db
     .insertInto('domains')
@@ -106,7 +186,8 @@ export const createServedDomain = async (
       id: randomUUID(),
       domain,
       status,
-      name,
+      name: null,
+      ...identityValues(params),
       signupsOpen,
       allowedEmails: JSON.stringify(allowedEmails),
       allowExistingUsers,
@@ -124,22 +205,22 @@ export const createServedDomain = async (
 
 export const updateServedDomain = async (
   db: Db,
-  {
+  params: UpdateServedDomainParams
+): Promise<ServedDomainData | null> => {
+  const {
     domain,
     status,
-    name,
     signupsOpen,
     allowedEmails,
     allowExistingUsers,
     check
-  }: UpdateServedDomainParams
-): Promise<ServedDomainData | null> => {
+  } = params
   const currentTime = new Date()
   const { numUpdatedRows } = await db
     .updateTable('domains')
     .set({
       ...(status !== undefined ? { status } : null),
-      ...(name !== undefined ? { name } : null),
+      ...identityValues(params),
       ...(signupsOpen !== undefined ? { signupsOpen } : null),
       ...(allowedEmails !== undefined
         ? { allowedEmails: JSON.stringify(allowedEmails) }
@@ -163,7 +244,7 @@ export const updateServedDomain = async (
 export const getServedDomains = async (db: Db): Promise<ServedDomainData[]> => {
   const rows = await db
     .selectFrom('domains')
-    .selectAll()
+    .select(SERVED_DOMAIN_COLUMNS)
     .orderBy('domain', 'asc')
     .execute()
   return rows.map(toServedDomain)
@@ -174,7 +255,7 @@ export const getActiveServedDomains = async (
 ): Promise<ServedDomainData[]> => {
   const rows = await db
     .selectFrom('domains')
-    .selectAll()
+    .select(SERVED_DOMAIN_COLUMNS)
     .where('status', '=', 'on')
     .orderBy('domain', 'asc')
     .execute()
@@ -216,6 +297,7 @@ export const servedDomainQueries = {
   createServedDomain,
   updateServedDomain,
   getServedDomain,
+  getServedDomainWithPolicies,
   getServedDomains,
   getActiveServedDomains,
   deleteServedDomain,

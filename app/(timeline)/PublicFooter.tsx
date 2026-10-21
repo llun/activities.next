@@ -1,12 +1,15 @@
 import Image from 'next/image'
-import { FC } from 'react'
+import Link from 'next/link'
 
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getBrandAssetSrc } from '@/lib/utils/getBrandAssetSrc'
 
 // Public footer shown to logged-out visitors, matching the web-public design:
-// a single bordered card with the brand line and a link to the project source.
-// About/Privacy are omitted since the app has no such pages.
-export const PublicFooter: FC = () => {
+// a single bordered card with the brand line, the visited domain's terms of
+// service and privacy policy (each only when it has one) and a link to the
+// project source. There is no About page.
+export const PublicFooter = async () => {
+  const identity = await getVisitedDomainIdentity()
   // Absolute URL on the configured host (ACTIVITIES_HOST) so the logo resolves
   // against the canonical origin even when served behind a CDN on an alias
   // domain, where a root-relative `/logo-nav.png` may be redirected away. In
@@ -33,14 +36,29 @@ export const PublicFooter: FC = () => {
               — a self-hosted social + fitness server on the Fediverse.
             </span>
           </div>
-          <a
-            href="https://github.com/llun/activities.next"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground"
+          <nav
+            aria-label="Footer"
+            className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1"
           >
-            Source
-          </a>
+            {identity.termsOfService ? (
+              <Link href="/terms-of-service" className="hover:text-foreground">
+                Terms
+              </Link>
+            ) : null}
+            {identity.privacyPolicy ? (
+              <Link href="/privacy-policy" className="hover:text-foreground">
+                Privacy
+              </Link>
+            ) : null}
+            <a
+              href="https://github.com/llun/activities.next"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground"
+            >
+              Source
+            </a>
+          </nav>
         </div>
       </div>
     </footer>

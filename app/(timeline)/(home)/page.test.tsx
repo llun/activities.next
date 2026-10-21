@@ -49,6 +49,20 @@ vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
   }))
 }))
 
+// The landing names the domain it is visited on; answer for the primary,
+// named in Admin › Instance (not ACTIVITIES_SERVICE_NAME, see getConfig below).
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: vi.fn(async () => ({
+    domain: 'test.llun.dev',
+    source: 'primary',
+    name: 'Llun Social',
+    description: '',
+    contactEmail: '',
+    termsOfService: null,
+    privacyPolicy: null
+  }))
+}))
+
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
     error: (...args: unknown[]) => mockLoggerError(...args),
@@ -170,7 +184,7 @@ describe('(timeline)/(home) page', () => {
 
     expect(landing).not.toBeNull()
     expect(landing?.props.host).toBe('llun.social')
-    expect(landing?.props.serviceName).toBe('Activities')
+    expect(landing?.props.serviceName).toBe('Llun Social')
     expect(landing?.props.signupOpen).toBe(true)
     expect(landing?.props.statuses).toHaveLength(1)
     expect(mockGetFilteredStatusPage).toHaveBeenCalledWith(

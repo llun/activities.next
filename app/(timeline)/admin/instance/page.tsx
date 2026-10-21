@@ -16,8 +16,14 @@ const Page = async () => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  const { settings, locks } = await getServerSettingsView(database)
-  return <InstanceSettingsForm settings={settings} locks={locks} />
+  const { settings, locks, updatedAt } = await getServerSettingsView(database)
+  return (
+    <InstanceSettingsForm
+      settings={settings}
+      locks={locks}
+      updatedAt={updatedAt}
+    />
+  )
 }
 
 export default Page

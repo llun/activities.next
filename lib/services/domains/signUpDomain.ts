@@ -28,7 +28,9 @@ import { ensureServedDomainsFresh } from './servedDomainSnapshot'
 export type SignUpDomain = {
   // The normalised authority the first actor is created on.
   domain: string
-  // What the sign-up page calls the domain: its name, else the domain.
+  // What the sign-up page calls the domain: the visited domain's identity
+  // name (`resolveDomainIdentity`: its own name while its row is usable, else
+  // the server's), else the domain.
   displayName: string
   source: 'primary' | 'env' | 'database' | 'other'
   open: boolean
@@ -57,13 +59,18 @@ export const resolveSignUpDomain = async (
     }
   }
 
-  const row = await database.getServedDomain({ domain })
-  // An env domain's row only holds its sign-up settings (it is stored off);
-  // a row an admin added counts only while it is on.
+  const [row, settings] = await Promise.all([
+    database.getServedDomain({ domain }),
+    getResolvedServerSettings(database)
+  ])
+  // An env domain's row is stored off (its trust comes from the env); a row
+  // an admin added counts only while it is on.
   const usable = row && (kind === 'env' || row.status === 'on')
   return {
     domain,
-    displayName: row?.name || domain,
+    // The identity name, from the row this read already has (the same
+    // usable-row rule as resolveDomainIdentity).
+    displayName: (usable && row.name) || settings.instance.name || domain,
     source: kind === 'env' ? 'env' : row ? 'database' : 'other',
     open: Boolean(usable && row.signupsOpen),
     // An unreadable list leaves `open` false, so empty refuses everyone.

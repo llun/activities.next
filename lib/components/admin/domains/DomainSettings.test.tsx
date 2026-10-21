@@ -5,13 +5,18 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { MockInstance } from 'vitest'
 
-import type { AdminDomain } from '@/lib/services/domains/adminDomainTypes'
+import type {
+  AdminDomainDetail,
+  ServerIdentityView
+} from '@/lib/services/domains/adminDomainTypes'
 import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { DomainSettings } from './DomainSettings'
 
 const mockUpdate = vi.fn()
+const mockIdentity = vi.fn()
+const mockPolicies = vi.fn()
 const mockSetStatus = vi.fn()
 const mockCheck = vi.fn()
 const mockRemove = vi.fn()
@@ -23,6 +28,8 @@ vi.mock('@/lib/client', async () => {
   >('@/lib/client/adminDomains')
   return {
     AdminDomainRequestError: actual.AdminDomainRequestError,
+    updateAdminDomainIdentity: (...args: unknown[]) => mockIdentity(...args),
+    updateAdminDomainPolicies: (...args: unknown[]) => mockPolicies(...args),
     updateAdminDomainRegistrations: (...args: unknown[]) => mockUpdate(...args),
     setAdminDomainStatus: (...args: unknown[]) => mockSetStatus(...args),
     checkAdminDomain: (...args: unknown[]) => mockCheck(...args),
@@ -49,10 +56,16 @@ vi.mock('@/lib/components/page-header', () => ({
   )
 }))
 
-const RUN: AdminDomain = {
+const RUN: AdminDomainDetail = {
   domain: 'run.example',
   source: 'database',
   name: null,
+  description: null,
+  contactEmail: null,
+  termsOfService: null,
+  privacyPolicy: null,
+  termsOfServiceUpdatedAt: null,
+  privacyPolicyUpdatedAt: null,
   status: 'on',
   profiles: 34,
   signupsOpen: true,
@@ -70,12 +83,29 @@ const RUN: AdminDomain = {
   }
 }
 
-const renderPage = (domain: AdminDomain) =>
-  render(<DomainSettings domain={domain} primaryDomain="social.example" />)
+const SERVER: ServerIdentityView = {
+  name: 'Activities',
+  description: 'Posts from the server.',
+  contactEmail: 'hello@social.example',
+  contactAccount: '@llun@social.example',
+  terms: { set: true, updatedAt: Date.UTC(2026, 9, 12, 12) },
+  privacy: { set: false, updatedAt: null }
+}
+
+const renderPage = (domain: AdminDomainDetail) =>
+  render(
+    <DomainSettings
+      domain={domain}
+      primaryDomain="social.example"
+      server={SERVER}
+    />
+  )
 
 describe('DomainSettings', () => {
   beforeEach(() => {
     mockUpdate.mockReset()
+    mockIdentity.mockReset()
+    mockPolicies.mockReset()
     mockSetStatus.mockReset()
     mockCheck.mockReset()
     mockRemove.mockReset()
@@ -140,10 +170,11 @@ describe('DomainSettings', () => {
 
   it('sends the primary to Instance and says it cannot be turned off', () => {
     renderPage({ ...RUN, domain: 'social.example', source: 'primary' })
-    expect(screen.getByRole('link', { name: 'Open Instance' })).toHaveAttribute(
-      'href',
-      '/admin/instance'
-    )
+    for (const link of screen.getAllByRole('link', {
+      name: 'Open Instance'
+    })) {
+      expect(link).toHaveAttribute('href', '/admin/instance')
+    }
     expect(
       screen.getByText(
         'The primary domain, social.example, can’t be turned off.'
@@ -175,7 +206,7 @@ describe('DomainSettings', () => {
   it('shows the failed check when turning on is refused', async () => {
     const { AdminDomainRequestError } =
       await import('@/lib/client/adminDomains')
-    const failed: AdminDomain = {
+    const failed: AdminDomainDetail = {
       ...RUN,
       status: 'off',
       lastCheck: {
@@ -266,6 +297,221 @@ describe('DomainSettings', () => {
     await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2))
   })
 
+  describe('Identity', () => {
+    const OWN: AdminDomainDetail = {
+      ...RUN,
+      name: 'Run Club',
+      description: 'Runners.',
+      contactEmail: 'hello@run.example'
+    }
+
+    it('shows the server values disabled while "Same as server" is on', () => {
+      renderPage(RUN)
+      expect(
+        screen.getByText(
+          'What visitors to run.example see as the name of this server.'
+        )
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Name')).toHaveValue('Activities')
+      expect(screen.getByLabelText('Name')).toBeDisabled()
+      expect(screen.getByLabelText('Contact email')).toHaveValue(
+        'hello@social.example'
+      )
+      expect(screen.getByText('@llun@social.example')).toBeInTheDocument()
+      expect(screen.getByText('Same for every domain.')).toBeInTheDocument()
+      expect(
+        screen.getAllByText('Changes apply to run.example only.')
+      ).toHaveLength(2)
+      expect(
+        screen.getByRole('button', { name: 'Save identity' })
+      ).toBeDisabled()
+    })
+
+    it('keeps the draft text when the switch is toggled', () => {
+      renderPage(OWN)
+      const name = screen.getByLabelText('Name')
+      fireEvent.change(name, { target: { value: 'Run Crew' } })
+      const same = screen.getByRole('switch', {
+        name: 'Name: Same as server'
+      })
+      fireEvent.click(same)
+      expect(screen.getByLabelText('Name')).toHaveValue('Activities')
+      expect(screen.getByLabelText('Name')).toBeDisabled()
+      fireEvent.click(same)
+      expect(screen.getByLabelText('Name')).toHaveValue('Run Crew')
+    })
+
+    it('blocks a blank override and says why', () => {
+      renderPage(RUN)
+      fireEvent.click(
+        screen.getByRole('switch', { name: 'Name: Same as server' })
+      )
+      expect(screen.getByLabelText('Name')).toHaveValue('')
+      expect(
+        screen.getByRole('button', { name: 'Save identity' })
+      ).toBeDisabled()
+      expect(
+        screen.getByText(/Enter a value or use Same as server/)
+      ).toBeInTheDocument()
+    })
+
+    it('saves trimmed text and null for Same as server', async () => {
+      mockIdentity.mockImplementation(async (_domain, values) => ({
+        ...RUN,
+        ...values
+      }))
+      renderPage(RUN)
+      fireEvent.click(
+        screen.getByRole('switch', { name: 'Name: Same as server' })
+      )
+      fireEvent.change(screen.getByLabelText('Name'), {
+        target: { value: '  Run Club ' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save identity' }))
+      await waitFor(() =>
+        expect(mockIdentity).toHaveBeenCalledWith('run.example', {
+          name: 'Run Club',
+          description: null,
+          contactEmail: null
+        })
+      )
+      expect(await screen.findByText('Saved')).toBeInTheDocument()
+    })
+
+    it('sends null for a field that is switched back to Same as server', async () => {
+      mockIdentity.mockImplementation(async (_domain, values) => ({
+        ...OWN,
+        ...values
+      }))
+      renderPage(OWN)
+      fireEvent.click(
+        screen.getByRole('switch', { name: 'Description: Same as server' })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Save identity' }))
+      await waitFor(() =>
+        expect(mockIdentity).toHaveBeenCalledWith('run.example', {
+          name: 'Run Club',
+          description: null,
+          contactEmail: 'hello@run.example'
+        })
+      )
+    })
+  })
+
+  describe('Terms and privacy', () => {
+    it('says what the server has and links to Instance', () => {
+      renderPage(RUN)
+      expect(
+        screen.getByText(
+          'Shown on run.example/terms-of-service and run.example/privacy-policy and linked from sign-up.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (_, el) =>
+            el?.tagName === 'P' &&
+            el.textContent ===
+              'Using the server terms of service. Last updated 12 Oct 2026. Edit on Instance'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/The server has no privacy policy\./)
+      ).toBeInTheDocument()
+      expect(
+        screen.getAllByRole('link', { name: 'Edit on Instance' })
+      ).toHaveLength(2)
+      expect(
+        screen.getByRole('button', { name: 'Save policies' })
+      ).toBeDisabled()
+    })
+
+    it('keeps the draft text when the switch is toggled', () => {
+      renderPage({ ...RUN, termsOfService: '# Own terms' })
+      const textarea = screen.getByLabelText('Terms of service')
+      fireEvent.change(textarea, { target: { value: '# Edited' } })
+      const same = screen.getByRole('switch', {
+        name: 'Terms of service: Same as server'
+      })
+      fireEvent.click(same)
+      expect(screen.queryByLabelText('Terms of service')).toBeNull()
+      fireEvent.click(same)
+      expect(screen.getByLabelText('Terms of service')).toHaveValue('# Edited')
+    })
+
+    it('blocks a blank override', () => {
+      renderPage(RUN)
+      fireEvent.click(
+        screen.getByRole('switch', { name: 'Privacy policy: Same as server' })
+      )
+      expect(
+        screen.getByRole('button', { name: 'Save policies' })
+      ).toBeDisabled()
+      expect(
+        screen.getByText(/Enter a value or use Same as server/)
+      ).toBeInTheDocument()
+    })
+
+    it('saves its own text and null for the other policy', async () => {
+      mockPolicies.mockImplementation(async (_domain, values) => ({
+        ...RUN,
+        ...values,
+        termsOfServiceUpdatedAt: Date.UTC(2026, 9, 20, 12)
+      }))
+      renderPage(RUN)
+      fireEvent.click(
+        screen.getByRole('switch', { name: 'Terms of service: Same as server' })
+      )
+      fireEvent.change(screen.getByLabelText('Terms of service'), {
+        target: { value: '# Terms' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save policies' }))
+      await waitFor(() =>
+        expect(mockPolicies).toHaveBeenCalledWith('run.example', {
+          termsOfService: '# Terms',
+          privacyPolicy: null
+        })
+      )
+      expect(await screen.findByText('Saved')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (_, el) =>
+            el?.tagName === 'P' &&
+            el.textContent === 'Markdown. Last updated 20 Oct 2026.'
+        )
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('primary domain', () => {
+    const PRIMARY: AdminDomainDetail = {
+      ...RUN,
+      domain: 'social.example',
+      source: 'primary'
+    }
+
+    it('shows an info alert above read-only boxes with no save bars', () => {
+      renderPage(PRIMARY)
+      const alert = screen.getByText(
+        'The primary domain uses the server’s identity, terms and privacy.'
+      )
+      expect(
+        screen.getByText('Edit them on Admin › Instance.')
+      ).toBeInTheDocument()
+      const identity = screen.getByRole('heading', { name: 'Identity' })
+      expect(
+        alert.compareDocumentPosition(identity) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(screen.getByLabelText('Name')).toBeDisabled()
+      expect(screen.getByLabelText('Name')).toHaveValue('Activities')
+      expect(
+        screen.queryByRole('switch', { name: /Same as server/ })
+      ).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Save identity' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Save policies' })).toBeNull()
+    })
+  })
+
   // The last check ran at midnight UTC on 18 Oct, 8 PM on 17 Oct in New York.
   it('hydrates the server-rendered UTC check time without a mismatch, then shows local time', async () => {
     await withTimeZone('America/New_York', async () => {
@@ -274,7 +520,11 @@ describe('DomainSettings', () => {
       try {
         consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
         hydrated = await hydrateServerHtml(
-          <DomainSettings domain={RUN} primaryDomain="social.example" />
+          <DomainSettings
+            domain={RUN}
+            primaryDomain="social.example"
+            server={SERVER}
+          />
         )
 
         expect(hydrated.serverHtml).toContain('Oct 18, 2026, 12:00 AM')

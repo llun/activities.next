@@ -232,6 +232,7 @@ export const POST = traceApiRoute(
       const recipient = newEmail ?? account.email
       try {
         await sendConfirmationEmail({
+          database,
           recipient,
           verificationCode,
           actorDomain: currentActor.domain

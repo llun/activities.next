@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   getShortName,
   toQuoteAuthor
@@ -23,16 +23,20 @@ export interface LikeEmailParams {
   /** Who liked it. */
   actor: ActorProfile
   status: EditableStatus
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /** Someone liked your post. The quote block shows the recipient's own post. */
 export const buildLikeEmail = ({
   recipient,
   actor,
-  status
+  status,
+  brand
 }: LikeEmailParams): RenderedEmail =>
   renderEmail({
-    subject: `@${actor.username} liked your post in ${getConfig().host}`,
+    brand,
+    subject: `@${actor.username} liked your post in ${brandHost(brand)}`,
     preheader: `${getShortName(actor)} liked your post.`,
     blocks: [
       headline(`${getShortName(actor)} liked your post`),
@@ -41,9 +45,9 @@ export const buildLikeEmail = ({
         // The recipient wrote the post being liked, so quote them — falling
         // back to the recipient when the status carries no actor.
         author: toQuoteAuthor(status.actor ?? recipient),
-        body: getStatusBody(status)
+        body: getStatusBody(status, brand)
       }),
-      button({ label: 'View post', url: getEmailStatusUrl(status) })
+      button({ label: 'View post', url: getEmailStatusUrl(status, brand) })
     ],
     footer: {
       kind: 'notification',

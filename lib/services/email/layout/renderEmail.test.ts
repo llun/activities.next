@@ -138,3 +138,36 @@ describe('renderEmail footer', () => {
     expect(html).not.toContain('<script')
   })
 })
+
+describe('renderEmail brand', () => {
+  const brand = { name: 'Acme <Social>', domain: 'acme.example' }
+
+  it('shows the brand name as the wordmark, escaped', () => {
+    const { html } = render({ brand })
+    expect(html).toContain('>Acme &lt;Social&gt;</td>')
+    expect(html).not.toContain('>Activities</td>')
+  })
+
+  it('names the brand domain in the header, logo and footer link', () => {
+    const { html } = render({ brand })
+    expect(html).toContain('>acme.example</td>')
+    expect(html).toContain('<img src="https://acme.example/logo-nav.png"')
+    expect(html).toContain('href="https://acme.example"')
+    expect(html).not.toContain(HOST)
+  })
+
+  it('builds the notification settings link on the brand domain', () => {
+    const { html, text } = render({
+      brand,
+      footer: { kind: 'notification', eventLabel: 'likes', handle: '@a@b' }
+    })
+    expect(html).toContain('https://acme.example/settings/notifications')
+    expect(text).toContain('https://acme.example/settings/notifications')
+  })
+
+  it('keeps the Activities wordmark and primary host without a brand', () => {
+    const { html } = render()
+    expect(html).toContain('>Activities</td>')
+    expect(html).toContain(`>${HOST}</td>`)
+  })
+})

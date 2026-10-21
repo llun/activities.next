@@ -1,9 +1,25 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { VERSION } from '@/lib/utils/version'
 
 import RootLayout from './layout'
-import { metadata, viewport } from './layout'
+import { generateMetadata, viewport } from './layout'
+
+// The titles name the domain the page is visited on.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: vi.fn()
+}))
+
+const anIdentity = (domain: string, name: string) => ({
+  domain,
+  source: 'database' as const,
+  name,
+  description: '',
+  contactEmail: '',
+  termsOfService: null,
+  privacyPolicy: null
+})
 
 vi.mock('@/lib/components/navigation-history/InAppHistoryTracker', () => ({
   InAppHistoryTracker: () => <span data-testid="in-app-history-tracker" />
@@ -50,19 +66,68 @@ describe('RootLayout web vitals', () => {
   })
 })
 
-describe('metadata', () => {
-  // Pages name only themselves; the app name follows, so a narrow tab still
-  // leads with the page ("Timeline · Activities.next").
-  it('appends the app name to every page title', () => {
-    expect(metadata.title).toEqual({
-      default: 'Activities.next',
-      template: '%s · Activities.next'
-    })
+describe('generateMetadata', () => {
+  beforeEach(() => {
+    vi.mocked(getVisitedDomainIdentity).mockReset()
+    vi.mocked(getVisitedDomainIdentity).mockResolvedValue(
+      anIdentity('test.llun.dev', 'Activities.next')
+    )
   })
 
-  it('exports versioned favicon and app icons to invalidate caches', () => {
+  // Pages name only themselves; the domain's name follows, so a narrow tab
+  // still leads with the page ("Timeline · Run Club").
+  it.each([
+    {
+      description: 'the primary, named in Admin › Instance',
+      identity: anIdentity('test.llun.dev', 'Activities.next'),
+      expected: 'Activities.next'
+    },
+    {
+      description: 'a served domain with its own name',
+      identity: anIdentity('run.example', 'Run Club'),
+      expected: 'Run Club'
+    },
+    {
+      description: 'a domain with a blank name, after the domain',
+      identity: anIdentity('run.example', ''),
+      expected: 'run.example'
+    }
+  ])(
+    'appends the name of $description to every page title',
+    async ({ identity, expected }) => {
+      vi.mocked(getVisitedDomainIdentity).mockResolvedValue(identity)
+
+      const metadata = await generateMetadata()
+
+      expect(metadata.title).toEqual({
+        default: expected,
+        template: `%s · ${expected}`
+      })
+    }
+  )
+
+  it('keeps a literal %s in the name out of the title template', async () => {
+    vi.mocked(getVisitedDomainIdentity).mockResolvedValue(
+      anIdentity('run.example', '100%s Club')
+    )
+
+    const { title } = await generateMetadata()
+    const { template } = title as { template: string }
+
+    // Next fills the template with `template.replace(/%s/g, pageTitle)`.
+    expect(template.replace(/%s/g, 'Timeline')).toBe(
+      'Timeline · 100%\u200Bs Club'
+    )
+    expect(title).toMatchObject({ default: '100%s Club' })
+  })
+
+  it('links the web app manifest', async () => {
+    expect((await generateMetadata()).manifest).toBe('/manifest.webmanifest')
+  })
+
+  it('exports versioned favicon and app icons to invalidate caches', async () => {
     const v = encodeURIComponent(VERSION)
-    expect(metadata.icons).toEqual({
+    expect((await generateMetadata()).icons).toEqual({
       icon: [
         { url: `/favicon.ico?v=${v}`, sizes: 'any' },
         { url: `/icon-192.png?v=${v}`, sizes: '192x192', type: 'image/png' }

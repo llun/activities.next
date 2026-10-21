@@ -43,7 +43,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@activities/resend@workspace:packages/resend"
   dependencies:
-    resend: "npm:^6.33.0"
+    resend: "npm:^6.34.1"
   languageName: unknown
   linkType: soft
 
@@ -3797,10 +3797,10 @@ __metadata:
     jose: "npm:^6.2.12"
     jsdom: "npm:^30.1.3"
     jsonld: "npm:^9.0.0"
-    kysely: "npm:0.29.6"
+    kysely: "npm:0.29.7"
     lint-staged: "npm:^17.6.0"
     lodash: "npm:^4.18.1"
-    lucide-react: "npm:1.58.0"
+    lucide-react: "npm:1.59.0"
     marked: "npm:^18.1.1"
     mime-types: "npm:^3.0.2"
     next: "npm:16.4.2"
@@ -5457,7 +5457,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kysely@npm:0.29.6, kysely@npm:^0.28.17 || ^0.29.0":
+"kysely@npm:0.29.7":
+  version: 0.29.7
+  resolution: "kysely@npm:0.29.7"
+  checksum: 10c0/a034c3ef7f965220e2ff314bf3d5caa9805509b51282fd9149bad82cfddf6aae3863fe6e536933c7ca41785cd8da72d7311376f7ab0de0b98a93beec49796f4d
+  languageName: node
+  linkType: hard
+
+"kysely@npm:^0.28.17 || ^0.29.0":
   version: 0.29.6
   resolution: "kysely@npm:0.29.6"
   checksum: 10c0/262a2111944cc82dcb10e840fef4e374467abe0d6aa9c1272df2ca6199155c59bb0f3ca17f856c20b719cbdd5d2e641d3464faeab409680098dc35b514119798
@@ -5808,16 +5815,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:1.58.0":
-  version: 1.58.0
-  resolution: "lucide-react@npm:1.58.0"
+"lucide-react@npm:1.59.0":
+  version: 1.59.0
+  resolution: "lucide-react@npm:1.59.0"
   peerDependencies:
     "@types/react": "*"
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/2206d52aef1224292bf41285b7c1d224e3718bc9bbb1ae57fbaba346ec7600793b594730288ed065aa3165c98966bee275c8765ab1802620867a18787bfdf20c
+  checksum: 10c0/e02dbdda8a9689527988ffb8ed7f01675755146ee7abfebbbe46b843fbc477f23dc0a4524fe257d0daa3d8eb3289a46f8bdce4a1dcbbdeeab5d158bfa68842c4
   languageName: node
   linkType: hard
 
@@ -7029,9 +7036,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resend@npm:^6.33.0":
-  version: 6.33.0
-  resolution: "resend@npm:6.33.0"
+"resend@npm:^6.34.1":
+  version: 6.34.1
+  resolution: "resend@npm:6.34.1"
   dependencies:
     postal-mime: "npm:2.7.6"
     standardwebhooks: "npm:1.1.1"
@@ -7040,7 +7047,7 @@ __metadata:
   peerDependenciesMeta:
     "@react-email/render":
       optional: true
-  checksum: 10c0/1b9e90c9ae86cd91017e0ad2afae18377bceccb710904026ca8eb43cd17c6fbb2c4d8d25263d1a2ec6e2701eb1318a7a8056bd2b1e21207d0da6ae6e5514571a
+  checksum: 10c0/f53cc2f4f1bc999c632b258149b6d0fabacd110b1d604cf0d973f20c68a9e4c4597c45954340418adf3c074459bb0ca17782933dbf52b4db87c55833a2774f80
   languageName: node
   linkType: hard
 

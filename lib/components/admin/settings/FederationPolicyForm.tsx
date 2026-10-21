@@ -29,10 +29,13 @@ export const FederationPolicyForm: FC<FederationPolicyFormProps> = ({
   mediaDomains
 }) => {
   const { values, setValue, isDirty, statusFor, saveSection } =
-    useServerSettingsForm({
-      'federation.mode': settings.federation.mode,
-      'federation.allowActorDomains': settings.federation.allowActorDomains
-    })
+    useServerSettingsForm(
+      {
+        'federation.mode': settings.federation.mode,
+        'federation.allowActorDomains': settings.federation.allowActorDomains
+      },
+      locks
+    )
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const status = statusFor('federation')

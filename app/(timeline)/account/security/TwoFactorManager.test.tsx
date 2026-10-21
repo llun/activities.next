@@ -63,7 +63,7 @@ describe('TwoFactorManager', () => {
   })
 
   it('shows the off state as a line in one form box, with Set up in its footer', () => {
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={false} issuer="Activities" />)
 
     const frame = screen
       .getByText('Two-factor authentication is off.')
@@ -80,7 +80,7 @@ describe('TwoFactorManager', () => {
   })
 
   it('reaches the password field before the Set up button', () => {
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={false} issuer="Activities" />)
 
     const password = screen.getByLabelText('Current password')
     const setUp = screen.getByRole('button', { name: 'Set up' })
@@ -93,7 +93,7 @@ describe('TwoFactorManager', () => {
   })
 
   it('names each password field by its own row, not two fields "Current password"', () => {
-    render(<TwoFactorManager enabled serviceName="Activities" />)
+    render(<TwoFactorManager enabled issuer="Activities" />)
 
     expect(screen.queryByLabelText('Current password')).toBeNull()
     expect(screen.getByLabelText('Generate backup codes')).toHaveAttribute(
@@ -111,16 +111,16 @@ describe('TwoFactorManager', () => {
 
   it('does not announce the standing on/off state as an alert', () => {
     const { rerender } = render(
-      <TwoFactorManager enabled={false} serviceName="Activities" />
+      <TwoFactorManager enabled={false} issuer="Activities" />
     )
     expect(screen.queryByRole('alert')).toBeNull()
 
-    rerender(<TwoFactorManager enabled serviceName="Activities" />)
+    rerender(<TwoFactorManager enabled issuer="Activities" />)
     expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('asks for the current password when Set up is pressed without one', async () => {
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={false} issuer="Activities" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
 
@@ -131,7 +131,7 @@ describe('TwoFactorManager', () => {
   })
 
   it('shows the on state as a success alert, with no Set up action', () => {
-    render(<TwoFactorManager enabled serviceName="Activities" />)
+    render(<TwoFactorManager enabled issuer="Activities" />)
 
     const alert = screen
       .getByText('Two-factor authentication is on')
@@ -152,7 +152,7 @@ describe('TwoFactorManager', () => {
       }
     })
 
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={false} issuer="Activities" />)
 
     fireEvent.change(screen.getByLabelText('Current password'), {
       target: { value: 'password' }
@@ -190,7 +190,7 @@ describe('TwoFactorManager', () => {
     })
     mockVerifyTotp.mockResolvedValue({ data: { token: 'token' } })
 
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={false} issuer="Activities" />)
 
     fireEvent.change(screen.getByLabelText('Current password'), {
       target: { value: 'password' }
@@ -226,7 +226,7 @@ describe('TwoFactorManager', () => {
   ])('shows an error when setup response $description', async ({ data }) => {
     mockEnable.mockResolvedValue({ data })
 
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={false} issuer="Activities" />)
 
     fireEvent.change(screen.getByLabelText('Current password'), {
       target: { value: 'password' }
@@ -240,7 +240,7 @@ describe('TwoFactorManager', () => {
   it('disables 2FA after confirming the current password', async () => {
     mockDisable.mockResolvedValue({ data: { success: true } })
 
-    render(<TwoFactorManager enabled={true} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={true} issuer="Activities" />)
 
     fireEvent.change(
       screen.getByLabelText('Disable 2FA', {
@@ -269,7 +269,7 @@ describe('TwoFactorManager', () => {
       data: { backupCodes: ['new-backup-one', 'new-backup-two'] }
     })
 
-    render(<TwoFactorManager enabled={true} serviceName="Activities" />)
+    render(<TwoFactorManager enabled={true} issuer="Activities" />)
 
     fireEvent.change(
       screen.getByLabelText('Generate backup codes', {

@@ -36,10 +36,16 @@ vi.mock('@/lib/config', () => ({ getBaseURL: () => 'https://llun.test' }))
 vi.mock('@/lib/config/mapProvider', () => ({
   getPublicMapProvider: () => ({ type: 'osm' })
 }))
-vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: async () => ({
-    instance: { name: 'llun.social' },
-    registrations: { open: true }
+// The card is named after the visited domain (see getVisitedDomainIdentity).
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: async () => ({
+    domain: 'llun.test',
+    source: 'primary',
+    name: 'llun.social',
+    description: '',
+    contactEmail: '',
+    termsOfService: null,
+    privacyPolicy: null
   })
 }))
 vi.mock('./SharedHeatmapPage', () => ({

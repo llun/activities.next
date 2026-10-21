@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveSignUpOpenSafely } from '@/lib/services/domains/signUpDomain'
 import { headerHost } from '@/lib/services/guards/headerHost'
@@ -53,24 +54,25 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
       })
     }
   }
-  const [stats, contactAccount, serverSettings, signUpOpen] = await Promise.all(
-    [
+  const [stats, contactAccount, serverSettings, signUpOpen, identity] =
+    await Promise.all([
       getInstanceStats(database, domain),
       getInstanceContactAccount(database),
       getResolvedServerSettings(database),
       // Sign-ups on the domain this request arrived on.
-      resolveSignUpOpenSafely(database, domain)
-    ]
-  )
+      resolveSignUpOpenSafely(database, domain),
+      // Its name, description, contact email and policies.
+      resolveDomainIdentity(database, domain)
+    ])
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
     data: {
       domain,
-      title: serverSettings.instance.name,
+      title: identity.name,
       version: VERSION,
       source_url: 'https://github.com/llun/activities.next',
-      description: serverSettings.instance.description,
+      description: identity.description,
       usage: {
         users: {
           active_month: stats.activeMonth
@@ -95,8 +97,17 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         // No streaming API: keep the documented key present but empty so
         // JS clients treat it as falsy and fall back to REST polling instead
         // of opening a WebSocket that would fail.
+        // Mastodon 4.4's REST::InstanceSerializer also lists the policy
+        // pages here: terms_of_service is null when there are none, and so
+        // is privacy_policy on this server, which has no bundled default.
         urls: {
-          streaming: ''
+          streaming: '',
+          terms_of_service: identity.termsOfService
+            ? `${baseUrl}/terms-of-service`
+            : null,
+          privacy_policy: identity.privacyPolicy
+            ? `${baseUrl}/privacy-policy`
+            : null
         },
         vapid: {
           public_key: config.push?.vapidPublicKey ?? ''
@@ -136,9 +147,7 @@ export const GET = traceApiRoute('getInstanceV2', async (req: NextRequest) => {
         url: null
       },
       contact: {
-        email:
-          serverSettings.instance.contactEmail ||
-          getInstanceContactEmail(config),
+        email: identity.contactEmail || getInstanceContactEmail(config),
         account: contactAccount
       },
       rules: rules.map((rule): Rule => ({
