@@ -725,8 +725,10 @@ export function Sidebar({
                         it back. Radix swallows Tab inside its menu and only moves
                         focus between registered items, so anything else here (a
                         plain link, a button inside a row) is unreachable from the
-                        keyboard. The restore item is hidden until its row is
-                        hovered or focused, exactly like the sidebar's. */}
+                        keyboard. The restore item is an icon laid over the
+                        row's right end, hidden until the row is hovered or
+                        focused, exactly like the sidebar's, so each row is as
+                        tall as any other menu row. */}
                     <DropdownMenuContent
                       side="right"
                       align="start"
@@ -735,13 +737,13 @@ export function Sidebar({
                       {more.map((item) => {
                         const isActive = isItemActive(item.href)
                         return (
-                          <div key={item.id} className="group">
+                          <div key={item.id} className="group relative">
                             <DropdownMenuItem asChild>
                               <Link
                                 href={item.href}
                                 aria-current={isActive ? 'page' : undefined}
                                 className={cn(
-                                  'flex items-center gap-2.5',
+                                  'flex items-center gap-2.5 pr-10',
                                   isActive && 'text-primary-text'
                                 )}
                               >
@@ -775,16 +777,19 @@ export function Sidebar({
                                 showItem(item.id)
                               }}
                               className={cn(
-                                'gap-2.5 pl-8 text-xs text-muted-foreground',
+                                'absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 justify-center rounded-md p-0',
+                                // On touch the eye takes the row's whole height
+                                // and the link's right padding, so a near miss
+                                // restores instead of navigating away.
+                                'pointer-coarse:right-0 pointer-coarse:h-8 pointer-coarse:w-10',
                                 // Radix marks the keyboard-focused item with
                                 // data-highlighted rather than :focus-visible, so
-                                // arrowing onto it is what reveals it.
-                                'opacity-0 transition-opacity group-hover:opacity-100 data-[highlighted]:opacity-100',
+                                // arrowing onto the row or the eye reveals it.
+                                'opacity-0 transition-opacity group-hover:opacity-100 group-has-[[data-highlighted]]:opacity-100',
                                 touchAlwaysVisibleClassName
                               )}
                             >
-                              <Eye className="h-4 w-4 shrink-0" />
-                              Show in navigation
+                              <Eye className="h-4 w-4" />
                             </DropdownMenuItem>
                           </div>
                         )
