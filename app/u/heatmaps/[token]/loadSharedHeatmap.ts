@@ -2,6 +2,7 @@ import { cache } from 'react'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import {
@@ -126,7 +127,7 @@ export const loadSharedHeatmap = cache(
 
     return {
       view,
-      siteName: identity.name,
+      siteName: getDomainDisplayName(identity),
       origin,
       signupOpen: signUpDomain.open
     }

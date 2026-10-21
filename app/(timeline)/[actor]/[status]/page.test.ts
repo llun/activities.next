@@ -5,6 +5,12 @@ vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test')
 }))
 
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: vi
+    .fn()
+    .mockResolvedValue({ name: 'Acme Social', domain: 'acme.example' })
+}))
+
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn()
 }))
@@ -55,7 +61,7 @@ describe('generateMetadata', () => {
 
     expect(metadata.title).toBe('@test1@llun.test status')
     expect(metadata.description).toBe(
-      "View @test1@llun.test's post on Activities.next"
+      "View @test1@llun.test's post on Acme Social"
     )
     const pageUrl = 'https://llun.test/%40test1%40llun.test/status-1'
     expect(metadata.alternates?.canonical).toBe(pageUrl)
@@ -253,7 +259,7 @@ describe('generateMetadata', () => {
     })
 
     expect(metadata.description).toBe(
-      "View @test1@llun.test's post on Activities.next"
+      "View @test1@llun.test's post on Acme Social"
     )
     expect(metadata.description).not.toContain('Unlisted quiet post content')
     expect(metadata.robots).toEqual({ index: false, follow: false })
@@ -286,7 +292,7 @@ describe('generateMetadata', () => {
     })
 
     expect(metadata.description).toBe(
-      "View @test1@llun.test's post on Activities.next"
+      "View @test1@llun.test's post on Acme Social"
     )
     expect(metadata.description).not.toContain('Followers-only content')
     expect(metadata.robots).toEqual({ index: false, follow: false })
@@ -316,7 +322,7 @@ describe('generateMetadata', () => {
     })
 
     expect(metadata.description).toBe(
-      "View @test1@llun.test's post on Activities.next"
+      "View @test1@llun.test's post on Acme Social"
     )
     expect(metadata.description).not.toContain('Secret direct message content')
     expect(metadata.robots).toEqual({ index: false, follow: false })
@@ -332,7 +338,7 @@ describe('generateMetadata', () => {
     })
 
     expect(metadata.title).toBe('%E0%A4%A status')
-    expect(metadata.description).toBe("View %E0%A4%A's post on Activities.next")
+    expect(metadata.description).toBe("View %E0%A4%A's post on Acme Social")
     // Malformed escapes fall back to the raw segment, re-encoded.
     const pageUrl = 'https://llun.test/%25E0%25A4%25A/status-id'
     expect(metadata.alternates?.canonical).toBe(pageUrl)

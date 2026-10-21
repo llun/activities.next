@@ -7,6 +7,7 @@ import { profileName } from '@/lib/components/navigation-history/backDestination
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import {
   getGalleryAlbumShare,
@@ -77,7 +78,7 @@ export const generateMetadata = async ({
   return buildGalleryAlbumMetadata({
     share,
     ownerName: profileName(owner),
-    siteName: identity.name,
+    siteName: getDomainDisplayName(identity),
     origin: new URL(pageUrl).origin,
     pageUrl
   })

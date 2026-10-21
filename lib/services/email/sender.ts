@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import type { Email } from '@/lib/config/email'
 import type { Database } from '@/lib/database/types'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import {
   type DomainIdentity,
   resolveDomainIdentity
@@ -15,6 +16,13 @@ const bareAddress = (value: string): string => {
   return (match ? match[1] : value).trim()
 }
 
+// Only a served secondary domain (env or Admin › Domains) is branded. The
+// primary, and any other source (a wildcard preview host, the DB-failure
+// fallback), is the primary: its From and links stay as configured.
+const isSecondary = (identity: DomainIdentity): boolean =>
+  (identity.source === 'env' || identity.source === 'database') &&
+  identity.domain !== getConfig().host
+
 /**
  * The From of an email sent for `identity`'s domain. The primary keeps
  * ACTIVITIES_EMAIL_FROM exactly as configured. Any other domain sends from the
@@ -24,24 +32,18 @@ const bareAddress = (value: string): string => {
 export const getEmailSender = (identity: DomainIdentity): Email => {
   const config = getConfig()
   const configured = config.email?.serviceFromAddress ?? ''
-  if (identity.source === 'primary' || identity.domain === config.host) {
-    return configured
-  }
+  if (!isSecondary(identity)) return configured
   const email = bareAddress(configured)
-  // The name is sanitised again when the header is written (address.ts); an
-  // empty one sends the bare address.
-  return identity.name.trim() ? { name: identity.name, email } : email
+  // The name is sanitised again when the header is written (address.ts).
+  return { name: getDomainDisplayName(identity), email }
 }
 
 // The primary leaves `domain` empty so its links and header host stay on
 // `getBaseURL()` and `config.host` exactly as before (a configured host can
 // carry a scheme, which the normalised domain does not).
 export const toEmailBrand = (identity: DomainIdentity): EmailBrand => ({
-  name: identity.name,
-  domain:
-    identity.source === 'primary' || identity.domain === getConfig().host
-      ? ''
-      : identity.domain
+  name: getDomainDisplayName(identity),
+  domain: isSecondary(identity) ? identity.domain : ''
 })
 
 /**

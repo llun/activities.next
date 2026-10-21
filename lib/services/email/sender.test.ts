@@ -61,10 +61,22 @@ describe('getEmailSender', () => {
     })
   })
 
-  it('sends the bare address when the name is blank', () => {
-    expect(getEmailSender(identity({ name: '  ' }))).toBe(
-      'no-reply@primary.example'
-    )
+  it('falls back to the domain when the name is blank', () => {
+    expect(getEmailSender(identity({ name: '  ' }))).toEqual({
+      name: 'acme.example',
+      email: 'no-reply@primary.example'
+    })
+    expect(toEmailBrand(identity({ name: '' })).name).toBe('acme.example')
+  })
+
+  it('treats a wildcard preview host (source other) as the primary', () => {
+    const preview = identity({
+      domain: 'pr-1.preview.example',
+      source: 'other',
+      name: 'Server'
+    })
+    expect(getEmailSender(preview)).toBe('"Primary" <no-reply@primary.example>')
+    expect(toEmailBrand(preview)).toEqual({ name: 'Server', domain: '' })
   })
 })
 

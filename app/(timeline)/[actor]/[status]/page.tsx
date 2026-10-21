@@ -18,6 +18,8 @@ import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -151,7 +153,8 @@ export const generateMetadata = async ({
     actorDomain && baseHost && !isLocalActorHandleDomain(actorDomain, baseHost)
   )
 
-  let description = `View ${decodedActor}'s post on Activities.next`
+  const siteName = getDomainDisplayName(await getVisitedDomainIdentity())
+  let description = `View ${decodedActor}'s post on ${siteName}`
   let canonicalUrl: string | undefined = isRemoteActorHandle
     ? undefined
     : pageUrl
