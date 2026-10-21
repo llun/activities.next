@@ -1,0 +1,77 @@
+lib/components/admin-announcements/AnnouncementsPanel.tsx
+  s_e67afa7a51bb57::t_96522ec2ffc2ed 254
+lib/components/settings/NotificationSettings.tsx
+  s_e67afa7a51bb57::t_96522ec2ffc2ed 301-303
+  s_e67afa7a51bb57::t_63315d37ae25e5 288-300,304-311
+docs/architecture.md
+  s_e67afa7a51bb57::t_ba0db7df246e0a 999,1032
+  s_e67afa7a51bb57::t_564a565af3214e 1020,1037,1039
+app/(timeline)/account/ChangeEmailForm.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 84-87
+lib/components/settings/DeleteActorSection.tsx
+  s_e67afa7a51bb57::t_593b5b8c11438f 22-25,53-57,63-78
+lib/components/surface/Alert.test.tsx
+  s_e67afa7a51bb57::t_21758d1faedef4 76,78,83
+lib/components/admin/domains/DomainSettings.tsx
+  s_e67afa7a51bb57::t_96522ec2ffc2ed 390,399
+  s_e67afa7a51bb57::t_72646119e58d55 238,305-306,343-374,376,389,391-395,397-398,400-401,403
+lib/components/settings/DeleteActorSection.test.tsx
+  s_e67afa7a51bb57::t_564a565af3214e 47-49
+lib/components/privacy-locations/PrivacyLocationsEditor.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 205-209
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 681
+lib/components/surface/Alert.tsx
+  s_e67afa7a51bb57::t_21758d1faedef4 63,75-77,97-98
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.tsx
+  s_e67afa7a51bb57::t_2477a96e040f2d 169-205
+app/(timeline)/fitness/connections/strava/StravaSettingsForm.tsx
+  s_e67afa7a51bb57::t_2477a96e040f2d 246-262
+app/(timeline)/lists/ListEditor.tsx
+  s_e67afa7a51bb57::t_593b5b8c11438f 523-539
+app/(timeline)/account/ChangeEmailForm.tsx
+  s_e67afa7a51bb57::t_f64d042cce4c4a 62-82,91-92
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_e67afa7a51bb57::t_a49a9058c676b1 345
+lib/components/admin/domains/AddDomainForm.tsx
+  s_e67afa7a51bb57::t_ec9bb325797b83 157-183
+lib/components/privacy-locations/PrivacyLocationsEditor.tsx
+  s_e67afa7a51bb57::t_96522ec2ffc2ed 1083-1124,1126-1128,1130-1172,1174,1176-1190,1192-1223,1225-1228,1230-1233,1235-1258,1260-1269,1271-1276,1278-1284,1287-1288,1290-1292,1294-1308,1310-1344,1346-1348
+  s_e67afa7a51bb57::t_cd7c1649306cb2 1062-1069,1072,1074,1076-1082,1349
+lib/components/settings/NotificationSettings.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 64-68
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 293-295
+app/(timeline)/lists/ListEditor.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 531-534
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.test.tsx
+  s_e67afa7a51bb57::t_a713da8a2bca91 179-183
+lib/components/admin/domains/AddDomainForm.test.tsx
+  s_e67afa7a51bb57::t_861cc0641ede44 218
+lib/components/surface/Frame.tsx
+  s_512188f2b1db53::t_618ccf8e6ec648 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1389ebaf1d6837f53b25d0f3c065b369aa08f5c7",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
