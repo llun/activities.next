@@ -187,6 +187,8 @@ export const WahooHistorySection = ({
               <SkeletonBar className="h-10 w-full" />
             </div>
           )}
+          {error && <Alert title={error} />}
+          {message && <Alert tone="success" title={message} />}
           {currentImport?.lastError && (
             <Alert title={currentImport.lastError} />
           )}
@@ -266,8 +268,6 @@ export const WahooHistorySection = ({
               </p>
             </div>
           )}
-          {error && <Alert title={error} />}
-          {message && <Alert tone="success" title={message} />}
         </div>
       )}
     </Section>

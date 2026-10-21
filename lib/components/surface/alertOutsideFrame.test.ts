@@ -15,6 +15,10 @@ const BOX_TAGS = new Set(['Frame', 'FramedList', 'AddBar'])
 // Components whose root is an `Alert` count as one.
 const ALERT_TAGS = new Set(['Alert', 'ActorInfoBanner'])
 
+// Only a file that names one of them is worth parsing.
+const mayHoldAlert = (source: string) =>
+  [...ALERT_TAGS].some((tag) => source.includes(`<${tag}`))
+
 // The Messages chat panes are the page's surface: their Alerts are the pane's
 // own rows, so they stay inside the `Frame`.
 const ALLOWED_FILES = new Set([
@@ -76,6 +80,10 @@ describe('Alert outside Frame', () => {
       alertsInBoxes('const A = () => <Frame><ActorInfoBanner /></Frame>')
     ).toEqual([1])
     expect(
+      mayHoldAlert('const A = () => <Frame><ActorInfoBanner /></Frame>')
+    ).toBe(true)
+    expect(mayHoldAlert('const A = () => <Frame>{ok}</Frame>')).toBe(false)
+    expect(
       alertsInBoxes(
         'const A = () => <><Alert title="x" /><Frame form>{ok}</Frame></>'
       )
@@ -107,7 +115,7 @@ describe('Alert outside Frame', () => {
       .filter((file) => !ALLOWED_FILES.has(path.normalize(file)))
       .flatMap((file) => {
         const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
-        return [...ALERT_TAGS].some((tag) => source.includes(`<${tag}`))
+        return mayHoldAlert(source)
           ? alertsInBoxes(source).map((line) => `${file}:${line}`)
           : []
       })

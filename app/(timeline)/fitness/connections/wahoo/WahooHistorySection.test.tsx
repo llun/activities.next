@@ -114,9 +114,14 @@ describe('WahooHistorySection', () => {
     fireEvent.click(resumeButton)
 
     await waitFor(() => expect(client.retryWahooHistory).toHaveBeenCalled())
-    expect(
+    const resumed = (
       await screen.findByText('History import resumed.')
-    ).toBeInTheDocument()
+    ).closest('[data-slot=alert]')
+    // An action's result is a card above the import status box.
+    expect(resumed).not.toBeNull()
+    expect(resumed!.nextElementSibling).toHaveTextContent(
+      '2026-09-01 to 2026-09-10'
+    )
     expect(await screen.findByText('running')).toBeInTheDocument()
   })
 
