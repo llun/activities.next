@@ -1,0 +1,48 @@
+lib/client/statuses.test.ts
+  s_512188f2b1db53::t_292f7f07a6f340 462-498,607-637
+lib/database/domains/idempotency/idempotency.test.ts
+  s_512188f2b1db53::t_b842c843e0349b 130
+  s_512188f2b1db53::t_b69a83fd3d81b7 521-542
+  s_512188f2b1db53::t_2e33cdce1f2508 10-13,35,42,48,54,61,68,75,79,85,88,98,104,120,125,153,240,504,517,549,556,631,637
+lib/types/database/operations.ts
+  s_512188f2b1db53::t_2e33cdce1f2508 306
+lib/services/medias/attachmentMediaMetadata.ts
+  s_512188f2b1db53::t_199abaec14d0d7 115
+lib/database/testing/idempotencyTestHelpers.ts
+  s_512188f2b1db53::t_2ef539c98013cc 1-45
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_199abaec14d0d7 233-234
+app/api/v1/statuses/scheduled.route.test.ts
+  s_512188f2b1db53::t_2e33cdce1f2508 4,53,79
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_512188f2b1db53::t_2e33cdce1f2508 5,62,238,389
+lib/database/domains/status/writes.ts
+  s_512188f2b1db53::t_c24767fc8312d3 262-295,345-350,589-594
+lib/components/instance-limits.tsx
+  s_512188f2b1db53::t_7b981208885ac1 33
+lib/database/domains/idempotency/types.ts
+  s_512188f2b1db53::t_2ef539c98013cc 20
+docs/maintenance.md
+  s_512188f2b1db53::t_2e33cdce1f2508 1430
+app/api/v1/statuses/route.test.ts
+  s_512188f2b1db53::t_a6dd2851d956c6 1153-1154
+  s_512188f2b1db53::t_2e33cdce1f2508 7-10,835,1736
+lib/services/actors/actorDeletion.test.ts
+  s_512188f2b1db53::t_0d105f1551951d 236-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dbcf52731aeb57847107a71ee64813a6714dd41b",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
