@@ -192,7 +192,9 @@ export const DomainRulesBox: FC<Props> = ({
     const moved = reorder(drafts, from, to)
     if (moved === drafts) return false
     edit(() => moved)
-    setReorderStatus(`Moved rule to position ${to + 1} of ${moved.length}.`)
+    setReorderStatus(
+      `Moved rule to position ${offset + to + 1} of ${offset + moved.length}.`
+    )
     return true
   }
 
@@ -285,7 +287,11 @@ export const DomainRulesBox: FC<Props> = ({
       footer={
         <SaveBar
           actionLabel="Save rules"
-          idleNote={`Changes apply to ${domain} only.`}
+          idleNote={
+            <>
+              Changes apply to <span className="break-all">{domain}</span> only.
+            </>
+          }
           dirty={dirty}
           saving={saving}
           saved={saved}
@@ -312,9 +318,9 @@ export const DomainRulesBox: FC<Props> = ({
         ) : null}
 
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Rules for {domain}</h3>
+          <h3 className="text-sm font-medium break-all">Rules for {domain}</h3>
           {drafts.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-sm break-all">
               {domain} has no rules of its own yet.
             </p>
           ) : (

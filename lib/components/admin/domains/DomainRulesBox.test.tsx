@@ -94,7 +94,11 @@ describe('DomainRulesBox', () => {
     )
     expect(screen.getByRole('button', { name: 'Save rules' })).toBeDisabled()
     expect(
-      screen.getByText('Changes apply to run.example only.')
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === 'P' &&
+          el.textContent === 'Changes apply to run.example only.'
+      )
     ).toBeInTheDocument()
   })
 
@@ -178,6 +182,9 @@ describe('DomainRulesBox', () => {
     expect(screen.getByRole('textbox', { name: 'Rule 3 text' })).toHaveValue(
       'Keep home addresses private'
     )
+    expect(
+      screen.getByText('Moved rule to position 4 of 4.')
+    ).toBeInTheDocument()
     save()
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledWith('o2', { position: 0 })

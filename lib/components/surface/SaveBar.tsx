@@ -68,7 +68,7 @@ interface SaveBarProps {
    * ("Changes apply to every domain that uses the server terms."). Dirty,
    * Saved and the error still replace it. `edit` only.
    */
-  idleNote?: string
+  idleNote?: ReactNode
   dirty?: boolean
   saving?: boolean
   saved?: boolean

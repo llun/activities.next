@@ -67,8 +67,9 @@ export const DomainAnnouncementsBox: FC<Props> = ({
           <Button variant="outline" size="sm" asChild>
             <Link
               href={`/admin/announcements?domain=${encodeURIComponent(domain)}`}
+              aria-label={`New announcement for ${domain}`}
             >
-              New announcement for {domain}
+              New announcement
             </Link>
           </Button>
         </div>
@@ -96,7 +97,12 @@ export const DomainAnnouncementsBox: FC<Props> = ({
                       <Badge tone={STATUS_TONES[status.tone]}>
                         {status.label}
                       </Badge>
-                      <Badge tone="primary">{domain}</Badge>
+                      <Badge
+                        tone="primary"
+                        className="max-w-full break-all whitespace-normal"
+                      >
+                        {domain}
+                      </Badge>
                       <span className="text-muted-foreground text-xs">
                         {announcement.starts_at !== null
                           ? `Starts ${formatDateTime(announcement.starts_at, !hydrated)}`

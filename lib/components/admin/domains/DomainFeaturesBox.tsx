@@ -147,7 +147,11 @@ export const DomainFeaturesBox: FC<Props> = ({
       footer={
         <SaveBar
           actionLabel="Save features"
-          idleNote={`Changes apply to ${name} only.`}
+          idleNote={
+            <>
+              Changes apply to <span className="break-all">{name}</span> only.
+            </>
+          }
           dirty={dirty}
           saving={saving}
           saved={saved}

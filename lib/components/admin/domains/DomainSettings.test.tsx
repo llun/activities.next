@@ -370,7 +370,11 @@ describe('DomainSettings', () => {
       expect(screen.getByText('Same for every domain.')).toBeInTheDocument()
       expect(
         // Identity, Terms and privacy, Rules and Features each say it.
-        screen.getAllByText('Changes apply to run.example only.')
+        screen.getAllByText(
+          (_, el) =>
+            el?.tagName === 'P' &&
+            el.textContent === 'Changes apply to run.example only.'
+        )
       ).toHaveLength(4)
       expect(
         screen.getByRole('button', { name: 'Save identity' })

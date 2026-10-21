@@ -38,7 +38,9 @@ const TABS = [
 
 const DomainChip = ({ domain }: { domain: string | null }) =>
   domain ? (
-    <Badge tone="primary">{domain}</Badge>
+    <Badge tone="primary" className="max-w-full break-all whitespace-normal">
+      {domain}
+    </Badge>
   ) : (
     <span className="text-muted-foreground">—</span>
   )

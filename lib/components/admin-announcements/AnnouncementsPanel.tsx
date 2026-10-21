@@ -468,7 +468,12 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                       </Badge>
                       {multiDomain ? (
                         announcement.domain ? (
-                          <Badge tone="primary">{announcement.domain}</Badge>
+                          <Badge
+                            tone="primary"
+                            className="max-w-full break-all whitespace-normal"
+                          >
+                            {announcement.domain}
+                          </Badge>
                         ) : (
                           <AllDomainsChip />
                         )
