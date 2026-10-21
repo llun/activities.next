@@ -1,6 +1,8 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
+import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { RenderedEmail } from '@/lib/services/email/types'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -36,6 +38,26 @@ export interface SendNotificationAlertsParams {
   sourceActor?: Actor
   statusId?: string
   events: NotificationEvent[]
+}
+
+// The From for mail to `actorId`: their domain's name on the shared mailbox.
+// A missing actor or a domain this server does not serve sends as the primary.
+// A failed lookup must not drop the email: it goes out as the primary's.
+const resolveRecipientSender = async (database: Database, actorId: string) => {
+  try {
+    const recipient = await database.getActorFromId({ id: actorId })
+    const { from } = await resolveEmailIdentity(
+      database,
+      getServedLinkDomain(recipient?.domain)
+    )
+    return from
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to resolve notification email sender, using primary',
+      err: toLoggableError(error)
+    })
+    return getConfig().email?.serviceFromAddress ?? ''
+  }
 }
 
 /**
@@ -102,10 +124,12 @@ export const sendNotificationAlerts = (
       if (!event.emailContent) continue
       const { emailContent } = event
       shouldSendEmailForNotification(database, actorId, event.type)
-        .then((shouldSend) => {
+        .then(async (shouldSend) => {
           if (!shouldSend) return
+          // Sent under the recipient actor's domain, the one the body names.
+          const from = await resolveRecipientSender(database, actorId)
           return sendMail({
-            from: config.email!.serviceFromAddress,
+            from,
             to: [emailContent.recipientEmail],
             subject: emailContent.subject,
             content: {

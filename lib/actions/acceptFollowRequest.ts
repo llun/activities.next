@@ -5,6 +5,7 @@ import {
   FOLLOW_TIMELINE_BACKFILL_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME
 } from '@/lib/jobs/names'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -90,7 +91,11 @@ export const acceptFollowRequest = async ({
           type: NotificationType.enum.follow,
           emailContent: {
             recipientEmail: targetActor.account.email,
-            ...buildFollowEmail({ recipient: targetActor, actor })
+            ...buildFollowEmail({
+              recipient: targetActor,
+              actor,
+              brand: await resolveActorEmailBrand(database, targetActor)
+            })
           }
         }
       ]

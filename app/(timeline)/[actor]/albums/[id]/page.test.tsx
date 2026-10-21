@@ -24,6 +24,20 @@ vi.mock('@/lib/config', () => ({
   getConfig: () => ({ host: 'llun.test', mediaStorage: null })
 }))
 
+// The card is named after the visited domain, which needs a request; these
+// tests call the page directly, so answer for one served domain.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: async () => ({
+    domain: 'run.example',
+    source: 'database',
+    name: 'Run Club',
+    description: '',
+    contactEmail: '',
+    termsOfService: null,
+    privacyPolicy: null
+  })
+}))
+
 const mockSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockSession()
@@ -352,6 +366,7 @@ describe('public album page', () => {
       expect(result.alternates?.canonical).toBe(
         `https://llun.test/@test6@llun.test/albums/${matrix.albums.mixed}`
       )
+      expect(result.openGraph).toMatchObject({ siteName: 'Run Club' })
     })
 
     it('carries nothing about a photo, place or date the public view hides', async () => {

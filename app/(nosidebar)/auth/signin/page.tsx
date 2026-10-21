@@ -12,6 +12,8 @@ import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
@@ -72,9 +74,14 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return redirect(actor ? target : '/')
   }
 
-  const { auth, serviceName } = getConfig()
-  // Sign-ups of the domain this page is visited on (see resolveSignUpDomain).
-  const { open: registrationOpen } = await getVisitedSignUpDomain(database)
+  const { auth } = getConfig()
+  // The name and sign-ups of the domain this page is visited on (see
+  // resolveDomainIdentity and resolveSignUpDomain).
+  const [identity, { open: registrationOpen }] = await Promise.all([
+    getVisitedDomainIdentity(),
+    getVisitedSignUpDomain(database)
+  ])
+  const serviceName = getDomainDisplayName(identity)
   const credentialEnabled = auth?.enableCredential !== false
 
   const signUpLine = registrationOpen ? (
@@ -92,12 +99,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
   return (
     <AuthCard
       logoSrc={getAuthLogoSrc()}
-      title={`Sign in to ${serviceName ?? 'Activities'}`}
+      title={`Sign in to ${serviceName}`}
       description="Your self-hosted corner of the Fediverse."
     >
       {credentialEnabled ? (
         <CredentialForm
-          providerName={serviceName ?? 'credentials'}
+          providerName={serviceName}
           actions={
             <>
               {passkeyButton}

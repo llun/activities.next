@@ -307,7 +307,11 @@ describe('Page visibility for logged-out visitors', () => {
 
   it('hides private replies and excludes them from the reply count', async () => {
     const focused = buildNote({ id: 'focused' })
-    const publicReply = buildNote({ id: 'public-reply', reply: 'focused' })
+    const publicReply = buildNote({
+      id: 'public-reply',
+      reply: 'focused',
+      actorId: 'https://activities.local/users/bob'
+    })
     const privateReply = buildNote({
       id: 'private-reply',
       reply: 'focused',

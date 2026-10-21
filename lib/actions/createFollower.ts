@@ -2,6 +2,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { Database } from '@/lib/database/types'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { buildFollowRequestEmail } from '@/lib/services/email/templates/followRequest'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -116,6 +117,7 @@ export const createFollower = async ({
                   recipientEmail: targetActor.account.email,
                   ...buildFollowRequestEmail({
                     recipient: targetActor,
+                    brand: await resolveActorEmailBrand(database, targetActor),
                     actor: followerActor
                   })
                 }
@@ -162,6 +164,7 @@ export const createFollower = async ({
                   recipientEmail: targetActor.account.email,
                   ...buildFollowEmail({
                     recipient: targetActor,
+                    brand: await resolveActorEmailBrand(database, targetActor),
                     actor: followerActor
                   })
                 }

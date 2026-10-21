@@ -1,6 +1,7 @@
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
@@ -16,6 +17,21 @@ vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
     allowEmails: []
   }))
 }))
+
+// The heading names the domain the page is visited on.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  getVisitedDomainIdentity: vi.fn()
+}))
+
+const anIdentity = (name: string, domain = 'test.llun.dev') => ({
+  domain,
+  source: 'primary' as const,
+  name,
+  description: '',
+  contactEmail: '',
+  termsOfService: null,
+  privacyPolicy: null
+})
 
 vi.mock('@/lib/config')
 
@@ -59,6 +75,10 @@ describe('/auth/signin already-authenticated resume', () => {
     } as ReturnType<typeof getConfig>)
     vi.mocked(getBaseURL).mockReturnValue('https://activities.local')
     vi.mocked(getActorFromSession).mockResolvedValue(anActor)
+    vi.mocked(getVisitedDomainIdentity).mockReset()
+    vi.mocked(getVisitedDomainIdentity).mockResolvedValue(
+      anIdentity('Activities.next')
+    )
   })
 
   it('forwards an authenticated user to the resumed OAuth consent page instead of home', async () => {
@@ -164,5 +184,55 @@ describe('/auth/signin already-authenticated resume', () => {
 
     expect(redirectMock).not.toHaveBeenCalled()
     expect(element).toBeTruthy()
+  })
+})
+
+describe('/auth/signin heading', () => {
+  beforeEach(() => {
+    redirectMock.mockClear()
+    vi.mocked(getDatabase).mockReturnValue({} as ReturnType<typeof getDatabase>)
+    vi.mocked(getConfig).mockReturnValue({
+      auth: { enableCredential: true },
+      serviceName: 'Env name'
+    } as ReturnType<typeof getConfig>)
+    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+    vi.mocked(getVisitedDomainIdentity).mockReset()
+  })
+
+  const render = async () =>
+    (await Page({ searchParams: Promise.resolve({}) })) as {
+      props: { title: string; children: { props: { providerName: string } } }
+    }
+
+  // The visited domain's name (Admin › Domains, else Admin › Instance), not
+  // ACTIVITIES_SERVICE_NAME, which only seeds the server setting.
+  it.each([
+    {
+      description: 'the primary',
+      name: 'Activities.next',
+      domain: 'test.llun.dev',
+      expected: 'Activities.next'
+    },
+    {
+      description: 'a served domain',
+      name: 'Run Club',
+      domain: 'run.example',
+      expected: 'Run Club'
+    },
+    {
+      description: 'a domain with a blank name',
+      name: '',
+      domain: 'run.example',
+      expected: 'run.example'
+    }
+  ])('names $description', async ({ name, domain, expected }) => {
+    vi.mocked(getVisitedDomainIdentity).mockResolvedValue(
+      anIdentity(name, domain)
+    )
+
+    const element = await render()
+
+    expect(element.props.title).toBe(`Sign in to ${expected}`)
+    expect(element.props.children.props.providerName).toBe(expected)
   })
 })

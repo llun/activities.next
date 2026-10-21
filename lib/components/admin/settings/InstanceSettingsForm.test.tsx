@@ -36,6 +36,7 @@ const baseSettings: ResolvedServerSettings = {
     languages: ['en', 'th']
   },
   registrations: { open: true, allowEmails: ['anna@llun.dev'] },
+  policies: { termsOfService: '', privacyPolicy: '' },
   posts: { maxCharacters: 500, maxMediaAttachments: 20 },
   polls: {
     maxOptions: 4,
@@ -56,13 +57,31 @@ const baseSettings: ResolvedServerSettings = {
   features: { fitness: true, explore: true, messages: true }
 }
 
-const renderForm = (locks: ServerSettingLocks = {}) =>
-  render(<InstanceSettingsForm settings={baseSettings} locks={locks} />)
+const renderForm = (
+  locks: ServerSettingLocks = {},
+  updatedAt: Record<string, number | null> = {},
+  settings: ResolvedServerSettings = baseSettings
+) =>
+  render(
+    <InstanceSettingsForm
+      settings={settings}
+      locks={locks}
+      updatedAt={updatedAt}
+    />
+  )
+
+const withPolicies = (
+  policies: ResolvedServerSettings['policies']
+): ResolvedServerSettings => ({ ...baseSettings, policies })
 
 describe('InstanceSettingsForm', () => {
   beforeEach(() => {
     mockUpdate.mockReset()
-    mockUpdate.mockResolvedValue({ settings: baseSettings, locks: {} })
+    mockUpdate.mockResolvedValue({
+      settings: baseSettings,
+      locks: {},
+      updatedAt: {}
+    })
   })
 
   it('renders the initial values', () => {
@@ -174,5 +193,158 @@ describe('InstanceSettingsForm', () => {
 
     await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeDisabled()
+  })
+
+  describe('terms and privacy', () => {
+    const TERMS_KEY = 'policies.termsOfService'
+    const PRIVACY_KEY = 'policies.privacyPolicy'
+    const saveButton = () =>
+      screen.getByRole('button', { name: 'Save terms and privacy' })
+
+    it('shows both documents in monospace boxes with the section copy', () => {
+      renderForm(
+        {},
+        { [TERMS_KEY]: Date.UTC(2026, 9, 12, 8) },
+        withPolicies({ termsOfService: '# Terms', privacyPolicy: '# Privacy' })
+      )
+
+      expect(
+        screen.getByText("Used by every domain that doesn't set its own.")
+      ).toBeInTheDocument()
+      const terms = screen.getByLabelText('Terms of service')
+      expect(terms).toHaveValue('# Terms')
+      expect(terms).toHaveAttribute('rows', '16')
+      expect(terms).toHaveClass('font-mono')
+      expect(screen.getByLabelText('Privacy policy')).toHaveValue('# Privacy')
+      expect(
+        screen.getByText(
+          'Changes apply to every domain that uses the server terms.'
+        )
+      ).toBeInTheDocument()
+      expect(saveButton()).toBeDisabled()
+    })
+
+    it('says when the terms last changed, in UTC, and nothing for an undated one', () => {
+      renderForm(
+        {},
+        { [TERMS_KEY]: Date.UTC(2026, 9, 12, 8), [PRIVACY_KEY]: null }
+      )
+
+      expect(screen.getByText(/Markdown\.\s+Last updated/)).toHaveTextContent(
+        'Markdown. Last updated 12 Oct 2026.'
+      )
+      expect(screen.getAllByText(/Markdown\./)).toHaveLength(2)
+      expect(screen.getAllByText(/Last updated/)).toHaveLength(1)
+      expect(
+        screen.getByLabelText('Terms of service')
+      ).toHaveAccessibleDescription('Markdown. Last updated 12 Oct 2026.')
+    })
+
+    it('saves only the policy keys and shows the refreshed date', async () => {
+      mockUpdate.mockResolvedValueOnce({
+        settings: withPolicies({
+          termsOfService: '# New terms',
+          privacyPolicy: ''
+        }),
+        locks: {},
+        updatedAt: {
+          [TERMS_KEY]: Date.UTC(2026, 9, 20, 9),
+          [PRIVACY_KEY]: null
+        }
+      })
+      renderForm()
+      expect(screen.queryByText(/Last updated/)).toBeNull()
+
+      fireEvent.change(screen.getByLabelText('Terms of service'), {
+        target: { value: '# New terms' }
+      })
+      expect(saveButton()).toBeEnabled()
+      fireEvent.click(saveButton())
+
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith({
+          [TERMS_KEY]: '# New terms',
+          [PRIVACY_KEY]: ''
+        })
+      )
+      await waitFor(() =>
+        expect(screen.getByText(/Last updated/)).toHaveTextContent(
+          'Last updated 20 Oct 2026'
+        )
+      )
+      expect(screen.getByText('Saved')).toBeInTheDocument()
+      expect(saveButton()).toBeDisabled()
+    })
+
+    it('keeps the old date when the save fails', async () => {
+      mockUpdate.mockRejectedValueOnce(new Error('Could not save'))
+      renderForm({}, { [TERMS_KEY]: Date.UTC(2026, 9, 12) })
+
+      fireEvent.change(screen.getByLabelText('Terms of service'), {
+        target: { value: 'x' }
+      })
+      fireEvent.click(saveButton())
+
+      await waitFor(() =>
+        expect(screen.getByText('Could not save')).toBeInTheDocument()
+      )
+      expect(screen.getByText(/Last updated/)).toHaveTextContent('12 Oct 2026')
+    })
+
+    it('locks an env-pinned document with the badge and the warning, and no date', () => {
+      renderForm(
+        {
+          [PRIVACY_KEY]: { locked: true, envVar: 'ACTIVITIES_PRIVACY_POLICY' }
+        },
+        { [PRIVACY_KEY]: Date.UTC(2026, 9, 12) },
+        withPolicies({ termsOfService: '', privacyPolicy: '# Privacy' })
+      )
+
+      expect(screen.getByLabelText(/^Privacy policy/)).toBeDisabled()
+      expect(screen.getByLabelText('Terms of service')).toBeEnabled()
+      expect(screen.getByText('Set by environment')).toBeInTheDocument()
+      const alert = screen.getByText('Set by ACTIVITIES_PRIVACY_POLICY.')
+      expect(alert).toBeInTheDocument()
+      expect(
+        screen.getByText('Remove the variable to edit it here.')
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Last updated/)).toBeNull()
+      expect(document.getElementById('policies-privacy-help')).toBeNull()
+      expect(document.getElementById('policies-terms-help')).not.toBeNull()
+    })
+
+    it('saves the unlocked document alone while the other is pinned', async () => {
+      renderForm(
+        {
+          [PRIVACY_KEY]: { locked: true, envVar: 'ACTIVITIES_PRIVACY_POLICY' }
+        },
+        {},
+        withPolicies({ termsOfService: '', privacyPolicy: '# Privacy' })
+      )
+
+      fireEvent.change(screen.getByLabelText('Terms of service'), {
+        target: { value: '# New terms' }
+      })
+      fireEvent.click(saveButton())
+
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith({ [TERMS_KEY]: '# New terms' })
+      )
+    })
+  })
+
+  it('leaves an env-locked key out of the details patch', async () => {
+    renderForm({
+      'instance.name': { locked: true, envVar: 'ACTIVITIES_SERVICE_NAME' }
+    })
+    fireEvent.change(screen.getByLabelText('Short description'), {
+      target: { value: 'New description' }
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
+    const patch = mockUpdate.mock.calls[0][0]
+    expect(patch).toHaveProperty('instance.description', 'New description')
+    expect(patch).not.toHaveProperty('instance.name')
   })
 })

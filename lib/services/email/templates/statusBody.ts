@@ -1,4 +1,8 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import {
+  type EmailBrand,
+  brandBaseURL,
+  brandHost
+} from '@/lib/services/email/brand'
 import { SanitizedBody } from '@/lib/services/email/layout/blocks'
 import { EditableStatus } from '@/lib/types/domain/status'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
@@ -15,10 +19,10 @@ import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 //
 // Only `href="/…"` is rewritten, never `href="//…"` — a protocol-relative URL
 // points at another origin entirely and must not be silently re-homed.
-const absolutizeLinks = (html: string): string =>
+const absolutizeLinks = (html: string, brand?: EmailBrand): string =>
   html.replace(
     /(\s(?:href|src)=")\/(?!\/)/g,
-    (_match, attribute: string) => `${attribute}${getBaseURL()}/`
+    (_match, attribute: string) => `${attribute}${brandBaseURL(brand)}/`
   )
 
 /**
@@ -29,7 +33,10 @@ const absolutizeLinks = (html: string): string =>
  * already HTML — the previous templates printed `status.text` raw into the text
  * part, which for a remote actor meant a wall of markup.
  */
-export const getStatusBody = (status: EditableStatus): SanitizedBody => {
+export const getStatusBody = (
+  status: EditableStatus,
+  brand?: EmailBrand
+): SanitizedBody => {
   // Markdown for a local author, then sanitize ALWAYS — the same order as
   // processStatusTextContent, which is what the web UI renders through.
   //
@@ -40,10 +47,10 @@ export const getStatusBody = (status: EditableStatus): SanitizedBody => {
   // phishing. `quote()` emits this value unescaped, so sanitizing here is the
   // only thing standing between a post body and the recipient's mail client.
   const rendered = status.isLocalActor
-    ? convertMarkdownText(getConfig().host)(status.text)
+    ? convertMarkdownText(brandHost(brand))(status.text)
     : status.text
   // Absolutize after sanitizing, so only hrefs that survived it are rewritten.
-  const html = absolutizeLinks(sanitizeText(rendered))
+  const html = absolutizeLinks(sanitizeText(rendered), brand)
   return { html, text: htmlToPlainText(html) }
 }
 

@@ -37,12 +37,20 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => holder.testDb?.database ?? null
 }))
 
-vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: vi.fn().mockResolvedValue({
+vi.mock('@/lib/services/serverSettings', () => {
+  const settings = {
     instance: { name: 'activities.next' },
-    registrations: { open: true, allowEmails: [] }
-  })
-}))
+    registrations: { open: true, allowEmails: [] },
+    // No terms or privacy policy, so sign-up asks for no agreement.
+    policies: { termsOfService: '', privacyPolicy: '' }
+  }
+  return {
+    getResolvedServerSettings: vi.fn().mockResolvedValue(settings),
+    getServerSettingsView: vi
+      .fn()
+      .mockResolvedValue({ settings, locks: {}, updatedAt: {} })
+  }
+})
 
 describe('credential identity', () => {
   const testDb = () => {

@@ -9,6 +9,22 @@ const POST = (req: NextRequest, _context?: unknown) =>
   routePost(req, { params: Promise.resolve({}) })
 
 const mockSendMail = vi.fn()
+// The visited or recipient domain's identity: another domain is named after
+// itself, a missing host is the primary.
+vi.mock('@/lib/services/domains/domainIdentity', () => ({
+  resolveDomainIdentity: vi.fn(
+    async (_database: unknown, host?: string | null) => ({
+      domain: host || 'llun.test',
+      source: host ? 'database' : 'primary',
+      name: host ? `${host} name` : 'Main name',
+      description: '',
+      contactEmail: '',
+      termsOfService: null,
+      privacyPolicy: null
+    })
+  )
+}))
+
 vi.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
@@ -32,6 +48,7 @@ vi.mock('@/lib/utils/logger', () => ({
 // tests below would pass without sendMail ever being reached.
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  buildBaseURL: (host: string) => `https://${host}`,
   getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     secretPhase: 'test-secret-phase',
@@ -112,6 +129,41 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     expect(message.content.text).toContain(
       'https://llun.test/auth/reset-password?code='
     )
+  })
+
+  it('names the domain the request came in on', async () => {
+    const { setServedDomainsForTests, resetServedDomainsForTests } =
+      await import('@/lib/services/domains/servedDomainSnapshot')
+    setServedDomainsForTests(['run.llun.test'])
+    try {
+      const response = await POST(
+        new NextRequest(
+          'http://run.llun.test/api/v1/accounts/password/reset/request',
+          {
+            method: 'POST',
+            body: JSON.stringify({ email: 'test@llun.test' }),
+            headers: {
+              'Content-Type': 'application/json',
+              Host: 'run.llun.test',
+              Origin: 'https://client.llun.test'
+            }
+          }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      const message = mockSendMail.mock.calls[0][0]
+      expect(message.from).toEqual({
+        name: 'run.llun.test name',
+        email: 'noreply@llun.test'
+      })
+      expect(message.content.html).toContain('>run.llun.test name</td>')
+      expect(message.content.text).toContain(
+        'https://run.llun.test/auth/reset-password?code='
+      )
+    } finally {
+      resetServedDomainsForTests()
+    }
   })
 
   // The endpoint is public: without a cooldown anyone can mail-bomb an

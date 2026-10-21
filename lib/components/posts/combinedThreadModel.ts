@@ -62,7 +62,7 @@ const isWithinGap = (a: number, b: number) =>
  * A post can sit inside a run as an inset when the inset can show all of it:
  * text and a link card, but no media, poll, quote or fitness activity.
  */
-const canTuck = (status: Status): boolean => {
+export const canTuck = (status: Status): boolean => {
   const actual = getActualStatus(status)
   return (
     actual.type === StatusType.enum.Note &&

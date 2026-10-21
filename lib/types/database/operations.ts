@@ -423,7 +423,9 @@ export type {
   GetServedDomainParams,
   ServedDomainData,
   ServedDomainDatabase,
+  ServedDomainPolicies,
   ServedDomainStatus,
+  ServedDomainWithPoliciesData,
   UpdateServedDomainParams
 } from '@/lib/database/domains/servedDomain/types'
 

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
+import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
@@ -87,13 +88,16 @@ export const POST = traceApiRoute(
       // Send verification email
       try {
         // Linked on the account's actor domain when this server answers on it.
+        const domain = getServedLinkDomain(currentActor.domain)
+        const { brand, from } = await resolveEmailIdentity(database, domain)
         const email = buildChangeEmail({
           recipientEmail: newEmail,
           emailChangeCode,
-          domain: getServedLinkDomain(currentActor.domain)
+          domain,
+          brand
         })
         await sendMail({
-          from: config.email.serviceFromAddress,
+          from,
           to: [newEmail],
           subject: email.subject,
           content: { text: email.text, html: email.html }

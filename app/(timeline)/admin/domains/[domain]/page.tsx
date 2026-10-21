@@ -6,7 +6,8 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { readDomainRouteParam } from '@/lib/services/domains/adminDomainTypes'
 import {
   getAdminDomain,
-  getEnvDomains
+  getEnvDomains,
+  getServerIdentityView
 } from '@/lib/services/domains/adminDomains'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
@@ -24,10 +25,12 @@ const Page = async ({ params }: Props) => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  const domain = await getAdminDomain(
-    database,
-    readDomainRouteParam((await params).domain)
-  )
+  const [domain, server] = await Promise.all([
+    params.then(({ domain }) =>
+      getAdminDomain(database, readDomainRouteParam(domain))
+    ),
+    getServerIdentityView(database)
+  ])
   if (!domain) return notFound()
 
   return (
@@ -35,6 +38,7 @@ const Page = async ({ params }: Props) => {
       key={domain.domain}
       domain={domain}
       primaryDomain={getEnvDomains().primary}
+      server={server}
     />
   )
 }

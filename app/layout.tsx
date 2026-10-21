@@ -7,6 +7,8 @@ import { ServiceWorkerRegistration } from '@/lib/components/offline/ServiceWorke
 import { ThemeProvider } from '@/lib/components/theme'
 import { THEME_INIT_SCRIPT } from '@/lib/components/theme/theme-core'
 import { WebVitals } from '@/lib/components/web-vitals/WebVitals'
+import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
+import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { withVersion } from '@/lib/utils/version'
 
 import './globals.css'
@@ -24,29 +26,44 @@ export const viewport: Viewport = {
   viewportFit: 'cover'
 }
 
+const icons: Metadata['icons'] = {
+  icon: [
+    { url: withVersion('/favicon.ico'), sizes: 'any' },
+    { url: withVersion('/icon-192.png'), sizes: '192x192', type: 'image/png' }
+  ],
+  shortcut: [withVersion('/favicon.ico')],
+  apple: [
+    {
+      url: withVersion('/apple-touch-icon.png'),
+      sizes: '180x180',
+      type: 'image/png'
+    }
+  ]
+}
+
 // Pages set only their own name ("Timeline", "Notifications") and the
-// template appends the app name, so a narrow tab leads with the page. Safari
+// template appends the name of the domain the page is visited on (Admin ›
+// Domains, else Admin › Instance), so a narrow tab leads with the page. Safari
 // trims a leading site name from tab titles, so the old "Activities.next: App"
-// on the home shell showed as a bare "App".
-export const metadata: Metadata = {
-  title: {
-    default: 'Activities.next',
-    template: '%s · Activities.next'
-  },
-  manifest: '/manifest.webmanifest',
-  icons: {
-    icon: [
-      { url: withVersion('/favicon.ico'), sizes: 'any' },
-      { url: withVersion('/icon-192.png'), sizes: '192x192', type: 'image/png' }
-    ],
-    shortcut: [withVersion('/favicon.ico')],
-    apple: [
-      {
-        url: withVersion('/apple-touch-icon.png'),
-        sizes: '180x180',
-        type: 'image/png'
-      }
-    ]
+// on the home shell showed as a bare "App". Reading the visited host makes
+// every page request-time, which they already were (see `yarn build`'s route
+// table); the server settings and domain identity caches keep most of them
+// off the database.
+// Next fills the template with `template.replace(/%s/g, pageTitle)` and has no
+// escape for a literal `%s`, so a name such as "100%s Club" would swallow the
+// page title. A zero-width space between the two characters keeps it visibly
+// the same and stops it matching.
+const escapeTitleTemplate = (name: string) => name.replace(/%s/g, '%\u200Bs')
+
+export const generateMetadata = async (): Promise<Metadata> => {
+  const name = getDomainDisplayName(await getVisitedDomainIdentity())
+  return {
+    title: {
+      default: name,
+      template: `%s · ${escapeTitleTemplate(name)}`
+    },
+    manifest: '/manifest.webmanifest',
+    icons
   }
 }
 

@@ -1,6 +1,7 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { Database } from '@/lib/database/types'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildLikeEmail } from '@/lib/services/email/templates/like'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -69,7 +70,7 @@ export const likeRequest = async ({
         database.getActorFromId({ id: status.actorId }),
         database.getActorFromId({ id: request.actor })
       ])
-        .then(([targetActor, sourceActor]) => {
+        .then(async ([targetActor, sourceActor]) => {
           if (!sourceActor) return
           const editableStatus = getOriginalStatus(status)
           sendNotificationAlerts({
@@ -87,6 +88,10 @@ export const likeRequest = async ({
                       recipientEmail: targetActor.account.email,
                       ...buildLikeEmail({
                         recipient: targetActor,
+                        brand: await resolveActorEmailBrand(
+                          database,
+                          targetActor
+                        ),
                         actor: sourceActor,
                         status: editableStatus
                       })

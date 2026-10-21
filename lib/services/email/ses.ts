@@ -30,12 +30,18 @@ export async function sendSESMail(
     getSESClient(config.region)
   ])
   const command = new SendEmailCommand({
-    Source: getAddressFromEmail(message.from),
+    Source: getAddressFromEmail(message.from, { encodeName: true }),
     Destination: {
-      ToAddresses: message.to.map((email) => getAddressFromEmail(email))
+      ToAddresses: message.to.map((email) =>
+        getAddressFromEmail(email, { encodeName: true })
+      )
     },
     ...(message.replyTo
-      ? { ReplyToAddresses: [getAddressFromEmail(message.replyTo)] }
+      ? {
+          ReplyToAddresses: [
+            getAddressFromEmail(message.replyTo, { encodeName: true })
+          ]
+        }
       : {}),
     Message: {
       Subject: { Data: message.subject, Charset: 'UTF-8' },

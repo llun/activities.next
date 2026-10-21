@@ -2,9 +2,11 @@
 
 import { ChevronDown, MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useEffect, useId, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useId, useMemo, useState } from 'react'
 
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
+import { SelfThreadRun } from '@/lib/components/posts/self-thread-run'
+import { buildSelfThreadModel } from '@/lib/components/posts/selfThreadModel'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   type ThreadNode,
@@ -90,9 +92,21 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   const [locallyCreatedReplies, setLocallyCreatedReplies] = useState<Status[]>(
     []
   )
+  const [deletedStatusIds, setDeletedStatusIds] = useState<Set<string>>(
+    () => new Set()
+  )
   const [expandedBranchOverrides, setExpandedBranchOverrides] = useState<
     Record<string, boolean>
   >({})
+
+  const handlePostDeleted = useCallback((deletedStatus: Status) => {
+    setDeletedStatusIds((prev) => {
+      if (prev.has(deletedStatus.id)) return prev
+      const next = new Set(prev)
+      next.add(deletedStatus.id)
+      return next
+    })
+  }, [])
 
   // Read after mount: the server render has no storage, and reading it during
   // the first render would make the client's markup differ from the server's.
@@ -120,27 +134,57 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   }
 
   const allReplies = useMemo(() => {
-    if (locallyCreatedReplies.length === 0) return replies
-    const known = new Set(replies.map((reply) => reply.id))
-    const additions = locallyCreatedReplies.filter(
-      (reply) => !known.has(reply.id)
-    )
-    return additions.length > 0 ? [...additions, ...replies] : replies
-  }, [replies, locallyCreatedReplies])
+    const base =
+      locallyCreatedReplies.length === 0
+        ? replies
+        : (() => {
+            const known = new Set(replies.map((reply) => reply.id))
+            const additions = locallyCreatedReplies.filter(
+              (reply) => !known.has(reply.id)
+            )
+            return additions.length > 0 ? [...additions, ...replies] : replies
+          })()
+    return deletedStatusIds.size === 0
+      ? base
+      : base.filter((reply) => !deletedStatusIds.has(reply.id))
+  }, [replies, locallyCreatedReplies, deletedStatusIds])
 
   const priorityStatusIds = useMemo(
     () => new Set(locallyCreatedReplies.map((reply) => reply.id)),
     [locallyCreatedReplies]
   )
 
+  const selfThread = useMemo(
+    () =>
+      buildSelfThreadModel({
+        focusedStatus: status,
+        descendants: allReplies,
+        tuckIntoFirstPart: false
+      }),
+    [status, allReplies]
+  )
+  const hasFollowUps = selfThread.parts.length > 1
+  const focusedGroupStatuses = useMemo(
+    () => (hasFollowUps ? selfThread.mergedStatuses : undefined),
+    [hasFollowUps, selfThread.mergedStatuses]
+  )
+
   const tree = useMemo(
     () =>
       buildThreadTree({
         focusedStatus: status,
-        descendants: allReplies,
-        priorityStatusIds
+        descendants: hasFollowUps ? selfThread.repliesOutsideRun : allReplies,
+        priorityStatusIds,
+        focusedGroupStatuses
       }),
-    [status, allReplies, priorityStatusIds]
+    [
+      status,
+      hasFollowUps,
+      selfThread.repliesOutsideRun,
+      allReplies,
+      priorityStatusIds,
+      focusedGroupStatuses
+    ]
   )
 
   const isBranchExpanded = (node: ThreadNode): boolean =>
@@ -183,6 +227,47 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   const visibleNodes = tree.descendants.slice(0, visibleCount)
   const hiddenCount = tree.descendants.length - visibleNodes.length
 
+  const canCompose = Boolean(currentActor)
+  const isComposingInFollowUps = Boolean(
+    canCompose &&
+    composer.active &&
+    composer.active.anchorId !== status.id &&
+    selfThread.mergedIds.has(composer.active.anchorId)
+  )
+
+  const followUpRail = hasFollowUps ? (
+    <div data-testid="activity-follow-ups" className="border-t px-4 py-3">
+      <SelfThreadRun
+        parts={selfThread.parts}
+        startAt={1}
+        host={host}
+        currentTime={currentTime}
+        currentActor={currentActor ?? undefined}
+        showActions={canCompose}
+        showReadOnlyStats={!canCompose}
+        canCompose={canCompose}
+        activeComposer={isComposingInFollowUps ? composer.active : null}
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        openReply={composer.openReply}
+        openQuote={composer.openQuote}
+        openEdit={composer.openEdit}
+        close={composer.close}
+        onOpenStatus={openStatus}
+        onShowMedia={(allMedias, index) => onShowAttachment(allMedias, index)}
+        onReplyCreated={handleReplyCreated}
+        onStatusCreated={() => {
+          composer.close()
+          router.refresh()
+        }}
+        onPostUpdated={() => {
+          composer.close()
+          router.refresh()
+        }}
+        onPostDeleted={handlePostDeleted}
+      />
+    </div>
+  ) : null
+
   const replyComposer =
     isReplyingToPost && currentActor && composer.active ? (
       <div className="px-4 py-3">
@@ -208,6 +293,17 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
     ) : null
 
   if (total === 0) {
+    if (hasFollowUps) {
+      return (
+        <div data-testid="activity-replies">
+          {followUpRail}
+          {replyComposer ? (
+            <div className="border-t">{replyComposer}</div>
+          ) : null}
+        </div>
+      )
+    }
+
     return (
       <div data-testid="activity-replies" className="border-t">
         {replyComposer ?? (
@@ -224,69 +320,81 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   }
 
   return (
-    <div data-testid="activity-replies" className="border-t">
-      <h2 className="sr-only">Replies</h2>
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        aria-controls={listId}
-        onClick={toggleExpanded}
-        className={cn(
-          'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
-          isExpanded && 'border-b'
-        )}
-      >
-        <span>Replies ({total})</span>
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-          {isExpanded ? 'Hide' : 'Show'}
-          <ChevronDown
-            aria-hidden="true"
-            className={cn(
-              'size-3.5 transition-transform',
-              isExpanded && 'rotate-180'
-            )}
-          />
-        </span>
-      </button>
-      <div id={listId} hidden={!isExpanded}>
-        {replyComposer ? <div className="border-b">{replyComposer}</div> : null}
-        <div
-          data-testid="activity-replies-list"
-          className="divide-y divide-border/40 px-4"
+    <div
+      data-testid="activity-replies"
+      className={cn(!hasFollowUps && 'border-t')}
+    >
+      {followUpRail}
+      <div className={cn(hasFollowUps && 'border-t')}>
+        <h2 className="sr-only">Replies</h2>
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-controls={listId}
+          onClick={toggleExpanded}
+          className={cn(
+            'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+            isExpanded && 'border-b'
+          )}
         >
-          {visibleNodes.map((node) => (
-            <ThreadReplyNode
-              key={node.status.id}
-              node={node}
-              host={host}
-              currentActor={currentActor}
-              currentTime={currentTime}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              composer={composer}
-              isExpanded={isBranchExpanded}
-              onToggle={toggleBranch}
-              onOpenStatus={openStatus}
-              onShowAttachment={(allMedias, index) =>
-                onShowAttachment(allMedias, index)
-              }
-              onReplyCreated={handleReplyCreated}
-              onComposerDone={() => router.refresh()}
+          <span>Replies ({total})</span>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            {isExpanded ? 'Hide' : 'Show'}
+            <ChevronDown
+              aria-hidden="true"
+              className={cn(
+                'size-3.5 transition-transform',
+                isExpanded && 'rotate-180'
+              )}
             />
-          ))}
-        </div>
-        {hiddenCount > 0 ? (
-          <div className="border-t px-4 py-3 text-center">
-            <button
-              type="button"
-              onClick={() =>
-                setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
-              }
-              className="rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              Load more replies
-            </button>
+          </span>
+        </button>
+        <div id={listId} hidden={!isExpanded}>
+          {replyComposer ? (
+            <div className="border-b">{replyComposer}</div>
+          ) : null}
+          <div
+            data-testid="activity-replies-list"
+            className="divide-y divide-border/40 px-4"
+          >
+            {visibleNodes.map((node) => (
+              <ThreadReplyNode
+                key={node.status.id}
+                node={node}
+                host={host}
+                currentActor={currentActor}
+                currentTime={currentTime}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                composer={composer}
+                isExpanded={isBranchExpanded}
+                onToggle={toggleBranch}
+                onOpenStatus={openStatus}
+                onShowAttachment={(allMedias, index) =>
+                  onShowAttachment(allMedias, index)
+                }
+                onReplyCreated={handleReplyCreated}
+                onComposerDone={() => router.refresh()}
+                replyingToLabels={
+                  hasFollowUps ? selfThread.replyingToByReplyId : undefined
+                }
+                onPostDeleted={handlePostDeleted}
+              />
+            ))}
           </div>
-        ) : null}
+          {hiddenCount > 0 ? (
+            <div className="border-t px-4 py-3 text-center">
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleCount((count) => count + REPLIES_PAGE_SIZE)
+                }
+                className="rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                Load more replies
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )

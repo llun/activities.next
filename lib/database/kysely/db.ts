@@ -325,15 +325,21 @@ export interface DomainFederationRules {
 export interface Domains {
   allowExistingUsers: WithDefault<boolean>
   allowedEmails: WithDefault<string>
+  contactEmail: Nullable<string>
   createdAt: WithDefault<Timestamp>
+  description: Nullable<string>
   domain: string
   id: string
   lastCheckResult: Nullable<string>
   lastCheckStatus: Nullable<string>
   lastCheckedAt: Nullable<Timestamp>
   name: Nullable<string>
+  privacyPolicy: Nullable<string>
+  privacyPolicyUpdatedAt: Nullable<Timestamp>
   signupsOpen: WithDefault<boolean>
   status: WithDefault<string>
+  termsOfService: Nullable<string>
+  termsOfServiceUpdatedAt: Nullable<Timestamp>
   updatedAt: WithDefault<Timestamp>
 }
 

@@ -1,4 +1,8 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import {
+  type EmailBrand,
+  brandBaseURL,
+  brandHost
+} from '@/lib/services/email/brand'
 import {
   getShortName,
   toQuoteAuthor
@@ -18,17 +22,21 @@ export interface FollowRequestEmailParams {
   recipient: ActorProfile
   /** The actor requesting to follow. */
   actor: ActorProfile
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /** Someone asked to follow a manually-approved account. */
 export const buildFollowRequestEmail = ({
   recipient,
-  actor
+  actor,
+  brand
 }: FollowRequestEmailParams): RenderedEmail => {
   const author = toQuoteAuthor(actor)
 
   return renderEmail({
-    subject: `@${actor.username} wants to follow you in ${getConfig().host}`,
+    brand,
+    subject: `@${actor.username} wants to follow you in ${brandHost(brand)}`,
     preheader: `${author.displayName} (${author.handle}) has requested to follow you.`,
     blocks: [
       headline(`${getShortName(actor)} wants to follow you`),
@@ -39,7 +47,7 @@ export const buildFollowRequestEmail = ({
       // Notifications, not the profile: the approve/reject controls live there.
       button({
         label: 'Review request',
-        url: `${getBaseURL()}/notifications`
+        url: `${brandBaseURL(brand)}/notifications`
       })
     ],
     footer: {

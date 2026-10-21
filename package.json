@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.203.4",
+  "version": "1.206.0",
   "license": "MIT",
   "type": "module",
   "workspaces": [
@@ -94,9 +94,9 @@
     "htmlparser2": "^12.0.0",
     "jose": "^6.2.12",
     "jsonld": "^9.0.0",
-    "kysely": "0.29.6",
+    "kysely": "0.29.7",
     "lodash": "^4.18.1",
-    "lucide-react": "1.58.0",
+    "lucide-react": "1.59.0",
     "marked": "^18.1.1",
     "mime-types": "^3.0.2",
     "next": "16.4.2",

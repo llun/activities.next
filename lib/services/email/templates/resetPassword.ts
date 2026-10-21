@@ -1,4 +1,8 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import {
+  type EmailBrand,
+  brandBaseURL,
+  brandHost
+} from '@/lib/services/email/brand'
 import {
   button,
   fallbackUrl,
@@ -12,17 +16,21 @@ import { RenderedEmail } from '@/lib/services/email/types'
 export interface ResetPasswordParams {
   recipientEmail: string
   passwordResetCode: string
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /** Password reset. The stored code is hashed; this carries the plaintext one. */
 export const buildResetPasswordEmail = ({
   recipientEmail,
-  passwordResetCode
+  passwordResetCode,
+  brand
 }: ResetPasswordParams): RenderedEmail => {
-  const { host } = getConfig()
-  const url = `${getBaseURL()}/auth/reset-password?code=${encodeURIComponent(passwordResetCode)}`
+  const host = brandHost(brand)
+  const url = `${brandBaseURL(brand)}/auth/reset-password?code=${encodeURIComponent(passwordResetCode)}`
 
   return renderEmail({
+    brand,
     subject: 'Reset your password',
     preheader: `Choose a new password for your ${host} account. The link expires in 24 hours.`,
     blocks: [

@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   getShortName,
   toQuoteAuthor
@@ -18,24 +18,28 @@ export interface MentionEmailParams {
   /** Who wrote the post. */
   actor: ActorProfile
   status: EditableStatus
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /** Someone mentioned you. The quote block shows THEIR post, not yours. */
 export const buildMentionEmail = ({
   recipient,
   actor,
-  status
+  status,
+  brand
 }: MentionEmailParams): RenderedEmail =>
   renderEmail({
-    subject: `@${actor.username} mentions you in ${getConfig().host}`,
+    brand,
+    subject: `@${actor.username} mentions you in ${brandHost(brand)}`,
     preheader: `${getShortName(actor)} mentioned you in a post.`,
     blocks: [
       headline(`${getShortName(actor)} mentioned you in a post`),
       quote({
         author: toQuoteAuthor(status.actor ?? actor),
-        body: getStatusBody(status)
+        body: getStatusBody(status, brand)
       }),
-      button({ label: 'View post', url: getEmailStatusUrl(status) })
+      button({ label: 'View post', url: getEmailStatusUrl(status, brand) })
     ],
     footer: {
       kind: 'notification',

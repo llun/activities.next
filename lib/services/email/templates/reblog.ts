@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/config'
+import { type EmailBrand, brandHost } from '@/lib/services/email/brand'
 import {
   getShortName,
   toQuoteAuthor
@@ -23,6 +23,8 @@ export interface BoostEmailParams {
   /** Who boosted it. */
   actor: ActorProfile
   status: EditableStatus
+  /** The visited or recipient domain's name and host; the primary's when omitted. */
+  brand?: EmailBrand
 }
 
 /**
@@ -37,10 +39,12 @@ export interface BoostEmailParams {
 export const buildBoostEmail = ({
   recipient,
   actor,
-  status
+  status,
+  brand
 }: BoostEmailParams): RenderedEmail =>
   renderEmail({
-    subject: `@${actor.username} boosted your post in ${getConfig().host}`,
+    brand,
+    subject: `@${actor.username} boosted your post in ${brandHost(brand)}`,
     preheader: `${getShortName(actor)} boosted your post.`,
     blocks: [
       headline(`${getShortName(actor)} boosted your post`),
@@ -49,9 +53,9 @@ export const buildBoostEmail = ({
         // The recipient wrote the post being boosted, so quote them — falling
         // back to the recipient when the status carries no actor.
         author: toQuoteAuthor(status.actor ?? recipient),
-        body: getStatusBody(status)
+        body: getStatusBody(status, brand)
       }),
-      button({ label: 'View post', url: getEmailStatusUrl(status) })
+      button({ label: 'View post', url: getEmailStatusUrl(status, brand) })
     ],
     footer: {
       kind: 'notification',

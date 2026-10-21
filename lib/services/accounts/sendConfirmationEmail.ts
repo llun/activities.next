@@ -1,9 +1,13 @@
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
+import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildVerifyEmail } from '@/lib/services/email/templates/verifyEmail'
 
 export interface SendConfirmationEmailParams {
+  // Names the domain the email is for (its identity is read from it).
+  database: Database
   recipient: string
   verificationCode: string
   /**
@@ -24,6 +28,7 @@ export interface SendConfirmationEmailParams {
 // No-ops when email delivery is not configured; rejections from sendMail are
 // allowed to propagate so callers can decide how to handle delivery failures.
 export const sendConfirmationEmail = async ({
+  database,
   recipient,
   verificationCode,
   actorDomain
@@ -31,14 +36,19 @@ export const sendConfirmationEmail = async ({
   const config = getConfig()
   if (!config.email) return
 
+  // The email carries the name of the domain the link points at, and is sent
+  // under it (the primary when the actor's domain is not one this server serves).
+  const domain = getServedLinkDomain(actorDomain)
+  const { brand, from } = await resolveEmailIdentity(database, domain)
   const email = buildVerifyEmail({
     recipientEmail: recipient,
     verificationCode,
-    domain: getServedLinkDomain(actorDomain)
+    domain,
+    brand
   })
 
   await sendMail({
-    from: config.email.serviceFromAddress,
+    from,
     to: [recipient],
     subject: email.subject,
     content: { text: email.text, html: email.html }

@@ -11,6 +11,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
+import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
@@ -1261,7 +1262,7 @@ const notifyStatusRecipients = async ({
       // A failed actor lookup only skips the email content; the push alert
       // must still be dispatched.
       .catch(() => null)
-      .then((targetActor) =>
+      .then(async (targetActor) =>
         sendNotificationAlerts({
           database,
           actorId: replyStatus.actorId,
@@ -1277,6 +1278,10 @@ const notifyStatusRecipients = async ({
                     recipientEmail: targetActor.account.email,
                     ...buildReplyEmail({
                       recipient: targetActor,
+                      brand: await resolveActorEmailBrand(
+                        database,
+                        targetActor
+                      ),
                       actor: currentActor,
                       status
                     })
@@ -1301,7 +1306,7 @@ const notifyStatusRecipients = async ({
         // A failed actor lookup only skips the email content; the push alert
         // must still be dispatched.
         .catch(() => null)
-        .then((targetActor) =>
+        .then(async (targetActor) =>
           sendNotificationAlerts({
             database,
             actorId: mentionedActorId,
@@ -1317,6 +1322,10 @@ const notifyStatusRecipients = async ({
                       recipientEmail: targetActor.account.email,
                       ...buildMentionEmail({
                         recipient: targetActor,
+                        brand: await resolveActorEmailBrand(
+                          database,
+                          targetActor
+                        ),
                         actor: currentActor,
                         status
                       })

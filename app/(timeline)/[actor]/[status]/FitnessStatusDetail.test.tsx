@@ -1062,7 +1062,10 @@ describe('FitnessStatusDetail', () => {
         type: 'Note',
         actorId: actor.id,
         actor,
-        reply: buildStatus().id
+        reply: buildStatus().id,
+        to: [],
+        cc: [],
+        attachments: []
       }) as unknown as Status
 
     afterEach(() => {

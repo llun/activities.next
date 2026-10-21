@@ -8,6 +8,7 @@ import * as addFitnessFileRouteData from './20261015000000_add_fitness_file_rout
 import * as addDomains from './20261018170047_add_domains'
 import * as addAccountsSignUpDomain from './20261018204230_add_accounts_sign_up_domain'
 import * as addIdempotencyKeysContentHash from './20261020194752_add_idempotency_keys_content_hash'
+import * as addDomainsIdentity from './20261020232218_add_domains_identity'
 import * as addIdempotencyKeysStateChangedAt from './20261021052511_add_idempotency_keys_state_changed_at'
 import type { MigrationName } from './names'
 
@@ -25,6 +26,7 @@ export const migrations: MigrationRegistry = {
   '20261018204230_add_accounts_sign_up_domain': addAccountsSignUpDomain,
   '20261020194752_add_idempotency_keys_content_hash':
     addIdempotencyKeysContentHash,
+  '20261020232218_add_domains_identity': addDomainsIdentity,
   '20261021052511_add_idempotency_keys_state_changed_at':
     addIdempotencyKeysStateChangedAt
 } satisfies Record<MigrationName, MigrationModule>

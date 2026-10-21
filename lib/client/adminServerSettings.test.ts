@@ -21,6 +21,9 @@ describe('adminServerSettings client module', () => {
     } as unknown as ResolvedServerSettings,
     locks: {
       serverTitle: { locked: false }
+    },
+    updatedAt: {
+      serverTitle: 1_700_000_000_000
     }
   }
 

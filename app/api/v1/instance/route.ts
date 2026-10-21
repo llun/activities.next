@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { buildBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveSignUpOpenSafely } from '@/lib/services/domains/signUpDomain'
 import { headerHost } from '@/lib/services/guards/headerHost'
@@ -48,23 +49,23 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
     }
   }
 
-  const [stats, contactAccount, serverSettings, signUpOpen] = await Promise.all(
-    [
+  const [stats, contactAccount, serverSettings, signUpOpen, identity] =
+    await Promise.all([
       getInstanceStats(database, domain),
       getInstanceContactAccount(database),
       getResolvedServerSettings(database),
       // Sign-ups on the domain this request arrived on.
-      resolveSignUpOpenSafely(database, domain)
-    ]
-  )
+      resolveSignUpOpenSafely(database, domain),
+      // Its name, description and contact email.
+      resolveDomainIdentity(database, domain)
+    ])
 
   const data = {
     uri: domain,
-    title: serverSettings.instance.name,
-    short_description: serverSettings.instance.description,
-    description: serverSettings.instance.description,
-    email:
-      serverSettings.instance.contactEmail || getInstanceContactEmail(config),
+    title: identity.name,
+    short_description: identity.description,
+    description: identity.description,
+    email: identity.contactEmail || getInstanceContactEmail(config),
     version: VERSION,
     // No streaming API: the documented key is present but empty so clients
     // treat streaming as unavailable and fall back to polling.

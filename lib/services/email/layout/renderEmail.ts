@@ -1,4 +1,8 @@
-import { getBaseURL, getConfig } from '@/lib/config'
+import {
+  type EmailBrand,
+  brandBaseURL,
+  brandHost
+} from '@/lib/services/email/brand'
 import { RenderedEmail } from '@/lib/services/email/types'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
@@ -33,6 +37,12 @@ export interface RenderEmailOptions {
   preheader: string
   blocks: readonly EmailBlock[]
   footer: EmailFooter
+  /**
+   * The visited or recipient domain's name and host. The wordmark shows its
+   * name; the header host, the logo and every link use its domain. Omitted, the
+   * email reads as the primary host's, with the wordmark "Activities".
+   */
+  brand?: EmailBrand
 }
 
 // Padding for the inbox preview strip. Without enough of it a client backfills
@@ -45,7 +55,7 @@ const PREHEADER_PADDING = '&zwnj;&nbsp;'.repeat(30)
 
 const footerLinkStyle = `color:${TEXT_CHROME};text-decoration:underline;`
 
-const renderHeader = (baseUrl: string, host: string): string => {
+const renderHeader = (baseUrl: string, host: string, name: string): string => {
   // Absolute, because a root-relative src is unresolvable in a mail client, and
   // built from getBaseURL() so it stays correct on http/custom-port deployments
   // and on instances whose host already carries a scheme.
@@ -55,11 +65,11 @@ const renderHeader = (baseUrl: string, host: string): string => {
     // Explicit dimensions and display:block keep the three-column header intact
     // when the client blocks remote images, which most do by default. The
     // wordmark beside it is real text, so the header still reads without it.
-    // alt is empty on purpose: the wordmark beside it says "Activities" in real
+    // alt is empty on purpose: the wordmark beside it says the name in real
     // text, so alt text here would make a client with images off read
     // "Activities Activities example.com".
     `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border-radius:6px;border:0;"></td>` +
-    `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};">Activities</td>` +
+    `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};">${escapeHtml(name)}</td>` +
     `<td align="right" style="font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(host)}</td>` +
     `</tr></table>`
   )
@@ -112,10 +122,12 @@ export const renderEmail = ({
   subject,
   preheader,
   blocks,
-  footer
+  footer,
+  brand
 }: RenderEmailOptions): RenderedEmail => {
-  const { host } = getConfig()
-  const baseUrl = getBaseURL()
+  const host = brandHost(brand)
+  const baseUrl = brandBaseURL(brand)
+  const name = brand?.name || 'Activities'
 
   const body = blocks.map((block) => block.html).join('')
   const html =
@@ -155,7 +167,7 @@ export const renderEmail = ({
     // precisely why the column can shrink at all.
     `<!--[if mso]><table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:${CONTENT_WIDTH}px;"><tr><td><![endif]-->\n` +
     `<table role="presentation" width="${CONTENT_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${CONTENT_WIDTH}px;table-layout:fixed;">\n` +
-    `<tr><td style="padding:0 8px 16px;">${renderHeader(baseUrl, host)}</td></tr>\n` +
+    `<tr><td style="padding:0 8px 16px;">${renderHeader(baseUrl, host, name)}</td></tr>\n` +
     `<tr><td bgcolor="${CARD_BACKGROUND}" style="background-color:${CARD_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_CARD};padding:28px 28px 26px;">${body}</td></tr>\n` +
     `<tr><td style="padding:20px 8px 0;font-family:${FONT_STACK};font-size:12px;line-height:1.7;color:${TEXT_CHROME};">${renderFooterHtml(footer, baseUrl, host)}</td></tr>\n` +
     `</table>\n` +

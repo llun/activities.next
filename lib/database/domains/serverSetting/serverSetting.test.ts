@@ -58,6 +58,35 @@ describe('ServerSettingDatabase', () => {
       expect(second?.createdAt).toBe(first?.createdAt)
     })
 
+    // The admin form saves every key of a section; `updatedAt` must only move
+    // for the keys whose value actually changed (the policies report it).
+    it('touches updatedAt only when the stored value changes', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+        await database.setServerSettings([
+          { key: 'policies.termsOfService', value: 'Be excellent' },
+          { key: 'policies.privacyPolicy', value: 'No logs' }
+        ])
+
+        vi.setSystemTime(new Date('2026-02-01T00:00:00.000Z'))
+        await database.setServerSettings([
+          { key: 'policies.termsOfService', value: 'Be excellent' },
+          { key: 'policies.privacyPolicy', value: 'No logs at all' }
+        ])
+      } finally {
+        vi.useRealTimers()
+      }
+
+      const unchanged = await read('policies.termsOfService')
+      const changed = await read('policies.privacyPolicy')
+      expect(unchanged?.updatedAt).toBe(Date.UTC(2026, 0, 1))
+      expect(changed).toMatchObject({
+        value: 'No logs at all',
+        updatedAt: Date.UTC(2026, 1, 1)
+      })
+    })
+
     it('lists every stored setting ordered by key', async () => {
       await database.setServerSettings([
         { key: 'zeta.setting', value: 'z' },

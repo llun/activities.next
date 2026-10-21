@@ -151,6 +151,100 @@ describe('updateServedDomain', () => {
   })
 })
 
+describe('identity and policies', () => {
+  const IDENTITY = {
+    name: 'Run Club',
+    description: 'Running together',
+    contactEmail: 'hello@run.example',
+    termsOfService: '# Terms',
+    termsOfServiceUpdatedAt: Date.UTC(2026, 0, 2, 3, 4, 5),
+    privacyPolicy: '# Privacy',
+    privacyPolicyUpdatedAt: Date.UTC(2026, 5, 6, 7, 8, 9)
+  }
+
+  it('round-trips every identity and policy column', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        ...IDENTITY
+      })
+      expect(created).toMatchObject({
+        name: 'Run Club',
+        description: 'Running together',
+        contactEmail: 'hello@run.example'
+      })
+
+      await expect(
+        database.getServedDomainWithPolicies({ domain: 'run.example' })
+      ).resolves.toMatchObject({ domain: 'run.example', ...IDENTITY })
+
+      await database.updateServedDomain({
+        domain: 'run.example',
+        description: null,
+        termsOfService: null,
+        termsOfServiceUpdatedAt: null,
+        privacyPolicy: '# Privacy, revised',
+        privacyPolicyUpdatedAt: Date.UTC(2026, 7, 1)
+      })
+      await expect(
+        database.getServedDomainWithPolicies({ domain: 'run.example' })
+      ).resolves.toMatchObject({
+        name: 'Run Club',
+        description: null,
+        contactEmail: 'hello@run.example',
+        termsOfService: null,
+        termsOfServiceUpdatedAt: null,
+        privacyPolicy: '# Privacy, revised',
+        privacyPolicyUpdatedAt: Date.UTC(2026, 7, 1)
+      })
+    })
+  })
+
+  it('defaults every override to null', async () => {
+    await withFreshDatabase(async (database) => {
+      await database.createServedDomain({ domain: 'run.example' })
+      await expect(
+        database.getServedDomainWithPolicies({ domain: 'run.example' })
+      ).resolves.toMatchObject({
+        name: null,
+        description: null,
+        contactEmail: null,
+        termsOfService: null,
+        termsOfServiceUpdatedAt: null,
+        privacyPolicy: null,
+        privacyPolicyUpdatedAt: null
+      })
+      await expect(
+        database.getServedDomainWithPolicies({ domain: 'nope.example' })
+      ).resolves.toBeNull()
+    })
+  })
+
+  it('leaves the policy texts out of the single read and the lists', async () => {
+    await withFreshDatabase(async (database) => {
+      await database.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        ...IDENTITY
+      })
+      const rows = [
+        await database.getServedDomain({ domain: 'run.example' }),
+        ...(await database.getServedDomains()),
+        ...(await database.getActiveServedDomains())
+      ]
+      expect(rows).toHaveLength(3)
+      for (const row of rows) {
+        expect(row).toMatchObject({ description: 'Running together' })
+        expect(row).not.toHaveProperty('termsOfService')
+        expect(row).not.toHaveProperty('privacyPolicy')
+        expect(row).not.toHaveProperty('termsOfServiceUpdatedAt')
+        expect(row).not.toHaveProperty('privacyPolicyUpdatedAt')
+      }
+    })
+  })
+})
+
 describe('getActiveServedDomains', () => {
   it('returns only rows that are on, in domain order', async () => {
     await withFreshDatabase(async (database) => {

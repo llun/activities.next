@@ -15,7 +15,8 @@ import { getAuthErrorMessage } from '@/lib/services/auth/getAuthErrorMessage'
 
 interface Props {
   enabled: boolean
-  serviceName: string
+  // The TOTP issuer label (the visited domain's name, see toTotpIssuer).
+  issuer: string
 }
 
 interface SetupState {
@@ -34,7 +35,7 @@ const getSecretFromTotpURI = (totpURI: string): string => {
 
 export const TwoFactorManager: FC<Props> = ({
   enabled: initialEnabled,
-  serviceName
+  issuer
 }) => {
   const router = useRouter()
   const [enabled, setEnabled] = useState(initialEnabled)
@@ -105,7 +106,7 @@ export const TwoFactorManager: FC<Props> = ({
       const result = await authClient.twoFactor.enable({
         password,
         method: 'totp',
-        issuer: serviceName
+        issuer
       })
       if (result.error) {
         setError(getAuthErrorMessage(result.error, 'Failed to start setup'))

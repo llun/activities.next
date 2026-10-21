@@ -1,4 +1,4 @@
-import { getBaseURL } from '@/lib/config'
+import { type EmailBrand, brandBaseURL } from '@/lib/services/email/brand'
 import { EditableStatus } from '@/lib/types/domain/status'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 
@@ -20,11 +20,14 @@ import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
  * carries a `url`, and an Announce is never what a notification email quotes —
  * the call sites unwrap to the original status first.
  */
-export const getEmailStatusUrl = (status: EditableStatus): string => {
+export const getEmailStatusUrl = (
+  status: EditableStatus,
+  brand?: EmailBrand
+): string => {
   const path = getStatusDetailPath(status)
-  return path ? `${getBaseURL()}${path}` : status.url
+  return path ? `${brandBaseURL(brand)}${path}` : status.url
 }
 
 /** Absolute URL of an actor's profile on the recipient's own server. */
-export const getEmailActorUrl = (handle: string): string =>
-  `${getBaseURL()}/${handle}`
+export const getEmailActorUrl = (handle: string, brand?: EmailBrand): string =>
+  `${brandBaseURL(brand)}/${handle}`

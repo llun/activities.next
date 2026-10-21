@@ -36,6 +36,8 @@ export interface ThreadReplyNodeProps {
   onReplyCreated?: (status: Status) => void
   /** After the composer posts (reply or quote) or saves an edit. */
   onComposerDone: () => void
+  replyingToLabels?: ReadonlyMap<string, string>
+  onPostDeleted?: (status: Status) => void
 }
 
 /**
@@ -59,20 +61,24 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
     onOpenStatus,
     onShowAttachment,
     onReplyCreated,
-    onComposerDone
+    onComposerDone,
+    replyingToLabels,
+    onPostDeleted
   } = props
   const isExpanded = getIsExpanded(node)
   const hasReplies = node.replies.length > 0
   // The reply itself, or the post a boost carries.
   const actualStatus = getOriginalStatus(node.status)
   const canCompose = Boolean(currentActor)
+  const replyingToLabel = replyingToLabels?.get(node.status.id)
 
   return (
     <div
       data-testid="thread-node"
       data-node-id={node.status.id}
       data-depth={node.depth}
-      className="transition-colors"
+      tabIndex={-1}
+      className="transition-colors focus:outline-none"
     >
       {node.parentUnavailable ? (
         <div
@@ -85,6 +91,11 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
       ) : null}
 
       <article className="py-3">
+        {replyingToLabel ? (
+          <div className="mb-1 ml-13 text-xs text-muted-foreground">
+            {replyingToLabel}
+          </div>
+        ) : null}
         <div data-testid={`status-${node.status.id}`}>
           <Post
             host={host}
@@ -114,6 +125,7 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = (props) => {
             onShowAttachment={(allMedias, index) =>
               onShowAttachment(allMedias, index, actualStatus)
             }
+            onPostDeleted={onPostDeleted}
           />
         </div>
 

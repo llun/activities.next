@@ -84,3 +84,15 @@ describe('buildLikeEmail', () => {
     expect(html).toContain('>View post</a>')
   })
 })
+
+describe('buildLikeEmail brand', () => {
+  it('names the recipient domain in the wordmark, subject and links', () => {
+    const { subject, html } = build({
+      brand: { name: 'Run Club', domain: 'run.example' }
+    })
+    expect(subject).toBe('@ben liked your post in run.example')
+    expect(html).toContain('>Run Club</td>')
+    expect(html).toContain('href="https://run.example/settings/notifications"')
+    expect(html).not.toContain(BASE_URL)
+  })
+})
