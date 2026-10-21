@@ -781,11 +781,11 @@ export function Sidebar({
                                 // On touch the eye takes the row's whole height
                                 // and the link's right padding, so a near miss
                                 // restores instead of navigating away.
-                                '[@media(pointer:coarse)]:right-0 [@media(pointer:coarse)]:h-8 [@media(pointer:coarse)]:w-10',
+                                'pointer-coarse:right-0 pointer-coarse:h-8 pointer-coarse:w-10',
                                 // Radix marks the keyboard-focused item with
                                 // data-highlighted rather than :focus-visible, so
-                                // arrowing onto it is what reveals it.
-                                'opacity-0 transition-opacity group-hover:opacity-100 data-[highlighted]:opacity-100',
+                                // arrowing onto the row or the eye reveals it.
+                                'opacity-0 transition-opacity group-hover:opacity-100 group-has-[[data-highlighted]]:opacity-100',
                                 touchAlwaysVisibleClassName
                               )}
                             >
