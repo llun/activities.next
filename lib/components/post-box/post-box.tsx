@@ -395,8 +395,8 @@ export const PostBox: FC<Props> = ({
           maxStatusCharacters
         )
     )
-    // Deliberately keyed only on the limit and the in-flight flag (plus the
-    // edit target, to pick the right predicate): the draft itself is read from
+    // Deliberately keyed only on the limit, the in-flight flag, the edit target
+    // (to pick the predicate) and the draft lock: the draft itself is read from
     // refs, and every draft edit already recomputes `allowPost` in its handler.
   }, [maxStatusCharacters, isPosting, editStatus, draftLocked])
 
@@ -1772,7 +1772,7 @@ export const PostBox: FC<Props> = ({
             <span
               className={cn(
                 'text-xs tabular-nums',
-                text.length > maxStatusCharacters
+                !draftLocked && text.length > maxStatusCharacters
                   ? 'text-destructive'
                   : 'text-muted-foreground'
               )}

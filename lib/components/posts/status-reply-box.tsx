@@ -642,7 +642,7 @@ export const StatusReplyBox: FC<Props> = ({
                 <span
                   className={cn(
                     'text-xs tabular-nums',
-                    text.length > maxStatusCharacters
+                    !draftLocked && text.length > maxStatusCharacters
                       ? 'text-destructive'
                       : 'text-muted-foreground'
                   )}

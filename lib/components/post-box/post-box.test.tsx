@@ -987,6 +987,8 @@ describe('PostBox idempotency key', () => {
     // An admin lowers the limit below the saved draft's length.
     rerender(composer(5))
     expect(postButton).toBeEnabled()
+    // The locked draft cannot be edited down, so the counter stays muted.
+    expect(screen.getByText('-5')).not.toHaveClass('text-destructive')
 
     fireEvent.click(postButton)
     await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
