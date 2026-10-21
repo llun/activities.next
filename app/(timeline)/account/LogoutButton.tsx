@@ -1,26 +1,25 @@
 'use client'
 
-import { useState } from 'react'
-
 import { clearAllOfflineData } from '@/lib/client/offline'
-import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 import { cn } from '@/lib/utils'
 
+// A failed sign-out goes to `onError`, so the page shows its Alert beside the
+// box this button sits in rather than inside it.
 export const LogoutButton = ({
   describedBy,
   labelledBy,
-  className
+  className,
+  onError
 }: {
   describedBy?: string
   labelledBy?: string
   className?: string
+  onError: (message: string | null) => void
 }) => {
-  const [error, setError] = useState<string>()
-
   const handleSignOut = async () => {
-    setError(undefined)
+    onError(null)
     try {
       await clearAllOfflineData()
     } catch {
@@ -32,25 +31,22 @@ export const LogoutButton = ({
           window.location.href = '/auth/signin'
         },
         onError: () => {
-          setError('Sign out failed. Please try again.')
+          onError('Sign out failed. Please try again.')
         }
       }
     })
   }
 
   return (
-    <div className={cn('space-y-1', className)}>
-      <div className="sm:flex sm:justify-end">
-        <Button
-          variant="outline"
-          aria-describedby={describedBy}
-          aria-labelledby={labelledBy}
-          onClick={handleSignOut}
-        >
-          Logout
-        </Button>
-      </div>
-      {error && <Alert title={error} />}
+    <div className={cn('sm:flex sm:justify-end', className)}>
+      <Button
+        variant="outline"
+        aria-describedby={describedBy}
+        aria-labelledby={labelledBy}
+        onClick={handleSignOut}
+      >
+        Logout
+      </Button>
     </div>
   )
 }

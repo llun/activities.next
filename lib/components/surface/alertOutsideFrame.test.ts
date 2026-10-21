@@ -12,6 +12,8 @@ import { collectSourceFiles } from '@/lib/testing/moduleImports'
 // seen: the card is another component, and the page's surface.
 const ROOT = process.cwd()
 const BOX_TAGS = new Set(['Frame', 'FramedList', 'AddBar'])
+// Components whose root is an `Alert` count as one.
+const ALERT_TAGS = new Set(['Alert', 'ActorInfoBanner'])
 
 // The Messages chat panes are the page's surface: their Alerts are the pane's
 // own rows, so they stay inside the `Frame`.
@@ -45,7 +47,7 @@ const alertsInBoxes = (source: string): number[] => {
       ((element as Node).name as { value?: string } | undefined)?.value
     let nextInBox = inBox
     if (node.type === 'JSXOpeningElement' && inBox) {
-      if (tagName(node) === 'Alert') {
+      if (ALERT_TAGS.has(tagName(node) ?? '')) {
         lines.push(lineOfOffset(source, node.span!.start - base))
       }
     }
@@ -69,6 +71,9 @@ describe('Alert outside Frame', () => {
     ).toEqual([1])
     expect(
       alertsInBoxes('const A = () => <AddBar label="x"><Alert /></AddBar>')
+    ).toEqual([1])
+    expect(
+      alertsInBoxes('const A = () => <Frame><ActorInfoBanner /></Frame>')
     ).toEqual([1])
     expect(
       alertsInBoxes(

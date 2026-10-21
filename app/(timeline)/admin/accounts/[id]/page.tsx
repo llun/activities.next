@@ -5,7 +5,6 @@ import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { BackLink } from '@/lib/components/back-link'
 import { PageHeader } from '@/lib/components/page-header'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
-import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'
@@ -82,37 +81,36 @@ const Page = async ({ params }: Props) => {
             This account has no actors yet.
           </EmptyState>
         ) : (
-          <FramedList aria-label="Actors">
+          <ul aria-label="Actors" className="space-y-3">
             {actors.map((actor) => (
-              <FramedListItem key={actor.id} className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">
-                      {actor.name || actor.username}
-                    </p>
-                    <p className="text-muted-foreground truncate text-sm">
-                      {getMention(actor, true)}
-                    </p>
+              <li key={actor.id}>
+                <ActorModerationPanel
+                  actorId={getClientActorId(actor)}
+                  username={actor.username}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {actor.name || actor.username}
+                      </p>
+                      <p className="text-muted-foreground truncate text-sm">
+                        {getMention(actor, true)}
+                      </p>
+                    </div>
+                    <div className="text-muted-foreground shrink-0 text-right text-sm">
+                      {actor.deletionStatus ? (
+                        <span className="text-destructive-text">
+                          {actor.deletionStatus}
+                        </span>
+                      ) : (
+                        new Date(actor.createdAt).toLocaleDateString()
+                      )}
+                    </div>
                   </div>
-                  <div className="text-muted-foreground shrink-0 text-right text-sm">
-                    {actor.deletionStatus ? (
-                      <span className="text-destructive-text">
-                        {actor.deletionStatus}
-                      </span>
-                    ) : (
-                      new Date(actor.createdAt).toLocaleDateString()
-                    )}
-                  </div>
-                </div>
-                <div className="border-t pt-4">
-                  <ActorModerationPanel
-                    actorId={getClientActorId(actor)}
-                    username={actor.username}
-                  />
-                </div>
-              </FramedListItem>
+                </ActorModerationPanel>
+              </li>
             ))}
-          </FramedList>
+          </ul>
         )}
       </Section>
     </div>

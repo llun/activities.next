@@ -156,6 +156,8 @@ describe('ActorModerationPanel', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Network down')
+    // Every status is a card under the actor's box, never inside it.
+    expect(alert.closest('[data-slot=frame]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Suspend' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -167,6 +169,21 @@ describe('ActorModerationPanel', () => {
     expect(mockGetAdminAccount).toHaveBeenCalledTimes(2)
   })
 
+  it('puts the actor summary and the actions in one box', async () => {
+    mockGetAdminAccount.mockResolvedValue(account({}))
+
+    render(
+      <ActorModerationPanel actorId="acct-1" username="target">
+        <p>Target actor</p>
+      </ActorModerationPanel>
+    )
+
+    const suspend = await screen.findByRole('button', { name: 'Suspend' })
+    const frame = screen.getByText('Target actor').closest('[data-slot=frame]')
+    expect(frame).not.toBeNull()
+    expect(frame).toContainElement(suspend)
+  })
+
   it('keeps the actions and shows an alert when an action fails', async () => {
     mockGetAdminAccount.mockResolvedValue(account({}))
     mockAction.mockRejectedValue(new Error('Not allowed'))
@@ -174,7 +191,9 @@ describe('ActorModerationPanel', () => {
     render(<ActorModerationPanel actorId="acct-1" username="target" />)
     fireEvent.click(await screen.findByRole('button', { name: 'Silence' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Not allowed')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Not allowed')
+    expect(alert.closest('[data-slot=frame]')).toBeNull()
     expect(screen.getByRole('button', { name: 'Silence' })).toBeEnabled()
   })
 
@@ -185,9 +204,8 @@ describe('ActorModerationPanel', () => {
     render(<ActorModerationPanel actorId="acct-1" username="target" />)
     fireEvent.click(await screen.findByRole('button', { name: 'Reject' }))
 
-    expect(
-      await screen.findByText('Account rejected and removed.')
-    ).toBeInTheDocument()
+    const removed = await screen.findByText('Account rejected and removed.')
+    expect(removed.closest('[data-slot=frame]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
     expect(mockGetAdminAccount).toHaveBeenCalledTimes(1)
   })

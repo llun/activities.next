@@ -171,6 +171,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         </>
       }
     >
+      {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
       <Frame
         form
         footer={
@@ -187,12 +188,6 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           </div>
         }
       >
-        {actorHandle && (
-          <div className="px-4 pt-1 pb-1.5">
-            <ActorInfoBanner actorHandle={actorHandle} />
-          </div>
-        )}
-
         <input
           ref={fileInputRef}
           id="fitnessImportFiles"
