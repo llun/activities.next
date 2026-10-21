@@ -315,8 +315,8 @@ export const createNoteWithResult = async (
               key: idempotency.key,
               statusId: id,
               contentHash: idempotency.contentHash,
-              // The create's own completion steps move it to 'complete' or
-              // 'publish_failed'.
+              // The create's own publish moves it to 'publishing', then
+              // 'complete' or 'publish_failed'.
               state: 'pending',
               // The claim time, not the (possibly backdated) status time, so
               // the key's TTL runs from when the request was made.
@@ -568,8 +568,8 @@ export const createPollWithResult = async (
               key: idempotency.key,
               statusId: id,
               contentHash: idempotency.contentHash,
-              // The create's own completion steps move it to 'complete' or
-              // 'publish_failed'.
+              // The create's own publish moves it to 'publishing', then
+              // 'complete' or 'publish_failed'.
               state: 'pending',
               // The claim time, not the (possibly backdated) status time, so
               // the key's TTL runs from when the request was made.

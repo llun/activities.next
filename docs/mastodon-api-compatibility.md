@@ -484,9 +484,10 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   processes the `(actorId, key)` unique constraint inside the status creation
   transaction picks one winner, and the others answer as a repeat does. Each
   key records how far its create got (`idempotency_keys.state`): `pending`
-  from the claim, `publish_failed` when the post was saved but its federation
-  job could not be queued, and `complete` once a request has taken it to queue
-  that job (keys stored before the column existed are `complete`). After the status row commits, the steps that
+  from the claim, `publishing` while a request is queueing its federation job
+  (stamped with `stateChangedAt`), `publish_failed` when the post was saved but
+  that job could not be queued, and `complete` once the queue has accepted it
+  (keys stored before the column existed are `complete`). After the status row commits, the steps that
   complete the post (mention, hashtag and emoji tags, attachments, timelines,
   fitness linking and the hydrating re-read) must all succeed. When one fails,
   its parallel siblings are allowed to settle, then the not-yet-federated
@@ -502,9 +503,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `POST /api/v1/accounts/outbox` answers that `503` too. A retry with the same
   key queues the job again under the same deterministic job id and answers
   `200 OK` (or `503` again); without a key nothing re-sends that post. Of the
-  create and its retries, exactly one queues the job: each takes the key to
-  `complete` with one conditional update first, and a queue error moves it
-  back to `publish_failed`. Best-effort steps (detected language, hashtag
+  create and its retries, one queues the job at a time: each takes the key to
+  `publishing` with one conditional update first; the queue's acceptance then
+  moves it to `complete` and a queue error to `publish_failed`. When that
+  state write fails the key stays `publishing`, and a retry answers `409`
+  until it is 60 seconds old, then queues the job again under the same id. Best-effort steps (detected language, hashtag
   counters and search indexing before the publish; the quote request,
   notifications and alerts, and link preview sync after it, which run even
   when the publish failed, since the post is kept) are logged on failure and do
@@ -518,9 +521,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   request, notifications and alerts, and link preview sync of a create whose
   process stopped before running them are never run (re-running them could
   notify twice), and its hashtags are uncounted if it stopped before counting
-  them. A process that stops after taking the key to `complete` but before
-  the queue accepted the job (on the in-process queue, during the inline
-  fan-out) leaves the post unsent while retries answer `200`. A repeat that
+  them. A process that stops after taking the key to `publishing` leaves it
+  there, and a retry 60 seconds later queues the job again under the same id;
+  if the queue had in fact accepted it, or the publish ran longer than 60
+  seconds (on the in-process queue, a slow inline fan-out), the job is queued
+  twice, which only QStash and the database queue deduplicate. A repeat that
   finds the key but not its status re-reads the key, and answers `410` only
   when the key still names that status; when the create was discarded in
   between, the repeat creates the post afresh. Deleting a status

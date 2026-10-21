@@ -692,6 +692,7 @@ export interface IdempotencyKeys {
   createdAt: WithDefault<Nullable<Timestamp>>
   key: string
   state: WithDefault<string>
+  stateChangedAt: Nullable<Timestamp>
   statusId: string
 }
 

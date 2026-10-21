@@ -137,11 +137,13 @@ const getStatusCreationJob = (
 }
 
 // Queues the federation job of a status whose key the caller has just taken
-// (claimIdempotencyKeyPublish), or that has no key. A queue error is ambiguous
-// (the job may have been accepted, or run inline), so the post is kept: its
-// key moves back to 'publish_failed', so a retry with the key queues the job
-// again, and the request fails with StatusPublishFailedError. A failed state
-// write leaves the key 'complete', and nothing re-sends the post.
+// to 'publishing' (claimIdempotencyKeyPublish), or that has no key. Once the
+// queue accepts the job the key moves to 'complete'. A queue error is
+// ambiguous (the job may have been accepted, or run inline), so the post is
+// kept: its key moves to 'publish_failed', so a retry with the key queues the
+// job again, and the request fails with StatusPublishFailedError. When either
+// state write fails the key stays 'publishing', and a retry queues the job
+// again (with the same id) once that is IDEMPOTENCY_PENDING_STALE_MS old.
 const queueStatusCreationJob = async ({
   database,
   actorId,
@@ -176,11 +178,21 @@ const queueStatusCreationJob = async ({
     }
     throw new StatusPublishFailedError(Boolean(key))
   }
+  if (key) {
+    await runBestEffortStep(status.id, 'Idempotency-Key complete', () =>
+      database.setIdempotencyKeyState({
+        actorId,
+        key,
+        statusId: status.id,
+        state: 'complete'
+      })
+    )
+  }
 }
 
 // The commit point of a status create, after which the post is never
 // discarded. With a key, the job is queued only if this request takes the
-// key from 'pending' to 'complete' first: a retry that took over a stale
+// key from 'pending' to 'publishing' first: a retry that took over a stale
 // 'pending' key has queued it already, and a discard keeps a post whose key
 // has moved on. A failed claim leaves the key 'pending' (a retry gets 409
 // until it is IDEMPOTENCY_PENDING_STALE_MS old, then queues the job) and fails
@@ -228,12 +240,13 @@ export const publishCreatedStatus = async ({
 // Answers a retry with the key that claimed `statusId`, after waiting out an
 // in-process create of it, by the key's state:
 // - 'complete': the status;
-// - 'publish_failed', or 'pending' for longer than IDEMPOTENCY_PENDING_STALE_MS
-//   (its process most likely stopped): takes the key and queues the job again,
-//   then the status (StatusPublishFailedError when the queue refuses again);
-//   when another request took the key first, answers by its new state;
-// - a fresher 'pending': IdempotencyInProgressError, as another process may
-//   still be creating it.
+// - 'publish_failed', or 'pending' or 'publishing' for longer than
+//   IDEMPOTENCY_PENDING_STALE_MS (its process most likely stopped): takes the
+//   key and queues the job again, then the status (StatusPublishFailedError
+//   when the queue refuses again); when another request took the key first,
+//   answers by its new state;
+// - a fresher 'pending' or 'publishing': IdempotencyInProgressError, as
+//   another process may still be creating or queueing it.
 // Null when that create failed and discarded its status and key, so a retry
 // may create the post afresh; IdempotencyDeletedError when the key outlived
 // its status.
@@ -291,7 +304,9 @@ export const loadIdempotentStatus = async ({
   const current = await database.getIdempotencyKey({ actorId, key })
   if (current?.statusId !== statusId) return null
   if (current.state === 'complete') return status
-  if (current.state === 'pending') throw new IdempotencyInProgressError()
+  if (current.state === 'pending' || current.state === 'publishing') {
+    throw new IdempotencyInProgressError()
+  }
   throw new StatusPublishFailedError(true)
 }
 

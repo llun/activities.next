@@ -1425,18 +1425,23 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   re-reads the key (as does a lost unique-key claim) and answers `410` only if
   the key still names that status; otherwise the create was discarded in
   between and the retry may create the post afresh.
-  `idempotency_keys.state` (`pending` from the claim, then `publish_failed` or
-  `complete`; `complete` by default for rows written before the column and for
-  `saveIdempotencyKey`) is what lets a retry tell a finished create from one
-  whose publish failed, which it re-queues under the same job id
-  (`getHashFromString(statusId)`), and from one still running in another
-  process (`409` while the key is younger than `IDEMPOTENCY_PENDING_STALE_MS`,
-  60 seconds, then treated as `publish_failed`). Whoever queues the job first
-  takes the key with one conditional `UPDATE … SET state = 'complete'`
+  `idempotency_keys.state` (`pending` from the claim, `publishing` while a
+  request waits for the queue, then `publish_failed` or `complete`; `complete`
+  by default for rows written before the column and for `saveIdempotencyKey`)
+  is what lets a retry tell a finished create from one whose publish failed,
+  which it re-queues under the same job id (`getHashFromString(statusId)`), and
+  from one still running in another process (`409` while a `pending` key is
+  younger than `IDEMPOTENCY_PENDING_STALE_MS`, 60 seconds, by its `createdAt`,
+  or a `publishing` key by its `stateChangedAt`; after that it is treated as
+  `publish_failed`). Whoever queues the job first takes the key with one
+  conditional `UPDATE … SET state = 'publishing', "stateChangedAt" = now`
   (`claimIdempotencyKeyPublish`, checked through `numUpdatedRows`): the create
-  from `pending`, a retry from `publish_failed` or from a stale `pending`. So
-  of the create and its retries exactly one queues the job, and a queue error
-  moves the key back to `publish_failed`. QStash (whose deduplication id is the
+  from `pending`, a retry from `publish_failed`, from a stale `pending` or from
+  a stale `publishing`. The key moves to `complete` only once the queue has
+  accepted the job, and to `publish_failed` when it refuses; when either write
+  fails the key stays `publishing`, and a retry re-queues the same job id once
+  that is 60 seconds old. So of the create and its retries one queues the job
+  at a time. QStash (whose deduplication id is the
   job id) and the database queue (`onConflict(id).doNothing()`) also
   deduplicate a re-queue; **Cloud Tasks and the default in-process NoQueue do
   not**: Cloud Tasks tasks carry no name, and NoQueue runs the whole
@@ -1444,17 +1449,21 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   `publish_failed` whose job was in fact accepted (on NoQueue, one that failed
   part-way through its fan-out) can run `SendNoteJob` twice for the same status
   and deliver the same `Create` (same object id) twice, which receiving servers
-  drop as a repeat. Crash caveats: a process that dies after the claim
-  and before taking the key to `complete` leaves a `pending` key behind, and a
+  drop as a repeat. Crash caveats: a process that dies after the key claim
+  and before its publish claim leaves a `pending` key behind, and a
   retry 60 seconds later sends that post as it was left, which may lack the
   completion steps the crash skipped. That retry only re-queues the federation
   job: the steps after the publish (the quote request, notifications and their
   alerts, link preview sync) never run for the recovered post, and are not
   re-run because a create that got further would notify twice. Hashtag
   counters run before the publish, so they are counted unless the process died
-  before reaching them. A process that dies after taking the key to `complete`
-  and before the queue accepted the job (on NoQueue, anywhere in the inline
-  fan-out) leaves the post unsent, and retries answer `200`. A post kept
+  before reaching them. A process that dies after taking the key to
+  `publishing` leaves it there, and a retry 60 seconds later re-queues the
+  same job id. What remains is a queue that accepted the job but whose answer
+  never reached the process, or a publish that outlasts 60 seconds (on NoQueue,
+  a slow inline fan-out): a stale retry then queues the same job id again,
+  which QStash and the database queue drop and Cloud Tasks and NoQueue run a
+  second time. A post kept
   because a retry took its key over while its own completion step was failing
   never had its hashtags counted, and its later deletion decrements them. The
   key row is stamped with the

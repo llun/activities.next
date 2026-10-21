@@ -4,19 +4,23 @@
 
 export const IDEMPOTENCY_KEY_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-// How long a 'pending' key is presumed to belong to a create still running in
+// How long a 'pending' key (from its createdAt) or a 'publishing' key (from
+// its stateChangedAt) is presumed to belong to a request still running in
 // another process. An older one is treated as 'publish_failed': its process
 // most likely stopped before it could finish.
 export const IDEMPOTENCY_PENDING_STALE_MS = 60_000
 
 // How far the status create that claimed a key got:
 // - 'pending': the create is still running (or its process stopped);
+// - 'publishing': a request took the key to queue the federation job and is
+//   waiting for the queue (or its process stopped);
 // - 'publish_failed': the post is saved but its federation job could not be
 //   queued, so a retry with the key queues it again;
-// - 'complete': a request took the key to queue the job (and moves it back to
-//   'publish_failed' if the queue refuses). Keys written before the column existed,
-//   and keys saved by saveIdempotencyKey, are 'complete'.
-export type IdempotencyKeyState = 'pending' | 'publish_failed' | 'complete'
+// - 'complete': the queue accepted the job (a poll has none). Keys written
+//   before the column existed, and keys saved by saveIdempotencyKey, are
+//   'complete'.
+export type IdempotencyKeyState =
+  'pending' | 'publishing' | 'publish_failed' | 'complete'
 
 export type GetIdempotentStatusIdParams = { actorId: string; key: string }
 export type SaveIdempotencyKeyParams = {
@@ -39,7 +43,8 @@ export type ClaimIdempotencyKeyPublishParams = {
   statusId: string
   // Omitted for the create's own request, which takes the key from 'pending'.
   // A retry passes now - IDEMPOTENCY_PENDING_STALE_MS and takes it from
-  // 'publish_failed', or from a 'pending' claimed at or before this time.
+  // 'publish_failed', from a 'pending' claimed at or before this time, or
+  // from a 'publishing' taken at or before it.
   staleBefore?: Date
 }
 export type DeleteExpiredIdempotencyKeysParams = {
@@ -53,6 +58,8 @@ export type IdempotencyKeyRecord = {
   contentHash: string | null
   state: IdempotencyKeyState
   createdAt: number | null
+  // When a request last moved the key out of 'pending'; null before that.
+  stateChangedAt: number | null
 }
 
 export class IdempotencyConflictError extends Error {
@@ -110,8 +117,8 @@ export interface IdempotencyDatabase {
   ): Promise<IdempotencyKeyRecord | null>
   saveIdempotencyKey(params: SaveIdempotencyKeyParams): Promise<void>
   setIdempotencyKeyState(params: SetIdempotencyKeyStateParams): Promise<void>
-  // Moves the key to 'complete' if the caller may queue its status's job, and
-  // returns whether it did (see ClaimIdempotencyKeyPublishParams).
+  // Moves the key to 'publishing' if the caller may queue its status's job,
+  // and returns whether it did (see ClaimIdempotencyKeyPublishParams).
   claimIdempotencyKeyPublish(
     params: ClaimIdempotencyKeyPublishParams
   ): Promise<boolean>

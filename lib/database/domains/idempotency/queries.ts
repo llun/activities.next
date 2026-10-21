@@ -31,7 +31,15 @@ export const getIdempotencyKey = async (
 ): Promise<IdempotencyKeyRecord | null> => {
   const row = await db
     .selectFrom('idempotency_keys')
-    .select(['actorId', 'key', 'statusId', 'contentHash', 'state', 'createdAt'])
+    .select([
+      'actorId',
+      'key',
+      'statusId',
+      'contentHash',
+      'state',
+      'createdAt',
+      'stateChangedAt'
+    ])
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .limit(1)
@@ -43,7 +51,8 @@ export const getIdempotencyKey = async (
     statusId: row.statusId,
     contentHash: row.contentHash ?? null,
     state: row.state as IdempotencyKeyState,
-    createdAt: row.createdAt ?? null
+    createdAt: row.createdAt ?? null,
+    stateChangedAt: row.stateChangedAt ?? null
   }
 }
 
@@ -85,23 +94,25 @@ export const setIdempotencyKeyState = async (
 ): Promise<void> => {
   await db
     .updateTable('idempotency_keys')
-    .set({ state })
+    .set({ state, stateChangedAt: new Date() })
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .where('statusId', '=', statusId)
     .execute()
 }
 
-// One conditional UPDATE, so of the create and its retries exactly one takes
-// the key and queues the job: the create's own request from 'pending', a retry
-// from 'publish_failed' or from a 'pending' claimed at or before `staleBefore`.
+// One conditional UPDATE, so of the create and its retries one at a time takes
+// the key to 'publishing' and queues the job: the create's own request from
+// 'pending', a retry from 'publish_failed', from a 'pending' claimed at or
+// before `staleBefore`, or from a 'publishing' whose request took it at or
+// before then and never recorded the queue's answer.
 export const claimIdempotencyKeyPublish = async (
   db: Db,
   { actorId, key, statusId, staleBefore }: ClaimIdempotencyKeyPublishParams
 ): Promise<boolean> => {
   const { numUpdatedRows } = await db
     .updateTable('idempotency_keys')
-    .set({ state: 'complete' })
+    .set({ state: 'publishing', stateChangedAt: new Date() })
     .where('actorId', '=', actorId)
     .where('key', '=', key)
     .where('statusId', '=', statusId)
@@ -112,6 +123,10 @@ export const claimIdempotencyKeyPublish = async (
             eb.and([
               eb('state', '=', 'pending'),
               eb('createdAt', '<=', timestampValue(staleBefore))
+            ]),
+            eb.and([
+              eb('state', '=', 'publishing'),
+              eb('stateChangedAt', '<=', timestampValue(staleBefore))
             ])
           ])
         : eb('state', '=', 'pending')

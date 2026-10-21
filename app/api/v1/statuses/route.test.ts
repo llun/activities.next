@@ -1043,6 +1043,93 @@ describe('POST /api/v1/statuses', () => {
     await expect(statusesWithText(text)).resolves.toHaveLength(1)
   })
 
+  // Ages a key past IDEMPOTENCY_PENDING_STALE_MS, as if its request stopped.
+  const ageKey = (key: string) => {
+    const past = new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)
+    return db
+      .updateTable('idempotency_keys')
+      .set({ createdAt: past, stateChangedAt: past })
+      .where('actorId', '=', ACTOR1_ID)
+      .where('key', '=', key)
+      .execute()
+  }
+
+  it('responds 503 and leaves the key pending when the publish claim throws, so a retry sends the post once it is stale', async () => {
+    const idempotencyKey = 'idem-key-claim-throws'
+    const text = 'Claim failed then sent'
+    const publishMock = vi.mocked(getQueue().publish)
+    const claimSpy = vi
+      .spyOn(database, 'claimIdempotencyKeyPublish')
+      .mockRejectedValueOnce(new Error('Database unavailable'))
+    try {
+      const failed = await postStatus({ status: text }, idempotencyKey)
+      expect(failed.status).toBe(503)
+    } finally {
+      claimSpy.mockRestore()
+    }
+
+    expect(publishMock).not.toHaveBeenCalled()
+    await expect(keyState(idempotencyKey)).resolves.toBe('pending')
+    await expect(statusesWithText(text)).resolves.toHaveLength(1)
+
+    await ageKey(idempotencyKey)
+    const retried = await postStatus({ status: text }, idempotencyKey)
+
+    expect(retried.status).toBe(200)
+    expect(publishMock).toHaveBeenCalledTimes(1)
+    await expect(keyState(idempotencyKey)).resolves.toBe('complete')
+  })
+
+  it.each([
+    {
+      outcome: 'accepted',
+      queueError: null,
+      firstStatus: 200
+    },
+    {
+      outcome: 'refused',
+      queueError: new Error('Queue unavailable'),
+      firstStatus: 503
+    }
+  ])(
+    'leaves the key publishing when its state write fails after the queue $outcome the job, and a stale retry queues the same job once',
+    async ({ outcome, queueError, firstStatus }) => {
+      const idempotencyKey = `idem-key-state-write-fails-${outcome}`
+      const text = `State write failed after the queue ${outcome}`
+      const publishMock = vi.mocked(getQueue().publish)
+      if (queueError) publishMock.mockRejectedValueOnce(queueError)
+      const stateSpy = vi
+        .spyOn(database, 'setIdempotencyKeyState')
+        .mockRejectedValueOnce(new Error('Database unavailable'))
+      try {
+        const first = await postStatus({ status: text }, idempotencyKey)
+        expect(first.status).toBe(firstStatus)
+      } finally {
+        stateSpy.mockRestore()
+      }
+      expect(publishMock).toHaveBeenCalledTimes(1)
+      const job = publishMock.mock.calls[0][0]
+      await expect(keyState(idempotencyKey)).resolves.toBe('publishing')
+
+      // A fresh 'publishing' key may still be waiting on the queue.
+      const fresh = await postStatus({ status: text }, idempotencyKey)
+      expect(fresh.status).toBe(409)
+      expect(publishMock).toHaveBeenCalledTimes(1)
+
+      await ageKey(idempotencyKey)
+      const retried = await postStatus({ status: text }, idempotencyKey)
+      expect(retried.status).toBe(200)
+      expect(publishMock).toHaveBeenCalledTimes(2)
+      expect(publishMock.mock.calls[1][0]).toEqual(job)
+      await expect(keyState(idempotencyKey)).resolves.toBe('complete')
+
+      const again = await postStatus({ status: text }, idempotencyKey)
+      expect(again.status).toBe(200)
+      expect(publishMock).toHaveBeenCalledTimes(2)
+      await expect(statusesWithText(text)).resolves.toHaveLength(1)
+    }
+  )
+
   it('discards the status and its key without publishing when a step before the publish fails, so a retry with the key creates it', async () => {
     const idempotencyKey = 'idem-key-attachment-fails'
     const text = 'Discarded then retried #retried'

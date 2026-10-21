@@ -338,18 +338,68 @@ describe('idempotent status lookup', () => {
     expect(mockPublish).toHaveBeenCalledTimes(1)
   })
 
-  it('queues the job once for concurrent retries of a failed publish', async () => {
+  it('queues the job once for concurrent retries of a failed publish, and marks the key complete only once the queue accepts it', async () => {
     const statusId = await createKeyedNote('concurrent-retries')
     await setState('concurrent-retries', statusId, 'publish_failed')
+    const accepted = createDeferred<void>()
+    mockPublish.mockReturnValueOnce(accepted.promise)
 
-    const results = await Promise.all([
-      load('concurrent-retries', statusId),
-      load('concurrent-retries', statusId)
-    ])
+    const first = load('concurrent-retries', statusId)
+    await vi.waitFor(() => expect(mockPublish).toHaveBeenCalledTimes(1))
+    await expect(stateOf('concurrent-retries')).resolves.toBe('publishing')
+    // The other retry finds the key taken and the queue not yet answered.
+    await expect(load('concurrent-retries', statusId)).rejects.toBeInstanceOf(
+      IdempotencyInProgressError
+    )
 
-    expect(results).toMatchObject([{ id: statusId }, { id: statusId }])
+    accepted.resolve()
+    await expect(first).resolves.toMatchObject({ id: statusId })
+    await expect(stateOf('concurrent-retries')).resolves.toBe('complete')
+    await expect(load('concurrent-retries', statusId)).resolves.toMatchObject({
+      id: statusId
+    })
     expect(mockPublish).toHaveBeenCalledTimes(1)
   })
+
+  it.each([
+    { state: 'complete', outcome: 'the status' },
+    { state: 'pending', outcome: IdempotencyInProgressError },
+    { state: 'publishing', outcome: IdempotencyInProgressError },
+    { state: 'publish_failed', outcome: StatusPublishFailedError },
+    { state: null, outcome: null }
+  ] as const)(
+    'answers a retry whose claim another request beat, by the key’s new state $state',
+    async ({ state, outcome }) => {
+      const name = `claim-lost-${state ?? 'gone'}`
+      const statusId = await createKeyedNote(name)
+      await setState(name, statusId, 'publish_failed')
+      // Another request moves the key between this retry's read and claim.
+      vi.spyOn(database, 'claimIdempotencyKeyPublish').mockImplementationOnce(
+        async () => {
+          if (state) await setState(name, statusId, state)
+          else {
+            await db
+              .deleteFrom('idempotency_keys')
+              .where('actorId', '=', actorId)
+              .where('key', '=', name)
+              .execute()
+          }
+          return false
+        }
+      )
+
+      const result = load(name, statusId)
+
+      if (outcome === 'the status') {
+        await expect(result).resolves.toMatchObject({ id: statusId })
+      } else if (outcome === null) {
+        await expect(result).resolves.toBeNull()
+      } else {
+        await expect(result).rejects.toBeInstanceOf(outcome)
+      }
+      expect(mockPublish).not.toHaveBeenCalled()
+    }
+  )
 
   it('returns null, not 410, when the create is discarded between the key and status reads', async () => {
     const statusId = await createKeyedNote('discard-race')
