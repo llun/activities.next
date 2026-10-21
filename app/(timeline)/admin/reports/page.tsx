@@ -52,11 +52,25 @@ const Page = async ({ searchParams }: Props) => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={domain ? `Reports on ${domain}` : 'Reports'}
+        title={
+          domain ? (
+            <>
+              Reports on <span className="break-all">{domain}</span>
+            </>
+          ) : (
+            'Reports'
+          )
+        }
         description={
-          domain
-            ? `${capped ? `${open}+` : open} open ${open === 1 ? 'report' : 'reports'} about profiles on ${domain}.`
-            : 'Review and resolve moderation reports.'
+          domain ? (
+            <>
+              {capped ? `${open}+` : open}{' '}
+              {open === 1 ? 'open report' : 'open reports'} about profiles on{' '}
+              <span className="break-all">{domain}</span>.
+            </>
+          ) : (
+            'Review and resolve moderation reports.'
+          )
         }
       />
       <AdminReportsList servedDomains={servedDomains} domain={domain} />

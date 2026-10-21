@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
+import { render } from '@testing-library/react'
 import { redirect } from 'next/navigation'
+import type { ReactNode } from 'react'
 
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
@@ -42,13 +44,15 @@ vi.mock('./AdminReportsList', () => ({
 
 type Element = { props: Record<string, unknown> }
 
+const textOf = (node: ReactNode) => render(<>{node}</>).container.textContent
+
 const load = async (domain?: string | string[]) => {
   const tree = (await Page({
     searchParams: Promise.resolve({ domain })
   })) as unknown as { props: { children: Element[] } }
   const [header, list] = tree.props.children
   return {
-    header: header.props as { title: string; description: string },
+    header: header.props as { title: ReactNode; description: ReactNode },
     list: list.props as { servedDomains: string[]; domain: string | null }
   }
 }
@@ -66,8 +70,8 @@ describe('/admin/reports loader', () => {
     const { header, list } = await load('run.example')
     expect(list.domain).toBe('run.example')
     expect(list.servedDomains).toEqual(['social.example', 'run.example'])
-    expect(header.title).toBe('Reports on run.example')
-    expect(header.description).toContain('2 open reports')
+    expect(textOf(header.title)).toBe('Reports on run.example')
+    expect(textOf(header.description)).toContain('2 open reports')
     expect(getAdminReports).toHaveBeenCalledWith(
       expect.objectContaining({ domain: 'run.example', resolved: false })
     )
@@ -90,14 +94,14 @@ describe('/admin/reports loader', () => {
     const { header, list } = await load('run.example')
     expect(list.domain).toBe('run.example')
     expect(list.servedDomains).toEqual(['run.example'])
-    expect(header.description).toContain('2 open reports')
+    expect(textOf(header.description)).toContain('2 open reports')
   })
 
   it('shows exactly the cap as is, and asks for one more to tell', async () => {
     getAdminReports.mockResolvedValue(new Array(1000).fill({}))
     const { header } = await load('run.example')
-    expect(header.description).toContain('1000 open reports')
-    expect(header.description).not.toContain('1000+')
+    expect(textOf(header.description)).toContain('1000 open reports')
+    expect(textOf(header.description)).not.toContain('1000+')
     expect(getAdminReports).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 1001 })
     )
@@ -106,7 +110,7 @@ describe('/admin/reports loader', () => {
   it('marks more than the cap of open reports as capped', async () => {
     getAdminReports.mockResolvedValue(new Array(1001).fill({}))
     const { header } = await load('run.example')
-    expect(header.description).toContain('1000+ open reports')
+    expect(textOf(header.description)).toContain('1000+ open reports')
   })
 
   it('redirects a non-admin to the home page', async () => {

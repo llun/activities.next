@@ -57,7 +57,9 @@ const ServerRuleRows: FC<{ rules: AdminRule[]; chip: boolean }> = ({
       >
         <RuleNumber n={index + 1} />
         <div className="min-w-0 flex-1 basis-40 pt-0.5">
-          <p className="text-sm leading-snug font-medium">{rule.text}</p>
+          <p className="text-sm leading-snug font-medium break-words">
+            {rule.text}
+          </p>
           {rule.hint ? (
             <p className="text-muted-foreground mt-0.5 text-[13px] leading-relaxed">
               {rule.hint}
