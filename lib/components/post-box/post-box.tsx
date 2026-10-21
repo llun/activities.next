@@ -230,7 +230,8 @@ export const PostBox: FC<Props> = ({
   const seededMediaShownRef = useRef(false)
   const isMountedRef = useRef(true)
   // Media details live beside the attachments, keyed by media id, rather than
-  // on PostBoxAttachment: that type is what goes to the outbox, and the details
+  // on PostBoxAttachment: that type is what the deprecated outbox route takes (the composer sends
+  // only `media_ids`), and the details
   // (subject, gear, place) are already saved on the media row by the dialog.
   const [gallerySettings, setGallerySettings] =
     useState<GallerySettingsEntity | null>(null)

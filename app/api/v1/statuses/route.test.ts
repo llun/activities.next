@@ -4,6 +4,10 @@ import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
 import { IDEMPOTENCY_PENDING_STALE_MS } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
+import {
+  getIdempotencyStatusId,
+  seedIdempotencyKey
+} from '@/lib/database/testing/idempotencyTestHelpers'
 import type { Database } from '@/lib/database/types'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
@@ -828,7 +832,7 @@ describe('POST /api/v1/statuses', () => {
     // resurrect the deleted post.
     await database.deleteStatus({ statusId: firstStatus.uri })
     await expect(
-      database.getIdempotentStatusId({
+      getIdempotencyStatusId(db, {
         actorId: ACTOR1_ID,
         key: idempotencyKey
       })
@@ -1146,7 +1150,8 @@ describe('POST /api/v1/statuses', () => {
     expect(replayed.status).toBe(200)
     await expect(replayed.json()).resolves.toMatchObject({
       id: created.id,
-      favourited: true
+      favourited: true,
+      quote_approval: created.quote_approval
     })
   })
 
@@ -1728,7 +1733,7 @@ describe('POST /api/v1/statuses', () => {
     const original = await postStatus({ status: 'Legacy keyed status' })
     expect(original.status).toBe(200)
     const originalStatus = await original.json()
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: ACTOR1_ID,
       key: 'idem-key-legacy-null-hash',
       statusId: originalStatus.uri

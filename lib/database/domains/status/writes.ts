@@ -259,6 +259,40 @@ const resolveDuplicateStatus = async (
   return existingStatus
 }
 
+// Claims the Idempotency-Key for a create inside its transaction. A unique
+// violation (the key or the status id already exists) is thrown to the caller's
+// `recoverFromDuplicateInsert`, which resolves the winner.
+const insertIdempotencyClaim = async (
+  trx: Db,
+  {
+    actorId,
+    id,
+    idempotency,
+    currentTime
+  }: {
+    actorId: string
+    id: string
+    idempotency: { key: string; contentHash: string }
+    currentTime: Date
+  }
+): Promise<void> => {
+  await trx
+    .insertInto('idempotency_keys')
+    .values({
+      actorId,
+      key: idempotency.key,
+      statusId: id,
+      contentHash: idempotency.contentHash,
+      // The create's own publish moves it to 'publishing', then
+      // 'complete' or 'publish_failed'.
+      state: 'pending',
+      // The claim time, not the (possibly backdated) status time, so
+      // the key's TTL runs from when the request was made.
+      createdAt: currentTime
+    })
+    .execute()
+}
+
 export const createNoteWithResult = async (
   db: Db,
   hydration: StatusHydration,
@@ -308,21 +342,12 @@ export const createNoteWithResult = async (
     insert: () =>
       inTransaction(db, async (trx) => {
         if (idempotency) {
-          await trx
-            .insertInto('idempotency_keys')
-            .values({
-              actorId,
-              key: idempotency.key,
-              statusId: id,
-              contentHash: idempotency.contentHash,
-              // The create's own publish moves it to 'publishing', then
-              // 'complete' or 'publish_failed'.
-              state: 'pending',
-              // The claim time, not the (possibly backdated) status time, so
-              // the key's TTL runs from when the request was made.
-              createdAt: currentTime
-            })
-            .execute()
+          await insertIdempotencyClaim(trx, {
+            actorId,
+            id,
+            idempotency,
+            currentTime
+          })
         }
         await trx
           .insertInto('statuses')
@@ -561,21 +586,12 @@ export const createPollWithResult = async (
     insert: () =>
       inTransaction(db, async (trx) => {
         if (idempotency) {
-          await trx
-            .insertInto('idempotency_keys')
-            .values({
-              actorId,
-              key: idempotency.key,
-              statusId: id,
-              contentHash: idempotency.contentHash,
-              // The create's own publish moves it to 'publishing', then
-              // 'complete' or 'publish_failed'.
-              state: 'pending',
-              // The claim time, not the (possibly backdated) status time, so
-              // the key's TTL runs from when the request was made.
-              createdAt: currentTime
-            })
-            .execute()
+          await insertIdempotencyClaim(trx, {
+            actorId,
+            id,
+            idempotency,
+            currentTime
+          })
         }
         await trx
           .insertInto('statuses')

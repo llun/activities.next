@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { seedIdempotencyKey } from '@/lib/database/testing/idempotencyTestHelpers'
 import type { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { SCHEDULED_AT_TOO_SOON_ERROR } from '@/lib/services/mastodon/constants'
@@ -49,7 +50,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('POST /api/v1/statuses', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
     await prepare()
@@ -75,7 +76,7 @@ describe('POST /api/v1/statuses', () => {
     const [published] = await database.getActorStatuses({ actorId: ACTOR1_ID })
     // The key a published scheduled status holds is bound to a hash of its
     // stored params, which never matches the request hash.
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: ACTOR1_ID,
       key: idempotencyKey,
       statusId: published.id,

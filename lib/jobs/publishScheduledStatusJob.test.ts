@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { seedIdempotencyKey } from '@/lib/database/testing/idempotencyTestHelpers'
 import { publishScheduledStatusJob } from '@/lib/jobs/publishScheduledStatusJob'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
@@ -58,7 +59,7 @@ const baseParams = (
 })
 
 describe('publishScheduledStatusJob', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
   let actor1: Actor
 
   beforeAll(async () => {
@@ -234,7 +235,7 @@ describe('publishScheduledStatusJob', () => {
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     // The key survives the deletion of the status it created, and matches
     // this job's content, so only the deleted status stops it.
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: actor1.id,
       key: idempotency,
       statusId: `${actor1.id}/statuses/already-deleted`,
@@ -385,7 +386,7 @@ describe('publishScheduledStatusJob', () => {
     const text = `Conflicting-key scheduled note ${Date.now()}`
     const idempotency = `idem-conflict-${Date.now()}`
     const [existing] = await database.getActorStatuses({ actorId: actor1.id })
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: actor1.id,
       key: idempotency,
       statusId: existing.id,

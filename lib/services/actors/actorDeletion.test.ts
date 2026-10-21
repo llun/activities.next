@@ -233,4 +233,26 @@ describe('startActorDeletionSweep', () => {
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
     sweep.stop()
   })
+
+  it('keeps sweeping after the idempotency-key purge fails', async () => {
+    vi.useFakeTimers()
+    makeQueue(true)
+    const getActorsScheduledForDeletion = vi.fn().mockResolvedValue([])
+    const deleteExpiredIdempotencyKeys = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('database down'))
+      .mockResolvedValue(0)
+    const database = {
+      getActorsScheduledForDeletion,
+      deleteExpiredIdempotencyKeys
+    } as unknown as Parameters<typeof startActorDeletionSweep>[0]
+
+    const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // The failed purge still reschedules, so the second tick runs both steps.
+    expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
+    expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
+    sweep.stop()
+  })
 })

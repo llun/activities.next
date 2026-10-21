@@ -459,6 +459,43 @@ describe('client statuses module', () => {
       }
     )
 
+    it('sends reply, quote, language and visibility fields in the request body', async () => {
+      const noteResponse = JSON.stringify({
+        id: 'status-public-id',
+        uri: 'https://llun.test/users/test1/statuses/post-4',
+        text: 'Quoted',
+        created_at: '2026-04-26T10:00:00.000Z',
+        media_attachments: []
+      })
+      fetchMock.mockResponse(noteResponse)
+      const quotedStatus = { id: 'quoted-1' } as never
+
+      await createNote({
+        message: 'Quoted',
+        quotedStatus,
+        inReplyToId: 'explicit-reply',
+        replyStatus: { id: 'fallback-reply' } as never,
+        language: 'th',
+        visibility: 'unlisted'
+      })
+      expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+        status: 'Quoted',
+        quoted_status_id: 'quoted-1',
+        in_reply_to_id: 'explicit-reply',
+        language: 'th',
+        visibility: 'unlisted'
+      })
+
+      fetchMock.mockResponse(noteResponse)
+      await createNote({
+        message: 'Reply',
+        replyStatus: { id: 'fallback-reply' } as never
+      })
+      expect(
+        JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)
+      ).toMatchObject({ in_reply_to_id: 'fallback-reply' })
+    })
+
     it('creates a note from a fitness file alone and sends fitness_file_id', async () => {
       fetchMock.mockResponse(
         JSON.stringify({
@@ -566,6 +603,37 @@ describe('client statuses module', () => {
           visibility: 'direct'
         })
       ).rejects.toThrow(expectedMessage)
+    })
+
+    it('sends reply, language and visibility fields in the request body', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      await createPoll({
+        message: 'Which?',
+        choices: ['A', 'B'],
+        durationInSeconds: 300,
+        inReplyToId: 'explicit-reply',
+        replyStatus: { id: 'fallback-reply' } as never,
+        language: 'th',
+        visibility: 'unlisted'
+      })
+      expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+        status: 'Which?',
+        in_reply_to_id: 'explicit-reply',
+        language: 'th',
+        visibility: 'unlisted',
+        poll: { options: ['A', 'B'], expires_in: 300 }
+      })
+
+      await createPoll({
+        message: 'Which?',
+        choices: ['A', 'B'],
+        durationInSeconds: 300,
+        replyStatus: { id: 'fallback-reply' } as never
+      })
+      expect(
+        JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)
+      ).toMatchObject({ in_reply_to_id: 'fallback-reply' })
     })
 
     it('creates poll successfully', async () => {

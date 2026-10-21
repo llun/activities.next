@@ -1427,7 +1427,7 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   between and the retry may create the post afresh.
   `idempotency_keys.state` (`pending` from the claim, `publishing` while a
   request waits for the queue, then `publish_failed` or `complete`; `complete`
-  by default for rows written before the column and for `saveIdempotencyKey`)
+  by default for rows written before the column)
   is what lets a retry tell a finished create from one whose publish failed,
   which it re-queues under the same job id (`getHashFromString(statusId)`), and
   from one still running in another process (`409` while a `pending` key is

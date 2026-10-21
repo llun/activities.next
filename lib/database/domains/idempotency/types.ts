@@ -17,19 +17,11 @@ export const IDEMPOTENCY_PENDING_STALE_MS = 60_000
 // - 'publish_failed': the post is saved but its federation job could not be
 //   queued, so a retry with the key queues it again;
 // - 'complete': the queue accepted the job (a poll has none). Keys written
-//   before the column existed, and keys saved by saveIdempotencyKey, are
-//   'complete'.
+//   before the column existed are 'complete'.
 export type IdempotencyKeyState =
   'pending' | 'publishing' | 'publish_failed' | 'complete'
 
 export type GetIdempotentStatusIdParams = { actorId: string; key: string }
-export type SaveIdempotencyKeyParams = {
-  actorId: string
-  key: string
-  statusId: string
-  contentHash?: string | null
-  createdAt?: Date | number
-}
 export type SetIdempotencyKeyStateParams = {
   actorId: string
   key: string
@@ -108,13 +100,9 @@ export class StatusPublishFailedError extends Error {
 }
 
 export interface IdempotencyDatabase {
-  getIdempotentStatusId(
-    params: GetIdempotentStatusIdParams
-  ): Promise<string | null>
   getIdempotencyKey(
     params: GetIdempotentStatusIdParams
   ): Promise<IdempotencyKeyRecord | null>
-  saveIdempotencyKey(params: SaveIdempotencyKeyParams): Promise<void>
   setIdempotencyKeyState(params: SetIdempotencyKeyStateParams): Promise<void>
   // Moves the key to 'publishing' if the caller may queue its status's job,
   // and returns whether it did (see ClaimIdempotencyKeyPublishParams).

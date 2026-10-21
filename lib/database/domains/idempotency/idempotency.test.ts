@@ -7,6 +7,10 @@ import {
 import { statusHydrationFor } from '@/lib/database/domains/status/queries'
 import { createNoteWithResult } from '@/lib/database/domains/status/writes'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  getIdempotencyStatusId,
+  seedIdempotencyKey
+} from '@/lib/database/testing/idempotencyTestHelpers'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -28,60 +32,60 @@ describe('IdempotencyDatabase', () => {
 
   it('returns null for a key the actor never saved', async () => {
     const actorId = actor('miss')
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'saved',
       statusId: 'saved-status'
     })
 
     await expect(
-      database.getIdempotentStatusId({ actorId, key: 'unknown' })
+      getIdempotencyStatusId(db, { actorId, key: 'unknown' })
     ).resolves.toBeNull()
   })
 
   it('keeps the first status recorded for a key', async () => {
     const actorId = actor('first-writer')
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'post-1',
       statusId: 'status-1'
     })
     // A retry or race recording the same key must not overwrite or throw.
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'post-1',
       statusId: 'status-2'
     })
 
     await expect(
-      database.getIdempotentStatusId({ actorId, key: 'post-1' })
+      getIdempotencyStatusId(db, { actorId, key: 'post-1' })
     ).resolves.toBe('status-1')
   })
 
   it('scopes keys to the actor', async () => {
     const actorId = actor('scoped')
     const otherActorId = actor('someone-else')
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: otherActorId,
       key: 'theirs-only',
       statusId: 'their-status'
     })
 
     await expect(
-      database.getIdempotentStatusId({ actorId, key: 'theirs-only' })
+      getIdempotencyStatusId(db, { actorId, key: 'theirs-only' })
     ).resolves.toBeNull()
 
     // The same key held by both actors resolves to each actor's own status.
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'theirs-only',
       statusId: 'my-status'
     })
     await expect(
-      database.getIdempotentStatusId({ actorId, key: 'theirs-only' })
+      getIdempotencyStatusId(db, { actorId, key: 'theirs-only' })
     ).resolves.toBe('my-status')
     await expect(
-      database.getIdempotentStatusId({
+      getIdempotencyStatusId(db, {
         actorId: otherActorId,
         key: 'theirs-only'
       })
@@ -91,13 +95,13 @@ describe('IdempotencyDatabase', () => {
   it("reads and claims only the asking actor's key row", async () => {
     const actorA = actor('isolation-a')
     const actorB = actor('isolation-b')
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: actorA,
       key: 'shared-key',
       statusId: 'status-a',
       contentHash: 'hash-a'
     })
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: actorB,
       key: 'shared-key',
       statusId: 'status-b',
@@ -113,17 +117,17 @@ describe('IdempotencyDatabase', () => {
 
     // Even a status id both rows name (the claim also filters on it) is
     // claimed only for the actor that asked.
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: actorA,
       key: 'same-status-key',
       statusId: 'status-both'
     })
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId: actorB,
       key: 'same-status-key',
       statusId: 'status-both'
     })
-    // saveIdempotencyKey stores a legacy 'complete' key; a create's is pending.
+    // seedIdempotencyKey stores a legacy 'complete' key; a create's is pending.
     await db
       .updateTable('idempotency_keys')
       .set({ state: 'pending' })
@@ -146,7 +150,7 @@ describe('IdempotencyDatabase', () => {
 
   it('stores and retrieves contentHash via getIdempotencyKey', async () => {
     const actorId = actor('hash')
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'hashed-key',
       statusId: 'status-hashed',
@@ -233,7 +237,7 @@ describe('IdempotencyDatabase', () => {
     const actorA = actor('state-a')
     const actorB = actor('state-b')
     for (const actorId of [actorA, actorB]) {
-      await database.saveIdempotencyKey({
+      await seedIdempotencyKey(db, {
         actorId,
         key: 'state-shared',
         statusId: 'status-state-both'
@@ -497,7 +501,7 @@ describe('IdempotencyDatabase', () => {
 
   it('discards an unpublished status without deleting a key bound to another status', async () => {
     const actorId = actor('discard-scope')
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'shared-key',
       statusId: `${actorId}/statuses/kept`
@@ -510,8 +514,30 @@ describe('IdempotencyDatabase', () => {
     })
 
     await expect(
-      database.getIdempotentStatusId({ actorId, key: 'shared-key' })
+      getIdempotencyStatusId(db, { actorId, key: 'shared-key' })
     ).resolves.toBe(`${actorId}/statuses/kept`)
+  })
+
+  it("does not delete another actor's pending key with the same key string on discard", async () => {
+    const actorA = await createKeyedActor('discard-owner-a')
+    const actorB = await createKeyedActor('discard-owner-b')
+    const note = keyedNote(actorA, 'owned', 'same-key-string')
+    await database.createNoteWithResult(note)
+
+    await expect(
+      database.discardUnpublishedStatus({
+        actorId: actorB,
+        statusId: note.id,
+        idempotencyKey: 'same-key-string'
+      })
+    ).resolves.toBe(false)
+
+    await expect(
+      database.getIdempotencyKey({ actorId: actorA, key: 'same-key-string' })
+    ).resolves.toMatchObject({ statusId: note.id, state: 'pending' })
+    await expect(
+      database.getStatus({ statusId: note.id, withReplies: false })
+    ).resolves.toMatchObject({ id: note.id })
   })
 
   it('deletes idempotency keys older than 7 days and keeps newer ones', async () => {
@@ -520,14 +546,14 @@ describe('IdempotencyDatabase', () => {
     const eightDaysAgo = new Date(now - IDEMPOTENCY_KEY_TTL_MS - 86_400_000)
     const sixDaysAgo = new Date(now - IDEMPOTENCY_KEY_TTL_MS + 86_400_000)
 
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'expired-key',
       statusId: 'status-expired',
       contentHash: 'hash-1',
       createdAt: eightDaysAgo
     })
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'fresh-key',
       statusId: 'status-fresh',
@@ -602,13 +628,13 @@ describe('IdempotencyDatabase', () => {
   it('purges keys past the 7-day TTL by default', async () => {
     const actorId = actor('default-ttl')
     const now = Date.now()
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'eight-days',
       statusId: 'status-eight-days',
       createdAt: now - 8 * 86_400_000
     })
-    await database.saveIdempotencyKey({
+    await seedIdempotencyKey(db, {
       actorId,
       key: 'six-days',
       statusId: 'status-six-days',

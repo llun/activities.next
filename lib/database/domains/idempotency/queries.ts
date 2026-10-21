@@ -5,25 +5,10 @@ import {
   IDEMPOTENCY_KEY_TTL_MS,
   type IdempotencyKeyRecord,
   type IdempotencyKeyState,
-  type SaveIdempotencyKeyParams,
   type SetIdempotencyKeyStateParams
 } from '@/lib/database/domains/idempotency/types'
 import type { Db } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-
-export const getIdempotentStatusId = async (
-  db: Db,
-  { actorId, key }: GetIdempotentStatusIdParams
-): Promise<string | null> => {
-  const row = await db
-    .selectFrom('idempotency_keys')
-    .select('statusId')
-    .where('actorId', '=', actorId)
-    .where('key', '=', key)
-    .limit(1)
-    .executeTakeFirst()
-  return row ? row.statusId : null
-}
 
 export const getIdempotencyKey = async (
   db: Db,
@@ -45,38 +30,6 @@ export const getIdempotencyKey = async (
     state: row.state as IdempotencyKeyState,
     createdAt: row.createdAt ?? null
   }
-}
-
-export const saveIdempotencyKey = async (
-  db: Db,
-  {
-    actorId,
-    key,
-    statusId,
-    contentHash = null,
-    createdAt
-  }: SaveIdempotencyKeyParams
-): Promise<void> => {
-  const createdAtDate =
-    createdAt instanceof Date
-      ? createdAt
-      : createdAt !== undefined
-        ? new Date(createdAt)
-        : new Date()
-  // Ignore on conflict so a concurrent request that already recorded the same
-  // (actorId, key) does not surface a primary-key violation. The first writer
-  // wins; this keeps the call safe under retries/races.
-  await db
-    .insertInto('idempotency_keys')
-    .values({
-      actorId,
-      key,
-      statusId,
-      contentHash,
-      createdAt: createdAtDate
-    })
-    .onConflict((oc) => oc.columns(['actorId', 'key']).doNothing())
-    .execute()
 }
 
 export const setIdempotencyKeyState = async (
@@ -144,9 +97,7 @@ export const deleteExpiredIdempotencyKeys = async (
 }
 
 export const idempotencyQueries = {
-  getIdempotentStatusId,
   getIdempotencyKey,
-  saveIdempotencyKey,
   setIdempotencyKeyState,
   claimIdempotencyKeyPublish,
   deleteExpiredIdempotencyKeys
