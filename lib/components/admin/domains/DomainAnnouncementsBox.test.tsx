@@ -84,7 +84,11 @@ describe('DomainAnnouncementsBox', () => {
       />
     )
     expect(
-      screen.getByText('run.example has no announcements of its own.')
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === 'P' &&
+          el.textContent === 'run.example has no announcements of its own.'
+      )
     ).toBeInTheDocument()
     expect(screen.queryByText(/for all domains/)).toBeNull()
   })

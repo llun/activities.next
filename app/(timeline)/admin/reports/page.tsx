@@ -52,6 +52,7 @@ const Page = async ({ searchParams }: Props) => {
   return (
     <div className="space-y-6">
       <PageHeader
+        compactTitle="Reports"
         title={
           domain ? (
             <>

@@ -88,6 +88,24 @@ describe('SaveBar with an actionLabel and an idleNote', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
+  it('keeps a fragment note in one element of the status paragraph', () => {
+    renderBar({
+      actionLabel: 'Save',
+      idleNote: (
+        <>
+          Changes apply to <span className="break-all">run.example</span> only.
+        </>
+      )
+    })
+
+    const status = screen.getByRole('status')
+    expect(status.children).toHaveLength(1)
+    expect(status).toHaveTextContent('Changes apply to run.example only.')
+    expect(status.children[0].textContent).toBe(
+      'Changes apply to run.example only.'
+    )
+  })
+
   it('lets Unsaved changes, Saved and an error replace the note', () => {
     const props = { actionLabel: 'Save terms', idleNote: 'Applies to all.' }
     const { rerender } = render(

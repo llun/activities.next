@@ -320,10 +320,13 @@ export const DomainRulesBox: FC<Props> = ({
         ) : null}
 
         <div className="space-y-2">
-          <h3 className="text-sm font-medium break-all">Rules for {domain}</h3>
+          <h3 className="text-sm font-medium">
+            Rules for <span className="break-all">{domain}</span>
+          </h3>
           {drafts.length === 0 ? (
-            <p className="text-muted-foreground text-sm break-all">
-              {domain} has no rules of its own yet.
+            <p className="text-muted-foreground text-sm">
+              <span className="break-all">{domain}</span> has no rules of its
+              own yet.
             </p>
           ) : (
             <ul className="space-y-2">

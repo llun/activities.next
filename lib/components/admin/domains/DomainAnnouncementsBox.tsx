@@ -77,8 +77,9 @@ export const DomainAnnouncementsBox: FC<Props> = ({
     >
       <div className="space-y-4 p-4">
         {announcements.length === 0 ? (
-          <p className="text-muted-foreground text-sm break-all">
-            {domain} has no announcements of its own.
+          <p className="text-muted-foreground text-sm">
+            <span className="break-all">{domain}</span> has no announcements of
+            its own.
           </p>
         ) : (
           <ul className="space-y-4" aria-label={`Announcements on ${domain}`}>

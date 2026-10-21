@@ -380,7 +380,11 @@ describe('DomainRulesBox', () => {
   it('says the domain has no rules of its own yet', () => {
     renderBox([])
     expect(
-      screen.getByText('run.example has no rules of its own yet.')
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === 'P' &&
+          el.textContent === 'run.example has no rules of its own yet.'
+      )
     ).toBeInTheDocument()
   })
 

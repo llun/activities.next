@@ -198,7 +198,9 @@ export const SaveBar: FC<SaveBarProps> = ({
                 Saved
               </>
             ) : (
-              (idleNote ?? 'No unsaved changes')
+              <span className="min-w-0">
+                {idleNote ?? 'No unsaved changes'}
+              </span>
             )}
           </p>
         )}
