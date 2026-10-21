@@ -1,0 +1,25 @@
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.tsx
+  s_e67afa7a51bb57::t_c513ccd912e435 135-136,140
+app/(timeline)/admin/accounts/[id]/ActorModerationPanel.test.tsx
+  s_e67afa7a51bb57::t_c513ccd912e435 228-245
+docs/architecture.md
+  s_e67afa7a51bb57::t_3c097d37031b9e 2518
+lib/components/surface/alertOutsideFrame.test.ts
+  s_e67afa7a51bb57::t_3c097d37031b9e 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5aea3750d09483b0d004a3dff3331a8ddf33decd",
+  "prompts": {},
+  "sessions": {
+    "s_e67afa7a51bb57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6019d38-d013-4f5b-a5fb-8e915ee59ae7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
