@@ -153,6 +153,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
   // unset. `busy` then drives the disabled UI.
   const pendingRef = useRef(false)
   const [busy, setBusy] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
 
   const others = sessionList.filter((session) => !session.current)
   const actorCount = new Set(
@@ -447,13 +448,18 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
         title="This device"
         description="End the session you’re using right now. You’ll be returned to the sign-in screen."
       >
+        {logoutError ? <Alert title={logoutError} /> : null}
         <Frame form>
           <FormRow
             label="Sign out of this device"
             hint="You can sign in again at any time."
           >
             {({ describedBy, labelledBy }) => (
-              <LogoutButton describedBy={describedBy} labelledBy={labelledBy} />
+              <LogoutButton
+                describedBy={describedBy}
+                labelledBy={labelledBy}
+                onError={setLogoutError}
+              />
             )}
           </FormRow>
         </Frame>

@@ -14,6 +14,7 @@ import { PlaybackPreferencesProvider } from '@/lib/components/preferences/Playba
 import { SessionKeepAlive } from '@/lib/components/session-keep-alive'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getVisitedFeatures } from '@/lib/services/domains/visitedFeatures'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
@@ -39,8 +40,14 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // a prop through each page (the composer renders inline under posts across
   // the whole group). Both branches provide it so no descendant can end up
   // outside the provider.
-  const { posts, media, polls, features } =
-    await getResolvedServerSettings(database)
+  const {
+    posts,
+    media,
+    polls,
+    features: serverFeatures
+  } = await getResolvedServerSettings(database)
+  // The server's switches, minus what the visited domain turned off.
+  const features = await getVisitedFeatures(serverFeatures)
   const instanceLimits = {
     maxStatusCharacters: posts.maxCharacters,
     maxMediaFileSize: media.maxFileSize,

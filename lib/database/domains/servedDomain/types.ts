@@ -1,5 +1,6 @@
 // Parameter and result types of the served-domain domain: the `domains` table
 // behind Admin › Domains. lib/types/database/operations.ts re-exports them.
+import type { DomainFeature } from '@/lib/services/domains/domainFeatures'
 
 export type ServedDomainStatus = 'on' | 'off'
 
@@ -36,6 +37,8 @@ export type ServedDomainData = {
   name: string | null
   description: string | null
   contactEmail: string | null
+  // The optional features this domain turns off; empty means none.
+  disabledFeatures: DomainFeature[]
   signupsOpen: boolean
   // Same matching as `registrations.allowEmails`; empty allows any address.
   // Null when the stored value cannot be read as a list: not the same as
@@ -70,6 +73,8 @@ type ServedDomainIdentityParams = {
   name?: string | null
   description?: string | null
   contactEmail?: string | null
+  // Empty or null clears the list.
+  disabledFeatures?: DomainFeature[] | null
   termsOfService?: string | null
   termsOfServiceUpdatedAt?: number | null
   privacyPolicy?: string | null
@@ -121,6 +126,11 @@ export interface ServedDomainDatabase {
   getActiveServedDomains(): Promise<ServedDomainData[]>
   // True when a row was removed.
   deleteServedDomain(params: DeleteServedDomainParams): Promise<boolean>
+  // Removes the domain with its rules and announcements, in one transaction.
+  // True when the domain row was removed.
+  deleteServedDomainWithScopes(
+    params: DeleteServedDomainParams
+  ): Promise<boolean>
   // Local actors (with an account) per domain, for the given domains only.
   // A domain with none is absent from the map.
   countLocalActorsByDomain(

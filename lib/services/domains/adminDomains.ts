@@ -100,6 +100,7 @@ const emptyRow = (domain: string): ServedDomainData => ({
   name: null,
   description: null,
   contactEmail: null,
+  disabledFeatures: [],
   signupsOpen: false,
   allowedEmails: [],
   allowExistingUsers: false,
@@ -189,7 +190,8 @@ export const getAdminDomain = async (
     termsOfService: row?.termsOfService ?? null,
     privacyPolicy: row?.privacyPolicy ?? null,
     termsOfServiceUpdatedAt: row?.termsOfServiceUpdatedAt ?? null,
-    privacyPolicyUpdatedAt: row?.privacyPolicyUpdatedAt ?? null
+    privacyPolicyUpdatedAt: row?.privacyPolicyUpdatedAt ?? null,
+    disabledFeatures: row?.disabledFeatures ?? []
   }
 }
 
@@ -393,6 +395,9 @@ export const updateDomainSettings = async (
     ...(patch.contactEmail !== undefined
       ? { contactEmail: patch.contactEmail }
       : null),
+    ...(patch.disabledFeatures !== undefined
+      ? { disabledFeatures: patch.disabledFeatures }
+      : null),
     ...policyValues(
       'termsOfService',
       patch.termsOfService,
@@ -440,7 +445,9 @@ export const removeDomain = async (
   if (existing.status === 'on') return { type: 'on' }
   const counts = await database.countLocalActorsByDomain({ domains: [domain] })
   if ((counts[domain] ?? 0) > 0) return { type: 'has-profiles' }
-  await database.deleteServedDomain({ domain })
+  // The domain's own rules and announcements go with it, in one transaction;
+  // nothing could show them any more.
+  await database.deleteServedDomainWithScopes({ domain })
   await refreshServedDomainsAfterWrite(database)
   invalidateDomainIdentityCache(database)
   return { type: 'removed' }

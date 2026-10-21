@@ -134,6 +134,7 @@ export interface AnnouncementReads {
 export interface Announcements {
   allDay: WithDefault<boolean>
   createdAt: Timestamp
+  domain: Nullable<string>
   endsAt: Nullable<Timestamp>
   id: string
   published: WithDefault<boolean>
@@ -328,6 +329,7 @@ export interface Domains {
   contactEmail: Nullable<string>
   createdAt: WithDefault<Timestamp>
   description: Nullable<string>
+  disabledFeatures: Nullable<string>
   domain: string
   id: string
   lastCheckResult: Nullable<string>
@@ -704,6 +706,7 @@ export interface IdempotencyKeys {
 
 export interface InstanceRules {
   createdAt: Timestamp
+  domain: Nullable<string>
   hint: WithDefault<string>
   id: string
   position: WithDefault<number>
@@ -1104,6 +1107,7 @@ export interface Reports {
   collectionIds: WithDefault<string>
   comment: WithDefault<string>
   createdAt: WithDefault<Nullable<Timestamp>>
+  domain: Nullable<string>
   forward: WithDefault<boolean>
   id: string
   ruleIds: WithDefault<string>

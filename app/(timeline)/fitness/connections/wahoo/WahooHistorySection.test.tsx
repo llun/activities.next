@@ -53,6 +53,33 @@ describe('WahooHistorySection', () => {
     expect(client.startWahooHistory).not.toHaveBeenCalled()
   })
 
+  it('shows the last import error as a card above the import status box', async () => {
+    vi.mocked(client.getWahooHistory).mockResolvedValue({
+      import: {
+        id: 'history-1',
+        status: 'failed',
+        fromDate: '2026-09-01',
+        toDate: '2026-09-10',
+        total: 5,
+        completed: 2,
+        failed: 3,
+        lastError: 'Wahoo rate limit reached'
+      }
+    })
+
+    render(<WahooHistorySection connected automaticImportAvailable />)
+
+    const alert = (await screen.findByText('Wahoo rate limit reached')).closest(
+      '[data-slot=alert]'
+    )
+    expect(alert).not.toBeNull()
+    // The card sits in the stack, then the bordered status box with the range.
+    expect(alert!.nextElementSibling).toHaveTextContent(
+      '2026-09-01 to 2026-09-10'
+    )
+    expect(alert!.nextElementSibling).not.toContainElement(alert as HTMLElement)
+  })
+
   it('lets the owner resume a cancelled history import', async () => {
     vi.mocked(client.getWahooHistory)
       .mockResolvedValueOnce({
@@ -87,9 +114,14 @@ describe('WahooHistorySection', () => {
     fireEvent.click(resumeButton)
 
     await waitFor(() => expect(client.retryWahooHistory).toHaveBeenCalled())
-    expect(
+    const resumed = (
       await screen.findByText('History import resumed.')
-    ).toBeInTheDocument()
+    ).closest('[data-slot=alert]')
+    // An action's result is a card above the import status box.
+    expect(resumed).not.toBeNull()
+    expect(resumed!.nextElementSibling).toHaveTextContent(
+      '2026-09-01 to 2026-09-10'
+    )
     expect(await screen.findByText('running')).toBeInTheDocument()
   })
 

@@ -34,6 +34,7 @@ const mockDelete = deleteServerRule as jest.MockedFunction<
 
 const rule = (over: Partial<ServerRule>): ServerRule => ({
   id: '1',
+  domain: null,
   text: 'Be kind',
   hint: '',
   position: 0,
@@ -204,10 +205,12 @@ describe('RulesPanel', () => {
     const input = screen.getByLabelText('New rule')
     fireEvent.change(input, { target: { value: 'No doxxing' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add rule' }))
-    expect(
-      await screen.findByText('Failed to create rule. Please try again.')
-    ).toBeInTheDocument()
-    // A request failure is an Alert in the box, not a field validation error.
+    const message = await screen.findByText(
+      'Failed to create rule. Please try again.'
+    )
+    // A request failure is an Alert card above the box, not a field
+    // validation error.
+    expect(message.closest('form')).toBeNull()
     expect(input).not.toHaveAttribute('aria-invalid', 'true')
     // The typed text is preserved so the admin can retry.
     expect(input).toHaveValue('No doxxing')

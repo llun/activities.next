@@ -450,4 +450,48 @@ describe('GET /api/v2/instance', () => {
       await database.deleteServedDomain({ domain: 'photos.llun.test' })
     }
   })
+
+  it('lists the server rules, then the visited domain’s own, on that host only', async () => {
+    const own = await database.createInstanceRule({
+      domain: 'alias.llun.test',
+      text: 'Alias only',
+      hint: 'Only here',
+      position: 0
+    })
+    const elsewhere = await database.createInstanceRule({
+      domain: 'other.llun.test',
+      text: 'Elsewhere only',
+      hint: '',
+      position: 0
+    })
+    const rulesOn = async (host: string) =>
+      (
+        await (
+          await GET(
+            new NextRequest('https://llun.test/api/v2/instance', {
+              headers: { host }
+            }),
+            params
+          )
+        ).json()
+      ).rules as { id: string; text: string; hint: string }[]
+    try {
+      const alias = await rulesOn('alias.llun.test')
+      const primary = await rulesOn('llun.test')
+
+      // Server rules first, then the domain's own, ids unique.
+      expect(alias.at(-1)).toEqual({
+        id: own.id,
+        text: 'Alias only',
+        hint: 'Only here'
+      })
+      expect(alias.slice(0, -1)).toEqual(primary)
+      expect(new Set(alias.map((rule) => rule.id)).size).toBe(alias.length)
+      expect(primary.map((rule) => rule.id)).not.toContain(own.id)
+      expect(alias.map((rule) => rule.id)).not.toContain(elsewhere.id)
+    } finally {
+      await database.deleteInstanceRule({ id: own.id })
+      await database.deleteInstanceRule({ id: elsewhere.id })
+    }
+  })
 })

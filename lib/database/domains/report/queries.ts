@@ -11,6 +11,7 @@ import {
 } from '@/lib/database/domains/report/types'
 import type { Db } from '@/lib/database/kysely'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
+import { getServedAuthority } from '@/lib/utils/host'
 
 const COLUMNS = [
   'id',
@@ -22,6 +23,7 @@ const COLUMNS = [
   'statusIds',
   'ruleIds',
   'actionTaken',
+  'domain',
   'assignedActorId',
   'actionTakenAt',
   'actionTakenByActorId',
@@ -40,6 +42,7 @@ type Row = {
   statusIds: string
   ruleIds: string
   actionTaken: boolean
+  domain: string | null
   assignedActorId: string | null
   actionTakenAt: number | null
   actionTakenByActorId: string | null
@@ -60,6 +63,7 @@ const toReport = (row: Row): Report => ({
   statusIds: parseIds(row.statusIds),
   ruleIds: parseIds(row.ruleIds),
   actionTaken: row.actionTaken,
+  domain: row.domain ?? null,
   assignedActorId: row.assignedActorId,
   actionTakenAt: row.actionTakenAt,
   actionTakenByActorId: row.actionTakenByActorId,
@@ -76,7 +80,9 @@ export const createReport = async (
     comment = '',
     forward = false,
     statusIds = [],
-    ruleIds = []
+    ruleIds = [],
+    // An actor id is a URL on the domain the actor lives on.
+    domain = getServedAuthority(targetActorId)
   }: CreateReportParams
 ): Promise<Report> => {
   const currentTime = new Date()
@@ -90,6 +96,7 @@ export const createReport = async (
     statusIds: JSON.stringify(statusIds),
     ruleIds: JSON.stringify(ruleIds),
     actionTaken: false,
+    domain,
     assignedActorId: null,
     actionTakenAt: null,
     actionTakenByActorId: null
@@ -112,6 +119,7 @@ export const getAdminReports = async (
     accountId,
     targetActorId,
     byTargetDomain,
+    domain,
     limit = 100,
     maxId,
     minId,
@@ -125,6 +133,7 @@ export const getAdminReports = async (
   if (resolved === false) query = query.where('actionTaken', '=', false)
   if (accountId) query = query.where('actorId', '=', accountId)
   if (targetActorId) query = query.where('targetActorId', '=', targetActorId)
+  if (domain) query = query.where('domain', '=', domain.toLowerCase())
   if (byTargetDomain) {
     // Match reports whose target actor lives on the given domain.
     const domain = byTargetDomain.toLowerCase()

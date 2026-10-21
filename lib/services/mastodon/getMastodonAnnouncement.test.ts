@@ -9,6 +9,7 @@ vi.mock('@/lib/config', () => ({
 
 const baseAnnouncement: AnnouncementData = {
   id: 'announcement-1',
+  domain: null,
   text: 'Hello **world**',
   published: true,
   allDay: false,

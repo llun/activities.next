@@ -495,6 +495,7 @@ describe('POST /api/v1/emails/confirmations', () => {
         name: null,
         description: null,
         contactEmail: null,
+        disabledFeatures: [],
         signupsOpen: true,
         allowedEmails: ['ana@club.test'],
         allowExistingUsers: false,

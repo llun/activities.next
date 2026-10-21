@@ -86,7 +86,8 @@ describe('domainIdentity', () => {
         description: 'Personal activity pub server with Next.js',
         contactEmail: '',
         termsOfService: null,
-        privacyPolicy: null
+        privacyPolicy: null,
+        disabledFeatures: []
       })
     })
 
@@ -274,6 +275,43 @@ describe('domainIdentity', () => {
       await expect(
         resolveDomainIdentity(database, 'club.example')
       ).resolves.toMatchObject({ source: 'env', name: 'Club' })
+    })
+
+    it('carries the features a domain turns off, for an env domain and an active added one', async () => {
+      await database.createServedDomain({
+        domain: 'club.example',
+        status: 'off',
+        disabledFeatures: ['messages']
+      })
+      await database.createServedDomain({
+        domain: 'run.example',
+        status: 'on',
+        disabledFeatures: ['fitness', 'explore']
+      })
+      setServedDomainsForTests(['run.example'])
+
+      await expect(
+        resolveDomainIdentity(database, 'club.example')
+      ).resolves.toMatchObject({ disabledFeatures: ['messages'] })
+      await expect(
+        resolveDomainIdentity(database, 'run.example')
+      ).resolves.toMatchObject({ disabledFeatures: ['fitness', 'explore'] })
+    })
+
+    it('turns no feature off for the primary or an off domain', async () => {
+      await database.createServedDomain({
+        domain: 'run.example',
+        status: 'off',
+        disabledFeatures: ['fitness']
+      })
+      setServedDomainsForTests(['run.example'])
+
+      await expect(
+        resolveDomainIdentity(database, 'social.example')
+      ).resolves.toMatchObject({ disabledFeatures: [] })
+      await expect(
+        resolveDomainIdentity(database, 'run.example')
+      ).resolves.toMatchObject({ disabledFeatures: [] })
     })
 
     it('uses the server identity for an env domain without a row', async () => {

@@ -101,7 +101,7 @@ export const PUT = traceApiRoute(
       // rule_ids referencing unknown rules are a 422 (Mastodon parity).
       if (parsed.data.rule_ids) {
         const knownRuleIds = new Set(
-          (await database.getInstanceRules()).map((rule) => rule.id)
+          (await database.getAllInstanceRules()).map((rule) => rule.id)
         )
         const hasUnknown = parsed.data.rule_ids.some(
           (ruleId) => !knownRuleIds.has(ruleId)

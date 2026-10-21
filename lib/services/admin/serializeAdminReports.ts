@@ -62,8 +62,9 @@ export const serializeAdminReports = async (
     mastodonStatuses.map((status) => [status.uri, status])
   )
 
-  // 3. Instance rules.
-  const rules = await database.getInstanceRules()
+  // 3. Instance rules: moderators are server-wide, so a report may cite a
+  // server rule or any domain's own rule.
+  const rules = await database.getAllInstanceRules()
   const ruleById = new Map(rules.map((rule) => [rule.id, rule]))
 
   return reports.flatMap((report) => {
@@ -84,6 +85,7 @@ export const serializeAdminReports = async (
         category: report.category,
         comment: report.comment,
         forwarded: report.forward,
+        domain: report.domain,
         created_at: getISOTimeUTC(report.createdAt),
         updated_at: getISOTimeUTC(report.updatedAt),
         account,

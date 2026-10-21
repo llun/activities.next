@@ -215,6 +215,7 @@ describe('AddDomainForm', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Wildcards can only be set in ACTIVITIES_TRUSTED_HOSTS.'
     )
+    expect(screen.getByRole('alert').closest('[data-slot=frame]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(mockAdd).toHaveBeenCalledTimes(2))
   })

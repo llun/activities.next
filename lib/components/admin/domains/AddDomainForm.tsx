@@ -154,8 +154,33 @@ export const AddDomainForm: FC = () => {
   )
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <Frame form className="overflow-hidden" footer={footer}>
+    <form onSubmit={onSubmit} noValidate className="space-y-3">
+      {error ? (
+        <Alert
+          title={error.title}
+          onRetry={() =>
+            void (error.action === 'check' ? runCheck() : turnOn())
+          }
+        />
+      ) : null}
+      {checking ? (
+        <Alert tone="info" title={`Checking ${target}`}>
+          Asking {target} for this server. This takes a few seconds.
+        </Alert>
+      ) : failed && check && current ? (
+        <Alert
+          tone="error"
+          title={`${current.domain} does not reach this server yet`}
+        >
+          <DomainCheckItems domain={current.domain} check={check} />
+        </Alert>
+      ) : passed && current ? (
+        <Alert tone="success" title={`${current.domain} reaches this server`}>
+          The domain is added and Off. Turn it on when you are ready to serve
+          profiles there.
+        </Alert>
+      ) : null}
+      <Frame form footer={footer}>
         <FormRow
           label="Domain"
           htmlFor={INPUT_ID}
@@ -181,44 +206,6 @@ export const AddDomainForm: FC = () => {
             onChange={(event) => setValue(event.target.value)}
           />
         </FormRow>
-
-        {error ? (
-          <div className="px-4 py-2.5">
-            <Alert
-              title={error.title}
-              onRetry={() =>
-                void (error.action === 'check' ? runCheck() : turnOn())
-              }
-            />
-          </div>
-        ) : null}
-
-        {checking ? (
-          <div className="px-4 py-2.5">
-            <Alert tone="info" title={`Checking ${target}`}>
-              Asking {target} for this server. This takes a few seconds.
-            </Alert>
-          </div>
-        ) : failed && check && current ? (
-          <div className="px-4 py-2.5">
-            <Alert
-              tone="error"
-              title={`${current.domain} does not reach this server yet`}
-            >
-              <DomainCheckItems domain={current.domain} check={check} />
-            </Alert>
-          </div>
-        ) : passed && current ? (
-          <div className="px-4 py-2.5">
-            <Alert
-              tone="success"
-              title={`${current.domain} reaches this server`}
-            >
-              The domain is added and Off. Turn it on when you are ready to
-              serve profiles there.
-            </Alert>
-          </div>
-        ) : null}
       </Frame>
     </form>
   )

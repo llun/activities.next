@@ -150,6 +150,11 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
     }
   ]
 
+  const pinnedPolicyVars = policyFields.flatMap(({ key }) => {
+    const { locked, envVar } = lock(key)
+    return locked && envVar ? [envVar] : []
+  })
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -251,6 +256,17 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
         title="Terms and privacy"
         description="Used by every domain that doesn't set its own."
       >
+        {pinnedPolicyVars.length > 0 ? (
+          <Alert
+            tone="warning"
+            live={false}
+            title={`Set by ${pinnedPolicyVars.join(' and ')}.`}
+          >
+            {pinnedPolicyVars.length > 1
+              ? 'Remove the variables to edit them here.'
+              : 'Remove the variable to edit it here.'}
+          </Alert>
+        ) : null}
         <Frame
           form
           footer={
@@ -299,16 +315,6 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
                       updatedAt={updatedAt[field.key] ?? null}
                     />
                   )}
-                  {locked ? (
-                    <Alert
-                      tone="warning"
-                      live={false}
-                      className="mt-3"
-                      title={`Set by ${envVar}.`}
-                    >
-                      Remove the variable to edit it here.
-                    </Alert>
-                  ) : null}
                 </div>
               </SettingsField>
             )

@@ -13,6 +13,9 @@ export const AdminReport = z.object({
   category: z.enum(['spam', 'legal', 'violation', 'other']),
   comment: z.string(),
   forwarded: z.boolean(),
+  // Extension (not in Mastodon): the domain of the reported profile when the
+  // report was filed, null when it could not be told.
+  domain: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
   // The four embedded Admin::Accounts; assigned/action_taken_by are null when

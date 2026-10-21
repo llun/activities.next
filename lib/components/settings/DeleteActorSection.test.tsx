@@ -44,6 +44,9 @@ describe('DeleteActorSection', () => {
     renderSection()
 
     expect(screen.getByText('Delete this actor')).toBeVisible()
+    expect(
+      screen.getByText('Delete this actor').closest('[data-slot=frame]')
+    ).toBeNull()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 

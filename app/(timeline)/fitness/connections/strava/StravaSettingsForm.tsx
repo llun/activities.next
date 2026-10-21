@@ -243,7 +243,23 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           </>
         }
       >
-        <form onSubmit={handleSave}>
+        <form onSubmit={handleSave} className="space-y-3">
+          {(defaultVisibility === 'public' ||
+            defaultVisibility === 'unlisted') && (
+            <Alert
+              tone="warning"
+              title="Anyone on the fediverse can read these posts."
+            >
+              An activity you marked &quot;Only you&quot; on Strava will still
+              be posted for everyone, with its route map and stats.
+            </Alert>
+          )}
+          {isConfigured && !isConnected && (
+            <Alert
+              tone="warning"
+              title="Credentials saved but not connected. Please reconnect."
+            />
+          )}
           <Frame
             form
             footer={
@@ -370,19 +386,6 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
               )}
             </FormRow>
 
-            {(defaultVisibility === 'public' ||
-              defaultVisibility === 'unlisted') && (
-              <div className="px-4 py-2.5">
-                <Alert
-                  tone="warning"
-                  title="Anyone on the fediverse can read these posts."
-                >
-                  An activity you marked &quot;Only you&quot; on Strava will
-                  still be posted for everyone, with its route map and stats.
-                </Alert>
-              </div>
-            )}
-
             {isConfigured && (
               <FormRow label="Connection">
                 <p className="text-sm">
@@ -398,15 +401,6 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
                 hint="Use this URL to configure Strava webhook subscriptions"
                 value={webhookUrl}
               />
-            )}
-
-            {isConfigured && !isConnected && (
-              <div className="px-4 py-2.5">
-                <Alert
-                  tone="warning"
-                  title="Credentials saved but not connected. Please reconnect."
-                />
-              </div>
             )}
           </Frame>
         </form>

@@ -37,6 +37,7 @@ const buildServerAnnouncement = (
   overrides: Partial<ServerAnnouncement> = {}
 ): ServerAnnouncement => ({
   id: 'announcement-1',
+  domain: null,
   text: 'Scheduled maintenance tonight',
   published: true,
   all_day: false,
@@ -355,6 +356,31 @@ describe('AnnouncementsPanel', () => {
     expect(
       screen.getByDisplayValue('Scheduled maintenance tonight')
     ).toBeInTheDocument()
+  })
+
+  it('scrolls the save error into view, since the Save button is far below it', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      mockCreateServerAnnouncement.mockRejectedValue(new Error('Text too long'))
+      await act(async () => {
+        renderPanel()
+      })
+      fireEvent.change(await screen.findByLabelText('Text'), {
+        target: { value: 'Hello' }
+      })
+      expect(scrollIntoView).not.toHaveBeenCalled()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
+      })
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Text too long')
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+      expect(scrollIntoView.mock.contexts[0]).toBe(alert.parentElement)
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
   })
 
   it('labels the submit by what it will do', async () => {

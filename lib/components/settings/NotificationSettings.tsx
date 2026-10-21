@@ -285,7 +285,30 @@ export const NotificationSettings: FC<Props> = ({
         title="Channels"
         description="Enable or disable notification delivery channels."
       >
-        <Frame form className="overflow-hidden">
+        {pushState === 'unsupported' && (
+          <Alert
+            tone="info"
+            title="Push notifications are not supported by your browser."
+          />
+        )}
+        {pushState === 'not_configured' && (
+          <Alert
+            tone="info"
+            title="Push notifications are not configured on this server."
+          />
+        )}
+        {pushState === 'permission_denied' && (
+          <Alert tone="warning" title="Notification permission was denied.">
+            Please enable it in your browser&apos;s site settings and reload the
+            page.
+          </Alert>
+        )}
+        {pushState === 'error' && (
+          <Alert title="An error occurred with push notifications.">
+            Please reload the page and try again.
+          </Alert>
+        )}
+        <Frame form>
           {/* Email master toggle */}
           <FormRow
             label={`Email (${accountEmail})`}
@@ -317,35 +340,6 @@ export const NotificationSettings: FC<Props> = ({
                 label="Loading push notification status"
               />
             </div>
-          )}
-          {pushState === 'unsupported' && (
-            <Alert
-              tone="info"
-              flush
-              title="Push notifications are not supported by your browser."
-            />
-          )}
-          {pushState === 'not_configured' && (
-            <Alert
-              tone="info"
-              flush
-              title="Push notifications are not configured on this server."
-            />
-          )}
-          {pushState === 'permission_denied' && (
-            <Alert
-              tone="warning"
-              flush
-              title="Notification permission was denied."
-            >
-              Please enable it in your browser&apos;s site settings and reload
-              the page.
-            </Alert>
-          )}
-          {pushState === 'error' && (
-            <Alert flush title="An error occurred with push notifications.">
-              Please reload the page and try again.
-            </Alert>
           )}
           {pushConfigured && (
             <FormRow

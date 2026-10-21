@@ -511,6 +511,80 @@ describe('adminDomains', () => {
       expect(await getAdminDomain(database, 'photos.example')).toBeNull()
     })
 
+    it('takes the domain’s own rules and announcements with it, and no others', async () => {
+      await addDomain(database, 'photos.example', passes)
+      await database.createServedDomain({ domain: 'birds.example' })
+      const server = await database.createInstanceRule({
+        text: 'Server',
+        hint: ''
+      })
+      const birds = await database.createInstanceRule({
+        domain: 'birds.example',
+        text: 'Birds',
+        hint: ''
+      })
+      await database.createInstanceRule({
+        domain: 'photos.example',
+        text: 'Photos',
+        hint: ''
+      })
+      const everywhere = await database.createAnnouncement({ text: 'All' })
+      const birdsNote = await database.createAnnouncement({
+        text: 'Birds',
+        domain: 'birds.example'
+      })
+      await database.createAnnouncement({
+        text: 'Photos',
+        domain: 'photos.example'
+      })
+
+      const photosNote = await database.createAnnouncement({
+        text: 'Photos own',
+        domain: 'photos.example'
+      })
+      const actorId = 'https://birds.example/users/reader'
+      for (const announcement of [everywhere, photosNote]) {
+        await database.markAnnouncementRead({
+          announcementId: announcement.id,
+          actorId
+        })
+        await database.addAnnouncementReaction({
+          announcementId: announcement.id,
+          actorId,
+          name: '👍'
+        })
+      }
+
+      await removeDomain(database, 'photos.example')
+
+      expect(
+        await database.getAnnouncementReadIds({
+          actorId,
+          announcementIds: [everywhere.id, photosNote.id]
+        })
+      ).toEqual([everywhere.id])
+      expect(
+        (
+          await database.getAnnouncementReactions({
+            actorId,
+            announcementIds: [everywhere.id, photosNote.id]
+          })
+        ).map((r) => r.announcementId)
+      ).toEqual([everywhere.id])
+      expect(
+        (await database.getAllInstanceRules()).map((rule) => rule.id).sort()
+      ).toEqual([server.id, birds.id].sort())
+      expect(
+        (await database.getAnnouncements()).map((a) => a.id).sort()
+      ).toEqual([everywhere.id, birdsNote.id].sort())
+
+      await database.deleteInstanceRule({ id: server.id })
+      await database.deleteInstanceRule({ id: birds.id })
+      await database.deleteAnnouncement({ id: everywhere.id })
+      await database.deleteAnnouncement({ id: birdsNote.id })
+      await database.deleteServedDomain({ domain: 'birds.example' })
+    })
+
     it('refuses a domain that is on, has profiles, or is set in the env', async () => {
       await addDomain(database, 'photos.example', passes)
       await setDomainStatus(database, 'photos.example', 'on', passes)

@@ -66,6 +66,7 @@ const RUN: AdminDomainDetail = {
   privacyPolicy: null,
   termsOfServiceUpdatedAt: null,
   privacyPolicyUpdatedAt: null,
+  disabledFeatures: [],
   status: 'on',
   profiles: 34,
   signupsOpen: true,
@@ -286,13 +287,24 @@ describe('DomainSettings', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps keyboard focus on Check again through the first check', async () => {
+    mockCheck.mockResolvedValue(RUN)
+    renderPage({ ...RUN, lastCheck: null, lastCheckedAt: null })
+    const button = screen.getByRole('button', { name: 'Check again' })
+    button.focus()
+    fireEvent.click(button)
+    await screen.findByText('run.example reaches this server')
+    expect(screen.getByRole('button', { name: 'Check again' })).toBe(button)
+    expect(button).toHaveFocus()
+  })
+
   it('shows a failed check request as an Alert that checks again', async () => {
     mockCheck.mockRejectedValue(new Error('Failed to check the domain.'))
     renderPage(RUN)
     fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Failed to check the domain.'
-    )
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Failed to check the domain.')
+    expect(alert.closest('[data-slot=frame]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2))
   })

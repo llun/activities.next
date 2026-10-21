@@ -9,6 +9,10 @@ import { AnnouncementData } from '@/lib/types/database/operations'
 // `published` are coerced booleans so form submissions of "true"/"false" or
 // "on" still validate.
 export const AnnouncementCreateInput = z.object({
+  // The served domain the announcement is shown on; null or absent shows it on
+  // every domain. Validated against the served domains by the route
+  // (`resolveAdminDomainScope`).
+  domain: z.string().trim().max(255).nullable().optional(),
   text: z.string().trim().min(1).max(5000),
   starts_at: z.string().datetime({ offset: true }).optional().nullable(),
   ends_at: z.string().datetime({ offset: true }).optional().nullable(),
@@ -22,6 +26,8 @@ export const AnnouncementCreateInput = z.object({
 // update.
 export const AnnouncementUpdateInput = z
   .object({
+    // Undefined keeps the audience; null moves it to every domain.
+    domain: z.string().trim().max(255).nullable().optional(),
     text: z.string().trim().min(1).max(5000).optional(),
     starts_at: z.string().datetime({ offset: true }).optional().nullable(),
     ends_at: z.string().datetime({ offset: true }).optional().nullable(),
@@ -30,6 +36,7 @@ export const AnnouncementUpdateInput = z
   })
   .refine(
     (data) =>
+      data.domain !== undefined ||
       data.text !== undefined ||
       data.starts_at !== undefined ||
       data.ends_at !== undefined ||
@@ -37,7 +44,7 @@ export const AnnouncementUpdateInput = z
       data.published !== undefined,
     {
       message:
-        'At least one of text, starts_at, ends_at, all_day, or published must be provided'
+        'At least one of domain, text, starts_at, ends_at, all_day, or published must be provided'
     }
   )
 
@@ -58,6 +65,8 @@ export const isoToStorageTime = (
 // the unpublished/draft fields.
 export const getAdminAnnouncement = (announcement: AnnouncementData) => ({
   id: announcement.id,
+  // The served domain it is shown on; null is every domain.
+  domain: announcement.domain,
   text: announcement.text,
   published: announcement.published,
   all_day: announcement.allDay,

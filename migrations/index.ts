@@ -10,6 +10,7 @@ import * as addAccountsSignUpDomain from './20261018204230_add_accounts_sign_up_
 import * as addIdempotencyKeysContentHash from './20261020194752_add_idempotency_keys_content_hash'
 import * as addDomainsIdentity from './20261020232218_add_domains_identity'
 import * as addIdempotencyKeysStateChangedAt from './20261021052511_add_idempotency_keys_state_changed_at'
+import * as addDomainScopes from './20261021072844_add_domain_scopes'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -28,5 +29,6 @@ export const migrations: MigrationRegistry = {
     addIdempotencyKeysContentHash,
   '20261020232218_add_domains_identity': addDomainsIdentity,
   '20261021052511_add_idempotency_keys_state_changed_at':
-    addIdempotencyKeysStateChangedAt
+    addIdempotencyKeysStateChangedAt,
+  '20261021072844_add_domain_scopes': addDomainScopes
 } satisfies Record<MigrationName, MigrationModule>

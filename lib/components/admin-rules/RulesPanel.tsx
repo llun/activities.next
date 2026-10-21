@@ -460,6 +460,7 @@ export const RulesPanel: FC = () => {
       ) : null}
 
       <Section title="Add a rule">
+        {formError ? <Alert title={formError} /> : null}
         <AddBar
           onSubmit={handleCreate}
           label="New rule"
@@ -474,9 +475,7 @@ export const RulesPanel: FC = () => {
             disabled: busy || editing,
             onChange: (event) => setNewText(event.target.value)
           }}
-        >
-          {formError ? <Alert className="mt-3" title={formError} /> : null}
-        </AddBar>
+        />
       </Section>
     </div>
   )

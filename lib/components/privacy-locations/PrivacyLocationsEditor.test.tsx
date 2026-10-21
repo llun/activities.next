@@ -155,6 +155,26 @@ describe('PrivacyLocationsEditor', () => {
     expect(screen.queryByText('socket hang up')).not.toBeInTheDocument()
   })
 
+  it('scrolls the save error into view, since the Save button is far below it', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      const save = vi.fn().mockRejectedValue(new Error('socket hang up'))
+      renderEditor({ save })
+      await screen.findByText('13.756300, 100.501800')
+      expect(scrollIntoView).not.toHaveBeenCalled()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Save custom places' })
+      )
+      const alert = await screen.findByRole('alert')
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+      expect(scrollIntoView.mock.contexts[0]).toBe(alert.parentElement)
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
   it('ties a coordinate mistake to its field instead of raising an alert', async () => {
     const save = vi.fn(async (locations: PrivacyLocationInput[]) => locations)
     renderEditor({ save, load: vi.fn().mockResolvedValue([]) })
@@ -202,9 +222,11 @@ describe('PrivacyLocationsEditor', () => {
     const save = vi.fn()
     renderEditor({ load, save })
 
-    expect(
-      await screen.findByText(/Failed to load your saved privacy locations/)
-    ).toBeInTheDocument()
+    const failed = await screen.findByText(
+      /Failed to load your saved privacy locations/
+    )
+    expect(failed).toBeInTheDocument()
+    expect(failed.closest('[data-slot=frame]')).toBeNull()
     expect(
       screen.getByRole('button', { name: 'Save custom places' })
     ).toBeDisabled()

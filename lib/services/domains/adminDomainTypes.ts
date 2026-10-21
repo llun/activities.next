@@ -5,6 +5,7 @@ import type {
   DomainCheckItem,
   DomainCheckResult
 } from '@/lib/database/domains/servedDomain/types'
+import type { DomainFeature } from '@/lib/services/domains/domainFeatures'
 
 export type AdminDomainSource =
   // ACTIVITIES_HOST: always on, its sign-up settings are Admin › Instance.
@@ -45,6 +46,9 @@ export type AdminDomainDetail = AdminDomain & {
   privacyPolicy: string | null
   termsOfServiceUpdatedAt: number | null
   privacyPolicyUpdatedAt: number | null
+  // The optional features this domain turns off ([] = none; always [] on the
+  // primary, which has no switches of its own: Admin › Instance).
+  disabledFeatures: DomainFeature[]
 }
 
 /**
@@ -84,9 +88,16 @@ export type AdminDomainPoliciesPatch = {
   privacyPolicy?: string | null
 }
 
+// The Features box: the whole list of features this domain turns off. [] or
+// null turns none off.
+export type AdminDomainFeaturesPatch = {
+  disabledFeatures?: DomainFeature[] | null
+}
+
 export type AdminDomainSettingsPatch = AdminDomainRegistrationsPatch &
   AdminDomainIdentityPatch &
-  AdminDomainPoliciesPatch
+  AdminDomainPoliciesPatch &
+  AdminDomainFeaturesPatch
 
 export type AdminDomainUpdateBody =
   AdminDomainSettingsPatch | { status: 'on' | 'off' }
@@ -103,6 +114,9 @@ export const ADMIN_DOMAIN_FIELD_LIMITS = {
 
 export const PRIMARY_DOMAIN_IDENTITY_ERROR =
   'The primary domain’s identity and policies are set in Admin › Instance.'
+
+export const PRIMARY_DOMAIN_FEATURES_ERROR =
+  'The primary domain’s features are set in Admin › Instance.'
 
 // A wildcard ACTIVITIES_TRUSTED_HOSTS entry: shown as an info row only.
 export type AdminDomainWildcard = {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useState } from 'react'
 
 import {
   adminApproveAccount,
@@ -14,6 +14,7 @@ import {
   performAdminAccountAction
 } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { Frame } from '@/lib/components/surface/Frame'
 import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -24,6 +25,8 @@ interface Props {
   // (getClientActorId(actor)).
   actorId: string
   username: string
+  /** The actor's summary at the top of its box. */
+  children?: ReactNode
 }
 
 const ActionButton = ({
@@ -53,7 +56,11 @@ const ActionButton = ({
   </Button>
 )
 
-export const ActorModerationPanel = ({ actorId, username }: Props) => {
+export const ActorModerationPanel = ({
+  actorId,
+  username,
+  children
+}: Props) => {
   const [account, setAccount] = useState<AdminAccount | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -103,26 +110,53 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
     }
   }
 
+  // The actor's box, with the moderation controls under a rule. A status or
+  // failure is an Alert card above the box, never inside it.
+  const box = (controls?: ReactNode) => (
+    <Frame className="space-y-4 px-4 py-3">
+      {children}
+      {controls ? <div className="border-t pt-4">{controls}</div> : null}
+    </Frame>
+  )
+
   if (removed) {
-    return <Alert tone="success" title="Account rejected and removed." />
+    return (
+      <div className="space-y-3">
+        <Alert tone="success" title="Account rejected and removed." />
+        {box()}
+      </div>
+    )
   }
   const retry = () => {
     setLoading(true)
     void load()
   }
 
+  // Every state is the same stack (an Alert slot, then the box), so the box
+  // stays mounted as it changes.
   if (loading && !account) {
     return (
-      <SkeletonRows
-        rows={1}
-        rowClassName="h-8"
-        label="Loading moderation state"
-      />
+      <div className="space-y-3">
+        {null}
+        {box(
+          <SkeletonRows
+            rows={1}
+            rowClassName="h-8"
+            label="Loading moderation state"
+          />
+        )}
+      </div>
     )
   }
   if (!account) {
     return (
-      <Alert title={error ?? 'Moderation state unavailable'} onRetry={retry} />
+      <div className="space-y-3">
+        <Alert
+          title={error ?? 'Moderation state unavailable'}
+          onRetry={retry}
+        />
+        {box()}
+      </div>
     )
   }
 
@@ -136,132 +170,144 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">
-          @{username} moderation
-        </span>
-        {account.suspended ? <Badge tone="destructive">Suspended</Badge> : null}
-        {account.silenced ? <Badge tone="destructive">Silenced</Badge> : null}
-        {account.sensitized ? (
-          <Badge tone="destructive">Sensitized</Badge>
-        ) : null}
-        {account.disabled ? <Badge tone="destructive">Disabled</Badge> : null}
-        {isLocal && !account.approved ? (
-          <Badge tone="warning">Pending</Badge>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {account.suspended ? (
-          <ActionButton
-            label="Unsuspend"
-            disabled={busy}
-            onClick={() => run(() => adminUnsuspendAccount(actorId))}
-          />
-        ) : (
-          <ActionButton
-            label="Suspend"
-            disabled={busy}
-            destructive
-            onClick={() =>
-              run(() =>
-                performAdminAccountAction({ id: actorId, type: 'suspend' })
-              )
-            }
-          />
-        )}
-
-        {account.silenced ? (
-          <ActionButton
-            label="Unsilence"
-            disabled={busy}
-            onClick={() => run(() => adminUnsilenceAccount(actorId))}
-          />
-        ) : (
-          <ActionButton
-            label="Silence"
-            disabled={busy}
-            onClick={() =>
-              run(() =>
-                performAdminAccountAction({ id: actorId, type: 'silence' })
-              )
-            }
-          />
-        )}
-
-        {account.sensitized ? (
-          <ActionButton
-            label="Unsensitive"
-            disabled={busy}
-            onClick={() => run(() => adminUnsensitiveAccount(actorId))}
-          />
-        ) : (
-          <ActionButton
-            label="Mark sensitive"
-            disabled={busy}
-            onClick={() =>
-              run(() =>
-                performAdminAccountAction({ id: actorId, type: 'sensitive' })
-              )
-            }
-          />
-        )}
-
-        {isLocal && account.disabled ? (
-          <ActionButton
-            label="Enable login"
-            disabled={busy}
-            onClick={() => run(() => adminEnableAccount(actorId))}
-          />
-        ) : null}
-        {isLocal && !account.disabled ? (
-          <ActionButton
-            label="Disable login"
-            disabled={busy}
-            destructive
-            onClick={() =>
-              run(() =>
-                performAdminAccountAction({ id: actorId, type: 'disable' })
-              )
-            }
-          />
-        ) : null}
-
-        {isLocal && !account.approved ? (
-          <>
-            <ActionButton
-              label="Approve"
-              disabled={busy}
-              onClick={() => run(() => adminApproveAccount(actorId))}
-            />
-            <ActionButton
-              label="Reject"
-              disabled={busy}
-              destructive
-              onClick={() => runRemoving(() => adminRejectAccount(actorId))}
-            />
-          </>
-        ) : null}
-
-        {account.suspended ? (
-          <ActionButton
-            label="Delete permanently"
-            disabled={busy}
-            destructive
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Permanently delete this account? This cannot be undone.'
-                )
-              ) {
-                run(() => adminDeleteAccount(actorId))
-              }
-            }}
-          />
-        ) : null}
-      </div>
-
       {error ? <Alert title={error} /> : null}
+      {box(
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              @{username} moderation
+            </span>
+            {account.suspended ? (
+              <Badge tone="destructive">Suspended</Badge>
+            ) : null}
+            {account.silenced ? (
+              <Badge tone="destructive">Silenced</Badge>
+            ) : null}
+            {account.sensitized ? (
+              <Badge tone="destructive">Sensitized</Badge>
+            ) : null}
+            {account.disabled ? (
+              <Badge tone="destructive">Disabled</Badge>
+            ) : null}
+            {isLocal && !account.approved ? (
+              <Badge tone="warning">Pending</Badge>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {account.suspended ? (
+              <ActionButton
+                label="Unsuspend"
+                disabled={busy}
+                onClick={() => run(() => adminUnsuspendAccount(actorId))}
+              />
+            ) : (
+              <ActionButton
+                label="Suspend"
+                disabled={busy}
+                destructive
+                onClick={() =>
+                  run(() =>
+                    performAdminAccountAction({ id: actorId, type: 'suspend' })
+                  )
+                }
+              />
+            )}
+
+            {account.silenced ? (
+              <ActionButton
+                label="Unsilence"
+                disabled={busy}
+                onClick={() => run(() => adminUnsilenceAccount(actorId))}
+              />
+            ) : (
+              <ActionButton
+                label="Silence"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    performAdminAccountAction({ id: actorId, type: 'silence' })
+                  )
+                }
+              />
+            )}
+
+            {account.sensitized ? (
+              <ActionButton
+                label="Unsensitive"
+                disabled={busy}
+                onClick={() => run(() => adminUnsensitiveAccount(actorId))}
+              />
+            ) : (
+              <ActionButton
+                label="Mark sensitive"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    performAdminAccountAction({
+                      id: actorId,
+                      type: 'sensitive'
+                    })
+                  )
+                }
+              />
+            )}
+
+            {isLocal && account.disabled ? (
+              <ActionButton
+                label="Enable login"
+                disabled={busy}
+                onClick={() => run(() => adminEnableAccount(actorId))}
+              />
+            ) : null}
+            {isLocal && !account.disabled ? (
+              <ActionButton
+                label="Disable login"
+                disabled={busy}
+                destructive
+                onClick={() =>
+                  run(() =>
+                    performAdminAccountAction({ id: actorId, type: 'disable' })
+                  )
+                }
+              />
+            ) : null}
+
+            {isLocal && !account.approved ? (
+              <>
+                <ActionButton
+                  label="Approve"
+                  disabled={busy}
+                  onClick={() => run(() => adminApproveAccount(actorId))}
+                />
+                <ActionButton
+                  label="Reject"
+                  disabled={busy}
+                  destructive
+                  onClick={() => runRemoving(() => adminRejectAccount(actorId))}
+                />
+              </>
+            ) : null}
+
+            {account.suspended ? (
+              <ActionButton
+                label="Delete permanently"
+                disabled={busy}
+                destructive
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'Permanently delete this account? This cannot be undone.'
+                    )
+                  ) {
+                    run(() => adminDeleteAccount(actorId))
+                  }
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
