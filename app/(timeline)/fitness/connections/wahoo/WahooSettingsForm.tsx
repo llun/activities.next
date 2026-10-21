@@ -168,40 +168,29 @@ export const WahooSettingsForm = () => {
       >
         <form onSubmit={save} className="space-y-3">
           {(defaultVisibility === 'public' ||
-            defaultVisibility === 'unlisted' ||
-            settings?.connected ||
-            settings?.configured ||
-            settings?.lastError) && (
-            <div className="space-y-3">
-              {(defaultVisibility === 'public' ||
-                defaultVisibility === 'unlisted') && (
-                <Alert
-                  tone="warning"
-                  title="Anyone on the fediverse can read imported workouts, including route maps and stats."
-                />
-              )}
-              {settings?.connected ? (
-                <Alert
-                  tone="success"
-                  title={`Connected to Wahoo${
-                    settings.providerUserId
-                      ? ` (user ${settings.providerUserId})`
-                      : ''
-                  }.`}
-                />
-              ) : settings?.configured ? (
-                <p role="status" className="text-muted-foreground text-sm">
-                  Application saved. Connect to authorize your Wahoo account.
-                </p>
-              ) : null}
-              {settings?.lastError && (
-                // Standing state read from the saved settings at load, not news.
-                <Alert
-                  live={false}
-                  title={`Wahoo error: ${settings.lastError}`}
-                />
-              )}
-            </div>
+            defaultVisibility === 'unlisted') && (
+            <Alert
+              tone="warning"
+              title="Anyone on the fediverse can read imported workouts, including route maps and stats."
+            />
+          )}
+          {settings?.connected ? (
+            <Alert
+              tone="success"
+              title={`Connected to Wahoo${
+                settings.providerUserId
+                  ? ` (user ${settings.providerUserId})`
+                  : ''
+              }.`}
+            />
+          ) : settings?.configured ? (
+            <Alert tone="info" title="Application saved.">
+              Connect to authorize your Wahoo account.
+            </Alert>
+          ) : null}
+          {settings?.lastError && (
+            // Standing state read from the saved settings at load, not news.
+            <Alert live={false} title={`Wahoo error: ${settings.lastError}`} />
           )}
           <Frame
             form

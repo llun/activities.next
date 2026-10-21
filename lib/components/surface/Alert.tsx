@@ -74,7 +74,8 @@ interface Props {
  * warnings are live `alert`s, so a failure that lands after the page settled
  * announces itself; success and info are polite `status` regions. Every Alert
  * is this standalone card: it sits in the page or section stack beside the
- * boxes, aligned with their edges, never inside a `Frame`.
+ * boxes, aligned with their edges, never inside a `Frame` (the exceptions are
+ * an `AuthCard` and the Messages chat panes, which are the page's surface).
  */
 export const Alert: FC<Props> = ({
   tone = 'error',

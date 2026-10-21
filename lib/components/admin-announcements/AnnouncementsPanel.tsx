@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus, Trash2 } from 'lucide-react'
-import { FC, FormEvent, useCallback, useEffect, useState } from 'react'
+import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   type ServerAnnouncement,
@@ -82,6 +82,11 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const formErrorRef = useRef<HTMLDivElement>(null)
+  // The error sits above the form, away from the Save button that raised it.
+  useEffect(() => {
+    if (formError) formErrorRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [formError])
   const [newText, setNewText] = useState('')
   const [newStartsAt, setNewStartsAt] = useState('')
   const [newEndsAt, setNewEndsAt] = useState('')
@@ -251,7 +256,11 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
         description="Markdown is supported. Leave the event window empty to show it immediately and indefinitely."
       >
         <form onSubmit={handleCreate} className="space-y-3">
-          {formError && <Alert title={formError} />}
+          {formError && (
+            <div ref={formErrorRef}>
+              <Alert title={formError} />
+            </div>
+          )}
           <Frame
             form
             footer={

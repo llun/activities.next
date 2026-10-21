@@ -51,6 +51,21 @@ describe('WahooSettingsForm', () => {
     expect(container.querySelector('[data-slot="panel"]')).toBeNull()
   })
 
+  it('says the application is saved in an info card outside the form box', async () => {
+    vi.mocked(client.getWahooSettings).mockResolvedValue({
+      ...settings,
+      connected: false
+    })
+    render(<WahooSettingsForm />)
+
+    const card = (await screen.findByText('Application saved.')).closest(
+      '[data-slot=alert]'
+    )
+    expect(card).toHaveAttribute('role', 'status')
+    expect(card).toHaveTextContent('Connect to authorize your Wahoo account.')
+    expect(card?.closest('[data-slot=frame]')).toBeNull()
+  })
+
   it('draws the environment select with the shared closed-select chevron', async () => {
     render(<WahooSettingsForm />)
 

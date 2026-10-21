@@ -286,6 +286,17 @@ describe('DomainSettings', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps keyboard focus on Check again through the first check', async () => {
+    mockCheck.mockResolvedValue(RUN)
+    renderPage({ ...RUN, lastCheck: null, lastCheckedAt: null })
+    const button = screen.getByRole('button', { name: 'Check again' })
+    button.focus()
+    fireEvent.click(button)
+    await screen.findByText('run.example reaches this server')
+    expect(screen.getByRole('button', { name: 'Check again' })).toBe(button)
+    expect(button).toHaveFocus()
+  })
+
   it('shows a failed check request as an Alert that checks again', async () => {
     mockCheck.mockRejectedValue(new Error('Failed to check the domain.'))
     renderPage(RUN)

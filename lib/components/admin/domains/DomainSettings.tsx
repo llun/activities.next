@@ -40,6 +40,7 @@ import {
   type AdminDomainDetail,
   type ServerIdentityView
 } from '@/lib/services/domains/adminDomainTypes'
+import { cn } from '@/lib/utils'
 
 import { DomainCheckItems } from './DomainCheckItems'
 import {
@@ -235,7 +236,7 @@ const StatusBox: FC<{
   const isOn = domain.status === 'on'
 
   return (
-    <div className="space-y-3">
+    <>
       {isOn ? (
         <Alert
           title={`Turn off ${name}`}
@@ -303,7 +304,7 @@ const StatusBox: FC<{
         />
       ) : null}
       <p className="text-muted-foreground text-sm">{primaryNote}</p>
-    </div>
+    </>
   )
 }
 
@@ -373,7 +374,7 @@ const CheckBox: FC<{
   )
 
   return (
-    <div className="space-y-3">
+    <>
       {check ? (
         <Alert
           tone={check.passed ? 'success' : 'error'}
@@ -388,19 +389,16 @@ const CheckBox: FC<{
         </Alert>
       ) : null}
       {error ? <Alert title={error} onRetry={() => void recheck()} /> : null}
-      {check ? (
-        // The result is the alert above, so the box holds only the bar.
-        <Frame>
-          <div className="px-4 py-3">{bar}</div>
-        </Frame>
-      ) : (
-        <Frame footer={bar}>
+      {/* One tree for both states, so the first check keeps the button (and its focus). */}
+      <Frame>
+        {check ? null : (
           <p className="text-muted-foreground px-4 py-4 text-sm">
             Check that {domain.domain} reaches this server before turning it on.
           </p>
-        </Frame>
-      )}
-    </div>
+        )}
+        <div className={cn('px-4 py-3', !check && 'border-t')}>{bar}</div>
+      </Frame>
+    </>
   )
 }
 

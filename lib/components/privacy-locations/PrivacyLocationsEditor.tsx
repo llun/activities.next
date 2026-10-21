@@ -453,6 +453,11 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
     useState(false)
   const [isMapReady, setIsMapReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
+  // The error sits above the map, far from the Save button that raised it.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [error])
   // Validation of the draft fields, shown under the input it is about rather
   // than as a request failure.
   const [fieldError, setFieldError] = useState<DraftFieldError | null>(null)
@@ -1059,7 +1064,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
   const savedMessageShown = message === copy.saved
 
   return (
-    <div className="space-y-3">
+    <>
       {!isLoading && !hasLoadedSettings ? (
         // Derived from the condition, not stored in `error`, which every
         // action handler clears — the guard below must never be left
@@ -1079,7 +1084,11 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
           not overwritten.
         </Alert>
       ) : null}
-      {error ? <Alert title={error} /> : null}
+      {error ? (
+        <div ref={errorRef}>
+          <Alert title={error} />
+        </div>
+      ) : null}
       <Frame
         form
         footer={
@@ -1346,6 +1355,6 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
 
         {footerContent}
       </Frame>
-    </div>
+    </>
   )
 }
