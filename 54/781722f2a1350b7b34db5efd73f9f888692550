@@ -1,0 +1,56 @@
+lib/components/post-box/post-box.testUtils.tsx
+  s_512188f2b1db53::t_9a1d229aecb23b 177,180-182
+lib/components/posts/status-reply-box.test.tsx
+  s_512188f2b1db53::t_67ab2df8c0fc6f 346-350,352
+  s_512188f2b1db53::t_8d925f51e3e0a8 15-19,250,256,277,287-288,291-340,351,353-481
+  s_512188f2b1db53::t_92bef7fd81559e 247
+  s_512188f2b1db53::t_eeb70fb91ea6c7 21,244-246,248-249,251-255,257-276,278-286,289-290,341-345,482,649
+lib/components/post-box/post-box.test.tsx
+  s_512188f2b1db53::t_891f857571532b 930-955,957-975,1083-1157,1161-1181
+  s_512188f2b1db53::t_67ab2df8c0fc6f 1051
+  s_512188f2b1db53::t_2692706e8bbf32 1158-1160
+  s_512188f2b1db53::t_9a1d229aecb23b 8,916,927,956,976-1050,1052-1082
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_1a0aaa80a3698f 28-29,32,35,186-189,874-875,1116,1118-1125,1407,1641,1788
+  s_512188f2b1db53::t_ffdc29b9a1dab9 30,33-34,1111,1113-1115,1117
+  s_512188f2b1db53::t_9a1d229aecb23b 31,1112
+  s_512188f2b1db53::t_99d17b3339942e 272-274
+  s_512188f2b1db53::t_8a651eabe1c2f9 271
+lib/components/post-box/post-box-media.test.tsx
+  s_512188f2b1db53::t_9a1d229aecb23b 1186,1217
+  s_512188f2b1db53::t_6cc6d7b8ed09ae 1218-1291
+lib/client/http.ts
+  s_512188f2b1db53::t_e8fe1c4851ef0e 31-34,40-43,52
+  s_512188f2b1db53::t_ffdc29b9a1dab9 35-39,44-51
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_99d17b3339942e 15-16,19,22,80-84,153-154,212-213,319,336-337,339-348,525-528,555-557
+  s_512188f2b1db53::t_ffdc29b9a1dab9 17,20-21,331-335,338,529
+  s_512188f2b1db53::t_9a1d229aecb23b 18
+  s_512188f2b1db53::t_136c5530336ea8 558-560
+docs/architecture.md
+  s_512188f2b1db53::t_cfe688c8d89ce6 802
+lib/client/http.test.ts
+  s_512188f2b1db53::t_8d925f51e3e0a8 6-9,23-24,26-28,39,41-60
+  s_512188f2b1db53::t_9a1d229aecb23b 30-37
+  s_512188f2b1db53::t_cf00110d5b459d 3-5,25,29,38,40,61
+lib/database/domains/idempotency/idempotency.test.ts
+  s_512188f2b1db53::t_8d925f51e3e0a8 232-262
+lib/components/post-box/poll-choices.test.tsx
+  s_512188f2b1db53::t_0742bf888c592c 25,35-36,50,63-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "54781722f2a1350b7b34db5efd73f9f888692550",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
