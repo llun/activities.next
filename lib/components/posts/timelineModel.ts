@@ -279,9 +279,11 @@ interface ComponentNode {
  * - Server order (listIndex) on timestamp ties
  * - If malformed timestamps disagree with reply graph, parent-before-child wins
  */
-const sortComponentNodes = (
+export const sortComponentNodes = <
+  T extends Pick<ComponentNode, 'id' | 'listIndex' | 'children' | 'createdAt'>
+>(
   rootId: string,
-  nodeMap: Map<string, ComponentNode>
+  nodeMap: Map<string, T>
 ): string[] => {
   const result: string[] = []
   const root = nodeMap.get(rootId)
@@ -289,7 +291,7 @@ const sortComponentNodes = (
 
   // Priority queue of nodes whose parent has already been emitted.
   // Initially only the root is ready.
-  const ready: ComponentNode[] = [root]
+  const ready: T[] = [root]
 
   while (ready.length > 0) {
     // Sort ready nodes: oldest first, breaking ties by server order (listIndex ascending)

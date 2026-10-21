@@ -95,9 +95,96 @@ export interface CombinedPostListItemProps {
 // The rail runs down the 40px avatar column. 19px centres its 2px line in that
 // column; the dot is 10px wide, so 15px centres it too. A label line is 24px
 // tall, so its centre (and the dot's) is 12px down: the dot sits at 7px.
-const RAIL_LINE = 'absolute left-[19px] w-0.5 bg-border'
+export const RAIL_LINE = 'absolute left-[19px] w-0.5 bg-border'
 const RAIL_DOT =
   'absolute left-[15px] top-[7px] size-2.5 rounded-full bg-muted-foreground/55'
+
+export const createShowSeparateMenuItem = (
+  onSelect: () => void
+): PostMenuExtraItem => ({
+  key: 'show-separate',
+  icon: <Rows3 className="size-4" />,
+  label: 'Show as separate posts',
+  // The combined article unmounts on select; wait for the menu to close so
+  // focus is not restored to a trigger that is already gone.
+  deferUntilClosed: true,
+  group: true,
+  onSelect
+})
+
+export interface CombinedPartRailColumnProps {
+  actualStatus: StatusNote | StatusPoll
+  isFirst: boolean
+  isLast: boolean
+  isOpened?: boolean
+}
+
+export const CombinedPartRailColumn: FC<CombinedPartRailColumnProps> = ({
+  actualStatus,
+  isFirst,
+  isLast,
+  isOpened = false
+}) => (
+  <div className="relative w-10 shrink-0">
+    {isFirst ? (
+      <>
+        <ActorAvatar
+          actor={actualStatus.actor}
+          actorId={actualStatus.actorId}
+          statusUrl={actualStatus.url}
+        />
+        {isLast ? null : (
+          <span
+            aria-hidden="true"
+            className={cn(RAIL_LINE, 'top-[44px] bottom-0')}
+          />
+        )}
+      </>
+    ) : (
+      <>
+        <span aria-hidden="true" className={cn(RAIL_LINE, 'top-0 h-[7px]')} />
+        {isLast ? null : (
+          <span
+            aria-hidden="true"
+            className={cn(RAIL_LINE, 'top-[17px] bottom-0')}
+          />
+        )}
+        <span
+          aria-hidden="true"
+          className={cn(
+            RAIL_DOT,
+            isOpened && 'bg-primary ring-3 ring-primary/28'
+          )}
+        />
+      </>
+    )}
+  </div>
+)
+
+export interface CombinedPartLabelButtonProps {
+  status: Status
+  label: string
+  compactTime: string
+  spokenTime: string
+  onOpenStatus: (status: Status) => void
+}
+
+export const CombinedPartLabelButton: FC<CombinedPartLabelButtonProps> = ({
+  status,
+  label,
+  compactTime,
+  spokenTime,
+  onOpenStatus
+}) => (
+  <button
+    type="button"
+    className="-mx-1 rounded-sm px-1 py-0.5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    aria-label={`Open part ${label}, posted ${spokenTime} ago`}
+    onClick={() => onOpenStatus(status)}
+  >
+    {label} · {compactTime}
+  </button>
+)
 
 const sameStatusList = (a: readonly Status[], b: readonly Status[]) =>
   a.length === b.length && a.every((status, index) => status === b[index])
@@ -161,7 +248,7 @@ interface InsetReplyProps {
  * offers (quote, copy link, mute, block, report, translate, edit and delete
  * when it is the viewer's own, …) is in its own ⋯ menu.
  */
-const InsetReply: FC<InsetReplyProps> = ({
+export const InsetReply: FC<InsetReplyProps> = ({
   status,
   host,
   currentTime,
@@ -329,16 +416,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   const handleQuote = canCompose
     ? (target: Status) => openQuote(target, anchorId)
     : undefined
-  const separateItem: PostMenuExtraItem = {
-    key: 'show-separate',
-    icon: <Rows3 className="size-4" />,
-    label: 'Show as separate posts',
-    // The combined article unmounts on select; wait for the menu to close so
-    // focus is not restored to a trigger that is already gone.
-    deferUntilClosed: true,
-    group: true,
-    onSelect: () => onShowSeparate(rowIds)
-  }
+  const separateItem = createShowSeparateMenuItem(() => onShowSeparate(rowIds))
 
   return (
     <article
@@ -419,35 +497,11 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
 
               return (
                 <div key={part.status.id} className="flex min-w-0 gap-3">
-                  <div className="relative w-10 shrink-0">
-                    {isFirst ? (
-                      <>
-                        <ActorAvatar
-                          actor={actualStatus.actor}
-                          actorId={actualStatus.actorId}
-                          statusUrl={actualStatus.url}
-                        />
-                        <span
-                          aria-hidden="true"
-                          className={cn(RAIL_LINE, 'top-[44px] bottom-0')}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className={cn(RAIL_LINE, 'top-0 h-[7px]')}
-                        />
-                        {isLast ? null : (
-                          <span
-                            aria-hidden="true"
-                            className={cn(RAIL_LINE, 'top-[17px] bottom-0')}
-                          />
-                        )}
-                        <span aria-hidden="true" className={RAIL_DOT} />
-                      </>
-                    )}
-                  </div>
+                  <CombinedPartRailColumn
+                    actualStatus={actualStatus}
+                    isFirst={isFirst}
+                    isLast={isLast}
+                  />
                   <div className={cn('min-w-0 flex-1', !isLast && 'pb-3')}>
                     {isFirst ? (
                       <>
@@ -470,14 +524,13 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                             nearest positioned ancestor, which for the first
                             post is its action row; here it is this one. */}
                         <div className="relative flex min-h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
-                          <button
-                            type="button"
-                            className="-mx-1 rounded-sm px-1 py-0.5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                            aria-label={`Open part ${label}, posted ${spokenTime} ago`}
-                            onClick={() => onOpenStatus(part.status)}
-                          >
-                            {label} · {compactTime}
-                          </button>
+                          <CombinedPartLabelButton
+                            status={part.status}
+                            label={label}
+                            compactTime={compactTime}
+                            spokenTime={spokenTime}
+                            onOpenStatus={onOpenStatus}
+                          />
                           <div className="flex items-center gap-1">
                             {showsActionRow && actualStatus.edits.length > 0 ? (
                               <EditHistoryButton

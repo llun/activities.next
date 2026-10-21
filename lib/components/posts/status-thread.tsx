@@ -2,13 +2,28 @@
 
 import { MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FC,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
+import { CombinedPart } from '@/lib/components/posts/combinedThreadModel'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { ReplyToast } from '@/lib/components/posts/reply-toast'
+import { SelfThreadRun } from '@/lib/components/posts/self-thread-run'
+import {
+  SelfThreadRunBlock,
+  buildSelfThreadModel,
+  getRunMergedStatuses
+} from '@/lib/components/posts/selfThreadModel'
 import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
   ThreadNode,
@@ -97,37 +112,214 @@ export const StatusThread: FC<StatusThreadProps> = ({
   const [expandedBranchOverrides, setExpandedBranchOverrides] = useState<
     Record<string, boolean>
   >({})
+  const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
+  const [deletedStatusIds, setDeletedStatusIds] = useState<Set<string>>(
+    () => new Set()
+  )
+  const isRunSeparate = useCallback(
+    (statusIds: string[]) => statusIds.some((id) => separateRows.has(id)),
+    [separateRows]
+  )
+  const focusAfterSeparate = useRef<string | null>(null)
+  const showRowSeparate = useCallback((entryIds: string[]) => {
+    focusAfterSeparate.current = entryIds[0] ?? null
+    setSeparateRows((prev) => {
+      const next = new Set(prev)
+      entryIds.forEach((id) => next.add(id))
+      return next
+    })
+  }, [])
+  useEffect(() => {
+    const id = focusAfterSeparate.current
+    if (!id) return
+    focusAfterSeparate.current = null
+    const rows = document.querySelectorAll<HTMLElement>('[data-row-status-ids]')
+    for (const row of rows) {
+      if (row.dataset.rowStatusIds?.split(' ').includes(id)) {
+        row.focus()
+        return
+      }
+    }
+    const fallback = document.querySelector<HTMLElement>(
+      `[data-testid="status-${id}"], [data-node-id="${id}"]`
+    )
+    fallback?.focus()
+  }, [separateRows])
+
+  const handlePostDeleted = useCallback((deletedStatus: Status) => {
+    setDeletedStatusIds((prev) => {
+      if (prev.has(deletedStatus.id)) return prev
+      const next = new Set(prev)
+      next.add(deletedStatus.id)
+      return next
+    })
+  }, [])
+
+  const visibleAncestors = useMemo(
+    () =>
+      deletedStatusIds.size === 0
+        ? ancestors
+        : ancestors.filter((a) => !deletedStatusIds.has(a.id)),
+    [ancestors, deletedStatusIds]
+  )
 
   const allDescendants = useMemo(() => {
-    if (locallyCreatedReplies.length === 0) return descendants
-    const propIds = new Set(descendants.map((d) => d.id))
-    const additions = locallyCreatedReplies.filter((d) => !propIds.has(d.id))
-    if (additions.length === 0) return descendants
-    return [...additions, ...descendants]
-  }, [descendants, locallyCreatedReplies])
+    const base =
+      locallyCreatedReplies.length === 0
+        ? descendants
+        : (() => {
+            const propIds = new Set(descendants.map((d) => d.id))
+            const additions = locallyCreatedReplies.filter(
+              (d) => !propIds.has(d.id)
+            )
+            return additions.length === 0
+              ? descendants
+              : [...additions, ...descendants]
+          })()
+    return deletedStatusIds.size === 0
+      ? base
+      : base.filter((d) => !deletedStatusIds.has(d.id))
+  }, [descendants, locallyCreatedReplies, deletedStatusIds])
 
   const priorityStatusIds = useMemo(
     () => new Set(locallyCreatedReplies.map((r) => r.id)),
     [locallyCreatedReplies]
   )
 
+  const selfThread = useMemo(
+    () =>
+      buildSelfThreadModel({
+        focusedStatus: status,
+        ancestors: visibleAncestors,
+        descendants: allDescendants
+      }),
+    [status, visibleAncestors, allDescendants]
+  )
+
+  const runStatusIds = useMemo(
+    () => selfThread.mergedStatuses.map((s) => s.id),
+    [selfThread.mergedStatuses]
+  )
+
+  const isCombinedRun = Boolean(selfThread.run && !isRunSeparate(runStatusIds))
+
+  const activeAncestorRuns = useMemo(
+    () =>
+      selfThread.ancestorRuns.filter(
+        (run) => !isRunSeparate(getRunMergedStatuses(run).map((s) => s.id))
+      ),
+    [selfThread.ancestorRuns, isRunSeparate]
+  )
+
+  const activeDescendantRuns = useMemo(
+    () =>
+      selfThread.descendantRuns.filter(
+        (run) => !isRunSeparate(getRunMergedStatuses(run).map((s) => s.id))
+      ),
+    [selfThread.descendantRuns, isRunSeparate]
+  )
+
+  const ancestorRunByFirstStatusId = useMemo(() => {
+    const map = new Map<string, SelfThreadRunBlock>()
+    for (const run of activeAncestorRuns) {
+      map.set(run.parts[0].status.id, run)
+    }
+    return map
+  }, [activeAncestorRuns])
+
+  // Everything an ancestor run folds into its first row (the row that stays in
+  // the tree), so the tree skips these and treats them as part of the thread.
+  const mergedSecondaryAncestorStatuses = useMemo(
+    () =>
+      activeAncestorRuns.flatMap((run) => [
+        ...run.parts[0].insets,
+        ...run.parts.slice(1).flatMap((part) => [part.status, ...part.insets])
+      ]),
+    [activeAncestorRuns]
+  )
+
+  const mergedSecondaryAncestorIds = useMemo(
+    () => new Set(mergedSecondaryAncestorStatuses.map((s) => s.id)),
+    [mergedSecondaryAncestorStatuses]
+  )
+
+  const descendantRunMergedStatuses = useMemo(
+    () => activeDescendantRuns.flatMap(getRunMergedStatuses),
+    [activeDescendantRuns]
+  )
+
+  const descendantRunMergedIds = useMemo(
+    () => new Set(descendantRunMergedStatuses.map((s) => s.id)),
+    [descendantRunMergedStatuses]
+  )
+
+  const treeAncestors = useMemo(() => {
+    const base = isCombinedRun
+      ? selfThread.ancestorsOutsideRun
+      : visibleAncestors
+    return mergedSecondaryAncestorIds.size === 0
+      ? base
+      : base.filter((a) => !mergedSecondaryAncestorIds.has(a.id))
+  }, [
+    isCombinedRun,
+    selfThread.ancestorsOutsideRun,
+    visibleAncestors,
+    mergedSecondaryAncestorIds
+  ])
+
+  const treeDescendants = useMemo(() => {
+    const base = isCombinedRun ? selfThread.repliesOutsideRun : allDescendants
+    return base.filter(
+      (d) =>
+        !descendantRunMergedIds.has(d.id) &&
+        !mergedSecondaryAncestorIds.has(d.id)
+    )
+  }, [
+    isCombinedRun,
+    selfThread.repliesOutsideRun,
+    allDescendants,
+    descendantRunMergedIds,
+    mergedSecondaryAncestorIds
+  ])
+
+  const focusedGroupStatuses = useMemo(() => {
+    const list: Status[] = [
+      ...(isCombinedRun ? selfThread.mergedStatuses : []),
+      ...mergedSecondaryAncestorStatuses,
+      ...descendantRunMergedStatuses
+    ]
+    return list.length > 0 ? list : undefined
+  }, [
+    isCombinedRun,
+    selfThread.mergedStatuses,
+    mergedSecondaryAncestorStatuses,
+    descendantRunMergedStatuses
+  ])
+
+  const hasAnyActiveRun =
+    isCombinedRun ||
+    activeAncestorRuns.length > 0 ||
+    activeDescendantRuns.length > 0
+
   const tree = useMemo(
     () =>
       buildThreadTree({
         focusedStatus: status,
-        ancestors,
-        descendants: allDescendants,
+        ancestors: treeAncestors,
+        descendants: treeDescendants,
         hasMoreAncestors,
         hasMoreDescendants,
-        priorityStatusIds
+        priorityStatusIds,
+        focusedGroupStatuses
       }),
     [
       status,
-      ancestors,
-      allDescendants,
+      treeAncestors,
+      treeDescendants,
       hasMoreAncestors,
       hasMoreDescendants,
-      priorityStatusIds
+      priorityStatusIds,
+      focusedGroupStatuses
     ]
   )
 
@@ -271,25 +463,83 @@ export const StatusThread: FC<StatusThreadProps> = ({
       }}
       onReplyCreated={handleReplyCreated}
       onComposerDone={() => router.refresh()}
+      replyingToLabels={
+        hasAnyActiveRun ? selfThread.replyingToByReplyId : undefined
+      }
+      onPostDeleted={handlePostDeleted}
     />
   )
+
+  const canComposeFocused = Boolean(currentActor)
+
+  const renderSelfThreadRun = (
+    parts: readonly CombinedPart[],
+    runStatusIds: ReadonlySet<string>,
+    opened?: { openedPartIndex: number; focusedFooter: ReactNode }
+  ): ReactNode => {
+    const closeComposerAndRefresh = () => {
+      composer.close()
+      router.refresh()
+    }
+    return (
+      <SelfThreadRun
+        parts={parts}
+        openedPartIndex={opened?.openedPartIndex}
+        host={host}
+        currentTime={currentTime}
+        currentActor={currentActor ?? undefined}
+        showActions={canComposeFocused}
+        showReadOnlyStats={!canComposeFocused}
+        canCompose={canComposeFocused}
+        activeComposer={
+          composer.active && runStatusIds.has(composer.active.anchorId)
+            ? composer.active
+            : null
+        }
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        openReply={composer.openReply}
+        openQuote={composer.openQuote}
+        openEdit={composer.openEdit}
+        close={composer.close}
+        onOpenStatus={openStatus}
+        onShowMedia={(allMedias, index, actualStatus) => {
+          setModalMedias({
+            medias: allMedias,
+            tags: actualStatus.tags,
+            initialSelection: index,
+            albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
+          })
+        }}
+        onShowSeparate={showRowSeparate}
+        focusedFooter={opened?.focusedFooter}
+        onReplyCreated={handleReplyCreated}
+        onStatusCreated={closeComposerAndRefresh}
+        onPostUpdated={closeComposerAndRefresh}
+        onPostDeleted={handlePostDeleted}
+      />
+    )
+  }
 
   const actualFocusedStatus =
     status.type === StatusType.enum.Announce
       ? getOriginalStatus(status)
       : status
-  const canComposeFocused = Boolean(currentActor)
   const hasReplies = tree.totalDescendants > 0
   // "No replies yet" only speaks for a post on its own. Under the last post of
   // a conversation it reads as if the whole thread were empty, so there the
   // page ends after the post, as on Mastodon. An open composer on the focused
   // post takes the block's place, and cancelling it brings the block back.
   const isInConversation =
+    hasAnyActiveRun ||
     tree.ancestors.length > 0 ||
     hasMoreAncestors ||
     Boolean(actualFocusedStatus.reply)
   const isComposingOnFocused =
-    Boolean(currentActor) && composer.active?.anchorId === status.id
+    Boolean(currentActor) &&
+    (composer.active?.anchorId === status.id ||
+      (isCombinedRun &&
+        selfThread.mergedIds.has(composer.active?.anchorId ?? '')) ||
+      descendantRunMergedIds.has(composer.active?.anchorId ?? ''))
   const showEmptyReplies =
     !hasReplies && !isInConversation && !isComposingOnFocused
   // With neither replies nor the empty block below it, the focused post is the
@@ -297,7 +547,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
   // corners itself, since it paints a background. Logged out, the sign-in
   // block follows it inside the desktop frame, so only the mobile inset card
   // ends here.
-  const focusedIsLast = !hasReplies && !showEmptyReplies
+  const focusedIsLast =
+    !hasReplies && !showEmptyReplies && activeDescendantRuns.length === 0
 
   return (
     <div className={cn('space-y-0', className)}>
@@ -318,10 +569,14 @@ export const StatusThread: FC<StatusThreadProps> = ({
       {tree.ancestors.length > 0 ? (
         <div data-testid="thread-ancestors">
           {tree.ancestors.map((ancestor, index) => {
+            const ancestorRun = ancestorRunByFirstStatusId.get(ancestor.id)
             const actualAncestor =
               ancestor.type === StatusType.enum.Announce
                 ? getOriginalStatus(ancestor)
                 : ancestor
+            const ancestorRunIds = ancestorRun
+              ? new Set(getRunMergedStatuses(ancestorRun).map((s) => s.id))
+              : null
             return (
               <div
                 key={ancestor.id}
@@ -336,71 +591,86 @@ export const StatusThread: FC<StatusThreadProps> = ({
                   !currentActor && index === 0 && 'rounded-t-lg'
                 )}
               >
-                <div data-testid={`status-${ancestor.id}`}>
-                  <Post
-                    host={host}
-                    currentActor={currentActor ?? undefined}
-                    currentTime={currentTime}
-                    status={ancestor}
-                    showActions={canComposeFocused}
-                    showReadOnlyStats={!canComposeFocused}
-                    editable={
-                      canComposeFocused &&
-                      currentActor?.id === actualAncestor.actorId
-                    }
-                    collapsible
-                    onReply={
-                      canComposeFocused
-                        ? (target) => composer.openReply(target, ancestor.id)
-                        : undefined
-                    }
-                    onEdit={
-                      canComposeFocused
-                        ? (target) => composer.openEdit(target, ancestor.id)
-                        : undefined
-                    }
-                    onQuote={
-                      canComposeFocused
-                        ? (target) => composer.openQuote(target, ancestor.id)
-                        : undefined
-                    }
-                    onOpenStatus={openStatus}
-                    onShowAttachment={(allMedias, idx) => {
-                      setModalMedias({
-                        medias: allMedias,
-                        tags: actualAncestor.tags,
-                        initialSelection: idx,
-                        albumsOwnerId: getAlbumsOwnerId(
-                          currentActor,
-                          actualAncestor
-                        )
-                      })
-                    }}
-                  />
-                </div>
+                {ancestorRun && ancestorRunIds ? (
+                  renderSelfThreadRun(ancestorRun.parts, ancestorRunIds)
+                ) : (
+                  <>
+                    <div
+                      data-testid={`status-${ancestor.id}`}
+                      data-row-status-ids={ancestor.id}
+                      tabIndex={-1}
+                      className="focus:outline-none"
+                    >
+                      <Post
+                        host={host}
+                        currentActor={currentActor ?? undefined}
+                        currentTime={currentTime}
+                        status={ancestor}
+                        showActions={canComposeFocused}
+                        showReadOnlyStats={!canComposeFocused}
+                        editable={
+                          canComposeFocused &&
+                          currentActor?.id === actualAncestor.actorId
+                        }
+                        collapsible
+                        onReply={
+                          canComposeFocused
+                            ? (target) =>
+                                composer.openReply(target, ancestor.id)
+                            : undefined
+                        }
+                        onEdit={
+                          canComposeFocused
+                            ? (target) => composer.openEdit(target, ancestor.id)
+                            : undefined
+                        }
+                        onQuote={
+                          canComposeFocused
+                            ? (target) =>
+                                composer.openQuote(target, ancestor.id)
+                            : undefined
+                        }
+                        onOpenStatus={openStatus}
+                        onShowAttachment={(allMedias, idx) => {
+                          setModalMedias({
+                            medias: allMedias,
+                            tags: actualAncestor.tags,
+                            initialSelection: idx,
+                            albumsOwnerId: getAlbumsOwnerId(
+                              currentActor,
+                              actualAncestor
+                            )
+                          })
+                        }}
+                        onPostDeleted={handlePostDeleted}
+                      />
+                    </div>
 
-                {composer.active?.anchorId === ancestor.id && currentActor ? (
-                  <div className="mt-3">
-                    <InlineStatusComposer
-                      key={`${composer.active.mode}-${composer.active.anchorId}`}
-                      host={host}
-                      profile={currentActor}
-                      mode={composer.active.mode}
-                      status={composer.active.status}
-                      isMediaUploadEnabled={isMediaUploadEnabled}
-                      onCancel={composer.close}
-                      onReplyCreated={handleReplyCreated}
-                      onCreated={() => {
-                        composer.close()
-                        router.refresh()
-                      }}
-                      onUpdated={() => {
-                        composer.close()
-                        router.refresh()
-                      }}
-                    />
-                  </div>
-                ) : null}
+                    {composer.active?.anchorId === ancestor.id &&
+                    currentActor ? (
+                      <div className="mt-3">
+                        <InlineStatusComposer
+                          key={`${composer.active.mode}-${composer.active.anchorId}`}
+                          host={host}
+                          profile={currentActor}
+                          mode={composer.active.mode}
+                          status={composer.active.status}
+                          isMediaUploadEnabled={isMediaUploadEnabled}
+                          onCancel={composer.close}
+                          onReplyCreated={handleReplyCreated}
+                          onCreated={() => {
+                            composer.close()
+                            router.refresh()
+                          }}
+                          onUpdated={() => {
+                            composer.close()
+                            router.refresh()
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </>
+                )}
 
                 {tree.ancestorReplies?.[ancestor.id]?.length ? (
                   <div className="mt-3 divide-y divide-border/40 border-t border-border/40">
@@ -428,74 +698,118 @@ export const StatusThread: FC<StatusThreadProps> = ({
               : 'max-md:border-b-0 max-md:rounded-b-lg')
         )}
       >
-        <div data-testid={`status-${status.id}`}>
-          <Post
-            host={host}
-            currentActor={currentActor ?? undefined}
-            currentTime={currentTime}
-            status={status}
-            focused
-            showActions={canComposeFocused}
-            showReadOnlyStats={!canComposeFocused}
-            editable={
-              canComposeFocused &&
-              currentActor?.id === actualFocusedStatus.actorId
-            }
-            onReply={
-              canComposeFocused
-                ? (target) => composer.openReply(target, status.id)
-                : undefined
-            }
-            onEdit={
-              canComposeFocused
-                ? (target) => composer.openEdit(target, status.id)
-                : undefined
-            }
-            onQuote={
-              canComposeFocused
-                ? (target) => composer.openQuote(target, status.id)
-                : undefined
-            }
-            onShowAttachment={(allMedias, index) => {
-              setModalMedias({
-                medias: allMedias,
-                tags: actualFocusedStatus.tags,
-                initialSelection: index,
-                albumsOwnerId: getAlbumsOwnerId(
-                  currentActor,
-                  actualFocusedStatus
-                )
-              })
-            }}
-          />
-        </div>
+        {isCombinedRun && selfThread.run ? (
+          renderSelfThreadRun(selfThread.parts, selfThread.mergedIds, {
+            openedPartIndex: selfThread.openedPartIndex,
+            focusedFooter:
+              focusedFooter ??
+              (renderFocusedFooter ? renderFocusedFooter(status) : null)
+          })
+        ) : (
+          <>
+            <div
+              data-testid={`status-${status.id}`}
+              data-row-status-ids={status.id}
+              tabIndex={-1}
+              className="focus:outline-none"
+            >
+              <Post
+                host={host}
+                currentActor={currentActor ?? undefined}
+                currentTime={currentTime}
+                status={status}
+                focused
+                showActions={canComposeFocused}
+                showReadOnlyStats={!canComposeFocused}
+                editable={
+                  canComposeFocused &&
+                  currentActor?.id === actualFocusedStatus.actorId
+                }
+                onReply={
+                  canComposeFocused
+                    ? (target) => composer.openReply(target, status.id)
+                    : undefined
+                }
+                onEdit={
+                  canComposeFocused
+                    ? (target) => composer.openEdit(target, status.id)
+                    : undefined
+                }
+                onQuote={
+                  canComposeFocused
+                    ? (target) => composer.openQuote(target, status.id)
+                    : undefined
+                }
+                onShowAttachment={(allMedias, index) => {
+                  setModalMedias({
+                    medias: allMedias,
+                    tags: actualFocusedStatus.tags,
+                    initialSelection: index,
+                    albumsOwnerId: getAlbumsOwnerId(
+                      currentActor,
+                      actualFocusedStatus
+                    )
+                  })
+                }}
+                onPostDeleted={handlePostDeleted}
+              />
+            </div>
 
-        {focusedFooter ??
-          (renderFocusedFooter ? renderFocusedFooter(status) : null)}
+            {focusedFooter ??
+              (renderFocusedFooter ? renderFocusedFooter(status) : null)}
 
-        {composer.active?.anchorId === status.id && currentActor ? (
-          <div className="mt-3">
-            <InlineStatusComposer
-              key={`${composer.active.mode}-${composer.active.anchorId}`}
-              host={host}
-              profile={currentActor}
-              mode={composer.active.mode}
-              status={composer.active.status}
-              isMediaUploadEnabled={isMediaUploadEnabled}
-              onCancel={composer.close}
-              onReplyCreated={handleReplyCreated}
-              onCreated={() => {
-                composer.close()
-                router.refresh()
-              }}
-              onUpdated={() => {
-                composer.close()
-                router.refresh()
-              }}
-            />
-          </div>
-        ) : null}
+            {composer.active?.anchorId === status.id && currentActor ? (
+              <div className="mt-3">
+                <InlineStatusComposer
+                  key={`${composer.active.mode}-${composer.active.anchorId}`}
+                  host={host}
+                  profile={currentActor}
+                  mode={composer.active.mode}
+                  status={composer.active.status}
+                  isMediaUploadEnabled={isMediaUploadEnabled}
+                  onCancel={composer.close}
+                  onReplyCreated={handleReplyCreated}
+                  onCreated={() => {
+                    composer.close()
+                    router.refresh()
+                  }}
+                  onUpdated={() => {
+                    composer.close()
+                    router.refresh()
+                  }}
+                />
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
+
+      {/* Later self-thread blocks separated by > 10 min */}
+      {activeDescendantRuns.map((descendantRun, index) => {
+        const descendantRunIds = new Set(
+          getRunMergedStatuses(descendantRun).map((s) => s.id)
+        )
+        const isLastBlock =
+          !hasReplies &&
+          !showEmptyReplies &&
+          index === activeDescendantRuns.length - 1
+        return (
+          <div
+            key={descendantRun.key}
+            data-testid="self-thread-continuation-block"
+            className={cn(
+              'border-b bg-background p-4',
+              currentActor && 'max-md:rounded-none',
+              isLastBlock &&
+                (currentActor
+                  ? 'border-b-0 rounded-b-lg max-md:rounded-none'
+                  : 'max-md:border-b-0 max-md:rounded-b-lg')
+            )}
+          >
+            {renderSelfThreadRun(descendantRun.parts, descendantRunIds)}
+          </div>
+        )
+      })}
 
       {/* Descendants tree */}
       {hasReplies ? (

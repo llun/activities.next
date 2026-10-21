@@ -30,6 +30,7 @@ export interface BuildThreadTreeParams {
   hasMoreAncestors?: boolean
   hasMoreDescendants?: boolean
   priorityStatusIds?: Set<string>
+  focusedGroupStatuses?: readonly Status[]
 }
 
 export const THREAD_COLLAPSE_THRESHOLD = 10
@@ -77,13 +78,22 @@ export function buildThreadTree({
   descendants = [],
   hasMoreAncestors = false,
   hasMoreDescendants = false,
-  priorityStatusIds
+  priorityStatusIds,
+  focusedGroupStatuses
 }: BuildThreadTreeParams): ThreadTree {
   const focusedAuthorId = getStatusAuthorId(focusedStatus)
   const focusedUrl = getStatusUrl(focusedStatus)
   const focusedIds = new Set<string>([focusedStatus.id])
   if (focusedUrl) focusedIds.add(focusedUrl)
   if (focusedStatus.publicId) focusedIds.add(focusedStatus.publicId)
+  if (focusedGroupStatuses) {
+    for (const groupStatus of focusedGroupStatuses) {
+      focusedIds.add(groupStatus.id)
+      const groupStatusUrl = getStatusUrl(groupStatus)
+      if (groupStatusUrl) focusedIds.add(groupStatusUrl)
+      if (groupStatus.publicId) focusedIds.add(groupStatus.publicId)
+    }
+  }
 
   const totalDescendants = descendants.length
   const shouldCollapseBranches = totalDescendants >= THREAD_COLLAPSE_THRESHOLD
