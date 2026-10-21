@@ -17,6 +17,7 @@ import {
   getGallerySettings,
   getMedia
 } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { UploadedAttachment } from '@/lib/types/domain/attachment'
@@ -1105,6 +1106,45 @@ describe('PostBox media details', () => {
     expect(createNoteMock).toHaveBeenCalledTimes(1)
     expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
   })
+  describe.each([
+    [
+      503,
+      "Your post was saved but couldn't be sent yet. Press Post again to retry."
+    ],
+    [409, 'Your post is still being sent. Please wait a moment.']
+  ])('when the server kept the post (%i)', (status, message) => {
+    const failWith = async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      createNoteMock.mockRejectedValueOnce(
+        new ApiRequestError('retry with the same Idempotency-Key', status)
+      )
+      const view = renderPostBox()
+      attach('a.png')
+      await screen.findByText('Review')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+      return view
+    }
+
+    it('shows the retry message', async () => {
+      await failWith()
+    })
+
+    it('does not delete the kept media on unmount', async () => {
+      const { unmount } = await failWith()
+      unmount()
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('does not delete the kept media when it is removed', async () => {
+      await failWith()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media a.png' })
+      )
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+  })
+
   describe('photos from Gallery (initialMedia)', () => {
     const prefilled = [
       {

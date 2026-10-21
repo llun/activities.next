@@ -26,6 +26,19 @@ describe('http client utilities', () => {
       )
     })
 
+    it('exposes the HTTP status on the thrown error', async () => {
+      const response = new Response(JSON.stringify({ error: 'Busy' }), {
+        status: 409
+      })
+
+      await expect(
+        throwApiError(response, 'Default failure')
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 409
+      })
+    })
+
     it('throws with fallback message if JSON has no error string', async () => {
       const response = new Response(JSON.stringify({ other: 123 }), {
         status: 400,

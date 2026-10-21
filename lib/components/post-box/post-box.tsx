@@ -25,6 +25,7 @@ import {
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import type {
   MediaDetailsDialogItem,
@@ -855,6 +856,7 @@ export const PostBox: FC<Props> = ({
     const contentWarning = postExtension.contentWarningVisible
       ? postExtension.contentWarning
       : ''
+    let createAttempt: PostBoxAttachment[] = []
     try {
       if (postExtension.poll.showing && postExtension.fitnessFile) {
         setWarningMsg(
@@ -1020,6 +1022,7 @@ export const PostBox: FC<Props> = ({
         return
       }
 
+      createAttempt = attachments
       const noteFingerprint = JSON.stringify({
         type: 'note',
         message,
@@ -1068,10 +1071,21 @@ export const PostBox: FC<Props> = ({
       const fallbackMessage = editStatus
         ? 'Fail to update the post'
         : 'Fail to create a post'
+      // 503 (saved, delivery pending) and 409 (still being processed) mean the
+      // server holds a post that uses this attempt's media: it must not be
+      // deleted, and an unchanged retry replays the same Idempotency-Key.
+      const keptByServer =
+        error instanceof ApiRequestError &&
+        (error.status === 503 || error.status === 409)
+      if (keptByServer) markAttachmentsPosted(createAttempt)
       alert(
-        error instanceof Error && error.message
-          ? error.message
-          : fallbackMessage
+        keptByServer && error.status === 503
+          ? "Your post was saved but couldn't be sent yet. Press Post again to retry."
+          : keptByServer
+            ? 'Your post is still being sent. Please wait a moment.'
+            : error instanceof Error && error.message
+              ? error.message
+              : fallbackMessage
       )
     } finally {
       submitInFlightRef.current = false

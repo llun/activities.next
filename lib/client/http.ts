@@ -8,7 +8,7 @@ export const throwApiError = async (response: Response, fallback: string) => {
     .json()
     .then((body) => (typeof body?.error === 'string' ? body.error : null))
     .catch(() => null)
-  throw new Error(message || fallback)
+  throw new ApiRequestError(message || fallback, response.status)
 }
 
 export class ApiRequestError extends Error {
