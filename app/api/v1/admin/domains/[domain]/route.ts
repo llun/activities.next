@@ -86,6 +86,12 @@ const describeInvalidRequest = (
   if (field === 'contactEmail' && issue.code === 'invalid_format') {
     return { field, message: 'Enter a valid contact email address.' }
   }
+  if (issue.code === 'too_big' && issue.origin === 'array') {
+    return {
+      field,
+      message: `${label} has too many addresses (at most ${String(issue.maximum)}).`
+    }
+  }
   if (issue.code === 'too_big') {
     return {
       field,

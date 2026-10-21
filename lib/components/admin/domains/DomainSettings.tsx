@@ -579,7 +579,7 @@ const IdentityBox: FC<{
           </SettingsField>
         )
       })}
-      <SettingsField label="Contact account">
+      <SettingsField label="Contact account" className="sm:items-start">
         <div className="text-sm">
           <p>
             {server.contactAccount ? (

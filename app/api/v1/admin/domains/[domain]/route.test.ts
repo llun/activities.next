@@ -187,6 +187,17 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
       body: { termsOfService: '   ' },
       field: 'termsOfService',
       error: 'Terms of service cannot be blank.'
+    },
+    {
+      name: 'too many allowed emails',
+      body: {
+        allowedEmails: Array.from(
+          { length: 1001 },
+          (_, index) => `user${index}@run.example`
+        )
+      },
+      field: 'allowedEmails',
+      error: 'Allowed emails has too many addresses (at most 1000).'
     }
   ])(
     'names the field when it refuses $name',
