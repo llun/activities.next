@@ -1,0 +1,107 @@
+migrations/20261020194752_add_idempotency_keys_content_hash.ts
+  s_512188f2b1db53::t_326549d3717fad 1-32
+migrations/index.ts
+  s_512188f2b1db53::t_326549d3717fad 10,24-26
+lib/services/actors/actorDeletion.ts
+  s_512188f2b1db53::t_d976dbd172aa15 153-166
+app/api/v1/statuses/route.ts
+  s_512188f2b1db53::t_2449914b4c2773 226-230
+  s_9ffb809667a7b0::t_2616e2181d86a5 5-6,9-12,65,104-105,119,123-150,283-290,424-435,437,439-444,506,560,565,596-615
+lib/services/queue/databaseRunner.ts
+  s_512188f2b1db53::t_d976dbd172aa15 285,310-321
+  s_512188f2b1db53::t_3142a8f6f4fe3b 3,28-29,35,69-83,322-323
+migrations/names.ts
+  s_512188f2b1db53::t_326549d3717fad 10-11
+lib/database/domains/idempotency/types.ts
+  s_75d4c34173c855::t_2458086a24edec 5-6,12-46,53-55,57-59
+lib/actions/createPoll.ts
+  s_9ffb809667a7b0::t_d9c2c662b61d29 6,8-10,13,20,23,27,50,66-67,70-78,157-194,196-207,209-219,221-231,233-254
+lib/database/domains/status/deletion.ts
+  s_f857f6a21545b8::t_cd16962daa60a1 613-616
+lib/database/domains/status/types.ts
+  s_9ffb809667a7b0::t_513d8b63a0439e 205-211
+lib/database/domains/status/writes.ts
+  s_9ffb809667a7b0::t_47f77b533a762c 2-6,213-252,271-272,301-312,347-348,519-520,549-560,610-611
+lib/database/kysely/db.ts
+  s_f857f6a21545b8::t_78dbe8ad99f4c2 691
+lib/types/database/operations.ts
+  s_f857f6a21545b8::t_110c6afa258966 296-300,302,305
+migrations/schema.sql
+  s_f857f6a21545b8::t_6e03c91243f7ef 724-725
+app/api/v1/statuses/route.test.ts
+  s_9ffb809667a7b0::t_3356925ef16332 798,815,818-819,826,829-832,834-1000
+docs/architecture.md
+  s_9ffb809667a7b0::t_527d8e36cddbe8 781,800
+docs/environment-variables.md
+  s_9ffb809667a7b0::t_9ea4fbee405225 24-25
+docs/maintenance.md
+  s_9ffb809667a7b0::t_50b81617f42885 1410-1418
+docs/mastodon-api-compatibility.md
+  s_9ffb809667a7b0::t_5d3c843183dba8 457-493
+lib/actions/createNote.ts
+  s_9ffb809667a7b0::t_a5af6c1aeaa048 1-4,51,57,60-114,420,437,441-448,569-607,609-613,616-644,646-691,693-694,701-709,711-736,738-741,743,745-748,751-758,760-786,790-791,793-823,825,827-828,831,836-856,859-881,883-890,892-894,897-899,901,903,910,916-919,923,937-975,977-1014,1016-1017
+lib/client/statuses.test.ts
+  s_9ffb809667a7b0::t_d2c819e0140769 3,282,285-348,353-368,372,375-440,537,542-544,548,551-562
+lib/client/statuses.ts
+  s_9ffb809667a7b0::t_363a716ecb26c4 3,5-13,19,21,26-374,386,399-400,410-414,417-418,421-431,439-449,580,592-593,605-608,611-612,615-624
+lib/components/post-box/post-box.test.tsx
+  s_9ffb809667a7b0::t_7e5e34e6d48dd7 11,694-745
+lib/components/post-box/post-box.tsx
+  s_9ffb809667a7b0::t_2841d1eac0bf79 61,178-181,870-886,890,894-895,898,1023-1040,1049-1050,1053
+lib/components/posts/status-reply-box.tsx
+  s_9ffb809667a7b0::t_4ccbecd0478182 38,90-93,272-286,294-295,298
+lib/database/domains/idempotency/idempotency.test.ts
+  s_9ffb809667a7b0::t_b9a03c499a0b73 1-5,7,86-222
+lib/database/domains/idempotency/queries.ts
+  s_9ffb809667a7b0::t_a900d293f9fb50 1-6,9,25-45,48-54,56-61,67-73,78-96
+lib/services/mastodon/getMastodonStatus.ts
+  s_9ffb809667a7b0::t_ac5e1c2e82ec2b 857-860
+lib/types/domain/status.ts
+  s_9ffb809667a7b0::t_c1f300f81141a1 33,39-40
+lib/types/domain/statusFitnessFile.ts
+  s_9ffb809667a7b0::t_956c28d4298d6f 1-61
+lib/types/mastodon/status/base.ts
+  s_9ffb809667a7b0::t_1f61d26bcfe8d3 4,208-211
+migrations/schema.sqlite.sql
+  s_9ffb809667a7b0::t_e0944d5b9ae342 169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "762a7786fce64540ed2da0f7399c3249c6101b57",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_75d4c34173c855": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fa798fd-1e86-4745-b7f5-246ceff6ac92",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9ffb809667a7b0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a054cea2c8c1acf6f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f857f6a21545b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a9605f1e6507c83ee",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
