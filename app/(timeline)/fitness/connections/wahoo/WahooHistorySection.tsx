@@ -187,6 +187,9 @@ export const WahooHistorySection = ({
               <SkeletonBar className="h-10 w-full" />
             </div>
           )}
+          {currentImport?.lastError && (
+            <Alert title={currentImport.lastError} />
+          )}
           {currentImport && (
             <div className="space-y-3 rounded-md border p-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -214,9 +217,6 @@ export const WahooHistorySection = ({
                   max={currentImport.total}
                   aria-label="History import progress"
                 />
-              )}
-              {currentImport.lastError && (
-                <Alert title={currentImport.lastError} />
               )}
               <div className="flex flex-wrap gap-2">
                 {isInProgress(currentImport.status) && (

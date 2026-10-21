@@ -81,7 +81,9 @@ const Page = async ({ params }: Props) => {
             This account has no actors yet.
           </EmptyState>
         ) : (
-          <ul aria-label="Actors" className="space-y-3">
+          // One box per actor, each with its moderation status above it; the
+          // wider gap keeps a status with its own actor.
+          <ul aria-label="Actors" className="space-y-6">
             {actors.map((actor) => (
               <li key={actor.id}>
                 <ActorModerationPanel

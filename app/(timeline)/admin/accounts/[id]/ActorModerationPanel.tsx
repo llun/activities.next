@@ -111,7 +111,7 @@ export const ActorModerationPanel = ({
   }
 
   // The actor's box, with the moderation controls under a rule. A status or
-  // failure is an Alert card under the box, never inside it.
+  // failure is an Alert card above the box, never inside it.
   const box = (controls?: ReactNode) => (
     <Frame className="space-y-4 px-4 py-3">
       {children}
@@ -122,8 +122,8 @@ export const ActorModerationPanel = ({
   if (removed) {
     return (
       <div className="space-y-3">
-        {box()}
         <Alert tone="success" title="Account rejected and removed." />
+        {box()}
       </div>
     )
   }
@@ -149,11 +149,11 @@ export const ActorModerationPanel = ({
   if (!account) {
     return (
       <div className="space-y-3">
-        {box()}
         <Alert
           title={error ?? 'Moderation state unavailable'}
           onRetry={retry}
         />
+        {box()}
       </div>
     )
   }
@@ -168,6 +168,7 @@ export const ActorModerationPanel = ({
 
   return (
     <div className="space-y-3">
+      {error ? <Alert title={error} /> : null}
       {box(
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -305,7 +306,6 @@ export const ActorModerationPanel = ({
           </div>
         </div>
       )}
-      {error ? <Alert title={error} /> : null}
     </div>
   )
 }

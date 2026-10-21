@@ -156,8 +156,9 @@ describe('ActorModerationPanel', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Network down')
-    // Every status is a card under the actor's box, never inside it.
+    // Every status is a card right above the actor's box, never inside it.
     expect(alert.closest('[data-slot=frame]')).toBeNull()
+    expect(alert.nextElementSibling).toHaveAttribute('data-slot', 'frame')
     expect(screen.queryByRole('button', { name: 'Suspend' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -184,6 +185,46 @@ describe('ActorModerationPanel', () => {
     expect(frame).toContainElement(suspend)
   })
 
+  it.each([
+    [
+      'loading',
+      () => mockGetAdminAccount.mockReturnValue(new Promise(() => {})),
+      async () => {
+        await screen.findByText('Loading moderation state')
+      }
+    ],
+    [
+      'unavailable',
+      () => mockGetAdminAccount.mockRejectedValue(new Error('Network down')),
+      async () => {
+        await screen.findByRole('alert')
+      }
+    ],
+    [
+      'removed',
+      () => {
+        mockGetAdminAccount.mockResolvedValue(account({ approved: false }))
+        mockReject.mockResolvedValue(undefined)
+      },
+      async () => {
+        fireEvent.click(await screen.findByRole('button', { name: 'Reject' }))
+        await screen.findByText('Account rejected and removed.')
+      }
+    ]
+  ])('keeps the actor summary in its box while %s', async (_, arrange, act) => {
+    arrange()
+    render(
+      <ActorModerationPanel actorId="acct-1" username="target">
+        <p>Target actor</p>
+      </ActorModerationPanel>
+    )
+    await act()
+
+    expect(
+      screen.getByText('Target actor').closest('[data-slot=frame]')
+    ).not.toBeNull()
+  })
+
   it('keeps the actions and shows an alert when an action fails', async () => {
     mockGetAdminAccount.mockResolvedValue(account({}))
     mockAction.mockRejectedValue(new Error('Not allowed'))
@@ -194,6 +235,7 @@ describe('ActorModerationPanel', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Not allowed')
     expect(alert.closest('[data-slot=frame]')).toBeNull()
+    expect(alert.nextElementSibling).toHaveAttribute('data-slot', 'frame')
     expect(screen.getByRole('button', { name: 'Silence' })).toBeEnabled()
   })
 
@@ -204,8 +246,12 @@ describe('ActorModerationPanel', () => {
     render(<ActorModerationPanel actorId="acct-1" username="target" />)
     fireEvent.click(await screen.findByRole('button', { name: 'Reject' }))
 
-    const removed = await screen.findByText('Account rejected and removed.')
-    expect(removed.closest('[data-slot=frame]')).toBeNull()
+    const removed = (
+      await screen.findByText('Account rejected and removed.')
+    ).closest('[data-slot=alert]')
+    expect(removed).not.toBeNull()
+    expect(removed!.closest('[data-slot=frame]')).toBeNull()
+    expect(removed!.nextElementSibling).toHaveAttribute('data-slot', 'frame')
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
     expect(mockGetAdminAccount).toHaveBeenCalledTimes(1)
   })
