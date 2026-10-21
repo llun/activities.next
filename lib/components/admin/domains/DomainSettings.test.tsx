@@ -6,7 +6,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { MockInstance } from 'vitest'
 
 import type {
-  AdminDomain,
   AdminDomainDetail,
   ServerIdentityView
 } from '@/lib/services/domains/adminDomainTypes'

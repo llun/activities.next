@@ -165,8 +165,9 @@ export const getAdminDomainList = async (
 
 /**
  * One domain's page, with its own identity and policies; null when the domain
- * is neither in the env nor a row. The primary's are always null: it uses the
- * server's (Admin › Instance).
+ * is neither in the env nor a row. On the primary, description, contact email
+ * and policies are null (it uses the server's, Admin › Instance); its name
+ * mirrors the server's name.
  */
 export const getAdminDomain = async (
   database: Database,

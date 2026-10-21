@@ -2,7 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { PRIMARY_DOMAIN_IDENTITY_ERROR } from '@/lib/services/domains/adminDomainTypes'
+import {
+  ADMIN_DOMAIN_FIELD_LIMITS,
+  PRIMARY_DOMAIN_IDENTITY_ERROR
+} from '@/lib/services/domains/adminDomainTypes'
 import { resolveDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import {
   resetServedDomainsForTests,
@@ -165,6 +168,38 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
     const response = await patch('run.example', body)
     expect(response.status).toBe(422)
   })
+
+  it.each([
+    {
+      name: 'a malformed contact email',
+      body: { contactEmail: 'hello@' },
+      field: 'contactEmail',
+      error: 'Enter a valid contact email address.'
+    },
+    {
+      name: 'a name that is too long',
+      body: { name: 'x'.repeat(ADMIN_DOMAIN_FIELD_LIMITS.name + 1) },
+      field: 'name',
+      error: `Name is too long (at most ${ADMIN_DOMAIN_FIELD_LIMITS.name} characters).`
+    },
+    {
+      name: 'blank terms of service',
+      body: { termsOfService: '   ' },
+      field: 'termsOfService',
+      error: 'Terms of service cannot be blank.'
+    }
+  ])(
+    'names the field when it refuses $name',
+    async ({ body, field, error }) => {
+      const response = await patch('run.example', body)
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({
+        error,
+        code: 'invalid',
+        field
+      })
+    }
+  )
 
   it('sends the primary’s identity to Admin › Instance', async () => {
     const response = await patch('social.example', { name: 'Social' })

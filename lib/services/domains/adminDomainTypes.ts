@@ -33,8 +33,9 @@ export type AdminDomain = {
 
 /**
  * One domain's page: the list row plus its own identity and policies. Null in
- * any of these means "Same as server" (Admin › Instance); on the primary they
- * are always null, as the primary uses the server's own. The `*UpdatedAt`
+ * any of these means "Same as server" (Admin › Instance); on the primary the
+ * description, contact email and policies are null, as it uses the server's
+ * own, and the name mirrors the server's name. The `*UpdatedAt`
  * dates are epoch ms, null while the domain sets no text of its own.
  */
 export type AdminDomainDetail = AdminDomain & {

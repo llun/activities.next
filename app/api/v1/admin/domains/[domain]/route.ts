@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 
 import {
   UpdateDomainRequest,
@@ -61,6 +62,42 @@ const failure = (
     responseStatusCode: status
   })
 
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Name',
+  description: 'Description',
+  contactEmail: 'Contact email',
+  termsOfService: 'Terms of service',
+  privacyPolicy: 'Privacy policy',
+  allowedEmails: 'Allowed emails'
+}
+
+// The first problem of a refused body, as a sentence the page can show. The
+// `error` key stays the same as every other refusal; `field` names the input.
+const describeInvalidRequest = (
+  error: z.ZodError
+): { field: string | null; message: string } => {
+  const issue = error.issues[0]
+  const key = issue?.path[0]
+  const field = typeof key === 'string' ? key : null
+  const label = field ? FIELD_LABELS[field] : undefined
+  if (!issue || !field || !label) {
+    return { field, message: issue?.message ?? ERROR_422.error }
+  }
+  if (field === 'contactEmail' && issue.code === 'invalid_format') {
+    return { field, message: 'Enter a valid contact email address.' }
+  }
+  if (issue.code === 'too_big') {
+    return {
+      field,
+      message: `${label} is too long (at most ${String(issue.maximum)} characters).`
+    }
+  }
+  if (issue.code === 'too_small') {
+    return { field, message: `${label} cannot be blank.` }
+  }
+  return { field, message: `${label} is not valid.` }
+}
+
 const readDomain = async (params: Promise<Params>) =>
   normalizeServedDomainChoice(readDomainRouteParam((await params).domain))
 
@@ -93,12 +130,14 @@ export const PATCH = traceApiRoute(
     }
     const parsed = UpdateDomainRequest.safeParse(body)
     if (!parsed.success) {
-      return apiResponse({
+      const { field, message } = describeInvalidRequest(parsed.error)
+      return failure(
         req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
-        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
-      })
+        HTTP_STATUS.UNPROCESSABLE_ENTITY,
+        'invalid',
+        message,
+        field ? { field } : {}
+      )
     }
 
     const { status, ...settings } = parsed.data

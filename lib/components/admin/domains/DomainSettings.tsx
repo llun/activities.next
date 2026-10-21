@@ -559,7 +559,7 @@ const IdentityBox: FC<{
             key={key}
             label={label}
             htmlFor={id}
-            className={multiline ? 'sm:items-start' : undefined}
+            className="sm:items-start"
           >
             <div>
               {multiline ? (

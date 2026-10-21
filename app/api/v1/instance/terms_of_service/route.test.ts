@@ -144,6 +144,27 @@ describe('GET /api/v1/instance/terms_of_service', () => {
         { params: Promise.resolve({ date: '2026-07-08' }) }
       )
       expect(dated.status).toBe(200)
+      await expect(dated.json()).resolves.toMatchObject({
+        effective_date: '2026-07-08',
+        content: '<p>Alias terms for alias.llun.test</p>'
+      })
+      // The server's date belongs to the server's terms, not this domain's.
+      const serverDate = await GET_BY_DATE(
+        new NextRequest(
+          'https://llun.test/api/v1/instance/terms_of_service/2026-03-04',
+          { headers: { host: 'alias.llun.test' } }
+        ),
+        { params: Promise.resolve({ date: '2026-03-04' }) }
+      )
+      expect(serverDate.status).toBe(404)
+      // And the domain's date is unknown on the primary.
+      const onPrimary = await GET_BY_DATE(
+        new NextRequest(
+          'https://llun.test/api/v1/instance/terms_of_service/2026-07-08'
+        ),
+        { params: Promise.resolve({ date: '2026-07-08' }) }
+      )
+      expect(onPrimary.status).toBe(404)
 
       // The primary keeps the server's.
       const primary = await (await GET(request(), params)).json()

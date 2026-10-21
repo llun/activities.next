@@ -4,6 +4,7 @@ import type { Config } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import type { Database } from '@/lib/database/types'
+import { invalidateDomainIdentityCache } from '@/lib/services/domains/domainIdentity'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
 import { GET } from './route'
@@ -84,6 +85,31 @@ describe('GET /api/v1/instance/privacy_policy', () => {
       updated_at: '2026-03-04T23:30:00.000Z',
       content: '<h2>Logs</h2>\n<p>No logs &amp; no &lt;trackers&gt;.</p>'
     })
+  })
+
+  it('serves the visited domain’s own policy, and the server’s elsewhere', async () => {
+    await storePolicy('Server policy', '2026-03-04T10:00:00.000Z')
+    invalidateDomainIdentityCache(database)
+    await database.createServedDomain({
+      domain: 'alias.llun.test',
+      privacyPolicy: 'Alias policy for %{domain}',
+      privacyPolicyUpdatedAt: Date.UTC(2026, 6, 8, 9)
+    })
+    try {
+      const alias = await (
+        await GET(request({ host: 'alias.llun.test' }), params)
+      ).json()
+      expect(alias).toEqual({
+        updated_at: '2026-07-08T09:00:00.000Z',
+        content: '<p>Alias policy for alias.llun.test</p>'
+      })
+
+      const primary = await (await GET(request(), params)).json()
+      expect(primary.content).toBe('<p>Server policy</p>')
+    } finally {
+      await database.deleteServedDomain({ domain: 'alias.llun.test' })
+      invalidateDomainIdentityCache(database)
+    }
   })
 
   it('fills %{domain} with the domain the request arrived on', async () => {
