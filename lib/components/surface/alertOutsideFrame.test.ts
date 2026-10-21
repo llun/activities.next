@@ -2,6 +2,8 @@ import { parseSync } from '@swc/core'
 import fs from 'fs'
 import path from 'path'
 
+import { collectSourceFiles } from '@/lib/testing/moduleImports'
+
 // Every `Alert` is the standalone card in the page or section stack, beside
 // the boxes and never inside one (see **Surfaces** in docs/architecture.md).
 // This parses each `.tsx` of `app/` and `lib/` and fails on an `<Alert` nested
@@ -17,27 +19,23 @@ const ALLOWED_FILES = new Set([
   path.normalize('app/(timeline)/messages/MessagesPage.tsx')
 ])
 
-const collectTsx = (dir: string): string[] =>
-  fs
-    .readdirSync(path.join(ROOT, dir), { withFileTypes: true })
-    .flatMap((entry) => {
-      const relative = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        return entry.name === 'node_modules' || entry.name === '.next'
-          ? []
-          : collectTsx(relative)
-      }
-      return /\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)
-        ? [relative]
-        : []
-    })
-
 type Span = { start: number }
 type Node = { type?: string; span?: Span; [key: string]: unknown }
 
+// swc offsets are UTF-8 bytes on a counter that runs across every parse, and a
+// module's span starts at its first token, after any leading comment. Parsing
+// `;${source}` pins the span start to the first byte; the line is counted in
+// bytes from there (same approach as `transactionCallSites.test.ts`).
+const lineOfOffset = (source: string, offset: number) =>
+  Buffer.from(source, 'utf8')
+    .subarray(0, Math.max(0, offset))
+    .toString('utf8')
+    .split('\n').length
+
 // The 1-based line of every `<Alert` that sits inside a box in `source`.
 const alertsInBoxes = (source: string): number[] => {
-  const program = parseSync(source, { syntax: 'typescript', tsx: true })
+  const program = parseSync(`;${source}`, { syntax: 'typescript', tsx: true })
+  const base = (program.span.start as number) + 1
   const lines: number[] = []
   const walk = (value: unknown, inBox: boolean) => {
     if (Array.isArray(value)) return value.forEach((v) => walk(v, inBox))
@@ -48,9 +46,7 @@ const alertsInBoxes = (source: string): number[] => {
     let nextInBox = inBox
     if (node.type === 'JSXOpeningElement' && inBox) {
       if (tagName(node) === 'Alert') {
-        // swc spans carry a running offset across parses: make them file-relative.
-        const offset = node.span!.start - (program.span.start as number)
-        lines.push(source.slice(0, offset).split('\n').length)
+        lines.push(lineOfOffset(source, node.span!.start - base))
       }
     }
     if (node.type === 'JSXElement') {
@@ -78,9 +74,22 @@ describe('Alert outside Frame', () => {
     ).toEqual([])
   })
 
+  it('reports the line after a leading comment and non-ASCII text', () => {
+    const source =
+      '// é — header\n\nconst A = () => (\n  <Frame>\n    <p>日本語</p>\n    <Alert title="é" />\n  </Frame>\n)'
+    expect(alertsInBoxes(source)).toEqual([6])
+  })
+
   it('keeps every Alert out of its Frame', () => {
-    const inBox = ['app', 'lib']
-      .flatMap(collectTsx)
+    const files = ['app', 'lib']
+      .flatMap(collectSourceFiles)
+      .filter((file) => file.endsWith('.tsx'))
+    // A dropped root would leave the scan green over nothing.
+    expect(files).toContain(
+      path.normalize('app/(timeline)/messages/MessagesPage.tsx')
+    )
+    expect(files).toContain(path.normalize('lib/components/surface/Alert.tsx'))
+    const inBox = files
       .filter((file) => !ALLOWED_FILES.has(path.normalize(file)))
       .flatMap((file) => {
         const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
