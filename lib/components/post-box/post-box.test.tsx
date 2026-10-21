@@ -961,6 +961,38 @@ describe('PostBox idempotency key', () => {
     return { ...view, textarea, postButton }
   }
 
+  it('keeps Post enabled for a locked draft when the instance limit drops below its length', async () => {
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const composer = (maxStatusCharacters: number) => (
+      <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    const { rerender } = render(composer(500))
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'First post' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+    await waitFor(() => expect(postButton).toBeEnabled())
+    const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    // An admin lowers the limit below the saved draft's length.
+    rerender(composer(5))
+    expect(postButton).toBeEnabled()
+
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).toBe(lockedKey)
+  })
+
   it('unlocks a locked draft and mints a new key only when the retry gets a 410', async () => {
     {
       const { textarea, postButton } = await lockDraft()

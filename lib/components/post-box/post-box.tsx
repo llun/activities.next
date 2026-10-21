@@ -384,17 +384,21 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable())
       return
     }
+    // A locked draft is already saved on the server and replays before any
+    // content-limit check, so a limit lowered since it locked must not block
+    // its retry (the text is read-only; Discard would leave the post unsent).
     setAllowPost(
-      hasNewPostContent(
-        textRef.current,
-        postExtensionRef.current,
-        maxStatusCharacters
-      )
+      draftLocked ||
+        hasNewPostContent(
+          textRef.current,
+          postExtensionRef.current,
+          maxStatusCharacters
+        )
     )
     // Deliberately keyed only on the limit and the in-flight flag (plus the
     // edit target, to pick the right predicate): the draft itself is read from
     // refs, and every draft edit already recomputes `allowPost` in its handler.
-  }, [maxStatusCharacters, isPosting, editStatus])
+  }, [maxStatusCharacters, isPosting, editStatus, draftLocked])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -867,7 +871,11 @@ export const PostBox: FC<Props> = ({
     event?.preventDefault()
     if (!allowPost) return
     if (missingDescription || settingsLoading) return
-    if (!isWithinLengthLimit(textRef.current, maxStatusCharacters)) return
+    if (
+      !draftLocked &&
+      !isWithinLengthLimit(textRef.current, maxStatusCharacters)
+    )
+      return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
     const generation = draftGenerationRef.current

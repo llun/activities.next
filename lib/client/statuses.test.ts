@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { ApiRequestError } from '@/lib/client/http'
 import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -440,6 +441,41 @@ describe('client statuses module', () => {
           }
         })
       )
+    })
+
+    it.each([503, 409, 410])(
+      'rejects with an ApiRequestError carrying the %i status',
+      async (status) => {
+        fetchMock.mockResponse(JSON.stringify({ error: 'kept by server' }), {
+          status
+        })
+
+        const error = await createNote({ message: 'Retry safe' }).catch(
+          (e: unknown) => e
+        )
+
+        expect(error).toBeInstanceOf(ApiRequestError)
+        expect(error).toMatchObject({ status, message: 'kept by server' })
+      }
+    )
+
+    it('creates a note from a fitness file alone and sends fitness_file_id', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-3',
+          text: '',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+
+      await expect(
+        createNote({ message: '', fitnessFileId: 'fit-1' })
+      ).resolves.toBeDefined()
+
+      const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
+      expect(body.fitness_file_id).toBe('fit-1')
     })
   })
 

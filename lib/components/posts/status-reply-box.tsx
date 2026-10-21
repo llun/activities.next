@@ -126,7 +126,10 @@ export const StatusReplyBox: FC<Props> = ({
   // (permitting valid attachment-only replies per repository guidelines).
   const hasContent =
     text.trim().length > 0 || postExtension.attachments.length > 0
-  const allowPost = hasContent && text.length <= maxStatusCharacters
+  // A locked draft replays server-side before any content-limit check, so a
+  // lowered limit must not block its retry.
+  const allowPost =
+    hasContent && (draftLocked || text.length <= maxStatusCharacters)
 
   useEffect(() => {
     return () => {

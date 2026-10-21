@@ -522,6 +522,36 @@ describe('StatusReplyBox', () => {
     expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
   })
 
+  it('keeps Post enabled for a locked reply when the instance limit drops below its length', async () => {
+    createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+    const composer = (maxStatusCharacters: number) => (
+      <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={replyStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    const { rerender } = render(composer(500))
+    const textarea = screen.getByPlaceholderText('Reply to Llun...')
+    fireEvent.change(textarea, { target: { value: 'Reply body' } })
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+    await waitFor(() => expect(textarea).toHaveAttribute('readonly'))
+    await waitFor(() => expect(postButton).toBeEnabled())
+    const lockedKey = createNoteMock.mock.calls[0]?.[0]?.idempotencyKey
+
+    // An admin lowers the limit below the saved reply's length.
+    rerender(composer(5))
+    expect(postButton).toBeEnabled()
+
+    fireEvent.click(postButton)
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+    expect(createNoteMock.mock.calls[1]?.[0]?.idempotencyKey).toBe(lockedKey)
+  })
+
   it('unlocks a locked reply and mints a new key only when the retry gets a 410', async () => {
     {
       const { textarea, postButton } = await lockReplyDraft()
