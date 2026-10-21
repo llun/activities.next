@@ -1,0 +1,52 @@
+migrations/names.ts
+  s_512188f2b1db53::t_878c8ea1ea957a 11-12
+lib/actions/createNote.ts
+  s_512188f2b1db53::t_90854eb458671a 140-146,181-190,195,243-249,307-309
+migrations/20261021052511_add_idempotency_keys_state_changed_at.ts
+  s_512188f2b1db53::t_d4cf346a4322b6 1,3-7,10-20,23-28
+  s_512188f2b1db53::t_e6e01a024a4890 2,8-9,21-22
+lib/database/domains/idempotency/queries.ts
+  s_512188f2b1db53::t_d8756d5b94f38e 34-42,54-55,97,105-108,115,126-129
+  s_512188f2b1db53::t_b7863b0b20a078 104
+migrations/schema.sql
+  s_512188f2b1db53::t_4e3b348cf034cf 726-727
+lib/database/kysely/db.ts
+  s_512188f2b1db53::t_14a9c005cd2b1c 695
+docs/maintenance.md
+  s_512188f2b1db53::t_adfc82af829d0e 1428-1437,1439-1444,1452-1453,1460-1466
+migrations/index.ts
+  s_512188f2b1db53::t_878c8ea1ea957a 11,27-29
+lib/database/domains/idempotency/types.ts
+  s_512188f2b1db53::t_d8756d5b94f38e 7-8,15-16,19-22,46-47,61-62,120-121
+  s_512188f2b1db53::t_5fd61feb1b51f4 23
+migrations/schema.sqlite.sql
+  s_512188f2b1db53::t_5ee3a9bda0cb77 169
+lib/database/domains/idempotency/idempotency.test.ts
+  s_512188f2b1db53::t_5fd61feb1b51f4 222
+  s_512188f2b1db53::t_b03d4894f05ba2 3,187-200,202-221,223-226,228-243,245-272,299
+app/api/v1/statuses/route.test.ts
+  s_512188f2b1db53::t_7a62491c057cdf 1046-1132
+lib/actions/createNote.idempotency.test.ts
+  s_512188f2b1db53::t_ba588c66902554 341,344-353,355-360,364-402
+  s_512188f2b1db53::t_f3705c38899788 403
+docs/mastodon-api-compatibility.md
+  s_512188f2b1db53::t_adfc82af829d0e 487-490,506-510,524-528
+lib/database/domains/status/writes.ts
+  s_512188f2b1db53::t_5740cf0a439a50 318-319,571-572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88724f62ae1d860533428520534be128119138fa",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
