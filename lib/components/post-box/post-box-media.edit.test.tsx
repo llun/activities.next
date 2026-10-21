@@ -331,10 +331,10 @@ describe('PostBox media details', () => {
       vi.mocked(updateNote).mockRejectedValueOnce(
         new ApiRequestError('Service unavailable', 503)
       )
-      renderEdit()
-      fireEvent.change(await screen.findByRole('textbox'), {
-        target: { value: 'hello there' }
-      })
+      const { unmount } = renderEdit()
+      attach('new.png')
+      await screen.findByRole('button', { name: 'Remove media new.png' })
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalled())
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
       )
@@ -343,6 +343,9 @@ describe('PostBox media details', () => {
       await waitFor(() =>
         expect(alertSpy).toHaveBeenCalledWith('Service unavailable')
       )
+      // Edits never keep the post on failure, so the new upload is cleaned up.
+      unmount()
+      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
     })
 
     it('does not require a description for legacy undescribed media', async () => {
