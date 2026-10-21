@@ -326,11 +326,11 @@ const seedStatusRows = async (
       updatedAt: at
     })
     .execute()
-  // Rows the purge leaves (as it always has), on both backends.
   await d
     .insertInto('idempotency_keys')
     .values({ actorId: ownerId, key: `key-${next()}`, statusId, createdAt: at })
     .execute()
+  // Rows the purge leaves (as it always has), on both backends.
   await d
     .insertInto('status_mutes')
     .values({ actorId: otherId, statusId, createdAt: at, updatedAt: at })
@@ -638,6 +638,7 @@ const OWN_TABLES = [
   'status_reactions',
   'bookmarks',
   'markers',
+  'idempotency_keys',
   'poll_answers',
   'poll_voters',
   'attachments',
@@ -1278,6 +1279,7 @@ describe('statements', () => {
       'delete status_reactions by actorId',
       'delete bookmarks by actorId',
       'delete markers by actorId',
+      'delete idempotency_keys by actorId',
       'select poll_answers by actorId',
       'select poll_choices by statusId',
       'update poll_choices by statusId',

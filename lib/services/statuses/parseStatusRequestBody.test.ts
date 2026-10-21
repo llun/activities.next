@@ -42,6 +42,32 @@ describe('parseStatusRequestBody', () => {
     expect(body).toEqual({ status: 'from form', visibility: 'private' })
   })
 
+  it('reads fitness_file_id from a urlencoded body', async () => {
+    const body = await parseStatusRequestBody(
+      createRequest(
+        'application/x-www-form-urlencoded',
+        new URLSearchParams({
+          status: 'Morning ride',
+          fitness_file_id: '42'
+        }).toString()
+      )
+    )
+    expect(body).toEqual({ status: 'Morning ride', fitness_file_id: '42' })
+  })
+
+  it('reads fitness_file_id from a multipart body', async () => {
+    const form = new FormData()
+    form.append('status', 'Morning ride')
+    form.append('fitness_file_id', '42')
+    const body = await parseStatusRequestBody(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: form
+      })
+    )
+    expect(body).toEqual({ status: 'Morning ride', fitness_file_id: '42' })
+  })
+
   it('collects repeated media_ids[] entries from a urlencoded body', async () => {
     const params = new URLSearchParams()
     params.append('media_ids[]', '1')

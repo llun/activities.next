@@ -28,6 +28,8 @@ interface Props {
   choices: Choice[]
   durationInSeconds: Duration
   pollType: 'oneOf' | 'anyOf'
+  /** Locks every control: the draft is being retried as it is. */
+  disabled?: boolean
   onAddChoice: () => void
   onRemoveChoice: (index: number) => void
   onChooseDuration: (durationInSeconds: Duration) => void
@@ -40,6 +42,7 @@ export const PollChoices: FC<Props> = ({
   choices,
   durationInSeconds,
   pollType,
+  disabled = false,
   onAddChoice,
   onRemoveChoice,
   onChooseDuration,
@@ -96,6 +99,7 @@ export const PollChoices: FC<Props> = ({
           variant="ghost"
           size="icon-sm"
           aria-label="Remove poll"
+          disabled={disabled}
           onClick={onRemove}
         >
           <X className="size-4" />
@@ -114,6 +118,7 @@ export const PollChoices: FC<Props> = ({
               placeholder={`Choice ${index + 1}`}
               maxLength={maxPollOptionCharacters}
               defaultValue={choice.text}
+              readOnly={disabled}
               onChange={(e) => {
                 choice.text = e.currentTarget.value
               }}
@@ -122,7 +127,7 @@ export const PollChoices: FC<Props> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
-              disabled={choices.length <= MIN_CHOICES}
+              disabled={disabled || choices.length <= MIN_CHOICES}
               aria-label={`Remove choice ${index + 1}`}
               className="text-muted-foreground hover:text-destructive-text"
               onClick={() => onRemoveChoice(index)}
@@ -138,6 +143,7 @@ export const PollChoices: FC<Props> = ({
           type="button"
           variant="ghost"
           size="sm"
+          disabled={disabled}
           className="ml-7 mt-2 gap-1.5 text-primary-text hover:bg-primary/10 hover:text-primary-text"
           onClick={() => onAddChoice()}
         >
@@ -155,6 +161,7 @@ export const PollChoices: FC<Props> = ({
           <Select
             id="poll-duration"
             value={durationInSeconds}
+            disabled={disabled}
             onChange={(e) =>
               onChooseDuration(parseInt(e.target.value, 10) as Duration)
             }
@@ -172,6 +179,7 @@ export const PollChoices: FC<Props> = ({
           <Switch
             id="poll-multiple"
             checked={pollType === 'anyOf'}
+            disabled={disabled}
             onCheckedChange={(checked) =>
               onPollTypeChange(checked ? 'anyOf' : 'oneOf')
             }

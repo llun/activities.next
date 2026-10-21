@@ -1,10 +1,17 @@
 import {
+  discardFailedStatusCreate,
   getExplicitMentions,
   getMentionTagsForStatus,
   getVisibilityFromReplyStatus,
+  loadIdempotentStatus,
   persistEmojiTagsForStatus,
+  publishCreatedStatus,
+  resolveExistingIdempotentStatus,
+  runBestEffortStep,
+  settleAll,
   statusRecipientsCC,
-  statusRecipientsTo
+  statusRecipientsTo,
+  trackInFlightStatusCreation
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
@@ -13,6 +20,7 @@ import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
+import { Status } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -40,6 +48,7 @@ interface CreatePollFromUserInputParams {
   // Backdate the status (ms since epoch); omitted means now. The publicId is
   // minted from this time so id order keeps matching createdAt order.
   createdAt?: number
+  idempotency?: { key: string; contentHash: string }
 }
 export const createPollFromUserInput = async ({
   text,
@@ -55,9 +64,19 @@ export const createPollFromUserInput = async ({
   sensitive = false,
   language = null,
   application,
-  createdAt
+  createdAt,
+  idempotency
 }: CreatePollFromUserInputParams) =>
   withSpan('actions', 'createPollFromUser', { replyStatusId }, async () => {
+    if (idempotency) {
+      const existing = await resolveExistingIdempotentStatus({
+        database,
+        actorId: currentActor.id,
+        idempotency
+      })
+      if (existing) return existing
+    }
+
     const config = getConfig()
     const replyStatus = replyStatusId
       ? await database.getStatus({
@@ -136,61 +155,122 @@ export const createPollFromUserInput = async ({
       replyVisibility
     })
 
-    const createdPoll = await database.createPoll({
-      id: statusId,
-      url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
-      publicId: postId,
-      actorId: currentActor.id,
-      text: convertMarkdownText(config.host)(text),
-      summary: summary?.trim() || null,
-      to,
-      cc,
-      reply: replyStatus?.id || '',
-      choices,
-      endAt,
-      pollType,
-      hideTotals,
-      // A sensitized actor's new statuses are forced sensitive at creation, so
-      // the flag is persisted and federated copies inherit it (Admin moderation).
-      sensitive: sensitive || Boolean(currentActor.sensitizedAt),
-      language,
-      applicationName: application?.name ?? null,
-      applicationWebsite: application?.website ?? null,
-      createdAt
-    })
-
-    // Content-detected language, stored separately from the declared `language`
-    // above so the Translate gate can fall back to it when the author's
-    // declared/default language doesn't match what they actually wrote.
-    await persistDetectedLanguage({
-      database,
-      statusId,
-      text,
-      declaredLanguage: language
-    })
-
-    await Promise.all([
-      addStatusToTimelines(database, createdPoll),
-      ...mentionTags.map((mention) =>
-        database.createTag({
-          statusId,
-          name: mention.name || '',
-          value: mention.href,
-          type: 'mention'
-        })
-      )
-    ])
-
-    await persistEmojiTagsForStatus({
-      database,
-      statusId,
-      text: [text, summary ?? '', ...choices]
-    })
-
-    const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status) {
-      return null
+    const finishInFlight = trackInFlightStatusCreation(statusId)
+    let createdPoll: Status
+    let isNew = true
+    try {
+      const createParams = {
+        id: statusId,
+        url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
+        publicId: postId,
+        actorId: currentActor.id,
+        text: convertMarkdownText(config.host)(text),
+        summary: summary?.trim() || null,
+        to,
+        cc,
+        reply: replyStatus?.id || '',
+        choices,
+        endAt,
+        pollType,
+        hideTotals,
+        // A sensitized actor's new statuses are forced sensitive at creation, so
+        // the flag is persisted and federated copies inherit it (Admin moderation).
+        sensitive: sensitive || Boolean(currentActor.sensitizedAt),
+        language,
+        applicationName: application?.name ?? null,
+        applicationWebsite: application?.website ?? null,
+        createdAt,
+        ...(idempotency ? { idempotency } : {})
+      }
+      if (idempotency) {
+        const result = await database.createPollWithResult(createParams)
+        createdPoll = result.status
+        isNew = result.isNew
+      } else {
+        createdPoll = await database.createPoll(createParams)
+      }
+    } catch (error) {
+      finishInFlight()
+      throw error
     }
 
-    return status
+    if (!isNew && idempotency) {
+      finishInFlight()
+      const existing = await loadIdempotentStatus({
+        database,
+        actorId: currentActor.id,
+        key: idempotency.key,
+        statusId: createdPoll.id
+      })
+      // The winner's create failed and was discarded; the client retries.
+      if (!existing) {
+        throw new Error('Concurrent create with this Idempotency-Key failed')
+      }
+      return existing
+    }
+
+    // As in createNoteFromUserInput: a failed completion step discards the
+    // poll and fails the request; best-effort steps only log.
+    let poll: Status
+    try {
+      try {
+        // Content-detected language, stored separately from the declared
+        // `language` above so the Translate gate can fall back to it when the
+        // author's declared/default language doesn't match what they actually
+        // wrote.
+        await runBestEffortStep(statusId, 'detected language', () =>
+          persistDetectedLanguage({
+            database,
+            statusId,
+            text,
+            declaredLanguage: language
+          })
+        )
+
+        await settleAll([
+          addStatusToTimelines(database, createdPoll),
+          ...mentionTags.map((mention) =>
+            database.createTag({
+              statusId,
+              name: mention.name || '',
+              value: mention.href,
+              type: 'mention'
+            })
+          )
+        ])
+
+        await persistEmojiTagsForStatus({
+          database,
+          statusId,
+          text: [text, summary ?? '', ...choices]
+        })
+
+        const hydratedPoll = await database.getStatus({
+          statusId,
+          withReplies: false
+        })
+        if (!hydratedPoll) {
+          throw new Error('The created poll could not be loaded')
+        }
+        poll = hydratedPoll
+      } catch (error) {
+        await discardFailedStatusCreate({
+          database,
+          actorId: currentActor.id,
+          statusId,
+          idempotency
+        })
+        throw error
+      }
+      // A poll queues no job at creation; this marks its key 'complete'.
+      await publishCreatedStatus({
+        database,
+        actorId: currentActor.id,
+        status: poll,
+        idempotency
+      })
+    } finally {
+      finishInFlight()
+    }
+    return poll
   })

@@ -2,9 +2,16 @@ import { z } from 'zod'
 
 import {
   createNoteFromUserInput,
-  getVisibilityFromReplyStatus
+  getVisibilityFromReplyStatus,
+  resolveExistingIdempotentStatus
 } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import {
+  IdempotencyConflictError,
+  IdempotencyDeletedError,
+  IdempotencyInProgressError,
+  StatusPublishFailedError
+} from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
@@ -57,6 +64,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
@@ -69,6 +77,9 @@ const CORS_HEADERS = [
 // Mastodon does not document a cap; bound the batch to keep per-request work
 // predictable. Exported so the route test can exercise the truncation.
 export const MAX_BATCH_STATUSES = 100
+
+const MAX_IDEMPOTENCY_KEY_LENGTH = 255
+const IDEMPOTENCY_KEY_TOO_LONG_ERROR = `Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY_LENGTH} characters`
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -95,6 +106,8 @@ const NoteSchema = z
     quote_approval_policy: QuoteApprovalPolicy.optional(),
     spoiler_text: z.string().optional(),
     media_ids: z.array(z.coerce.string()).optional().default([]),
+    // Activities.next extension: attach an uploaded fitness activity file.
+    fitness_file_id: z.string().trim().min(1).optional(),
     visibility: VisibilitySchema.optional(),
     language: z.string().trim().min(1).optional(),
     sensitive: Booleanish.optional().default(false),
@@ -108,7 +121,36 @@ const NoteSchema = z
     (note) =>
       note.status.trim().length > 0 ||
       note.media_ids.length > 0 ||
+      Boolean(note.fitness_file_id) ||
       (note.poll?.options.length ?? 0) > 0
+  )
+
+type ParsedNote = z.infer<typeof NoteSchema>
+
+const computeStatusIdempotencyHash = (note: ParsedNote): string =>
+  getHashFromString(
+    JSON.stringify({
+      status: note.status,
+      in_reply_to_id: note.in_reply_to_id ?? null,
+      quoted_status_id: note.quoted_status_id ?? null,
+      quote_approval_policy: note.quote_approval_policy ?? null,
+      spoiler_text: note.spoiler_text ?? null,
+      media_ids: note.media_ids,
+      fitness_file_id: note.fitness_file_id ?? null,
+      visibility: note.visibility ?? null,
+      language: note.language ?? null,
+      sensitive: note.sensitive,
+      scheduled_at: note.scheduled_at?.trim() || null,
+      created_at: note.created_at?.trim() || null,
+      poll: note.poll
+        ? {
+            options: note.poll.options,
+            expires_in: note.poll.expires_in,
+            multiple: note.poll.multiple,
+            hide_totals: note.poll.hide_totals
+          }
+        : null
+    })
   )
 
 // Dedupe, enforce the stored-media ceiling, and resolve media ids to
@@ -173,6 +215,20 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { currentActor, database, clientId } = context
+      const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
+      // idempotency_keys.key is varchar(255); PostgreSQL rejects a longer
+      // value at the claim, so refuse it before doing anything.
+      if (
+        idempotencyKey &&
+        idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: IDEMPOTENCY_KEY_TOO_LONG_ERROR },
+          responseStatusCode: 422
+        })
+      }
       try {
         const content = await parseStatusRequestBody(req)
         const parsed = NoteSchema.safeParse(content)
@@ -186,8 +242,47 @@ export const POST = traceApiRoute(
         }
         const note = parsed.data
 
-        // A status carries either media or a poll, never both.
-        if (note.poll && note.media_ids.length > 0) {
+        // Honor Idempotency-Key: a repeated key with matching normalized
+        // content returns the original status rather than creating a duplicate
+        // (sending it first if its federation job was never queued); different
+        // content returns 422; a deleted status returns 410; a create still
+        // running elsewhere returns 409. It runs before the checks below: the
+        // hash binds the payload a kept post was accepted with, so a retry is
+        // answered even after an admin tightened a limit. Scheduled requests
+        // claim their key only when they publish.
+        const idempotency = idempotencyKey
+          ? {
+              key: idempotencyKey,
+              contentHash: computeStatusIdempotencyHash(note)
+            }
+          : undefined
+        if (idempotency && !note.scheduled_at?.trim()) {
+          const existingStatus = await resolveExistingIdempotentStatus({
+            database,
+            actorId: currentActor.id,
+            idempotency
+          })
+          if (existingStatus) {
+            const existingMastodonStatus = await getMastodonStatus(
+              database,
+              existingStatus,
+              currentActor.id
+            )
+            if (existingMastodonStatus) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: existingMastodonStatus
+              })
+            }
+          }
+        }
+
+        // A status carries either media/fitness or a poll, never both.
+        if (
+          note.poll &&
+          (note.media_ids.length > 0 || Boolean(note.fitness_file_id))
+        ) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
@@ -230,8 +325,6 @@ export const POST = traceApiRoute(
           })
         }
 
-        const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
-
         // A scheduled_at at least five minutes ahead stores the status for later
         // publication instead of posting it now. Media is validated
         // here too, so a scheduled status never references nonexistent media.
@@ -240,6 +333,14 @@ export const POST = traceApiRoute(
         // but unparseable value still falls through to the 422 below.
         const scheduledAtInput = note.scheduled_at?.trim()
         if (scheduledAtInput) {
+          if (note.fitness_file_id) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
           const scheduledAt = Date.parse(scheduledAtInput)
           if (
             Number.isNaN(scheduledAt) ||
@@ -373,35 +474,6 @@ export const POST = traceApiRoute(
           })
         }
 
-        // Honor Idempotency-Key: a repeated key returns the original status
-        // rather than creating a duplicate.
-        if (idempotencyKey) {
-          const existingStatusId = await database.getIdempotentStatusId({
-            actorId: currentActor.id,
-            key: idempotencyKey
-          })
-          if (existingStatusId) {
-            const existingStatus = await database.getStatus({
-              statusId: existingStatusId,
-              currentActorId: currentActor.id
-            })
-            const existingMastodonStatus = existingStatus
-              ? await getMastodonStatus(
-                  database,
-                  existingStatus,
-                  currentActor.id
-                )
-              : null
-            if (existingMastodonStatus) {
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: existingMastodonStatus
-              })
-            }
-          }
-        }
-
         // When the request authenticated via an OAuth app token, record the
         // owning client as the status's Mastodon "application". Web-session
         // creates have no clientId and leave application null.
@@ -453,6 +525,7 @@ export const POST = traceApiRoute(
             language: note.language ?? null,
             application,
             createdAt,
+            idempotency,
             database
           })
         } else {
@@ -506,10 +579,12 @@ export const POST = traceApiRoute(
             quoteApprovalPolicy,
             visibility: note.visibility,
             attachments,
+            fitnessFileId: note.fitness_file_id,
             sensitive: note.sensitive,
             language: note.language ?? null,
             application,
             createdAt,
+            idempotency,
             database
           })
         }
@@ -534,21 +609,49 @@ export const POST = traceApiRoute(
             responseStatusCode: 500
           })
 
-        if (idempotencyKey) {
-          await database.saveIdempotencyKey({
-            actorId: currentActor.id,
-            key: idempotencyKey,
-            statusId: status.id
-          })
-        }
-
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: mastodonStatus
         })
       } catch (error) {
-        logger.error({ error }, 'createStatus: request failed')
+        if (error instanceof IdempotencyConflictError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 422
+          })
+        }
+        if (error instanceof IdempotencyDeletedError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 410
+          })
+        }
+        if (error instanceof IdempotencyInProgressError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 409
+          })
+        }
+        // The post is saved; a retry with the same key sends it.
+        if (error instanceof StatusPublishFailedError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 503
+          })
+        }
+        logger.error(
+          { err: toLoggableError(error) },
+          'createStatus: request failed'
+        )
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

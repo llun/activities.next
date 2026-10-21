@@ -696,8 +696,11 @@ export interface GallerySettings {
 
 export interface IdempotencyKeys {
   actorId: string
+  contentHash: Nullable<string>
   createdAt: WithDefault<Nullable<Timestamp>>
   key: string
+  state: WithDefault<string>
+  stateChangedAt: Nullable<Timestamp>
   statusId: string
 }
 

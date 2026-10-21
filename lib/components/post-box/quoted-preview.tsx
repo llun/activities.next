@@ -12,6 +12,7 @@ interface Props {
   host: string
   status?: Status
   onClose?: () => void
+  disabled?: boolean
   className?: string
 }
 
@@ -21,6 +22,7 @@ export const QuotedPreview: FC<Props> = ({
   host,
   status,
   onClose,
+  disabled,
   className
 }) => {
   if (!status) return null
@@ -54,6 +56,7 @@ export const QuotedPreview: FC<Props> = ({
           variant="ghost"
           size="icon-sm"
           onClick={() => onClose?.()}
+          disabled={disabled}
           aria-label="Dismiss quote"
           className="shrink-0 text-muted-foreground hover:text-foreground"
         >

@@ -7,6 +7,7 @@ import { getAnnounceOriginalStatusId } from '@/lib/database/domains/status/rows'
 import type {
   DeleteStatusParams,
   DeleteStatusWithQueueJobParams,
+  DiscardUnpublishedStatusParams,
   GetStatusEditHistoryParams
 } from '@/lib/database/domains/status/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
@@ -499,11 +500,14 @@ const refreshAffectedHashtags = async (
 const executeStatusDeletion = async ({
   actorId,
   affectedHashtags,
+  hashtagsCounted = true,
   statusId,
   trx
 }: {
   actorId?: string
   affectedHashtags: string[]
+  // False when the status's hashtags never reached the total-hashtag counters.
+  hashtagsCounted?: boolean
   statusId: string
   trx: Db
 }): Promise<boolean> => {
@@ -528,12 +532,14 @@ const executeStatusDeletion = async ({
   })
 
   const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIdsToDelete)
-  await applyHashtagDeletionCounterAdjustments({
-    currentTime,
-    publiclyAddressedStatusIds,
-    tags: hashtagTags,
-    trx
-  })
+  if (hashtagsCounted) {
+    await applyHashtagDeletionCounterAdjustments({
+      currentTime,
+      publiclyAddressedStatusIds,
+      tags: hashtagTags,
+      trx
+    })
+  }
   affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
 
   const deleteByStatusIds = (remove: (chunk: string[]) => Promise<unknown>) =>
@@ -610,13 +616,10 @@ const executeStatusDeletion = async ({
       .where('statusId', 'in', chunk)
       .execute()
   )
-  // Clean up idempotency keys that pointed at the deleted status so a retried
-  // create with the same key does not resolve to a now-missing status (which
-  // would otherwise let the retry create a duplicate). Likewise drop any
-  // conversation mute rows keyed on a deleted thread root.
-  await deleteByStatusIds((chunk) =>
-    trx.deleteFrom('idempotency_keys').where('statusId', 'in', chunk).execute()
-  )
+  // Keep idempotency_keys rows after status deletion so a late retry with the
+  // key of a deleted status is rejected rather than recreating the post; keys
+  // are cleaned up by the periodic 7-day TTL sweep. Drop any conversation mute
+  // rows keyed on a deleted thread root.
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('status_mutes').where('statusId', 'in', chunk).execute()
   )
@@ -710,6 +713,45 @@ export const deleteStatus = async (
     })
   )
   await refreshAffectedHashtags(db, { collectedHashtags, statusId })
+}
+
+// deleteStatus of a status whose create failed before it was federated, and,
+// in the same transaction, the idempotency key that create claimed for it, so
+// a retry with the same key creates the post afresh instead of getting 410.
+// With a key, only while it is still 'pending': a retry that took the key to
+// send the post (claimIdempotencyKeyPublish) has federated it, so it is kept.
+// Returns whether the status was discarded. The create counts hashtags only
+// after its completion steps, so a discarded status's hashtags were never
+// counted and are not decremented.
+export const discardUnpublishedStatus = async (
+  db: Db,
+  { actorId, statusId, idempotencyKey }: DiscardUnpublishedStatusParams
+): Promise<boolean> => {
+  const collectedHashtags: string[] = []
+  const discarded = await inTransaction(db, async (trx) => {
+    if (idempotencyKey) {
+      const { numDeletedRows } = await trx
+        .deleteFrom('idempotency_keys')
+        .where('actorId', '=', actorId)
+        .where('key', '=', idempotencyKey)
+        .where('statusId', '=', statusId)
+        .where('state', '=', 'pending')
+        .executeTakeFirst()
+      if (Number(numDeletedRows) === 0) return false
+    }
+    await executeStatusDeletion({
+      actorId,
+      affectedHashtags: collectedHashtags,
+      hashtagsCounted: false,
+      statusId,
+      trx
+    })
+    return true
+  })
+  if (discarded) {
+    await refreshAffectedHashtags(db, { collectedHashtags, statusId })
+  }
+  return discarded
 }
 
 // deleteStatus with `actorId` plus a queue job, inserted in the same

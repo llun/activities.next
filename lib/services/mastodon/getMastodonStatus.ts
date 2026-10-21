@@ -854,7 +854,10 @@ export const getMastodonStatus = async (
     ...mastodonStatus,
     poll: pollData,
     quote_approval: quoteApproval,
-    ...(quote ? { quote } : {})
+    ...(quote ? { quote } : {}),
+    ...(status.type === StatusType.enum.Note && status.fitness
+      ? { fitness: status.fitness }
+      : {})
   })
 }
 

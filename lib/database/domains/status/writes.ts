@@ -1,4 +1,9 @@
 import { getActorFromId } from '@/lib/database/domains/actor/lookups'
+import { getIdempotencyKey } from '@/lib/database/domains/idempotency/queries'
+import {
+  IdempotencyConflictError,
+  IdempotencyDeletedError
+} from '@/lib/database/domains/idempotency/types'
 import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import {
   type StatusSearchRow,
@@ -205,6 +210,89 @@ export const insertStatusRecipients = async (
   }
 }
 
+// Resolves the winner's status after a unique constraint violation on either
+// `statuses.id` or `idempotency_keys(actorId, key)`.
+const resolveDuplicateStatus = async (
+  db: Db,
+  hydration: StatusHydration,
+  {
+    id,
+    actorId,
+    idempotency
+  }: {
+    id: string
+    actorId: string
+    idempotency?: { key: string; contentHash: string }
+  }
+): Promise<Status | null> => {
+  const byId = await hydration.getStatus({ statusId: id, withReplies: false })
+  if (byId) return byId
+  if (!idempotency) return null
+
+  const existingKey = await getIdempotencyKey(db, {
+    actorId,
+    key: idempotency.key
+  })
+  if (!existingKey) return null
+  if (
+    existingKey.contentHash !== null &&
+    existingKey.contentHash !== idempotency.contentHash
+  ) {
+    throw new IdempotencyConflictError()
+  }
+  const existingStatus = await hydration.getStatus({
+    statusId: existingKey.statusId,
+    withReplies: false
+  })
+  if (!existingStatus) {
+    // A discard that committed after the key was read removes the key too:
+    // that is a create to retry, not a deleted post.
+    const currentKey = await getIdempotencyKey(db, {
+      actorId,
+      key: idempotency.key
+    })
+    if (currentKey?.statusId === existingKey.statusId) {
+      throw new IdempotencyDeletedError(existingKey.statusId)
+    }
+    return null
+  }
+  return existingStatus
+}
+
+// Claims the Idempotency-Key for a create inside its transaction. A unique
+// violation (the key or the status id already exists) is thrown to the caller's
+// `recoverFromDuplicateInsert`, which resolves the winner.
+const insertIdempotencyClaim = async (
+  trx: Db,
+  {
+    actorId,
+    id,
+    idempotency,
+    currentTime
+  }: {
+    actorId: string
+    id: string
+    idempotency: { key: string; contentHash: string }
+    currentTime: Date
+  }
+): Promise<void> => {
+  await trx
+    .insertInto('idempotency_keys')
+    .values({
+      actorId,
+      key: idempotency.key,
+      statusId: id,
+      contentHash: idempotency.contentHash,
+      // The create's own publish moves it to 'publishing', then
+      // 'complete' or 'publish_failed'.
+      state: 'pending',
+      // The claim time, not the (possibly backdated) status time, so
+      // the key's TTL runs from when the request was made.
+      createdAt: currentTime
+    })
+    .execute()
+}
+
 export const createNoteWithResult = async (
   db: Db,
   hydration: StatusHydration,
@@ -223,7 +311,8 @@ export const createNoteWithResult = async (
     applicationName = null,
     applicationWebsite = null,
     createdAt,
-    publicId
+    publicId,
+    idempotency
   }: CreateNoteParams
 ): Promise<CreateStatusResult> => {
   const currentTime = new Date()
@@ -252,6 +341,14 @@ export const createNoteWithResult = async (
   const outcome = await recoverFromDuplicateInsert({
     insert: () =>
       inTransaction(db, async (trx) => {
+        if (idempotency) {
+          await insertIdempotencyClaim(trx, {
+            actorId,
+            id,
+            idempotency,
+            currentTime
+          })
+        }
         await trx
           .insertInto('statuses')
           .values({
@@ -286,7 +383,8 @@ export const createNoteWithResult = async (
           currentTime: statusUpdatedAt
         })
       }),
-    getExisting: () => hydration.getStatus({ statusId: id, withReplies: false })
+    getExisting: () =>
+      resolveDuplicateStatus(db, hydration, { id, actorId, idempotency })
   })
   if (outcome.recovered) {
     // A concurrent delivery of the same note won the unique key; return its
@@ -457,7 +555,8 @@ export const createPollWithResult = async (
     applicationName = null,
     applicationWebsite = null,
     createdAt,
-    publicId
+    publicId,
+    idempotency
   }: CreatePollParams
 ): Promise<CreateStatusResult> => {
   const currentTime = new Date()
@@ -486,6 +585,14 @@ export const createPollWithResult = async (
   const outcome = await recoverFromDuplicateInsert({
     insert: () =>
       inTransaction(db, async (trx) => {
+        if (idempotency) {
+          await insertIdempotencyClaim(trx, {
+            actorId,
+            id,
+            idempotency,
+            currentTime
+          })
+        }
         await trx
           .insertInto('statuses')
           .values({
@@ -535,7 +642,8 @@ export const createPollWithResult = async (
           currentTime: statusUpdatedAt
         })
       }),
-    getExisting: () => hydration.getStatus({ statusId: id, withReplies: false })
+    getExisting: () =>
+      resolveDuplicateStatus(db, hydration, { id, actorId, idempotency })
   })
   if (outcome.recovered) {
     // A concurrent delivery of the same poll won the unique key; return its

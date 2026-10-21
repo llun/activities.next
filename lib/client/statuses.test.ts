@@ -1,6 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { generatePublicId } from '@/lib/utils/publicId'
+import { ApiRequestError } from '@/lib/client/http'
+import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
@@ -279,26 +280,239 @@ describe('client statuses module', () => {
       ).rejects.toThrow('Message or attachments must not be empty')
     })
 
-    it('creates note successfully', async () => {
+    it('creates note via POST /api/v1/statuses with a UUIDv7 Idempotency-Key and adapts Mastodon status response', async () => {
       fetchMock.mockResponse(
         JSON.stringify({
-          status: { id: 'status-1', text: 'Hello world' },
-          attachments: []
+          id: '01950000-0000-7000-8000-000000000001',
+          uri: 'https://llun.test/users/test1/statuses/post-1',
+          url: 'https://llun.test/@test1/post-1',
+          created_at: '2026-04-26T10:00:00.000Z',
+          edited_at: null,
+          content: '<p>Hello world</p>',
+          text: 'Hello world',
+          spoiler_text: 'CW',
+          visibility: 'unlisted',
+          sensitive: true,
+          language: 'en',
+          in_reply_to_id: null,
+          account: {
+            id: '01950000-0000-7000-8000-000000000099',
+            username: 'test1',
+            acct: 'test1',
+            url: 'https://llun.test/@test1',
+            uri: 'https://llun.test/users/test1',
+            display_name: 'Test User',
+            note: '',
+            avatar: 'https://llun.test/avatar.png',
+            header: '',
+            locked: false,
+            emojis: [],
+            following_count: 1,
+            followers_count: 2,
+            statuses_count: 3,
+            last_status_at: null,
+            created_at: '2026-01-01T00:00:00.000Z'
+          },
+          media_attachments: [
+            {
+              id: 'att-1',
+              type: 'image',
+              url: 'https://llun.test/api/v1/files/media-1.jpg',
+              preview_url: null,
+              remote_url: null,
+              description: 'Alt text',
+              blurhash: null,
+              meta: {
+                original: {
+                  width: 640,
+                  height: 480
+                }
+              }
+            }
+          ],
+          mentions: [],
+          tags: [],
+          emojis: [],
+          quote_approval: {
+            automatic: ['followers'],
+            manual: [],
+            current_user: 'automatic'
+          },
+          fitness: {
+            id: 'fit-1',
+            fileName: 'morning.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 1024,
+            url: '/api/v1/fitness-files/fit-1',
+            processingStatus: 'pending'
+          }
         })
       )
 
       const result = await createNote({
-        message: 'Hello world'
+        message: 'Hello world',
+        contentWarning: 'CW',
+        visibility: 'unlisted',
+        quoteApprovalPolicy: 'followers',
+        fitnessFileId: 'fit-1',
+        attachments: [
+          {
+            type: 'upload',
+            id: 'media-1',
+            mediaType: 'image/jpeg',
+            url: 'https://llun.test/api/v1/files/media-1.jpg',
+            width: 640,
+            height: 480,
+            name: 'Alt text'
+          }
+        ]
       })
 
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/outbox',
+        '/api/v1/statuses',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"message":"Hello world"')
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'Idempotency-Key': expect.any(String)
+          }),
+          body: JSON.stringify({
+            status: 'Hello world',
+            spoiler_text: 'CW',
+            quote_approval_policy: 'followers',
+            media_ids: ['media-1'],
+            fitness_file_id: 'fit-1',
+            visibility: 'unlisted'
+          })
         })
       )
-      expect(result.status.id).toBe('status-1')
+      const callHeaders = (
+        fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>
+      )?.['Idempotency-Key']
+      expect(isPublicId(callHeaders)).toBe(true)
+
+      expect(result.status.id).toBe(
+        'https://llun.test/users/test1/statuses/post-1'
+      )
+      expect(result.status.publicId).toBe(
+        '01950000-0000-7000-8000-000000000001'
+      )
+      if (result.status.type === 'Note') {
+        expect(result.status.text).toBe('Hello world')
+        expect(result.status.summary).toBe('CW')
+        expect(result.status.quoteApprovalPolicy).toBe('followers')
+        expect(result.status.fitness?.id).toBe('fit-1')
+      }
+      expect(result.attachments).toEqual([
+        expect.objectContaining({
+          id: 'att-1',
+          mediaId: 'media-1',
+          name: 'Alt text',
+          width: 640,
+          height: 480
+        })
+      ])
+    })
+
+    it('forwards caller-supplied idempotencyKey header', async () => {
+      const customKey = generatePublicId()
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-2',
+          text: 'Retry safe',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+
+      await createNote({
+        message: 'Retry safe',
+        idempotencyKey: customKey
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses',
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': customKey
+          }
+        })
+      )
+    })
+
+    it.each([503, 409, 410])(
+      'rejects with an ApiRequestError carrying the %i status',
+      async (status) => {
+        fetchMock.mockResponse(JSON.stringify({ error: 'kept by server' }), {
+          status
+        })
+
+        const error = await createNote({ message: 'Retry safe' }).catch(
+          (e: unknown) => e
+        )
+
+        expect(error).toBeInstanceOf(ApiRequestError)
+        expect(error).toMatchObject({ status, message: 'kept by server' })
+      }
+    )
+
+    it('sends reply, quote, language and visibility fields in the request body', async () => {
+      const noteResponse = JSON.stringify({
+        id: 'status-public-id',
+        uri: 'https://llun.test/users/test1/statuses/post-4',
+        text: 'Quoted',
+        created_at: '2026-04-26T10:00:00.000Z',
+        media_attachments: []
+      })
+      fetchMock.mockResponse(noteResponse)
+      const quotedStatus = { id: 'quoted-1' } as never
+
+      await createNote({
+        message: 'Quoted',
+        quotedStatus,
+        inReplyToId: 'explicit-reply',
+        replyStatus: { id: 'fallback-reply' } as never,
+        language: 'th',
+        visibility: 'unlisted'
+      })
+      expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+        status: 'Quoted',
+        quoted_status_id: 'quoted-1',
+        in_reply_to_id: 'explicit-reply',
+        language: 'th',
+        visibility: 'unlisted'
+      })
+
+      fetchMock.mockResponse(noteResponse)
+      await createNote({
+        message: 'Reply',
+        replyStatus: { id: 'fallback-reply' } as never
+      })
+      expect(
+        JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)
+      ).toMatchObject({ in_reply_to_id: 'fallback-reply' })
+    })
+
+    it('creates a note from a fitness file alone and sends fitness_file_id', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-3',
+          text: '',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+
+      await expect(
+        createNote({ message: '', fitnessFileId: 'fit-1' })
+      ).resolves.toBeDefined()
+
+      const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
+      expect(body.fitness_file_id).toBe('fit-1')
     })
   })
 
@@ -391,20 +605,65 @@ describe('client statuses module', () => {
       ).rejects.toThrow(expectedMessage)
     })
 
+    it('sends reply, language and visibility fields in the request body', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      await createPoll({
+        message: 'Which?',
+        choices: ['A', 'B'],
+        durationInSeconds: 300,
+        inReplyToId: 'explicit-reply',
+        replyStatus: { id: 'fallback-reply' } as never,
+        language: 'th',
+        visibility: 'unlisted'
+      })
+      expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+        status: 'Which?',
+        in_reply_to_id: 'explicit-reply',
+        language: 'th',
+        visibility: 'unlisted',
+        poll: { options: ['A', 'B'], expires_in: 300 }
+      })
+
+      await createPoll({
+        message: 'Which?',
+        choices: ['A', 'B'],
+        durationInSeconds: 300,
+        replyStatus: { id: 'fallback-reply' } as never
+      })
+      expect(
+        JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)
+      ).toMatchObject({ in_reply_to_id: 'fallback-reply' })
+    })
+
     it('creates poll successfully', async () => {
       fetchMock.mockResponse('', { status: 200 })
+      const customKey = generatePublicId()
 
       await createPoll({
         message: 'Favorite color?',
         choices: ['Red', 'Blue'],
-        durationInSeconds: 1800
+        durationInSeconds: 1800,
+        pollType: 'anyOf',
+        idempotencyKey: customKey
       })
 
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/outbox',
+        '/api/v1/statuses',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"type":"poll"')
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': customKey
+          },
+          body: JSON.stringify({
+            status: 'Favorite color?',
+            poll: {
+              options: ['Red', 'Blue'],
+              expires_in: 1800,
+              multiple: true
+            }
+          })
         })
       )
     })

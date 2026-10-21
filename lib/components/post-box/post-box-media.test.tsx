@@ -14,9 +14,12 @@ import { StrictMode, useState } from 'react'
 import {
   createNote,
   deleteAccountMedia,
+  deleteFitnessFile,
   getGallerySettings,
-  getMedia
+  getMedia,
+  uploadFitnessFile
 } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { UploadedAttachment } from '@/lib/types/domain/attachment'
@@ -39,7 +42,7 @@ import {
   uploadAttachmentMock,
   uploaded
 } from './post-box-media.testUtils'
-import { choosePostOption } from './post-box.testUtils'
+import { choosePostOption, expectPostOptionsLocked } from './post-box.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -1105,6 +1108,205 @@ describe('PostBox media details', () => {
     expect(createNoteMock).toHaveBeenCalledTimes(1)
     expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
   })
+  describe.each([
+    [
+      503,
+      "Your post was saved but couldn't be sent yet. Press Post again to retry."
+    ],
+    [409, 'Your post is still being sent. Please wait a moment.']
+  ])('when the server kept the post (%i)', (status, message) => {
+    const failWith = async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      createNoteMock.mockRejectedValueOnce(
+        new ApiRequestError('retry with the same Idempotency-Key', status)
+      )
+      const view = renderPostBox()
+      attach('a.png')
+      await screen.findByText('Review')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+      return view
+    }
+
+    it('shows the retry message', async () => {
+      await failWith()
+    })
+
+    it('locks the fitness draft and retries the same file under the same key', async () => {
+      vi.spyOn(window, 'alert').mockImplementation(() => {})
+      vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
+        id: 'fitness-1'
+      } as never)
+      createNoteMock.mockRejectedValueOnce(
+        new ApiRequestError('retry with the same Idempotency-Key', status)
+      )
+      const { container } = renderPostBox()
+      fireEvent.change(
+        container.querySelector(
+          'input[type="file"][accept=".fit,.gpx,.tcx"]'
+        ) as HTMLInputElement,
+        { target: { files: [new File(['data'], 'run.gpx')] } }
+      )
+      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+        target: { value: 'Morning run' }
+      })
+      fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(window.alert).toHaveBeenCalledWith(message))
+
+      expect(screen.getByText(/Editing is locked/)).toHaveTextContent(message)
+      expect(
+        screen.getByPlaceholderText('What is on your mind?')
+      ).toHaveAttribute('readonly')
+      expect(
+        screen.getByRole('button', { name: 'Remove selected fitness file' })
+      ).toBeDisabled()
+      await expectPostOptionsLocked()
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(retry.idempotencyKey).toBe(first.idempotencyKey)
+      expect(retry).toMatchObject({
+        message: 'Morning run',
+        fitnessFileId: 'fitness-1'
+      })
+      expect(vi.mocked(uploadFitnessFile)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+
+      // A success unlocks and clears the composer.
+      await waitFor(() =>
+        expect(screen.queryByText('run.gpx')).not.toBeInTheDocument()
+      )
+      expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+      expect(
+        screen.getByPlaceholderText('What is on your mind?')
+      ).not.toHaveAttribute('readonly')
+      await expectPostOptionsLocked(false)
+    })
+
+    it('does not delete the kept media on unmount', async () => {
+      const { unmount } = await failWith()
+      unmount()
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('locks the media draft and retries the same attachment under the same key', async () => {
+      await failWith()
+
+      expect(screen.getByText(/Editing is locked/)).toHaveTextContent(message)
+      expect(
+        screen.getByRole('button', { name: 'Remove media a.png' })
+      ).toBeDisabled()
+      await expectPostOptionsLocked()
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, retry] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(retry.idempotencyKey).toBe(first.idempotencyKey)
+      expect(retry.attachments).toEqual(first.attachments)
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Remove media a.png' })
+        ).not.toBeInTheDocument()
+      )
+      expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
+      await expectPostOptionsLocked(false)
+    })
+  })
+
+  describe('re-targeting a locked draft', () => {
+    const retarget = (view: ReturnType<typeof renderPostBox>) =>
+      view.rerender(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          replyStatus={
+            {
+              id: 'https://activities.local/users/llun/statuses/1',
+              type: 'Note',
+              actorId: 'https://activities.local/users/llun',
+              actor: null,
+              text: 'hi',
+              to: [],
+              cc: [],
+              attachments: [],
+              tags: []
+            } as never
+          }
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+
+    it('does not delete the media a kept post uses', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+      const view = renderPostBox()
+      attach('a.png')
+      await screen.findByText('Review')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+
+      retarget(view)
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Remove media a.png' })
+        ).not.toBeInTheDocument()
+      )
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('does not delete the fitness file a kept post uses', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
+        id: 'fitness-1'
+      } as never)
+      createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
+      const view = renderPostBox()
+      fireEvent.change(
+        view.container.querySelector(
+          'input[type="file"][accept=".fit,.gpx,.tcx"]'
+        ) as HTMLInputElement,
+        { target: { files: [new File(['data'], 'run.gpx')] } }
+      )
+      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+        target: { value: 'Morning run' }
+      })
+      fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+
+      retarget(view)
+
+      await waitFor(() =>
+        expect(screen.queryByText('run.gpx')).not.toBeInTheDocument()
+      )
+      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+    })
+  })
+
+  it.each([
+    ['500', new ApiRequestError('Server exploded', 500), 'Server exploded'],
+    ['plain Error', new Error('offline'), 'offline']
+  ])('still discards media after a %s failure', async (_n, err, message) => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    createNoteMock.mockRejectedValueOnce(err)
+    const { unmount } = renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+    unmount()
+    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
+  })
+
   describe('photos from Gallery (initialMedia)', () => {
     const prefilled = [
       {

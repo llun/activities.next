@@ -30,8 +30,7 @@ import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
  *
  * `maxMediaAttachments` is the one exception: no route enforces this resolved
  * value. All three create/edit paths — `POST`/`PUT /api/v1/statuses[/:id]` and
- * `POST /api/v1/accounts/outbox`, the route both the composer and the inline
- * reply box actually post through — fall back to the fixed
+ * the deprecated `POST /api/v1/accounts/outbox` — fall back to the fixed
  * `MAX_STORED_MEDIA_ATTACHMENTS` ceiling instead. So for this field a stale or
  * missing provider lets media through up to that ceiling rather than up to the
  * configured number. See "Database-backed server settings" in

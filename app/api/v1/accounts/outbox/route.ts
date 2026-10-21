@@ -6,6 +6,7 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
+import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
@@ -54,10 +55,9 @@ export const POST = traceApiRoute(
       }
       const request = parsed.data
       // Enforce the admin-configured status/poll limits (server settings), the
-      // same way POST /api/v1/statuses and PUT /api/v1/statuses/:id do. This is
-      // the endpoint the web composer creates through, so without it the
-      // resolved `posts.maxCharacters` was advertised and shown in the composer
-      // but never actually enforced on a create.
+      // same way POST /api/v1/statuses and PUT /api/v1/statuses/:id do.
+      // This route is deprecated and kept for backward compatibility, but it
+      // still creates statuses, so it enforces the same status and poll limits.
       const serverSettings = await getResolvedServerSettings(database)
       const limitError = validateStatusContentLimits(
         request.type === 'poll'
@@ -299,6 +299,16 @@ export const POST = traceApiRoute(
         }
       }
     } catch (error) {
+      // The post is saved and stays visible, but was not sent: not a 400, or
+      // the client would post it again as a duplicate.
+      if (error instanceof StatusPublishFailedError) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: error.message },
+          responseStatusCode: 503
+        })
+      }
       const nodeError = error as NodeJS.ErrnoException
       logger.error(nodeError)
       return apiResponse({

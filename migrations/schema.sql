@@ -729,7 +729,10 @@ CREATE TABLE public.idempotency_keys (
     "actorId" character varying(255) NOT NULL,
     key character varying(255) NOT NULL,
     "statusId" character varying(255) NOT NULL,
-    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "contentHash" character varying(64),
+    state character varying(16) DEFAULT 'complete'::character varying NOT NULL,
+    "stateChangedAt" timestamp with time zone
 );
 
 CREATE TABLE public.instance_rules (

@@ -22,6 +22,7 @@ interface RenderOptions {
   minPollExpirationSeconds?: number
   maxPollExpirationSeconds?: number
   onChooseDuration?: (durationInSeconds: number) => void
+  disabled?: boolean
 }
 
 const renderPollChoices = ({
@@ -31,7 +32,8 @@ const renderPollChoices = ({
   maxPollOptionCharacters,
   minPollExpirationSeconds,
   maxPollExpirationSeconds,
-  onChooseDuration = vi.fn()
+  onChooseDuration = vi.fn(),
+  disabled
 }: RenderOptions = {}) =>
   render(
     <InstanceLimitsProvider
@@ -45,6 +47,7 @@ const renderPollChoices = ({
         choices={buildChoices(choiceCount)}
         durationInSeconds={durationInSeconds as never}
         pollType="oneOf"
+        disabled={disabled}
         onAddChoice={vi.fn()}
         onRemoveChoice={vi.fn()}
         onChooseDuration={onChooseDuration as never}
@@ -57,6 +60,26 @@ const renderPollChoices = ({
 // The create endpoints enforce the resolved polls.* limits, so the editor must
 // never let a poll be built that they will reject.
 describe('PollChoices', () => {
+  it('locks the duration and every choice remove button while disabled', () => {
+    renderPollChoices({ choiceCount: 3, disabled: true })
+
+    expect(screen.getByLabelText('Ends in')).toBeDisabled()
+    for (const index of [1, 2, 3]) {
+      expect(
+        screen.getByRole('button', { name: `Remove choice ${index}` })
+      ).toBeDisabled()
+    }
+  })
+
+  it('keeps the duration and removable choices usable when enabled', () => {
+    renderPollChoices({ choiceCount: 3 })
+
+    expect(screen.getByLabelText('Ends in')).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Remove choice 3' })
+    ).toBeEnabled()
+  })
+
   it.each([
     {
       description: 'offers another choice below the configured maximum',

@@ -97,6 +97,7 @@ export type {
   DeleteStatusParams,
   DeleteStatusTagsByTypeParams,
   DeleteStatusWithQueueJobParams,
+  DiscardUnpublishedStatusParams,
   FavouritedByAccount,
   GetActorAnnouncedStatusIdParams,
   GetActorPollVotesForStatusesParams,
@@ -293,10 +294,16 @@ export type {
 // Idempotency Key Database
 // ============================================================================
 
+export {
+  IDEMPOTENCY_KEY_TTL_MS,
+  IdempotencyConflictError,
+  IdempotencyDeletedError
+} from '@/lib/database/domains/idempotency/types'
 export type {
-  GetIdempotentStatusIdParams,
+  DeleteExpiredIdempotencyKeysParams,
+  GetIdempotencyKeyParams,
   IdempotencyDatabase,
-  SaveIdempotencyKeyParams
+  IdempotencyKeyRecord
 } from '@/lib/database/domains/idempotency/types'
 
 // ============================================================================

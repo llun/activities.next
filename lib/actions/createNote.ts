@@ -1,3 +1,10 @@
+import {
+  IDEMPOTENCY_PENDING_STALE_MS,
+  IdempotencyConflictError,
+  IdempotencyDeletedError,
+  IdempotencyInProgressError,
+  StatusPublishFailedError
+} from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
 import {
   PROCESS_FITNESS_FILE_JOB_NAME,
@@ -18,6 +25,7 @@ import {
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import type { JobMessage } from '@/lib/services/queue/type'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   canActorReadStatus,
@@ -36,6 +44,7 @@ import {
   QuoteApprovalPolicy,
   Status,
   StatusNote,
+  StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
@@ -45,12 +54,327 @@ import {
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { logger } from '@/lib/utils/logger'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { MENTION_GLOBAL_REGEX } from '@/lib/utils/text/convertMarkdownText'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { getHashtags } from '@/lib/utils/text/getHashtags'
 import { getMentions } from '@/lib/utils/text/getMentions'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
+
+const inFlightStatusCreations = new Map<string, Promise<void>>()
+
+export const waitForInFlightStatusCreation = async (
+  statusId: string
+): Promise<void> => {
+  const inflight = inFlightStatusCreations.get(statusId)
+  if (inflight) {
+    await inflight
+  }
+}
+
+export const trackInFlightStatusCreation = (statusId: string): (() => void) => {
+  let resolve!: () => void
+  const promise = new Promise<void>((res) => {
+    resolve = res
+  })
+  inFlightStatusCreations.set(statusId, promise)
+  return () => {
+    resolve()
+    inFlightStatusCreations.delete(statusId)
+  }
+}
+
+// Awaits every write before failing with the first error, so a discard that
+// follows never races a sibling insert that is still running.
+export const settleAll = async (work: Promise<unknown>[]): Promise<void> => {
+  const results = await Promise.allSettled(work)
+  const failure = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected'
+  )
+  if (failure) throw failure.reason
+}
+
+// One best-effort step of a status create: a failure is logged and the post
+// still succeeds.
+export const runBestEffortStep = async (
+  statusId: string,
+  step: string,
+  work: () => Promise<unknown>
+): Promise<void> => {
+  try {
+    await work()
+  } catch (error) {
+    logger.error({
+      message: `Status create: ${step} failed`,
+      statusId,
+      err: toLoggableError(error)
+    })
+  }
+}
+
+// The federation job of a created status: PROCESS_FITNESS_FILE (which sends
+// the note itself) for a fitness post, SEND_NOTE otherwise, none for a poll.
+// The id is derived from the status, so queueing it again is deduplicated.
+const getStatusCreationJob = (
+  actorId: string,
+  status: Status,
+  fitnessFileId?: string
+): JobMessage | null => {
+  if (status.type === StatusType.enum.Poll) return null
+  const id = getHashFromString(status.id)
+  return fitnessFileId
+    ? {
+        id,
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId, statusId: status.id, fitnessFileId }
+      }
+    : {
+        id,
+        name: SEND_NOTE_JOB_NAME,
+        data: { actorId, statusId: status.id }
+      }
+}
+
+// Queues the federation job of a status whose key the caller has just taken
+// to 'publishing' (claimIdempotencyKeyPublish), or that has no key. Once the
+// queue accepts the job the key moves to 'complete'. A queue error is
+// ambiguous (the job may have been accepted, or run inline), so the post is
+// kept: its key moves to 'publish_failed', so a retry with the key queues the
+// job again, and the request fails with StatusPublishFailedError. When either
+// state write fails the key stays 'publishing', and a retry queues the job
+// again (with the same id) once that is IDEMPOTENCY_PENDING_STALE_MS old.
+const queueStatusCreationJob = async ({
+  database,
+  actorId,
+  status,
+  fitnessFileId,
+  key
+}: {
+  database: Database
+  actorId: string
+  status: Status
+  fitnessFileId?: string
+  key?: string
+}): Promise<void> => {
+  const job = getStatusCreationJob(actorId, status, fitnessFileId)
+  try {
+    if (job) await getQueue().publish(job)
+  } catch (error) {
+    logger.error({
+      message: 'Status create: federation job could not be queued',
+      statusId: status.id,
+      err: toLoggableError(error)
+    })
+    if (key) {
+      await runBestEffortStep(status.id, 'Idempotency-Key publish_failed', () =>
+        database.setIdempotencyKeyState({
+          actorId,
+          key,
+          statusId: status.id,
+          state: 'publish_failed'
+        })
+      )
+    }
+    throw new StatusPublishFailedError(Boolean(key))
+  }
+  if (key) {
+    await runBestEffortStep(status.id, 'Idempotency-Key complete', () =>
+      database.setIdempotencyKeyState({
+        actorId,
+        key,
+        statusId: status.id,
+        state: 'complete'
+      })
+    )
+  }
+}
+
+// The commit point of a status create, after which the post is never
+// discarded. With a key, the job is queued only if this request takes the
+// key from 'pending' to 'publishing' first: a retry that took over a stale
+// 'pending' key has queued it already, and a discard keeps a post whose key
+// has moved on. A failed claim leaves the key 'pending' (a retry gets 409
+// until it is IDEMPOTENCY_PENDING_STALE_MS old, then queues the job) and fails
+// the request with StatusPublishFailedError.
+export const publishCreatedStatus = async ({
+  database,
+  actorId,
+  status,
+  fitnessFileId,
+  idempotency
+}: {
+  database: Database
+  actorId: string
+  status: Status
+  fitnessFileId?: string
+  idempotency?: { key: string }
+}): Promise<void> => {
+  if (idempotency) {
+    let claimed: boolean
+    try {
+      claimed = await database.claimIdempotencyKeyPublish({
+        actorId,
+        key: idempotency.key,
+        statusId: status.id
+      })
+    } catch (error) {
+      logger.error({
+        message: 'Status create: Idempotency-Key could not be claimed',
+        statusId: status.id,
+        err: toLoggableError(error)
+      })
+      throw new StatusPublishFailedError(true)
+    }
+    if (!claimed) return
+  }
+  await queueStatusCreationJob({
+    database,
+    actorId,
+    status,
+    fitnessFileId,
+    key: idempotency?.key
+  })
+}
+
+// Answers a retry with the key that claimed `statusId`, after waiting out an
+// in-process create of it, by the key's state:
+// - 'complete': the status;
+// - 'publish_failed', or 'pending' or 'publishing' for longer than
+//   IDEMPOTENCY_PENDING_STALE_MS (its process most likely stopped): takes the
+//   key and queues the job again, then the status (StatusPublishFailedError
+//   when the queue refuses again); when another request took the key first,
+//   answers by its new state;
+// - a fresher 'pending' or 'publishing': IdempotencyInProgressError, as
+//   another process may still be creating or queueing it.
+// Null when that create failed and discarded its status and key, so a retry
+// may create the post afresh; IdempotencyDeletedError when the key outlived
+// its status.
+export const loadIdempotentStatus = async ({
+  database,
+  actorId,
+  key,
+  statusId
+}: {
+  database: Database
+  actorId: string
+  key: string
+  statusId: string
+}): Promise<Status | null> => {
+  await waitForInFlightStatusCreation(statusId)
+  // The key first: a discard removes the status and the key together, so a
+  // key read before the status cannot vouch for a status discarded since.
+  const claim = await database.getIdempotencyKey({ actorId, key })
+  const status = await database.getStatus({
+    statusId,
+    currentActorId: actorId,
+    withReplies: false
+  })
+  if (!status) {
+    if (claim?.statusId !== statusId) return null
+    // A discard may have committed between the two reads: only a key that
+    // still names the status means the status was deleted.
+    const current = await database.getIdempotencyKey({ actorId, key })
+    if (current?.statusId === statusId) {
+      throw new IdempotencyDeletedError(statusId)
+    }
+    return null
+  }
+  if (claim?.statusId !== statusId || claim.state === 'complete') return status
+  const taken = await database.claimIdempotencyKeyPublish({
+    actorId,
+    key,
+    statusId,
+    staleBefore: new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)
+  })
+  if (taken) {
+    await queueStatusCreationJob({
+      database,
+      actorId,
+      status,
+      fitnessFileId:
+        status.type === StatusType.enum.Note ? status.fitness?.id : undefined,
+      key
+    })
+    return status
+  }
+  // Another request moved the key since it was read.
+  const current = await database.getIdempotencyKey({ actorId, key })
+  if (current?.statusId !== statusId) return null
+  if (current.state === 'complete') return status
+  if (current.state === 'pending' || current.state === 'publishing') {
+    throw new IdempotencyInProgressError()
+  }
+  throw new StatusPublishFailedError(true)
+}
+
+export const resolveExistingIdempotentStatus = async ({
+  database,
+  actorId,
+  idempotency
+}: {
+  database: Database
+  actorId: string
+  idempotency: { key: string; contentHash: string }
+}): Promise<Status | null> => {
+  const existingKey = await database.getIdempotencyKey({
+    actorId,
+    key: idempotency.key
+  })
+  if (!existingKey) return null
+  if (
+    existingKey.contentHash !== null &&
+    existingKey.contentHash !== idempotency.contentHash
+  ) {
+    throw new IdempotencyConflictError()
+  }
+  return loadIdempotentStatus({
+    database,
+    actorId,
+    key: idempotency.key,
+    statusId: existingKey.statusId
+  })
+}
+
+// Undoes a create whose completion steps failed before its job was queued, so
+// a retry (with the same Idempotency-Key, if any) creates the post afresh. A
+// post whose key a retry has taken over (and sent) is kept as it was left.
+// When the discard itself fails, the status and its 'pending' key remain: a
+// retry gets 409 until the key is IDEMPOTENCY_PENDING_STALE_MS old, then sends
+// the post as it was left.
+export const discardFailedStatusCreate = async ({
+  database,
+  actorId,
+  statusId,
+  idempotency
+}: {
+  database: Database
+  actorId: string
+  statusId: string
+  idempotency?: { key: string }
+}): Promise<void> => {
+  try {
+    const discarded = await database.discardUnpublishedStatus({
+      actorId,
+      statusId,
+      idempotencyKey: idempotency?.key
+    })
+    if (!discarded) {
+      logger.warn({
+        message:
+          'Kept a status whose create failed: a retry with its Idempotency-Key already sent it',
+        statusId
+      })
+    }
+  } catch (error) {
+    logger.error({
+      message: 'Failed to discard a status whose create failed',
+      statusId,
+      err: toLoggableError(error)
+    })
+  }
+}
 
 const getNotificationEligibleActorIds = async (
   database: Database,
@@ -183,7 +507,7 @@ export const persistEmojiTagsForStatus = async ({
   const combinedText = Array.isArray(text) ? text.join(' ') : text
   const customEmojis = await database.getCustomEmojis()
   const emojiTags = getEmojiTags(combinedText, customEmojis)
-  await Promise.all(
+  await settleAll(
     emojiTags.map((emojiTag) =>
       database.createTag({
         statusId,
@@ -357,6 +681,7 @@ interface CreateNoteFromUserInputParams {
   // Backdate the status (ms since epoch); omitted means now. The publicId is
   // minted from this time so id order keeps matching createdAt order.
   createdAt?: number
+  idempotency?: { key: string; contentHash: string }
   database: Database
 }
 export const createNoteFromUserInput = async ({
@@ -373,9 +698,18 @@ export const createNoteFromUserInput = async ({
   language = null,
   application,
   createdAt,
+  idempotency,
   database
 }: CreateNoteFromUserInputParams) =>
   withSpan('actions', 'createNoteFromUser', { text, replyNoteId }, async () => {
+    if (idempotency) {
+      const existing = await resolveExistingIdempotentStatus({
+        database,
+        actorId: currentActor.id,
+        idempotency
+      })
+      if (existing) return existing as StatusNote
+    }
     // Subject hashtags are part of the post: appended here, before the text is
     // stored and before its hashtags are extracted below, so they are rendered,
     // federated and counted like tags the author typed.
@@ -496,318 +830,501 @@ export const createNoteFromUserInput = async ({
       replyVisibility
     })
 
-    const createdStatus = await database.createNote({
-      id: statusId,
-      url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
-      publicId: postId,
+    const finishInFlight = trackInFlightStatusCreation(statusId)
+    let createdStatus: Status
+    let isNew = true
+    try {
+      const createParams = {
+        id: statusId,
+        url: `https://${currentActor.domain}/${getMention(currentActor)}/${postId}`,
+        publicId: postId,
 
-      actorId: currentActor.id,
+        actorId: currentActor.id,
 
-      text,
-      summary: summary?.trim() || null,
+        text,
+        summary: summary?.trim() || null,
 
-      to,
-      cc,
+        to,
+        cc,
 
-      reply: replyStatus?.id || '',
-      // A sensitized actor's new statuses are forced sensitive at creation, so
-      // the flag is persisted and federated copies inherit it (Admin moderation).
-      sensitive: sensitive || Boolean(currentActor.sensitizedAt),
-      language,
-      quoteApprovalPolicy,
-      applicationName: application?.name ?? null,
-      applicationWebsite: application?.website ?? null,
-      createdAt
-    })
+        reply: replyStatus?.id || '',
+        // A sensitized actor's new statuses are forced sensitive at creation, so
+        // the flag is persisted and federated copies inherit it (Admin moderation).
+        sensitive: sensitive || Boolean(currentActor.sensitizedAt),
+        language,
+        quoteApprovalPolicy,
+        applicationName: application?.name ?? null,
+        applicationWebsite: application?.website ?? null,
+        createdAt,
+        ...(idempotency ? { idempotency } : {})
+      }
+      if (idempotency) {
+        const result = await database.createNoteWithResult(createParams)
+        createdStatus = result.status
+        isNew = result.isNew
+      } else {
+        createdStatus = await database.createNote(createParams)
+      }
+    } catch (error) {
+      finishInFlight()
+      throw error
+    }
 
-    // Quote handling (FEP-044f). The caller has already authorized the quote
-    // (visibility + canQuoteStatus), so record the edge and drive the handshake.
-    // Doing this before the final status re-fetch means the returned status (and
-    // the federated note) already carry the quote edge.
-    if (quotedStatusId) {
-      const quotedStatus = await database.getStatus({
-        statusId: quotedStatusId,
-        withReplies: false
+    if (!isNew && idempotency) {
+      finishInFlight()
+      const existing = await loadIdempotentStatus({
+        database,
+        actorId: currentActor.id,
+        key: idempotency.key,
+        statusId: createdStatus.id
       })
-      if (quotedStatus) {
-        const quotedAuthorId = getOriginalStatus(quotedStatus).actorId
-        if (quotedStatus.isLocalActor) {
-          // We host the quoted author (FEP same-authority shortcut): approve
-          // immediately, no QuoteRequest handshake.
-          await database.createStatusQuote({
-            statusId,
-            quotedStatusId,
-            state: 'accepted'
+      // The winner's create failed and was discarded; the client retries.
+      if (!existing) {
+        throw new Error('Concurrent create with this Idempotency-Key failed')
+      }
+      return existing as StatusNote
+    }
+
+    // Completion steps: without any of them the post is incomplete, so a
+    // failure discards it and fails the request. Nothing is queued before they
+    // all succeed: the publish after them is the commit point. Best-effort
+    // steps log their failure and carry on.
+    let status: StatusNote
+    let remoteQuoteRequest = false
+    let localQuotedAuthorId: string | null = null
+    let publishError: unknown = null
+    const hashtags = getHashtags(text, currentActor.domain)
+    try {
+      try {
+        // Quote handling (FEP-044f). The caller has already authorized the
+        // quote (visibility + canQuoteStatus), so record the edge here and
+        // drive the handshake after the publish. Doing this before the final
+        // status re-fetch means the returned status (and the federated note)
+        // already carry the quote edge.
+        if (quotedStatusId) {
+          const quotedStatus = await database.getStatus({
+            statusId: quotedStatusId,
+            withReplies: false
           })
-          if (quotedAuthorId !== currentActor.id) {
-            const quoteNotification = await createNotificationWithPolicy(
-              database,
-              {
-                actorId: quotedAuthorId,
-                type: NotificationType.enum.quote,
-                sourceActorId: currentActor.id,
+          if (quotedStatus) {
+            const quotedAuthorId = getOriginalStatus(quotedStatus).actorId
+            if (quotedStatus.isLocalActor) {
+              // We host the quoted author (FEP same-authority shortcut):
+              // approve immediately, no QuoteRequest handshake.
+              await database.createStatusQuote({
                 statusId,
-                groupKey: `quote:${quotedStatusId}`
-              }
-            )
-            if (quoteNotification && !quoteNotification.filtered) {
-              // Fire-and-forget (sendNotificationAlerts handles its own errors):
-              // alert delivery must not fail the create action.
-              sendNotificationAlerts({
-                database,
-                actorId: quotedAuthorId,
-                sourceActorId: currentActor.id,
-                sourceActor: currentActor,
-                statusId,
-                events: [
-                  {
-                    type: NotificationType.enum.quote,
-                    notificationId: quoteNotification.id
-                  }
-                ]
+                quotedStatusId,
+                state: 'accepted'
               })
+              if (quotedAuthorId !== currentActor.id) {
+                localQuotedAuthorId = quotedAuthorId
+              }
+            } else {
+              // Remote quoted author: create a pending edge; the QuoteRequest
+              // handshake below lets their Accept/Reject settle it.
+              await database.createStatusQuote({
+                statusId,
+                quotedStatusId,
+                state: 'pending',
+                quoteRequestId: `${statusId}#quote-request`
+              })
+              remoteQuoteRequest = true
             }
           }
-        } else {
-          // Remote quoted author: create a pending edge and start the
-          // QuoteRequest handshake; their Accept/Reject settles it.
-          const quoteRequestId = `${statusId}#quote-request`
-          await database.createStatusQuote({
+        }
+
+        // Content-detected language, stored separately from the declared
+        // `language` above so the Translate gate can fall back to it when the
+        // author's declared/default language doesn't match what they actually
+        // wrote.
+        await runBestEffortStep(statusId, 'detected language', () =>
+          persistDetectedLanguage({
+            database,
             statusId,
-            quotedStatusId,
-            state: 'pending',
-            quoteRequestId
+            text,
+            declaredLanguage: language
           })
-          await getQueue().publish({
-            id: getHashFromString(quoteRequestId),
-            name: SEND_QUOTE_REQUEST_JOB_NAME,
-            data: { actorId: currentActor.id, statusId, quotedStatusId }
+        )
+
+        // Tags must be persisted before timeline rules run so that
+        // notifyRemoteReplyAndMention can verify mentions via tags rather than
+        // text content.
+        await settleAll([
+          ...mentionTags.map((mention) =>
+            database.createTag({
+              statusId,
+              name: mention.name || '',
+              value: mention.href,
+              type: 'mention'
+            })
+          ),
+          ...hashtags.map((hashtag) =>
+            database.createTag({
+              statusId,
+              name: hashtag.name,
+              value: hashtag.value,
+              type: 'hashtag',
+              skipSearchIndex: true
+            })
+          )
+        ])
+
+        // Before the publish: the federated note carries its emoji tags, and
+        // a note sent without them would show raw :shortcode: text for good.
+        await persistEmojiTagsForStatus({
+          database,
+          statusId,
+          text: [text, summary ?? '', ...attachments.map((a) => a.name || '')]
+        })
+
+        // The file, placeholder and focal point are read back from the owner's
+        // own media rows: a stale composer or an outbox client can send an
+        // earlier render of an edited photo, which a later save may prune.
+        const ownedAttachments = await resolveOwnedAttachments({
+          database,
+          currentActor,
+          attachments
+        })
+
+        // A backdated status's attachments are backdated with it.
+        const attachmentsCreatedAt = createdAt ?? Date.now()
+        await settleAll([
+          addStatusToTimelines(database, createdStatus),
+          ...ownedAttachments.map(({ attachment, metadata }, index) => {
+            // Link the attachment to a media row only when that row belongs
+            // to the author's account. The outbox takes attachment ids from
+            // the client, and `attachments.mediaId` is read as proof the
+            // media's owner published it (the public details endpoint relies
+            // on it), so an id that did not resolve to an owned row is written
+            // without a link.
+            const ownedMetadata = metadata ?? undefined
+            return database.createAttachment({
+              // The inserts run in parallel, so without a distinct, increasing
+              // createdAt every attachment of the status would share one
+              // timestamp and reads (createdAt, then random id) would shuffle
+              // them. base + index ms preserves the author's order.
+              createdAt: attachmentsCreatedAt + index,
+              actorId: currentActor.id,
+              statusId,
+              mediaType: attachment.mediaType,
+              url: attachment.url,
+              width: attachment.width,
+              height: attachment.height,
+              name: attachment.name,
+              ...(ownedMetadata ? { mediaId: String(attachment.id) } : {}),
+              ...(ownedMetadata ?? EMPTY_ATTACHMENT_MEDIA_METADATA)
+            })
           })
+        ])
+
+        if (fitnessFile) {
+          await database.updateFitnessFileStatus(fitnessFile.id, statusId)
         }
-      }
-    }
 
-    // Content-detected language, stored separately from the declared `language`
-    // above so the Translate gate can fall back to it when the author's
-    // declared/default language doesn't match what they actually wrote.
-    await persistDetectedLanguage({
-      database,
-      statusId,
-      text,
-      declaredLanguage: language
-    })
-
-    // Tags must be persisted before timeline rules run so that
-    // notifyRemoteReplyAndMention can verify mentions via tags rather than text
-    // content.
-    const hashtags = getHashtags(text, currentActor.domain)
-    await Promise.all([
-      ...mentionTags.map((mention) =>
-        database.createTag({
+        const hydratedStatus = (await database.getStatus({
           statusId,
-          name: mention.name || '',
-          value: mention.href,
-          type: 'mention'
-        })
-      ),
-      ...hashtags.map(async (hashtag) => {
-        await database.createTag({
-          statusId,
-          name: hashtag.name,
-          value: hashtag.value,
-          type: 'hashtag',
-          skipSearchIndex: true
-        })
-        // The count is served to anonymous /tags/<tag> visitors; a
-        // followers-only or direct post must not move it.
-        if (isPublicOrUnlisted({ to, cc })) {
-          await database.increaseHashtagCounter({ hashtag: hashtag.name })
+          withReplies: false
+        })) as StatusNote | null
+        if (!hydratedStatus) {
+          throw new Error('The created status could not be loaded')
         }
-      })
-    ])
-    if (hashtags.length > 0) {
-      await database.indexHashtagSearchDocuments({
-        hashtags: hashtags.map((hashtag) => hashtag.name)
-      })
-    }
-
-    await persistEmojiTagsForStatus({
-      database,
-      statusId,
-      text: [text, summary ?? '', ...attachments.map((a) => a.name || '')]
-    })
-
-    // The file, placeholder and focal point are read back from the owner's own
-    // media rows: a stale composer or an outbox client can send an earlier
-    // render of an edited photo, which a later save may prune.
-    const ownedAttachments = await resolveOwnedAttachments({
-      database,
-      currentActor,
-      attachments
-    })
-
-    // A backdated status's attachments are backdated with it.
-    const attachmentsCreatedAt = createdAt ?? Date.now()
-    await Promise.all([
-      addStatusToTimelines(database, createdStatus),
-      ...ownedAttachments.map(({ attachment, metadata }, index) => {
-        // Link the attachment to a media row only when that row belongs to
-        // the author's account. The outbox takes attachment ids from the
-        // client, and `attachments.mediaId` is read as proof the media's owner
-        // published it (the public details endpoint relies on it), so an id
-        // that did not resolve to an owned row is written without a link.
-        const ownedMetadata = metadata ?? undefined
-        return database.createAttachment({
-          // The inserts run in parallel, so without a distinct, increasing
-          // createdAt every attachment of the status would share one
-          // timestamp and reads (createdAt, then random id) would shuffle
-          // them. base + index ms preserves the author's order.
-          createdAt: attachmentsCreatedAt + index,
+        status = hydratedStatus
+      } catch (error) {
+        await discardFailedStatusCreate({
+          database,
           actorId: currentActor.id,
           statusId,
-          mediaType: attachment.mediaType,
-          url: attachment.url,
-          width: attachment.width,
-          height: attachment.height,
-          name: attachment.name,
-          ...(ownedMetadata ? { mediaId: String(attachment.id) } : {}),
-          ...(ownedMetadata ?? EMPTY_ATTACHMENT_MEDIA_METADATA)
+          idempotency
         })
-      })
-    ])
+        throw error
+      }
 
-    if (fitnessFile) {
-      await database.updateFitnessFileStatus(fitnessFile.id, statusId)
+      // After every completion step, so a discarded post was never counted,
+      // and before the publish, which on the in-process queue runs the whole
+      // fan-out inline: a request that dies there still leaves a counted
+      // post, which a retry sends and a later delete decrements.
+      await runBestEffortStep(
+        statusId,
+        'hashtag counters and search',
+        async () => {
+          // The count is served to anonymous /tags/<tag> visitors; a
+          // followers-only or direct post must not move it.
+          if (isPublicOrUnlisted({ to, cc })) {
+            await Promise.all(
+              hashtags.map((hashtag) =>
+                database.increaseHashtagCounter({ hashtag: hashtag.name })
+              )
+            )
+          }
+          if (hashtags.length > 0) {
+            await database.indexHashtagSearchDocuments({
+              hashtags: hashtags.map((hashtag) => hashtag.name)
+            })
+          }
+        }
+      )
+
+      try {
+        await publishCreatedStatus({
+          database,
+          actorId: currentActor.id,
+          status,
+          fitnessFileId: fitnessFile?.id,
+          idempotency
+        })
+      } catch (error) {
+        publishError = error
+      }
+    } finally {
+      // After the key state is written, so a waiting retry reads it.
+      finishInFlight()
     }
 
-    // Create notifications for replies and mentions
-    const notificationMentions =
-      effectiveVisibility === 'direct' &&
-      replyStatus &&
-      replyVisibility === 'direct'
-        ? mentionTags
-        : recipientMentions
-    const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
-      database,
-      [
-        ...(shouldNotifyReply && replyStatus ? [replyStatus.actorId] : []),
-        ...notificationMentions.map((mention) => mention.href)
-      ],
-      currentActor.id
+    // Best-effort steps after the publish, so a discarded post never reached
+    // them. They run when the publish failed too, because that post is kept.
+    if (remoteQuoteRequest && quotedStatusId) {
+      const quoteRequestId = `${statusId}#quote-request`
+      await runBestEffortStep(statusId, 'quote request enqueue', () =>
+        getQueue().publish({
+          id: getHashFromString(quoteRequestId),
+          name: SEND_QUOTE_REQUEST_JOB_NAME,
+          data: { actorId: currentActor.id, statusId, quotedStatusId }
+        })
+      )
+    }
+
+    await runBestEffortStep(statusId, 'notifications', () =>
+      notifyStatusRecipients({
+        database,
+        currentActor,
+        status,
+        quotedStatusId,
+        localQuotedAuthorId,
+        replyStatus,
+        shouldNotifyReply,
+        notificationMentions:
+          effectiveVisibility === 'direct' &&
+          replyStatus &&
+          replyVisibility === 'direct'
+            ? mentionTags
+            : recipientMentions
+      })
     )
 
-    // Map actorId → notification promise so we can gate alert dispatch on the verdict.
-    const notificationEntries: Array<
-      [string, ReturnType<typeof createNotificationWithPolicy>]
-    > = []
+    // Scheduled AFTER the send/process job is published, because on the default
+    // in-process queue `publish` runs the handler inline — so doing this first
+    // made a link post wait on a third-party fetch before it federated. It never
+    // throws (see syncStatusLinkPreview).
+    await syncStatusLinkPreview({ database, status })
 
-    // Create reply notification if this is a reply
-    const replyNotifiedActorId =
-      shouldNotifyReply &&
-      replyStatus &&
-      eligibleNotificationActorIds.has(replyStatus.actorId)
-        ? replyStatus.actorId
-        : null
-    if (replyNotifiedActorId && replyStatus) {
+    if (publishError) throw publishError
+    return status
+  })
+
+// Creates the quote, reply and mention notifications of a new status and
+// dispatches their push/email alerts (fire-and-forget).
+const notifyStatusRecipients = async ({
+  database,
+  currentActor,
+  status,
+  quotedStatusId,
+  localQuotedAuthorId,
+  replyStatus,
+  shouldNotifyReply,
+  notificationMentions
+}: {
+  database: Database
+  currentActor: Actor
+  status: StatusNote
+  quotedStatusId?: string
+  localQuotedAuthorId: string | null
+  replyStatus: Status | null
+  shouldNotifyReply: boolean
+  notificationMentions: Mention[]
+}) => {
+  const statusId = status.id
+  if (localQuotedAuthorId && quotedStatusId) {
+    const quoteNotification = await createNotificationWithPolicy(database, {
+      actorId: localQuotedAuthorId,
+      type: NotificationType.enum.quote,
+      sourceActorId: currentActor.id,
+      statusId,
+      groupKey: `quote:${quotedStatusId}`
+    })
+    if (quoteNotification && !quoteNotification.filtered) {
+      // Fire-and-forget (sendNotificationAlerts handles its own errors):
+      // alert delivery must not fail the create action.
+      sendNotificationAlerts({
+        database,
+        actorId: localQuotedAuthorId,
+        sourceActorId: currentActor.id,
+        sourceActor: currentActor,
+        statusId,
+        events: [
+          {
+            type: NotificationType.enum.quote,
+            notificationId: quoteNotification.id
+          }
+        ]
+      })
+    }
+  }
+
+  const eligibleNotificationActorIds = await getNotificationEligibleActorIds(
+    database,
+    [
+      ...(shouldNotifyReply && replyStatus ? [replyStatus.actorId] : []),
+      ...notificationMentions.map((mention) => mention.href)
+    ],
+    currentActor.id
+  )
+
+  // Map actorId → notification promise so we can gate alert dispatch on the verdict.
+  const notificationEntries: Array<
+    [string, ReturnType<typeof createNotificationWithPolicy>]
+  > = []
+
+  // Create reply notification if this is a reply
+  const replyNotifiedActorId =
+    shouldNotifyReply &&
+    replyStatus &&
+    eligibleNotificationActorIds.has(replyStatus.actorId)
+      ? replyStatus.actorId
+      : null
+  if (replyNotifiedActorId && replyStatus) {
+    notificationEntries.push([
+      replyNotifiedActorId,
+      createNotificationWithPolicy(database, {
+        actorId: replyNotifiedActorId,
+        type: NotificationType.enum.reply,
+        sourceActorId: currentActor.id,
+        statusId,
+        groupKey: `reply:${replyStatus.id}`
+      })
+    ])
+  }
+
+  // Create mention notifications
+  for (const mention of notificationMentions) {
+    const mentionedActorId = mention.href
+    // A reply that also mentions the parent author is a single event: the reply
+    // notification above already covers them, so skip the duplicate mention one.
+    if (mentionedActorId === replyNotifiedActorId) {
+      continue
+    }
+    // Don't create notification for self-mentions
+    if (eligibleNotificationActorIds.has(mentionedActorId)) {
       notificationEntries.push([
-        replyNotifiedActorId,
+        mentionedActorId,
         createNotificationWithPolicy(database, {
-          actorId: replyNotifiedActorId,
-          type: NotificationType.enum.reply,
+          actorId: mentionedActorId,
+          type: NotificationType.enum.mention,
           sourceActorId: currentActor.id,
           statusId,
-          groupKey: `reply:${replyStatus.id}`
+          groupKey: `mention:${statusId}`
         })
       ])
     }
+  }
 
-    // Create mention notifications
-    for (const mention of notificationMentions) {
-      const mentionedActorId = mention.href
-      // A reply that also mentions the parent author is a single event: the reply
-      // notification above already covers them, so skip the duplicate mention one.
-      if (mentionedActorId === replyNotifiedActorId) {
-        continue
-      }
-      // Don't create notification for self-mentions
-      if (eligibleNotificationActorIds.has(mentionedActorId)) {
-        notificationEntries.push([
-          mentionedActorId,
-          createNotificationWithPolicy(database, {
-            actorId: mentionedActorId,
-            type: NotificationType.enum.mention,
-            sourceActorId: currentActor.id,
-            statusId,
-            groupKey: `mention:${statusId}`
-          })
-        ])
-      }
+  // Only send push/email alerts for notifications that were accepted (non-null, filtered=false).
+  const notificationResults = await Promise.all(
+    notificationEntries.map(([, p]) => p)
+  )
+  const alertActorIds = new Set(
+    notificationEntries
+      .filter((_, i) => {
+        const n = notificationResults[i]
+        return n && !n.filtered
+      })
+      .map(([actorId]) => actorId)
+  )
+  // Map each alerted actor to its accepted notification id so the Mastodon Web
+  // Push payload can carry `notification_id`. Each actor has at most one
+  // accepted notification here (reply and mention to the same actor are deduped
+  // above), so a last-write-wins map is sufficient.
+  const notificationIdByActorId = new Map<string, string>()
+  notificationEntries.forEach(([actorId], i) => {
+    const n = notificationResults[i]
+    if (n && !n.filtered) {
+      notificationIdByActorId.set(actorId, n.id)
     }
+  })
 
-    // Only send push/email alerts for notifications that were accepted (non-null, filtered=false).
-    const notificationResults = await Promise.all(
-      notificationEntries.map(([, p]) => p)
-    )
-    const alertActorIds = new Set(
-      notificationEntries
-        .filter((_, i) => {
-          const n = notificationResults[i]
-          return n && !n.filtered
+  // Dispatch notification alerts (push + email) per target, fire-and-forget.
+  // Uses the fetched status (with actor info) to build email content.
+  const seenActorIds = new Set<string>()
+
+  if (
+    shouldNotifyReply &&
+    replyStatus &&
+    alertActorIds.has(replyStatus.actorId)
+  ) {
+    seenActorIds.add(replyStatus.actorId)
+    database
+      .getActorFromId({ id: replyStatus.actorId })
+      // A failed actor lookup only skips the email content; the push alert
+      // must still be dispatched.
+      .catch(() => null)
+      .then(async (targetActor) =>
+        sendNotificationAlerts({
+          database,
+          actorId: replyStatus.actorId,
+          sourceActorId: currentActor.id,
+          sourceActor: currentActor,
+          statusId,
+          events: [
+            {
+              type: NotificationType.enum.reply,
+              notificationId: notificationIdByActorId.get(replyStatus.actorId),
+              emailContent: targetActor?.account
+                ? {
+                    recipientEmail: targetActor.account.email,
+                    ...buildReplyEmail({
+                      recipient: targetActor,
+                      brand: await resolveActorEmailBrand(
+                        database,
+                        targetActor
+                      ),
+                      actor: currentActor,
+                      status
+                    })
+                  }
+                : undefined
+            }
+          ]
         })
-        .map(([actorId]) => actorId)
-    )
-    // Map each alerted actor to its accepted notification id so the Mastodon Web
-    // Push payload can carry `notification_id`. Each actor has at most one
-    // accepted notification here (reply and mention to the same actor are deduped
-    // above), so a last-write-wins map is sufficient.
-    const notificationIdByActorId = new Map<string, string>()
-    notificationEntries.forEach(([actorId], i) => {
-      const n = notificationResults[i]
-      if (n && !n.filtered) {
-        notificationIdByActorId.set(actorId, n.id)
-      }
-    })
+      )
+      .catch(() => undefined)
+  }
 
-    const status = (await database.getStatus({
-      statusId,
-      withReplies: false
-    })) as StatusNote
-    if (!status) {
-      return null
-    }
-
-    // Dispatch notification alerts (push + email) per target, fire-and-forget.
-    // Uses the fetched status (with actor info) to build email content.
-    const seenActorIds = new Set<string>()
-
+  for (const mention of notificationMentions) {
+    const mentionedActorId = mention.href
     if (
-      shouldNotifyReply &&
-      replyStatus &&
-      alertActorIds.has(replyStatus.actorId)
+      !seenActorIds.has(mentionedActorId) &&
+      alertActorIds.has(mentionedActorId)
     ) {
-      seenActorIds.add(replyStatus.actorId)
+      seenActorIds.add(mentionedActorId)
       database
-        .getActorFromId({ id: replyStatus.actorId })
+        .getActorFromId({ id: mentionedActorId })
         // A failed actor lookup only skips the email content; the push alert
         // must still be dispatched.
         .catch(() => null)
         .then(async (targetActor) =>
           sendNotificationAlerts({
             database,
-            actorId: replyStatus.actorId,
+            actorId: mentionedActorId,
             sourceActorId: currentActor.id,
             sourceActor: currentActor,
             statusId,
             events: [
               {
-                type: NotificationType.enum.reply,
-                notificationId: notificationIdByActorId.get(
-                  replyStatus.actorId
-                ),
+                type: NotificationType.enum.mention,
+                notificationId: notificationIdByActorId.get(mentionedActorId),
                 emailContent: targetActor?.account
                   ? {
                       recipientEmail: targetActor.account.email,
-                      ...buildReplyEmail({
+                      ...buildMentionEmail({
                         recipient: targetActor,
                         brand: await resolveActorEmailBrand(
                           database,
@@ -824,79 +1341,5 @@ export const createNoteFromUserInput = async ({
         )
         .catch(() => undefined)
     }
-
-    for (const mention of notificationMentions) {
-      const mentionedActorId = mention.href
-      if (
-        !seenActorIds.has(mentionedActorId) &&
-        alertActorIds.has(mentionedActorId)
-      ) {
-        seenActorIds.add(mentionedActorId)
-        database
-          .getActorFromId({ id: mentionedActorId })
-          // A failed actor lookup only skips the email content; the push alert
-          // must still be dispatched.
-          .catch(() => null)
-          .then(async (targetActor) =>
-            sendNotificationAlerts({
-              database,
-              actorId: mentionedActorId,
-              sourceActorId: currentActor.id,
-              sourceActor: currentActor,
-              statusId,
-              events: [
-                {
-                  type: NotificationType.enum.mention,
-                  notificationId: notificationIdByActorId.get(mentionedActorId),
-                  emailContent: targetActor?.account
-                    ? {
-                        recipientEmail: targetActor.account.email,
-                        ...buildMentionEmail({
-                          recipient: targetActor,
-                          brand: await resolveActorEmailBrand(
-                            database,
-                            targetActor
-                          ),
-                          actor: currentActor,
-                          status
-                        })
-                      }
-                    : undefined
-                }
-              ]
-            })
-          )
-          .catch(() => undefined)
-      }
-    }
-
-    if (fitnessFile) {
-      await getQueue().publish({
-        id: getHashFromString(status.id),
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: {
-          actorId: currentActor.id,
-          statusId: status.id,
-          fitnessFileId: fitnessFile.id
-        }
-      })
-    } else {
-      await getQueue().publish({
-        id: getHashFromString(status.id),
-        name: SEND_NOTE_JOB_NAME,
-        data: {
-          actorId: currentActor.id,
-          statusId: status.id
-        }
-      })
-    }
-
-    // Scheduled AFTER the send/process job is published, because on the default
-    // in-process queue `publish` runs the handler inline — so doing this first
-    // made a link post wait on a third-party fetch before it federated. It never
-    // throws (see syncStatusLinkPreview), so a preview failure cannot fail a post
-    // that is already written and already on its way out.
-    await syncStatusLinkPreview({ database, status })
-
-    return status
-  })
+  }
+}

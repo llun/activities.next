@@ -469,6 +469,99 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Fitness tracking** — `/api/v1/fitness/*` (general settings, `.fit`/`.gpx`/`.tcx`
   imports, Strava sync) plus per-account fitness summaries, calendars, activity
   types, and route heatmaps under `/api/v1/accounts/:id/fitness-*`.
+  `POST /api/v1/statuses` also accepts an optional `fitness_file_id` (JSON or
+  form field) for note statuses, linking an uploaded fitness file owned by the
+  caller to the newly created status and queuing `ProcessFitnessFileJob` (it
+  answers `422` when combined with `poll`, when the file does not exist or
+  belongs to another actor, or when the file is already attached to a status),
+  and the serialized Mastodon `Status` entity includes an optional `fitness`
+  object (`StatusFitnessFile`) when a fitness file is attached. The web composer
+  (`createNote` and `createPoll` in `lib/client/statuses.ts`) posts through
+  `POST /api/v1/statuses` using these extensions alongside `quoted_status_id`,
+  `quote_approval_policy`, and `Idempotency-Key`; the legacy
+  `POST /api/v1/accounts/outbox` route is kept for backward compatibility.
+- **Atomic `Idempotency-Key` on `POST /api/v1/statuses`** — `Idempotency-Key`
+  (up to 255 characters; a longer key is rejected with `422` before any work)
+  is claimed atomically inside the same database transaction as the status row
+  creation (`createNoteWithResult` / `createPollWithResult` in
+  `lib/database/domains/status/writes.ts`), scoped to `(actorId, key)`, stamped
+  with the time of the request (not a backdated `created_at`), and bound to a
+  SHA-256 `contentHash` of the normalized request payload (`status`,
+  `spoiler_text`, `visibility`, `sensitive`, `language`, `in_reply_to_id`,
+  `quoted_status_id`, `quote_approval_policy`, `media_ids`, `poll`,
+  `fitness_file_id`, `scheduled_at`, `created_at`). A repeat with the same key
+  and identical payload returns `200 OK` with the existing serialized `Status`
+  without creating a second status or enqueuing a second federation delivery;
+  a repeat with the same key and different request parameters returns
+  `422 Unprocessable Entity` (`{ error }`). An immediate (unscheduled) request
+  is checked against its key right after the body parses, before the
+  poll/media, content-limit and `created_at` checks: the hash binds the payload
+  the kept post was accepted with, so a retry is answered with that post even
+  after an admin lowered a limit. A scheduled request does not look its key
+  up; it claims it when it publishes (below). A key stored before content hashing
+  (a `NULL` hash) matches any payload. Concurrent requests for the same
+  `(actorId, key)` in one process wait for the first request's create; across
+  processes the `(actorId, key)` unique constraint inside the status creation
+  transaction picks one winner, and the others answer as a repeat does. Each
+  key records how far its create got (`idempotency_keys.state`): `pending`
+  from the claim, `publishing` while a request is queueing its federation job
+  (stamped with `stateChangedAt`), `publish_failed` when the post was saved but
+  that job could not be queued, and `complete` once the queue has accepted it
+  (keys stored before the column existed are `complete`). After the status row commits, the steps that
+  complete the post (mention, hashtag and emoji tags, attachments, timelines,
+  fitness linking and the hydrating re-read) must all succeed. When one fails,
+  its parallel siblings are allowed to settle, then the not-yet-federated
+  status is deleted locally (no `Delete` is sent) together with this request's
+  key (`discardUnpublishedStatus`), and the route answers `400`, so a retry
+  with the same key creates the post afresh. The discard happens only while the
+  key is still `pending`: if a retry has taken the key over and sent the post
+  (see below), the post is kept as it was left. Queueing `SendNoteJob` /
+  `ProcessFitnessFileJob` is the commit point, on every queue: a queue error
+  is ambiguous (the job may have been accepted, or run inline), so the post is
+  kept, the key moves to `publish_failed`, and the route answers
+  `503 Service Unavailable` (`{ error }`); the deprecated
+  `POST /api/v1/accounts/outbox` answers that `503` too. A retry with the same
+  key queues the job again under the same deterministic job id and answers
+  `200 OK` (or `503` again); without a key nothing re-sends that post. Of the
+  create and its retries, one queues the job at a time: each takes the key to
+  `publishing` with one conditional update first; the queue's acceptance then
+  moves it to `complete` and a queue error to `publish_failed`. When that
+  state write fails the key stays `publishing`, and a retry answers `409`
+  until it is 60 seconds old, then queues the job again under the same id. Best-effort steps (detected language, hashtag
+  counters and search indexing before the publish; the quote request,
+  notifications and alerts, and link preview sync after it, which run even
+  when the publish failed, since the post is kept) are logged on failure and do
+  not change the response. A repeat that finds the key `pending` waits for the create when it
+  runs in the same process. Otherwise it answers `409 Conflict` (`{ error }`,
+  retryable) while the key is younger than 60 seconds
+  (`IDEMPOTENCY_PENDING_STALE_MS`), and after that treats the key as
+  `publish_failed`, since its process most likely stopped: that post is sent
+  as it was left, which can be incomplete if the process died part-way through
+  the completion steps. Such a retry only queues the federation job: the quote
+  request, notifications and alerts, and link preview sync of a create whose
+  process stopped before running them are never run (re-running them could
+  notify twice), and its hashtags are uncounted if it stopped before counting
+  them. A process that stops after taking the key to `publishing` leaves it
+  there, and a retry 60 seconds later queues the job again under the same id;
+  if the queue had in fact accepted it, or the publish ran longer than 60
+  seconds (on the in-process queue, a slow inline fan-out), the job is queued
+  twice, which only QStash and the database queue deduplicate. A repeat that
+  finds the key but not its status re-reads the key, and answers `410` only
+  when the key still names that status; when the create was discarded in
+  between, the repeat creates the post afresh. Deleting a status
+  (`lib/database/domains/status/deletion.ts`) preserves its `idempotency_keys`
+  row as a tombstone, and retrying with the key of a deleted status returns
+  `410 Gone` (`{ error: 'The status associated with this Idempotency-Key was deleted' }`)
+  instead of recreating the post. A scheduled status claims its key (the
+  client's, or `scheduled-<id>`) the same way when it publishes, bound to a hash
+  of its stored params; when that key already belongs to a deleted status or to
+  different content, the scheduled status is dropped with a warning. A publish
+  that would answer `503` or `409` fails the job instead and keeps the scheduled
+  row, so the queue's retry finishes the post through the same key. Keys older
+  than 7 days (`IDEMPOTENCY_KEY_TTL_MS`) are purged by
+  `deleteExpiredIdempotencyKeys` on each tick of the actor-deletion sweep
+  (`startActorDeletionSweep` in `lib/services/actors/actorDeletion.ts`), and
+  erasing an actor deletes all of its keys.
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.

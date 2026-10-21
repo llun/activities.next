@@ -1,16 +1,351 @@
 import { Duration } from '@/lib/services/statuses/pollDurations'
 import { TimelineFormat } from '@/lib/services/timelines/const'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
+import {
+  QuoteApprovalPolicy,
+  QuoteState,
+  Status,
+  StatusNote,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import type { StatusReaction as MastodonStatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { Translation } from '@/lib/types/mastodon/translation'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
 import { parseApiError, throwApiError } from './http'
+
+const parseTimestamp = (value: unknown, fallback: number) => {
+  if (typeof value !== 'string') return fallback
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? fallback : timestamp
+}
+
+const getRecipientsFromVisibility = (
+  visibility: MastodonVisibility,
+  followersUrl: string
+): { to: string[]; cc: string[] } => {
+  switch (visibility) {
+    case 'public':
+      return {
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: followersUrl ? [followersUrl] : []
+      }
+    case 'unlisted':
+      return {
+        to: followersUrl ? [followersUrl] : [],
+        cc: [ACTIVITY_STREAM_PUBLIC]
+      }
+    case 'private':
+      return {
+        to: followersUrl ? [followersUrl] : [],
+        cc: []
+      }
+    case 'direct':
+      return {
+        to: [],
+        cc: []
+      }
+  }
+}
+
+const getMediaTypeFromMastodonType = (type?: string): string => {
+  switch (type) {
+    case 'image':
+      return 'image/jpeg'
+    case 'gifv':
+    case 'video':
+      return 'video/mp4'
+    case 'audio':
+      return 'audio/mpeg'
+    default:
+      return 'application/octet-stream'
+  }
+}
+
+const toCreatedNoteResult = (
+  payload: unknown,
+  params: {
+    message: string
+    contentWarning?: string
+    replyStatus?: Status
+    inReplyToId?: string
+    quotedStatus?: Status
+    quoteApprovalPolicy?: QuoteApprovalPolicy
+    attachments: PostBoxAttachment[]
+    visibility?: MastodonVisibility
+    language?: string | null
+  }
+): { status: Status; attachments: Attachment[] } => {
+  const mastodonStatus = payload as Partial<MastodonStatus>
+  const now = Date.now()
+  const createdAt = parseTimestamp(mastodonStatus.created_at, now)
+  const updatedAt = mastodonStatus.edited_at
+    ? parseTimestamp(mastodonStatus.edited_at, createdAt)
+    : createdAt
+  const statusId = mastodonStatus.uri || mastodonStatus.id || ''
+  const publicId = mastodonStatus.id ?? null
+
+  const account = mastodonStatus.account
+  const actorUri = account?.uri || account?.url || ''
+  let domain = ''
+  let origin = ''
+  if (actorUri) {
+    try {
+      const parsedUrl = new URL(actorUri)
+      domain = parsedUrl.host
+      origin = parsedUrl.origin
+    } catch {
+      domain = ''
+      origin = ''
+    }
+  }
+  const followersUrl = actorUri ? `${actorUri}/followers` : ''
+  const actor: ActorProfile | null = account
+    ? {
+        id: actorUri || account.id,
+        publicId: account.id ?? null,
+        username: account.username ?? '',
+        domain,
+        ...(account.display_name ? { name: account.display_name } : {}),
+        ...(account.note ? { summary: account.note } : {}),
+        ...(account.avatar ? { iconUrl: account.avatar } : {}),
+        ...(account.header ? { headerImageUrl: account.header } : {}),
+        manuallyApprovesFollowers: Boolean(account.locked),
+        tags: Array.isArray(account.emojis)
+          ? account.emojis.map((emoji) => ({
+              type: 'emoji' as const,
+              name: `:${emoji.shortcode}:`,
+              value: emoji.url
+            }))
+          : [],
+        followersUrl,
+        inboxUrl: actorUri ? `${actorUri}/inbox` : '',
+        sharedInboxUrl: origin
+          ? `${origin}/inbox`
+          : actorUri
+            ? `${actorUri}/inbox`
+            : '',
+        followingCount: account.following_count ?? 0,
+        followersCount: account.followers_count ?? 0,
+        statusCount: account.statuses_count ?? 0,
+        lastStatusAt: account.last_status_at
+          ? parseTimestamp(account.last_status_at, createdAt)
+          : null,
+        createdAt: parseTimestamp(account.created_at, createdAt)
+      }
+    : null
+
+  const effectiveVisibility: MastodonVisibility =
+    mastodonStatus.visibility ?? params.visibility ?? 'public'
+  const { to, cc } = getRecipientsFromVisibility(
+    effectiveVisibility,
+    followersUrl
+  )
+
+  const mediaAttachments = Array.isArray(mastodonStatus.media_attachments)
+    ? mastodonStatus.media_attachments
+    : []
+  const storedAttachments: Attachment[] = mediaAttachments.map(
+    (mediaAttachment, index) => {
+      const uploadedAttachment =
+        index < params.attachments.length
+          ? params.attachments[index]
+          : undefined
+      const meta = (
+        'meta' in mediaAttachment ? mediaAttachment.meta : undefined
+      ) as
+        | {
+            original?: { width?: number; height?: number }
+            width?: number
+            height?: number
+          }
+        | null
+        | undefined
+      const width =
+        meta?.original?.width ?? meta?.width ?? uploadedAttachment?.width
+      const height =
+        meta?.original?.height ?? meta?.height ?? uploadedAttachment?.height
+      const mediaType =
+        uploadedAttachment?.mediaType ??
+        (index >= params.attachments.length && mastodonStatus.fitness?.mimeType
+          ? mastodonStatus.fitness.mimeType
+          : getMediaTypeFromMastodonType(mediaAttachment.type))
+
+      return {
+        id: mediaAttachment.id,
+        actorId: actor?.id ?? actorUri,
+        statusId,
+        type: 'Document',
+        mediaType,
+        url: mediaAttachment.url,
+        ...(width !== undefined ? { width } : {}),
+        ...(height !== undefined ? { height } : {}),
+        blurhash: mediaAttachment.blurhash ?? null,
+        thumbnailUrl: mediaAttachment.preview_url ?? null,
+        name:
+          mediaAttachment.description ??
+          uploadedAttachment?.name ??
+          mastodonStatus.fitness?.fileName ??
+          '',
+        mediaId: uploadedAttachment?.id ?? null,
+        createdAt,
+        updatedAt
+      }
+    }
+  )
+
+  const tags: Tag[] = [
+    ...(Array.isArray(mastodonStatus.mentions)
+      ? mastodonStatus.mentions.map((mention, index) => ({
+          id: `${statusId}-mention-${index}`,
+          statusId,
+          type: 'mention' as const,
+          name: `@${mention.acct || mention.username}`,
+          value: mention.url,
+          createdAt,
+          updatedAt
+        }))
+      : []),
+    ...(Array.isArray(mastodonStatus.tags)
+      ? mastodonStatus.tags.map((tag, index) => ({
+          id: `${statusId}-hashtag-${index}`,
+          statusId,
+          type: 'hashtag' as const,
+          name: tag.name.startsWith('#') ? tag.name : `#${tag.name}`,
+          value: tag.url,
+          createdAt,
+          updatedAt
+        }))
+      : []),
+    ...(Array.isArray(mastodonStatus.emojis)
+      ? mastodonStatus.emojis.map((emoji, index) => ({
+          id: `${statusId}-emoji-${index}`,
+          statusId,
+          type: 'emoji' as const,
+          name: `:${emoji.shortcode}:`,
+          value: emoji.url,
+          createdAt,
+          updatedAt
+        }))
+      : [])
+  ]
+
+  const quoteEdge = (() => {
+    if (mastodonStatus.quote) {
+      const parsedState = QuoteState.safeParse(mastodonStatus.quote.state)
+      const state: QuoteState = parsedState.success
+        ? parsedState.data
+        : 'accepted'
+      const quotedTarget =
+        'quoted_status' in mastodonStatus.quote &&
+        mastodonStatus.quote.quoted_status
+          ? (mastodonStatus.quote.quoted_status as Partial<MastodonStatus>)
+          : null
+      const quotedStatusId =
+        params.quotedStatus?.id ??
+        quotedTarget?.uri ??
+        quotedTarget?.id ??
+        ('quoted_status_id' in mastodonStatus.quote
+          ? mastodonStatus.quote.quoted_status_id
+          : null) ??
+        ''
+      if (quotedStatusId) {
+        const quotedOriginal = params.quotedStatus
+          ? getOriginalStatus(params.quotedStatus)
+          : null
+        return {
+          quotedStatusId,
+          quotedStatusUrl:
+            quotedTarget?.url ?? quotedOriginal?.url ?? quotedStatusId,
+          state
+        }
+      }
+    }
+    if (params.quotedStatus?.id) {
+      const quotedOriginal = getOriginalStatus(params.quotedStatus)
+      return {
+        quotedStatusId: params.quotedStatus.id,
+        quotedStatusUrl: quotedOriginal.url || params.quotedStatus.id,
+        state: 'accepted' as const
+      }
+    }
+    return undefined
+  })()
+
+  const resolvedQuotePolicy: QuoteApprovalPolicy | undefined = (() => {
+    const automatic = mastodonStatus.quote_approval?.automatic
+    if (Array.isArray(automatic)) {
+      if (automatic.includes('public')) return 'public'
+      if (automatic.includes('followers')) return 'followers'
+      return 'nobody'
+    }
+    return params.quoteApprovalPolicy
+  })()
+
+  const spoilerText =
+    mastodonStatus.spoiler_text !== undefined
+      ? mastodonStatus.spoiler_text
+      : (params.contentWarning ?? '')
+
+  const status: StatusNote = {
+    id: statusId,
+    publicId,
+    url: mastodonStatus.url || statusId,
+    actorId: actor?.id ?? actorUri,
+    actor,
+    type: StatusType.enum.Note,
+    text:
+      typeof mastodonStatus.text === 'string'
+        ? mastodonStatus.text
+        : params.message,
+    summary: spoilerText.trim().length > 0 ? spoilerText : null,
+    sensitive: Boolean(mastodonStatus.sensitive),
+    language: mastodonStatus.language ?? params.language ?? null,
+    applicationName: mastodonStatus.application?.name ?? null,
+    applicationWebsite: mastodonStatus.application?.website ?? null,
+    to,
+    cc,
+    edits: [],
+    reply:
+      params.replyStatus?.id ??
+      params.inReplyToId ??
+      mastodonStatus.in_reply_to_id ??
+      '',
+    replies: [],
+    totalReplies: mastodonStatus.replies_count ?? 0,
+    actorAnnounceStatusId: null,
+    isActorLiked: Boolean(mastodonStatus.favourited),
+    isActorBookmarked: Boolean(mastodonStatus.bookmarked),
+    isLocalActor: true,
+    totalLikes: mastodonStatus.favourites_count ?? 0,
+    totalShares: mastodonStatus.reblogs_count ?? 0,
+    reactions:
+      mastodonStatus.pleroma?.emoji_reactions ?? mastodonStatus.reactions ?? [],
+    attachments: storedAttachments,
+    tags,
+    ...(mastodonStatus.fitness ? { fitness: mastodonStatus.fitness } : {}),
+    ...(quoteEdge ? { quote: quoteEdge } : {}),
+    ...(resolvedQuotePolicy
+      ? { quoteApprovalPolicy: resolvedQuotePolicy }
+      : {}),
+    createdAt,
+    updatedAt
+  }
+
+  return {
+    status,
+    attachments: storedAttachments
+  }
+}
 
 export interface CreateNoteParams {
   message: string
@@ -23,6 +358,7 @@ export interface CreateNoteParams {
   fitnessFileId?: string
   visibility?: MastodonVisibility
   language?: string | null
+  idempotencyKey?: string
 }
 
 export const createNote = async ({
@@ -35,7 +371,8 @@ export const createNote = async ({
   attachments = [],
   fitnessFileId,
   visibility,
-  language
+  language,
+  idempotencyKey
 }: CreateNoteParams) => {
   if (
     message.trim().length === 0 &&
@@ -45,23 +382,28 @@ export const createNote = async ({
     throw new Error('Message or attachments must not be empty')
   }
 
-  const response = await fetch('/api/v1/accounts/outbox', {
+  const resolvedReplyId = inReplyToId ?? replyStatus?.id
+  const resolvedIdempotencyKey = idempotencyKey?.trim() || generatePublicId()
+  const mediaIds = attachments.map((attachment) => attachment.id)
+
+  const response = await fetch('/api/v1/statuses', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Idempotency-Key': resolvedIdempotencyKey
     },
     body: JSON.stringify({
-      type: 'note',
-      replyStatus,
-      inReplyToId: inReplyToId ?? replyStatus?.id,
-      message,
-      contentWarning,
-      attachments,
-      fitnessFileId,
-      quotedStatusId: quotedStatus?.id,
-      quoteApprovalPolicy,
-      visibility,
-      language
+      status: message,
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
+      ...(resolvedReplyId ? { in_reply_to_id: resolvedReplyId } : {}),
+      ...(quotedStatus?.id ? { quoted_status_id: quotedStatus.id } : {}),
+      ...(quoteApprovalPolicy
+        ? { quote_approval_policy: quoteApprovalPolicy }
+        : {}),
+      ...(mediaIds.length > 0 ? { media_ids: mediaIds } : {}),
+      ...(fitnessFileId ? { fitness_file_id: fitnessFileId } : {}),
+      ...(visibility ? { visibility } : {}),
+      ...(language ? { language } : {})
     })
   })
   if (response.status !== 200) {
@@ -69,10 +411,17 @@ export const createNote = async ({
   }
 
   const json = await response.json()
-  return {
-    status: json.status as Status,
-    attachments: json.attachments as Attachment[]
-  }
+  return toCreatedNoteResult(json, {
+    message,
+    contentWarning,
+    replyStatus,
+    inReplyToId: resolvedReplyId,
+    quotedStatus,
+    quoteApprovalPolicy,
+    attachments,
+    visibility,
+    language
+  })
 }
 
 export interface UpdateNoteParams {
@@ -95,12 +444,6 @@ export interface UpdateNoteResult {
     updatedAt?: number
     reply: string
   }
-}
-
-const parseTimestamp = (value: unknown, fallback: number) => {
-  if (typeof value !== 'string') return fallback
-  const timestamp = Date.parse(value)
-  return Number.isNaN(timestamp) ? fallback : timestamp
 }
 
 export const updateNote = async ({
@@ -209,6 +552,7 @@ export interface CreatePollParams {
   inReplyToId?: string
   visibility?: MastodonVisibility
   language?: string | null
+  idempotencyKey?: string
 }
 
 export const createPoll = async ({
@@ -220,7 +564,8 @@ export const createPoll = async ({
   replyStatus,
   inReplyToId,
   visibility,
-  language
+  language,
+  idempotencyKey
 }: CreatePollParams) => {
   if (message.trim().length === 0 && choices.length === 0) {
     throw new Error('Message or choices must not be empty')
@@ -232,22 +577,26 @@ export const createPoll = async ({
     }
   }
 
-  const response = await fetch('/api/v1/accounts/outbox', {
+  const resolvedReplyId = inReplyToId ?? replyStatus?.id
+  const resolvedIdempotencyKey = idempotencyKey?.trim() || generatePublicId()
+
+  const response = await fetch('/api/v1/statuses', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Idempotency-Key': resolvedIdempotencyKey
     },
     body: JSON.stringify({
-      type: 'poll',
-      replyStatus,
-      inReplyToId: inReplyToId ?? replyStatus?.id,
-      message,
-      contentWarning,
-      durationInSeconds,
-      pollType,
-      choices,
-      visibility,
-      language
+      status: message,
+      ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
+      ...(resolvedReplyId ? { in_reply_to_id: resolvedReplyId } : {}),
+      ...(visibility ? { visibility } : {}),
+      ...(language ? { language } : {}),
+      poll: {
+        options: choices,
+        expires_in: durationInSeconds,
+        ...(pollType ? { multiple: pollType === 'anyOf' } : {})
+      }
     })
   })
   if (response.status !== 200) {

@@ -88,6 +88,7 @@ type PreviewProps = {
   host: string
   status?: Status
   onClose?: () => void
+  disabled?: boolean
 }
 
 // The quote and reply previews share one contract, differing only in the
@@ -149,6 +150,23 @@ describe.each([
       fireEvent.click(screen.getByRole('button', { name: dismissLabel }))
 
       expect(mockOnClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('disables the dismiss button while the draft is locked', () => {
+      const status = createMockStatus()
+      render(
+        <Preview
+          host="example.com"
+          status={status}
+          onClose={mockOnClose}
+          disabled
+        />
+      )
+
+      const closeButton = screen.getByRole('button', { name: dismissLabel })
+      expect(closeButton).toBeDisabled()
+      fireEvent.click(closeButton)
+      expect(mockOnClose).not.toHaveBeenCalled()
     })
 
     it('has type="button" to prevent form submission', () => {

@@ -12,7 +12,8 @@ const STATUS_STRING_FIELDS = [
   'visibility',
   'language',
   'scheduled_at',
-  'created_at'
+  'created_at',
+  'fitness_file_id'
 ] as const
 
 const MEDIA_ID_FIELDS = ['media_ids', 'media_ids[]'] as const
