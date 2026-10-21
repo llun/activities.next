@@ -31,7 +31,7 @@ export const DomainReportsBox: FC<Props> = ({
         >
           {count}
         </span>
-        <div className="min-w-0 flex-1 text-sm">
+        <div className="min-w-0 flex-1 text-sm break-words">
           <p className="font-medium">
             {openReports === 0
               ? `No open reports about profiles on ${domain}`

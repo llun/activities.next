@@ -27,8 +27,8 @@ const Page = async ({ searchParams }: Props) => {
   const admin = await getAdminFromSession(database, session)
   if (!admin) return redirect('/')
 
-  // The filter and the Domain column show only while more than one domain is
-  // served, and the filter only takes a served domain.
+  // The Domain select and column show only while more than one domain is
+  // served; the filter itself takes any served domain.
   const { domains } = await getAdminDomainList(database)
   const servedDomains = domains.map((item) => item.domain)
   const { domain: rawDomain } = await searchParams
@@ -36,9 +36,7 @@ const Page = async ({ searchParams }: Props) => {
     (Array.isArray(rawDomain) ? rawDomain[0] : rawDomain) ?? ''
   )
   const domain =
-    servedDomains.length > 1 && requested && servedDomains.includes(requested)
-      ? requested
-      : null
+    requested && servedDomains.includes(requested) ? requested : null
   const { count: open, capped } = countOpenReports(
     domain
       ? (

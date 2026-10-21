@@ -85,10 +85,12 @@ describe('/admin/reports loader', () => {
     expect(getAdminReports).not.toHaveBeenCalled()
   })
 
-  it('ignores the choice while only one domain is served', async () => {
+  it('still honors a served domain while only one domain is served', async () => {
     mockDomains.mockResolvedValue({ domains: [{ domain: 'run.example' }] })
-    const { list } = await load('run.example')
-    expect(list.domain).toBeNull()
+    const { header, list } = await load('run.example')
+    expect(list.domain).toBe('run.example')
+    expect(list.servedDomains).toEqual(['run.example'])
+    expect(header.description).toContain('2 open reports')
   })
 
   it('shows exactly the cap as is, and asks for one more to tell', async () => {

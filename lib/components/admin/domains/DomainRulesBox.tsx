@@ -328,8 +328,12 @@ export const DomainRulesBox: FC<Props> = ({
                     // row is draggable only while armed by the grip). A text
                     // drag from the field bubbles here and is left alone.
                     if (saving || event.target !== event.currentTarget) return
-                    // Firefox starts no drag without data.
-                    event.dataTransfer.setData('text/plain', draft.text)
+                    // Firefox starts no drag without data. A custom type, not
+                    // text/plain, so no text field accepts the row as a drop.
+                    event.dataTransfer.setData(
+                      'application/x-domain-rule',
+                      draft.key
+                    )
                     event.dataTransfer.effectAllowed = 'move'
                     setDragIndex(index)
                   }}
@@ -344,11 +348,14 @@ export const DomainRulesBox: FC<Props> = ({
                     )
                   }
                   onDrop={(event) => {
-                    event.preventDefault()
+                    // Only a row drag is handled: native text drops into the
+                    // fields keep their default.
                     const from = dragIndex
+                    if (from === null) return
+                    event.preventDefault()
                     setDragIndex(null)
                     setOverIndex(null)
-                    if (from !== null) moveRule(from, index)
+                    moveRule(from, index)
                   }}
                   onDragEnd={() => {
                     setArmedKey(null)
@@ -407,7 +414,11 @@ export const DomainRulesBox: FC<Props> = ({
                     className="min-h-9 flex-1 resize-none py-1.5"
                     onKeyDown={(event) => {
                       // A rule is one line: Enter must not start a second one.
-                      if (event.key === 'Enter') event.preventDefault()
+                      if (
+                        event.key === 'Enter' &&
+                        !event.nativeEvent.isComposing
+                      )
+                        event.preventDefault()
                     }}
                     onChange={(event) =>
                       edit((current) =>

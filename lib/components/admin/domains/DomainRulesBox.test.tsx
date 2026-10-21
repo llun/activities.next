@@ -225,12 +225,25 @@ describe('DomainRulesBox', () => {
     )
     expect(row(3)).toHaveAttribute('draggable', 'true')
     fireEvent.dragStart(row(3), { dataTransfer })
+    // A custom type, so no text field accepts the row as a drop.
     expect(dataTransfer.setData).toHaveBeenCalledWith(
+      'application/x-domain-rule',
+      expect.any(String)
+    )
+    expect(dataTransfer.setData).not.toHaveBeenCalledWith(
       'text/plain',
-      'Share only routes you may share'
+      expect.anything()
     )
     fireEvent.drop(row(4), { dataTransfer })
     expect(field(3)).toHaveValue('Keep home addresses private')
+  })
+
+  it('leaves a drop alone when no row drag is active', () => {
+    renderBox()
+    const field = screen.getByRole('textbox', { name: 'Rule 3 text' })
+    expect(fireEvent.drop(field, { dataTransfer: { setData: vi.fn() } })).toBe(
+      true
+    )
   })
 
   it('stops being draggable after the pointer is released', () => {
@@ -262,6 +275,14 @@ describe('DomainRulesBox', () => {
     renderBox()
     const field = screen.getByRole('textbox', { name: 'Rule 3 text' })
     expect(fireEvent.keyDown(field, { key: 'Enter' })).toBe(false)
+  })
+
+  it('lets Enter through while an IME composition is active', () => {
+    renderBox()
+    const field = screen.getByRole('textbox', { name: 'Rule 3 text' })
+    expect(fireEvent.keyDown(field, { key: 'Enter', isComposing: true })).toBe(
+      true
+    )
   })
 
   it('will not save a rule with its text cleared', () => {
