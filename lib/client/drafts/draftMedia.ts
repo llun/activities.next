@@ -1,7 +1,7 @@
 import { deleteFitnessFile } from '@/lib/client/fitnessRoutes'
 import { deleteUnpostedMedia } from '@/lib/client/media'
 
-import { deleteDraft } from './draftsDb'
+import { deleteDraftIfRevision } from './draftsDb'
 import type { DraftBlobRecord, DraftRecord } from './types'
 
 /** Rebuilds the `File` a composer uploads from the stored bytes. */
@@ -52,8 +52,12 @@ export const fileToBlobRecord = async ({
 })
 
 /**
- * Deletes the draft record first (one transaction, blobs included), then, best
- * effort and in parallel, the server-side uploads it owns:
+ * Deletes the draft record first (one transaction that checks `draft.revision`,
+ * blobs included), then, best effort and in parallel, the server-side uploads
+ * the record that transaction actually deleted owns. The caller's `draft` is
+ * only a snapshot: a draft already gone deletes no media, and a revision
+ * mismatch rejects with `DraftConflictError`, also with no media deletion.
+ * The uploads:
  * - `deleteUnpostedMedia` for owned media (a 422 means a status uses it);
  * - `deleteFitnessFile` only when the draft owns the file and never attempted a
  *   create, because that endpoint has no in-use guard and a kept post may use
@@ -65,16 +69,17 @@ export const fileToBlobRecord = async ({
 export const deleteDraftAndOwnedMedia = async (
   draft: DraftRecord
 ): Promise<void> => {
-  await deleteDraft(draft.id)
+  const deleted = await deleteDraftIfRevision(draft.id, draft.revision)
+  if (!deleted) return
 
   const deletions: Promise<unknown>[] = []
-  for (const attachment of draft.attachments) {
+  for (const attachment of deleted.attachments) {
     if (attachment.owned && attachment.mediaId) {
       deletions.push(deleteUnpostedMedia(attachment.mediaId))
     }
   }
-  const fitnessFile = draft.fitnessFile
-  if (fitnessFile?.owned && fitnessFile.fitnessFileId && !draft.attemptedAt) {
+  const fitnessFile = deleted.fitnessFile
+  if (fitnessFile?.owned && fitnessFile.fitnessFileId && !deleted.attemptedAt) {
     deletions.push(deleteFitnessFile(fitnessFile.fitnessFileId))
   }
   // A courtesy step: the draft is already gone, so a failure only orphans.

@@ -226,6 +226,42 @@ describe('connection store', () => {
     unsubscribe()
   })
 
+  it('resumes probing when a subscriber attaches while visible, disconnected and idle', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockResolvedValue(false)
+    const first = subscribeConnection(() => {})
+    await probeNow()
+    setVisibility('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    first() // last subscriber: probing and listeners stop while hidden
+    setVisibility('visible') // no listener sees this
+    mockHealth.mockClear()
+
+    const second = subscribeConnection(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(mockHealth).toHaveBeenCalledTimes(1)
+    second()
+  })
+
+  it('does not probe at subscribe while online, or while a timer is already pending', async () => {
+    vi.useFakeTimers()
+    mockHealth.mockResolvedValue(false)
+    const first = subscribeConnection(() => {})
+    first()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mockHealth).not.toHaveBeenCalled()
+
+    const second = subscribeConnection(() => {})
+    await probeNow() // down with a timer scheduled
+    mockHealth.mockClear()
+    const third = subscribeConnection(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mockHealth).not.toHaveBeenCalled()
+    second()
+    third()
+  })
+
   it('does not probe on visibilitychange while online', async () => {
     const unsubscribe = subscribeConnection(() => {})
 

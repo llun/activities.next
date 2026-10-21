@@ -16,6 +16,7 @@ import {
   deleteAccountDrafts,
   deleteDraft,
   deleteDraftBlob,
+  deleteDraftIfRevision,
   getAccountEpoch,
   getDraft,
   getDraftBlob,
@@ -303,6 +304,25 @@ describe('draftsDb', () => {
       expect(await getDraftBlob('la2')).toBeUndefined()
       expect(await getDraft('b')).toBeDefined()
       expect(await getDraftBlob('lb')).toBeDefined()
+    })
+
+    it('deleteDraftIfRevision returns and removes the draft and its blobs, or touches nothing', async () => {
+      const saved = await saveDraft(draft({ id: 'a' }), {
+        expectedRevision: 0,
+        epoch: 0
+      })
+      await putDraftBlob(blob('l1', 'a'), { accountId: 'account-1', epoch: 0 })
+
+      await expect(deleteDraftIfRevision('a', 99)).rejects.toBeInstanceOf(
+        DraftConflictError
+      )
+      expect(await getDraft('a')).toBeDefined()
+      expect(await getDraftBlob('l1')).toBeDefined()
+
+      expect(await deleteDraftIfRevision('a', saved.revision)).toEqual(saved)
+      expect(await getDraft('a')).toBeUndefined()
+      expect(await getDraftBlob('l1')).toBeUndefined()
+      expect(await deleteDraftIfRevision('a', saved.revision)).toBeUndefined()
     })
 
     it('deleteDraftBlob removes one blob', async () => {

@@ -1,3 +1,5 @@
+import { IDBFactory } from 'fake-indexeddb'
+
 import { deleteAccountMedia } from '@/lib/client/accounts'
 import { deleteFitnessFile } from '@/lib/client/fitnessRoutes'
 import { deleteUnpostedMedia } from '@/lib/client/media'
@@ -8,13 +10,20 @@ import {
   deleteDraftAndOwnedMedia,
   fileToBlobRecord
 } from './draftMedia'
-import { deleteDraft } from './draftsDb'
+import {
+  DraftConflictError,
+  DraftsUnavailableError,
+  deleteDraft,
+  getDraft,
+  resetDraftsDbForTesting,
+  saveDraft,
+  setDraftsIndexedDBFactory
+} from './draftsDb'
 import type { DraftAttachment, DraftRecord } from './types'
 
 vi.mock('@/lib/client/media', () => ({ deleteUnpostedMedia: vi.fn() }))
 vi.mock('@/lib/client/accounts', () => ({ deleteAccountMedia: vi.fn() }))
 vi.mock('@/lib/client/fitnessRoutes', () => ({ deleteFitnessFile: vi.fn() }))
-vi.mock('./draftsDb', () => ({ deleteDraft: vi.fn() }))
 
 const attachment = (patch: Partial<DraftAttachment>): DraftAttachment => ({
   localId: 'l',
@@ -55,40 +64,45 @@ const fitness = (patch = {}) => ({
   ...patch
 })
 
+// Real IndexedDB: the deletion must read and delete the stored row atomically.
+const store = (patch: Partial<DraftRecord> = {}): Promise<DraftRecord> =>
+  saveDraft(draft(patch), { expectedRevision: 0, epoch: 0 })
+
 describe('deleteDraftAndOwnedMedia', () => {
   beforeEach(() => {
-    vi.mocked(deleteDraft).mockReset().mockResolvedValue(undefined)
+    setDraftsIndexedDBFactory(new IDBFactory())
     vi.mocked(deleteUnpostedMedia).mockReset().mockResolvedValue(undefined)
     vi.mocked(deleteFitnessFile).mockReset().mockResolvedValue(undefined)
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+    setDraftsIndexedDBFactory(null)
+    resetDraftsDbForTesting()
+  })
+
   it('deletes the draft record before any media', async () => {
-    const order: string[] = []
-    vi.mocked(deleteDraft).mockImplementation(async () => {
-      order.push('draft')
-    })
+    const saved = await store({ attachments: [attachment({ mediaId: 'm1' })] })
     vi.mocked(deleteUnpostedMedia).mockImplementation(async () => {
-      order.push('media')
+      // The record is already gone when media deletion starts.
+      expect(await getDraft('d1')).toBeUndefined()
     })
 
-    await deleteDraftAndOwnedMedia(
-      draft({ attachments: [attachment({ mediaId: 'm1' })] })
-    )
+    await deleteDraftAndOwnedMedia(saved)
 
-    expect(deleteDraft).toHaveBeenCalledWith('d1')
-    expect(order).toEqual(['draft', 'media'])
+    expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('m1')
   })
 
   it('deletes only owned, uploaded media, and never calls deleteAccountMedia', async () => {
-    await deleteDraftAndOwnedMedia(
-      draft({
-        attachments: [
-          attachment({ localId: '1', mediaId: 'owned' }),
-          attachment({ localId: '2', mediaId: 'borrowed', owned: false }),
-          attachment({ localId: '3', owned: true }) // not uploaded yet
-        ]
-      })
-    )
+    const saved = await store({
+      attachments: [
+        attachment({ localId: '1', mediaId: 'owned' }),
+        attachment({ localId: '2', mediaId: 'borrowed', owned: false }),
+        attachment({ localId: '3', owned: true }) // not uploaded yet
+      ]
+    })
+
+    await deleteDraftAndOwnedMedia(saved)
 
     expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('owned')
     expect(deleteAccountMedia).not.toHaveBeenCalled()
@@ -98,54 +112,88 @@ describe('deleteDraftAndOwnedMedia', () => {
     vi.mocked(deleteUnpostedMedia).mockRejectedValue(
       new Error('This photo is in a post, so it can’t be deleted.')
     )
+    const saved = await store({ attachments: [attachment({ mediaId: 'm1' })] })
 
-    await expect(
-      deleteDraftAndOwnedMedia(
-        draft({ attachments: [attachment({ mediaId: 'm1' })] })
-      )
-    ).resolves.toBeUndefined()
+    await expect(deleteDraftAndOwnedMedia(saved)).resolves.toBeUndefined()
   })
 
   it('deletes the fitness file only when owned and never attempted', async () => {
-    await deleteDraftAndOwnedMedia(draft({ fitnessFile: fitness() }))
+    await deleteDraftAndOwnedMedia(await store({ fitnessFile: fitness() }))
     expect(deleteFitnessFile).toHaveBeenCalledExactlyOnceWith('fit-1')
 
     vi.mocked(deleteFitnessFile).mockClear()
     await deleteDraftAndOwnedMedia(
-      draft({ fitnessFile: fitness(), attemptedAt: 5 })
+      await store({ id: 'd2', fitnessFile: fitness(), attemptedAt: 5 })
     )
     await deleteDraftAndOwnedMedia(
-      draft({ fitnessFile: fitness({ owned: false }) })
+      await store({ id: 'd3', fitnessFile: fitness({ owned: false }) })
     )
     await deleteDraftAndOwnedMedia(
-      draft({ fitnessFile: fitness({ fitnessFileId: undefined }) })
+      await store({
+        id: 'd4',
+        fitnessFile: fitness({ fitnessFileId: undefined })
+      })
     )
     expect(deleteFitnessFile).not.toHaveBeenCalled()
   })
 
   it('deletes nothing for a locked draft, whose media is no longer owned', async () => {
-    await deleteDraftAndOwnedMedia(
-      draft({
-        lockedMessage: 'Saved on the server',
-        attemptedAt: 5,
-        attachments: [attachment({ mediaId: 'm1', owned: false })],
-        fitnessFile: fitness({ owned: false })
-      })
-    )
+    const saved = await store({
+      lockedMessage: 'Saved on the server',
+      attemptedAt: 5,
+      attachments: [attachment({ mediaId: 'm1', owned: false })],
+      fitnessFile: fitness({ owned: false })
+    })
 
-    expect(deleteDraft).toHaveBeenCalledOnce()
+    await deleteDraftAndOwnedMedia(saved)
+
+    expect(await getDraft('d1')).toBeUndefined()
     expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     expect(deleteFitnessFile).not.toHaveBeenCalled()
   })
 
   it('does not touch media when deleting the record fails', async () => {
-    vi.mocked(deleteDraft).mockRejectedValue(new Error('unavailable'))
+    const saved = await store({ attachments: [attachment({ mediaId: 'm1' })] })
+    setDraftsIndexedDBFactory(null) // no indexedDB in this environment
+
+    await expect(deleteDraftAndOwnedMedia(saved)).rejects.toBeInstanceOf(
+      DraftsUnavailableError
+    )
+    expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+  })
+
+  it('deletes no media when another tab already posted and released the draft', async () => {
+    // Tab B holds this unattempted snapshot; tab A posts (attemptedAt set,
+    // saved), then releases the draft, deleting the row.
+    const staleSnapshot = await store({
+      attachments: [attachment({ mediaId: 'm1' })],
+      fitnessFile: fitness()
+    })
+    await saveDraft(
+      { ...staleSnapshot, attemptedAt: 5 },
+      { expectedRevision: staleSnapshot.revision, epoch: 0 }
+    )
+    await deleteDraft('d1')
+
+    await deleteDraftAndOwnedMedia(staleSnapshot)
+
+    expect(deleteFitnessFile).not.toHaveBeenCalled()
+    expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+  })
+
+  it('rejects on a revision conflict and deletes neither the row nor any media', async () => {
+    const staleSnapshot = await store({ fitnessFile: fitness() })
+    await saveDraft(
+      { ...staleSnapshot, attemptedAt: 5 },
+      { expectedRevision: staleSnapshot.revision, epoch: 0 }
+    )
 
     await expect(
-      deleteDraftAndOwnedMedia(
-        draft({ attachments: [attachment({ mediaId: 'm1' })] })
-      )
-    ).rejects.toThrow('unavailable')
+      deleteDraftAndOwnedMedia(staleSnapshot)
+    ).rejects.toBeInstanceOf(DraftConflictError)
+
+    expect(await getDraft('d1')).toBeDefined()
+    expect(deleteFitnessFile).not.toHaveBeenCalled()
     expect(deleteUnpostedMedia).not.toHaveBeenCalled()
   })
 })

@@ -161,6 +161,10 @@ const removeWindowListeners = () => {
 export const subscribeConnection = (listener: () => void): (() => void) => {
   listeners.add(listener)
   installWindowListeners()
+  // Probing stops with the last subscriber while hidden; resume it here.
+  if (snapshot.state !== 'online' && isVisible() && !inflight && !timer) {
+    void probeNow()
+  }
   return () => {
     listeners.delete(listener)
     if (listeners.size === 0) removeWindowListeners()

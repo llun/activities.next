@@ -392,6 +392,40 @@ export const deleteDraft = (id: string): Promise<void> =>
   })
 
 /**
+ * One transaction: reads the draft, checks `expectedRevision`, deletes it and
+ * its blobs, and returns the record that was actually deleted. A missing draft
+ * resolves `undefined` (nothing deleted); a different revision rejects with
+ * `DraftConflictError`. Media cleanup must use only the returned record, never
+ * a stale snapshot.
+ */
+export const deleteDraftIfRevision = (
+  id: string,
+  expectedRevision: number
+): Promise<DraftRecord | undefined> =>
+  runTx<DraftRecord | undefined>(
+    [DRAFTS_STORE, BLOBS_STORE],
+    'readwrite',
+    (tx, { done, fail, guard }) => {
+      const drafts = tx.objectStore(DRAFTS_STORE)
+      const request = drafts.get(id)
+      request.onsuccess = guard(() => {
+        const existing = request.result as DraftRecord | undefined
+        if (!existing) return
+        if (existing.revision !== expectedRevision) {
+          return fail(new DraftConflictError())
+        }
+        drafts.delete(id)
+        const blobs = tx.objectStore(BLOBS_STORE)
+        const keys = blobs.index('byDraft').getAllKeys(id)
+        keys.onsuccess = guard(() => {
+          for (const key of keys.result) blobs.delete(key)
+        })
+        done(existing)
+      })
+    }
+  )
+
+/**
  * Sign-out: bumps the account's epoch and deletes its drafts and blobs in one
  * transaction. A tab that still holds the old epoch has its next write abort
  * inside its own transaction, so a debounced save can't land afterwards.
