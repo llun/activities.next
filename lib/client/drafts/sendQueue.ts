@@ -491,9 +491,16 @@ const sendOne = async (
       draft.submit?.fingerprint === request.fingerprint
         ? draft.submit.key
         : generatePublicId()
+    // Pause pressed before the POST went out: nothing is on the wire yet, so
+    // send nothing; the retry this settles as joins the pause.
+    let pausedFirst = false
     try {
       draft = await deps.updateQueuedDraft(draft.id, draft.revision, (r) => {
         if (!r.queue) throw new Error('The draft is no longer queued')
+        if (r.queue.pauseRequested) {
+          pausedFirst = true
+          return r
+        }
         return {
           ...r,
           submit: { key, fingerprint: request.fingerprint },
@@ -507,6 +514,14 @@ const sendOne = async (
       })
     } catch {
       return null
+    }
+    if (pausedFirst) {
+      return {
+        draft,
+        outcome: draft.queue?.firstAttemptAt
+          ? { kind: 'checking', nextAttemptAt: now }
+          : { kind: 'waiting', nextAttemptAt: now }
+      }
     }
 
     posting = true
@@ -704,9 +719,10 @@ export const drainQueue = async ({
       })
       .catch(() => null)
     if (!claimed) {
-      // A dead tab's send the reader paused was taken back as paused, not
-      // claimed: the list still shows it "Sending" until told.
-      if (item.queue?.pauseRequested) deps.announce(item.id)
+      // Listed as claimable yet not claimed: it changed since (a dead tab's
+      // send the reader paused is taken back as paused), so an open list
+      // that still shows it "Sending" re-reads.
+      deps.announce(item.id)
       continue
     }
     // The list re-reads, so the row shows it is being sent.

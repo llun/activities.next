@@ -999,6 +999,31 @@ describe('drainQueue', () => {
       })
     })
 
+    it('announces a dead tab’s post taken back after a Pause pressed mid-drain', async () => {
+      await store(draft('first', { queuedAt: NOW - 20 }))
+      await store(
+        draft('dead', {
+          queuedAt: NOW - 10,
+          state: 'sending',
+          attempts: 1,
+          firstAttemptAt: NOW - 120_000,
+          claim: { tabId: 'dead-tab', until: NOW - 1 }
+        })
+      )
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          await pauseQueue({ actorId: 'actor-1' })
+          throw new TypeError('Load failed')
+        })
+      })
+      await drain(deps)
+      expect((await getDraft('dead'))?.queue).toMatchObject({
+        state: 'paused',
+        pausedBy: 'user'
+      })
+      expect(deps.announce).toHaveBeenCalledWith('dead')
+    })
+
     it('does not pause a new post because of an earlier Pause left standing', async () => {
       await store(draft('old', { state: 'paused', pausedBy: 'user' }))
       await store(draft('new'))
@@ -1125,6 +1150,29 @@ describe('drainQueue', () => {
         await storeBlob('local-1', id)
         await storeBlob('local-2', id)
       }
+
+      it('sends nothing when Pause is pressed during its uploads', async () => {
+        await queuedPhotos()
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>(async () => {
+            await pauseQueue({ actorId: 'actor-1' })
+            return media(
+              `m${vi.mocked(deps.uploadAttachment).mock.calls.length}`
+            )
+          })
+        })
+        const result = await drain(deps)
+        expect(deps.createNote).not.toHaveBeenCalled()
+        expect(result.paused).toBe(1)
+        const stored = await getDraft('a')
+        expect(stored?.queue).toMatchObject({
+          state: 'paused',
+          pausedBy: 'user'
+        })
+        // Nothing went out, so it was never attempted.
+        expect(stored?.attemptedAt).toBeUndefined()
+        expect(stored?.queue).not.toHaveProperty('firstAttemptAt')
+      })
 
       it('persists each id before the next upload and before the POST', async () => {
         await queuedPhotos()
