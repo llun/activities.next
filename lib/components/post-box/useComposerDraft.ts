@@ -883,7 +883,17 @@ export const useComposerDraft = ({
       await s.chain
       if (s.d !== d || blocked()) return abandon()
       if (queue) {
-        d.queue = { state: 'waiting', queuedAt: Date.now(), attempts: 0 }
+        // A POST may have landed (a locked draft): the sender resends the same
+        // key and skips pre-flight.
+        const attemptedAt = d.submit ? d.attemptedAt : undefined
+        d.queue = attemptedAt
+          ? {
+              state: 'checking',
+              queuedAt: Date.now(),
+              attempts: 0,
+              firstAttemptAt: attemptedAt
+            }
+          : { state: 'waiting', queuedAt: Date.now(), attempts: 0 }
       }
       const saved = await saveNow(true)
       const ctx = live.current.drafts

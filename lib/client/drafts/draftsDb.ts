@@ -574,11 +574,15 @@ export const renewClaim = (
     })
   })
 
+export const ATTEMPTED_UNQUEUE_MESSAGE =
+  'This post may already have been sent. Press Post to retry it as it is, or discard it.'
+
 /**
  * Takes a draft out of the queue for Review/Edit and returns the new record,
  * which the editor seeds from. Refuses with `DraftBusyError` while a send is
  * unresolved (`sending`, even with an expired lease, or `checking`): only the
- * same key may settle it. Keeps `submit`, `attemptedAt` and `lockedMessage`.
+ * same key may settle it. Keeps `submit`, `attemptedAt` and `lockedMessage`;
+ * an attempted draft without one is locked (media `owned: false`).
  */
 export const unqueueDraft = (
   id: string,
@@ -598,8 +602,24 @@ export const unqueueDraft = (
           return fail(new DraftBusyError())
         }
         const { queue: _queue, ...rest } = existing
+        const attempted =
+          !!existing.queue.firstAttemptAt ||
+          (!!existing.attemptedAt && !!existing.submit)
+        // A POST may have landed: reopen locked under the same key, never re-keyed.
         const unqueued: DraftRecord = {
           ...rest,
+          ...(attempted && !existing.lockedMessage
+            ? {
+                lockedMessage: ATTEMPTED_UNQUEUE_MESSAGE,
+                attachments: existing.attachments.map((item) => ({
+                  ...item,
+                  owned: false
+                })),
+                ...(existing.fitnessFile
+                  ? { fitnessFile: { ...existing.fitnessFile, owned: false } }
+                  : {})
+              }
+            : {}),
           revision: existing.revision + 1
         }
         drafts.put(unqueued)
