@@ -83,7 +83,7 @@ export interface SendQueueDeps {
 export type Outcome =
   | { kind: 'sent' }
   /** Nothing was sent (pre-flight or upload failed): try again later. */
-  | { kind: 'waiting'; nextAttemptAt: number }
+  | { kind: 'waiting'; nextAttemptAt: number; uploadRefused?: true }
   /** A POST may have landed: only the same key is sent again. */
   | { kind: 'checking'; nextAttemptAt: number; lockedMessage?: string }
   | { kind: 'needs_review'; reason: string; clearSubmit?: boolean }
@@ -131,8 +131,11 @@ const isAbortLike = (error: unknown): boolean => {
  */
 class UploadFailedError extends Error {}
 
-const withoutRetries = ({ retries: _retries, ...queue }: DraftQueueState) =>
-  queue
+const withoutRetries = ({
+  retries: _retries,
+  uploadRetries: _uploadRetries,
+  ...queue
+}: DraftQueueState) => queue
 
 const asUploadFailure = (error: unknown): never => {
   if (
@@ -207,13 +210,24 @@ export const classifySendOutcome = (
     isAbortLike(error) ||
     (status !== undefined && status >= 500)
   // Nothing was sent: these back off by their own count, as attempts only
-  // counts POSTs. A refusal that outlasts a server restart is final.
-  const retries = draft.queue?.retries ?? 0
-  if (error instanceof UploadFailedError && retries + 1 >= UPLOAD_RETRY_LIMIT) {
-    return { kind: 'couldnt_send', reason: error.message }
+  // counts POSTs. An upload refusal counts apart, so a long outage before it
+  // never spends its tries; one that outlasts a server restart is final.
+  if (error instanceof UploadFailedError) {
+    const uploadRetries = draft.queue?.uploadRetries ?? 0
+    if (uploadRetries + 1 >= UPLOAD_RETRY_LIMIT) {
+      return { kind: 'couldnt_send', reason: error.message }
+    }
+    return {
+      kind: 'waiting',
+      nextAttemptAt: now + backoff(uploadRetries),
+      uploadRefused: true
+    }
   }
   if (preflight && networkLike) {
-    return { kind: 'waiting', nextAttemptAt: now + backoff(retries) }
+    return {
+      kind: 'waiting',
+      nextAttemptAt: now + backoff(draft.queue?.retries ?? 0)
+    }
   }
   if (networkLike || status === 409) {
     return {
@@ -638,7 +652,9 @@ const applyOutcome = (
           ...base,
           state: 'waiting',
           nextAttemptAt: outcome.nextAttemptAt,
-          retries: (record.queue.retries ?? 0) + 1
+          ...(outcome.uploadRefused
+            ? { uploadRetries: (record.queue.uploadRetries ?? 0) + 1 }
+            : { retries: (record.queue.retries ?? 0) + 1 })
         }
       }
     case 'checking':

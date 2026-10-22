@@ -700,6 +700,7 @@ export const resumeQueue = ({
       reason: _reason,
       nextAttemptAt: _nextAttemptAt,
       retries: _retries,
+      uploadRetries: _uploadRetries,
       pauseRequested,
       ...rest
     } = queue

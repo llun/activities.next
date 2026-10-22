@@ -1335,6 +1335,39 @@ describe('drainQueue', () => {
         expect(await getDraft('a')).toBeUndefined()
       })
 
+      it('keeps its upload tries after a long outage before the upload', async () => {
+        await store(draft('a', {}, { attachments: [photo(1)] }))
+        await storeBlob('local-1', 'a')
+        let outage = 5
+        const deps = makeDeps({
+          getGallerySettings: vi.fn(async () => {
+            if (outage > 0) {
+              outage -= 1
+              throw new TypeError('Load failed')
+            }
+            return { allowEmptyDescription: true } as Settings
+          }),
+          uploadAttachment: vi.fn<UploadAttachment>().mockResolvedValue(null)
+        })
+        let lastDrain = clock
+        for (let pass = 0; pass < 6; pass += 1) {
+          lastDrain = clock
+          await drain(deps)
+          const queue = (await getDraft('a'))?.queue
+          if (queue?.state !== 'waiting') break
+          clock = queue.nextAttemptAt!
+        }
+        // Five pre-flight failures, then the first upload refusal: retried
+        // from the start of its own backoff, not given up on.
+        expect(deps.uploadAttachment).toHaveBeenCalledTimes(1)
+        expect((await getDraft('a'))?.queue).toMatchObject({
+          state: 'waiting',
+          retries: 5,
+          uploadRetries: 1,
+          nextAttemptAt: lastDrain + 5_000
+        })
+      })
+
       it('gives up on an upload refused without a status after UPLOAD_RETRY_LIMIT tries', async () => {
         await store(draft('a', {}, { attachments: [photo(1)] }))
         await storeBlob('local-1', 'a')
