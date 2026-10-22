@@ -430,6 +430,24 @@ describe('ProfileFieldsField', () => {
       expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
     })
 
+    it('clears a stale button press when focus enters the row', () => {
+      renderField([
+        { name: 'Blog', value: 'x' },
+        { name: 'Site', value: 'y' }
+      ])
+      const content = screen.getByLabelText('Field 1 content')
+
+      // Pressed, then released outside the row with nothing focused: no blur.
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'Move field 1, Blog down' })
+      )
+
+      fireEvent.focus(content)
+      fireEvent.change(content, { target: { value: '' } })
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
+    })
+
     it('reveals the error when the pressed button is in another row', () => {
       renderField([
         { name: 'Blog', value: 'x' },

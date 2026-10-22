@@ -295,6 +295,11 @@ export const ProfileFieldsField: FC<Props> = ({
               onPointerCancel={() => {
                 pressedRow.current = null
               }}
+              // Focus entering the row means any earlier press is over, even
+              // one released outside the row with nothing focused.
+              onFocus={() => {
+                pressedRow.current = null
+              }}
               onBlur={(event) => {
                 const pressed = pressedRow.current === row.id
                 pressedRow.current = null
