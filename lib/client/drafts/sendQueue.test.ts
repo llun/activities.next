@@ -851,6 +851,23 @@ describe('drainQueue', () => {
       }
     )
 
+    it('ignores another account’s draft, held or due', async () => {
+      await store(
+        draft(
+          'theirs-held',
+          { state: 'paused', pausedBy: 'auth' },
+          { accountId: 'account-2' }
+        )
+      )
+      await store(draft('theirs-due', {}, { accountId: 'account-2' }))
+      await store(draft('mine'))
+      const deps = makeDeps()
+      const result = await drain(deps)
+      expect(result.attempted).toBe(1)
+      expect(deps.createNote).toHaveBeenCalledTimes(1)
+      expect((await getDraft('theirs-due'))?.queue?.state).toBe('waiting')
+    })
+
     it('counts a sent post even when deleting the draft fails', async () => {
       await store(draft('a'))
       const deps = makeDeps({

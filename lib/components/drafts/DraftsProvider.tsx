@@ -326,10 +326,10 @@ export function DraftsProvider({
   // tab's sender lock) is tried RETRY_SOON_MS from now, unless the last pass
   // found it due and moved nothing, or a 401 or profile switch holds the
   // queue: repeating those would only spin, so they wait for the next trigger
-  // or a change to the item. "Already" is before
-  // the read, so an item falling due during it still gets its own time.
-  // While this tab cannot drain, only the future counts: coming back online,
-  // an epoch or a cancelled sign-out drains on its own.
+  // or a change to the item. "Already" is before the read, so an item falling
+  // due during it still gets its own time. While this tab cannot drain, only
+  // the future counts: coming back online, an epoch or a cancelled sign-out
+  // drains on its own.
   const scheduleWake = useCallback(() => {
     clearWake()
     const token = wakeToken.current
