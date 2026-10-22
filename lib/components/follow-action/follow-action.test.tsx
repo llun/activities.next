@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { follow, getFollowStatus, unfollow } from '@/lib/client'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
@@ -13,6 +13,15 @@ vi.mock('@/lib/client', () => ({
   follow: vi.fn(),
   unfollow: vi.fn(),
   getFollowStatus: vi.fn()
+}))
+
+const connection = vi.hoisted(() => ({ state: 'online' as string }))
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => ({
+    state: connection.state,
+    nextProbeAt: null,
+    probing: false
+  })
 }))
 
 const relationship = (
@@ -189,5 +198,97 @@ describe('FollowAction', () => {
     expect(
       await screen.findByRole('button', { name: 'Follow' })
     ).toBeInTheDocument()
+  })
+})
+
+describe('FollowAction offline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    connection.state = 'offline'
+    // Radix Tooltip content measures itself; jsdom has no ResizeObserver.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+  })
+  afterEach(() => {
+    connection.state = 'online'
+  })
+
+  it('is aria-disabled but focusable, and a click makes no request', () => {
+    render(
+      <FollowAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+    const button = screen.getByRole('button', { name: 'Follow' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).not.toBeDisabled()
+    button.focus()
+    expect(button).toHaveFocus()
+
+    fireEvent.click(button)
+
+    expect(follow).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("You're offline", { selector: '[role=status]' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the tooltip on focus', async () => {
+    render(
+      <FollowAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+    act(() => screen.getByRole('button', { name: 'Follow' }).focus())
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "You're offline"
+    )
+  })
+
+  it('clears the offline message once back online', () => {
+    const props = {
+      targetActorId: 'https://example.test/users/target',
+      isLoggedIn: true,
+      initialRelationship: relationship()
+    }
+    const { rerender } = render(<FollowAction {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }))
+    expect(
+      screen.getByText("You're offline", { selector: '[role=status]' })
+    ).toBeInTheDocument()
+
+    connection.state = 'online'
+    rerender(<FollowAction {...props} />)
+    connection.state = 'offline'
+    rerender(<FollowAction {...props} />)
+
+    expect(
+      screen.queryByText("You're offline", { selector: '[role=status]' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('has no aria-disabled when unreachable', () => {
+    connection.state = 'unreachable'
+    render(
+      <FollowAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Follow' })).not.toHaveAttribute(
+      'aria-disabled'
+    )
   })
 })

@@ -1,6 +1,14 @@
 'use client'
 
-import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react'
+import {
+  AlertTriangle,
+  ListChecks,
+  LoaderCircle,
+  type LucideIcon,
+  RefreshCw,
+  WifiOff
+} from 'lucide-react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -9,6 +17,7 @@ import {
   type SlotMessage,
   getSlotMessage
 } from '@/lib/components/connection/slotMessage'
+import { useSendQueueStatus } from '@/lib/components/drafts/DraftsProvider'
 import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
@@ -27,7 +36,13 @@ const getConnectionHost = () =>
  */
 export function ConnectionAnnouncer() {
   const snapshot = useConnectionStatus()
-  const message = getSlotMessage(snapshot, getConnectionHost())
+  const queue = useSendQueueStatus()
+  const message = getSlotMessage(
+    snapshot,
+    getConnectionHost(),
+    undefined,
+    queue
+  )
   return (
     <div
       role="status"
@@ -46,6 +61,7 @@ export function ConnectionAnnouncer() {
 // Re-renders every second while a countdown is showing, so it stays current.
 const useSlotMessage = (): SlotMessage | null => {
   const snapshot = useConnectionStatus()
+  const queue = useSendQueueStatus()
   const isHome = usePathname() === '/'
   // `now` is state, not a `Date.now()` read inside `getSlotMessage`: the React
   // Compiler caches that call on its (unchanged) arguments, so the countdown
@@ -60,20 +76,41 @@ const useSlotMessage = (): SlotMessage | null => {
     return () => clearInterval(id)
   }, [counting])
 
-  const message = getSlotMessage(snapshot, getConnectionHost(), now)
+  const message = getSlotMessage(snapshot, getConnectionHost(), now, queue)
   if (message?.kind === 'offline' && isHome) {
     return { ...message, detail: 'Showing saved posts' }
   }
   return message
 }
 
-const ICONS = { offline: WifiOff, unreachable: AlertTriangle } as const
+// The sending spinner stops for people who ask for less motion.
+const SpinningLoader = ((props) => (
+  <LoaderCircle
+    {...props}
+    className={cn(props.className, 'motion-safe:animate-spin')}
+  />
+)) as LucideIcon
 
-// The countdown ticks every second, so a screen reader never gets it: the
-// announcer already says the title once.
+const ICONS = {
+  offline: WifiOff,
+  unreachable: AlertTriangle,
+  sending: SpinningLoader,
+  result: ListChecks
+} as const
+
+// A failure stops the spinner: nothing is progressing as it was.
+const iconOf = (message: SlotMessage) =>
+  message.tone === 'error' ? AlertTriangle : ICONS[message.kind]
+
+// The countdown and the "Sending 2 of 5" count change while the title stays
+// put, so a screen reader never gets them: the announcer says the title once.
 const Detail = ({ message }: { message: SlotMessage }) => (
   <span
-    aria-hidden={message.kind === 'unreachable' ? true : undefined}
+    aria-hidden={
+      message.kind === 'unreachable' || message.kind === 'sending'
+        ? true
+        : undefined
+    }
     className="tabular-nums"
   >
     {message.detail}
@@ -95,6 +132,51 @@ function RetryButton({ className }: { className?: string }) {
   )
 }
 
+function QueueLink({ label }: { label: string }) {
+  return (
+    <Button asChild variant="ghost" size="sm">
+      <Link href="/drafts">{label}</Link>
+    </Button>
+  )
+}
+
+/** Retry for a connection message; Pause and Review or View for the queue's. */
+function SlotActions({
+  message,
+  className
+}: {
+  message: SlotMessage
+  className?: string
+}) {
+  const queue = useSendQueueStatus()
+  if (message.retry) return <RetryButton className={className} />
+  if (message.kind === 'sending') {
+    return (
+      <div className={cn('flex items-center gap-2', className)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          // A failed pause leaves the queue running and says so in the
+          // title; pressing Pause again retries it.
+          onClick={() => void queue?.pause()}
+        >
+          Pause
+        </Button>
+        <QueueLink label="Review" />
+      </div>
+    )
+  }
+  if (message.kind === 'result') {
+    return (
+      <div className={className}>
+        <QueueLink label="View" />
+      </div>
+    )
+  }
+  return null
+}
+
 /**
  * Desktop: the full-width alert at the top of the content column. Purely
  * visual (`live={false}`): `ConnectionAnnouncer` is the one live region, so
@@ -105,11 +187,11 @@ export function ConnectionStatusBar() {
   if (!message) return null
   return (
     <Alert
-      tone="info"
+      tone={message.tone ?? 'info'}
       live={false}
-      icon={ICONS[message.kind]}
+      icon={iconOf(message)}
       title={message.title}
-      action={message.retry ? <RetryButton /> : undefined}
+      action={<SlotActions message={message} />}
       className="mt-4 max-md:hidden"
     >
       {message.detail ? <Detail message={message} /> : null}
@@ -144,20 +226,28 @@ const trackStripHeight = (strip: HTMLDivElement | null) => {
 export function ConnectionStatusStrip({ className }: { className?: string }) {
   const message = useSlotMessage()
   if (!message) return null
-  const Icon = ICONS[message.kind]
+  const Icon = iconOf(message)
+  const error = message.tone === 'error'
   return (
     <div
       ref={trackStripHeight}
       data-connection-strip=""
       className={cn(
         'sticky top-[calc(56px+env(safe-area-inset-top,0px))] z-30 md:hidden',
-        'flex min-h-[52px] items-center gap-3 border-b bg-info-surface px-4',
+        'flex min-h-[52px] items-center gap-3 border-b px-4',
+        error ? 'bg-destructive-surface' : 'bg-info-surface',
         // The compact header's spacing: it continues the bar.
         className
       )}
       style={breakoutStyle}
     >
-      <Icon className="size-4 shrink-0 text-info-text" aria-hidden="true" />
+      <Icon
+        className={cn(
+          'size-4 shrink-0',
+          error ? 'text-destructive-text' : 'text-info-text'
+        )}
+        aria-hidden="true"
+      />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold break-words">{message.title}</p>
         {message.detail ? (
@@ -166,7 +256,7 @@ export function ConnectionStatusStrip({ className }: { className?: string }) {
           </p>
         ) : null}
       </div>
-      {message.retry ? <RetryButton className="shrink-0" /> : null}
+      <SlotActions message={message} className="shrink-0" />
     </div>
   )
 }

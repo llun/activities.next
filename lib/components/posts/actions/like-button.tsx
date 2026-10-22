@@ -5,7 +5,10 @@ import { likeStatus, undoLikeStatus } from '@/lib/client'
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError,
-  useDismissingError
+  OFFLINE_MESSAGE,
+  OfflineTooltip,
+  useDismissingError,
+  useIsOffline
 } from '@/lib/components/posts/actions/actionButtonShared'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
@@ -31,6 +34,7 @@ export const LikeButton: FC<LikeButtonProps> = ({
   })
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useDismissingError()
+  const offline = useIsOffline()
 
   useEffect(() => {
     setLikeState({
@@ -54,56 +58,63 @@ export const LikeButton: FC<LikeButtonProps> = ({
 
   return (
     <span className="relative inline-flex items-center justify-center">
-      <button
-        title={likeLabel}
-        aria-label={likeLabel}
-        disabled={isOwnPost || isLoading}
-        className={cn(
-          ACTION_BUTTON_CLASS,
-          isActorLiked ? 'text-like-text' : 'hover:text-like-icon'
-        )}
-        onClick={async (e) => {
-          e.stopPropagation()
-          if (isOwnPost || isLoading) return
-
-          setIsLoading(true)
-          setError(null)
-          try {
-            const nextIsActorLiked = !isActorLiked
-            const success = isActorLiked
-              ? await undoLikeStatus({ statusId: status.id })
-              : await likeStatus({ statusId: status.id })
-
-            if (success === false) {
-              setError(failureMessage)
+      <OfflineTooltip offline={offline}>
+        <button
+          title={offline ? undefined : likeLabel}
+          aria-label={likeLabel}
+          disabled={isOwnPost || isLoading}
+          aria-disabled={offline || undefined}
+          className={cn(
+            ACTION_BUTTON_CLASS,
+            isActorLiked ? 'text-like-text' : 'hover:text-like-icon'
+          )}
+          onClick={async (e) => {
+            e.stopPropagation()
+            if (isOwnPost || isLoading) return
+            if (offline) {
+              setError(OFFLINE_MESSAGE)
               return
             }
 
-            setLikeState((prev) => {
-              if (prev.isActorLiked === nextIsActorLiked) return prev
+            setIsLoading(true)
+            setError(null)
+            try {
+              const nextIsActorLiked = !isActorLiked
+              const success = isActorLiked
+                ? await undoLikeStatus({ statusId: status.id })
+                : await likeStatus({ statusId: status.id })
 
-              return {
-                isActorLiked: nextIsActorLiked,
-                totalLikes: nextIsActorLiked
-                  ? prev.totalLikes + 1
-                  : Math.max(0, prev.totalLikes - 1)
+              if (success === false) {
+                setError(failureMessage)
+                return
               }
-            })
-            onLikeChanged?.(status, nextIsActorLiked)
-          } catch {
-            setError(failureMessage)
-          } finally {
-            setIsLoading(false)
-          }
-        }}
-      >
-        <Heart
-          className={cn('h-4 w-4', {
-            'fill-current text-like-icon': isActorLiked
-          })}
-        />
-        {totalLikes > 0 && <span>{totalLikes}</span>}
-      </button>
+
+              setLikeState((prev) => {
+                if (prev.isActorLiked === nextIsActorLiked) return prev
+
+                return {
+                  isActorLiked: nextIsActorLiked,
+                  totalLikes: nextIsActorLiked
+                    ? prev.totalLikes + 1
+                    : Math.max(0, prev.totalLikes - 1)
+                }
+              })
+              onLikeChanged?.(status, nextIsActorLiked)
+            } catch {
+              setError(failureMessage)
+            } finally {
+              setIsLoading(false)
+            }
+          }}
+        >
+          <Heart
+            className={cn('h-4 w-4', {
+              'fill-current text-like-icon': isActorLiked
+            })}
+          />
+          {totalLikes > 0 && <span>{totalLikes}</span>}
+        </button>
+      </OfflineTooltip>
       {error ? <ActionButtonError message={error} testId="like-error" /> : null}
     </span>
   )

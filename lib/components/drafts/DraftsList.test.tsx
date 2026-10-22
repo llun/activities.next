@@ -13,7 +13,9 @@ import {
 import { IDBFactory } from 'fake-indexeddb'
 
 import {
+  DraftBusyError,
   DraftConflictError,
+  type DraftQueueState,
   type DraftRecord,
   deleteDraft,
   deleteDraftAndOwnedMedia,
@@ -21,12 +23,16 @@ import {
   postDraftsMessage,
   resetDraftsChannelForTesting,
   resetDraftsDbForTesting,
+  resumeQueue,
   saveDraft,
-  setDraftsIndexedDBFactory
+  setDraftsIndexedDBFactory,
+  subscribeDraftsMessages,
+  unqueueDraft
 } from '@/lib/client/drafts'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
 import { DraftsList } from './DraftsList'
+import type { SendQueueStatus } from './DraftsProvider'
 import { ACTOR_ID, NOW, draftRecord, profile } from './draftFixtures.testUtils'
 
 vi.mock('@/lib/client/media', () => ({ deleteUnpostedMedia: vi.fn() }))
@@ -34,14 +40,24 @@ vi.mock('@/lib/client/fitnessRoutes', () => ({
   deleteFitnessFile: vi.fn(),
   deleteUnpostedFitnessFile: vi.fn()
 }))
-// The real helper, replaceable per test to force a conflict.
+// The real helpers, replaceable per test; the queue functions are stubs until
+// the sender lands, so they are always mocked.
 vi.mock('@/lib/client/drafts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/client/drafts')>()
   return {
     ...actual,
-    deleteDraftAndOwnedMedia: vi.fn(actual.deleteDraftAndOwnedMedia)
+    deleteDraftAndOwnedMedia: vi.fn(actual.deleteDraftAndOwnedMedia),
+    unqueueDraft: vi.fn(),
+    resumeQueue: vi.fn()
   }
 })
+const sendQueue = vi.hoisted(() => ({
+  status: null as Partial<SendQueueStatus> | null
+}))
+vi.mock('./DraftsProvider', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./DraftsProvider')>()),
+  useSendQueueStatus: () => sendQueue.status
+}))
 vi.mock('./DraftEditor', () => ({
   DraftEditor: ({
     draft,
@@ -51,7 +67,7 @@ vi.mock('./DraftEditor', () => ({
     onClose: () => void
   }) => (
     <div data-testid="editor">
-      editing {draft.id}
+      editing {draft.id} rev {draft.revision} {draft.text}
       <button onClick={onClose}>Close</button>
     </div>
   )
@@ -62,6 +78,10 @@ const seed = (patch: Partial<DraftRecord>) =>
     expectedRevision: 0,
     epoch: 0
   })
+
+const queue = (
+  patch: Partial<DraftQueueState> & Pick<DraftQueueState, 'state'>
+): DraftQueueState => ({ queuedAt: NOW - 60_000, attempts: 0, ...patch })
 
 const renderList = () =>
   render(<DraftsList host="llun.test" profile={profile} currentTime={NOW} />)
@@ -420,5 +440,327 @@ describe('DraftsList', () => {
     expect(
       await screen.findByRole('heading', { name: 'No drafts.' })
     ).toBeInTheDocument()
+  })
+
+  describe('Waiting to send', () => {
+    it('lists queued posts first, oldest queued first, apart from the drafts', async () => {
+      await seed({
+        id: 'late',
+        text: 'queued late',
+        queue: queue({ state: 'waiting', queuedAt: NOW - 1_000 })
+      })
+      await seed({
+        id: 'early',
+        text: 'queued early',
+        queue: queue({ state: 'waiting', queuedAt: NOW - 9_000 }),
+        // A later save must not reorder the queue.
+        updatedAt: NOW
+      })
+      await seed({ id: 'plain', text: 'a draft' })
+      renderList()
+
+      await screen.findByText('a draft')
+      const headings = screen
+        .getAllByRole('heading', { level: 2 })
+        .map((heading) => heading.textContent)
+      expect(headings).toEqual(['Waiting to send', 'Drafts on this device'])
+      expect(screen.getByText('2 posts')).toBeInTheDocument()
+      expect(screen.getByText('1 draft')).toBeInTheDocument()
+      expect(rowTexts()).toEqual(['queued early', 'queued late', 'a draft'])
+    })
+
+    it('shows only the section that has rows, and the empty state only when both are empty', async () => {
+      await seed({
+        id: 'q',
+        text: 'only queued',
+        queue: queue({ state: 'waiting' })
+      })
+      renderList()
+
+      await screen.findByText('only queued')
+      expect(screen.getByText('1 post')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { name: 'Drafts on this device' })
+      ).toBeNull()
+      expect(screen.queryByRole('heading', { name: 'No drafts.' })).toBeNull()
+    })
+
+    it('moves a post out of the queue on Edit, and opens the editor on the record that comes back', async () => {
+      await seed({
+        id: 'q',
+        text: 'queued text',
+        queue: queue({ state: 'waiting' })
+      })
+      vi.mocked(unqueueDraft).mockResolvedValue(
+        draftRecord({ id: 'q', text: 'returned text', revision: 7 })
+      )
+      const changed = vi.fn()
+      const stop = subscribeDraftsMessages(changed)
+      renderList()
+      await screen.findByText('queued text')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      })
+
+      expect(unqueueDraft).toHaveBeenCalledWith('q')
+      expect(screen.getByTestId('editor')).toHaveTextContent(
+        'editing q rev 7 returned text'
+      )
+      expect(changed).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'changed', draftId: 'q' })
+      )
+      stop()
+    })
+
+    it('keeps the editor in place while the list re-reads, under the drafts', async () => {
+      await seed({
+        id: 'q',
+        text: 'queued text',
+        queue: queue({ state: 'needs_review', reason: 'Check it' })
+      })
+      vi.mocked(unqueueDraft).mockResolvedValue(
+        draftRecord({ id: 'q', text: 'returned text', revision: 2 })
+      )
+      renderList()
+      await screen.findByText('queued text')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+      })
+
+      const section = screen.getByTestId('editor').closest('section')
+      expect(section).toHaveAccessibleName('Drafts on this device')
+      expect(
+        screen.queryByRole('heading', { name: 'Waiting to send' })
+      ).toBeNull()
+    })
+
+    it('does not touch the queue when a plain draft is edited', async () => {
+      await seed({ id: 'a', text: 'plain' })
+      renderList()
+      await screen.findByText('plain')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+      expect(unqueueDraft).not.toHaveBeenCalled()
+      expect(screen.getByTestId('editor')).toHaveTextContent('editing a')
+    })
+
+    it('tells the owner it is being sent, above the list, when the claim wins the race', async () => {
+      await seed({
+        id: 'q',
+        text: 'racing',
+        queue: queue({ state: 'waiting' })
+      })
+      renderList()
+      await screen.findByText('racing')
+      // The sender claims it after the list was read.
+      await saveDraft(
+        draftRecord({
+          id: 'q',
+          text: 'racing',
+          queue: queue({ state: 'sending' })
+        }),
+        { expectedRevision: 1, epoch: 0 }
+      )
+      vi.mocked(unqueueDraft).mockRejectedValue(new DraftBusyError())
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      })
+
+      // Not a failure: an info notice.
+      const alert = await screen.findByRole('status')
+      expect(alert).toHaveTextContent('This post is being sent now.')
+      // Above the box, never inside it.
+      expect(alert.closest('ul')).toBeNull()
+      expect(
+        alert.compareDocumentPosition(screen.getByRole('list')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(screen.queryByTestId('editor')).toBeNull()
+      // The list re-read: the row now says Sending and offers no Edit.
+      expect(await screen.findByText('Sending')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    })
+
+    it('drops the busy notice once the post is no longer being sent', async () => {
+      await seed({
+        id: 'q',
+        text: 'racing',
+        queue: queue({ state: 'waiting' })
+      })
+      renderList()
+      await screen.findByText('racing')
+      await saveDraft(
+        draftRecord({
+          id: 'q',
+          text: 'racing',
+          queue: queue({ state: 'sending' })
+        }),
+        { expectedRevision: 1, epoch: 0 }
+      )
+      vi.mocked(unqueueDraft).mockRejectedValue(new DraftBusyError())
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      })
+      await screen.findByText('This post is being sent now.')
+
+      await saveDraft(
+        draftRecord({
+          id: 'q',
+          text: 'racing',
+          queue: queue({ state: 'couldnt_send', reason: 'Nope' })
+        }),
+        { expectedRevision: 2, epoch: 0 }
+      )
+      await act(async () => {
+        postDraftsMessage({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: ACTOR_ID,
+          draftId: 'q'
+        })
+      })
+
+      await waitFor(() =>
+        expect(screen.queryByText('This post is being sent now.')).toBeNull()
+      )
+    })
+
+    it('offers Retry above the list when this tab’s drain failed', async () => {
+      const retry = vi.fn()
+      sendQueue.status = { drainFailed: true, retry }
+      await seed({
+        id: 'q',
+        text: 'queued',
+        queue: queue({ state: 'waiting' })
+      })
+      try {
+        renderList()
+        await screen.findByText('queued')
+
+        const alert = screen.getByRole('alert')
+        expect(alert).toHaveTextContent("Couldn't send queued posts")
+        expect(alert.closest('ul')).toBeNull()
+        fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+        expect(retry).toHaveBeenCalledTimes(1)
+      } finally {
+        sendQueue.status = null
+      }
+    })
+
+    it('hides the failed-drain Alert when nothing is queued', async () => {
+      sendQueue.status = { drainFailed: true, retry: vi.fn() }
+      await seed({ id: 'p', text: 'plain draft' })
+      try {
+        renderList()
+        await screen.findByText('plain draft')
+
+        expect(screen.queryByText("Couldn't send queued posts")).toBeNull()
+      } finally {
+        sendQueue.status = null
+      }
+    })
+
+    it.each([
+      ['auth', 'Sign in again, and the rest of the queue sends after that.'],
+      [
+        'actor',
+        'Another tab switched profile. Switch back to this one, then reload, and the rest of the queue sends.'
+      ]
+    ] as const)(
+      'says the queue is held while a post is paused by %s',
+      async (pausedBy, text) => {
+        await seed({
+          id: 'held',
+          text: 'held post',
+          queue: queue({ state: 'paused', pausedBy })
+        })
+        await seed({
+          id: 'next',
+          text: 'next post',
+          queue: queue({ state: 'waiting' })
+        })
+        renderList()
+        await screen.findByText('held post')
+
+        expect(screen.getByText('Sending is paused')).toBeInTheDocument()
+        expect(screen.getByText(text)).toBeInTheDocument()
+      }
+    )
+
+    it('says nothing about a hold for a pause by the reader', async () => {
+      await seed({
+        id: 'mine',
+        text: 'my pause',
+        queue: queue({ state: 'paused', pausedBy: 'user' })
+      })
+      renderList()
+      await screen.findByText('my pause')
+
+      expect(screen.queryByText('Sending is paused')).toBeNull()
+    })
+
+    it('shows a failed Edit as an Alert above the list', async () => {
+      await seed({
+        id: 'q',
+        text: 'queued',
+        queue: queue({ state: 'waiting' })
+      })
+      vi.mocked(unqueueDraft).mockRejectedValue(new Error('storage failed'))
+      renderList()
+      await screen.findByText('queued')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      })
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent("Couldn't update this post")
+      expect(alert.closest('ul')).toBeNull()
+      expect(screen.queryByTestId('editor')).toBeNull()
+    })
+
+    it('re-reads instead of opening the editor when the post is already gone', async () => {
+      await seed({
+        id: 'q',
+        text: 'queued',
+        queue: queue({ state: 'waiting' })
+      })
+      vi.mocked(unqueueDraft).mockResolvedValue(undefined)
+      renderList()
+      await screen.findByText('queued')
+      await deleteDraft('q')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      })
+
+      expect(screen.queryByTestId('editor')).toBeNull()
+      expect(
+        await screen.findByRole('heading', { name: 'No drafts.' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows a failed Resume as an Alert above the list', async () => {
+      await seed({
+        id: 'q',
+        text: 'paused',
+        queue: queue({ state: 'paused', pausedBy: 'user' })
+      })
+      vi.mocked(resumeQueue).mockRejectedValue(new Error('no db'))
+      renderList()
+      await screen.findByText('paused')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
+      })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "Couldn't update this post"
+      )
+    })
   })
 })

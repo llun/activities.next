@@ -3,6 +3,8 @@
 // echo to its sender, so `postDraftsMessage` also calls this tab's subscribers
 // itself. Without BroadcastChannel it is local only; other tabs re-read on
 // `visibilitychange` (a listener `DraftsProvider` installs).
+import type { SendQueueProgress } from './types'
+
 export const DRAFTS_CHANNEL_NAME = 'activities-drafts'
 
 export type DraftsMessage =
@@ -11,22 +13,51 @@ export type DraftsMessage =
   /** Other tabs stop autosaving while this account signs out. */
   | { type: 'signing-out'; accountId: string }
   | { type: 'sign-out-cancelled'; accountId: string }
+  /** The sending tab's progress; every tab shows it in the status slot. */
+  | {
+      type: 'queue-progress'
+      accountId: string
+      actorId: string
+      progress: SendQueueProgress
+    }
 
 type Listener = (message: DraftsMessage) => void
 
 const listeners = new Set<Listener>()
 let channel: BroadcastChannel | null = null
 
-const isDraftsMessage = (value: unknown): value is DraftsMessage => {
-  const message = value as { type?: unknown; accountId?: unknown } | null
+const PHASES = ['idle', 'sending', 'result']
+const COUNTS = ['index', 'total', 'sent', 'needsReview', 'failed', 'paused']
+
+const isProgress = (value: unknown): value is SendQueueProgress => {
+  const progress = value as Record<string, unknown> | null
   return (
-    typeof message === 'object' &&
-    message !== null &&
-    (message.type === 'changed' ||
-      message.type === 'signing-out' ||
-      message.type === 'sign-out-cancelled') &&
-    typeof message.accountId === 'string'
+    typeof progress === 'object' &&
+    progress !== null &&
+    PHASES.includes(progress.phase as string) &&
+    COUNTS.every((key) => typeof progress[key] === 'number')
   )
+}
+
+export const isDraftsMessage = (value: unknown): value is DraftsMessage => {
+  const message = value as Record<string, unknown> | null
+  if (
+    typeof message !== 'object' ||
+    message === null ||
+    typeof message.accountId !== 'string'
+  ) {
+    return false
+  }
+  switch (message.type) {
+    case 'changed':
+    case 'signing-out':
+    case 'sign-out-cancelled':
+      return true
+    case 'queue-progress':
+      return typeof message.actorId === 'string' && isProgress(message.progress)
+    default:
+      return false
+  }
 }
 
 const notify = (message: DraftsMessage) => {

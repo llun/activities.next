@@ -2,6 +2,10 @@ import type {
   MediaStorageSaveFileOutput,
   PresignedUrlOutput
 } from '@/lib/services/medias/types'
+import {
+  EXPECTED_ACTOR_HEADER,
+  EXPECTED_ACTOR_MISMATCH_ERROR
+} from '@/lib/services/statuses/expectedActor'
 import type {
   MediaPlacePrecision,
   MediaSubjectCategory
@@ -14,9 +18,31 @@ import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 import { waitFor } from '@/lib/utils/waitFor'
 
-import { parseApiError } from './http'
+import { ApiRequestError, parseApiError } from './http'
 
-export interface UploadMediaParams {
+/** The upload is refused unless this is still the signed-in profile. */
+export interface ExpectedActorOption {
+  expectedActorId?: string
+}
+
+export const expectedActorHeaders = (
+  expectedActorId?: string
+): Record<string, string> =>
+  expectedActorId ? { [EXPECTED_ACTOR_HEADER]: expectedActorId } : {}
+
+/**
+ * Throws the server's actor-mismatch refusal as the same error a create POST
+ * gives, so the send queue pauses instead of failing the item.
+ */
+export const throwIfActorMismatch = async (response: Response) => {
+  if (response.status !== 409) return
+  const message = await parseApiError(response.clone(), '')
+  if (message === EXPECTED_ACTOR_MISMATCH_ERROR) {
+    throw new ApiRequestError(message, 409)
+  }
+}
+
+export interface UploadMediaParams extends ExpectedActorOption {
   media: File
   thumbnail?: File
   description?: string
@@ -25,7 +51,8 @@ export interface UploadMediaParams {
 export const uploadMedia = async ({
   media,
   thumbnail,
-  description
+  description,
+  expectedActorId
 }: UploadMediaParams) => {
   const path = '/api/v2/media'
   const form = new FormData()
@@ -34,18 +61,21 @@ export const uploadMedia = async ({
   if (description) form.append('description', description)
   const response = await fetch(path, {
     method: 'POST',
-    body: form
+    body: form,
+    headers: expectedActorHeaders(expectedActorId)
   })
+  await throwIfActorMismatch(response)
   if (response.status !== 200) return null
   return response.json()
 }
 
-export interface CreateUploadPresignedUrlParams {
+export interface CreateUploadPresignedUrlParams extends ExpectedActorOption {
   media: File
 }
 
 export const createUploadPresignedUrl = async ({
-  media
+  media,
+  expectedActorId
 }: CreateUploadPresignedUrlParams): Promise<{
   presigned: PresignedUrlOutput
 } | null> => {
@@ -72,12 +102,16 @@ export const createUploadPresignedUrl = async ({
   const response = await fetch(path, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...expectedActorHeaders(expectedActorId)
     },
     body: JSON.stringify(body)
   })
+  await throwIfActorMismatch(response)
   if (response.status === 404) return null
-  if (response.status !== 200) throw new Error('Failed to get presigned URL')
+  if (response.status !== 200) {
+    throw new ApiRequestError('Failed to get presigned URL', response.status)
+  }
   return response.json()
 }
 
@@ -121,18 +155,21 @@ type CompleteUploadPresignedUrlResult =
   { ok: true; attachment: UploadedAttachment } | { ok: false; status: number }
 
 const completeUploadPresignedUrlRequest = async ({
-  mediaId
+  mediaId,
+  expectedActorId
 }: {
   mediaId: string
-}): Promise<CompleteUploadPresignedUrlResult> => {
+} & ExpectedActorOption): Promise<CompleteUploadPresignedUrlResult> => {
   const response = await fetch('/api/v1/medias/presigned', {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...expectedActorHeaders(expectedActorId)
     },
     body: JSON.stringify({ mediaId }),
     signal: AbortSignal.timeout(30_000)
   })
+  await throwIfActorMismatch(response)
   if (response.status !== 200) {
     return { ok: false, status: response.status }
   }
@@ -170,17 +207,21 @@ const MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS = 3
 const PRESIGNED_UPLOAD_COMPLETION_RETRY_DELAY_MS = 250
 
 const completeUploadPresignedUrlWithRetry = async ({
-  mediaId
+  mediaId,
+  expectedActorId
 }: {
   mediaId: string
-}): Promise<CompleteUploadPresignedUrlWithRetryResult> => {
+} & ExpectedActorOption): Promise<CompleteUploadPresignedUrlWithRetryResult> => {
   for (
     let attempt = 1;
     attempt <= MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS;
     attempt += 1
   ) {
     try {
-      const completed = await completeUploadPresignedUrlRequest({ mediaId })
+      const completed = await completeUploadPresignedUrlRequest({
+        mediaId,
+        expectedActorId
+      })
       if (completed.ok) {
         return { completed: completed.attachment, shouldCleanup: false }
       }
@@ -192,7 +233,10 @@ const completeUploadPresignedUrlWithRetry = async ({
           )
         }
       }
-    } catch {
+    } catch (error) {
+      // Only the actor-mismatch refusal is an ApiRequestError here; retrying
+      // as another profile can never succeed.
+      if (error instanceof ApiRequestError) throw error
       if (attempt === MAX_PRESIGNED_UPLOAD_COMPLETION_ATTEMPTS) {
         return { completed: null, shouldCleanup: true }
       }
@@ -214,14 +258,15 @@ const cleanupPendingUploadMedia = async (mediaId: string) => {
   }).catch(() => undefined)
 }
 
-export interface UploadMediaThumbnailParams {
+export interface UploadMediaThumbnailParams extends ExpectedActorOption {
   mediaId: string
   thumbnail: File
 }
 
 export const uploadMediaThumbnail = async ({
   mediaId,
-  thumbnail
+  thumbnail,
+  expectedActorId
 }: UploadMediaThumbnailParams): Promise<
   PresignedUrlOutput['saveFileOutput'] | null
 > => {
@@ -230,7 +275,8 @@ export const uploadMediaThumbnail = async ({
     form.append('thumbnail', thumbnail)
     const response = await fetch(`/api/v1/media/${mediaId}`, {
       method: 'PUT',
-      body: form
+      body: form,
+      headers: expectedActorHeaders(expectedActorId)
     })
     if (!response.ok) return null
     return await response.json()
@@ -241,11 +287,19 @@ export const uploadMediaThumbnail = async ({
 
 export const uploadAttachment = async (
   file: File,
-  posterFile?: File
+  posterFile?: File,
+  { expectedActorId }: ExpectedActorOption = {}
 ): Promise<UploadedAttachment | null> => {
-  const result = await createUploadPresignedUrl({ media: file })
+  const result = await createUploadPresignedUrl({
+    media: file,
+    expectedActorId
+  })
   if (!result) {
-    const media = await uploadMedia({ media: file, thumbnail: posterFile })
+    const media = await uploadMedia({
+      media: file,
+      thumbnail: posterFile,
+      expectedActorId
+    })
     if (!media) return null
     return {
       type: 'upload',
@@ -262,7 +316,8 @@ export const uploadAttachment = async (
   const { url: presignedUrl, saveFileOutput, headers } = result.presigned
   await uploadFileToPresignedUrl({ media: file, presignedUrl, headers })
   const completion = await completeUploadPresignedUrlWithRetry({
-    mediaId: saveFileOutput.id
+    mediaId: saveFileOutput.id,
+    expectedActorId
   })
   if (!completion.completed) {
     if (completion.shouldCleanup) {
@@ -275,7 +330,8 @@ export const uploadAttachment = async (
   if (posterFile && !finalAttachment.posterUrl) {
     const updated = await uploadMediaThumbnail({
       mediaId: saveFileOutput.id,
-      thumbnail: posterFile
+      thumbnail: posterFile,
+      expectedActorId
     })
     if (updated?.preview_url) {
       finalAttachment = {

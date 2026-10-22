@@ -88,6 +88,7 @@ export const InlineStatusComposer: FC<Props> = ({
         onDiscardReply={onCancel}
         onDiscardQuote={onCancel}
         onDiscardEdit={onCancel}
+        onHandedOff={onCancel}
       />
     </div>
   )

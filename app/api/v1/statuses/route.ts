@@ -42,6 +42,7 @@ import {
   parseBackdatedCreatedAt
 } from '@/lib/services/statuses/backdatedCreatedAt'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
+import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import {
@@ -215,6 +216,16 @@ export const POST = traceApiRoute(
     [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, context) => {
       const { currentActor, database, clientId } = context
+      // Web-client extension: a queued post names the profile it was written
+      // as. Checked before anything else (the Idempotency-Key claim, the body,
+      // a replay), because keys are per actor: a resend under another
+      // profile's cookie would otherwise create a second post as that profile.
+      const actorMismatch = expectedActorMismatchResponse(
+        req,
+        currentActor.id,
+        CORS_HEADERS
+      )
+      if (actorMismatch) return actorMismatch
       const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
       // idempotency_keys.key is varchar(255); PostgreSQL rejects a longer
       // value at the claim, so refuse it before doing anything.

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -14,6 +14,15 @@ import { LikeButton } from './like-button'
 vi.mock('@/lib/client', () => ({
   likeStatus: vi.fn(),
   undoLikeStatus: vi.fn()
+}))
+
+const connection = vi.hoisted(() => ({ state: 'online' as string }))
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => ({
+    state: connection.state,
+    nextProbeAt: null,
+    probing: false
+  })
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -163,5 +172,139 @@ describe('LikeButton', () => {
 
     expect(screen.queryByTestId('like-error')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Like, 1 like' })).toBeEnabled()
+  })
+})
+
+describe('LikeButton offline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    connection.state = 'offline'
+    // Radix Tooltip content measures itself; jsdom has no ResizeObserver.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+  })
+  afterEach(() => {
+    connection.state = 'online'
+  })
+
+  it('is aria-disabled but focusable, and a click makes no request', () => {
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    const button = screen.getByRole('button', { name: 'Like' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).not.toBeDisabled()
+    button.focus()
+    expect(button).toHaveFocus()
+
+    fireEvent.click(button)
+
+    expect(likeStatus).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("You're offline", { selector: '[role=alert]' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the tooltip on focus', async () => {
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    act(() => screen.getByRole('button', { name: 'Like' }).focus())
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "You're offline"
+    )
+  })
+
+  it('does not pop the tooltip open on going offline after a focus while online', async () => {
+    connection.state = 'online'
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+    const button = screen.getByRole('button', { name: 'Like' })
+    act(() => button.focus())
+    act(() => button.blur())
+
+    connection.state = 'offline'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+    await act(async () => {})
+
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('does not pop the tooltip open again after an offline, online, offline cycle', async () => {
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+    const button = screen.getByRole('button', { name: 'Like' })
+    act(() => button.focus())
+    expect(await screen.findByRole('tooltip')).toBeInTheDocument()
+
+    connection.state = 'online'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+    act(() => button.blur())
+    connection.state = 'offline'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+    await act(async () => {})
+
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('drops the native title while offline, keeping the aria-label', () => {
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    const button = screen.getByRole('button', { name: 'Like' })
+    expect(button).not.toHaveAttribute('title')
+
+    connection.state = 'online'
+    cleanup()
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    expect(screen.getByRole('button', { name: 'Like' })).toHaveAttribute(
+      'title',
+      'Like'
+    )
+  })
+
+  it('keeps focus and logs no Radix warning when going offline', () => {
+    // Radix 1.3.0 reports controlled/uncontrolled switches via console.warn.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    connection.state = 'online'
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+    const button = screen.getByRole('button', { name: 'Like' })
+    act(() => button.focus())
+
+    connection.state = 'offline'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+
+    expect(screen.getByRole('button', { name: 'Like' })).toBe(button)
+    expect(button).toHaveFocus()
+    expect(error).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+    error.mockRestore()
+    warn.mockRestore()
+  })
+
+  it('shows no tooltip on focus or hover while online', async () => {
+    connection.state = 'online'
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    const button = screen.getByRole('button', { name: 'Like' })
+    act(() => button.focus())
+    fireEvent.pointerMove(button)
+    fireEvent.mouseEnter(button)
+    await act(async () => {})
+
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('has no aria-disabled when unreachable', () => {
+    connection.state = 'unreachable'
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    expect(screen.getByRole('button', { name: 'Like' })).not.toHaveAttribute(
+      'aria-disabled'
+    )
   })
 })

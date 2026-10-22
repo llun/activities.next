@@ -28,13 +28,14 @@ const record = {
   attachments: []
 } as unknown as DraftRecord
 
-const renderNote = (onDismiss = vi.fn()) => {
+const renderNote = (onDismiss = vi.fn(), queued?: boolean) => {
   render(
     <SavedToDraftsNote
       draftId="d1"
       revision={1}
       accountId="account-1"
       actorId="actor-1"
+      queued={queued}
       onDismiss={onDismiss}
     />
   )
@@ -60,6 +61,21 @@ describe('SavedToDraftsNote', () => {
     expect(note).toHaveAttribute('aria-live', 'polite')
     expect(note).toHaveTextContent('Saved to Drafts')
     expect(note).toHaveClass('fixed', 'right-5', 'bottom-5')
+  })
+
+  it("titles a queued post 'Will send when you're back online' and Discard still deletes it", async () => {
+    const onDismiss = renderNote(vi.fn(), true)
+
+    const note = screen.getByRole('status')
+    expect(note).toHaveTextContent("Will send when you're back online")
+    expect(note).not.toHaveTextContent('Saved to Drafts')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    })
+
+    expect(deleteDraftAndOwnedMedia).toHaveBeenCalledWith(record)
+    expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
   it('hides after SAVED_NOTE_MS, not before', () => {

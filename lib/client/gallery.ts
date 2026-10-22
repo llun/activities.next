@@ -8,7 +8,7 @@ import type {
   GallerySettings
 } from '@/lib/types/database/gallery'
 
-import { parseApiError } from './http'
+import { ApiRequestError, parseApiError } from './http'
 
 export interface CreateGalleryGearInput {
   kind: GalleryGearKind
@@ -54,8 +54,9 @@ export const getGallerySettings = async (): Promise<GallerySettingsEntity> => {
     headers: { Accept: 'application/json' }
   })
   if (!response.ok) {
-    throw new Error(
-      await parseApiError(response, 'Failed to load gallery settings.')
+    throw new ApiRequestError(
+      await parseApiError(response, 'Failed to load gallery settings.'),
+      response.status
     )
   }
   return response.json()

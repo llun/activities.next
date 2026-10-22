@@ -16,6 +16,7 @@ interface ComposerProps {
   onCancel?: () => void
   onPostCreated?: () => void
   onDiscardQuote?: () => void
+  onHandedOff?: () => void
 }
 
 const postBox = vi.hoisted(() => vi.fn())
@@ -28,6 +29,7 @@ vi.mock('@/lib/components/post-box/post-box', () => ({
       <div data-testid="post-box">
         <button onClick={props.onPostCreated}>post created</button>
         <button onClick={props.onDiscardQuote}>discard quote</button>
+        <button onClick={props.onHandedOff}>handed off</button>
       </div>
     )
   }
@@ -97,6 +99,12 @@ describe('DraftEditor', () => {
     fireEvent.click(screen.getByText('post created'))
     fireEvent.click(screen.getByText('discard quote'))
     expect(onClose).toHaveBeenCalledTimes(3)
+  })
+
+  it('collapses when the post is kept as a draft or queued offline', () => {
+    const onClose = renderEditor(draftRecord())
+    fireEvent.click(screen.getByText('handed off'))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('collapses when a reply is cancelled or sent', () => {

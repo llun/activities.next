@@ -10,6 +10,7 @@ import {
   resetConnectionForTesting
 } from '@/lib/client/connection'
 import { checkServerHealth } from '@/lib/client/health'
+import type { SendQueueStatus } from '@/lib/components/drafts/DraftsProvider'
 
 import {
   ConnectionAnnouncer,
@@ -21,6 +22,11 @@ vi.mock('@/lib/client/health', () => ({ checkServerHealth: vi.fn() }))
 
 let mockPathname: string | null = '/notifications'
 vi.mock('next/navigation', () => ({ usePathname: () => mockPathname }))
+
+let mockQueue: SendQueueStatus | null = null
+vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
+  useSendQueueStatus: () => mockQueue
+}))
 
 const mockHealth = vi.mocked(checkServerHealth)
 
@@ -282,5 +288,172 @@ describe('ConnectionStatusBar and ConnectionStatusStrip', () => {
     act(() => report())
 
     expect(root.style.getPropertyValue('--status-strip-h')).toBe('')
+  })
+})
+
+describe('the send queue in the status slot', () => {
+  const pause = vi.fn()
+  const setQueue = (patch: Partial<SendQueueStatus>) => {
+    mockQueue = {
+      phase: 'idle',
+      index: 0,
+      total: 0,
+      sent: 0,
+      needsReview: 0,
+      failed: 0,
+      paused: 0,
+      pause,
+      pauseFailed: false,
+      drainFailed: false,
+      retry: vi.fn(),
+      ...patch
+    }
+  }
+
+  beforeEach(() => {
+    resetConnectionForTesting()
+    mockHealth.mockReset()
+    pause.mockReset().mockResolvedValue(undefined)
+    mockPathname = '/notifications'
+    mockQueue = null
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    mockQueue = null
+    resetConnectionForTesting()
+    vi.restoreAllMocks()
+  })
+
+  it('shows "Back online", the count, Pause and Review while sending, with a spinner that respects reduced motion', () => {
+    setQueue({ phase: 'sending', index: 2, total: 5 })
+    const { container } = render(<ConnectionStatusBar />)
+
+    expect(screen.getByText('Back online')).toBeInTheDocument()
+    const detail = screen.getByText('Sending 2 of 5 posts')
+    expect(detail).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute(
+      'href',
+      '/drafts'
+    )
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(container.querySelector('svg.lucide-loader-circle')).toHaveClass(
+      'motion-safe:animate-spin'
+    )
+  })
+
+  it('Pause calls the queue’s pause', async () => {
+    setQueue({ phase: 'sending', index: 1, total: 2 })
+    render(<ConnectionStatusBar />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    })
+
+    expect(pause).toHaveBeenCalledTimes(1)
+  })
+
+  it('says a failed Pause in the bar, the strip and the announcer, and keeps Pause to retry', () => {
+    setQueue({ phase: 'sending', index: 1, total: 2, pauseFailed: true })
+    render(
+      <>
+        <ConnectionAnnouncer />
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "Couldn't pause sending."
+    )
+    expect(screen.getAllByText("Couldn't pause sending.")).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: 'Pause' })).toHaveLength(2)
+    // Drawn as a failure: error tone, and no spinner implying progress.
+    expect(document.querySelector('[data-tone="error"]')).not.toBeNull()
+    expect(document.querySelector('[data-connection-strip]')).toHaveClass(
+      'bg-destructive-surface'
+    )
+    expect(document.querySelector('svg.lucide-loader-circle')).toBeNull()
+  })
+
+  it('shows the result with a View link, and not Pause', () => {
+    setQueue({ phase: 'result', sent: 2, needsReview: 1 })
+    const { container } = render(<ConnectionStatusBar />)
+
+    expect(
+      screen.getByText('2 posts sent · 1 needs review')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute(
+      'href',
+      '/drafts'
+    )
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull()
+    expect(container.querySelector('svg.lucide-list-checks')).not.toBeNull()
+  })
+
+  it('renders nothing for an idle queue while online, and an all-zero result', () => {
+    setQueue({ phase: 'idle' })
+    const { container, rerender } = render(<ConnectionStatusBar />)
+    expect(container).toBeEmptyDOMElement()
+
+    setQueue({ phase: 'result' })
+    rerender(<ConnectionStatusBar />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('takes precedence over "You\'re offline."', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    mockHealth.mockRejectedValue(new TypeError('Failed to fetch'))
+    setQueue({ phase: 'sending', index: 1, total: 1 })
+    render(<ConnectionStatusBar />)
+    await act(async () => {
+      await probeNow()
+    })
+
+    expect(screen.getByText('Back online')).toBeInTheDocument()
+    expect(screen.queryByText("You're offline.")).toBeNull()
+  })
+
+  it('shows the same actions in the phone strip', () => {
+    setQueue({ phase: 'sending', index: 1, total: 3 })
+    render(<ConnectionStatusStrip />)
+
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review' })).toBeInTheDocument()
+    expect(screen.getByText('Sending 1 of 3 posts')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
+  })
+
+  it('announces the title only, and the same title on every index', async () => {
+    setQueue({ phase: 'sending', index: 1, total: 3 })
+    const { rerender } = render(<ConnectionAnnouncer />)
+    const region = screen.getByRole('status')
+    expect(region).toHaveTextContent('Back online')
+    expect(region.textContent).not.toMatch(/Sending/)
+
+    setQueue({ phase: 'sending', index: 2, total: 3 })
+    rerender(<ConnectionAnnouncer />)
+    expect(region.textContent).toBe('Back online')
+
+    setQueue({ phase: 'result', sent: 3 })
+    rerender(<ConnectionAnnouncer />)
+    expect(region).toHaveTextContent('3 posts sent')
+  })
+
+  it('adds no live region of its own', () => {
+    setQueue({ phase: 'sending', index: 1, total: 3 })
+    render(
+      <>
+        <ConnectionAnnouncer />
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

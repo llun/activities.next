@@ -1,17 +1,30 @@
 'use client'
 
 import { formatDistance } from 'date-fns/formatDistance'
-import { Check, Copy, Film, Pencil, Quote, Reply, Trash2 } from 'lucide-react'
+import {
+  Check,
+  Copy,
+  Film,
+  Pencil,
+  Play,
+  Quote,
+  Reply,
+  Trash2
+} from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import {
   DraftConflictError,
+  type DraftQueueStateName,
   type DraftRecord,
   announceDraftsChanged,
   deleteDraftAndOwnedMedia,
-  getDraftBlob
+  getDraftBlob,
+  resumeQueue
 } from '@/lib/client/drafts'
+import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import { getMention, getMentionFromActorID } from '@/lib/types/domain/actor'
@@ -89,6 +102,29 @@ const useThumbnails = (draft: DraftRecord): Thumbnail[] => {
   return thumbnails
 }
 
+const QUEUE_CHIPS: Record<
+  DraftQueueStateName,
+  { tone: 'gray' | 'info' | 'warning' | 'destructive'; label: string }
+> = {
+  waiting: { tone: 'gray', label: 'Waiting for connection' },
+  paused: { tone: 'gray', label: 'Paused' },
+  sending: { tone: 'info', label: 'Sending' },
+  checking: { tone: 'info', label: 'Checking whether it posted' },
+  needs_review: { tone: 'warning', label: 'Needs review' },
+  couldnt_send: { tone: 'destructive', label: "Couldn't send" }
+}
+
+// Only these states can be taken back into a composer. A sending or checking
+// post may have reached the server, so it is never edited or deleted.
+const REVIEWABLE = new Set<DraftQueueStateName>([
+  'waiting',
+  'paused',
+  'needs_review',
+  'couldnt_send'
+])
+// A waiting or paused post is not discarded: it is still going to be sent.
+const DELETABLE = new Set<DraftQueueStateName>(['needs_review', 'couldnt_send'])
+
 const mentionOf = (status: Status) =>
   status.actor
     ? getMention(status.actor, true)
@@ -125,6 +161,8 @@ interface Props {
    * delete can simply be repeated), or null once a delete went through.
    */
   onDeleteError: (message: string | null, retry?: () => void) => void
+  /** A failed Resume, for the list to show above its box. */
+  onActionError?: (message: string) => void
 }
 
 export const DraftRow: FC<Props> = ({
@@ -132,19 +170,42 @@ export const DraftRow: FC<Props> = ({
   currentTime,
   onEdit,
   onConflict,
-  onDeleteError
+  onDeleteError,
+  onActionError
 }) => {
   const thumbnails = useThumbnails(draft)
   const { copied, copy } = useCopyToClipboard()
+  const drafts = useDrafts()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [resuming, setResuming] = useState(false)
+  const queue = draft.queue
+  const chip = queue ? QUEUE_CHIPS[queue.state] : null
+  const canReview = !queue || REVIEWABLE.has(queue.state)
+  const canDelete = !queue || DELETABLE.has(queue.state)
 
   const contextStatus = draft.replyTo ?? draft.quoteOf
   const ContextIcon = draft.replyTo ? Reply : Quote
   const meta = [
     VISIBILITY_LABELS[draft.visibility],
     ...describeContent(draft),
-    `Saved ${formatDistance(draft.updatedAt, currentTime)} ago`
+    queue
+      ? `Queued ${formatDistance(queue.queuedAt, currentTime)} ago`
+      : `Saved ${formatDistance(draft.updatedAt, currentTime)} ago`
   ].join(' · ')
+
+  // Pausing is for the whole queue, so Resume is too.
+  const onResume = async () => {
+    setResuming(true)
+    try {
+      await resumeQueue({ actorId: draft.actorId, pausedBy: ['user'] })
+      announceDraftsChanged(draft.accountId, draft.actorId, draft.id)
+      drafts?.requestDrain()
+    } catch {
+      onActionError?.('Something went wrong on this device. Try again.')
+    } finally {
+      setResuming(false)
+    }
+  }
 
   const onDelete = async () => {
     setConfirmingDelete(false)
@@ -173,6 +234,17 @@ export const DraftRow: FC<Props> = ({
 
   return (
     <div data-slot="draft-row" className="space-y-2">
+      {chip ? (
+        <div className="space-y-1">
+          <Badge tone={chip.tone}>{chip.label}</Badge>
+          {queue?.reason ? (
+            <p className="text-muted-foreground text-sm break-words">
+              {queue.reason}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {contextStatus ? (
         <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
           <ContextIcon aria-hidden className="size-3.5 shrink-0" />
@@ -215,10 +287,30 @@ export const DraftRow: FC<Props> = ({
       <p className="text-muted-foreground text-xs">{meta}</p>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-          <Pencil aria-hidden />
-          Edit
-        </Button>
+        {canReview ? (
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+            <Pencil aria-hidden />
+            {queue && queue.state !== 'waiting' ? 'Review' : 'Edit'}
+          </Button>
+        ) : null}
+        {queue?.state === 'paused' && queue.pausedBy === 'auth' ? (
+          <Button asChild variant="outline" size="sm">
+            {/* A full page load, so the session cookie is read again. */}
+            <a href="/auth/signin">Sign in</a>
+          </Button>
+        ) : null}
+        {queue?.state === 'paused' && queue.pausedBy === 'user' ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={resuming}
+            onClick={() => void onResume()}
+          >
+            <Play aria-hidden />
+            Resume
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -228,15 +320,17 @@ export const DraftRow: FC<Props> = ({
           {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
           {copied ? 'Copied' : 'Copy'}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setConfirmingDelete(true)}
-        >
-          <Trash2 aria-hidden />
-          Delete
-        </Button>
+        {canDelete ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            <Trash2 aria-hidden />
+            Delete
+          </Button>
+        ) : null}
       </div>
 
       <ConfirmDialog

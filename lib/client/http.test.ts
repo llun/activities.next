@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ApiRequestError,
@@ -148,6 +148,47 @@ describe('http client utilities', () => {
       ).rejects.toMatchObject({
         name: 'ApiRequestError',
         status: 409
+      })
+    })
+
+    describe('Retry-After', () => {
+      const retryAfter = async (value?: string) => {
+        const response = new Response('{}', {
+          status: 429,
+          headers: value === undefined ? {} : { 'Retry-After': value }
+        })
+        const error = await throwApiError(response, 'Slow down').catch(
+          (e: ApiRequestError) => e
+        )
+        return (error as ApiRequestError).retryAfterMs
+      }
+
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('reads integer seconds', async () => {
+        expect(await retryAfter('7')).toBe(7000)
+      })
+
+      it('reads an HTTP date relative to now', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+        expect(await retryAfter('Thu, 01 Jan 2026 00:01:00 GMT')).toBe(60_000)
+      })
+
+      it('clamps a past HTTP date to zero', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+        expect(await retryAfter('Wed, 31 Dec 2025 23:00:00 GMT')).toBe(0)
+      })
+
+      it.each(['soon', '-5', '1.5', ''])('ignores %j', async (value) => {
+        expect(await retryAfter(value)).toBeUndefined()
+      })
+
+      it('is undefined without the header', async () => {
+        expect(await retryAfter()).toBeUndefined()
       })
     })
 

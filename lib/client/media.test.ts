@@ -7,6 +7,7 @@ import {
   createUploadPresignedUrl,
   deleteUnpostedMedia,
   getActorMedia,
+  throwIfActorMismatch,
   uploadAttachment,
   uploadFileToPresignedUrl,
   uploadMedia,
@@ -96,6 +97,26 @@ describe('client media module', () => {
 
       expect(res).toBeNull()
     })
+
+    it('treats a 409 that is not the actor mismatch as a plain failure', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Conflict' }), {
+        status: 409
+      })
+
+      const file = new File(['data'], 'pic.png', { type: 'image/png' })
+      await expect(uploadMedia({ media: file })).resolves.toBeNull()
+    })
+  })
+
+  describe('throwIfActorMismatch', () => {
+    it('leaves the body readable when the 409 is not the mismatch', async () => {
+      const response = new Response(JSON.stringify({ error: 'Conflict' }), {
+        status: 409
+      })
+
+      await expect(throwIfActorMismatch(response)).resolves.toBeUndefined()
+      await expect(response.json()).resolves.toEqual({ error: 'Conflict' })
+    })
   })
 
   describe('createUploadPresignedUrl', () => {
@@ -134,12 +155,19 @@ describe('client media module', () => {
     })
 
     it('throws error when endpoint returns other non-200 status', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
+      fetchMock.mockResponse('', { status: 500 })
 
       const file = new File(['data'], 'pic.png', { type: 'image/png' })
       await expect(createUploadPresignedUrl({ media: file })).rejects.toThrow(
         'Failed to get presigned URL'
       )
+      await expect(
+        createUploadPresignedUrl({ media: file })
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 500,
+        message: 'Failed to get presigned URL'
+      })
     })
   })
 
@@ -497,6 +525,101 @@ describe('client media module', () => {
       const directForm = fetchMock.mock.calls[1][1]?.body as FormData
       expect(directForm.get('thumbnail')).toBe(posterFile)
     })
+    it('sends the expected actor on every request of a presigned upload, never to storage', async () => {
+      fetchMock
+        .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+        .mockResponseOnce('', { status: 200 })
+        .mockResponseOnce(
+          JSON.stringify({ media: presignedResponse.presigned.saveFileOutput }),
+          { status: 200 }
+        )
+        .mockResponseOnce(JSON.stringify({ preview_url: 'p.jpg' }), {
+          status: 200
+        })
+
+      await uploadAttachment(
+        new File(['v'], 'v.mp4', { type: 'video/mp4' }),
+        new File(['p'], 'p.jpg', { type: 'image/jpeg' }),
+        { expectedActorId: 'https://llun.test/users/a' }
+      )
+
+      const headerOf = (call: number) =>
+        new Headers(fetchMock.mock.calls[call][1]?.headers).get(
+          'Activities-Expected-Actor'
+        )
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(headerOf(0)).toBe('https://llun.test/users/a')
+      expect(headerOf(1)).toBeNull()
+      expect(headerOf(2)).toBe('https://llun.test/users/a')
+      expect(headerOf(3)).toBe('https://llun.test/users/a')
+    })
+
+    it('sends the expected actor on a direct upload', async () => {
+      vi.mocked(getMediaWidthAndHeight).mockResolvedValueOnce(null)
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'm',
+          mime_type: 'image/png',
+          url: 'u',
+          meta: { original: { width: 1, height: 1 } }
+        }),
+        { status: 200 }
+      )
+
+      await uploadAttachment(
+        new File(['x'], 'x.png', { type: 'image/png' }),
+        undefined,
+        { expectedActorId: 'https://llun.test/users/a' }
+      )
+
+      expect(
+        new Headers(fetchMock.mock.calls[0][1]?.headers).get(
+          'Activities-Expected-Actor'
+        )
+      ).toBe('https://llun.test/users/a')
+    })
+
+    it.each([
+      ['presign', 0, () => undefined],
+      [
+        'finalize',
+        2,
+        () =>
+          fetchMock
+            .mockResponseOnce(JSON.stringify(presignedResponse), {
+              status: 200
+            })
+            .mockResponseOnce('', { status: 200 })
+      ],
+      [
+        'direct upload',
+        1,
+        () => fetchMock.mockResponseOnce('', { status: 404 })
+      ]
+    ])(
+      'rejects with the actor mismatch when the %s is refused',
+      async (_step, before, arrange) => {
+        arrange()
+        fetchMock.mockResponse(
+          JSON.stringify({ error: 'Signed in as a different profile' }),
+          { status: 409 }
+        )
+
+        await expect(
+          uploadAttachment(
+            new File(['x'], 'x.png', { type: 'image/png' }),
+            undefined,
+            { expectedActorId: 'https://llun.test/users/a' }
+          )
+        ).rejects.toMatchObject({
+          name: 'ApiRequestError',
+          status: 409,
+          message: 'Signed in as a different profile'
+        })
+        // Not retried as the other profile, and nothing cleaned up as it.
+        expect(fetchMock).toHaveBeenCalledTimes(before + 1)
+      }
+    )
   })
 
   describe('uploadMediaThumbnail', () => {

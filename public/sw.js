@@ -21,6 +21,19 @@ function getSvgPlaceholderResponse() {
   })
 }
 
+// Static and `no-store`: it holds no personal data and is never cached.
+function offlinePageResponse() {
+  const html =
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not saved for offline</title><style>:root{color-scheme:light dark}body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;color:#0f172a}main{max-width:28rem}a{color:#c2410c;margin-right:16px}@media (prefers-color-scheme:dark){body{background:#0f172a;color:#f1f5f9}a{color:#fdba74}}</style></head><body><main><h1>Not saved for offline</h1><p>This page wasn\'t saved on this device. Connect to the internet to open it.</p><p><a href="/drafts">Drafts</a><a href="/">Home</a></p></main></body></html>'
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store'
+    }
+  })
+}
+
 const RESERVED_STATIC_DIRS = new Set([
   'chunks',
   'css',
@@ -267,9 +280,13 @@ sw.addEventListener('install', (event) => {
 
 sw.addEventListener('activate', (event) => {
   const c = getClients()
-  if (c && typeof c.claim === 'function') {
-    event.waitUntil(c.claim())
+  const tasks = []
+  if (c && typeof c.claim === 'function') tasks.push(c.claim())
+  const preload = sw.registration && sw.registration.navigationPreload
+  if (preload && typeof preload.enable === 'function') {
+    tasks.push(preload.enable())
   }
+  event.waitUntil(Promise.all(tasks))
 })
 
 sw.addEventListener('fetch', (event) => {
@@ -288,10 +305,24 @@ sw.addEventListener('fetch', (event) => {
 
   // 1. Navigation handling
   if (request.mode === 'navigate') {
-    // NEVER intercept Next.js RSC requests
+    if (request.method !== 'GET') {
+      return
+    }
+
+    // The browser already sent a preload request for this navigation: use it in
+    // place of a second fetch(request), and never leave it unhandled.
+    const preload = Promise.resolve(event.preloadResponse).catch(
+      () => undefined
+    )
+
+    // Never cache or stand in for Next.js RSC requests or /api/ navigations
+    // (OAuth callbacks among them), but still answer them from the preload:
+    // returning without respondWith makes the browser request them again, and
+    // a one-time callback must reach the server once.
     const isRsc =
       request.headers.get('rsc') === '1' || url.searchParams.has('_rsc')
-    if (isRsc || request.method !== 'GET') {
+    if (isRsc || url.pathname.startsWith('/api/')) {
+      event.respondWith((async () => (await preload) || fetch(request))())
       return
     }
 
@@ -303,7 +334,7 @@ sw.addEventListener('fetch', (event) => {
           if (cached) {
             return cached
           }
-          return fetch(request)
+          return (await preload) || fetch(request)
         })()
       )
       return
@@ -319,12 +350,12 @@ sw.addEventListener('fetch', (event) => {
             if (cached) {
               return cached
             }
-            return fetch(request)
+            return (await preload) || fetch(request)
           }
 
           // Unauthenticated visitors: go to network so they see <Landing>
           try {
-            return await fetch(request)
+            return (await preload) || (await fetch(request))
           } catch (_err) {
             const cached = await getCachedAppShell()
             if (cached) {
@@ -337,6 +368,25 @@ sw.addEventListener('fetch', (event) => {
       return
     }
 
+    // Everything else: network first. Only a rejected fetch falls back (an
+    // HTTP error or redirect is returned as is). The app shell stands in for
+    // /drafts alone; any other path gets the static page, never chrome.
+    event.respondWith(
+      (async () => {
+        try {
+          return (await event.preloadResponse) || (await fetch(request))
+        } catch (_err) {
+          if (
+            (url.pathname === '/drafts' || url.pathname === '/drafts/') &&
+            (await hasActiveOfflineSession())
+          ) {
+            const shell = await getCachedAppShell()
+            if (shell) return shell
+          }
+          return offlinePageResponse()
+        }
+      })()
+    )
     return
   }
 

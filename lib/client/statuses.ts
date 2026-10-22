@@ -1,3 +1,4 @@
+import { EXPECTED_ACTOR_HEADER } from '@/lib/services/statuses/expectedActor'
 import { Duration } from '@/lib/services/statuses/pollDurations'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -359,6 +360,9 @@ export interface CreateNoteParams {
   visibility?: MastodonVisibility
   language?: string | null
   idempotencyKey?: string
+  /** Sent as `Activities-Expected-Actor`: the server refuses a different signed-in actor. */
+  expectedActorId?: string
+  signal?: AbortSignal
 }
 
 export const createNote = async ({
@@ -372,7 +376,9 @@ export const createNote = async ({
   fitnessFileId,
   visibility,
   language,
-  idempotencyKey
+  idempotencyKey,
+  expectedActorId,
+  signal
 }: CreateNoteParams) => {
   if (
     message.trim().length === 0 &&
@@ -390,8 +396,10 @@ export const createNote = async ({
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Idempotency-Key': resolvedIdempotencyKey
+      'Idempotency-Key': resolvedIdempotencyKey,
+      ...(expectedActorId ? { [EXPECTED_ACTOR_HEADER]: expectedActorId } : {})
     },
+    ...(signal ? { signal } : {}),
     body: JSON.stringify({
       status: message,
       ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
@@ -553,6 +561,9 @@ export interface CreatePollParams {
   visibility?: MastodonVisibility
   language?: string | null
   idempotencyKey?: string
+  /** Sent as `Activities-Expected-Actor`: the server refuses a different signed-in actor. */
+  expectedActorId?: string
+  signal?: AbortSignal
 }
 
 export const createPoll = async ({
@@ -565,7 +576,9 @@ export const createPoll = async ({
   inReplyToId,
   visibility,
   language,
-  idempotencyKey
+  idempotencyKey,
+  expectedActorId,
+  signal
 }: CreatePollParams) => {
   if (message.trim().length === 0 && choices.length === 0) {
     throw new Error('Message or choices must not be empty')
@@ -584,8 +597,10 @@ export const createPoll = async ({
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Idempotency-Key': resolvedIdempotencyKey
+      'Idempotency-Key': resolvedIdempotencyKey,
+      ...(expectedActorId ? { [EXPECTED_ACTOR_HEADER]: expectedActorId } : {})
     },
+    ...(signal ? { signal } : {}),
     body: JSON.stringify({
       status: message,
       ...(contentWarning !== undefined ? { spoiler_text: contentWarning } : {}),
@@ -1090,6 +1105,30 @@ export const getStatusById = async (
     }
   )
   if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+/**
+ * Like `getStatusById`, but only a 404 means "gone or hidden": 401, 5xx and
+ * every other failure throws (`ApiRequestError`), and a network failure
+ * propagates as `TypeError`, so a caller can tell "unreadable" from "offline".
+ */
+export const getStatusIfReadable = async (
+  statusId: string,
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      ...(signal ? { signal } : {})
+    }
+  )
+  if (response.status === 404) return null
+  if (response.status !== 200) {
+    await throwApiError(response, 'Failed to load status')
+  }
   return (await response.json()) as MastodonStatus
 }
 

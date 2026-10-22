@@ -362,18 +362,24 @@ return {
       }
     }
 
-    it('NEVER intercepts Next.js RSC requests', async () => {
+    it('passes Next.js RSC requests straight to the network, never the shell', async () => {
+      const shellCache = await caches.open('activities-shell-v1')
+      await shellCache.put('/app', new Response('<h1>Cached App Shell</h1>'))
+
       const reqHeader = new Request('https://llun.social/app', {
         headers: { rsc: '1' }
       })
       Object.defineProperty(reqHeader, 'mode', { value: 'navigate' })
-      const resHeader = await triggerFetch(reqHeader)
-      expect(resHeader.response).toBeNull()
+      const fromHeader = new Response('rsc payload')
+      mockFetch.mockResolvedValueOnce(fromHeader)
+      expect((await triggerFetch(reqHeader)).response).toBe(fromHeader)
 
       const reqQuery = new Request('https://llun.social/app?_rsc=abc')
       Object.defineProperty(reqQuery, 'mode', { value: 'navigate' })
-      const resQuery = await triggerFetch(reqQuery)
-      expect(resQuery.response).toBeNull()
+      const fromQuery = new Response('rsc payload')
+      mockFetch.mockResolvedValueOnce(fromQuery)
+      expect((await triggerFetch(reqQuery)).response).toBe(fromQuery)
+      expect(mockFetch).toHaveBeenCalledTimes(2)
     })
 
     it('serves cached /app immediately for GET /app and triggers background staging', async () => {
@@ -489,6 +495,260 @@ return {
       const { response: fallbackRes } = await triggerFetch(req)
       expect(fallbackRes).not.toBeNull()
       expect(await fallbackRes!.text()).toBe('<h1>Fallback Shell</h1>')
+    })
+
+    describe('other navigations', () => {
+      const navigate = (path: string) => {
+        const req = new Request(`https://llun.social${path}`)
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        return triggerFetch(req)
+      }
+      const stubSession = () => {
+        const mockIdb = {
+          open: vi.fn(() => {
+            const req: any = {}
+            setTimeout(() => {
+              req.result = {
+                objectStoreNames: { contains: () => true },
+                transaction: () => ({
+                  objectStore: () => ({
+                    get: () => {
+                      const getReq: any = {}
+                      setTimeout(() => {
+                        getReq.result = { actorId: 'actor-1' }
+                        getReq.onsuccess?.()
+                      }, 0)
+                      return getReq
+                    }
+                  })
+                }),
+                close: vi.fn()
+              }
+              req.onsuccess?.()
+            }, 0)
+            return req
+          })
+        }
+        vi.stubGlobal('indexedDB', mockIdb)
+        ;(globalThis as any).indexedDB = mockIdb
+      }
+      const seedShell = async () => {
+        const cache = await caches.open('activities-shell-v1')
+        await cache.put(
+          '/app',
+          new Response('<h1>Signed-in Shell</h1>', {
+            headers: { 'Content-Type': 'text/html' }
+          })
+        )
+        ;(cache.put as unknown as ReturnType<typeof vi.fn>).mockClear()
+      }
+      const expectOfflinePage = async (response: Response | null) => {
+        expect(response!.headers.get('Cache-Control')).toBe('no-store')
+        expect(response!.headers.get('Content-Type')).toContain('text/html')
+        const text = await response!.text()
+        expect(text).toContain('<h1>Not saved for offline</h1>')
+        expect(text).not.toContain('Signed-in Shell')
+      }
+
+      it('serves the cached shell for /drafts when the fetch rejects with a session', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+
+        const { response } = await navigate('/drafts')
+        expect(await response!.text()).toBe('<h1>Signed-in Shell</h1>')
+      })
+
+      it('serves the cached shell for /drafts/ too', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+
+        const { response } = await navigate('/drafts/')
+        expect(await response!.text()).toBe('<h1>Signed-in Shell</h1>')
+      })
+
+      it('serves the offline page for /drafts without a session, even with a shell', async () => {
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        await seedShell()
+        await expectOfflinePage((await navigate('/drafts')).response)
+      })
+
+      it('serves the offline page for /drafts with a session but no shell', async () => {
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        stubSession()
+        await expectOfflinePage((await navigate('/drafts')).response)
+      })
+
+      it.each([
+        '/notifications',
+        '/auth/signin',
+        '/oauth/authorize',
+        '/admin',
+        '/draftsX',
+        '/drafts/x'
+      ])(
+        'serves the offline page, never the shell, for %s while offline with a session and a shell',
+        async (path) => {
+          stubSession()
+          await seedShell()
+          mockFetch.mockRejectedValue(new TypeError('offline'))
+
+          const { response } = await navigate(path)
+          await expectOfflinePage(response)
+        }
+      )
+
+      it('returns the network response, including a 500, instead of the fallback', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockResolvedValue(new Response('boom', { status: 500 }))
+
+        const { response } = await navigate('/drafts')
+        expect(response!.status).toBe(500)
+        expect(await response!.text()).toBe('boom')
+      })
+
+      it('prefers the navigation preload response when present', async () => {
+        const preload = new Response('<p>preloaded</p>')
+        const req = new Request('https://llun.social/notifications')
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse: Promise.resolve(preload),
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        expect(await responded!).toBe(preload)
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it.each(['/', '/app'])(
+        'uses the navigation preload for %s instead of a second fetch',
+        async (path) => {
+          const preload = new Response('<p>preloaded</p>')
+          const req = new Request(`https://llun.social${path}`)
+          Object.defineProperty(req, 'mode', { value: 'navigate' })
+          let responded: Promise<Response> | null = null
+          eventListeners['fetch'][0]({
+            request: req,
+            preloadResponse: Promise.resolve(preload),
+            respondWith: (p: Promise<Response>) => {
+              responded = p
+            },
+            waitUntil: () => {}
+          })
+
+          expect(await responded!).toBe(preload)
+          // /app also stages the shell in the background; that is not the navigation.
+          expect(mockFetch).not.toHaveBeenCalledWith(req)
+        }
+      )
+
+      it('ignores (never leaves unhandled) a preload when / is served from the shell', async () => {
+        stubSession()
+        await seedShell()
+        const preloadResponse = Promise.resolve(undefined)
+        const catchSpy = vi.spyOn(preloadResponse, 'catch')
+        const req = new Request('https://llun.social/')
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse,
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        expect(await (await responded!).text()).toBe('<h1>Signed-in Shell</h1>')
+        expect(catchSpy).toHaveBeenCalled()
+        expect(mockFetch).not.toHaveBeenCalledWith(req)
+      })
+
+      it('answers an /api/ navigation from its preload, so a one-time callback reaches the server once', async () => {
+        const preload = new Response(null, { status: 302 })
+        const req = new Request(
+          'https://llun.social/api/v1/fitness/strava/callback?code=abc&state=s'
+        )
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse: Promise.resolve(preload),
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        expect(await responded!).toBe(preload)
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it('never stands the offline page in for an /api/ navigation', async () => {
+        mockFetch.mockRejectedValueOnce(new TypeError('offline'))
+        const req = new Request(
+          'https://llun.social/api/v1/fitness/strava/callback?code=a'
+        )
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse: Promise.resolve(undefined),
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        await expect(responded!).rejects.toThrow('offline')
+      })
+
+      it('fetches an /api/ navigation once when there is no preload, and leaves non-GET requests alone', async () => {
+        const fetched = new Response('{}')
+        mockFetch.mockResolvedValueOnce(fetched)
+        expect((await navigate('/api/v1/accounts')).response).toBe(fetched)
+        expect(mockFetch).toHaveBeenCalledTimes(1)
+
+        const post = new Request('https://llun.social/notifications', {
+          method: 'POST'
+        })
+        Object.defineProperty(post, 'mode', { value: 'navigate' })
+        expect((await triggerFetch(post)).response).toBeNull()
+      })
+
+      it('never writes an HTML navigation response to a cache', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockResolvedValue(new Response('<html></html>'))
+        await navigate('/drafts')
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        await navigate('/notifications')
+
+        for (const name of cacheStore.keys()) {
+          expect((await caches.open(name)).put).not.toHaveBeenCalled()
+        }
+      })
+    })
+
+    it('enables navigation preload on activate', async () => {
+      const enable = vi.fn(async () => {})
+      mockRegistration.navigationPreload = { enable }
+      let done: Promise<any> | null = null
+      eventListeners['activate'][0]({
+        waitUntil: (p: Promise<any>) => {
+          done = p
+        }
+      })
+      await done
+      expect(enable).toHaveBeenCalled()
+      expect(mockClients.claim).toHaveBeenCalled()
     })
 
     it('uses Cache-First for /activities/_next/static/* and /_next/static/*', async () => {

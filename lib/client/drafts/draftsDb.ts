@@ -7,19 +7,24 @@
 // Every promise settles on `tx.oncomplete` or `tx.onabort`, never on a
 // request's `onsuccess`, so a resolved write is a committed write.
 import {
+  DraftBusyError,
   DraftConflictError,
   DraftQuotaError,
   DraftSignedOutError,
   DraftsUnavailableError
 } from './errors'
+import { holdsQueue, pausedByReader, retriesOnItsOwn } from './queueConstants'
 import {
   DRAFTS_DB_NAME,
   DRAFTS_DB_VERSION,
   type DraftBlobRecord,
+  type DraftQueuePause,
+  type DraftQueueState,
   type DraftRecord
 } from './types'
 
 export {
+  DraftBusyError,
   DraftConflictError,
   DraftQuotaError,
   DraftSignedOutError,
@@ -161,6 +166,7 @@ const mapError = (error: unknown): Error => {
   if (
     error instanceof DraftsUnavailableError ||
     error instanceof DraftQuotaError ||
+    error instanceof DraftBusyError ||
     error instanceof DraftConflictError ||
     error instanceof DraftSignedOutError
   ) {
@@ -437,3 +443,271 @@ export const deleteAccountDrafts = (accountId: string): Promise<number> =>
       })
     }
   )
+
+// Send-queue operations. Each is one readwrite transaction, so
+// two tabs claiming the same draft are serialized and exactly one wins. Queue
+// writes keep `updatedAt` ("content saved at").
+
+/** Whether the sender may claim this queue entry at `now`. */
+export const isQueueClaimable = (
+  queue: DraftQueueState | undefined,
+  now: number
+): boolean => {
+  if (!queue) return false
+  // A `sending` entry is claimable only once its lease ran out (a dead tab).
+  if (queue.state === 'sending') return (queue.claim?.until ?? 0) <= now
+  return retriesOnItsOwn(queue) && (queue.nextAttemptAt ?? 0) <= now
+}
+
+/**
+ * Claims a queued draft for `tabId` until `now + leaseMs`, or resolves `null`
+ * when the account signed out (epoch), the draft is gone, belongs to another
+ * account, or is not claimable (another tab holds a live lease, not due yet).
+ */
+export const claimQueuedDraft = (
+  id: string,
+  {
+    tabId,
+    now,
+    leaseMs,
+    accountId,
+    epoch
+  }: {
+    tabId: string
+    now: number
+    leaseMs: number
+    accountId: string
+    epoch: number
+  }
+): Promise<DraftRecord | null> =>
+  runTx<DraftRecord | null>(
+    [DRAFTS_STORE, META_STORE],
+    'readwrite',
+    (tx, { done, guard }) => {
+      done(null)
+      const epochRequest = tx.objectStore(META_STORE).get(epochKey(accountId))
+      epochRequest.onsuccess = guard(() => {
+        const current = (epochRequest.result as EpochRecord | undefined)?.value
+        if ((current ?? 0) !== epoch) return
+        const drafts = tx.objectStore(DRAFTS_STORE)
+        const request = drafts.get(id)
+        request.onsuccess = guard(() => {
+          const existing = request.result as DraftRecord | undefined
+          if (!existing?.queue || existing.accountId !== accountId) return
+          if (!isQueueClaimable(existing.queue, now)) return
+          if (existing.queue.pauseRequested) {
+            // A dead tab's send the reader paused: take it back as paused,
+            // never send it again unasked.
+            const {
+              claim: _claim,
+              pauseRequested: _pauseRequested,
+              ...queue
+            } = existing.queue
+            drafts.put({
+              ...existing,
+              revision: existing.revision + 1,
+              queue: pausedByReader(queue)
+            })
+            return
+          }
+          const {
+            pausedBy: _pausedBy,
+            reason: _reason,
+            ...queue
+          } = existing.queue
+          const claimed: DraftRecord = {
+            ...existing,
+            revision: existing.revision + 1,
+            queue: {
+              ...queue,
+              state: 'sending',
+              claim: { tabId, until: now + leaseMs }
+            }
+          }
+          drafts.put(claimed)
+          done(claimed)
+        })
+      })
+    }
+  )
+
+/**
+ * Revision-checked queue write: a stale revision or a missing draft rejects
+ * with `DraftConflictError` and changes nothing. Keeps `id` and `updatedAt`.
+ */
+export const updateQueuedDraft = (
+  id: string,
+  expectedRevision: number,
+  mutate: (record: DraftRecord) => DraftRecord
+): Promise<DraftRecord> =>
+  runTx<DraftRecord>(
+    [DRAFTS_STORE],
+    'readwrite',
+    (tx, { done, fail, guard }) => {
+      const drafts = tx.objectStore(DRAFTS_STORE)
+      const request = drafts.get(id)
+      request.onsuccess = guard(() => {
+        const existing = request.result as DraftRecord | undefined
+        if (!existing || existing.revision !== expectedRevision) {
+          return fail(new DraftConflictError())
+        }
+        const updated: DraftRecord = {
+          ...mutate(existing),
+          id,
+          revision: expectedRevision + 1,
+          updatedAt: existing.updatedAt
+        }
+        drafts.put(updated)
+        done(updated)
+      })
+    }
+  )
+
+/**
+ * Extends the lease while `tabId` still holds it. No revision bump: the lease
+ * is not content, and every content writer re-reads the claim or conflicts on
+ * revision already.
+ */
+export const renewClaim = (
+  id: string,
+  { tabId, until }: { tabId: string; until: number }
+): Promise<boolean> =>
+  runTx<boolean>([DRAFTS_STORE], 'readwrite', (tx, { done, guard }) => {
+    done(false)
+    const drafts = tx.objectStore(DRAFTS_STORE)
+    const request = drafts.get(id)
+    request.onsuccess = guard(() => {
+      const existing = request.result as DraftRecord | undefined
+      const queue = existing?.queue
+      if (!existing || queue?.state !== 'sending') return
+      if (queue.claim?.tabId !== tabId) return
+      drafts.put({ ...existing, queue: { ...queue, claim: { tabId, until } } })
+      done(true)
+    })
+  })
+
+export const ATTEMPTED_UNQUEUE_MESSAGE =
+  'This post may already have been sent. Press Post to retry it as it is, or discard it.'
+
+/**
+ * Takes a draft out of the queue for Review/Edit and returns the new record,
+ * which the editor seeds from. Refuses with `DraftBusyError` while a send is
+ * unresolved (`sending`, even with an expired lease, or `checking`): only the
+ * same key may settle it. Keeps `submit`, `attemptedAt` and `lockedMessage`;
+ * an attempted draft without one is locked (media `owned: false`).
+ */
+export const unqueueDraft = (id: string): Promise<DraftRecord | undefined> =>
+  runTx<DraftRecord | undefined>(
+    [DRAFTS_STORE],
+    'readwrite',
+    (tx, { done, fail, guard }) => {
+      const drafts = tx.objectStore(DRAFTS_STORE)
+      const request = drafts.get(id)
+      request.onsuccess = guard(() => {
+        const existing = request.result as DraftRecord | undefined
+        if (!existing?.queue) return done(existing)
+        const { state } = existing.queue
+        if (state === 'sending' || state === 'checking') {
+          return fail(new DraftBusyError())
+        }
+        const { queue: _queue, ...rest } = existing
+        const attempted =
+          !!existing.queue.firstAttemptAt ||
+          (!!existing.attemptedAt && !!existing.submit)
+        // A POST may have landed: reopen locked under the same key, never re-keyed.
+        const unqueued: DraftRecord = {
+          ...rest,
+          ...(attempted && !existing.lockedMessage
+            ? {
+                lockedMessage: ATTEMPTED_UNQUEUE_MESSAGE,
+                attachments: existing.attachments.map((item) => ({
+                  ...item,
+                  owned: false
+                })),
+                ...(existing.fitnessFile
+                  ? { fitnessFile: { ...existing.fitnessFile, owned: false } }
+                  : {})
+              }
+            : {}),
+          revision: existing.revision + 1
+        }
+        drafts.put(unqueued)
+        done(unqueued)
+      })
+    }
+  )
+
+// Rewrites this actor's queue entries in one transaction; returns how many.
+const rewriteQueue = (
+  actorId: string,
+  rewrite: (queue: DraftQueueState) => DraftQueueState | null
+): Promise<number> =>
+  runTx<number>([DRAFTS_STORE], 'readwrite', (tx, { done, guard }) => {
+    const drafts = tx.objectStore(DRAFTS_STORE)
+    const request = drafts.index('byActor').getAll(actorId)
+    request.onsuccess = guard(() => {
+      let count = 0
+      for (const record of request.result as DraftRecord[]) {
+        const queue = record.queue && rewrite(record.queue)
+        if (!queue) continue
+        // A `sending` item keeps its revision, as a lease renewal does: the
+        // claim owner's revision-checked write must still land, and it reads
+        // the change inside that write.
+        const revision =
+          record.queue?.state === 'sending'
+            ? record.revision
+            : record.revision + 1
+        drafts.put({ ...record, revision, queue })
+        count += 1
+      }
+      done(count)
+    })
+  })
+
+/**
+ * Pause: every item that would retry on its own → `paused(user)`. A `sending`
+ * item's request may be on the wire, so it is only marked: a retry it settles
+ * into is paused instead.
+ */
+export const pauseQueue = ({ actorId }: { actorId: string }): Promise<number> =>
+  rewriteQueue(actorId, (queue) => {
+    // In flight, or held for sign-in or a profile switch (which the next load
+    // lifts): only marked, so the reader's pause outlasts that.
+    if (queue.state === 'sending' || holdsQueue(queue)) {
+      return queue.pauseRequested ? null : { ...queue, pauseRequested: true }
+    }
+    return retriesOnItsOwn(queue) ? pausedByReader(queue) : null
+  })
+
+/** Resume matching pauses to `checking` once a POST was made, else `waiting`. */
+export const resumeQueue = ({
+  actorId,
+  pausedBy
+}: {
+  actorId: string
+  pausedBy: DraftQueuePause[]
+}): Promise<number> =>
+  rewriteQueue(actorId, (queue) => {
+    // Resume takes the reader's mark off an in-flight or held item.
+    if (queue.pauseRequested && pausedBy.includes('user')) {
+      const { pauseRequested: _pauseRequested, ...rest } = queue
+      return rest
+    }
+    if (queue.state !== 'paused' || !queue.pausedBy) return null
+    if (!pausedBy.includes(queue.pausedBy)) return null
+    const {
+      pausedBy: _pausedBy,
+      reason: _reason,
+      nextAttemptAt: _nextAttemptAt,
+      retries: _retries,
+      uploadRetries: _uploadRetries,
+      pauseRequested,
+      ...rest
+    } = queue
+    const back: DraftQueueState = {
+      ...rest,
+      state: rest.firstAttemptAt ? 'checking' : 'waiting'
+    }
+    // Lifting a sign-in or profile-switch hold keeps the reader's own Pause.
+    return pauseRequested ? pausedByReader(back) : back
+  })

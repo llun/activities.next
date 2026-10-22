@@ -8,6 +8,7 @@ import {
 } from '@/lib/services/medias'
 import { PresigedMediaInput } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
+import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -34,6 +35,13 @@ export const POST = traceApiRoute(
   'getPresignedUrl',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
+    // Before the pending media row and the presigned URL are created.
+    const actorMismatch = expectedActorMismatchResponse(
+      req,
+      currentActor.id,
+      CORS_HEADERS
+    )
+    if (actorMismatch) return actorMismatch
     try {
       const content = await req.json()
       const parsed = PresigedMediaInput.safeParse(content)
@@ -85,6 +93,12 @@ export const PATCH = traceApiRoute(
   'completePresignedMediaUpload',
   AuthenticatedGuard(async (req, context) => {
     const { database, currentActor } = context
+    const actorMismatch = expectedActorMismatchResponse(
+      req,
+      currentActor.id,
+      CORS_HEADERS
+    )
+    if (actorMismatch) return actorMismatch
     try {
       const parsed = CompletePresignedUploadInput.safeParse(
         await req.json().catch(() => null)

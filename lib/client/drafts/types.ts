@@ -51,6 +51,57 @@ export interface DraftPoll {
   pollType: 'oneOf' | 'anyOf'
 }
 
+export type DraftQueueStateName =
+  | 'waiting'
+  | 'sending'
+  | 'checking'
+  | 'needs_review'
+  | 'couldnt_send'
+  | 'paused'
+
+export type DraftQueuePause = 'user' | 'auth' | 'rate_limit' | 'actor'
+
+/** A draft the user chose to send when back online. Absent = a plain draft. */
+export interface DraftQueueState {
+  state: DraftQueueStateName
+  /** Send when online; the 24 h clock. */
+  queuedAt: number
+  /** POSTs made; indexes the send backoff. */
+  attempts: number
+  /** Failures in a row before a POST (pre-flight, network); indexes their backoff. */
+  retries?: number
+  /** Uploads refused without a status, in a row; indexes their backoff and limit. */
+  uploadRetries?: number
+  /** First POST; the 6-day give-up clock, and "may have posted". */
+  firstAttemptAt?: number
+  /** Not claimable before this. */
+  nextAttemptAt?: number
+  /** Only while `state === 'sending'`. */
+  claim?: { tabId: string; until: number }
+  /** Shown under the chip (needs_review, couldnt_send, paused). */
+  reason?: string
+  /** Only while `state === 'paused'`. */
+  pausedBy?: DraftQueuePause
+  /**
+   * Pause was pressed while the item was `sending` (a retry it settles into
+   * is paused instead) or held by a sign-in or profile-switch pause (lifting
+   * that hold leaves it paused by the reader).
+   */
+  pauseRequested?: true
+}
+
+/** What the status slot shows while the queue sends, and just after. */
+export interface SendQueueProgress {
+  phase: 'idle' | 'sending' | 'result'
+  /** "Sending index of total". */
+  index: number
+  total: number
+  sent: number
+  needsReview: number
+  failed: number
+  paused: number
+}
+
 export interface DraftRecord {
   id: string
   accountId: string
@@ -78,6 +129,11 @@ export interface DraftRecord {
   submit?: { key: string; fingerprint: string }
   /** The server kept the post (503/409): the composer reopens locked. */
   lockedMessage?: string
+  /**
+   * Set when the draft waits to be sent. Queue-only writes do not change
+   * `updatedAt`, which means "content saved at".
+   */
+  queue?: DraftQueueState
 }
 
 export interface DraftBlobRecord {

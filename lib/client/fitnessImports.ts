@@ -1,5 +1,10 @@
 import { ApiRequestError, parseApiError } from '@/lib/client/http'
-import { uploadFileToPresignedUrl } from '@/lib/client/media'
+import {
+  type ExpectedActorOption,
+  expectedActorHeaders,
+  throwIfActorMismatch,
+  uploadFileToPresignedUrl
+} from '@/lib/client/media'
 import type { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 export interface UploadFitnessFileResult {
@@ -76,7 +81,8 @@ export interface ActiveStravaArchiveImportResponse {
 
 export const uploadFitnessFile = async (
   file: File,
-  description?: string
+  description?: string,
+  { expectedActorId }: ExpectedActorOption = {}
 ): Promise<UploadFitnessFileResult> => {
   const formData = new FormData()
   formData.append('file', file)
@@ -86,17 +92,20 @@ export const uploadFitnessFile = async (
 
   const response = await fetch('/api/v1/fitness-files', {
     method: 'POST',
-    body: formData
+    body: formData,
+    headers: expectedActorHeaders(expectedActorId)
   })
 
+  await throwIfActorMismatch(response)
   if (!response.ok) {
     const errorDetails = await parseApiError(
       response,
       'Failed to upload fitness file.'
     )
 
-    throw new Error(
-      `Failed to upload fitness file: ${response.status} ${errorDetails}`
+    throw new ApiRequestError(
+      `Failed to upload fitness file: ${response.status} ${errorDetails}`,
+      response.status
     )
   }
 

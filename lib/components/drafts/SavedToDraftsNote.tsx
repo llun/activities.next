@@ -22,6 +22,8 @@ interface Props {
   revision: number
   accountId: string
   actorId: string
+  /** A post waiting to send when back online, not a plain draft. */
+  queued?: boolean
   onDismiss: () => void
 }
 
@@ -35,6 +37,7 @@ export function SavedToDraftsNote({
   revision,
   accountId,
   actorId,
+  queued = false,
   onDismiss
 }: Props) {
   const [status, setStatus] = useState<'failed' | 'changed' | null>(null)
@@ -69,7 +72,9 @@ export function SavedToDraftsNote({
           ? 'Couldn’t discard. Try again.'
           : status === 'changed'
             ? 'Changed in another tab'
-            : 'Saved to Drafts'}
+            : queued
+              ? "Will send when you're back online"
+              : 'Saved to Drafts'}
       </span>
       {status === 'changed' ? null : (
         <button

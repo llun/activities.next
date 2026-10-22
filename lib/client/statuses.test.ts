@@ -1,6 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ApiRequestError } from '@/lib/client/http'
+import { EXPECTED_ACTOR_HEADER } from '@/lib/services/statuses/expectedActor'
 import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -14,6 +15,7 @@ import {
   getFavourites,
   getStatusById,
   getStatusFavouritedBy,
+  getStatusIfReadable,
   getStatusQuotes,
   getTranslationCapability,
   getTranslationLanguages,
@@ -513,6 +515,80 @@ describe('client statuses module', () => {
 
       const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
       expect(body.fitness_file_id).toBe('fit-1')
+    })
+  })
+
+  describe('expected actor and signal on creates', () => {
+    const noteResponse = () =>
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-3',
+          text: 'Hi',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+
+    it('sends neither the header nor a signal unless given', async () => {
+      noteResponse()
+      await createNote({ message: 'Hi' })
+      const init = fetchMock.mock.calls[0][1] as RequestInit
+      expect(init.headers).not.toHaveProperty(EXPECTED_ACTOR_HEADER)
+      expect(init).not.toHaveProperty('signal')
+
+      fetchMock.mockResponse('', { status: 200 })
+      await createPoll({
+        message: 'Q',
+        choices: ['a', 'b'],
+        durationInSeconds: 1800
+      })
+      const pollInit = fetchMock.mock.calls[1][1] as RequestInit
+      expect(pollInit.headers).not.toHaveProperty(EXPECTED_ACTOR_HEADER)
+      expect(pollInit).not.toHaveProperty('signal')
+    })
+
+    it('sends the expected actor header and signal on a note', async () => {
+      noteResponse()
+      const controller = new AbortController()
+      await createNote({
+        message: 'Hi',
+        expectedActorId: 'https://llun.test/users/test1',
+        signal: controller.signal
+      })
+      const init = fetchMock.mock.calls[0][1] as RequestInit
+      expect(init.headers).toMatchObject({
+        [EXPECTED_ACTOR_HEADER]: 'https://llun.test/users/test1'
+      })
+      expect(init.signal).toBe(controller.signal)
+    })
+
+    it('sends the expected actor header and signal on a poll', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+      const controller = new AbortController()
+      await createPoll({
+        message: 'Q',
+        choices: ['a', 'b'],
+        durationInSeconds: 1800,
+        expectedActorId: 'https://llun.test/users/test1',
+        signal: controller.signal
+      })
+      const init = fetchMock.mock.calls[0][1] as RequestInit
+      expect(init.headers).toMatchObject({
+        [EXPECTED_ACTOR_HEADER]: 'https://llun.test/users/test1'
+      })
+      expect(init.signal).toBe(controller.signal)
+    })
+
+    it('carries Retry-After on a 429 from a create', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Slow' }), {
+        status: 429,
+        headers: { 'Retry-After': '30' }
+      })
+      await expect(createNote({ message: 'Hi' })).rejects.toMatchObject({
+        status: 429,
+        retryAfterMs: 30_000
+      })
     })
   })
 
@@ -1253,6 +1329,39 @@ describe('client statuses module', () => {
 
       const res = await getStatusById('missing-status')
       expect(res).toBeNull()
+    })
+  })
+
+  describe('getStatusIfReadable', () => {
+    it('returns the status on 200 and passes the signal', async () => {
+      fetchMock.mockResponse(JSON.stringify({ id: 's1' }), { status: 200 })
+      const controller = new AbortController()
+      expect(
+        await getStatusIfReadable('s1', { signal: controller.signal })
+      ).toEqual({ id: 's1' })
+      expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/statuses/s1')
+      expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(
+        controller.signal
+      )
+    })
+
+    it('returns null on 404', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+      expect(await getStatusIfReadable('gone')).toBeNull()
+    })
+
+    it.each([401, 500])('throws ApiRequestError on %i', async (status) => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'nope' }), { status })
+      await expect(getStatusIfReadable('s1')).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status,
+        message: 'nope'
+      })
+    })
+
+    it('lets a network failure propagate as TypeError', async () => {
+      fetchMock.mockReject(new TypeError('Load failed'))
+      await expect(getStatusIfReadable('s1')).rejects.toBeInstanceOf(TypeError)
     })
   })
 
