@@ -562,6 +562,18 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `deleteExpiredIdempotencyKeys` on each tick of the actor-deletion sweep
   (`startActorDeletionSweep` in `lib/services/actors/actorDeletion.ts`), and
   erasing an actor deletes all of its keys.
+- **`Activities-Expected-Actor` on `POST /api/v1/statuses`** — a web-client
+  extension (not part of Mastodon, and not listed in
+  `Access-Control-Allow-Headers`): the offline send queue sends the id of the
+  profile a post was written as, so a resend under another profile's cookie
+  cannot create the post as that profile. When the header names an actor other
+  than the authenticated one, the route answers `409`
+  (`{ error: 'Signed in as a different profile' }`) and writes nothing. The
+  check runs right after authentication, before the `Idempotency-Key` length
+  check, the body parse and any replay, so a mismatch is never answered with a
+  replay of the key the current actor already claimed. An absent or
+  whitespace-only header is ignored. The literals live in
+  `lib/services/statuses/expectedActor.ts`.
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
