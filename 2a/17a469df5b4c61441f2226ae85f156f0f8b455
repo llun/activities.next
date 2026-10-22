@@ -1,0 +1,27 @@
+lib/components/offline/OfflineAppShell.tsx
+  s_512188f2b1db53::t_3a4e75ea476756 23,174
+  s_512188f2b1db53::t_5360afb76e7a74 169-171,173
+docs/architecture.md
+  s_512188f2b1db53::t_aecfda8879be80 3076
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_3a4e75ea476756 194,320
+lib/components/offline/OfflineAppShell.test.tsx
+  s_512188f2b1db53::t_ae4a0f4cd5a533 520,522-525,528-529,545
+  s_512188f2b1db53::t_3a4e75ea476756 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a17a469df5b4c61441f2226ae85f156f0f8b455",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
