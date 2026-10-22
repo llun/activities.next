@@ -168,7 +168,12 @@ describe('PrivacyLocationsEditor', () => {
         screen.getByRole('button', { name: 'Save custom places' })
       )
       const alert = await screen.findByRole('alert')
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+      // The scroll runs in a passive effect, which React may flush after
+      // findByRole resolves (no act() around the async save).
+      await waitFor(() =>
+        expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+      )
+      expect(scrollIntoView).toHaveBeenCalledTimes(1)
       expect(scrollIntoView.mock.contexts[0]).toBe(alert.parentElement)
     } finally {
       Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
