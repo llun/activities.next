@@ -651,6 +651,19 @@ describe('DraftsList', () => {
       }
     })
 
+    it('hides the failed-drain Alert when nothing is queued', async () => {
+      sendQueue.status = { drainFailed: true, retry: vi.fn() }
+      await seed({ id: 'p', text: 'plain draft' })
+      try {
+        renderList()
+        await screen.findByText('plain draft')
+
+        expect(screen.queryByText("Couldn't send queued posts")).toBeNull()
+      } finally {
+        sendQueue.status = null
+      }
+    })
+
     it('shows a failed Edit as an Alert above the list', async () => {
       await seed({
         id: 'q',

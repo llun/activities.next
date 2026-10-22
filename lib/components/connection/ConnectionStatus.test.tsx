@@ -369,6 +369,12 @@ describe('the send queue in the status slot', () => {
     )
     expect(screen.getAllByText("Couldn't pause sending.")).toHaveLength(3)
     expect(screen.getAllByRole('button', { name: 'Pause' })).toHaveLength(2)
+    // Drawn as a failure: error tone, and no spinner implying progress.
+    expect(document.querySelector('[data-tone="error"]')).not.toBeNull()
+    expect(document.querySelector('[data-connection-strip]')).toHaveClass(
+      'bg-destructive-surface'
+    )
+    expect(document.querySelector('svg.lucide-loader-circle')).toBeNull()
   })
 
   it('shows the result with a View link, and not Pause', () => {

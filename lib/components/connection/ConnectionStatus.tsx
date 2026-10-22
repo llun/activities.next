@@ -98,6 +98,10 @@ const ICONS = {
   result: ListChecks
 } as const
 
+// A failure stops the spinner: nothing is progressing as it was.
+const iconOf = (message: SlotMessage) =>
+  message.tone === 'error' ? AlertTriangle : ICONS[message.kind]
+
 // The countdown and the "Sending 2 of 5" count change while the title stays
 // put, so a screen reader never gets them: the announcer says the title once.
 const Detail = ({ message }: { message: SlotMessage }) => (
@@ -183,9 +187,9 @@ export function ConnectionStatusBar() {
   if (!message) return null
   return (
     <Alert
-      tone="info"
+      tone={message.tone ?? 'info'}
       live={false}
-      icon={ICONS[message.kind]}
+      icon={iconOf(message)}
       title={message.title}
       action={<SlotActions message={message} />}
       className="mt-4 max-md:hidden"
@@ -222,20 +226,28 @@ const trackStripHeight = (strip: HTMLDivElement | null) => {
 export function ConnectionStatusStrip({ className }: { className?: string }) {
   const message = useSlotMessage()
   if (!message) return null
-  const Icon = ICONS[message.kind]
+  const Icon = iconOf(message)
+  const error = message.tone === 'error'
   return (
     <div
       ref={trackStripHeight}
       data-connection-strip=""
       className={cn(
         'sticky top-[calc(56px+env(safe-area-inset-top,0px))] z-30 md:hidden',
-        'flex min-h-[52px] items-center gap-3 border-b bg-info-surface px-4',
+        'flex min-h-[52px] items-center gap-3 border-b px-4',
+        error ? 'bg-destructive-surface' : 'bg-info-surface',
         // The compact header's spacing: it continues the bar.
         className
       )}
       style={breakoutStyle}
     >
-      <Icon className="size-4 shrink-0 text-info-text" aria-hidden="true" />
+      <Icon
+        className={cn(
+          'size-4 shrink-0',
+          error ? 'text-destructive-text' : 'text-info-text'
+        )}
+        aria-hidden="true"
+      />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold break-words">{message.title}</p>
         {message.detail ? (

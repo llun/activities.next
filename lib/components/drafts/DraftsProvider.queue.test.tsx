@@ -101,7 +101,7 @@ const queued = (
 ): DraftRecord =>
   ({ id, accountId: 'account-1', actorId: 'actor-1', queue }) as DraftRecord
 
-/** Claimable now, and never a wake time of its own. */
+/** Claimable now, so due at once. */
 const DUE = queued('due', { state: 'waiting', queuedAt: NOW, attempts: 0 })
 
 const Probe = () => {
@@ -440,8 +440,8 @@ describe('DraftsProvider send queue', () => {
       expect(listDrafts).toHaveBeenCalledTimes(reads)
     })
 
-    it('tries again once another tab’s pass ends, so a fresh item is not left waiting', async () => {
-      // One lock between the two providers, as between two tabs.
+    it('tries again once another tab’s pass ends, so an item queued during it is not left waiting', async () => {
+      // One lock and one store between the two providers, as between two tabs.
       let held = false
       vi.mocked(withSenderLock).mockImplementation(async (fn) => {
         if (held) return false
@@ -453,8 +453,24 @@ describe('DraftsProvider send queue', () => {
         }
         return true
       })
+      const late = queued('late', {
+        state: 'waiting',
+        queuedAt: NOW,
+        attempts: 0
+      })
+      let store = [DUE]
+      vi.mocked(listDrafts).mockImplementation(async () => store)
+      // A drain sends whatever is due when it lists the queue.
+      vi.mocked(drainQueue).mockImplementation(async () => {
+        store = []
+        return ZERO
+      })
       const first = createDeferred<typeof ZERO>()
-      vi.mocked(drainQueue).mockReturnValueOnce(first.promise)
+      vi.mocked(drainQueue).mockImplementationOnce(async () => {
+        await first.promise
+        store = store.filter((draft) => draft.id !== DUE.id)
+        return ZERO
+      })
       render(
         <>
           <DraftsProvider accountId="account-1" actorId="actor-1">
@@ -470,14 +486,27 @@ describe('DraftsProvider send queue', () => {
       expect(withSenderLock).toHaveBeenCalledTimes(2)
       drainQueueCalls(1)
 
+      // An item is queued after the holder listed the queue, and the holder
+      // announces another item's outcome: neither cancels the retry.
+      store = [DUE, late]
+      await post({
+        type: 'changed',
+        accountId: 'account-1',
+        actorId: 'actor-1',
+        draftId: 'other'
+      })
+      await settle()
+
       // While the holder drains, the other only checks every RETRY_SOON_MS.
       await advance(RETRY_SOON_MS)
       expect(withSenderLock).toHaveBeenCalledTimes(3)
       drainQueueCalls(1)
 
+      // The retry it asked for meanwhile runs as soon as the pass ends.
       first.resolve(ZERO)
       await settle()
-      drainQueueCalls(1)
+      drainQueueCalls(2)
+      expect(store).toEqual([])
       await advance(RETRY_SOON_MS)
       drainQueueCalls(2)
     })
@@ -555,6 +584,39 @@ describe('DraftsProvider send queue', () => {
       })
       await settle()
       expect(listDrafts).toHaveBeenCalledTimes(1)
+    })
+
+    it('reschedules on a bulk change with no draft id, without looking one up', async () => {
+      renderProvider()
+      await settle()
+      drainQueueCalls(1)
+      // A non-queued lookup would not reschedule, so only the bulk branch can.
+      vi.mocked(getDraft).mockResolvedValue({
+        id: 'plain',
+        accountId: 'account-1',
+        actorId: 'actor-1'
+      } as DraftRecord)
+      vi.mocked(listDrafts).mockResolvedValue([
+        queued('retry', {
+          state: 'waiting',
+          queuedAt: NOW,
+          attempts: 1,
+          nextAttemptAt: NOW + 5_000
+        })
+      ])
+
+      // A bulk change (pause or resume of the whole queue) names no draft.
+      await post({
+        type: 'changed',
+        accountId: 'account-1',
+        actorId: 'actor-1',
+        draftId: ''
+      })
+      await settle()
+      await advance(5_000)
+
+      expect(getDraft).not.toHaveBeenCalled()
+      drainQueueCalls(2)
     })
 
     it('ignores another actor’s changes', async () => {
@@ -670,6 +732,17 @@ describe('DraftsProvider send queue', () => {
       renderProvider()
       await settle()
       vi.mocked(drainQueue).mockClear()
+      // Another tab claimed the item, then went quiet.
+      vi.mocked(listDrafts).mockResolvedValue([
+        {
+          ...DUE,
+          queue: {
+            ...DUE.queue!,
+            state: 'sending',
+            claim: { tabId: 'other', until: NOW + CLAIM_LEASE_MS }
+          }
+        }
+      ])
 
       await post(progressMessage({ phase: 'sending', index: 1, total: 2 }))
       await advance(CLAIM_LEASE_MS - 1)
@@ -685,6 +758,17 @@ describe('DraftsProvider send queue', () => {
       renderProvider()
       await settle()
       vi.mocked(drainQueue).mockClear()
+      // Another tab is sending, and renews its lease as it goes.
+      vi.mocked(listDrafts).mockResolvedValue([
+        {
+          ...DUE,
+          queue: {
+            ...DUE.queue!,
+            state: 'sending',
+            claim: { tabId: 'other', until: NOW + 3 * CLAIM_LEASE_MS }
+          }
+        }
+      ])
 
       await post(progressMessage({ phase: 'sending', index: 1, total: 2 }))
       await advance(CLAIM_LEASE_MS - 1)
@@ -789,6 +873,37 @@ describe('DraftsProvider send queue', () => {
 
     await post(progressMessage({ phase: 'result', sent: 2 }))
     expect(screen.getByTestId('status')).toHaveTextContent('pauseFailed=false')
+  })
+
+  it('clears a failed Pause when the next one succeeds', async () => {
+    vi.mocked(pauseQueue).mockRejectedValueOnce(new Error('no db'))
+    renderProvider()
+    await settle()
+    await post(progressMessage({ phase: 'sending', index: 1, total: 2 }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('pause'))
+    })
+    await settle()
+    expect(screen.getByTestId('status')).toHaveTextContent('pauseFailed=true')
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('pause'))
+    })
+    await settle()
+    expect(screen.getByTestId('status')).toHaveTextContent('pauseFailed=false')
+    expect(screen.getByTestId('status')).toHaveTextContent('sending')
+  })
+
+  it('does not drain for another account’s due draft', async () => {
+    vi.mocked(listDrafts).mockResolvedValue([
+      { ...DUE, accountId: 'account-2' } as DraftRecord
+    ])
+    renderProvider()
+    await settle()
+
+    expect(listDrafts).toHaveBeenCalled()
+    drainQueueCalls(0)
   })
 
   it('pause() pauses this actor’s queue and tells the other views', async () => {

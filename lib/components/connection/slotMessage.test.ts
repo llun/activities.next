@@ -99,6 +99,7 @@ describe('getSlotMessage', () => {
         })
       ).toEqual({
         kind: 'sending',
+        tone: 'error',
         title: "Couldn't pause sending.",
         detail: 'Sending 1 of 2 posts'
       })

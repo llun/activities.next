@@ -7,6 +7,7 @@ import {
   createUploadPresignedUrl,
   deleteUnpostedMedia,
   getActorMedia,
+  throwIfActorMismatch,
   uploadAttachment,
   uploadFileToPresignedUrl,
   uploadMedia,
@@ -95,6 +96,26 @@ describe('client media module', () => {
       const res = await uploadMedia({ media: file })
 
       expect(res).toBeNull()
+    })
+
+    it('treats a 409 that is not the actor mismatch as a plain failure', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Conflict' }), {
+        status: 409
+      })
+
+      const file = new File(['data'], 'pic.png', { type: 'image/png' })
+      await expect(uploadMedia({ media: file })).resolves.toBeNull()
+    })
+  })
+
+  describe('throwIfActorMismatch', () => {
+    it('leaves the body readable when the 409 is not the mismatch', async () => {
+      const response = new Response(JSON.stringify({ error: 'Conflict' }), {
+        status: 409
+      })
+
+      await expect(throwIfActorMismatch(response)).resolves.toBeUndefined()
+      await expect(response.json()).resolves.toEqual({ error: 'Conflict' })
     })
   })
 

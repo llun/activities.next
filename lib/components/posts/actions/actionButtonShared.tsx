@@ -30,7 +30,12 @@ export const OfflineTooltip: FC<{ offline: boolean; children: ReactNode }> = ({
 }) => {
   const [open, setOpen] = useState(false)
   return (
-    <Tooltip open={offline && open} onOpenChange={setOpen}>
+    // Radix reports a close only when it differs from `open`, so an open asked
+    // for while online must not be kept: it would show on going offline.
+    <Tooltip
+      open={offline && open}
+      onOpenChange={(next) => setOpen(offline && next)}
+    >
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent>{OFFLINE_MESSAGE}</TooltipContent>
     </Tooltip>

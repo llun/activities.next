@@ -3,6 +3,8 @@ import type { SendQueueProgress } from '@/lib/client/drafts/types'
 
 export interface SlotMessage {
   kind: 'offline' | 'unreachable' | 'sending' | 'result'
+  /** A failure the reader just caused (a Pause that didn't take). */
+  tone?: 'error'
   title: string
   detail?: string
   retry?: boolean
@@ -44,6 +46,7 @@ export const getSlotMessage = (
       // Constant, so the announcer says it once, not on every index change;
       // a failed Pause changes it once, so that is announced too.
       title: queue.pauseFailed ? "Couldn't pause sending." : 'Back online',
+      ...(queue.pauseFailed ? { tone: 'error' as const } : {}),
       detail: `Sending ${queue.index} of ${queue.total} ${queue.total === 1 ? 'post' : 'posts'}`
     }
   }

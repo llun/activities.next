@@ -139,11 +139,19 @@ describe('draftsDb send queue', () => {
           nextAttemptAt: NOW + 5
         })
       )
-      await store(queued('b', { state: 'paused', pausedBy: 'user' }))
       expect(await claim('a', 'tab-a', NOW)).toBeNull()
       expect(await claim('a', 'tab-a', NOW + 5)).not.toBeNull()
-      expect(await claim('b')).toBeNull()
     })
+
+    it.each(['user', 'auth', 'actor'] as const)(
+      'never claims paused(%s), even once nextAttemptAt is past',
+      async (pausedBy) => {
+        await store(
+          queued('b', { state: 'paused', pausedBy, nextAttemptAt: NOW - 1 })
+        )
+        expect(await claim('b', 'tab-a', NOW + 5)).toBeNull()
+      }
+    )
 
     it('never claims a plain draft or a terminal state', async () => {
       await store({ ...queued('a'), queue: undefined })

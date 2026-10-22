@@ -515,6 +515,23 @@ describe('preflight', () => {
       nextAttemptAt: NOW + 5_000
     })
   })
+
+  it('classifies a failure at the time it happened, not when the check began', async () => {
+    const deps = makeDeps({
+      getStatusIfReadable: vi.fn(async () => {
+        clock = NOW + 40_000
+        throw new TypeError('Load failed')
+      })
+    })
+    try {
+      expect(await preflight(reply(), deps, NOW)).toEqual({
+        kind: 'waiting',
+        nextAttemptAt: NOW + 40_000 + 5_000
+      })
+    } finally {
+      clock = NOW
+    }
+  })
 })
 
 describe('drainQueue', () => {
@@ -834,11 +851,19 @@ describe('drainQueue', () => {
       [CHECKING_GIVE_UP_MS + 1, 'needs_review']
     ])('gives up checking after %i ms', async (age, expected) => {
       await store(
-        draft('a', {
-          state: 'checking',
-          attempts: 2,
-          firstAttemptAt: NOW - age
-        })
+        draft(
+          'a',
+          {
+            state: 'checking',
+            attempts: 2,
+            firstAttemptAt: NOW - age
+          },
+          {
+            attemptedAt: NOW - age,
+            submit: { key: 'k', fingerprint: 'f' },
+            lockedMessage: 'Kept.'
+          }
+        )
       )
       const deps = makeDeps()
       await drain(deps)
@@ -851,6 +876,12 @@ describe('drainQueue', () => {
           state: 'needs_review',
           reason:
             "We couldn't confirm whether it posted. Check your profile before sending it again."
+        })
+        // Not a 410: the key and the "a POST was made" marks must survive.
+        expect(await getDraft('a')).toMatchObject({
+          attemptedAt: NOW - age,
+          submit: { key: 'k', fingerprint: 'f' },
+          lockedMessage: 'Kept.'
         })
       }
     })
