@@ -57,6 +57,25 @@ describe('gallery client module', () => {
     expect(await getGallerySettings()).toEqual({ autoDescribe: true })
   })
 
+  it('getGallerySettings throws ApiRequestError with the status and the same message', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ error: 'Nope' }), {
+      status: 401
+    })
+    await expect(getGallerySettings()).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status: 401,
+      message: 'Nope'
+    })
+
+    fetchMock.mockResponseOnce(JSON.stringify({ message: 'Down' }), {
+      status: 500
+    })
+    await expect(getGallerySettings()).rejects.toMatchObject({
+      status: 500,
+      message: 'Down'
+    })
+  })
+
   it('updateGallerySettings sends only the given keys', async () => {
     fetchMock.mockResponseOnce(JSON.stringify({ autoDescribe: false }))
     await updateGallerySettings({ autoDescribe: false })

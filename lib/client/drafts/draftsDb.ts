@@ -7,6 +7,7 @@
 // Every promise settles on `tx.oncomplete` or `tx.onabort`, never on a
 // request's `onsuccess`, so a resolved write is a committed write.
 import {
+  DraftBusyError,
   DraftConflictError,
   DraftQuotaError,
   DraftSignedOutError,
@@ -16,10 +17,12 @@ import {
   DRAFTS_DB_NAME,
   DRAFTS_DB_VERSION,
   type DraftBlobRecord,
+  type DraftQueuePause,
   type DraftRecord
 } from './types'
 
 export {
+  DraftBusyError,
   DraftConflictError,
   DraftQuotaError,
   DraftSignedOutError,
@@ -161,6 +164,7 @@ const mapError = (error: unknown): Error => {
   if (
     error instanceof DraftsUnavailableError ||
     error instanceof DraftQuotaError ||
+    error instanceof DraftBusyError ||
     error instanceof DraftConflictError ||
     error instanceof DraftSignedOutError
   ) {
@@ -437,3 +441,45 @@ export const deleteAccountDrafts = (accountId: string): Promise<number> =>
       })
     }
   )
+
+// Send-queue operations (plan §4.1). Signatures are final; the bodies land
+// with the sender.
+const notImplemented = (): never => {
+  throw new DraftsUnavailableError('not implemented')
+}
+
+export const claimQueuedDraft = async (
+  _id: string,
+  _options: {
+    tabId: string
+    now: number
+    leaseMs: number
+    accountId: string
+    epoch: number
+  }
+): Promise<DraftRecord | null> => notImplemented()
+
+export const updateQueuedDraft = async (
+  _id: string,
+  _expectedRevision: number,
+  _mutate: (record: DraftRecord) => DraftRecord
+): Promise<DraftRecord> => notImplemented()
+
+export const renewClaim = async (
+  _id: string,
+  _options: { tabId: string; until: number }
+): Promise<boolean> => notImplemented()
+
+export const unqueueDraft = async (
+  _id: string,
+  _now: number
+): Promise<DraftRecord | undefined> => notImplemented()
+
+export const pauseQueue = async (_options: {
+  actorId: string
+}): Promise<number> => notImplemented()
+
+export const resumeQueue = async (_options: {
+  actorId: string
+  pausedBy: DraftQueuePause[]
+}): Promise<number> => notImplemented()

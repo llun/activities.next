@@ -134,12 +134,19 @@ describe('client media module', () => {
     })
 
     it('throws error when endpoint returns other non-200 status', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
+      fetchMock.mockResponse('', { status: 500 })
 
       const file = new File(['data'], 'pic.png', { type: 'image/png' })
       await expect(createUploadPresignedUrl({ media: file })).rejects.toThrow(
         'Failed to get presigned URL'
       )
+      await expect(
+        createUploadPresignedUrl({ media: file })
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 500,
+        message: 'Failed to get presigned URL'
+      })
     })
   })
 

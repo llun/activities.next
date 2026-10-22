@@ -34,3 +34,10 @@ export class DraftSignedOutError extends DraftsDbError {
     super('DraftSignedOutError', message)
   }
 }
+
+/** The draft is being sent by the queue right now, so it cannot be unqueued. */
+export class DraftBusyError extends DraftsDbError {
+  constructor(message = 'This post is being sent now') {
+    super('DraftBusyError', message)
+  }
+}

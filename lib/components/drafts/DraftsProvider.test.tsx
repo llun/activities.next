@@ -17,7 +17,7 @@ import {
 } from '@/lib/client/drafts'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
-import { DraftsProvider, useDrafts } from './DraftsProvider'
+import { DraftsProvider, useDrafts, useSendQueueStatus } from './DraftsProvider'
 
 const draft = (id: string, actorId = 'actor-1'): DraftRecord => ({
   id,
@@ -499,6 +499,88 @@ describe('DraftsProvider', () => {
       await act(async () => {})
 
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('send queue foundation', () => {
+    it('useSendQueueStatus is null outside the provider and idle inside it', async () => {
+      const Status = () => {
+        const status = useSendQueueStatus()
+        return (
+          <p data-testid="queue">
+            {status
+              ? `${status.phase} ${status.index}/${status.total} sent=${status.sent} review=${status.needsReview} failed=${status.failed} paused=${status.paused} pause=${typeof status.pause}`
+              : 'none'}
+          </p>
+        )
+      }
+      const { unmount } = render(<Status />)
+      expect(screen.getByTestId('queue')).toHaveTextContent('none')
+      unmount()
+
+      render(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <Status />
+        </DraftsProvider>
+      )
+      await act(async () => {})
+
+      expect(screen.getByTestId('queue')).toHaveTextContent(
+        'idle 0/0 sent=0 review=0 failed=0 paused=0 pause=function'
+      )
+    })
+
+    it('exposes a stable requestDrain that does nothing yet', async () => {
+      const seen: Array<() => void> = []
+      const Grab = () => {
+        const drafts = useDrafts()
+        if (drafts) seen.push(drafts.requestDrain)
+        return null
+      }
+      render(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <Grab />
+        </DraftsProvider>
+      )
+      await act(async () => {})
+      // A context change (signingOut) re-renders the consumer.
+      await act(async () => {
+        postDraftsMessage({ type: 'signing-out', accountId: 'account-1' })
+      })
+
+      expect(seen.length).toBeGreaterThan(1)
+      expect(new Set(seen).size).toBe(1)
+      expect(() => seen[0]()).not.toThrow()
+    })
+
+    it('titles the note for a queued post and a plain one differently', async () => {
+      let notify:
+        | ((
+            id: string,
+            revision: number,
+            options?: { queued?: boolean }
+          ) => void)
+        | undefined
+      const Grab = () => {
+        notify = useDrafts()?.notifySavedToDrafts
+        return null
+      }
+      render(
+        <DraftsProvider accountId="account-1" actorId="actor-1">
+          <Grab />
+        </DraftsProvider>
+      )
+      await act(async () => {})
+
+      act(() => notify?.('d1', 1, { queued: true }))
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        "Will send when you're back online"
+      )
+
+      act(() => notify?.('d2', 1))
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent('Saved to Drafts')
+      )
     })
   })
 })

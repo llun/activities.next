@@ -95,8 +95,9 @@ export const uploadFitnessFile = async (
       'Failed to upload fitness file.'
     )
 
-    throw new Error(
-      `Failed to upload fitness file: ${response.status} ${errorDetails}`
+    throw new ApiRequestError(
+      `Failed to upload fitness file: ${response.status} ${errorDetails}`,
+      response.status
     )
   }
 

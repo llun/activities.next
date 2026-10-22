@@ -13,6 +13,7 @@ import {
 } from 'react'
 
 import { subscribeDraftsMessages } from '@/lib/client/drafts/draftsChannel'
+import type { SendQueueProgress } from '@/lib/client/drafts/types'
 import { NotSavedToDraftsNote } from '@/lib/components/drafts/NotSavedToDraftsNote'
 
 // The IndexedDB code and the Saved note load after mount, so neither is part
@@ -36,13 +37,42 @@ export interface DraftsContextValue {
   count: number
   /** Another tab is signing this account out: composers stop saving. */
   signingOut: boolean
-  /** Asks for the "Saved to Drafts" note for the revision that was kept. */
-  notifySavedToDrafts: (draftId: string, revision: number) => void
+  /**
+   * Asks for the "Saved to Drafts" note for the revision that was kept;
+   * `queued` is a post waiting to send when back online.
+   */
+  notifySavedToDrafts: (
+    draftId: string,
+    revision: number,
+    options?: { queued?: boolean }
+  ) => void
+  /** Asks the send queue to run now (stable). */
+  requestDrain: () => void
   /** A closed composer's draft could not be kept: the note offers its text. */
   notifyNotSavedToDrafts: (text: string) => void
 }
 
 const DraftsContext = createContext<DraftsContextValue | null>(null)
+
+// Progress lives in its own context so a "Sending 2 of 5" tick never
+// re-renders every `useDrafts()` consumer.
+export type SendQueueStatus = SendQueueProgress & { pause: () => Promise<void> }
+
+const SendQueueContext = createContext<SendQueueStatus | null>(null)
+
+/** `null` outside the provider. */
+export const useSendQueueStatus = (): SendQueueStatus | null =>
+  useContext(SendQueueContext)
+
+const IDLE_PROGRESS: SendQueueProgress = {
+  phase: 'idle',
+  index: 0,
+  total: 0,
+  sent: 0,
+  needsReview: 0,
+  failed: 0,
+  paused: 0
+}
 
 /** `null` outside the provider, so every consumer works unprovided. */
 export const useDrafts = (): DraftsContextValue | null =>
@@ -62,9 +92,11 @@ export function DraftsProvider({
   const [epoch, setEpoch] = useState<number | null>(null)
   const [count, setCount] = useState(0)
   const [signingOut, setSigningOut] = useState(false)
-  const [saved, setSaved] = useState<{ id: string; revision: number } | null>(
-    null
-  )
+  const [saved, setSaved] = useState<{
+    id: string
+    revision: number
+    queued: boolean
+  } | null>(null)
   // The text of a closed composer whose draft could not be kept.
   const [unsavedText, setUnsavedText] = useState<string | null>(null)
   const dismissNote = useCallback(() => setSaved(null), [])
@@ -72,9 +104,12 @@ export function DraftsProvider({
   // The unsaved note holds text kept nowhere else: only Dismiss clears it, a
   // second failure adds its text, and a Saved note waits until it is gone.
   const notifySavedToDrafts = useCallback(
-    (id: string, revision: number) => setSaved({ id, revision }),
+    (id: string, revision: number, options?: { queued?: boolean }) =>
+      setSaved({ id, revision, queued: options?.queued === true }),
     []
   )
+  // Stub: the sender wires this to a drain.
+  const requestDrain = useCallback(() => {}, [])
   const notifyNotSavedToDrafts = useCallback(
     (text: string) =>
       setUnsavedText((prev) =>
@@ -181,6 +216,7 @@ export function DraftsProvider({
             count,
             signingOut,
             notifySavedToDrafts,
+            requestDrain,
             notifyNotSavedToDrafts
           }
         : null,
@@ -191,19 +227,33 @@ export function DraftsProvider({
       count,
       signingOut,
       notifySavedToDrafts,
+      requestDrain,
       notifyNotSavedToDrafts
     ]
   )
 
+  // Stub: the sender supplies real progress and `pauseQueue`.
+  const pause = useCallback(async () => {
+    const { pauseQueue } = await loadDrafts()
+    await pauseQueue({ actorId })
+  }, [actorId])
+  const queueStatus = useMemo<SendQueueStatus>(
+    () => ({ ...IDLE_PROGRESS, pause }),
+    [pause]
+  )
+
   return (
     <DraftsContext.Provider value={value}>
-      {children}
+      <SendQueueContext.Provider value={queueStatus}>
+        {children}
+      </SendQueueContext.Provider>
       {value && saved && unsavedText === null ? (
         <SavedToDraftsNote
           draftId={saved.id}
           revision={saved.revision}
           accountId={accountId}
           actorId={actorId}
+          queued={saved.queued}
           onDismiss={dismissNote}
         />
       ) : null}

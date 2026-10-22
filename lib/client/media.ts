@@ -14,7 +14,7 @@ import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 import { waitFor } from '@/lib/utils/waitFor'
 
-import { parseApiError } from './http'
+import { ApiRequestError, parseApiError } from './http'
 
 export interface UploadMediaParams {
   media: File
@@ -77,7 +77,9 @@ export const createUploadPresignedUrl = async ({
     body: JSON.stringify(body)
   })
   if (response.status === 404) return null
-  if (response.status !== 200) throw new Error('Failed to get presigned URL')
+  if (response.status !== 200) {
+    throw new ApiRequestError('Failed to get presigned URL', response.status)
+  }
   return response.json()
 }
 

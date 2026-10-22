@@ -41,6 +41,7 @@ const context = (patch = {}) => ({
   count: 0,
   signingOut: false,
   notifySavedToDrafts,
+  requestDrain: vi.fn(),
   notifyNotSavedToDrafts,
   ...patch
 })

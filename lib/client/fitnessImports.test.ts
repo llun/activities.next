@@ -58,6 +58,20 @@ describe('fitnessImports client module', () => {
         'Failed to upload fitness file: 400 Invalid fit file'
       )
     })
+
+    it('puts the HTTP status on the error', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Sign in' }), {
+        status: 401
+      })
+
+      await expect(
+        uploadFitnessFile(new File(['x'], 'a.fit'))
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 401,
+        message: 'Failed to upload fitness file: 401 Sign in'
+      })
+    })
   })
 
   describe('startFitnessImport', () => {

@@ -8,16 +8,35 @@ export const throwApiError = async (response: Response, fallback: string) => {
     .json()
     .then((body) => (typeof body?.error === 'string' ? body.error : null))
     .catch(() => null)
-  throw new ApiRequestError(message || fallback, response.status)
+  throw new ApiRequestError(
+    message || fallback,
+    response.status,
+    parseRetryAfterMs(response.headers?.get('Retry-After'))
+  )
+}
+
+/** `Retry-After` as milliseconds: integer seconds or an HTTP date; else undefined. */
+export const parseRetryAfterMs = (
+  value: string | null | undefined
+): number | undefined => {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000
+  // `Date.parse` accepts bare numbers like "-5" as years; an HTTP date has letters.
+  const date = /[a-z]/i.test(trimmed) ? Date.parse(trimmed) : Number.NaN
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now())
 }
 
 export class ApiRequestError extends Error {
   status: number
+  /** From a `Retry-After` header, when the server sent a usable one. */
+  retryAfterMs?: number
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfterMs?: number) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = status
+    this.retryAfterMs = retryAfterMs
   }
 }
 
