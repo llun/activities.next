@@ -270,6 +270,46 @@ describe('StatusReplyBox offline hand-off', () => {
     })
   })
 
+  describe('Cmd/Ctrl+Enter', () => {
+    const shortcut = () =>
+      fireEvent.keyDown(textarea(), {
+        key: 'Enter',
+        code: 'Enter',
+        ctrlKey: true
+      })
+
+    it('queues the reply instead of sending it live', async () => {
+      const onCancel = vi.fn()
+      render(box(replyStatus, onCancel))
+      await goOffline()
+      await typeAndWaitForSave('from the keyboard')
+
+      shortcut()
+
+      await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
+      expect((await stored())[0].queue).toMatchObject({ state: 'waiting' })
+      expect(createNote).not.toHaveBeenCalled()
+    })
+
+    it('saves a draft when the queue is unavailable (video)', async () => {
+      const onCancel = vi.fn()
+      render(box(replyStatus, onCancel))
+      await goOffline()
+      type('with a clip')
+      attachPhoto('clip.mp4', 'video/mp4')
+      await waitFor(() =>
+        expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+      )
+      await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+
+      shortcut()
+
+      await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
+      expect((await stored())[0].queue).toBeUndefined()
+      expect(createNote).not.toHaveBeenCalled()
+    })
+  })
+
   describe('Send when online', () => {
     it('stores a waiting record for the reply and closes the box', async () => {
       const onCancel = vi.fn()

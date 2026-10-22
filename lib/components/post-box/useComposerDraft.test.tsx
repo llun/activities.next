@@ -1382,8 +1382,14 @@ describe('useComposerDraft', () => {
     it.each([[true], [false]])(
       'returns false and writes nothing for an untouched composer (queue %s)',
       async (queue) => {
-        const { result } = setup()
-        current = null
+        // Like the composers: forced, an untouched composer still reads as a
+        // (blank) draft, so only the hand-off's own guard stops the write.
+        const { result } = renderHook(() =>
+          useComposerDraft({
+            composer: 'post-box',
+            getContent: (force) => (force ? content({ text: '' }) : null)
+          })
+        )
 
         await expect(handOff(result, queue)).resolves.toBe(false)
 

@@ -5,6 +5,14 @@ import { FC } from 'react'
 import type { ConnectionState } from '@/lib/client/connection'
 import { Button } from '@/lib/components/ui/button'
 
+/** Video is never queued (too large to hold for a later send). */
+export const getQueueDisabledReason = (
+  attachments: ReadonlyArray<{ mediaType: string }>
+): string | undefined =>
+  attachments.some((item) => item.mediaType.startsWith('video/'))
+    ? "Videos stay as drafts. Post this when you're back online."
+    : undefined
+
 interface ButtonsProps {
   onSaveDraft: () => void
   onQueue: () => void
