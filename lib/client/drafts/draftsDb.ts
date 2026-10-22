@@ -18,6 +18,7 @@ import {
   DRAFTS_DB_VERSION,
   type DraftBlobRecord,
   type DraftQueuePause,
+  type DraftQueueState,
   type DraftRecord
 } from './types'
 
@@ -442,44 +443,215 @@ export const deleteAccountDrafts = (accountId: string): Promise<number> =>
     }
   )
 
-// Send-queue operations (plan §4.1). Signatures are final; the bodies land
-// with the sender.
-const notImplemented = (): never => {
-  throw new DraftsUnavailableError('not implemented')
+// Send-queue operations (plan §4.1). Each is one readwrite transaction, so
+// two tabs claiming the same draft are serialized and exactly one wins. Queue
+// writes keep `updatedAt` ("content saved at").
+
+/** Whether the sender may claim this queue entry at `now`. */
+export const isQueueClaimable = (
+  queue: DraftQueueState | undefined,
+  now: number
+): boolean => {
+  if (!queue) return false
+  // A `sending` entry is claimable only once its lease ran out (a dead tab).
+  if (queue.state === 'sending') return (queue.claim?.until ?? 0) <= now
+  const ready =
+    queue.state === 'waiting' ||
+    queue.state === 'checking' ||
+    (queue.state === 'paused' && queue.pausedBy === 'rate_limit')
+  return ready && (queue.nextAttemptAt ?? 0) <= now
 }
 
-export const claimQueuedDraft = async (
-  _id: string,
-  _options: {
+/**
+ * Claims a queued draft for `tabId` until `now + leaseMs`, or resolves `null`
+ * when the account signed out (epoch), the draft is gone, belongs to another
+ * account, or is not claimable (another tab holds a live lease, not due yet).
+ */
+export const claimQueuedDraft = (
+  id: string,
+  {
+    tabId,
+    now,
+    leaseMs,
+    accountId,
+    epoch
+  }: {
     tabId: string
     now: number
     leaseMs: number
     accountId: string
     epoch: number
   }
-): Promise<DraftRecord | null> => notImplemented()
+): Promise<DraftRecord | null> =>
+  runTx<DraftRecord | null>(
+    [DRAFTS_STORE, META_STORE],
+    'readwrite',
+    (tx, { done, guard }) => {
+      done(null)
+      const epochRequest = tx.objectStore(META_STORE).get(epochKey(accountId))
+      epochRequest.onsuccess = guard(() => {
+        const current = (epochRequest.result as EpochRecord | undefined)?.value
+        if ((current ?? 0) !== epoch) return
+        const drafts = tx.objectStore(DRAFTS_STORE)
+        const request = drafts.get(id)
+        request.onsuccess = guard(() => {
+          const existing = request.result as DraftRecord | undefined
+          if (!existing?.queue || existing.accountId !== accountId) return
+          if (!isQueueClaimable(existing.queue, now)) return
+          const {
+            pausedBy: _pausedBy,
+            reason: _reason,
+            ...queue
+          } = existing.queue
+          const claimed: DraftRecord = {
+            ...existing,
+            revision: existing.revision + 1,
+            queue: {
+              ...queue,
+              state: 'sending',
+              claim: { tabId, until: now + leaseMs }
+            }
+          }
+          drafts.put(claimed)
+          done(claimed)
+        })
+      })
+    }
+  )
 
-export const updateQueuedDraft = async (
-  _id: string,
-  _expectedRevision: number,
-  _mutate: (record: DraftRecord) => DraftRecord
-): Promise<DraftRecord> => notImplemented()
+/**
+ * Revision-checked queue write: a stale revision or a missing draft rejects
+ * with `DraftConflictError` and changes nothing. Keeps `id` and `updatedAt`.
+ */
+export const updateQueuedDraft = (
+  id: string,
+  expectedRevision: number,
+  mutate: (record: DraftRecord) => DraftRecord
+): Promise<DraftRecord> =>
+  runTx<DraftRecord>(
+    [DRAFTS_STORE],
+    'readwrite',
+    (tx, { done, fail, guard }) => {
+      const drafts = tx.objectStore(DRAFTS_STORE)
+      const request = drafts.get(id)
+      request.onsuccess = guard(() => {
+        const existing = request.result as DraftRecord | undefined
+        if (!existing || existing.revision !== expectedRevision) {
+          return fail(new DraftConflictError())
+        }
+        const updated: DraftRecord = {
+          ...mutate(existing),
+          id,
+          revision: expectedRevision + 1,
+          updatedAt: existing.updatedAt
+        }
+        drafts.put(updated)
+        done(updated)
+      })
+    }
+  )
 
-export const renewClaim = async (
-  _id: string,
-  _options: { tabId: string; until: number }
-): Promise<boolean> => notImplemented()
+/**
+ * Extends the lease while `tabId` still holds it. No revision bump: the lease
+ * is not content, and every content writer re-reads the claim or conflicts on
+ * revision already.
+ */
+export const renewClaim = (
+  id: string,
+  { tabId, until }: { tabId: string; until: number }
+): Promise<boolean> =>
+  runTx<boolean>([DRAFTS_STORE], 'readwrite', (tx, { done, guard }) => {
+    done(false)
+    const drafts = tx.objectStore(DRAFTS_STORE)
+    const request = drafts.get(id)
+    request.onsuccess = guard(() => {
+      const existing = request.result as DraftRecord | undefined
+      const queue = existing?.queue
+      if (!existing || queue?.state !== 'sending') return
+      if (queue.claim?.tabId !== tabId) return
+      drafts.put({ ...existing, queue: { ...queue, claim: { tabId, until } } })
+      done(true)
+    })
+  })
 
-export const unqueueDraft = async (
-  _id: string,
+/**
+ * Takes a draft out of the queue for Review/Edit and returns the new record,
+ * which the editor seeds from. Refuses with `DraftBusyError` while a send is
+ * unresolved (`sending`, even with an expired lease, or `checking`): only the
+ * same key may settle it. Keeps `submit`, `attemptedAt` and `lockedMessage`.
+ */
+export const unqueueDraft = (
+  id: string,
   _now: number
-): Promise<DraftRecord | undefined> => notImplemented()
+): Promise<DraftRecord | undefined> =>
+  runTx<DraftRecord | undefined>(
+    [DRAFTS_STORE],
+    'readwrite',
+    (tx, { done, fail, guard }) => {
+      const drafts = tx.objectStore(DRAFTS_STORE)
+      const request = drafts.get(id)
+      request.onsuccess = guard(() => {
+        const existing = request.result as DraftRecord | undefined
+        if (!existing?.queue) return done(existing)
+        const { state } = existing.queue
+        if (state === 'sending' || state === 'checking') {
+          return fail(new DraftBusyError())
+        }
+        const { queue: _queue, ...rest } = existing
+        const unqueued: DraftRecord = {
+          ...rest,
+          revision: existing.revision + 1
+        }
+        drafts.put(unqueued)
+        done(unqueued)
+      })
+    }
+  )
 
-export const pauseQueue = async (_options: {
-  actorId: string
-}): Promise<number> => notImplemented()
+// Rewrites this actor's queue entries in one transaction; returns how many.
+const rewriteQueue = (
+  actorId: string,
+  rewrite: (queue: DraftQueueState) => DraftQueueState | null
+): Promise<number> =>
+  runTx<number>([DRAFTS_STORE], 'readwrite', (tx, { done, guard }) => {
+    const drafts = tx.objectStore(DRAFTS_STORE)
+    const request = drafts.index('byActor').getAll(actorId)
+    request.onsuccess = guard(() => {
+      let count = 0
+      for (const record of request.result as DraftRecord[]) {
+        const queue = record.queue && rewrite(record.queue)
+        if (!queue) continue
+        drafts.put({ ...record, revision: record.revision + 1, queue })
+        count += 1
+      }
+      done(count)
+    })
+  })
 
-export const resumeQueue = async (_options: {
+/** Pause: `waiting`/`checking` → `paused(user)`. Never touches a `sending` item. */
+export const pauseQueue = ({ actorId }: { actorId: string }): Promise<number> =>
+  rewriteQueue(actorId, (queue) =>
+    queue.state === 'waiting' || queue.state === 'checking'
+      ? { ...queue, state: 'paused', pausedBy: 'user' }
+      : null
+  )
+
+/** Resume matching pauses to `checking` once a POST was made, else `waiting`. */
+export const resumeQueue = ({
+  actorId,
+  pausedBy
+}: {
   actorId: string
   pausedBy: DraftQueuePause[]
-}): Promise<number> => notImplemented()
+}): Promise<number> =>
+  rewriteQueue(actorId, (queue) => {
+    if (queue.state !== 'paused' || !queue.pausedBy) return null
+    if (!pausedBy.includes(queue.pausedBy)) return null
+    const {
+      pausedBy: _pausedBy,
+      reason: _reason,
+      nextAttemptAt: _nextAttemptAt,
+      ...rest
+    } = queue
+    return { ...rest, state: rest.firstAttemptAt ? 'checking' : 'waiting' }
+  })
