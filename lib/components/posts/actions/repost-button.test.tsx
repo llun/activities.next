@@ -16,6 +16,15 @@ vi.mock('@/lib/client', () => ({
   undoRepostStatus: vi.fn()
 }))
 
+const connection = vi.hoisted(() => ({ state: 'online' as string }))
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => ({
+    state: connection.state,
+    nextProbeAt: null,
+    probing: false
+  })
+}))
+
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
 
 const actor: ActorProfile = {
@@ -199,5 +208,57 @@ describe('RepostButton', () => {
     })
 
     expect(onParentClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('RepostButton offline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    connection.state = 'offline'
+    // Radix Tooltip content measures itself; jsdom has no ResizeObserver.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+  })
+  afterEach(() => {
+    connection.state = 'online'
+  })
+
+  it('is aria-disabled but focusable, and a click makes no request', () => {
+    render(<RepostButton currentActor={currentActor} status={status} />)
+    const button = screen.getByRole('button', { name: 'Repost' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).not.toBeDisabled()
+    button.focus()
+    expect(button).toHaveFocus()
+
+    fireEvent.click(button)
+
+    expect(repostStatus).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("You're offline", { selector: '[role]' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the tooltip on focus', async () => {
+    render(<RepostButton currentActor={currentActor} status={status} />)
+    act(() => screen.getByRole('button', { name: 'Repost' }).focus())
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "You're offline"
+    )
+  })
+
+  it('has no aria-disabled when unreachable', () => {
+    connection.state = 'unreachable'
+    render(<RepostButton currentActor={currentActor} status={status} />)
+    expect(screen.getByRole('button', { name: 'Repost' })).not.toHaveAttribute(
+      'aria-disabled'
+    )
   })
 })

@@ -1,11 +1,37 @@
-import { FC, useEffect, useState } from 'react'
+import { FC, ReactNode, useEffect, useState } from 'react'
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@/lib/components/ui/tooltip'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { cn } from '@/lib/utils'
 
 // Base styling shared by every post action button (like/bookmark/repost).
 // Callers append a colour variant via cn(ACTION_BUTTON_CLASS, ...).
 export const ACTION_BUTTON_CLASS =
-  'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+  'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
+
+export const OFFLINE_MESSAGE = "You're offline"
+
+/** True only when the browser is offline; "can't reach" keeps each action's own error path. */
+export const useIsOffline = () => useConnectionStatus().state === 'offline'
+
+/**
+ * Wraps an action control in the "You're offline" tooltip. Always mounted so
+ * going offline never remounts the control (and drops its focus); the tooltip
+ * is held closed while online. Radix opens it on focus as well as hover.
+ */
+export const OfflineTooltip: FC<{ offline: boolean; children: ReactNode }> = ({
+  offline,
+  children
+}) => (
+  <Tooltip open={offline ? undefined : false}>
+    <TooltipTrigger asChild>{children}</TooltipTrigger>
+    <TooltipContent>{OFFLINE_MESSAGE}</TooltipContent>
+  </Tooltip>
+)
 
 const ERROR_DISMISS_MS = 4000
 

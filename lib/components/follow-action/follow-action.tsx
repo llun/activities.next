@@ -8,6 +8,11 @@ import {
   getFollowStatus,
   unfollow
 } from '@/lib/client'
+import {
+  OFFLINE_MESSAGE,
+  OfflineTooltip,
+  useIsOffline
+} from '@/lib/components/posts/actions/actionButtonShared'
 import { Button } from '@/lib/components/ui/button'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
@@ -36,11 +41,21 @@ export const FollowAction: FC<FollowActionProps> = ({
     FollowStatusType | undefined
   >(() => getStatusFromRelationship(initialRelationship))
 
+  const offline = useIsOffline()
+  const [offlineError, setOfflineError] = useState(false)
+
   useEffect(() => {
     if (initialRelationship === undefined) {
       getFollowStatus({ targetActorId }).then(setFollowingStatus)
     }
   }, [targetActorId, initialRelationship])
+
+  // Offline: no request, just say why.
+  const guard = (run: () => void) => () => {
+    if (offline) return setOfflineError(true)
+    setOfflineError(false)
+    run()
+  }
 
   const onFollow = async (targetActorId: string) => {
     const followResult = await follow({ targetActorId })
@@ -62,39 +77,39 @@ export const FollowAction: FC<FollowActionProps> = ({
   if (!isLoggedIn) return null
   if (followingStatus === undefined) return null
 
-  if (followingStatus === 'not_following') {
-    return (
-      <div className="flex-shrink-0">
-        <Button type="button" onClick={() => onFollow(targetActorId)}>
-          Follow
-        </Button>
-      </div>
-    )
-  }
-
-  if (followingStatus === 'requested') {
-    return (
-      <div className="flex-shrink-0">
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() => onCancelRequest(targetActorId)}
-        >
-          Requested
-        </Button>
-      </div>
-    )
-  }
+  const [label, variant, run] =
+    followingStatus === 'not_following'
+      ? (['Follow', 'default', () => onFollow(targetActorId)] as const)
+      : followingStatus === 'requested'
+        ? ([
+            'Requested',
+            'outline',
+            () => onCancelRequest(targetActorId)
+          ] as const)
+        : ([
+            'Unfollow',
+            'destructive',
+            () => onUnfollow(targetActorId)
+          ] as const)
 
   return (
     <div className="flex-shrink-0">
-      <Button
-        variant="destructive"
-        type="button"
-        onClick={() => onUnfollow(targetActorId)}
-      >
-        Unfollow
-      </Button>
+      <OfflineTooltip offline={offline}>
+        <Button
+          variant={variant}
+          type="button"
+          aria-disabled={offline || undefined}
+          className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          onClick={guard(run)}
+        >
+          {label}
+        </Button>
+      </OfflineTooltip>
+      {offline && offlineError && (
+        <p className="mt-1 text-xs text-destructive-text" role="status">
+          {OFFLINE_MESSAGE}
+        </p>
+      )}
     </div>
   )
 }
