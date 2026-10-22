@@ -423,6 +423,8 @@ describe('DraftsProvider send queue', () => {
           nextAttemptAt: NOW - 1
         })
       ])
+      // Each pass reaches it, yet it stays due (it fell due during the pass).
+      vi.mocked(drainQueue).mockResolvedValue({ ...ZERO, attempted: 1 })
       renderProvider()
       await settle()
       drainQueueCalls(1)
@@ -438,6 +440,79 @@ describe('DraftsProvider send queue', () => {
       const reads = vi.mocked(listDrafts).mock.calls.length
       await advance(60_000)
       expect(listDrafts).toHaveBeenCalledTimes(reads)
+    })
+
+    describe('never spins on a pass that cannot move the queue', () => {
+      const PAST_DUE = queued('late', {
+        state: 'checking',
+        queuedAt: NOW - 60_000,
+        attempts: 1,
+        firstAttemptAt: NOW - 60_000,
+        nextAttemptAt: NOW - 1
+      })
+
+      it('waits for the next trigger after a pass that claimed nothing', async () => {
+        vi.mocked(listDrafts).mockResolvedValue([PAST_DUE])
+        renderProvider()
+        await settle()
+        drainQueueCalls(1)
+
+        await advance(60_000)
+        drainQueueCalls(1)
+
+        // The next trigger tries again.
+        await act(async () => {
+          document.dispatchEvent(new Event('visibilitychange'))
+        })
+        await settle()
+        drainQueueCalls(2)
+      })
+
+      it('waits for the next trigger after a pass that failed', async () => {
+        vi.mocked(listDrafts).mockResolvedValue([PAST_DUE])
+        vi.mocked(withSenderLock).mockRejectedValue(new Error('chunk'))
+        renderProvider()
+        await settle()
+        expect(withSenderLock).toHaveBeenCalledTimes(1)
+
+        await advance(60_000)
+        expect(withSenderLock).toHaveBeenCalledTimes(1)
+      })
+
+      it.each(['auth', 'actor'] as const)(
+        'holds the queue while an item is paused by %s',
+        async (pausedBy) => {
+          vi.mocked(listDrafts).mockResolvedValue([
+            PAST_DUE,
+            queued('held', {
+              state: 'paused',
+              pausedBy,
+              queuedAt: NOW,
+              attempts: 1
+            })
+          ])
+          vi.mocked(drainQueue).mockResolvedValue({ ...ZERO, attempted: 1 })
+          renderProvider()
+          await settle()
+          drainQueueCalls(1)
+
+          await advance(60_000)
+          drainQueueCalls(1)
+        }
+      )
+
+      it('ignores another account’s item with the same actor', async () => {
+        vi.mocked(listDrafts).mockResolvedValue([
+          { ...PAST_DUE, accountId: 'account-2' }
+        ])
+        renderProvider()
+        await settle()
+        const reads = vi.mocked(listDrafts).mock.calls.length
+
+        await advance(60_000)
+        expect(listDrafts).toHaveBeenCalledTimes(reads)
+        drainQueueCalls(0)
+      })
     })
 
     it('tries again once another tab’s pass ends, so an item queued during it is not left waiting', async () => {
@@ -462,14 +537,15 @@ describe('DraftsProvider send queue', () => {
       vi.mocked(listDrafts).mockImplementation(async () => store)
       // A drain sends whatever is due when it lists the queue.
       vi.mocked(drainQueue).mockImplementation(async () => {
+        const attempted = store.length
         store = []
-        return ZERO
+        return { ...ZERO, attempted, sent: attempted }
       })
       const first = createDeferred<typeof ZERO>()
       vi.mocked(drainQueue).mockImplementationOnce(async () => {
         await first.promise
         store = store.filter((draft) => draft.id !== DUE.id)
-        return ZERO
+        return { ...ZERO, attempted: 1, sent: 1 }
       })
       render(
         <>
@@ -502,13 +578,15 @@ describe('DraftsProvider send queue', () => {
       expect(withSenderLock).toHaveBeenCalledTimes(3)
       drainQueueCalls(1)
 
-      // The retry it asked for meanwhile runs as soon as the pass ends.
+      // The holder sent only what it listed; the other tab's retry sends the
+      // rest.
       first.resolve(ZERO)
       await settle()
-      drainQueueCalls(2)
-      expect(store).toEqual([])
+      drainQueueCalls(1)
+      expect(store).toEqual([late])
       await advance(RETRY_SOON_MS)
       drainQueueCalls(2)
+      expect(store).toEqual([])
     })
 
     it('is recomputed on a changed message, and cleared on unmount', async () => {

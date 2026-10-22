@@ -234,6 +234,24 @@ describe('LikeButton offline', () => {
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
+  it('does not pop the tooltip open again after an offline, online, offline cycle', async () => {
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+    const button = screen.getByRole('button', { name: 'Like' })
+    act(() => button.focus())
+    expect(await screen.findByRole('tooltip')).toBeInTheDocument()
+
+    connection.state = 'online'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+    act(() => button.blur())
+    connection.state = 'offline'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+    await act(async () => {})
+
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
   it('drops the native title while offline, keeping the aria-label', () => {
     render(<LikeButton currentActor={currentActor} status={status} />)
     const button = screen.getByRole('button', { name: 'Like' })

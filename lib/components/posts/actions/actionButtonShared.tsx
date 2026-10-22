@@ -29,6 +29,13 @@ export const OfflineTooltip: FC<{ offline: boolean; children: ReactNode }> = ({
   children
 }) => {
   const [open, setOpen] = useState(false)
+  // Back online, a close that follows is never reported (see below), so an
+  // open from the last offline spell is dropped here.
+  const [wasOffline, setWasOffline] = useState(offline)
+  if (wasOffline !== offline) {
+    setWasOffline(offline)
+    if (!offline) setOpen(false)
+  }
   return (
     // Radix reports a close only when it differs from `open`, so an open asked
     // for while online must not be kept: it would show on going offline.
