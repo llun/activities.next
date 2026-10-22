@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -205,7 +205,7 @@ describe('LikeButton offline', () => {
 
     expect(likeStatus).not.toHaveBeenCalled()
     expect(
-      screen.getByText("You're offline", { selector: '[role]' })
+      screen.getByText("You're offline", { selector: '[role=alert]' })
     ).toBeInTheDocument()
   })
 
@@ -216,6 +216,38 @@ describe('LikeButton offline', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       "You're offline"
     )
+  })
+
+  it('drops the native title while offline, keeping the aria-label', () => {
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    const button = screen.getByRole('button', { name: 'Like' })
+    expect(button).not.toHaveAttribute('title')
+
+    connection.state = 'online'
+    cleanup()
+    render(<LikeButton currentActor={currentActor} status={status} />)
+    expect(screen.getByRole('button', { name: 'Like' })).toHaveAttribute(
+      'title',
+      'Like'
+    )
+  })
+
+  it('keeps focus and logs no Radix warning when going offline', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    connection.state = 'online'
+    const { rerender } = render(
+      <LikeButton currentActor={currentActor} status={status} />
+    )
+    const button = screen.getByRole('button', { name: 'Like' })
+    act(() => button.focus())
+
+    connection.state = 'offline'
+    rerender(<LikeButton currentActor={currentActor} status={status} />)
+
+    expect(screen.getByRole('button', { name: 'Like' })).toBe(button)
+    expect(button).toHaveFocus()
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
   })
 
   it('has no aria-disabled when unreachable', () => {

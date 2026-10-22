@@ -44,6 +44,11 @@ export const FollowAction: FC<FollowActionProps> = ({
   const offline = useIsOffline()
   const [offlineError, setOfflineError] = useState(false)
 
+  // Back online: drop the message so it can't reappear on the next outage.
+  useEffect(() => {
+    if (!offline) setOfflineError(false)
+  }, [offline])
+
   useEffect(() => {
     if (initialRelationship === undefined) {
       getFollowStatus({ targetActorId }).then(setFollowingStatus)

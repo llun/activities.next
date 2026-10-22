@@ -553,17 +553,35 @@ return {
         expect(await response!.text()).toBe('<h1>Signed-in Shell</h1>')
       })
 
-      it('serves the offline page for /drafts without a session or without a shell', async () => {
-        mockFetch.mockRejectedValue(new TypeError('offline'))
-        const noSession = (await navigate('/drafts')).response
-        await expectOfflinePage(noSession)
-
+      it('serves the cached shell for /drafts/ too', async () => {
         stubSession()
-        const noShell = (await navigate('/drafts')).response
-        await expectOfflinePage(noShell)
+        await seedShell()
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+
+        const { response } = await navigate('/drafts/')
+        expect(await response!.text()).toBe('<h1>Signed-in Shell</h1>')
       })
 
-      it.each(['/notifications', '/auth/signin', '/oauth/authorize', '/admin'])(
+      it('serves the offline page for /drafts without a session, even with a shell', async () => {
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        await seedShell()
+        await expectOfflinePage((await navigate('/drafts')).response)
+      })
+
+      it('serves the offline page for /drafts with a session but no shell', async () => {
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        stubSession()
+        await expectOfflinePage((await navigate('/drafts')).response)
+      })
+
+      it.each([
+        '/notifications',
+        '/auth/signin',
+        '/oauth/authorize',
+        '/admin',
+        '/draftsX',
+        '/drafts/x'
+      ])(
         'serves the offline page, never the shell, for %s while offline with a session and a shell',
         async (path) => {
           stubSession()
@@ -601,6 +619,50 @@ return {
 
         expect(await responded!).toBe(preload)
         expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it.each(['/', '/app'])(
+        'uses the navigation preload for %s instead of a second fetch',
+        async (path) => {
+          const preload = new Response('<p>preloaded</p>')
+          const req = new Request(`https://llun.social${path}`)
+          Object.defineProperty(req, 'mode', { value: 'navigate' })
+          let responded: Promise<Response> | null = null
+          eventListeners['fetch'][0]({
+            request: req,
+            preloadResponse: Promise.resolve(preload),
+            respondWith: (p: Promise<Response>) => {
+              responded = p
+            },
+            waitUntil: () => {}
+          })
+
+          expect(await responded!).toBe(preload)
+          // /app also stages the shell in the background; that is not the navigation.
+          expect(mockFetch).not.toHaveBeenCalledWith(req)
+        }
+      )
+
+      it('ignores (never leaves unhandled) a preload when / is served from the shell', async () => {
+        stubSession()
+        await seedShell()
+        const preloadResponse = Promise.resolve(undefined)
+        const catchSpy = vi.spyOn(preloadResponse, 'catch')
+        const req = new Request('https://llun.social/')
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse,
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        expect(await (await responded!).text()).toBe('<h1>Signed-in Shell</h1>')
+        expect(catchSpy).toHaveBeenCalled()
+        expect(mockFetch).not.toHaveBeenCalledWith(req)
       })
 
       it('does not intercept /api/ navigations or non-GET requests', async () => {

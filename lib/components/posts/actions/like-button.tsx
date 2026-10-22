@@ -60,7 +60,7 @@ export const LikeButton: FC<LikeButtonProps> = ({
     <span className="relative inline-flex items-center justify-center">
       <OfflineTooltip offline={offline}>
         <button
-          title={likeLabel}
+          title={offline ? undefined : likeLabel}
           aria-label={likeLabel}
           disabled={isOwnPost || isLoading}
           aria-disabled={offline || undefined}

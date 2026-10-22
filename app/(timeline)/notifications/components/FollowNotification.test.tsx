@@ -135,7 +135,7 @@ describe('FollowNotification offline', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(
-      screen.getByText("You're offline", { selector: '[role]' })
+      screen.getByText("You're offline", { selector: '[role=status]' })
     ).toBeInTheDocument()
   })
 

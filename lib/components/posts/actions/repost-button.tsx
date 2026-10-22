@@ -58,7 +58,7 @@ export const RepostButton: FC<RepostButtonProps> = ({
         <button
           aria-disabled={offline || undefined}
           disabled={isLoading}
-          title={repostLabel}
+          title={offline ? undefined : repostLabel}
           aria-label={repostLabel}
           className={cn(
             ACTION_BUTTON_CLASS,
