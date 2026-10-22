@@ -691,6 +691,25 @@ return {
         expect(mockFetch).not.toHaveBeenCalled()
       })
 
+      it('never stands the offline page in for an /api/ navigation', async () => {
+        mockFetch.mockRejectedValueOnce(new TypeError('offline'))
+        const req = new Request(
+          'https://llun.social/api/v1/fitness/strava/callback?code=a'
+        )
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse: Promise.resolve(undefined),
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        await expect(responded!).rejects.toThrow('offline')
+      })
+
       it('fetches an /api/ navigation once when there is no preload, and leaves non-GET requests alone', async () => {
         const fetched = new Response('{}')
         mockFetch.mockResolvedValueOnce(fetched)

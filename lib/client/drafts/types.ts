@@ -78,6 +78,11 @@ export interface DraftQueueState {
   reason?: string
   /** Only while `state === 'paused'`. */
   pausedBy?: DraftQueuePause
+  /**
+   * Only while `state === 'sending'`: Pause was pressed while the request was
+   * out, so a retry it settles into is paused instead.
+   */
+  pauseRequested?: true
 }
 
 /** What the status slot shows while the queue sends, and just after. */

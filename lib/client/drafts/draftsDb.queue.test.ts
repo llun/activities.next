@@ -337,21 +337,30 @@ describe('draftsDb send queue', () => {
   })
 
   describe('pauseQueue and resumeQueue', () => {
-    it('pauses waiting and checking for this actor only', async () => {
+    it('pauses waiting and checking for this actor only, and marks a sending item', async () => {
       await store(queued('w'))
       await store(queued('c', { state: 'checking', firstAttemptAt: 3 }))
-      await store(
+      const sending = await store(
         queued('s', { state: 'sending', claim: { tabId: 't', until: NOW } })
       )
       await store(queued('o', {}, { actorId: 'actor-2' }))
-      expect(await pauseQueue({ actorId: 'actor-1' })).toBe(2)
+      expect(await pauseQueue({ actorId: 'actor-1' })).toBe(3)
       expect((await getDraft('w'))?.queue).toMatchObject({
         state: 'paused',
         pausedBy: 'user'
       })
       expect((await getDraft('c'))?.queue?.state).toBe('paused')
-      expect((await getDraft('s'))?.queue?.state).toBe('sending')
+      // Its request may be out: only marked, and its revision kept so the
+      // claim owner's write still lands.
+      expect(await getDraft('s')).toMatchObject({
+        revision: sending.revision,
+        queue: { state: 'sending', pauseRequested: true }
+      })
       expect((await getDraft('o'))?.queue?.state).toBe('waiting')
+
+      await resumeQueue({ actorId: 'actor-1', pausedBy: ['user'] })
+      expect((await getDraft('s'))?.queue).not.toHaveProperty('pauseRequested')
+      expect((await getDraft('s'))?.revision).toBe(sending.revision)
     })
 
     it('pauses a rate-limited item too, dropping its "trying again" reason', async () => {

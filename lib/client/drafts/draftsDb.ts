@@ -635,18 +635,32 @@ const rewriteQueue = (
       for (const record of request.result as DraftRecord[]) {
         const queue = record.queue && rewrite(record.queue)
         if (!queue) continue
-        drafts.put({ ...record, revision: record.revision + 1, queue })
+        // A `sending` item keeps its revision, as a lease renewal does: the
+        // claim owner's revision-checked write must still land, and it reads
+        // the change inside that write.
+        const revision =
+          record.queue?.state === 'sending'
+            ? record.revision
+            : record.revision + 1
+        drafts.put({ ...record, revision, queue })
         count += 1
       }
       done(count)
     })
   })
 
-/** Pause: `waiting`/`checking` → `paused(user)`. Never touches a `sending` item. */
+/**
+ * Pause: every item that would retry on its own → `paused(user)`. A `sending`
+ * item's request may be on the wire, so it is only marked: a retry it settles
+ * into is paused instead.
+ */
 export const pauseQueue = ({ actorId }: { actorId: string }): Promise<number> =>
-  rewriteQueue(actorId, (queue) =>
-    retriesOnItsOwn(queue) ? pausedByReader(queue) : null
-  )
+  rewriteQueue(actorId, (queue) => {
+    if (queue.state === 'sending') {
+      return queue.pauseRequested ? null : { ...queue, pauseRequested: true }
+    }
+    return retriesOnItsOwn(queue) ? pausedByReader(queue) : null
+  })
 
 /** Resume matching pauses to `checking` once a POST was made, else `waiting`. */
 export const resumeQueue = ({
@@ -657,6 +671,11 @@ export const resumeQueue = ({
   pausedBy: DraftQueuePause[]
 }): Promise<number> =>
   rewriteQueue(actorId, (queue) => {
+    if (queue.state === 'sending' && queue.pauseRequested) {
+      if (!pausedBy.includes('user')) return null
+      const { pauseRequested: _pauseRequested, ...rest } = queue
+      return rest
+    }
     if (queue.state !== 'paused' || !queue.pausedBy) return null
     if (!pausedBy.includes(queue.pausedBy)) return null
     const {

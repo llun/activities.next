@@ -541,6 +541,7 @@ const sendOne = async (
 const withoutClaim = (queue: DraftQueueState) => {
   const {
     claim: _claim,
+    pauseRequested: _pauseRequested,
     nextAttemptAt: _nextAttemptAt,
     reason: _reason,
     pausedBy: _pausedBy,
@@ -647,11 +648,12 @@ const applyOutcome = (
 /** Back to `waiting`, or `checking` once a POST may have gone out. */
 const releaseClaim = (record: DraftRecord): DraftRecord => {
   if (!record.queue) throw new Error('The draft is no longer queued')
-  const { claim: _claim, ...queue } = record.queue
-  return {
-    ...record,
-    queue: { ...queue, state: queue.firstAttemptAt ? 'checking' : 'waiting' }
+  const { claim: _claim, pauseRequested, ...queue } = record.queue
+  const back: DraftQueueState = {
+    ...queue,
+    state: queue.firstAttemptAt ? 'checking' : 'waiting'
   }
+  return { ...record, queue: pauseRequested ? pausedByReader(back) : back }
 }
 
 export const drainQueue = async ({
@@ -739,18 +741,18 @@ export const drainQueue = async ({
       deps.announce(draft.id)
       break
     }
-    // Pause skipped this item while its request was out: a retry it settles
-    // into joins the pause instead of going out on its own.
-    const readerPaused = (await deps.listDrafts({ actorId })).some(
-      (other) =>
-        other.accountId === accountId &&
-        other.queue?.state === 'paused' &&
-        other.queue.pausedBy === 'user'
-    )
+    // Pause was pressed while this request was out (read inside the write, so
+    // a Resume in between counts): a retry it settles into is paused instead.
+    let joinedPause = false
     const written = await deps
       .updateQueuedDraft(draft.id, draft.revision, (record) => {
         const next = applyOutcome(record, outcome)
-        return readerPaused && next.queue && retriesOnItsOwn(next.queue)
+        joinedPause = Boolean(
+          record.queue?.pauseRequested &&
+          next.queue &&
+          retriesOnItsOwn(next.queue)
+        )
+        return joinedPause && next.queue
           ? { ...next, queue: pausedByReader(next.queue) }
           : next
       })
@@ -763,6 +765,7 @@ export const drainQueue = async ({
     if (!written) continue
     if (outcome.kind === 'needs_review') result.needsReview += 1
     if (outcome.kind === 'couldnt_send') result.failed += 1
+    if (joinedPause && outcome.kind !== 'paused') result.paused += 1
     if (outcome.kind === 'paused') {
       result.paused += 1
       if (outcome.pausedBy === 'auth' || outcome.pausedBy === 'actor') break

@@ -20,17 +20,12 @@ export const holdsQueue = (queue: DraftQueueState | undefined): boolean =>
   (queue.pausedBy === 'auth' || queue.pausedBy === 'actor')
 
 /**
- * What Pause makes of an item that would retry on its own. A rate limit's
- * "trying again soon" no longer holds, so its reason goes.
+ * What Pause makes of an item that would retry on its own. Only a rate limit
+ * carries a reason ("trying again soon"), which no longer holds.
  */
 export const pausedByReader = (queue: DraftQueueState): DraftQueueState => {
-  const { reason, ...rest } = queue
-  return {
-    ...rest,
-    ...(reason && queue.pausedBy !== 'rate_limit' ? { reason } : {}),
-    state: 'paused',
-    pausedBy: 'user'
-  }
+  const { reason: _reason, ...rest } = queue
+  return { ...rest, state: 'paused', pausedBy: 'user' }
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   putDraftBlob,
   renewClaim,
   resetDraftsDbForTesting,
+  resumeQueue,
   saveDraft,
   setDraftsIndexedDBFactory,
   unqueueDraft,
@@ -901,6 +902,80 @@ describe('drainQueue', () => {
       }
     )
 
+    it.each([
+      [401, { state: 'paused', pausedBy: 'auth' }],
+      [410, { state: 'needs_review' }]
+    ] as const)(
+      'keeps a %i outcome when Pause was pressed while its request was out',
+      async (status, expected) => {
+        await store(draft('a'))
+        const deps = makeDeps({
+          createNote: vi.fn<CreateNote>(async () => {
+            await pauseQueue({ actorId: 'actor-1' })
+            throw apiError(status)
+          })
+        })
+        await drain(deps)
+        expect((await getDraft('a'))?.queue).toMatchObject(expected)
+      }
+    )
+
+    it('pauses the only post when Pause is pressed while it is out', async () => {
+      await store(draft('only'))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          await pauseQueue({ actorId: 'actor-1' })
+          throw new TypeError('Load failed')
+        })
+      })
+      const result = await drain(deps)
+      expect((await getDraft('only'))?.queue).toMatchObject({
+        state: 'paused',
+        pausedBy: 'user'
+      })
+      expect(result.paused).toBe(1)
+    })
+
+    it('leaves a post paused when the drain is aborted after Pause was pressed', async () => {
+      await store(draft('a'))
+      const controller = new AbortController()
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          await pauseQueue({ actorId: 'actor-1' })
+          controller.abort()
+          throw new DOMException('aborted', 'AbortError')
+        })
+      })
+      await drain(deps, { signal: controller.signal })
+      expect((await getDraft('a'))?.queue).toMatchObject({
+        state: 'paused',
+        pausedBy: 'user'
+      })
+    })
+
+    it('does not pause a new post because of an earlier Pause left standing', async () => {
+      await store(draft('old', { state: 'paused', pausedBy: 'user' }))
+      await store(draft('new'))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>().mockRejectedValue(new TypeError('x'))
+      })
+      await drain(deps)
+      expect((await getDraft('new'))?.queue?.state).toBe('checking')
+    })
+
+    it('does not pause a post when Resume comes before its request settles', async () => {
+      await store(draft('a'))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          await pauseQueue({ actorId: 'actor-1' })
+          await resumeQueue({ actorId: 'actor-1', pausedBy: ['user'] })
+          throw new TypeError('Load failed')
+        })
+      })
+      await drain(deps)
+      expect((await getDraft('a'))?.queue?.state).toBe('checking')
+    })
+
     it('counts a sent post even when deleting the draft fails', async () => {
       await store(draft('a'))
       const deps = makeDeps({
@@ -1202,21 +1277,29 @@ describe('drainQueue', () => {
         expect(result.sent + result.failed).toBe(0)
       })
 
-      it('stops waiting on a hung upload once the drain is aborted', async () => {
-        await queuedPhotos()
-        const controller = new AbortController()
-        const deps = makeDeps({
-          uploadAttachment: vi.fn<UploadAttachment>(() => {
-            controller.abort()
-            return new Promise<never>(() => {})
+      it.each([
+        ['before the wait starts', (abort: () => void) => abort()],
+        ['while it waits', (abort: () => void) => queueMicrotask(abort)]
+      ])(
+        'stops waiting on a hung upload once the drain is aborted (%s)',
+        async (_when, schedule) => {
+          await queuedPhotos()
+          const controller = new AbortController()
+          const deps = makeDeps({
+            uploadAttachment: vi.fn<UploadAttachment>(() => {
+              schedule(() => controller.abort())
+              return new Promise<never>(() => {})
+            })
           })
-        })
-        await drain(deps, { signal: controller.signal })
-        expect(deps.createNote).not.toHaveBeenCalled()
-        const stored = await getDraft('a')
-        expect(stored?.queue).toMatchObject({ state: 'waiting' })
-        expect(stored?.queue).not.toHaveProperty('claim')
-      })
+          await drain(deps, { signal: controller.signal })
+          expect(deps.createNote).not.toHaveBeenCalled()
+          const stored = await getDraft('a')
+          expect(stored?.queue).toMatchObject({ state: 'waiting' })
+          expect(stored?.queue).not.toHaveProperty('claim')
+        },
+        // A regression hangs: fail fast rather than at the suite's limit.
+        3_000
+      )
 
       it('stops uploading once the drain is aborted', async () => {
         await queuedPhotos()
@@ -1243,6 +1326,22 @@ describe('drainQueue', () => {
             fileName: 'run.fit'
           })
         }
+
+        it('stops waiting on a hung activity upload once the drain is aborted', async () => {
+          await queuedFit()
+          const controller = new AbortController()
+          const deps = makeDeps({
+            uploadFitnessFile: vi.fn<UploadFitness>(() => {
+              queueMicrotask(() => controller.abort())
+              return new Promise<never>(() => {})
+            })
+          })
+          await drain(deps, { signal: controller.signal })
+          expect(deps.createNote).not.toHaveBeenCalled()
+          expect((await getDraft('a'))?.queue).toMatchObject({
+            state: 'waiting'
+          })
+        }, 3_000)
 
         it('uploads the file, persists the id before the POST and reuses it', async () => {
           await queuedFit()
