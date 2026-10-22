@@ -79,8 +79,9 @@ export interface DraftQueueState {
   /** Only while `state === 'paused'`. */
   pausedBy?: DraftQueuePause
   /**
-   * Only while `state === 'sending'`: Pause was pressed while the request was
-   * out, so a retry it settles into is paused instead.
+   * Pause was pressed while the item was `sending` (a retry it settles into
+   * is paused instead) or held by a sign-in or profile-switch pause (lifting
+   * that hold leaves it paused by the reader).
    */
   pauseRequested?: true
 }

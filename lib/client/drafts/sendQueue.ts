@@ -752,8 +752,15 @@ export const drainQueue = async ({
           next.queue &&
           retriesOnItsOwn(next.queue)
         )
-        return joinedPause && next.queue
-          ? { ...next, queue: pausedByReader(next.queue) }
+        if (joinedPause && next.queue) {
+          return { ...next, queue: pausedByReader(next.queue) }
+        }
+        // A sign-in or profile-switch hold is lifted by the next load: the
+        // reader's Pause stays marked on it so it outlasts that.
+        return record.queue?.pauseRequested &&
+          next.queue &&
+          holdsQueue(next.queue)
+          ? { ...next, queue: { ...next.queue, pauseRequested: true } }
           : next
       })
       .then(

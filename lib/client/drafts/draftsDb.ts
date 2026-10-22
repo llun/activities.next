@@ -13,7 +13,7 @@ import {
   DraftSignedOutError,
   DraftsUnavailableError
 } from './errors'
-import { pausedByReader, retriesOnItsOwn } from './queueConstants'
+import { holdsQueue, pausedByReader, retriesOnItsOwn } from './queueConstants'
 import {
   DRAFTS_DB_NAME,
   DRAFTS_DB_VERSION,
@@ -495,6 +495,21 @@ export const claimQueuedDraft = (
           const existing = request.result as DraftRecord | undefined
           if (!existing?.queue || existing.accountId !== accountId) return
           if (!isQueueClaimable(existing.queue, now)) return
+          if (existing.queue.pauseRequested) {
+            // A dead tab's send the reader paused: take it back as paused,
+            // never send it again unasked.
+            const {
+              claim: _claim,
+              pauseRequested: _pauseRequested,
+              ...queue
+            } = existing.queue
+            drafts.put({
+              ...existing,
+              revision: existing.revision + 1,
+              queue: pausedByReader(queue)
+            })
+            return
+          }
           const {
             pausedBy: _pausedBy,
             reason: _reason,
@@ -656,7 +671,9 @@ const rewriteQueue = (
  */
 export const pauseQueue = ({ actorId }: { actorId: string }): Promise<number> =>
   rewriteQueue(actorId, (queue) => {
-    if (queue.state === 'sending') {
+    // In flight, or held for sign-in or a profile switch (which the next load
+    // lifts): only marked, so the reader's pause outlasts that.
+    if (queue.state === 'sending' || holdsQueue(queue)) {
       return queue.pauseRequested ? null : { ...queue, pauseRequested: true }
     }
     return retriesOnItsOwn(queue) ? pausedByReader(queue) : null
@@ -671,8 +688,8 @@ export const resumeQueue = ({
   pausedBy: DraftQueuePause[]
 }): Promise<number> =>
   rewriteQueue(actorId, (queue) => {
-    if (queue.state === 'sending' && queue.pauseRequested) {
-      if (!pausedBy.includes('user')) return null
+    // Resume takes the reader's mark off an in-flight or held item.
+    if (queue.pauseRequested && pausedBy.includes('user')) {
       const { pauseRequested: _pauseRequested, ...rest } = queue
       return rest
     }
@@ -682,7 +699,13 @@ export const resumeQueue = ({
       pausedBy: _pausedBy,
       reason: _reason,
       nextAttemptAt: _nextAttemptAt,
+      pauseRequested,
       ...rest
     } = queue
-    return { ...rest, state: rest.firstAttemptAt ? 'checking' : 'waiting' }
+    const back: DraftQueueState = {
+      ...rest,
+      state: rest.firstAttemptAt ? 'checking' : 'waiting'
+    }
+    // Lifting a sign-in or profile-switch hold keeps the reader's own Pause.
+    return pauseRequested ? pausedByReader(back) : back
   })

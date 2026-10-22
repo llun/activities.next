@@ -358,9 +358,34 @@ describe('draftsDb send queue', () => {
       })
       expect((await getDraft('o'))?.queue?.state).toBe('waiting')
 
+      // Lifting sign-in or profile holds on load leaves the reader's mark.
+      await resumeQueue({ actorId: 'actor-1', pausedBy: ['auth', 'actor'] })
+      expect((await getDraft('s'))?.queue?.pauseRequested).toBe(true)
+
       await resumeQueue({ actorId: 'actor-1', pausedBy: ['user'] })
       expect((await getDraft('s'))?.queue).not.toHaveProperty('pauseRequested')
       expect((await getDraft('s'))?.revision).toBe(sending.revision)
+    })
+
+    it('marks an item held for sign-in, and Resume takes the mark off', async () => {
+      await store(queued('held', { state: 'paused', pausedBy: 'auth' }))
+      expect(await pauseQueue({ actorId: 'actor-1' })).toBe(1)
+      expect((await getDraft('held'))?.queue).toMatchObject({
+        state: 'paused',
+        pausedBy: 'auth',
+        pauseRequested: true
+      })
+      // Pressed again: nothing more to do.
+      expect(await pauseQueue({ actorId: 'actor-1' })).toBe(0)
+
+      await resumeQueue({ actorId: 'actor-1', pausedBy: ['user'] })
+      expect((await getDraft('held'))?.queue).toMatchObject({
+        state: 'paused',
+        pausedBy: 'auth'
+      })
+      expect((await getDraft('held'))?.queue).not.toHaveProperty(
+        'pauseRequested'
+      )
     })
 
     it('pauses a rate-limited item too, dropping its "trying again" reason', async () => {

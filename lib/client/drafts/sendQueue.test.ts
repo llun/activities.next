@@ -885,7 +885,8 @@ describe('drainQueue', () => {
             throw failure()
           })
         })
-        await drain(deps)
+        // Counted once, whether or not the failure was itself a pause.
+        expect((await drain(deps)).paused).toBe(1)
         expect((await getDraft('first'))?.queue).toMatchObject({
           state: 'paused',
           pausedBy: 'user'
@@ -902,23 +903,63 @@ describe('drainQueue', () => {
       }
     )
 
-    it.each([
-      [401, { state: 'paused', pausedBy: 'auth' }],
-      [410, { state: 'needs_review' }]
-    ] as const)(
-      'keeps a %i outcome when Pause was pressed while its request was out',
-      async (status, expected) => {
-        await store(draft('a'))
-        const deps = makeDeps({
-          createNote: vi.fn<CreateNote>(async () => {
-            await pauseQueue({ actorId: 'actor-1' })
-            throw apiError(status)
-          })
+    it('keeps a 410 outcome when Pause was pressed while its request was out, and drops the mark', async () => {
+      await store(draft('a'))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          await pauseQueue({ actorId: 'actor-1' })
+          throw apiError(410)
         })
-        await drain(deps)
-        expect((await getDraft('a'))?.queue).toMatchObject(expected)
-      }
-    )
+      })
+      await drain(deps)
+      const queue = (await getDraft('a'))?.queue
+      expect(queue).toMatchObject({ state: 'needs_review' })
+      expect(queue).not.toHaveProperty('pauseRequested')
+    })
+
+    it('keeps a 401 hold under a Pause, and the Pause outlasts the hold', async () => {
+      await store(draft('a'))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          await pauseQueue({ actorId: 'actor-1' })
+          throw apiError(401)
+        })
+      })
+      await drain(deps)
+      expect((await getDraft('a'))?.queue).toMatchObject({
+        state: 'paused',
+        pausedBy: 'auth',
+        pauseRequested: true
+      })
+
+      // The next load lifts the hold: the reader's Pause remains.
+      await resumeQueue({ actorId: 'actor-1', pausedBy: ['auth', 'actor'] })
+      const lifted = (await getDraft('a'))?.queue
+      expect(lifted).toMatchObject({ state: 'paused', pausedBy: 'user' })
+      expect(lifted).not.toHaveProperty('pauseRequested')
+      await drain(deps)
+      expect(deps.createNote).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not re-send a dead tab’s post the reader paused', async () => {
+      await store(
+        draft('a', {
+          state: 'sending',
+          attempts: 1,
+          firstAttemptAt: NOW - 120_000,
+          claim: { tabId: 'dead-tab', until: NOW - 1 }
+        })
+      )
+      await pauseQueue({ actorId: 'actor-1' })
+      const deps = makeDeps()
+      const result = await drain(deps)
+      expect(deps.createNote).not.toHaveBeenCalled()
+      expect(result.attempted).toBe(0)
+      const queue = (await getDraft('a'))?.queue
+      expect(queue).toMatchObject({ state: 'paused', pausedBy: 'user' })
+      expect(queue).not.toHaveProperty('claim')
+      expect(queue).not.toHaveProperty('pauseRequested')
+    })
 
     it('pauses the only post when Pause is pressed while it is out', async () => {
       await store(draft('only'))
