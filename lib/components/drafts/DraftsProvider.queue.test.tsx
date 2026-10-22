@@ -324,20 +324,6 @@ describe('DraftsProvider send queue', () => {
     expect(signal.aborted).toBe(true)
   })
 
-  it('sends nothing where the page reloads itself when back online', async () => {
-    render(
-      <DraftsProvider accountId="account-1" actorId="actor-1" sends={false}>
-        <Probe />
-      </DraftsProvider>
-    )
-    await settle()
-    act(() => connection.restore?.())
-    await advance(60_000)
-
-    expect(withSenderLock).not.toHaveBeenCalled()
-    drainQueueCalls(0)
-  })
-
   describe('wake timer', () => {
     it('fires at the earliest nextAttemptAt among this actor’s items, one millisecond apart', async () => {
       vi.mocked(listDrafts).mockResolvedValue([
