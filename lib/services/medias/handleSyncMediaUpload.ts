@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
+import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -56,6 +57,15 @@ export const handleSyncMediaUpload = async (
   corsHeaders: HttpMethod[]
 ) => {
   const { database, currentActor } = context
+
+  // A queued upload from the web client names its profile: refuse another
+  // one before the body is read or anything is stored.
+  const actorMismatch = expectedActorMismatchResponse(
+    req,
+    currentActor.id,
+    corsHeaders
+  )
+  if (actorMismatch) return actorMismatch
 
   // A malformed multipart body is a client error (422), so parse it separately
   // from the upload work below — only genuine processing failures map to 500.

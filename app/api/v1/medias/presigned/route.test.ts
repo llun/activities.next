@@ -6,6 +6,10 @@ import {
   getPresignedUrl
 } from '@/lib/services/medias'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import {
+  EXPECTED_ACTOR_HEADER,
+  EXPECTED_ACTOR_MISMATCH_ERROR
+} from '@/lib/services/statuses/expectedActor'
 
 import { PATCH, POST } from './route'
 
@@ -165,4 +169,74 @@ describe('POST /api/v1/medias/presigned', () => {
       expect(mockGetPresignedUrl).toHaveBeenCalledTimes(expectedPresignCalls)
     }
   )
+})
+
+describe('Activities-Expected-Actor on /api/v1/medias/presigned', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetAllServerSettings.mockResolvedValue([])
+    invalidateServerSettingsCache(mockDatabase as unknown as Database)
+    mockGetPresignedUrl.mockResolvedValue({
+      url: 'https://llun.test/upload',
+      saveFileOutput: {} as never
+    } as never)
+    mockCompletePresignedMediaUpload.mockResolvedValue({ id: 'media-1' })
+  })
+
+  const requests = {
+    POST: {
+      handler: POST,
+      body: {
+        fileName: 'photo.png',
+        checksum: 'a9993e364706816aba3e25717850c26c9cd0d89d',
+        width: 10,
+        height: 20,
+        contentType: 'image/png',
+        size: 10
+      },
+      storageCall: () => mockGetPresignedUrl
+    },
+    PATCH: {
+      handler: PATCH,
+      body: { mediaId: 'media-1' },
+      storageCall: () => mockCompletePresignedMediaUpload
+    }
+  }
+
+  const send = (method: 'POST' | 'PATCH', headers: Record<string, string>) =>
+    requests[method].handler(
+      new NextRequest('https://llun.test/api/v1/medias/presigned', {
+        method,
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(requests[method].body)
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+  describe.each(['POST', 'PATCH'] as const)('%s', (method) => {
+    it.each([
+      { description: 'absent', headers: {} as Record<string, string> },
+      {
+        description: 'the current actor',
+        headers: { [EXPECTED_ACTOR_HEADER]: mockCurrentActor.id }
+      }
+    ])('proceeds when the header is $description', async ({ headers }) => {
+      const response = await send(method, headers)
+
+      expect(response.status).toBe(200)
+      expect(requests[method].storageCall()).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses another actor with 409 and creates nothing', async () => {
+      const response = await send(method, {
+        [EXPECTED_ACTOR_HEADER]: 'https://llun.test/users/other'
+      })
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: EXPECTED_ACTOR_MISMATCH_ERROR
+      })
+      expect(requests[method].storageCall()).not.toHaveBeenCalled()
+    })
+  })
 })

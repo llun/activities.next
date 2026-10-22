@@ -16,6 +16,10 @@ import taxonPandaOleosa from '@/lib/services/gallery/lookups/__fixtures__/gbif-t
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import {
+  EXPECTED_ACTOR_HEADER,
+  EXPECTED_ACTOR_MISMATCH_ERROR
+} from '@/lib/services/statuses/expectedActor'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -488,6 +492,67 @@ describe('/api/v1/media/[id]', () => {
       expect.anything(),
       'medias/route-thumb-old.jpg'
     )
+  })
+
+  describe('PUT thumbnail with Activities-Expected-Actor', () => {
+    const putThumbnail = (id: string, headers: Record<string, string>) => {
+      const form = new FormData()
+      form.set(
+        'thumbnail',
+        new File([new Uint8Array([1, 2, 3])], 'thumb.png', {
+          type: 'image/png'
+        })
+      )
+      const request = new NextRequest(`https://llun.test/api/v1/media/${id}`, {
+        method: 'PUT',
+        headers: { origin: 'https://llun.test', ...headers }
+      })
+      Object.defineProperty(request, 'formData', {
+        value: vi.fn().mockResolvedValue(form)
+      })
+      return PUT(request, { params: Promise.resolve({ id }) })
+    }
+
+    beforeEach(() => {
+      mockSaveMediaThumbnail.mockResolvedValue({
+        path: 'medias/route-expected-thumb.webp',
+        bytes: 350,
+        mimeType: 'image/webp',
+        metaData: { width: 60, height: 60 }
+      })
+    })
+
+    it.each([
+      { description: 'absent', headers: {} as Record<string, string> },
+      {
+        description: 'the signed-in actor',
+        headers: { [EXPECTED_ACTOR_HEADER]: ACTOR1_ID }
+      }
+    ])(
+      'stores the thumbnail when the header is $description',
+      async ({ description, headers }) => {
+        const id = await createMediaFor(ACTOR1_ID, `expected-${description}`)
+
+        const response = await putThumbnail(id, headers)
+
+        expect(response.status).toBe(200)
+        expect(mockSaveMediaThumbnail).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it('refuses another actor with 409 and stores nothing', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'expected-mismatch')
+
+      const response = await putThumbnail(id, {
+        [EXPECTED_ACTOR_HEADER]: ACTOR2_ID
+      })
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: EXPECTED_ACTOR_MISMATCH_ERROR
+      })
+      expect(mockSaveMediaThumbnail).not.toHaveBeenCalled()
+    })
   })
 
   it('PUT returns 422 when the thumbnail upload exceeds quota', async () => {

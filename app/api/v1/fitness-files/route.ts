@@ -5,6 +5,7 @@ import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { FitnessFileSchema } from '@/lib/services/fitness-files/types'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -24,6 +25,14 @@ export const POST = traceApiRoute(
   'uploadFitnessFile',
   AuthenticatedGuard(async (req: NextRequest, context) => {
     const { database, currentActor } = context
+    // A queued upload names its profile: refuse another before anything is
+    // stored, so one profile's activity never lands on another.
+    const actorMismatch = expectedActorMismatchResponse(
+      req,
+      currentActor.id,
+      CORS_HEADERS
+    )
+    if (actorMismatch) return actorMismatch
 
     try {
       const formData = await req.formData()

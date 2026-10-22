@@ -42,10 +42,7 @@ import {
   parseBackdatedCreatedAt
 } from '@/lib/services/statuses/backdatedCreatedAt'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
-import {
-  EXPECTED_ACTOR_HEADER,
-  EXPECTED_ACTOR_MISMATCH_ERROR
-} from '@/lib/services/statuses/expectedActor'
+import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import {
@@ -223,15 +220,12 @@ export const POST = traceApiRoute(
       // as. Checked before anything else (the Idempotency-Key claim, the body,
       // a replay), because keys are per actor: a resend under another
       // profile's cookie would otherwise create a second post as that profile.
-      const expectedActorId = req.headers.get(EXPECTED_ACTOR_HEADER)?.trim()
-      if (expectedActorId && expectedActorId !== currentActor.id) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: { error: EXPECTED_ACTOR_MISMATCH_ERROR },
-          responseStatusCode: 409
-        })
-      }
+      const actorMismatch = expectedActorMismatchResponse(
+        req,
+        currentActor.id,
+        CORS_HEADERS
+      )
+      if (actorMismatch) return actorMismatch
       const idempotencyKey = req.headers.get('Idempotency-Key')?.trim()
       // idempotency_keys.key is varchar(255); PostgreSQL rejects a longer
       // value at the claim, so refuse it before doing anything.
