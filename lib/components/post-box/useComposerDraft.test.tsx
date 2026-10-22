@@ -1033,6 +1033,25 @@ describe('useComposerDraft', () => {
       expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
     })
 
+    it('saves what was typed during a sign-out another tab cancelled', async () => {
+      const { result, rerender } = setup()
+      act(() => result.current.schedule())
+      vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
+      rerender()
+      current = content({ text: 'typed while signing out' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+
+      vi.mocked(useDrafts).mockReturnValue(context())
+      rerender()
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+
+      await vi.waitFor(async () =>
+        expect((await stored())?.text).toBe('typed while signing out')
+      )
+    })
+
     it('keep offers the text when another tab is signing out', async () => {
       vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
       const { result } = setup()

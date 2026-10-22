@@ -126,6 +126,21 @@ const makeFull = () =>
     throw new DOMException('full', 'QuotaExceededError')
   })
 
+// The save line under the text area ("Not saved, copy your text") is an alert
+// of its own: these look for the send's.
+const sendAlerts = () =>
+  screen
+    .queryAllByRole('alert')
+    .filter(
+      (alert) => !alert.textContent?.includes('Not saved, copy your text')
+    )
+const findSendAlert = () =>
+  waitFor(() => {
+    const [alert] = sendAlerts()
+    expect(alert).toBeDefined()
+    return alert
+  })
+
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
 configure({ asyncUtilTimeout: 4000 })
 
@@ -221,6 +236,57 @@ describe('PostBox on-device drafts', () => {
     await new Promise((resolve) => setTimeout(resolve, 1100))
 
     expect(await storedDrafts()).toHaveLength(0)
+  })
+
+  describe('re-targeted while a send is in flight', () => {
+    const replyTo = (id: string) =>
+      ({
+        ...quoted,
+        id: `https://activities.local/users/bob/statuses/${id}`
+      }) as Status
+
+    const pendingSend = () => {
+      let finish = () => undefined as void
+      createNoteMock.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            finish = () => done({ status: {} as never, attachments: [] })
+          })
+      )
+      return () => finish()
+    }
+
+    it('drops the draft that was sent, not the new one', async () => {
+      const finish = pendingSend()
+      const onPostCreated = vi.fn()
+      const { rerender } = render(
+        composer({ replyStatus: replyTo('first'), onPostCreated })
+      )
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second'), onPostCreated }))
+      finish()
+      await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
+
+      await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
+    })
+
+    it('cannot dismiss the reply while it is being sent', async () => {
+      pendingSend()
+      render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      expect(
+        screen.getByRole('button', { name: 'Dismiss reply' })
+      ).toBeDisabled()
+    })
   })
 
   describe('media a saved draft owns', () => {
@@ -335,7 +401,7 @@ describe('PostBox on-device drafts', () => {
       const view = render(composer())
       setup(view.container)
       fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
-      await screen.findByRole('alert')
+      await findSendAlert()
       await waitFor(async () =>
         expect((await storedDrafts())[0]?.attemptedAt).toBeDefined()
       )
@@ -668,7 +734,7 @@ describe('PostBox on-device drafts', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      const alert = await screen.findByRole('alert')
+      const alert = await findSendAlert()
       expect(alert).toHaveTextContent("Couldn't send.")
       expect(alert).toHaveTextContent('The server said no')
       expect(alert).toHaveTextContent(
@@ -693,7 +759,7 @@ describe('PostBox on-device drafts', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      const alert = await screen.findByRole('alert')
+      const alert = await findSendAlert()
       expect(alert.parentElement).not.toHaveClass('max-md:pb-6')
     })
 
@@ -702,7 +768,7 @@ describe('PostBox on-device drafts', () => {
       render(composer())
       type('hello')
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await screen.findByRole('alert')
+      await findSendAlert()
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
@@ -710,7 +776,7 @@ describe('PostBox on-device drafts', () => {
       expect(createNoteMock.mock.calls[1][0].idempotencyKey).toBe(
         createNoteMock.mock.calls[0][0].idempotencyKey
       )
-      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+      await waitFor(() => expect(sendAlerts()).toHaveLength(0))
     })
 
     it('says nothing but the lock line when the server kept the post', async () => {
@@ -721,7 +787,7 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       expect(await screen.findByText(/Editing is locked/)).toBeInTheDocument()
-      expect(screen.queryByRole('alert')).toBeNull()
+      expect(sendAlerts()).toHaveLength(0)
       expect(window.alert).not.toHaveBeenCalled()
     })
   })
@@ -740,7 +806,7 @@ describe('PostBox on-device drafts', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      const alert = await screen.findByRole('alert')
+      const alert = await findSendAlert()
       expect(alert).toHaveTextContent(
         "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
       )
@@ -766,9 +832,7 @@ describe('PostBox on-device drafts', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'nothing was sent'
-      )
+      expect(await findSendAlert()).toHaveTextContent('nothing was sent')
       expect(createPoll).not.toHaveBeenCalled()
       expect(createNoteMock).not.toHaveBeenCalled()
     })
@@ -777,7 +841,7 @@ describe('PostBox on-device drafts', () => {
       await saveThenFailToCheckpoint()
       const full = makeFull()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await screen.findByRole('alert')
+      await findSendAlert()
       full.mockRestore()
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -799,7 +863,7 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       // Trying again cannot work: only a new draft can be sent.
-      const alert = await screen.findByRole('alert')
+      const alert = await findSendAlert()
       expect(alert).toHaveTextContent(
         'This draft was changed in another tab, so nothing was sent. Copy your text, then clear the box to start a new draft.'
       )
@@ -813,7 +877,7 @@ describe('PostBox on-device drafts', () => {
         expect(screen.queryByText('Not saved, copy your text')).toBeNull()
       )
       // The Alert belonged to the draft the composer let go of.
-      expect(screen.queryByRole('alert')).toBeNull()
+      expect(sendAlerts()).toHaveLength(0)
       type('a fresh start')
       await waitForSaved()
       expect(await storedDrafts()).toHaveLength(2)
@@ -845,7 +909,7 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       await waitFor(() =>
-        expect(screen.getByRole('alert')).toHaveTextContent('nothing was sent')
+        expect(sendAlerts()[0]).toHaveTextContent('nothing was sent')
       )
       expect(createNoteMock).toHaveBeenCalledTimes(1)
       const all = await storedDrafts()
@@ -861,7 +925,7 @@ describe('PostBox on-device drafts', () => {
       type('hello')
       await waitForSaved()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await screen.findByRole('alert')
+      await findSendAlert()
       await waitFor(async () =>
         expect((await storedDrafts())[0]?.submit).toBeDefined()
       )
@@ -894,7 +958,7 @@ describe('PostBox on-device drafts', () => {
       type('hello')
       await waitForSaved()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await screen.findByRole('alert')
+      await findSendAlert()
       await waitFor(async () =>
         expect((await storedDrafts())[0]?.submit).toBeDefined()
       )
@@ -932,7 +996,7 @@ describe('PostBox on-device drafts', () => {
       await waitForSaved()
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await screen.findByRole('alert')
+      await findSendAlert()
 
       expect(stored?.submit?.key).toBe(
         createNoteMock.mock.calls[0][0].idempotencyKey
@@ -973,7 +1037,7 @@ describe('PostBox on-device drafts', () => {
           expect((await storedDrafts())[0].lockedMessage).toBeDefined()
         )
       } else {
-        await screen.findByRole('alert')
+        await findSendAlert()
       }
       first.unmount()
       const [draft] = await storedDrafts()

@@ -22,6 +22,7 @@ describe('DraftSaveStatus', () => {
     rerender(<DraftSaveStatus saveState="saved" text="hi" />)
     expect(screen.getByText('Saved on this device')).toBeVisible()
     expect(container.querySelector('[aria-live]')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('announces only the failure, and copies the text', async () => {
@@ -30,12 +31,18 @@ describe('DraftSaveStatus', () => {
       configurable: true,
       value: { writeText }
     })
-    const { container } = render(
-      <DraftSaveStatus saveState="error" text="my words" />
+    const { rerender } = render(
+      <DraftSaveStatus saveState="saving" text="my words" />
     )
+    const saving = screen.getByText('Saving…')
+    rerender(<DraftSaveStatus saveState="error" text="my words" />)
 
-    expect(screen.getByText('Not saved, copy your text')).toBeVisible()
-    expect(container.querySelector('[aria-live="polite"]')).not.toBeNull()
+    // A new alert element, not the Saving line turned into one: only an
+    // inserted alert is reliably announced.
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Not saved, copy your text')
+    expect(alert).not.toBe(saving)
+    expect(saving).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Copy text' }))
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('my words'))

@@ -113,6 +113,21 @@ const cancel = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
+// The save line under the text area ("Not saved, copy your text") is an alert
+// of its own: these look for the send's.
+const sendAlerts = () =>
+  screen
+    .queryAllByRole('alert')
+    .filter(
+      (alert) => !alert.textContent?.includes('Not saved, copy your text')
+    )
+const findSendAlert = () =>
+  waitFor(() => {
+    const [alert] = sendAlerts()
+    expect(alert).toBeDefined()
+    return alert
+  })
+
 configure({ asyncUtilTimeout: 4000 })
 
 describe('StatusReplyBox on-device drafts', () => {
@@ -267,7 +282,7 @@ describe('StatusReplyBox on-device drafts', () => {
 
       post()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
+      expect(await findSendAlert()).toHaveTextContent(
         "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
       )
       expect(createNoteMock).not.toHaveBeenCalled()
@@ -285,7 +300,7 @@ describe('StatusReplyBox on-device drafts', () => {
 
       post()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
+      expect(await findSendAlert()).toHaveTextContent(
         'This draft was changed in another tab, so nothing was sent. Copy your text, then clear the box to start a new draft.'
       )
       expect(createNoteMock).not.toHaveBeenCalled()
@@ -332,7 +347,7 @@ describe('StatusReplyBox on-device drafts', () => {
       post()
 
       await waitFor(() =>
-        expect(screen.getByRole('alert')).toHaveTextContent('nothing was sent')
+        expect(sendAlerts()[0]).toHaveTextContent('nothing was sent')
       )
       expect(createNoteMock).toHaveBeenCalledTimes(1)
       expect(await stored()).toHaveLength(1)
@@ -513,5 +528,37 @@ describe('StatusReplyBox on-device drafts', () => {
     await waitFor(async () => expect(await stored()).toHaveLength(0), {
       timeout: 500
     })
+  })
+
+  it('drops the sent draft when re-targeted while the reply is in flight', async () => {
+    let finish = () => undefined as void
+    createNoteMock.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          finish = () => done({ status: replyStatus, attachments: [] })
+        })
+    )
+    const onPostCreated = vi.fn()
+    const { rerender } = renderBox({ onPostCreated })
+    type('Reply body')
+    await waitForSaved()
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={onPostCreated}
+        />
+      </DraftsProvider>
+    )
+    finish()
+    await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
+
+    await waitFor(async () => expect(await stored()).toHaveLength(0))
   })
 })

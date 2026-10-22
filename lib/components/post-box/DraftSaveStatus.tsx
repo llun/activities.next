@@ -17,6 +17,8 @@ interface Props {
 /**
  * The line under the composer's text area. Only the failure is announced:
  * Saving and Saved after every pause in typing would be noise.
+ * The alert is a new element (its own key), since screen readers announce an
+ * alert inserted into the page, not one a reused node turns into.
  */
 export const DraftSaveStatus: FC<Props> = ({ saveState, text }) => {
   const { copied, copy } = useCopyToClipboard()
@@ -25,7 +27,8 @@ export const DraftSaveStatus: FC<Props> = ({ saveState, text }) => {
   if (saveState === 'error') {
     return (
       <p
-        aria-live="polite"
+        key="error"
+        role="alert"
         className="flex items-center gap-2 text-xs text-destructive-text"
       >
         <span>Not saved, copy your text</span>

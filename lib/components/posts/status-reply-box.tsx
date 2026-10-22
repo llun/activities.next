@@ -490,9 +490,7 @@ export const StatusReplyBox: FC<Props> = ({
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       // The posted reply owns the media now: drop the draft and its bytes only.
-      if (generation === draftGenerationRef.current) {
-        void composerDraft.release()
-      }
+      void composerDraft.release()
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       removedAttachmentIdsRef.current.clear()

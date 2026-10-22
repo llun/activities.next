@@ -1117,9 +1117,7 @@ export const PostBox: FC<Props> = ({
 
         submitIdempotencyRef.current = null
         setLockedMessage(null)
-        if (generation === draftGenerationRef.current) {
-          void composerDraft.release()
-        }
+        void composerDraft.release()
         dispatch(resetExtension())
         resetMediaState()
         // Clear the draft like the note branch does. Leaving the question text
@@ -1292,9 +1290,7 @@ export const PostBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
       // The posted status owns the media now: drop the draft and its bytes only.
-      if (generation === draftGenerationRef.current) {
-        void composerDraft.release()
-      }
+      void composerDraft.release()
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       resetMediaState()
@@ -1387,12 +1383,15 @@ export const PostBox: FC<Props> = ({
   }
 
   const onCloseReply = () => {
+    // A submit in flight owns the draft: closing now would lose its result.
+    if (submitInFlightRef.current) return
     settleDraftOnClose()
     onDiscardReply()
     setText('')
   }
 
   const onCloseQuote = () => {
+    if (submitInFlightRef.current) return
     settleDraftOnClose()
     onDiscardQuote?.()
   }
@@ -1921,13 +1920,13 @@ export const PostBox: FC<Props> = ({
               host={host}
               status={replyStatus}
               onClose={onCloseReply}
-              disabled={draftLocked}
+              disabled={draftLocked || isPosting}
             />
             <QuotedPreview
               host={host}
               status={quotedStatus}
               onClose={onCloseQuote}
-              disabled={draftLocked}
+              disabled={draftLocked || isPosting}
             />
             {postExtension.contentWarningVisible ? (
               <input

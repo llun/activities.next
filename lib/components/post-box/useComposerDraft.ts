@@ -393,6 +393,9 @@ export const useComposerDraft = ({
     chain: Promise<unknown>
     status: DraftSaveState
     mounted: boolean
+    // The draft the last send checkpointed: released on success even after the
+    // composer moved on to another target.
+    sent: DraftState | undefined
     // Blob writes refused for want of an epoch, run again once it resolves.
     blobRetries: Map<string, () => void>
   } | null>(null)
@@ -403,6 +406,7 @@ export const useComposerDraft = ({
       chain: Promise.resolve(),
       status: 'idle',
       mounted: true,
+      sent: undefined,
       blobRetries: new Map()
     }
   }
@@ -744,6 +748,7 @@ export const useComposerDraft = ({
     ): Promise<boolean> => {
       if (!live.current.enabled) return true
       const d = s.d
+      s.sent = d
       d.submit = submit
       d.attemptedAt ??= Date.now()
       const ok = await saveNow(true)
@@ -774,9 +779,11 @@ export const useComposerDraft = ({
 
     const release = (): Promise<void> => {
       if (!live.current.enabled) return Promise.resolve()
-      const d = s.d
+      const d = s.sent ?? s.d
+      s.sent = undefined
       const ctx = live.current.drafts
-      forget()
+      // Re-targeted mid-send: the composer's new draft is left alone.
+      if (d === s.d) forget()
       return enqueue(async () => {
         if (!d.id) return
         if (d.revision === 0) {
@@ -913,10 +920,13 @@ export const useComposerDraft = ({
   }, [api, s])
 
   // Signing out in another tab: drop the pending save (the epoch would abort
-  // it anyway).
+  // it anyway). If that sign-out is cancelled, save what was typed meanwhile.
+  const wasEnabled = useRef(enabled)
   useEffect(() => {
     if (!enabled) clearTimer()
-  }, [enabled, clearTimer])
+    else if (!wasEnabled.current) api.schedule()
+    wasEnabled.current = enabled
+  }, [enabled, clearTimer, api])
 
   // The provider's epoch resolving is what lets a refused save go through.
   const epoch = drafts?.epoch
