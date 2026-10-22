@@ -528,7 +528,11 @@ describe('StatusReplyBox on-device drafts', () => {
       document.querySelector<HTMLInputElement>('input[type="file"]')!,
       { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
     )
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    )
     post()
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
 
     rerender(
       <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
@@ -572,7 +576,11 @@ describe('StatusReplyBox on-device drafts', () => {
       document.querySelector<HTMLInputElement>('input[type="file"]')!,
       { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
     )
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    )
     post()
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
       throw new DOMException('full', 'QuotaExceededError')
     })
@@ -599,6 +607,85 @@ describe('StatusReplyBox on-device drafts', () => {
 
     expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
     expect(createNoteMock).not.toHaveBeenCalled()
+  })
+
+  it('offers the text when the photo upload fails after a re-target and the reply was not kept', async () => {
+    const upload =
+      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
+    const { rerender } = renderBox()
+    type('Reply body')
+    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    )
+    post()
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    upload.reject(new Error('upload failed'))
+
+    expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
+    expect(createNoteMock).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Fail to upload/)).toBeNull()
+  })
+
+  it('without drafts, a reply re-targeted while its photo uploads is sent with the photo', async () => {
+    const upload =
+      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
+    const box = (id: string) => (
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={{ ...replyStatus, id }}
+        isMediaUploadEnabled
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+    const { rerender } = render(box(replyStatus.id))
+    type('Reply body')
+    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    )
+    post()
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
+
+    rerender(box(`${replyStatus.id}-other`))
+    upload.resolve({
+      id: 'media-b.png',
+      type: 'upload',
+      mediaType: 'image/png',
+      url: 'https://activities.local/media/b.png',
+      width: 100,
+      height: 100
+    })
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    expect(createNoteMock.mock.calls[0][0]).toMatchObject({
+      inReplyToId: replyStatus.id,
+      attachments: [expect.objectContaining({ id: 'media-b.png' })]
+    })
   })
 
   it('locks the reply it left behind when the server keeps it after a re-target', async () => {
@@ -690,6 +777,7 @@ describe('StatusReplyBox on-device drafts', () => {
       expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
     )
     post()
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
     await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
 
     rerender(

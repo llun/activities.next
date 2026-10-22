@@ -365,6 +365,7 @@ export const useComposerDraft = ({
     getContent,
     onUnlock
   })
+  const previous = live.current
   live.current = {
     enabled,
     drafts,
@@ -391,6 +392,10 @@ export const useComposerDraft = ({
     snapshots.current[key] = { source, copy }
     return copy
   }
+  const targetOf = (props: { replyTo?: Status; quoteOf?: Status }) => ({
+    replyTo: copyOf('replyTo', props.replyTo),
+    quoteOf: copyOf('quoteOf', props.quoteOf)
+  })
 
   const store = useRef<{
     d: DraftState
@@ -417,6 +422,12 @@ export const useComposerDraft = ({
       left: undefined,
       blobRetries: new Map()
     }
+  }
+  // New props name a new target: what the draft holds so far was written for
+  // the previous one. Pinned here, at render, before any effect of this commit
+  // (an autosave or a re-target) can read the new props.
+  if (previous.replyTo !== replyTo || previous.quoteOf !== quoteOf) {
+    store.current.d.target = targetOf(previous)
   }
   const s = store.current
 
@@ -468,13 +479,7 @@ export const useComposerDraft = ({
         d.id = generatePublicId()
         d.createdAt = Date.now()
       }
-      const target =
-        keepTarget && d.target
-          ? d.target
-          : {
-              replyTo: copyOf('replyTo', live.current.replyTo),
-              quoteOf: copyOf('quoteOf', live.current.quoteOf)
-            }
+      const target = keepTarget && d.target ? d.target : targetOf(live.current)
       d.target = target
       return {
         d,
@@ -662,12 +667,6 @@ export const useComposerDraft = ({
 
     const schedule = () => {
       const { enabled: on } = live.current
-      // Runs after each edit with the props of that render, so a draft never
-      // captured yet still knows its own target when the composer is re-targeted.
-      s.d.target = {
-        replyTo: copyOf('replyTo', live.current.replyTo),
-        quoteOf: copyOf('quoteOf', live.current.quoteOf)
-      }
       if (!on || s.d.settled) return
       if (s.d.conflicted) {
         // Emptied: the other tab's record and bytes stay as they are, and the
@@ -855,15 +854,14 @@ export const useComposerDraft = ({
     // Saves what the composer holds, then lets it move on to new content
     // without touching the saved draft.
     const detach = (): Promise<void> => {
-      const text = live.current.getContent(true)?.text ?? ''
-      s.left = { text, saved: Promise.resolve(false) }
-      if (!live.current.enabled) return Promise.resolve()
-      const snap = capture(false, true)
-      forget()
-      if (!snap) return Promise.resolve()
-      snap.d.left = snap
-      const saved = queueSave(snap)
-      s.left = { text, saved }
+      const text = live.current.getContent()?.text
+      const snap = live.current.enabled ? capture(false, true) : null
+      if (live.current.enabled) forget()
+      if (snap) snap.d.left = snap
+      const saved = snap?.content ? queueSave(snap) : Promise.resolve(false)
+      // An empty composer leaves nothing behind, so it never answers for a
+      // send stopped by this re-target.
+      if (text !== undefined) s.left = { text, saved }
       return saved.then(() => undefined)
     }
 

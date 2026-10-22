@@ -1236,6 +1236,13 @@ export const PostBox: FC<Props> = ({
             }
           } catch (error) {
             dispatch(setFitnessFileUploading(false))
+            // Re-targeted meanwhile: the failure belongs to the draft left
+            // behind (offered in the note if it was not kept), not this one.
+            if (generation !== draftGenerationRef.current) {
+              void composerDraft.leftBehind()
+              setIsPosting(false)
+              return
+            }
             const errorMessage =
               error instanceof Error && error.message
                 ? error.message
@@ -1249,11 +1256,6 @@ export const PostBox: FC<Props> = ({
       }
 
       const attachments = await uploadMediaAttachments()
-      if (await hasMissingDescriptionAfterUploads(attachments)) {
-        setIsPosting(false)
-        setAllowPost(true)
-        return
-      }
       // Re-targeted while uploading: the draft stays in Drafts as the composer
       // left it, and nothing is sent or written to the new target's composer.
       // If it could not be kept, the not-saved note offers its text; with no
@@ -1263,6 +1265,11 @@ export const PostBox: FC<Props> = ({
         (await composerDraft.leftBehind()) !== 'none'
       ) {
         setIsPosting(false)
+        return
+      }
+      if (await hasMissingDescriptionAfterUploads(attachments)) {
+        setIsPosting(false)
+        setAllowPost(true)
         return
       }
 
@@ -1362,12 +1369,16 @@ export const PostBox: FC<Props> = ({
             retryable: true
           })
         }
-      } else if (action !== 'none') {
+      } else {
         // Re-targeted mid-send: the draft left behind takes the lock (a reopen
-        // must retry under the same key); this composer says nothing.
-        void composerDraft.recordSentLock(
-          action === 'lock' ? failureMessage : null
-        )
+        // must retry under the same key), or the note offers its text if it
+        // was not kept; this composer says nothing.
+        void composerDraft.leftBehind()
+        if (action !== 'none') {
+          void composerDraft.recordSentLock(
+            action === 'lock' ? failureMessage : null
+          )
+        }
       }
     } finally {
       submitInFlightRef.current = false

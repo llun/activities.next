@@ -356,7 +356,9 @@ describe('PostBox on-device drafts', () => {
       type('@bob@activities.local my reply')
       await waitForSaved()
       attach('a.png')
+      await screen.findByRole('button', { name: 'Remove media a.png' })
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
 
       rerender(composer({ replyStatus: replyTo('second') }))
       upload.resolve(uploaded('media-a.png', 'a.png'))
@@ -376,6 +378,44 @@ describe('PostBox on-device drafts', () => {
       )
       expect(createNoteMock).not.toHaveBeenCalled()
       expect((await storedDrafts())[0].submit).toBeUndefined()
+    })
+
+    it('offers the text when the photo upload fails after a re-target and the post was not kept', async () => {
+      const upload =
+        createDeferred<Awaited<ReturnType<typeof uploadAttachmentMock>>>()
+      uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      attach('a.png')
+      await screen.findByRole('button', { name: 'Remove media a.png' })
+      makeFull()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      upload.reject(new Error('upload failed'))
+
+      expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
+      expect(createNoteMock).not.toHaveBeenCalled()
+      expect(sendAlerts()).toHaveLength(0)
+    })
+
+    it('offers the text when a send fails after a re-target and the post could not be kept', async () => {
+      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => send.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      makeFull()
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      send.reject(new Error('offline'))
+
+      expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
+      expect(sendAlerts()).toHaveLength(0)
     })
 
     it('locks the post it left behind when the server keeps it after a re-target', async () => {

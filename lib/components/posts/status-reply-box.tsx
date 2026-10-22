@@ -435,16 +435,16 @@ export const StatusReplyBox: FC<Props> = ({
       // Re-targeted while uploading: the draft stays in Drafts as the box left
       // it, and nothing is sent or written to the new target's composer.
       // If it could not be kept, the not-saved note offers its text; with no
-      // drafts at all, the send goes ahead.
-      if (
-        generation !== draftGenerationRef.current &&
-        (await composerDraft.leftBehind()) !== 'none'
-      ) {
+      // drafts at all, the send goes ahead with what it uploaded.
+      const retargeted = generation !== draftGenerationRef.current
+      if (retargeted && (await composerDraft.leftBehind()) !== 'none') {
         isSubmittingRef.current = false
         setIsPosting(false)
         return
       }
 
+      // Removed while uploading: left out. After a re-target the box holds the
+      // new target's attachments, so only the uploads themselves count.
       const currentAttachmentIds = new Set(
         postExtensionRef.current.attachments.map((a) => a.id)
       )
@@ -452,17 +452,20 @@ export const StatusReplyBox: FC<Props> = ({
       const attachments = uploadResults
         .filter(
           (a) =>
-            !removedAttachmentIds.has(a.originalId) &&
-            !removedAttachmentIds.has(a.uploadedAttachment.id) &&
-            (currentAttachmentIds.has(a.originalId) ||
-              currentAttachmentIds.has(a.uploadedAttachment.id))
+            retargeted ||
+            (!removedAttachmentIds.has(a.originalId) &&
+              !removedAttachmentIds.has(a.uploadedAttachment.id) &&
+              (currentAttachmentIds.has(a.originalId) ||
+                currentAttachmentIds.has(a.uploadedAttachment.id)))
         )
         .map((a) => a.uploadedAttachment)
 
-      // The draft reads the ref, which only follows a render.
-      postExtensionRef.current = {
-        ...postExtensionRef.current,
-        attachments
+      if (!retargeted) {
+        // The draft reads the ref, which only follows a render.
+        postExtensionRef.current = {
+          ...postExtensionRef.current,
+          attachments
+        }
       }
 
       const replyFingerprint = JSON.stringify({
@@ -533,6 +536,7 @@ export const StatusReplyBox: FC<Props> = ({
       // The draft left behind takes the lock (a reopen must retry under the
       // same key).
       if (generation !== draftGenerationRef.current) {
+        void composerDraft.leftBehind()
         if (action !== 'none') {
           void composerDraft.recordSentLock(
             action === 'lock' ? failureMessage : null

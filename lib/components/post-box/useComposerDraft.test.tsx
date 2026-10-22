@@ -273,6 +273,45 @@ describe('useComposerDraft', () => {
     expect((await stored())?.replyTo).toMatchObject({ id: 'status-a' })
   })
 
+  it('keeps the target a draft was written for even if an autosave runs after the props change', async () => {
+    const { result, rerender } = renderHook(
+      ({ replyTo }) =>
+        useComposerDraft({
+          composer: 'post-box',
+          replyTo,
+          getContent: () => current
+        }),
+      { initialProps: { replyTo: { id: 'status-a' } as Status } }
+    )
+    rerender({ replyTo: { id: 'status-b' } as Status })
+    // An autosave effect of the same commit runs before the re-target's.
+    act(() => result.current.schedule())
+    await act(async () => {
+      await result.current.detach()
+    })
+
+    expect((await stored())?.replyTo).toMatchObject({ id: 'status-a' })
+  })
+
+  it('a second, empty re-target does not hide that the first draft was not kept', async () => {
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    const { result } = setup()
+    await act(async () => {
+      await result.current.detach()
+    })
+    current = null
+    await act(async () => {
+      await result.current.detach()
+    })
+
+    await act(async () => {
+      await expect(result.current.leftBehind()).resolves.toBe('noted')
+    })
+    expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
+  })
+
   it('flushes a pending save when the page is hidden', async () => {
     const { result } = setup()
     act(() => result.current.schedule())

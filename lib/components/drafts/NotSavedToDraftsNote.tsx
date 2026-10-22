@@ -21,7 +21,8 @@ export const DismissButton = ({ onDismiss }: { onDismiss: () => void }) => (
 )
 
 /**
- * Shown instead when a closed reply or quote could not be kept: storage full or
+ * Shown instead when a closed reply or quote (or a send stopped because the
+ * composer moved to another post) could not be kept: storage full or
  * blocked, a conflicted draft (another tab saved, locked or deleted it), a
  * sign-out in another tab, or a reopened draft whose bytes are still loading
  * (seeding). The note is the only place left that holds the text, so it stays
