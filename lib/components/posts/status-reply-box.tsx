@@ -22,7 +22,8 @@ import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { DraftSaveStatus } from '@/lib/components/post-box/DraftSaveStatus'
 import {
   OfflineSubmitButtons,
-  OfflineSubmitCaption
+  OfflineSubmitCaption,
+  getQueueDisabledReason
 } from '@/lib/components/post-box/OfflineSubmitButtons'
 import {
   addAttachment,
@@ -236,12 +237,7 @@ export const StatusReplyBox: FC<Props> = ({
   // online.
   const offlineSplit =
     drafts !== null && connectionState !== 'online' ? connectionState : null
-  // Video is never queued (it is too large to hold for a later send).
-  const queueDisabledReason = postExtension.attachments.some((item) =>
-    item.mediaType.startsWith('video/')
-  )
-    ? "Videos stay as drafts. Post this when you're back online."
-    : undefined
+  const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
 
   const mountedRef = useRef(true)
   useEffect(() => {
@@ -706,6 +702,8 @@ export const StatusReplyBox: FC<Props> = ({
     if (!allowPost || isSubmittingRef.current || isPosting) return
     if (!formRef.current) return
     event.preventDefault()
+    // Offline the shortcut follows the primary button, never a live send.
+    if (offlineSplit) return void onHandOff(!queueDisabledReason)
     await onPost()
   }
 

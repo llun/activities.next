@@ -18,6 +18,7 @@ import {
   PendingProfileNavigationProvider,
   PendingProfileOverlay
 } from '@/app/(timeline)/PendingProfileNavigation'
+import { DraftsPage } from '@/app/(timeline)/drafts/DraftsPage'
 import { getAccountBootstrap } from '@/lib/client/bootstrap'
 import { onConnectionRestored } from '@/lib/client/connection'
 import {
@@ -33,7 +34,6 @@ import {
   ConnectionAnnouncer,
   ConnectionStatusBar
 } from '@/lib/components/connection/ConnectionStatus'
-import { DraftsList } from '@/lib/components/drafts/DraftsList'
 import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
@@ -477,22 +477,16 @@ export function OfflineAppShell() {
                           />
                         )}
                         {view === 'drafts' && (
-                          <div className="space-y-6">
-                            <PageHeader
-                              title="Drafts"
-                              description="Drafts are saved on this device only."
-                            />
-                            <DraftsList
-                              host={bootstrap.host}
-                              profile={bootstrap.profile}
-                              currentTime={
-                                bootstrap.currentTime || bootstrap.savedAt
-                              }
-                              isMediaUploadEnabled={
-                                bootstrap.isMediaUploadEnabled
-                              }
-                            />
-                          </div>
+                          <DraftsPage
+                            host={bootstrap.host}
+                            profile={bootstrap.profile}
+                            currentTime={
+                              bootstrap.currentTime || bootstrap.savedAt
+                            }
+                            isMediaUploadEnabled={
+                              bootstrap.isMediaUploadEnabled
+                            }
+                          />
                         )}
                         {view === 'unavailable' && (
                           <div className="space-y-6">

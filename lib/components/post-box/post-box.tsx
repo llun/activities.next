@@ -86,7 +86,8 @@ import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 import { DraftSaveStatus } from './DraftSaveStatus'
 import {
   OfflineSubmitButtons,
-  OfflineSubmitCaption
+  OfflineSubmitCaption,
+  getQueueDisabledReason
 } from './OfflineSubmitButtons'
 import {
   ComposerAttachmentTiles,
@@ -1662,6 +1663,8 @@ export const PostBox: FC<Props> = ({
     if (event.code !== 'Enter') return
     if (!allowPost) return
     if (!formRef.current) return
+    // Offline the shortcut follows the primary button, never a live send.
+    if (offlineSplit) return void onHandOff(!queueDisabledReason)
     await onPost()
   }
 
@@ -2083,12 +2086,7 @@ export const PostBox: FC<Props> = ({
     drafts !== null && !editStatus && connectionState !== 'online'
       ? connectionState
       : null
-  // Video is never queued (it is too large to hold for a later send).
-  const queueDisabledReason = postExtension.attachments.some((item) =>
-    item.mediaType.startsWith('video/')
-  )
-    ? "Videos stay as drafts. Post this when you're back online."
-    : undefined
+  const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
 
   const form = (
     <>

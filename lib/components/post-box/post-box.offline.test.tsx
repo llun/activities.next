@@ -408,6 +408,77 @@ describe('PostBox offline hand-off', () => {
     })
   })
 
+  describe('Cmd/Ctrl+Enter', () => {
+    const shortcut = () =>
+      fireEvent.keyDown(textarea(), {
+        key: 'Enter',
+        code: 'Enter',
+        ctrlKey: true
+      })
+
+    it('queues the post instead of sending it live', async () => {
+      render(composer())
+      await goOffline()
+      await typeAndWaitForSave('from the keyboard')
+
+      shortcut()
+
+      await waitFor(async () =>
+        expect((await storedDrafts())[0].queue).toMatchObject({
+          state: 'waiting'
+        })
+      )
+      expect(createNoteMock).not.toHaveBeenCalled()
+      await waitFor(() => expect(textarea()).toHaveValue(''))
+    })
+
+    it('saves a draft when the queue is unavailable (video)', async () => {
+      const onHandedOff = vi.fn()
+      render(composer({ onHandedOff }))
+      await goOffline()
+      const fileInput = document.querySelector<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )!
+      fireEvent.change(fileInput, {
+        target: {
+          files: [new File(['v'], 'clip.mp4', { type: 'video/mp4' })]
+        }
+      })
+      await screen.findByRole('button', { name: 'Remove media clip.mp4' })
+      await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+
+      shortcut()
+
+      await waitFor(() => expect(onHandedOff).toHaveBeenCalledTimes(1))
+      expect(await storedDrafts()).toHaveLength(1)
+      expect((await storedDrafts())[0].queue).toBeUndefined()
+      expect(createNoteMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('an untouched composer', () => {
+    it('hands nothing off: a reply holding only its mention writes no record', async () => {
+      const onHandedOff = vi.fn()
+      render(composer({ replyStatus: replyTo('first'), onHandedOff }))
+      await screen.findByDisplayValue(/@bob/)
+      await goOffline()
+      // Typed over and back: the buttons are live (there is text), yet nothing
+      // differs from the pre-fill.
+      const prefill = textarea().value
+      type(`${prefill}x`)
+      type(prefill)
+      expect(saveDraftButton()).toBeEnabled()
+
+      fireEvent.click(queueButton())
+      fireEvent.click(saveDraftButton())
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Nothing was tried, so nothing failed either.
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(await storedDrafts()).toHaveLength(0)
+      expect(onHandedOff).not.toHaveBeenCalled()
+    })
+  })
+
   describe('Save draft', () => {
     it('stores a draft without a queue and clears the composer', async () => {
       const onHandedOff = vi.fn()

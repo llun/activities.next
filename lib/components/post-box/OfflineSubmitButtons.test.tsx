@@ -6,10 +6,24 @@ import { fireEvent, render, screen } from '@testing-library/react'
 
 import {
   OfflineSubmitButtons,
-  OfflineSubmitCaption
+  OfflineSubmitCaption,
+  getQueueDisabledReason
 } from './OfflineSubmitButtons'
 
 const REASON = "Videos stay as drafts. Post this when you're back online."
+
+describe('getQueueDisabledReason', () => {
+  it('blocks the queue only when a video is attached', () => {
+    expect(getQueueDisabledReason([])).toBeUndefined()
+    expect(getQueueDisabledReason([{ mediaType: 'image/png' }])).toBeUndefined()
+    expect(
+      getQueueDisabledReason([
+        { mediaType: 'image/png' },
+        { mediaType: 'video/mp4' }
+      ])
+    ).toBe(REASON)
+  })
+})
 
 describe('OfflineSubmitButtons', () => {
   it('offers Save draft and Send when online, each calling its own handler', () => {
