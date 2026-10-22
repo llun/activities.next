@@ -4,9 +4,12 @@ import { FileText } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
+  DraftBusyError,
   type DraftRecord,
+  announceDraftsChanged,
   listDrafts,
-  subscribeDraftsMessages
+  subscribeDraftsMessages,
+  unqueueDraft
 } from '@/lib/client/drafts'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -47,6 +50,11 @@ export const DraftsList: FC<Props> = ({
   const [deleteErrors, setDeleteErrors] = useState<
     Record<string, { message: string; retry?: () => void }>
   >({})
+  // The draft Edit found being sent, and a failed Edit or Resume: both shown
+  // above the list. The busy notice goes once that draft is no longer in
+  // flight, so it never outlives the send.
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const loadToken = useRef(0)
 
   const load = useCallback(() => {
@@ -96,6 +104,45 @@ export const DraftsList: FC<Props> = ({
   }
 
   const { drafts } = state
+
+  // Edit and Review on a queued post take it out of the queue first. The
+  // editor opens on the record that comes back (a new revision), and the
+  // post then lives under "Drafts on this device".
+  const onEdit = async (draft: DraftRecord) => {
+    if (!draft.queue) {
+      setEditing(draft)
+      return
+    }
+    try {
+      const unqueued = await unqueueDraft(draft.id, Date.now())
+      if (!unqueued) {
+        // Gone since the list was read (sent, or deleted elsewhere).
+        load()
+        return
+      }
+      setBusyId(null)
+      setActionError(null)
+      setEditing(unqueued)
+      announceDraftsChanged(draft.accountId, draft.actorId, draft.id)
+    } catch (error) {
+      if (error instanceof DraftBusyError) setBusyId(draft.id)
+      else setActionError('Something went wrong on this device. Try again.')
+      load()
+    }
+  }
+
+  const isBusy = drafts.some(
+    (draft) =>
+      draft.id === busyId &&
+      (draft.queue?.state === 'sending' || draft.queue?.state === 'checking')
+  )
+  // The post being edited stays in the list it was opened from until the
+  // re-read moves it, so its editor is not remounted.
+  const queued = drafts
+    .filter((draft) => draft.queue && editing?.id !== draft.id)
+    .sort((a, b) => (a.queue?.queuedAt ?? 0) - (b.queue?.queuedAt ?? 0))
+  const plain = drafts.filter((draft) => !queued.includes(draft))
+
   if (drafts.length === 0) {
     return (
       <EmptyState icon={FileText} titleAs="h2" title="No drafts.">
@@ -104,12 +151,9 @@ export const DraftsList: FC<Props> = ({
     )
   }
 
-  return (
-    <Section
-      title="Drafts on this device"
-      meta={`${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`}
-    >
-      {drafts.map((draft) => {
+  const renderRows = (rows: DraftRecord[]) => (
+    <>
+      {rows.map((draft) => {
         // A draft that vanished takes its error with it.
         const error = deleteErrors[draft.id]
         return error ? (
@@ -123,7 +167,7 @@ export const DraftsList: FC<Props> = ({
         ) : null
       })}
       <FramedList>
-        {drafts.map((draft) => (
+        {rows.map((draft) => (
           <FramedListItem key={draft.id}>
             {editing?.id === draft.id ? (
               <DraftEditor
@@ -140,8 +184,9 @@ export const DraftsList: FC<Props> = ({
               <DraftRow
                 draft={draft}
                 currentTime={currentTime}
-                onEdit={() => setEditing(draft)}
+                onEdit={() => void onEdit(draft)}
                 onConflict={load}
+                onActionError={setActionError}
                 onDeleteError={(message, retry) =>
                   setDeleteErrors(({ [draft.id]: _, ...rest }) =>
                     message ? { ...rest, [draft.id]: { message, retry } } : rest
@@ -152,6 +197,31 @@ export const DraftsList: FC<Props> = ({
           </FramedListItem>
         ))}
       </FramedList>
-    </Section>
+    </>
+  )
+
+  return (
+    <div className="space-y-6">
+      {isBusy ? <Alert title="This post is being sent now." /> : null}
+      {actionError ? (
+        <Alert title="Couldn't update this post">{actionError}</Alert>
+      ) : null}
+      {queued.length > 0 ? (
+        <Section
+          title="Waiting to send"
+          meta={`${queued.length} ${queued.length === 1 ? 'post' : 'posts'}`}
+        >
+          {renderRows(queued)}
+        </Section>
+      ) : null}
+      {plain.length > 0 ? (
+        <Section
+          title="Drafts on this device"
+          meta={`${plain.length} ${plain.length === 1 ? 'draft' : 'drafts'}`}
+        >
+          {renderRows(plain)}
+        </Section>
+      ) : null}
+    </div>
   )
 }
