@@ -1218,7 +1218,6 @@ export const PostBox: FC<Props> = ({
 
         setText('')
         setIsPosting(false)
-        sent = true
         return
       }
 

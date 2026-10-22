@@ -801,5 +801,9 @@ describe('StatusReplyBox on-device drafts', () => {
     await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
 
     await waitFor(async () => expect(await stored()).toHaveLength(0))
+    // Sent: nothing is kept or offered on the way to the new target.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(screen.queryByText('Saved to Drafts')).toBeNull()
+    expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
   })
 })

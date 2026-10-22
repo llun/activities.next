@@ -293,6 +293,61 @@ describe('PostBox on-device drafts', () => {
       )
       await waitFor(() => expect(textarea().value).not.toContain('my reply'))
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
+      // Sent: nothing is kept or offered on the way to the new target.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(screen.queryByText('Saved to Drafts')).toBeNull()
+      expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
+    })
+
+    it('moves on quietly once a poll in flight is created', async () => {
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        }
+      )
+      const send = createDeferred<undefined>()
+      vi.mocked(createPoll).mockImplementationOnce(() => send.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local which one?')
+      await choosePostOption('Poll')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createPoll).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      send.resolve(undefined)
+
+      await waitFor(() => expect(textarea().value).not.toContain('which one?'))
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(screen.queryByText('Saved to Drafts')).toBeNull()
+      expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
+    })
+
+    it('without drafts, a re-target abandons the photo it uploaded', async () => {
+      const box = (id: string) => (
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          replyStatus={replyTo(id)}
+          isMediaUploadEnabled
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+      const { rerender } = render(box('first'))
+      attach('a.png')
+      await screen.findByRole('button', { name: 'Remove media a.png' })
+
+      rerender(box('second'))
+
+      await waitFor(() =>
+        expect(deleteUnpostedMedia).toHaveBeenCalledWith('media-a.png')
+      )
     })
 
     it('sends the photo of a post re-targeted while it uploads', async () => {
