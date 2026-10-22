@@ -303,6 +303,9 @@ describe('the send queue in the status slot', () => {
       failed: 0,
       paused: 0,
       pause,
+      pauseFailed: false,
+      drainFailed: false,
+      retry: vi.fn(),
       ...patch
     }
   }
@@ -340,9 +343,8 @@ describe('the send queue in the status slot', () => {
     )
   })
 
-  it('Pause calls the queue’s pause, and a failure leaves the bar standing', async () => {
+  it('Pause calls the queue’s pause', async () => {
     setQueue({ phase: 'sending', index: 1, total: 2 })
-    pause.mockRejectedValue(new Error('no db'))
     render(<ConnectionStatusBar />)
 
     await act(async () => {
@@ -350,7 +352,23 @@ describe('the send queue in the status slot', () => {
     })
 
     expect(pause).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Back online')).toBeInTheDocument()
+  })
+
+  it('says a failed Pause in the bar, the strip and the announcer, and keeps Pause to retry', () => {
+    setQueue({ phase: 'sending', index: 1, total: 2, pauseFailed: true })
+    render(
+      <>
+        <ConnectionAnnouncer />
+        <ConnectionStatusBar />
+        <ConnectionStatusStrip />
+      </>
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "Couldn't pause sending."
+    )
+    expect(screen.getAllByText("Couldn't pause sending.")).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: 'Pause' })).toHaveLength(2)
   })
 
   it('shows the result with a View link, and not Pause', () => {

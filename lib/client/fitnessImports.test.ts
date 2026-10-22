@@ -72,6 +72,26 @@ describe('fitnessImports client module', () => {
         message: 'Failed to upload fitness file: 401 Sign in'
       })
     })
+    it('sends the expected actor and rejects with its mismatch as is', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Signed in as a different profile' }),
+        { status: 409 }
+      )
+
+      await expect(
+        uploadFitnessFile(new File(['x'], 'a.fit'), undefined, {
+          expectedActorId: 'https://llun.test/users/a'
+        })
+      ).rejects.toMatchObject({
+        status: 409,
+        message: 'Signed in as a different profile'
+      })
+      expect(
+        new Headers(fetchMock.mock.calls[0][1]?.headers).get(
+          'Activities-Expected-Actor'
+        )
+      ).toBe('https://llun.test/users/a')
+    })
   })
 
   describe('startFitnessImport', () => {

@@ -32,6 +32,7 @@ import {
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
 import { DraftsList } from './DraftsList'
+import type { SendQueueStatus } from './DraftsProvider'
 import { ACTOR_ID, NOW, draftRecord, profile } from './draftFixtures.testUtils'
 
 vi.mock('@/lib/client/media', () => ({ deleteUnpostedMedia: vi.fn() }))
@@ -50,6 +51,13 @@ vi.mock('@/lib/client/drafts', async (importOriginal) => {
     resumeQueue: vi.fn()
   }
 })
+const sendQueue = vi.hoisted(() => ({
+  status: null as Partial<SendQueueStatus> | null
+}))
+vi.mock('./DraftsProvider', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./DraftsProvider')>()),
+  useSendQueueStatus: () => sendQueue.status
+}))
 vi.mock('./DraftEditor', () => ({
   DraftEditor: ({
     draft,
@@ -495,7 +503,7 @@ describe('DraftsList', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
       })
 
-      expect(unqueueDraft).toHaveBeenCalledWith('q', NOW)
+      expect(unqueueDraft).toHaveBeenCalledWith('q')
       expect(screen.getByTestId('editor')).toHaveTextContent(
         'editing q rev 7 returned text'
       )
@@ -562,7 +570,8 @@ describe('DraftsList', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
       })
 
-      const alert = await screen.findByRole('alert')
+      // Not a failure: an info notice.
+      const alert = await screen.findByRole('status')
       expect(alert).toHaveTextContent('This post is being sent now.')
       // Above the box, never inside it.
       expect(alert.closest('ul')).toBeNull()
@@ -596,7 +605,7 @@ describe('DraftsList', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
       })
-      await screen.findByRole('alert')
+      await screen.findByText('This post is being sent now.')
 
       await saveDraft(
         draftRecord({
@@ -615,7 +624,31 @@ describe('DraftsList', () => {
         })
       })
 
-      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+      await waitFor(() =>
+        expect(screen.queryByText('This post is being sent now.')).toBeNull()
+      )
+    })
+
+    it('offers Retry above the list when this tab’s drain failed', async () => {
+      const retry = vi.fn()
+      sendQueue.status = { drainFailed: true, retry }
+      await seed({
+        id: 'q',
+        text: 'queued',
+        queue: queue({ state: 'waiting' })
+      })
+      try {
+        renderList()
+        await screen.findByText('queued')
+
+        const alert = screen.getByRole('alert')
+        expect(alert).toHaveTextContent("Couldn't send queued posts")
+        expect(alert.closest('ul')).toBeNull()
+        fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+        expect(retry).toHaveBeenCalledTimes(1)
+      } finally {
+        sendQueue.status = null
+      }
     })
 
     it('shows a failed Edit as an Alert above the list', async () => {

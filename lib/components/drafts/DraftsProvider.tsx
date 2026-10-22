@@ -23,7 +23,10 @@ import {
   postDraftsMessage,
   subscribeDraftsMessages
 } from '@/lib/client/drafts/draftsChannel'
-import { CLAIM_LEASE_MS } from '@/lib/client/drafts/queueConstants'
+import {
+  CLAIM_LEASE_MS,
+  retriesOnItsOwn
+} from '@/lib/client/drafts/queueConstants'
 import type {
   DraftQueueState,
   SendQueueProgress
@@ -47,6 +50,12 @@ const loadDrafts = once(() => import('@/lib/client/drafts'))
 
 /** How long a finished drain's "N posts sent" stays in the status slot. */
 export const RESULT_VISIBLE_MS = 15_000
+
+/**
+ * The next try for an item that is already due, or for a pass another tab's
+ * sender lock turned away: soon, but never a tight loop while that tab drains.
+ */
+export const RETRY_SOON_MS = 2_000
 
 // The send queue's real dependencies, from sub-paths (never the
 // `@/lib/client` barrel), loaded only when a drain actually runs.
@@ -97,11 +106,7 @@ const loadSendQueueDeps = async (
  */
 const wakeTimeOf = (queue: DraftQueueState): number | null => {
   if (queue.state === 'sending') return queue.claim?.until ?? null
-  const retriesOnItsOwn =
-    queue.state === 'waiting' ||
-    queue.state === 'checking' ||
-    (queue.state === 'paused' && queue.pausedBy === 'rate_limit')
-  return retriesOnItsOwn ? (queue.nextAttemptAt ?? null) : null
+  return retriesOnItsOwn(queue) ? (queue.nextAttemptAt ?? null) : null
 }
 
 const SavedToDraftsNote = dynamic(
@@ -140,7 +145,16 @@ const DraftsContext = createContext<DraftsContextValue | null>(null)
 
 // Progress lives in its own context so a "Sending 2 of 5" tick never
 // re-renders every `useDrafts()` consumer.
-export type SendQueueStatus = SendQueueProgress & { pause: () => Promise<void> }
+export type SendQueueStatus = SendQueueProgress & {
+  /** Never rejects: a failure sets `pauseFailed`. */
+  pause: () => Promise<void>
+  /** The last Pause failed, so the queue is still sending. */
+  pauseFailed: boolean
+  /** This tab's last drain failed before it could finish (storage, a chunk). */
+  drainFailed: boolean
+  /** Runs the queue again now. */
+  retry: () => void
+}
 
 const SendQueueContext = createContext<SendQueueStatus | null>(null)
 
@@ -207,6 +221,8 @@ export function DraftsProvider({
   const purgingRef = useRef(false)
   const signingOutRef = useRef(false)
   const [progress, setProgress] = useState<SendQueueProgress>(IDLE_PROGRESS)
+  const [pauseFailed, setPauseFailed] = useState(false)
+  const [drainFailed, setDrainFailed] = useState(false)
   const pathname = usePathname()
   const drainingRef = useRef(false)
   const rerunRef = useRef(false)
@@ -256,6 +272,7 @@ export function DraftsProvider({
     setEpoch(null)
     setSigningOut(false)
     setProgress(IDLE_PROGRESS)
+    setDrainFailed(false)
     setSaved(null)
     setUnsavedText(null)
     // A sign-out whose deletion failed is finished first: it bumps the epoch
@@ -285,40 +302,49 @@ export function DraftsProvider({
     wakeTimerRef.current = null
   }, [])
 
-  // One timer, for the earliest moment a queued item becomes sendable again:
-  // the backoff of a retry, or the end of a lease a closed tab left behind.
-  const scheduleWake = useCallback(() => {
-    clearWake()
-    const token = wakeToken.current
-    loadDrafts()
-      .then((m) => m.listDrafts({ actorId }))
-      .then((drafts) => {
-        if (token !== wakeToken.current) return
-        const now = Date.now()
-        // Only the future: a time already past belongs to a drain that ran
-        // (or to the tab that holds the sender lock).
-        const upcoming = drafts
-          .map((draft) => (draft.queue ? wakeTimeOf(draft.queue) : null))
-          .filter((at): at is number => at !== null && at > now)
-        if (upcoming.length === 0) return
-        wakeTimerRef.current = setTimeout(
-          () => {
-            wakeTimerRef.current = null
-            drainRef.current()
-          },
-          Math.min(...upcoming) - now
-        )
-      })
-      // Unavailable storage: the next trigger schedules again.
-      .catch(() => {})
-  }, [actorId, clearWake])
-
   const canDrain = useCallback(
     () =>
       epochRef.current !== null &&
       !signingOutRef.current &&
       getConnectionSnapshot().state === 'online',
     []
+  )
+
+  // One timer, for the earliest moment a queued item becomes sendable again:
+  // the backoff of a retry, or the end of a lease a closed tab left behind.
+  // A time already past (a drain that stopped early, or another tab's) and a
+  // pass the sender lock turned away (`retrySoon`) are tried RETRY_SOON_MS
+  // from now. While this tab cannot drain, only the future counts: coming
+  // back online, an epoch or a cancelled sign-out drains on its own.
+  const scheduleWake = useCallback(
+    (retrySoon = false) => {
+      clearWake()
+      const token = wakeToken.current
+      loadDrafts()
+        .then((m) => m.listDrafts({ actorId }))
+        .then((drafts) => {
+          if (token !== wakeToken.current) return
+          const now = Date.now()
+          const soon = canDrain() ? now + RETRY_SOON_MS : null
+          const upcoming = drafts
+            .map((draft) => (draft.queue ? wakeTimeOf(draft.queue) : null))
+            .filter((at): at is number => at !== null)
+            .map((at) => (at > now ? at : soon))
+            .concat(retrySoon ? [soon] : [])
+            .filter((at): at is number => at !== null)
+          if (upcoming.length === 0) return
+          wakeTimerRef.current = setTimeout(
+            () => {
+              wakeTimerRef.current = null
+              drainRef.current()
+            },
+            Math.min(...upcoming) - now
+          )
+        })
+        // Unavailable storage: the next trigger schedules again.
+        .catch(() => {})
+    },
+    [actorId, canDrain, clearWake]
   )
 
   const drain = useCallback(() => {
@@ -333,6 +359,7 @@ export function DraftsProvider({
     }
     drainingRef.current = true
     const generation = generationRef.current
+    let lockMissed = false
 
     const runPass = async () => {
       const controller = new AbortController()
@@ -340,10 +367,21 @@ export function DraftsProvider({
       const last: { phase: SendQueueProgress['phase'] } = { phase: 'idle' }
       try {
         const m = await loadDrafts()
-        const deps = await loadSendQueueDeps(m, accountId, actorId)
         const epoch = epochRef.current
         if (epoch === null) return
-        await m.withSenderLock(async () => {
+        // Most triggers find nothing due: skip the sender's code and the lock.
+        const startedAt = Date.now()
+        const due = (await m.listDrafts({ actorId })).some(
+          (draft) =>
+            draft.accountId === accountId &&
+            m.isQueueClaimable(draft.queue, startedAt)
+        )
+        if (!due) {
+          setDrainFailed(false)
+          return
+        }
+        const deps = await loadSendQueueDeps(m, accountId, actorId)
+        const ran = await m.withSenderLock(async () => {
           await m.drainQueue({
             accountId,
             actorId,
@@ -364,8 +402,14 @@ export function DraftsProvider({
             }
           })
         })
+        // Another tab is draining: try again once its pass is likely over,
+        // so an item it listed too late is not left waiting.
+        lockMissed = !ran
+        setDrainFailed(false)
       } catch {
-        // Storage or a chunk failed to load: the next trigger tries again.
+        // Storage or a chunk failed to load: the next trigger tries again,
+        // and the Drafts page offers Retry meanwhile.
+        if (!controller.signal.aborted) setDrainFailed(true)
       } finally {
         abortRef.current = null
         // An aborted or failed drain wrote no result: don't leave other tabs
@@ -391,7 +435,7 @@ export function DraftsProvider({
       } finally {
         drainingRef.current = false
         if (generationRef.current !== generation) drainRef.current()
-        else scheduleWake()
+        else scheduleWake(lockMissed)
       }
     })()
   }, [accountId, actorId, canDrain, scheduleWake])
@@ -465,7 +509,18 @@ export function DraftsProvider({
         switch (message.type) {
           case 'changed':
             refreshCount()
-            if (message.actorId === actorId) scheduleWake()
+            if (message.actorId !== actorId) break
+            // Every autosave says `changed`: only a queued draft (or a bulk
+            // change, with no id) can move the wake time.
+            if (!message.draftId) scheduleWake()
+            else {
+              void loadDrafts()
+                .then((m) => m.getDraft(message.draftId))
+                .then((draft) => {
+                  if (draft?.queue) scheduleWake()
+                })
+                .catch(() => {})
+            }
             break
           case 'signing-out':
             signingOutRef.current = true
@@ -526,13 +581,28 @@ export function DraftsProvider({
 
   // Pausing never recalls a request already in flight.
   const pause = useCallback(async () => {
-    const { pauseQueue } = await loadDrafts()
-    await pauseQueue({ actorId })
-    announceDraftsChanged(accountId, actorId, '')
+    try {
+      const { pauseQueue } = await loadDrafts()
+      await pauseQueue({ actorId })
+      setPauseFailed(false)
+      announceDraftsChanged(accountId, actorId, '')
+    } catch {
+      setPauseFailed(true)
+    }
   }, [accountId, actorId])
+  // A failed Pause only matters while that send is still going.
+  useEffect(() => {
+    if (progress.phase !== 'sending') setPauseFailed(false)
+  }, [progress.phase])
   const queueStatus = useMemo<SendQueueStatus>(
-    () => ({ ...progress, pause }),
-    [progress, pause]
+    () => ({
+      ...progress,
+      pause,
+      pauseFailed,
+      drainFailed,
+      retry: requestDrain
+    }),
+    [progress, pause, pauseFailed, drainFailed, requestDrain]
   )
 
   return (

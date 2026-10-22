@@ -36,13 +36,14 @@ export const getSlotMessage = (
   snapshot: ConnectionSnapshot,
   host: string,
   now: number = Date.now(),
-  queue?: SendQueueProgress | null
+  queue?: (SendQueueProgress & { pauseFailed?: boolean }) | null
 ): SlotMessage | null => {
   if (queue?.phase === 'sending') {
     return {
       kind: 'sending',
-      // Constant, so the announcer says it once, not on every index change.
-      title: 'Back online',
+      // Constant, so the announcer says it once, not on every index change;
+      // a failed Pause changes it once, so that is announced too.
+      title: queue.pauseFailed ? "Couldn't pause sending." : 'Back online',
       detail: `Sending ${queue.index} of ${queue.total} ${queue.total === 1 ? 'post' : 'posts'}`
     }
   }

@@ -1,5 +1,6 @@
-// Dependency-free so first-load code (DraftsProvider) can read the queue timing
-// without pulling the whole sender into its chunk.
+// Dependency-free (type imports only) so first-load code (DraftsProvider) can
+// read the queue timing without pulling the whole sender into its chunk.
+import type { DraftQueueState } from './types'
 
 /** A queued post older than this goes to Needs review before its first POST. */
 export const MAX_QUEUE_AGE_MS = 86_400_000
@@ -12,3 +13,13 @@ export const SEND_BACKOFF_MS = [
   5_000, 15_000, 45_000, 120_000, 300_000
 ] as const
 export const DEFAULT_RETRY_AFTER_MS = 60_000
+
+/**
+ * States the sender retries without the user once `nextAttemptAt` passes;
+ * the rest (needs review, couldn't send, paused by the user, auth or actor)
+ * wait for them. A `sending` entry is the lease's, not this rule's.
+ */
+export const retriesOnItsOwn = (queue: DraftQueueState): boolean =>
+  queue.state === 'waiting' ||
+  queue.state === 'checking' ||
+  (queue.state === 'paused' && queue.pausedBy === 'rate_limit')

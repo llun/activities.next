@@ -116,6 +116,15 @@ describe('draftsDb send queue', () => {
       expect((await getDraft('a'))?.queue?.state).toBe('waiting')
     })
 
+    it('returns null for another account’s draft and leaves it unchanged', async () => {
+      await store(queued('b', {}, { accountId: 'account-2' }))
+      expect(await claim('b')).toBeNull()
+      expect(await getDraft('b')).toMatchObject({
+        revision: 1,
+        queue: { state: 'waiting' }
+      })
+    })
+
     it('returns null until nextAttemptAt is due', async () => {
       await store(queued('a', { state: 'checking', nextAttemptAt: NOW + 1 }))
       expect(await claim('a', 'tab-a', NOW)).toBeNull()
@@ -212,9 +221,7 @@ describe('draftsDb send queue', () => {
       ['checking', { state: 'checking', firstAttemptAt: 5 }]
     ] as const)('refuses %s with DraftBusyError', async (_name, queue) => {
       const saved = await store(queued('a', queue))
-      await expect(unqueueDraft('a', NOW)).rejects.toBeInstanceOf(
-        DraftBusyError
-      )
+      await expect(unqueueDraft('a')).rejects.toBeInstanceOf(DraftBusyError)
       expect(await getDraft('a')).toEqual(saved)
     })
 
@@ -232,7 +239,7 @@ describe('draftsDb send queue', () => {
             }
           )
         )
-        const returned = await unqueueDraft('a', NOW)
+        const returned = await unqueueDraft('a')
         expect(returned).not.toHaveProperty('queue')
         expect(returned).toMatchObject({
           revision: saved.revision + 1,
@@ -289,7 +296,7 @@ describe('draftsDb send queue', () => {
               fitnessFile
             } as Partial<DraftRecord>)
           )
-          const returned = await unqueueDraft('a', NOW)
+          const returned = await unqueueDraft('a')
           expect(returned?.lockedMessage).toBe(ATTEMPTED_UNQUEUE_MESSAGE)
           expect(returned?.attachments[0].owned).toBe(false)
           expect(returned?.fitnessFile?.owned).toBe(false)
@@ -305,19 +312,19 @@ describe('draftsDb send queue', () => {
             { lockedMessage: 'kept' }
           )
         )
-        expect((await unqueueDraft('a', NOW))?.lockedMessage).toBe('kept')
+        expect((await unqueueDraft('a'))?.lockedMessage).toBe('kept')
       })
 
       it('leaves a never-attempted draft unlocked and its media owned', async () => {
         await store(queued('a', { state: 'waiting' }, { attachments }))
-        const returned = await unqueueDraft('a', NOW)
+        const returned = await unqueueDraft('a')
         expect(returned?.lockedMessage).toBeUndefined()
         expect(returned?.attachments[0].owned).toBe(true)
       })
     })
 
     it('resolves undefined for a missing draft', async () => {
-      expect(await unqueueDraft('gone', NOW)).toBeUndefined()
+      expect(await unqueueDraft('gone')).toBeUndefined()
     })
   })
 

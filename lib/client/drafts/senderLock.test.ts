@@ -14,7 +14,7 @@ describe('senderLock', () => {
     vi.stubGlobal('navigator', {})
     const fn = vi.fn().mockResolvedValue(undefined)
 
-    await withSenderLock(fn)
+    expect(await withSenderLock(fn)).toBe(true)
 
     expect(fn).toHaveBeenCalledOnce()
   })
@@ -30,7 +30,7 @@ describe('senderLock', () => {
     vi.stubGlobal('navigator', { locks: { request } })
     const fn = vi.fn().mockResolvedValue(undefined)
 
-    await withSenderLock(fn)
+    expect(await withSenderLock(fn)).toBe(true)
 
     expect(request).toHaveBeenCalledWith(
       SENDER_LOCK_NAME,
@@ -51,7 +51,8 @@ describe('senderLock', () => {
     vi.stubGlobal('navigator', { locks: { request } })
     const fn = vi.fn()
 
-    await withSenderLock(fn)
+    // False, so the caller knows the pass did not run.
+    expect(await withSenderLock(fn)).toBe(false)
 
     expect(fn).not.toHaveBeenCalled()
   })
