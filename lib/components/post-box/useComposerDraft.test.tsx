@@ -253,6 +253,26 @@ describe('useComposerDraft', () => {
     })
   })
 
+  it('a draft never saved keeps its own target when the composer is re-targeted', async () => {
+    const { result, rerender } = renderHook(
+      ({ replyTo }) =>
+        useComposerDraft({
+          composer: 'post-box',
+          replyTo,
+          getContent: () => current
+        }),
+      { initialProps: { replyTo: { id: 'status-a' } as Status } }
+    )
+    // Typed, and re-targeted before the debounced save ran.
+    act(() => result.current.schedule())
+    rerender({ replyTo: { id: 'status-b' } as Status })
+    await act(async () => {
+      await result.current.detach()
+    })
+
+    expect((await stored())?.replyTo).toMatchObject({ id: 'status-a' })
+  })
+
   it('flushes a pending save when the page is hidden', async () => {
     const { result } = setup()
     act(() => result.current.schedule())

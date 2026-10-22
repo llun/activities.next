@@ -562,6 +562,45 @@ describe('StatusReplyBox on-device drafts', () => {
     expect((await stored())[0].submit).toBeUndefined()
   })
 
+  it('offers the text instead of dropping it when a send stopped by a re-target cannot be kept', async () => {
+    const upload =
+      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
+    const { rerender } = renderBox()
+    type('Reply body')
+    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    post()
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    upload.resolve({
+      id: 'media-b.png',
+      type: 'upload',
+      mediaType: 'image/png',
+      url: 'https://activities.local/media/b.png',
+      width: 100,
+      height: 100
+    })
+
+    expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
+    expect(createNoteMock).not.toHaveBeenCalled()
+  })
+
   it('locks the reply it left behind when the server keeps it after a re-target', async () => {
     const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
     createNoteMock.mockImplementationOnce(() => send.promise)
@@ -592,6 +631,49 @@ describe('StatusReplyBox on-device drafts', () => {
     expect(draft.submit?.key).toBe(key)
     expect(draft.replyTo?.id).toBe(replyStatus.id)
     expect(sendAlerts()).toHaveLength(0)
+  })
+
+  it('keeps what was typed for the new target when the old reply lands', async () => {
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const onPostCreated = vi.fn()
+    const { rerender } = renderBox({ onPostCreated })
+    type('Reply body')
+    const full = vi
+      .spyOn(IDBObjectStore.prototype, 'put')
+      .mockImplementation(() => {
+        throw new DOMException('full', 'QuotaExceededError')
+      })
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    full.mockRestore()
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={onPostCreated}
+        />
+      </DraftsProvider>
+    )
+    type('The next reply')
+    await waitFor(async () =>
+      expect((await stored()).map((draft) => draft.text)).toContain(
+        'The next reply'
+      )
+    )
+    send.resolve({ status: replyStatus, attachments: [] })
+    await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
+    // Let the release run.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    expect(textarea()).toHaveValue('The next reply')
+    expect((await stored()).map((draft) => draft.text)).toContain(
+      'The next reply'
+    )
   })
 
   it('does not carry the sent reply’s photo over to the new target', async () => {

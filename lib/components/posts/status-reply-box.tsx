@@ -432,6 +432,19 @@ export const StatusReplyBox: FC<Props> = ({
         })
       )
 
+      // Re-targeted while uploading: the draft stays in Drafts as the box left
+      // it, and nothing is sent or written to the new target's composer.
+      // If it could not be kept, the not-saved note offers its text; with no
+      // drafts at all, the send goes ahead.
+      if (
+        generation !== draftGenerationRef.current &&
+        (await composerDraft.leftBehind()) !== 'none'
+      ) {
+        isSubmittingRef.current = false
+        setIsPosting(false)
+        return
+      }
+
       const currentAttachmentIds = new Set(
         postExtensionRef.current.attachments.map((a) => a.id)
       )
@@ -467,13 +480,6 @@ export const StatusReplyBox: FC<Props> = ({
         }
       }
 
-      // Re-targeted while uploading: the draft was left in Drafts as it was,
-      // with no key, and nothing was sent.
-      if (generation !== draftGenerationRef.current) {
-        isSubmittingRef.current = false
-        setIsPosting(false)
-        return
-      }
       // The key and the attempt are written to the draft before the POST. If
       // that write fails nothing is sent: a lost response plus a lost key would
       // send the same reply again under a new key after a reload.
