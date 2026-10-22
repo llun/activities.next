@@ -20,18 +20,22 @@ export const useIsOffline = () => useConnectionStatus().state === 'offline'
 
 /**
  * Wraps an action control in the "You're offline" tooltip. Always mounted so
- * going offline never remounts the control (and drops its focus); the tooltip
- * is held closed while online. Radix opens it on focus as well as hover.
+ * going offline never remounts the control (and drops its focus), and always
+ * controlled so Radix never switches modes; the tooltip only shows while
+ * offline. Radix opens it on focus as well as hover.
  */
 export const OfflineTooltip: FC<{ offline: boolean; children: ReactNode }> = ({
   offline,
   children
-}) => (
-  <Tooltip open={offline ? undefined : false}>
-    <TooltipTrigger asChild>{children}</TooltipTrigger>
-    <TooltipContent>{OFFLINE_MESSAGE}</TooltipContent>
-  </Tooltip>
-)
+}) => {
+  const [open, setOpen] = useState(false)
+  return (
+    <Tooltip open={offline && open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent>{OFFLINE_MESSAGE}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 const ERROR_DISMISS_MS = 4000
 

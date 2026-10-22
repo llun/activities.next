@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -241,7 +241,7 @@ describe('RepostButton offline', () => {
 
     expect(repostStatus).not.toHaveBeenCalled()
     expect(
-      screen.getByText("You're offline", { selector: '[role]' })
+      screen.getByText("You're offline", { selector: '[role=alert]' })
     ).toBeInTheDocument()
   })
 
@@ -251,6 +251,21 @@ describe('RepostButton offline', () => {
 
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       "You're offline"
+    )
+  })
+
+  it('drops the native title while offline, keeping the aria-label', () => {
+    render(<RepostButton currentActor={currentActor} status={status} />)
+    expect(screen.getByRole('button', { name: 'Repost' })).not.toHaveAttribute(
+      'title'
+    )
+
+    connection.state = 'online'
+    cleanup()
+    render(<RepostButton currentActor={currentActor} status={status} />)
+    expect(screen.getByRole('button', { name: 'Repost' })).toHaveAttribute(
+      'title',
+      'Repost'
     )
   })
 

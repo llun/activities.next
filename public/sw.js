@@ -312,6 +312,12 @@ sw.addEventListener('fetch', (event) => {
       return
     }
 
+    // The browser already sent a preload request for this navigation: use it in
+    // place of a second fetch(request), and never leave it unhandled.
+    const preload = Promise.resolve(event.preloadResponse).catch(
+      () => undefined
+    )
+
     if (url.pathname === '/app') {
       event.respondWith(
         (async () => {
@@ -320,7 +326,7 @@ sw.addEventListener('fetch', (event) => {
           if (cached) {
             return cached
           }
-          return fetch(request)
+          return (await preload) || fetch(request)
         })()
       )
       return
@@ -336,12 +342,12 @@ sw.addEventListener('fetch', (event) => {
             if (cached) {
               return cached
             }
-            return fetch(request)
+            return (await preload) || fetch(request)
           }
 
           // Unauthenticated visitors: go to network so they see <Landing>
           try {
-            return await fetch(request)
+            return (await preload) || (await fetch(request))
           } catch (_err) {
             const cached = await getCachedAppShell()
             if (cached) {
@@ -366,7 +372,10 @@ sw.addEventListener('fetch', (event) => {
         try {
           return (await event.preloadResponse) || (await fetch(request))
         } catch (_err) {
-          if (url.pathname === '/drafts' && (await hasActiveOfflineSession())) {
+          if (
+            (url.pathname === '/drafts' || url.pathname === '/drafts/') &&
+            (await hasActiveOfflineSession())
+          ) {
             const shell = await getCachedAppShell()
             if (shell) return shell
           }

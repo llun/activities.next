@@ -237,7 +237,7 @@ describe('FollowAction offline', () => {
 
     expect(follow).not.toHaveBeenCalled()
     expect(
-      screen.getByText("You're offline", { selector: '[role]' })
+      screen.getByText("You're offline", { selector: '[role=status]' })
     ).toBeInTheDocument()
   })
 
@@ -254,6 +254,28 @@ describe('FollowAction offline', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       "You're offline"
     )
+  })
+
+  it('clears the offline message once back online', () => {
+    const props = {
+      targetActorId: 'https://example.test/users/target',
+      isLoggedIn: true,
+      initialRelationship: relationship()
+    }
+    const { rerender } = render(<FollowAction {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }))
+    expect(
+      screen.getByText("You're offline", { selector: '[role=status]' })
+    ).toBeInTheDocument()
+
+    connection.state = 'online'
+    rerender(<FollowAction {...props} />)
+    connection.state = 'offline'
+    rerender(<FollowAction {...props} />)
+
+    expect(
+      screen.queryByText("You're offline", { selector: '[role=status]' })
+    ).not.toBeInTheDocument()
   })
 
   it('has no aria-disabled when unreachable', () => {
