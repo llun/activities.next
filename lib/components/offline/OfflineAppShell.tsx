@@ -1,8 +1,8 @@
 'use client'
 
-import { UserX, WifiOff } from 'lucide-react'
+import { CloudOff, UserX, WifiOff } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   type UIEvent,
   useCallback,
@@ -19,6 +19,7 @@ import {
   PendingProfileOverlay
 } from '@/app/(timeline)/PendingProfileNavigation'
 import { getAccountBootstrap } from '@/lib/client/bootstrap'
+import { onConnectionRestored } from '@/lib/client/connection'
 import {
   type ClientBootstrapSnapshot,
   type HydratedOfflineTimeline,
@@ -32,12 +33,14 @@ import {
   ConnectionAnnouncer,
   ConnectionStatusBar
 } from '@/lib/components/connection/ConnectionStatus'
+import { DraftsList } from '@/lib/components/drafts/DraftsList'
 import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
+import { PageHeader } from '@/lib/components/page-header'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { SessionKeepAlive } from '@/lib/components/session-keep-alive'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -55,8 +58,17 @@ type ShellState =
   | { status: 'empty-cache-offline' }
   | { status: 'empty-cache-unauthorized' }
 
+type ShellView = 'timeline' | 'drafts' | 'unavailable'
+
+const getShellView = (pathname: string | null): ShellView => {
+  if (pathname === '/' || pathname === '/app') return 'timeline'
+  if (pathname === '/drafts') return 'drafts'
+  return 'unavailable'
+}
+
 export function OfflineAppShell() {
   const router = useRouter()
+  const view = getShellView(usePathname())
   const [shellState, setShellState] = useState<ShellState>({
     status: 'loading'
   })
@@ -148,6 +160,13 @@ export function OfflineAppShell() {
       mounted = false
     }
   }, [])
+
+  // The shell stands in for a route it cannot draw: once back online, load the
+  // real page over it.
+  useEffect(() => {
+    if (view === 'timeline') return
+    return onConnectionRestored(() => window.location.reload())
+  }, [view])
 
   const handleUnauthorized = useCallback(() => {
     router.push('/auth/signin')
@@ -431,28 +450,68 @@ export function OfflineAppShell() {
                     >
                       <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
                         <ConnectionStatusBar />
-                        <MainPageTimeline
-                          host={bootstrap.host}
-                          currentTime={
-                            bootstrap.currentTime || bootstrap.savedAt
-                          }
-                          statuses={timeline?.statuses || []}
-                          timelineContext={{
-                            ancestorsById: timeline?.ancestorsById || {}
-                          }}
-                          initialNextMaxStatusId={
-                            timeline?.nextMaxStatusId ?? null
-                          }
-                          profile={bootstrap.profile}
-                          isMediaUploadEnabled={bootstrap.isMediaUploadEnabled}
-                          initialSegments={timeline?.segments}
-                          initialScrollAnchor={timeline?.scrollAnchor}
-                          initialLastRefreshedAt={timeline?.lastRefreshedAt}
-                          refreshOnMount={true}
-                          readingGroupBoosts={bootstrap.readingGroupBoosts}
-                          postLineLimit={bootstrap.postLineLimit}
-                          onUnauthorized={handleUnauthorized}
-                        />
+                        {view === 'timeline' && (
+                          <MainPageTimeline
+                            host={bootstrap.host}
+                            currentTime={
+                              bootstrap.currentTime || bootstrap.savedAt
+                            }
+                            statuses={timeline?.statuses || []}
+                            timelineContext={{
+                              ancestorsById: timeline?.ancestorsById || {}
+                            }}
+                            initialNextMaxStatusId={
+                              timeline?.nextMaxStatusId ?? null
+                            }
+                            profile={bootstrap.profile}
+                            isMediaUploadEnabled={
+                              bootstrap.isMediaUploadEnabled
+                            }
+                            initialSegments={timeline?.segments}
+                            initialScrollAnchor={timeline?.scrollAnchor}
+                            initialLastRefreshedAt={timeline?.lastRefreshedAt}
+                            refreshOnMount={true}
+                            readingGroupBoosts={bootstrap.readingGroupBoosts}
+                            postLineLimit={bootstrap.postLineLimit}
+                            onUnauthorized={handleUnauthorized}
+                          />
+                        )}
+                        {view === 'drafts' && (
+                          <div className="space-y-6">
+                            <PageHeader
+                              title="Drafts"
+                              description="Drafts are saved on this device only."
+                            />
+                            <DraftsList
+                              host={bootstrap.host}
+                              profile={bootstrap.profile}
+                              currentTime={
+                                bootstrap.currentTime || bootstrap.savedAt
+                              }
+                              isMediaUploadEnabled={
+                                bootstrap.isMediaUploadEnabled
+                              }
+                            />
+                          </div>
+                        )}
+                        {view === 'unavailable' && (
+                          <div className="space-y-6">
+                            <PageHeader title="Offline" />
+                            <EmptyState
+                              icon={CloudOff}
+                              titleAs="h2"
+                              title="Not saved for offline"
+                              action={
+                                <Button asChild size="sm">
+                                  <Link href="/drafts">Open drafts</Link>
+                                </Button>
+                              }
+                            >
+                              This page wasn&apos;t saved on this device.
+                              Connect to the internet to open it.
+                            </EmptyState>
+                          </div>
+                        )}
                       </div>
                       <PendingProfileOverlay variant="signed-in" />
                     </main>

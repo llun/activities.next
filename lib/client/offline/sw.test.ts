@@ -491,6 +491,156 @@ return {
       expect(await fallbackRes!.text()).toBe('<h1>Fallback Shell</h1>')
     })
 
+    describe('other navigations', () => {
+      const navigate = (path: string) => {
+        const req = new Request(`https://llun.social${path}`)
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        return triggerFetch(req)
+      }
+      const stubSession = () => {
+        const mockIdb = {
+          open: vi.fn(() => {
+            const req: any = {}
+            setTimeout(() => {
+              req.result = {
+                objectStoreNames: { contains: () => true },
+                transaction: () => ({
+                  objectStore: () => ({
+                    get: () => {
+                      const getReq: any = {}
+                      setTimeout(() => {
+                        getReq.result = { actorId: 'actor-1' }
+                        getReq.onsuccess?.()
+                      }, 0)
+                      return getReq
+                    }
+                  })
+                }),
+                close: vi.fn()
+              }
+              req.onsuccess?.()
+            }, 0)
+            return req
+          })
+        }
+        vi.stubGlobal('indexedDB', mockIdb)
+        ;(globalThis as any).indexedDB = mockIdb
+      }
+      const seedShell = async () => {
+        const cache = await caches.open('activities-shell-v1')
+        await cache.put(
+          '/app',
+          new Response('<h1>Signed-in Shell</h1>', {
+            headers: { 'Content-Type': 'text/html' }
+          })
+        )
+        ;(cache.put as unknown as ReturnType<typeof vi.fn>).mockClear()
+      }
+      const expectOfflinePage = async (response: Response | null) => {
+        expect(response!.headers.get('Cache-Control')).toBe('no-store')
+        expect(response!.headers.get('Content-Type')).toContain('text/html')
+        const text = await response!.text()
+        expect(text).toContain('<h1>Not saved for offline</h1>')
+        expect(text).not.toContain('Signed-in Shell')
+      }
+
+      it('serves the cached shell for /drafts when the fetch rejects with a session', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+
+        const { response } = await navigate('/drafts')
+        expect(await response!.text()).toBe('<h1>Signed-in Shell</h1>')
+      })
+
+      it('serves the offline page for /drafts without a session or without a shell', async () => {
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        const noSession = (await navigate('/drafts')).response
+        await expectOfflinePage(noSession)
+
+        stubSession()
+        const noShell = (await navigate('/drafts')).response
+        await expectOfflinePage(noShell)
+      })
+
+      it.each(['/notifications', '/auth/signin', '/oauth/authorize', '/admin'])(
+        'serves the offline page, never the shell, for %s while offline with a session and a shell',
+        async (path) => {
+          stubSession()
+          await seedShell()
+          mockFetch.mockRejectedValue(new TypeError('offline'))
+
+          const { response } = await navigate(path)
+          await expectOfflinePage(response)
+        }
+      )
+
+      it('returns the network response, including a 500, instead of the fallback', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockResolvedValue(new Response('boom', { status: 500 }))
+
+        const { response } = await navigate('/drafts')
+        expect(response!.status).toBe(500)
+        expect(await response!.text()).toBe('boom')
+      })
+
+      it('prefers the navigation preload response when present', async () => {
+        const preload = new Response('<p>preloaded</p>')
+        const req = new Request('https://llun.social/notifications')
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse: Promise.resolve(preload),
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        expect(await responded!).toBe(preload)
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it('does not intercept /api/ navigations or non-GET requests', async () => {
+        expect((await navigate('/api/v1/accounts')).response).toBeNull()
+
+        const post = new Request('https://llun.social/notifications', {
+          method: 'POST'
+        })
+        Object.defineProperty(post, 'mode', { value: 'navigate' })
+        expect((await triggerFetch(post)).response).toBeNull()
+      })
+
+      it('never writes an HTML navigation response to a cache', async () => {
+        stubSession()
+        await seedShell()
+        mockFetch.mockResolvedValue(new Response('<html></html>'))
+        await navigate('/drafts')
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        await navigate('/notifications')
+
+        for (const name of cacheStore.keys()) {
+          expect((await caches.open(name)).put).not.toHaveBeenCalled()
+        }
+      })
+    })
+
+    it('enables navigation preload on activate', async () => {
+      const enable = vi.fn(async () => {})
+      mockRegistration.navigationPreload = { enable }
+      let done: Promise<any> | null = null
+      eventListeners['activate'][0]({
+        waitUntil: (p: Promise<any>) => {
+          done = p
+        }
+      })
+      await done
+      expect(enable).toHaveBeenCalled()
+      expect(mockClients.claim).toHaveBeenCalled()
+    })
+
     it('uses Cache-First for /activities/_next/static/* and /_next/static/*', async () => {
       const shellCache = await caches.open('activities-shell-v1')
       await shellCache.put(

@@ -16,9 +16,28 @@ import { TimelineRequestError } from '@/lib/client/timelines'
 import { OfflineAppShell } from '@/lib/components/offline/OfflineAppShell'
 
 const mockPush = vi.fn()
+let mockPathname = '/app'
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
-  usePathname: () => '/app'
+  usePathname: () => mockPathname
+}))
+
+const mockUnsubscribe = vi.fn()
+const mockOnConnectionRestored = vi.fn(
+  (_listener: () => void) => mockUnsubscribe
+)
+vi.mock('@/lib/client/connection', () => ({
+  onConnectionRestored: (listener: () => void) =>
+    mockOnConnectionRestored(listener)
+}))
+
+vi.mock('@/lib/components/drafts/DraftsList', () => ({
+  DraftsList: (props: any) => (
+    <div data-testid="drafts-list">
+      {props.host}|{props.profile.username}|{String(props.currentTime)}|
+      {String(props.isMediaUploadEnabled)}
+    </div>
+  )
 }))
 
 const mockGetActiveOfflineSession = vi.fn()
@@ -165,6 +184,9 @@ describe('OfflineAppShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPush.mockReset()
+    mockPathname = '/app'
+    mockOnConnectionRestored.mockClear()
+    mockUnsubscribe.mockClear()
     mockGetActiveOfflineSession.mockReset()
     mockGetClientBootstrapSnapshot.mockReset()
     mockGetOfflineTimeline.mockReset()
@@ -435,6 +457,89 @@ describe('OfflineAppShell', () => {
     expect(window.scrollBy).toBe(originalScrollBy)
     expect(Object.prototype.hasOwnProperty.call(window, 'scrollY')).toBe(false)
     expect(Object.prototype.hasOwnProperty.call(window, 'scrollX')).toBe(false)
+  })
+
+  describe('views by path', () => {
+    const renderReady = async () => {
+      mockGetActiveOfflineSession.mockResolvedValueOnce({
+        actorId: 'actor-1',
+        accountId: 'account-1'
+      })
+      mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+      mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+      mockGetAccountBootstrap.mockResolvedValueOnce(null)
+      render(<OfflineAppShell />)
+      await screen.findByTestId('desktop-sidebar')
+    }
+
+    it('renders the drafts list with bootstrap props on /drafts', async () => {
+      mockPathname = '/drafts'
+      await renderReady()
+
+      expect(
+        screen.getAllByRole('heading', { name: 'Drafts' }).length
+      ).toBeGreaterThan(0)
+      expect(screen.getByTestId('drafts-list')).toHaveTextContent(
+        `llun.social|alice|${dummyBootstrap.currentTime}|true`
+      )
+      expect(screen.queryByTestId('main-timeline')).not.toBeInTheDocument()
+    })
+
+    it('renders Not saved for offline with an Open drafts link on any other path', async () => {
+      mockPathname = '/notifications'
+      await renderReady()
+
+      expect(
+        screen.getByRole('heading', { name: 'Not saved for offline' })
+      ).toBeVisible()
+      expect(screen.getByRole('link', { name: 'Open drafts' })).toHaveAttribute(
+        'href',
+        '/drafts'
+      )
+      expect(screen.queryByTestId('main-timeline')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('drafts-list')).not.toBeInTheDocument()
+    })
+
+    it.each(['/', '/app'])('renders the timeline on %s', async (path) => {
+      mockPathname = path
+      await renderReady()
+
+      expect(screen.getByTestId('main-timeline')).toBeInTheDocument()
+      expect(mockOnConnectionRestored).not.toHaveBeenCalled()
+    })
+
+    it('reloads when the connection returns on a non-timeline view and stops listening on unmount', async () => {
+      mockPathname = '/drafts'
+      const reload = vi.fn()
+      const original = window.location
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: { ...original, reload }
+      })
+      try {
+        mockGetActiveOfflineSession.mockResolvedValueOnce({
+          actorId: 'actor-1',
+          accountId: 'account-1'
+        })
+        mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+        mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+        mockGetAccountBootstrap.mockResolvedValueOnce(null)
+        const { unmount } = render(<OfflineAppShell />)
+        await screen.findByTestId('drafts-list')
+
+        expect(mockOnConnectionRestored).toHaveBeenCalledTimes(1)
+        mockOnConnectionRestored.mock.calls[0][0]()
+        expect(reload).toHaveBeenCalledTimes(1)
+
+        unmount()
+        expect(mockUnsubscribe).toHaveBeenCalled()
+      } finally {
+        Object.defineProperty(window, 'location', {
+          configurable: true,
+          value: original
+        })
+      }
+    })
   })
 
   it('does not render duplicate Modal in shell', async () => {
