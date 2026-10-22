@@ -1,0 +1,21 @@
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_717f711946353c 804-807
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_717f711946353c 296-350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1cdbc57915c887733dd17fe03d497d289fc4bae8",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
