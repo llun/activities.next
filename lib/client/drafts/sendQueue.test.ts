@@ -1174,6 +1174,47 @@ describe('drainQueue', () => {
         expect(stored?.queue).not.toHaveProperty('firstAttemptAt')
       })
 
+      it.each([
+        { label: 'never attempted', first: undefined, state: 'waiting' },
+        { label: 'attempted', first: NOW - 1_000, state: 'checking' }
+      ])(
+        'settles a send paused before its POST as $state ($label) when Resume comes first',
+        async ({ first, state }) => {
+          await store(
+            draft(
+              'a',
+              first
+                ? { attempts: 1, firstAttemptAt: first, state: 'checking' }
+                : {},
+              { attachments: [photo(1)] }
+            )
+          )
+          await storeBlob('local-1', 'a')
+          let writes = 0
+          const deps = makeDeps({
+            uploadAttachment: vi.fn<UploadAttachment>(async () => {
+              await pauseQueue({ actorId: 'actor-1' })
+              return media('m1')
+            }),
+            // Resume lands right after the checkpoint (the second write),
+            // before the outcome is written.
+            updateQueuedDraft: async (id, revision, mutate) => {
+              const written = await updateQueuedDraft(id, revision, mutate)
+              writes += 1
+              if (writes === 2) {
+                await resumeQueue({ actorId: 'actor-1', pausedBy: ['user'] })
+              }
+              return written
+            }
+          })
+          await drain(deps)
+          expect(deps.createNote).not.toHaveBeenCalled()
+          const queue = (await getDraft('a'))?.queue
+          expect(queue?.state).toBe(state)
+          expect(queue).not.toHaveProperty('pauseRequested')
+        }
+      )
+
       it('persists each id before the next upload and before the POST', async () => {
         await queuedPhotos()
         const seen: Array<Array<string | undefined>> = []
