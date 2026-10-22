@@ -30,7 +30,10 @@ import { DraftsList } from './DraftsList'
 import { ACTOR_ID, NOW, draftRecord, profile } from './draftFixtures.testUtils'
 
 vi.mock('@/lib/client/media', () => ({ deleteUnpostedMedia: vi.fn() }))
-vi.mock('@/lib/client/fitnessRoutes', () => ({ deleteFitnessFile: vi.fn() }))
+vi.mock('@/lib/client/fitnessRoutes', () => ({
+  deleteFitnessFile: vi.fn(),
+  deleteUnpostedFitnessFile: vi.fn()
+}))
 // The real helper, replaceable per test to force a conflict.
 vi.mock('@/lib/client/drafts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/client/drafts')>()

@@ -1013,6 +1013,11 @@ An uploaded image carries optional owner-edited details on its `medias` row: `su
   inside `if (blurhash)`; a falsy one falls through to a bare `<img>`, so a 404
   is a broken-image icon, and once the bytes are gone nothing can compute one.
   Do not dismiss a broken-image report as handled by design.
+- **Fitness files follow the same split.** `DELETE /api/v1/accounts/fitness-files/:fitnessFileId`
+  deletes a file a post uses, because Settings → Fitness files deletes a posted
+  activity on purpose; its opt-in guard `?if_unposted=true` answers 422 instead
+  (any value other than `true` or `false` is 400), and the composer and drafts
+  always ask that way. See [Fitness file storage](fitness-file-storage.md).
 - **Deleting a `medias` row therefore leaves `attachments.mediaId` pointing at a
   row that is gone, and clearing it would be a regression, not a cleanup.** A
   NULL `mediaId` is how a FEDERATED attachment is stored, and

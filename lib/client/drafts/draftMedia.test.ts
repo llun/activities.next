@@ -1,7 +1,10 @@
 import { IDBFactory } from 'fake-indexeddb'
 
 import { deleteAccountMedia } from '@/lib/client/accounts'
-import { deleteFitnessFile } from '@/lib/client/fitnessRoutes'
+import {
+  deleteFitnessFile,
+  deleteUnpostedFitnessFile
+} from '@/lib/client/fitnessRoutes'
 import { deleteUnpostedMedia } from '@/lib/client/media'
 
 import {
@@ -23,7 +26,10 @@ import type { DraftAttachment, DraftRecord } from './types'
 
 vi.mock('@/lib/client/media', () => ({ deleteUnpostedMedia: vi.fn() }))
 vi.mock('@/lib/client/accounts', () => ({ deleteAccountMedia: vi.fn() }))
-vi.mock('@/lib/client/fitnessRoutes', () => ({ deleteFitnessFile: vi.fn() }))
+vi.mock('@/lib/client/fitnessRoutes', () => ({
+  deleteFitnessFile: vi.fn(),
+  deleteUnpostedFitnessFile: vi.fn()
+}))
 
 const attachment = (patch: Partial<DraftAttachment>): DraftAttachment => ({
   localId: 'l',
@@ -72,7 +78,8 @@ describe('deleteDraftAndOwnedMedia', () => {
   beforeEach(() => {
     setDraftsIndexedDBFactory(new IDBFactory())
     vi.mocked(deleteUnpostedMedia).mockReset().mockResolvedValue(undefined)
-    vi.mocked(deleteFitnessFile).mockReset().mockResolvedValue(undefined)
+    vi.mocked(deleteFitnessFile).mockReset()
+    vi.mocked(deleteUnpostedFitnessFile).mockReset().mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -119,9 +126,11 @@ describe('deleteDraftAndOwnedMedia', () => {
 
   it('deletes the fitness file only when owned and never attempted', async () => {
     await deleteDraftAndOwnedMedia(await store({ fitnessFile: fitness() }))
-    expect(deleteFitnessFile).toHaveBeenCalledExactlyOnceWith('fit-1')
+    expect(deleteUnpostedFitnessFile).toHaveBeenCalledExactlyOnceWith('fit-1')
+    // The unguarded delete would remove a file a post uses.
+    expect(deleteFitnessFile).not.toHaveBeenCalled()
 
-    vi.mocked(deleteFitnessFile).mockClear()
+    vi.mocked(deleteUnpostedFitnessFile).mockClear()
     await deleteDraftAndOwnedMedia(
       await store({ id: 'd2', fitnessFile: fitness(), attemptedAt: 5 })
     )
@@ -134,7 +143,7 @@ describe('deleteDraftAndOwnedMedia', () => {
         fitnessFile: fitness({ fitnessFileId: undefined })
       })
     )
-    expect(deleteFitnessFile).not.toHaveBeenCalled()
+    expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
   })
 
   it('deletes nothing for a locked draft, whose media is no longer owned', async () => {
@@ -149,7 +158,7 @@ describe('deleteDraftAndOwnedMedia', () => {
 
     expect(await getDraft('d1')).toBeUndefined()
     expect(deleteUnpostedMedia).not.toHaveBeenCalled()
-    expect(deleteFitnessFile).not.toHaveBeenCalled()
+    expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
   })
 
   it('does not touch media when deleting the record fails', async () => {
@@ -177,7 +186,7 @@ describe('deleteDraftAndOwnedMedia', () => {
 
     await deleteDraftAndOwnedMedia(staleSnapshot)
 
-    expect(deleteFitnessFile).not.toHaveBeenCalled()
+    expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
     expect(deleteUnpostedMedia).not.toHaveBeenCalled()
   })
 
@@ -193,7 +202,7 @@ describe('deleteDraftAndOwnedMedia', () => {
     ).rejects.toBeInstanceOf(DraftConflictError)
 
     expect(await getDraft('d1')).toBeDefined()
-    expect(deleteFitnessFile).not.toHaveBeenCalled()
+    expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
     expect(deleteUnpostedMedia).not.toHaveBeenCalled()
   })
 })

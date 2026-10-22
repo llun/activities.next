@@ -1,4 +1,4 @@
-import { deleteFitnessFile } from '@/lib/client/fitnessRoutes'
+import { deleteUnpostedFitnessFile } from '@/lib/client/fitnessRoutes'
 import { deleteUnpostedMedia } from '@/lib/client/media'
 
 import { deleteDraftIfRevision } from './draftsDb'
@@ -59,9 +59,9 @@ export const fileToBlobRecord = async ({
  * mismatch rejects with `DraftConflictError`, also with no media deletion.
  * The uploads:
  * - `deleteUnpostedMedia` for owned media (a 422 means a status uses it);
- * - `deleteFitnessFile` only when the draft owns the file and never attempted a
- *   create, because that endpoint has no in-use guard and a kept post may use
- *   the file.
+ * - `deleteUnpostedFitnessFile` only when the draft owns the file and never
+ *   attempted a create (a 422 keeps a file a post uses, such as one another
+ *   tab sent).
  * It never calls `deleteAccountMedia`. A locked draft's attachments are
  * `owned: false`, so discarding one deletes no media. Offline, the media stays
  * in the author's Gallery, where it is visible and deletable.
@@ -80,7 +80,7 @@ export const deleteDraftAndOwnedMedia = async (
   }
   const fitnessFile = deleted.fitnessFile
   if (fitnessFile?.owned && fitnessFile.fitnessFileId && !deleted.attemptedAt) {
-    deletions.push(deleteFitnessFile(fitnessFile.fitnessFileId))
+    deletions.push(deleteUnpostedFitnessFile(fitnessFile.fitnessFileId))
   }
   // A courtesy step: the draft is already gone, so a failure only orphans.
   await Promise.allSettled(deletions)

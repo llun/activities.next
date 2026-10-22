@@ -7,7 +7,8 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor
+  waitFor,
+  within
 } from '@testing-library/react'
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 import { StrictMode } from 'react'
@@ -436,7 +437,26 @@ describe('PostBox on-device drafts', () => {
       expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
     })
 
-    it('a reopened draft leaves the photos it came with on the server', async () => {
+    it('a conflicted composer deletes a photo uploaded since its last save', async () => {
+      render(composer())
+      await withPhoto()
+      await waitForSaved()
+      await sendFromAnotherTab()
+      await conflict()
+
+      attach('b.png')
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove media b.png' })
+      )
+
+      // No record holds it: only this tab ever had it.
+      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-b.png')
+    })
+
+    // This tab holds the newest revision: a copy in another tab conflicts
+    // before it can post, and the server keeps (422) anything a post uses.
+    it('a reopened draft deletes a photo it came with through the guarded delete', async () => {
       const first = render(composer())
       await withPhoto()
       await waitFor(async () =>
@@ -452,7 +472,41 @@ describe('PostBox on-device drafts', () => {
       removePhoto()
 
       expect(deleteAccountMedia).not.toHaveBeenCalled()
-      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-a.png')
+    })
+
+    it('a reopened draft deletes a fitness file it came with through the guarded delete', async () => {
+      // Uploaded, then the send stopped before its attempt (a photo upload
+      // failed, say): the draft owns the file and no post can use it.
+      const first = render(composer())
+      type('Morning run')
+      await waitForSaved()
+      first.unmount()
+      const [saved] = await storedDrafts()
+      const draft = await saveDraft(
+        {
+          ...saved,
+          fitnessFile: {
+            localId: 'fitness-local',
+            fileName: 'run.gpx',
+            mimeType: 'application/gpx+xml',
+            size: 4,
+            fitnessFileId: 'fitness-1',
+            owned: true,
+            hasBlob: false
+          }
+        },
+        { expectedRevision: saved.revision, epoch: 0 }
+      )
+
+      render(composer({ draft }))
+      await screen.findByText('run.gpx')
+      await removeFitnessFile()
+
+      expect(deleteFitnessFile).not.toHaveBeenCalled()
+      expect(deleteUnpostedFitnessFile).toHaveBeenCalledExactlyOnceWith(
+        'fitness-1'
+      )
     })
   })
 
@@ -596,9 +650,11 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       // Trying again cannot work: only a new draft can be sent.
-      expect(await screen.findByRole('alert')).toHaveTextContent(
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(
         'This draft was changed in another tab, so nothing was sent. Copy your text, then clear the box to start a new draft.'
       )
+      expect(within(alert).queryByRole('button', { name: 'Retry' })).toBeNull()
       expect(createNoteMock).not.toHaveBeenCalled()
       expect(screen.getByText('Not saved, copy your text')).toBeVisible()
 
@@ -607,6 +663,8 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() =>
         expect(screen.queryByText('Not saved, copy your text')).toBeNull()
       )
+      // The Alert belonged to the draft the composer let go of.
+      expect(screen.queryByRole('alert')).toBeNull()
       type('a fresh start')
       await waitForSaved()
       expect(await storedDrafts()).toHaveLength(2)

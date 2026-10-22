@@ -181,6 +181,50 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     })
   })
 
+  describe('the if_unposted value', () => {
+    const callWith = (value: string) =>
+      DELETE(
+        new NextRequest(
+          `http://llun.test/api/v1/accounts/fitness-files/fitness-file-1?if_unposted=${value}`,
+          { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+        ),
+        { params: Promise.resolve({ fitnessFileId: 'fitness-file-1' }) }
+      )
+
+    // A typo must not fall through to deleting a file a post uses.
+    it.each(['yes', 'TRUE', '1', ''])(
+      'answers 400 and deletes nothing for %j',
+      async (value) => {
+        const file = await mockDb.getFitnessFile({ id: 'fitness-file-1' })
+        mockDb.getFitnessFile.mockResolvedValue({
+          ...file!,
+          statusId: 'status-1'
+        })
+
+        const response = await callWith(value)
+
+        expect(response.status).toBe(400)
+        expect(await response.json()).toEqual({
+          error: 'if_unposted must be true or false'
+        })
+        expect(mockDeleteFitnessFileFromStorage).not.toHaveBeenCalled()
+      }
+    )
+
+    it('deletes a posted file with if_unposted=false', async () => {
+      const file = await mockDb.getFitnessFile({ id: 'fitness-file-1' })
+      mockDb.getFitnessFile.mockResolvedValue({
+        ...file!,
+        statusId: 'status-1'
+      })
+
+      const response = await callWith('false')
+
+      expect(response.status).toBe(200)
+      expect(mockDeleteFitnessFileFromStorage).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('still deletes a posted file without if_unposted (Settings → Fitness files)', async () => {
     const file = await mockDb.getFitnessFile({ id: 'fitness-file-1' })
     mockDb.getFitnessFile.mockResolvedValue({ ...file!, statusId: 'status-1' })

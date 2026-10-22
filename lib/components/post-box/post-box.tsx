@@ -211,6 +211,8 @@ export const PostBox: FC<Props> = ({
   const [submitError, setSubmitError] = useState<{
     title: string
     message: string
+    // False for a conflict: trying again can only block again.
+    retryable: boolean
   } | null>(null)
   // Set once the server kept a create (503/409): the draft is locked so Post
   // retries the same payload under the same Idempotency-Key. Any edit would
@@ -398,6 +400,8 @@ export const PostBox: FC<Props> = ({
     // The draft this composer let go of keeps its key; new content gets its own.
     onUnlock: () => {
       submitIdempotencyRef.current = null
+      // The block belonged to the draft this composer let go of.
+      setSubmitError(null)
     }
   })
   const drafts = useDrafts()
@@ -569,15 +573,12 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
-  // Another tab may hold the same draft: while this one is conflicted, or for
-  // an upload the reopened draft came with, its record may still need the
-  // server copy, so the composer lets go of it without deleting it.
+  // While conflicted, another tab's record may hold what this tab last stored,
+  // so the composer lets go of it without deleting it. Otherwise this tab holds
+  // the newest revision (any other copy conflicts before it can post), and the
+  // guarded deletes keep (422) whatever a post uses.
   function mayDeleteFromServer(id: string) {
-    if (composerDraft.isConflicted()) return false
-    return !(
-      draft?.attachments.some((item) => item.mediaId === id) ||
-      draft?.fitnessFile?.fitnessFileId === id
-    )
+    return !(composerDraft.isConflicted() && composerDraft.isStoredId(id))
   }
 
   // Best-effort delete of media that was uploaded on attach but never posted.
@@ -1042,11 +1043,13 @@ export const PostBox: FC<Props> = ({
     const key = submitIdempotencyRef.current
     if (!key) return true
     if (await composerDraft.recordAttempt(key)) return true
+    const conflicted = composerDraft.isConflicted()
     setSubmitError({
       title: "Couldn't send.",
-      message: composerDraft.isConflicted()
+      message: conflicted
         ? DRAFT_CONFLICT_SEND_NOTICE
-        : DRAFT_NOT_SAVED_SEND_NOTICE
+        : DRAFT_NOT_SAVED_SEND_NOTICE,
+      retryable: !conflicted
     })
     setIsPosting(false)
     setAllowPost(true)
@@ -1349,7 +1352,8 @@ export const PostBox: FC<Props> = ({
           // a previous draft: say nothing on this one.
           setSubmitError({
             title: editStatus ? "Couldn't update." : "Couldn't send.",
-            message: failureMessage
+            message: failureMessage,
+            retryable: true
           })
         }
       }
@@ -2308,7 +2312,7 @@ export const PostBox: FC<Props> = ({
       {submitError ? (
         <Alert
           title={submitError.title}
-          onRetry={() => void onPost()}
+          onRetry={submitError.retryable ? () => void onPost() : undefined}
           className="mt-3"
         >
           {submitError.message}

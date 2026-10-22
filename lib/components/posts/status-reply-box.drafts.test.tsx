@@ -294,6 +294,8 @@ describe('StatusReplyBox on-device drafts', () => {
       await waitFor(() =>
         expect(screen.queryByText('Not saved, copy your text')).toBeNull()
       )
+      // The warning belonged to the draft the reply let go of.
+      expect(screen.queryByText(/changed in another tab/)).toBeNull()
       type('A fresh reply')
       await waitForSaved()
       await waitFor(() =>

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { deleteFitnessFile as deleteFitnessFileFromStorage } from '@/lib/services/fitness-files'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -18,6 +20,11 @@ interface Params {
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
 
+// A typo must not fall through to the destructive delete.
+const QuerySchema = z.object({
+  if_unposted: z.enum(['true', 'false']).optional()
+})
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 export const DELETE = traceApiRoute(
@@ -36,6 +43,18 @@ export const DELETE = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+
+    const query = QuerySchema.safeParse({
+      if_unposted: req.nextUrl.searchParams.get('if_unposted') ?? undefined
+    })
+    if (!query.success) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'if_unposted must be true or false' },
+        responseStatusCode: 400
       })
     }
 
@@ -85,10 +104,7 @@ export const DELETE = traceApiRoute(
       // Settings → Fitness files deletes a posted activity on purpose, so the
       // in-use check is opt-in: the composer asks for it, because a post sent
       // from another tab may already use the file it is letting go of.
-      if (
-        req.nextUrl.searchParams.get('if_unposted') === 'true' &&
-        fitnessFile.statusId
-      ) {
+      if (query.data.if_unposted === 'true' && fitnessFile.statusId) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

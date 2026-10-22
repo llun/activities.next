@@ -194,6 +194,8 @@ export const StatusReplyBox: FC<Props> = ({
     // The draft this composer let go of keeps its key; new content gets its own.
     onUnlock: () => {
       submitIdempotencyRef.current = null
+      // The block belonged to the draft this composer let go of.
+      setWarningMsg(null)
     }
   })
 

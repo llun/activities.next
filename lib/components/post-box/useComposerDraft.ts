@@ -102,6 +102,8 @@ interface DraftState {
   createdAt: number
   blobIds: Set<string>
   blobFailures: Set<string>
+  /** Server media and fitness file ids the last stored revision holds. */
+  storedIds: Set<string>
   lastKey: string
   /** Saves queued or running for this draft. */
   pending: number
@@ -119,6 +121,7 @@ const newDraftState = (): DraftState => ({
   createdAt: 0,
   blobIds: new Set(),
   blobFailures: new Set(),
+  storedIds: new Set(),
   lastKey: '',
   pending: 0,
   conflicted: false,
@@ -131,6 +134,14 @@ const recordKey = (record: DraftRecord): string => {
   return JSON.stringify(rest)
 }
 
+const serverIdsOf = (record: DraftRecord): Set<string> =>
+  new Set(
+    [
+      ...record.attachments.map((a) => a.mediaId),
+      record.fitnessFile?.fitnessFileId
+    ].filter((id): id is string => Boolean(id))
+  )
+
 const stateFromDraft = (draft: DraftRecord): DraftState => ({
   ...newDraftState(),
   id: draft.id,
@@ -140,6 +151,7 @@ const stateFromDraft = (draft: DraftRecord): DraftState => ({
     ...draft.attachments.filter((a) => a.hasBlob).map((a) => a.localId),
     ...(draft.fitnessFile?.hasBlob ? [draft.fitnessFile.localId] : [])
   ]),
+  storedIds: serverIdsOf(draft),
   lastKey: recordKey(draft),
   submit: draft.submit,
   lockedMessage: draft.lockedMessage,
@@ -528,6 +540,7 @@ export const useComposerDraft = ({
           }
           d.blobIds.clear()
           d.blobFailures.clear()
+          d.storedIds.clear()
           if (s.d === d) {
             // Empty: the draft is gone, the next content starts a new one.
             d.id = null
@@ -558,6 +571,7 @@ export const useComposerDraft = ({
           epoch
         })
         d.revision = saved.revision
+        d.storedIds = serverIdsOf(record)
         d.lastKey = key
         d.lastError = null
         reconcileBlobs(d, record)
@@ -638,6 +652,11 @@ export const useComposerDraft = ({
     // Another tab saved, deleted or signed out of this draft: its record may
     // still need the media this composer holds, so nothing is deleted.
     const isConflicted = (): boolean => s.d.conflicted
+
+    // Held by this tab's last stored revision: while conflicted, the other
+    // tab's record (or the post it sent) may hold it too. An upload made since
+    // is this tab's alone.
+    const isStoredId = (id: string): boolean => s.d.storedIds.has(id)
 
     const attachBlob = (localId: string, file: File, poster?: File) => {
       if (!live.current.enabled || !live.current.drafts) return
@@ -830,6 +849,7 @@ export const useComposerDraft = ({
       flush,
       hasDraft,
       isConflicted,
+      isStoredId,
       attachBlob,
       recordAttempt,
       recordLock,
