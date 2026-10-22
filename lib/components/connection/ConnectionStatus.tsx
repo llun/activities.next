@@ -1,6 +1,14 @@
 'use client'
 
-import { AlertTriangle, RefreshCw, WifiOff } from 'lucide-react'
+import {
+  AlertTriangle,
+  ListChecks,
+  LoaderCircle,
+  type LucideIcon,
+  RefreshCw,
+  WifiOff
+} from 'lucide-react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -9,6 +17,7 @@ import {
   type SlotMessage,
   getSlotMessage
 } from '@/lib/components/connection/slotMessage'
+import { useSendQueueStatus } from '@/lib/components/drafts/DraftsProvider'
 import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
@@ -27,7 +36,13 @@ const getConnectionHost = () =>
  */
 export function ConnectionAnnouncer() {
   const snapshot = useConnectionStatus()
-  const message = getSlotMessage(snapshot, getConnectionHost())
+  const queue = useSendQueueStatus()
+  const message = getSlotMessage(
+    snapshot,
+    getConnectionHost(),
+    undefined,
+    queue
+  )
   return (
     <div
       role="status"
@@ -46,6 +61,7 @@ export function ConnectionAnnouncer() {
 // Re-renders every second while a countdown is showing, so it stays current.
 const useSlotMessage = (): SlotMessage | null => {
   const snapshot = useConnectionStatus()
+  const queue = useSendQueueStatus()
   const isHome = usePathname() === '/'
   // `now` is state, not a `Date.now()` read inside `getSlotMessage`: the React
   // Compiler caches that call on its (unchanged) arguments, so the countdown
@@ -60,20 +76,37 @@ const useSlotMessage = (): SlotMessage | null => {
     return () => clearInterval(id)
   }, [counting])
 
-  const message = getSlotMessage(snapshot, getConnectionHost(), now)
+  const message = getSlotMessage(snapshot, getConnectionHost(), now, queue)
   if (message?.kind === 'offline' && isHome) {
     return { ...message, detail: 'Showing saved posts' }
   }
   return message
 }
 
-const ICONS = { offline: WifiOff, unreachable: AlertTriangle } as const
+// The sending spinner stops for people who ask for less motion.
+const SpinningLoader = ((props) => (
+  <LoaderCircle
+    {...props}
+    className={cn(props.className, 'motion-safe:animate-spin')}
+  />
+)) as LucideIcon
 
-// The countdown ticks every second, so a screen reader never gets it: the
-// announcer already says the title once.
+const ICONS = {
+  offline: WifiOff,
+  unreachable: AlertTriangle,
+  sending: SpinningLoader,
+  result: ListChecks
+} as const
+
+// The countdown and the "Sending 2 of 5" count change while the title stays
+// put, so a screen reader never gets them: the announcer says the title once.
 const Detail = ({ message }: { message: SlotMessage }) => (
   <span
-    aria-hidden={message.kind === 'unreachable' ? true : undefined}
+    aria-hidden={
+      message.kind === 'unreachable' || message.kind === 'sending'
+        ? true
+        : undefined
+    }
     className="tabular-nums"
   >
     {message.detail}
@@ -95,6 +128,51 @@ function RetryButton({ className }: { className?: string }) {
   )
 }
 
+function QueueLink({ label }: { label: string }) {
+  return (
+    <Button asChild variant="ghost" size="sm">
+      <Link href="/drafts">{label}</Link>
+    </Button>
+  )
+}
+
+/** Retry for a connection message; Pause and Review or View for the queue's. */
+function SlotActions({
+  message,
+  className
+}: {
+  message: SlotMessage
+  className?: string
+}) {
+  const queue = useSendQueueStatus()
+  if (message.retry) return <RetryButton className={className} />
+  if (message.kind === 'sending') {
+    return (
+      <div className={cn('flex items-center gap-2', className)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          // A failed pause leaves the queue running; the Drafts page is the
+          // way to see what is waiting.
+          onClick={() => void queue?.pause().catch(() => {})}
+        >
+          Pause
+        </Button>
+        <QueueLink label="Review" />
+      </div>
+    )
+  }
+  if (message.kind === 'result') {
+    return (
+      <div className={className}>
+        <QueueLink label="View" />
+      </div>
+    )
+  }
+  return null
+}
+
 /**
  * Desktop: the full-width alert at the top of the content column. Purely
  * visual (`live={false}`): `ConnectionAnnouncer` is the one live region, so
@@ -109,7 +187,7 @@ export function ConnectionStatusBar() {
       live={false}
       icon={ICONS[message.kind]}
       title={message.title}
-      action={message.retry ? <RetryButton /> : undefined}
+      action={<SlotActions message={message} />}
       className="mt-4 max-md:hidden"
     >
       {message.detail ? <Detail message={message} /> : null}
@@ -166,7 +244,7 @@ export function ConnectionStatusStrip({ className }: { className?: string }) {
           </p>
         ) : null}
       </div>
-      {message.retry ? <RetryButton className="shrink-0" /> : null}
+      <SlotActions message={message} className="shrink-0" />
     </div>
   )
 }

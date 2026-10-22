@@ -6,10 +6,12 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
 import {
   DraftConflictError,
+  type DraftQueueState,
   announceDraftsChanged,
   deleteDraftAndOwnedMedia,
   getDraft,
-  getDraftBlob
+  getDraftBlob,
+  resumeQueue
 } from '@/lib/client/drafts'
 
 import { DraftRow } from './DraftRow'
@@ -20,12 +22,20 @@ vi.mock('@/lib/client/drafts', async (importOriginal) => ({
   deleteDraftAndOwnedMedia: vi.fn(),
   getDraft: vi.fn(),
   getDraftBlob: vi.fn(),
-  announceDraftsChanged: vi.fn()
+  announceDraftsChanged: vi.fn(),
+  resumeQueue: vi.fn()
+}))
+
+const requestDrain = vi.fn()
+vi.mock('./DraftsProvider', () => ({
+  useDrafts: () => ({ requestDrain })
 }))
 
 const writeText = vi.fn()
 
 const onDeleteError = vi.fn()
+
+const onActionError = vi.fn()
 
 const renderRow = (
   patch: Parameters<typeof draftRecord>[0] = {},
@@ -39,12 +49,36 @@ const renderRow = (
       onEdit={onEdit}
       onConflict={onConflict}
       onDeleteError={onDeleteError}
+      onActionError={onActionError}
     />
+  )
+
+const queueState = (
+  patch: Partial<DraftQueueState> & Pick<DraftQueueState, 'state'>
+): DraftQueueState => ({
+  queuedAt: NOW - 12 * 60_000,
+  attempts: 0,
+  ...patch
+})
+
+const renderQueued = (
+  patch: Partial<DraftQueueState> & Pick<DraftQueueState, 'state'>,
+  onEdit = vi.fn()
+) =>
+  renderRow(
+    { queue: queueState(patch), updatedAt: NOW - 5 * 3_600_000 },
+    onEdit
+  )
+
+const buttons = () =>
+  [...screen.queryAllByRole('button'), ...screen.queryAllByRole('link')].map(
+    (el) => el.textContent
   )
 
 describe('DraftRow', () => {
   beforeEach(() => {
     vi.mocked(deleteDraftAndOwnedMedia).mockResolvedValue(undefined)
+    vi.mocked(resumeQueue).mockResolvedValue(1)
     vi.mocked(getDraftBlob).mockResolvedValue(undefined)
     writeText.mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
@@ -329,5 +363,152 @@ describe('DraftRow', () => {
     })
 
     expect(onConflict).not.toHaveBeenCalled()
+  })
+
+  describe('a queued post', () => {
+    it.each([
+      ['waiting', 'gray', 'Waiting for connection'],
+      ['paused', 'gray', 'Paused'],
+      ['sending', 'info', 'Sending'],
+      ['checking', 'info', 'Checking whether it posted'],
+      ['needs_review', 'warning', 'Needs review'],
+      ['couldnt_send', 'destructive', "Couldn't send"]
+    ] as const)('shows the %s chip as %s "%s"', (state, tone, label) => {
+      const { container } = renderQueued({ state })
+
+      const chip = container.querySelector('[data-slot="badge"]')
+      expect(chip).toHaveTextContent(label)
+      expect(chip).toHaveAttribute('data-tone', tone)
+    })
+
+    it('has no chip on a plain draft', () => {
+      const { container } = renderRow()
+
+      expect(container.querySelector('[data-slot="badge"]')).toBeNull()
+    })
+
+    it('says when it was queued, not when it was saved', () => {
+      renderQueued({ state: 'waiting' })
+
+      expect(
+        screen.getByText('Public · Queued 12 minutes ago')
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Saved/)).toBeNull()
+    })
+
+    it('shows the reason under the chip', () => {
+      renderQueued({
+        state: 'needs_review',
+        reason: 'Waited more than 24 hours.'
+      })
+
+      expect(screen.getByText('Waited more than 24 hours.')).toBeInTheDocument()
+    })
+
+    it('has no reason line while waiting', () => {
+      const { container } = renderQueued({ state: 'waiting' })
+
+      expect(container.querySelectorAll('p.text-sm')).toHaveLength(1)
+    })
+
+    it.each([
+      ['waiting', {}, ['Edit', 'Copy']],
+      ['sending', {}, ['Copy']],
+      ['checking', {}, ['Copy']],
+      ['needs_review', {}, ['Review', 'Copy', 'Delete']],
+      ['couldnt_send', {}, ['Review', 'Copy', 'Delete']],
+      ['paused', { pausedBy: 'rate_limit' }, ['Review', 'Copy']],
+      ['paused', { pausedBy: 'actor' }, ['Review', 'Copy']],
+      ['paused', { pausedBy: 'auth' }, ['Review', 'Sign in', 'Copy']],
+      ['paused', { pausedBy: 'user' }, ['Review', 'Resume', 'Copy']]
+    ] as const)(
+      'offers the right actions for %s %j',
+      (state, extra, labels) => {
+        renderQueued({ state, ...extra })
+
+        expect(buttons().sort()).toEqual([...labels].sort())
+      }
+    )
+
+    it('labels Edit as Review for every state but waiting, and both open the editor', () => {
+      const onEdit = vi.fn()
+      const { unmount } = renderQueued({ state: 'waiting' }, onEdit)
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+      unmount()
+      renderQueued({ state: 'needs_review' }, onEdit)
+      fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+
+      expect(onEdit).toHaveBeenCalledTimes(2)
+    })
+
+    it('sends a paused-for-auth post to the sign-in page', () => {
+      renderQueued({ state: 'paused', pausedBy: 'auth' })
+
+      expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+        'href',
+        '/auth/signin'
+      )
+    })
+
+    it('still deletes a post that needs review, through the confirm dialog', async () => {
+      renderQueued({ state: 'couldnt_send' })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      await act(async () => {
+        fireEvent.click(
+          within(screen.getByRole('dialog')).getByRole('button', {
+            name: 'Delete'
+          })
+        )
+      })
+
+      expect(deleteDraftAndOwnedMedia).toHaveBeenCalledTimes(1)
+    })
+
+    it('Resume lifts the user pause for this actor, tells the other views and asks for a drain', async () => {
+      const draft = draftRecord({
+        queue: queueState({ state: 'paused', pausedBy: 'user' })
+      })
+      render(
+        <DraftRow
+          draft={draft}
+          currentTime={NOW}
+          onEdit={vi.fn()}
+          onConflict={vi.fn()}
+          onDeleteError={onDeleteError}
+        />
+      )
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
+      })
+
+      expect(resumeQueue).toHaveBeenCalledWith({
+        actorId: draft.actorId,
+        pausedBy: ['user']
+      })
+      expect(announceDraftsChanged).toHaveBeenCalledWith(
+        'account-1',
+        draft.actorId,
+        'draft-1'
+      )
+      expect(requestDrain).toHaveBeenCalledTimes(1)
+    })
+
+    it('reports a failed Resume to the list and asks for no drain', async () => {
+      vi.mocked(resumeQueue).mockRejectedValue(new Error('no db'))
+      renderQueued({ state: 'paused', pausedBy: 'user' })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
+      })
+
+      expect(onActionError).toHaveBeenCalledWith(
+        'Something went wrong on this device. Try again.'
+      )
+      expect(requestDrain).not.toHaveBeenCalled()
+      expect(announceDraftsChanged).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled()
+    })
   })
 })
