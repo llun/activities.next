@@ -34,6 +34,7 @@ vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
 
 const notifySavedToDrafts = vi.fn()
 const notifyNotSavedToDrafts = vi.fn()
+const requestDrain = vi.fn()
 const context = (patch = {}) => ({
   accountId: 'account-1',
   actorId: 'actor-1',
@@ -41,7 +42,7 @@ const context = (patch = {}) => ({
   count: 0,
   signingOut: false,
   notifySavedToDrafts,
-  requestDrain: vi.fn(),
+  requestDrain,
   notifyNotSavedToDrafts,
   ...patch
 })
@@ -114,6 +115,7 @@ describe('useComposerDraft', () => {
     vi.mocked(deleteFitnessFile).mockReset().mockResolvedValue(undefined)
     notifySavedToDrafts.mockReset()
     notifyNotSavedToDrafts.mockReset()
+    requestDrain.mockReset()
     current = content()
     useFakeClock()
   })
@@ -1256,6 +1258,210 @@ describe('useComposerDraft', () => {
         expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(2)
       )
       expect((await getDraft(first.id))?.text).toBe('hello')
+    })
+  })
+
+  describe('handOff', () => {
+    const handOff = async (
+      result: { current: ReturnType<typeof useComposerDraft> },
+      queue: boolean
+    ) => {
+      let handedOff: boolean | undefined
+      await act(async () => {
+        handedOff = await result.current.handOff({ queue })
+      })
+      return handedOff
+    }
+
+    it('queue: writes state waiting in one save, forgets the draft and asks for a drain', async () => {
+      const { result } = setup()
+
+      await expect(handOff(result, true)).resolves.toBe(true)
+
+      const draft = await stored()
+      expect(draft.revision).toBe(1)
+      expect(draft.queue).toEqual({
+        state: 'waiting',
+        queuedAt: Date.now(),
+        attempts: 0
+      })
+      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id, 1, {
+        queued: true
+      })
+      expect(requestDrain).toHaveBeenCalledTimes(1)
+      // Let go: the next content is a new draft and the queued one is untouched.
+      expect(result.current.hasDraft()).toBe(false)
+      current = content({ text: 'the next one' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(async () =>
+        expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(2)
+      )
+      expect(await getDraft(draft.id)).toEqual(draft)
+    })
+
+    it('save draft: keeps no queue, does not ask for a drain, and forgets the draft', async () => {
+      const { result } = setup()
+
+      await expect(handOff(result, false)).resolves.toBe(true)
+
+      const draft = await stored()
+      expect(draft.queue).toBeUndefined()
+      expect(notifySavedToDrafts).toHaveBeenCalledWith(draft.id, 1)
+      expect(requestDrain).not.toHaveBeenCalled()
+      expect(result.current.hasDraft()).toBe(false)
+    })
+
+    it('writes one queued revision when text is typed while the hand-off is in flight', async () => {
+      const { result } = setup()
+      act(() => result.current.schedule())
+
+      let handedOff: Promise<boolean> | undefined
+      act(() => {
+        handedOff = result.current.handOff({ queue: true })
+      })
+      // Typed while the hand-off is in flight: the hand-off saves it, and the
+      // debounce must not write a second (unqueued) revision behind it.
+      current = content({ text: 'typed during the hand-off' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS * 2)
+      await act(async () => {
+        await expect(handedOff).resolves.toBe(true)
+      })
+
+      const drafts = await listDrafts({ actorId: 'actor-1' })
+      expect(drafts).toHaveLength(1)
+      expect(drafts[0]).toMatchObject({
+        text: 'typed during the hand-off',
+        revision: 1,
+        queue: { state: 'waiting' }
+      })
+      expect(notifySavedToDrafts).toHaveBeenCalledWith(drafts[0].id, 1, {
+        queued: true
+      })
+    })
+
+    it('stateFromDraft ignores a stored queue: a composer never holds a queued revision', async () => {
+      const first = setup()
+      await expect(handOff(first.result, true)).resolves.toBe(true)
+      first.unmount()
+      const queued = await stored()
+      expect(queued.queue).toBeDefined()
+      const { result } = setup({ draft: queued })
+
+      current = content({ text: 'edited after reopening' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+
+      await vi.waitFor(async () => expect((await stored()).revision).toBe(2))
+      expect((await stored()).queue).toBeUndefined()
+    })
+
+    it.each([[true], [false]])(
+      'returns false and writes nothing for an untouched composer (queue %s)',
+      async (queue) => {
+        const { result } = setup()
+        current = null
+
+        await expect(handOff(result, queue)).resolves.toBe(false)
+
+        expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+        expect(notifySavedToDrafts).not.toHaveBeenCalled()
+        expect(requestDrain).not.toHaveBeenCalled()
+      }
+    )
+
+    it('returns false without a provider', async () => {
+      vi.mocked(useDrafts).mockReturnValue(null)
+      const { result } = setup()
+
+      await expect(handOff(result, true)).resolves.toBe(false)
+
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+    })
+
+    it('returns false while a reopened draft is still loading', async () => {
+      const { result } = renderHook(() =>
+        useComposerDraft({
+          composer: 'post-box',
+          isSeeding: () => true,
+          getContent: () => current
+        })
+      )
+
+      await expect(handOff(result, true)).resolves.toBe(false)
+
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+    })
+
+    it("returns false on a conflict and leaves the other tab's record without a queue", async () => {
+      let tabB: ReturnType<typeof renderHook> | undefined
+      const hook = setup()
+      act(() => hook.result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() =>
+        expect(hook.result.current.saveState).toBe('saved')
+      )
+      const original = await stored()
+      tabB = await editElsewhere(original, 'written in the other tab')
+      const before = await getDraft(original.id)
+      current = content({ text: 'typed here' })
+
+      await expect(handOff(hook.result, true)).resolves.toBe(false)
+
+      expect(await getDraft(original.id)).toEqual(before)
+      expect(before?.queue).toBeUndefined()
+      expect(notifySavedToDrafts).not.toHaveBeenCalled()
+      expect(requestDrain).not.toHaveBeenCalled()
+      tabB?.unmount()
+    })
+
+    it('returns false when a photo whose bytes could not be stored is attached', async () => {
+      const put = IDBObjectStore.prototype.put
+      vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+        this: IDBObjectStore,
+        ...args: Parameters<IDBObjectStore['put']>
+      ) {
+        if (this.name === 'blobs') {
+          throw new DOMException('full', 'QuotaExceededError')
+        }
+        return put.apply(this, args)
+      })
+      const { result } = setup()
+      current = content({
+        attachments: [attachment({ mediaId: undefined })]
+      })
+
+      act(() =>
+        result.current.attachBlob(
+          'local-1',
+          new File(['bytes'], 'a.png', { type: 'image/png' })
+        )
+      )
+      // Not waited for: the hand-off itself waits for the pending blob write.
+      await expect(handOff(result, true)).resolves.toBe(false)
+
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+      expect(requestDrain).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the save fails, and the next save is a plain draft', async () => {
+      const put = vi
+        .spyOn(IDBObjectStore.prototype, 'put')
+        .mockImplementation(() => {
+          throw new DOMException('full', 'QuotaExceededError')
+        })
+      const { result } = setup()
+
+      await expect(handOff(result, true)).resolves.toBe(false)
+      expect(notifySavedToDrafts).not.toHaveBeenCalled()
+      expect(requestDrain).not.toHaveBeenCalled()
+
+      put.mockRestore()
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(async () => expect(await stored()).toBeDefined())
+      expect((await stored()).queue).toBeUndefined()
+      expect(result.current.hasDraft()).toBe(true)
     })
   })
 

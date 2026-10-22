@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { deleteUnpostedMedia, getCustomEmojis } from '@/lib/client'
+import { resetConnectionForTesting } from '@/lib/client/connection'
 import {
   ApiRequestError,
   DRAFT_LOCKED_NOTICE,
@@ -48,6 +49,10 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/utils/resizeImage', () => ({
   resizeImage: vi.fn((file) => Promise.resolve(file))
 }))
+
+// A failed request probes the connection, which cannot succeed under test: the
+// next test must not start offline (uploads would be deferred).
+beforeEach(() => resetConnectionForTesting())
 
 describe('PostBox media-only and reply posts', () => {
   beforeEach(() => {

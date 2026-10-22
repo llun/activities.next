@@ -6,6 +6,7 @@ import type {
   DraftAttachment,
   DraftFitnessFile,
   DraftPoll,
+  DraftQueueState,
   DraftRecord
 } from '@/lib/client/drafts'
 import { announceDraftsChanged } from '@/lib/client/drafts/draftsChannel'
@@ -14,6 +15,7 @@ import {
   DraftSignedOutError,
   DraftsUnavailableError
 } from '@/lib/client/drafts/errors'
+import { uploadedDraftAttachment } from '@/lib/client/drafts/submitRequest'
 import { requestPersistentOfflineStorage } from '@/lib/client/offline'
 import {
   type DraftsContextValue,
@@ -114,6 +116,8 @@ interface DraftState {
   submit?: SubmitCheckpoint
   lockedMessage?: string
   attemptedAt?: number
+  /** Set only while `handOff` saves a send-when-online draft. */
+  queue?: DraftQueueState
   lastError: unknown
 }
 
@@ -173,6 +177,7 @@ interface Snapshot {
   submit?: SubmitCheckpoint
   lockedMessage?: string
   attemptedAt?: number
+  queue?: DraftQueueState
 }
 
 let persistRequested = false
@@ -206,7 +211,8 @@ const assemble = (snap: Snapshot, content: DraftContent): DraftRecord => ({
     : undefined,
   attemptedAt: snap.attemptedAt,
   submit: snap.submit,
-  lockedMessage: snap.lockedMessage
+  lockedMessage: snap.lockedMessage,
+  queue: snap.queue
 })
 
 /**
@@ -295,16 +301,7 @@ export const fromDraftAttachment = (
   files: Awaited<ReturnType<typeof loadDraftFiles>>
 ): PostBoxAttachment | null => {
   if (item.mediaId) {
-    return {
-      type: 'upload',
-      id: item.mediaId,
-      mediaType: item.mediaType,
-      url: item.url ?? '',
-      posterUrl: item.posterUrl,
-      width: item.width ?? 0,
-      height: item.height ?? 0,
-      name: item.description
-    }
+    return uploadedDraftAttachment({ ...item, mediaId: item.mediaId })
   }
   const stored = files.get(item.localId)
   if (!stored) return null
@@ -463,7 +460,8 @@ export const useComposerDraft = ({
         quoteOf: copyOf('quoteOf', live.current.quoteOf),
         submit: d.submit,
         lockedMessage: d.lockedMessage,
-        attemptedAt: d.attemptedAt
+        attemptedAt: d.attemptedAt,
+        queue: d.queue
       }
     }
 
@@ -855,6 +853,63 @@ export const useComposerDraft = ({
       return true
     }
 
+    // Saves what the composer holds, confirms it landed, then lets the composer
+    // move on: a plain draft, or one the send queue picks up (`queue`). False
+    // means nothing was handed over and the composer still holds its content.
+    // The composer's own submit guard covers the whole call.
+    const handOff = async ({ queue }: { queue: boolean }): Promise<boolean> => {
+      const d = s.d
+      const blocked = () =>
+        !live.current.enabled ||
+        !live.current.drafts ||
+        live.current.isSeeding?.() ||
+        d.conflicted ||
+        d.blobFailures.size > 0
+      // Nothing worth keeping (an untouched composer, a reply holding only its
+      // mention): never an empty record.
+      if (blocked() || live.current.getContent() === null) return false
+      // No autosave may write a newer revision between the save and `forget`.
+      d.settled = true
+      // A queued revision may have landed: the next save writes it back as a
+      // plain draft.
+      const abandon = () => {
+        d.queue = undefined
+        d.settled = false
+        if (s.d === d) schedule()
+        return false
+      }
+      // Blob writes still in the chain settle first: a queued post whose bytes
+      // failed to store could never be sent.
+      await s.chain
+      if (s.d !== d || blocked()) return abandon()
+      if (queue) {
+        d.queue = { state: 'waiting', queuedAt: Date.now(), attempts: 0 }
+      }
+      const saved = await saveNow(true)
+      const ctx = live.current.drafts
+      if (
+        saved &&
+        ctx &&
+        s.d === d &&
+        d.id &&
+        d.revision > 0 &&
+        !d.conflicted &&
+        !d.lastError &&
+        d.blobFailures.size === 0
+      ) {
+        const { id, revision } = d
+        forget()
+        if (queue) {
+          ctx.notifySavedToDrafts(id, revision, { queued: true })
+          ctx.requestDrain()
+        } else {
+          ctx.notifySavedToDrafts(id, revision)
+        }
+        return true
+      }
+      return abandon()
+    }
+
     // Unmount of a Drafts-page editor (Close or navigating away): a saved
     // draft with nothing worth keeping is deleted; anything else is flushed.
     // A conflict (another tab edited it) keeps the record.
@@ -893,6 +948,7 @@ export const useComposerDraft = ({
       discard,
       detach,
       keep,
+      handOff,
       clearTimer
     }
   }, [s])

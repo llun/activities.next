@@ -6,6 +6,7 @@ import {
   FormEvent,
   KeyboardEvent,
   useEffect,
+  useId,
   useReducer,
   useRef,
   useState
@@ -14,9 +15,15 @@ import {
 import { createNote, uploadAttachment } from '@/lib/client'
 import { reportRequestFailure } from '@/lib/client/connection'
 import type { DraftRecord } from '@/lib/client/drafts'
+import { replyBoxFingerprint } from '@/lib/client/drafts/submitRequest'
 import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
+import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { DraftSaveStatus } from '@/lib/components/post-box/DraftSaveStatus'
+import {
+  OfflineSubmitButtons,
+  OfflineSubmitCaption
+} from '@/lib/components/post-box/OfflineSubmitButtons'
 import {
   addAttachment,
   createDefaultState,
@@ -44,6 +51,7 @@ import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, getOriginalStatus } from '@/lib/types/domain/status'
@@ -221,6 +229,20 @@ export const StatusReplyBox: FC<Props> = ({
   const allowPost =
     hasContent && (draftLocked || text.length <= maxStatusCharacters)
 
+  const drafts = useDrafts()
+  const connectionState = useConnectionStatus().state
+  const reasonId = useId()
+  // Offline a reply cannot go out: Post gives way to Save draft and Send when
+  // online.
+  const offlineSplit =
+    drafts !== null && connectionState !== 'online' ? connectionState : null
+  // Video is never queued (it is too large to hold for a later send).
+  const queueDisabledReason = postExtension.attachments.some((item) =>
+    item.mediaType.startsWith('video/')
+  )
+    ? "Videos stay as drafts. Post this when you're back online."
+    : undefined
+
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
@@ -368,6 +390,72 @@ export const StatusReplyBox: FC<Props> = ({
     }
   }
 
+  // Ends a send or a hand-off (the guard is already released): a re-target
+  // that arrived meanwhile is applied now. `sent` is true once the reply left
+  // this box (posted, kept as a draft or queued).
+  const settleSend = (sent: boolean) => {
+    if (!retargetPendingRef.current) return
+    retargetPendingRef.current = false
+    // Still this send's box until it moves on: nothing can be sent from
+    // it while the draft is kept.
+    isSubmittingRef.current = true
+    const moveOn = () => {
+      isSubmittingRef.current = false
+      setRetargetAfterSend((count) => count + 1)
+    }
+    // Not sent: kept in Drafts (or offered in the note) first, as Cancel
+    // does, so moving on never drops it silently.
+    if (sent) moveOn()
+    else void composerDraft.keep().then(moveOn, moveOn)
+  }
+
+  // Offline: keep the reply as a draft, or queue it to send when back online.
+  // Runs under the same guards as `onPost`.
+  const onHandOff = async (queue: boolean) => {
+    if (isSubmittingRef.current || isPosting) return
+    // A new target not applied yet: the content belongs to the previous one.
+    if (
+      initializedStatusIdRef.current !== replyStatus.id ||
+      draftReplyTo.id !== replyStatus.id
+    ) {
+      return
+    }
+    // Nothing worth keeping (only the mention pre-fill): no empty record.
+    if (getDraftContent() === null) return
+    if (queue && !allowPost) return
+    isSubmittingRef.current = true
+    let handedOff = false
+    setIsPosting(true)
+    setWarningMsg(null)
+    try {
+      handedOff = await composerDraft.handOff({ queue })
+      if (handedOff) {
+        // The draft owns the media now: reset without deleting any of it.
+        submitIdempotencyRef.current = null
+        setLockedMessage(null)
+        postExtensionRef.current = createDefaultState()
+        dispatch(resetExtension())
+        removedAttachmentIdsRef.current.clear()
+        setText('')
+        textRef.current = ''
+        onCancel()
+      }
+    } catch {
+      handedOff = false
+    } finally {
+      if (!handedOff) {
+        setWarningMsg(
+          composerDraft.isConflicted()
+            ? DRAFT_CONFLICT_SEND_NOTICE
+            : DRAFT_NOT_SAVED_SEND_NOTICE
+        )
+      }
+      isSubmittingRef.current = false
+      setIsPosting(false)
+      settleSend(handedOff)
+    }
+  }
+
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
@@ -476,12 +564,12 @@ export const StatusReplyBox: FC<Props> = ({
         attachments
       }
 
-      const replyFingerprint = JSON.stringify({
+      const replyFingerprint = replyBoxFingerprint({
         message,
-        contentWarning: contentWarning ?? null,
+        contentWarning,
         inReplyToId: replyStatus.id,
         visibility: inheritedVisibility,
-        language: inheritedLanguage ?? null,
+        language: inheritedLanguage,
         attachmentIds: attachments.map((attachment) => attachment.id)
       })
       if (submitIdempotencyRef.current?.fingerprint !== replyFingerprint) {
@@ -561,20 +649,7 @@ export const StatusReplyBox: FC<Props> = ({
         }
       }
     } finally {
-      if (retargetPendingRef.current) {
-        retargetPendingRef.current = false
-        // Still this send's box until it moves on: nothing can be sent from
-        // it while the draft is kept.
-        isSubmittingRef.current = true
-        const moveOn = () => {
-          isSubmittingRef.current = false
-          setRetargetAfterSend((count) => count + 1)
-        }
-        // Not sent: kept in Drafts (or offered in the note) first, as Cancel
-        // does, so moving on never drops it silently.
-        if (sent) moveOn()
-        else void composerDraft.keep().then(moveOn, moveOn)
-      }
+      settleSend(sent)
     }
   }
 
@@ -901,15 +976,33 @@ export const StatusReplyBox: FC<Props> = ({
                 >
                   Cancel
                 </Button>
-                <Button
-                  disabled={!allowPost || isPosting}
-                  type="submit"
-                  size="sm"
-                >
-                  {isPosting ? 'Posting…' : 'Post'}
-                </Button>
+                {offlineSplit ? (
+                  <OfflineSubmitButtons
+                    disabled={!allowPost || isPosting}
+                    queueDisabledReason={queueDisabledReason}
+                    reasonId={reasonId}
+                    onSaveDraft={() => void onHandOff(false)}
+                    onQueue={() => void onHandOff(true)}
+                  />
+                ) : (
+                  <Button
+                    disabled={!allowPost || isPosting}
+                    type="submit"
+                    size="sm"
+                  >
+                    {isPosting ? 'Posting…' : 'Post'}
+                  </Button>
+                )}
               </div>
             </div>
+            {offlineSplit ? (
+              <OfflineSubmitCaption
+                state={offlineSplit}
+                hasPoll={false}
+                queueDisabledReason={queueDisabledReason}
+                reasonId={reasonId}
+              />
+            ) : null}
           </div>
         </div>
       </form>

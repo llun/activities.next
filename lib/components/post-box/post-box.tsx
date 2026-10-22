@@ -6,6 +6,7 @@ import {
   KeyboardEvent,
   useCallback,
   useEffect,
+  useId,
   useReducer,
   useRef,
   useState
@@ -25,8 +26,16 @@ import {
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
-import { reportRequestFailure } from '@/lib/client/connection'
+import {
+  getConnectionSnapshot,
+  onConnectionRestored,
+  reportRequestFailure
+} from '@/lib/client/connection'
 import type { DraftRecord } from '@/lib/client/drafts'
+import {
+  postBoxNoteFingerprint,
+  postBoxPollFingerprint
+} from '@/lib/client/drafts/submitRequest'
 import {
   DRAFT_LOCKED_NOTICE,
   classifyFailedPost,
@@ -44,6 +53,7 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
 import type {
   MediaDetailsEntity,
@@ -74,6 +84,10 @@ import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import { DraftSaveStatus } from './DraftSaveStatus'
+import {
+  OfflineSubmitButtons,
+  OfflineSubmitCaption
+} from './OfflineSubmitButtons'
 import {
   ComposerAttachmentTiles,
   getAttachmentLabel
@@ -177,6 +191,11 @@ interface Props {
   frameClassName?: string
   /** The home composer only: shows the "N drafts · Open" link. */
   showDraftsLink?: boolean
+  /**
+   * The post was kept as a draft or queued to send when online. The composer
+   * has already cleared itself; a host that closes it does so here.
+   */
+  onHandedOff?: () => void
 }
 
 export const PostBox: FC<Props> = ({
@@ -195,7 +214,8 @@ export const PostBox: FC<Props> = ({
   draft,
   keepWhenEmpty,
   frameClassName,
-  showDraftsLink
+  showDraftsLink,
+  onHandedOff
 }) => {
   // The instance's configured status length (admin setting `posts.maxCharacters`,
   // published by the (timeline) layout). Client-side UX only — the create/edit
@@ -213,6 +233,8 @@ export const PostBox: FC<Props> = ({
     message: string
     // False for a conflict: trying again can only block again.
     retryable: boolean
+    // Set by a failed hand-off: Retry hands off again instead of posting.
+    handOff?: 'save' | 'queue'
   } | null>(null)
   // Set once the server kept a create (503/409): the draft is locked so Post
   // retries the same payload under the same Idempotency-Key. Any edit would
@@ -230,6 +252,10 @@ export const PostBox: FC<Props> = ({
   // settles, so the send and its draft always stay this composer's own.
   const retargetPendingRef = useRef(false)
   const [retargetAfterSend, setRetargetAfterSend] = useState(0)
+  // Attachments picked while offline: uploaded once the connection is back.
+  const deferredUploadsRef = useRef(new Set<string>())
+  const connectionState = useConnectionStatus().state
+  const reasonId = useId()
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(postBoxRef, text)
   const formRef = useRef<HTMLFormElement>(null)
@@ -802,9 +828,16 @@ export const PostBox: FC<Props> = ({
     const { file, posterFile } = attachment
     if (!file) return
     const tempId = attachment.id
-    void ensureGallerySettings()
     setFileNames((current) => ({ ...current, [tempId]: file.name }))
     setUploadError(tempId, null)
+    // Offline: the bytes wait in the draft, and the upload runs once the
+    // connection is back (or the queued post's sender uploads them).
+    if (getConnectionSnapshot().state !== 'online') {
+      deferredUploadsRef.current.add(tempId)
+      replaceAttachment(tempId, { ...attachment, isLoading: false })
+      return
+    }
+    void ensureGallerySettings()
     replaceAttachment(tempId, { ...attachment, isLoading: true })
 
     const run = async () => {
@@ -863,6 +896,23 @@ export const PostBox: FC<Props> = ({
     })
     uploadsRef.current.set(tempId, promise)
   }
+
+  // Read through a ref: the listener outlives the render that registered it.
+  const startUploadRef = useRef(startUpload)
+  startUploadRef.current = startUpload
+  useEffect(
+    () =>
+      onConnectionRestored(() => {
+        const ids = [...deferredUploadsRef.current]
+        deferredUploadsRef.current.clear()
+        ids.forEach((id) => {
+          const attachment = findAttachment(id)
+          if (attachment?.file) startUploadRef.current(attachment)
+        })
+      }),
+    // findAttachment only reads a ref.
+    []
+  )
 
   const uploadMediaAttachments = async () => {
     // Uploads start when media is attached; wait for the ones still running.
@@ -979,6 +1029,7 @@ export const PostBox: FC<Props> = ({
   }
 
   const resetMediaState = () => {
+    deferredUploadsRef.current.clear()
     suggestionRequestedRef.current.clear()
     suggestionQueueRef.current = []
     setSuggestionsPending({})
@@ -1061,6 +1112,98 @@ export const PostBox: FC<Props> = ({
     return false
   }
 
+  // Ends a send or a hand-off: releases the submit guard, or hands it to a
+  // re-target that arrived meanwhile. `sent` is true once the post left this
+  // composer (posted, kept as a draft or queued).
+  const settleSend = (sent: boolean) => {
+    if (!retargetPendingRef.current) {
+      submitInFlightRef.current = false
+      return
+    }
+    retargetPendingRef.current = false
+    // Still this send's composer until it moves on: nothing can be sent
+    // from it (under the new target's mode) while the draft is kept.
+    const moveOn = () => {
+      submitInFlightRef.current = false
+      setRetargetAfterSend((count) => count + 1)
+    }
+    // Not sent: kept in Drafts (or offered in the note) first, as closing
+    // a reply does, so moving on never drops it silently.
+    // An edit of a published post is never a draft, whatever happens to it.
+    if (sent || editStatus) moveOn()
+    else void composerDraft.keep().then(moveOn, moveOn)
+  }
+
+  // Offline: keep the post as a draft, or queue it to send when back online.
+  // Runs under the same guards as `onPost`.
+  const onHandOff = async (queue: boolean) => {
+    if (submitInFlightRef.current) return
+    // New props not applied yet: the content belongs to the previous target.
+    if (
+      editStatus?.id !== draftTarget.editId ||
+      replyStatus?.id !== draftTarget.replyTo?.id ||
+      quotedStatus?.id !== draftTarget.quoteOf?.id
+    ) {
+      return
+    }
+    // Nothing worth keeping (an untouched composer): no empty record.
+    if (getDraftContent() === null) return
+    if (queue) {
+      if (!allowPost) return
+      if (
+        !draftLocked &&
+        !isWithinLengthLimit(textRef.current, maxStatusCharacters)
+      ) {
+        return
+      }
+      if (postExtension.poll.showing && postExtension.fitnessFile) {
+        setWarningMsg(
+          'You cannot create a poll while a fitness file is attached.'
+        )
+        return
+      }
+    }
+    submitInFlightRef.current = true
+    let handedOff = false
+    setIsPosting(true)
+    setWarningMsg(null)
+    setSubmitError(null)
+    try {
+      handedOff = await composerDraft.handOff({ queue })
+      if (handedOff) {
+        // The draft owns the media now (uploaded ids and stored bytes): reset
+        // without deleting any of it. An upload still running finds no
+        // attachment when it ends and deletes its own orphan.
+        submitIdempotencyRef.current = null
+        setLockedMessage(null)
+        postExtensionRef.current = createDefaultState()
+        dispatch(resetExtension())
+        resetMediaState()
+        dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
+        setText('')
+        textRef.current = ''
+        setAllowPost(false)
+        onHandedOff?.()
+      }
+    } catch {
+      handedOff = false
+    } finally {
+      if (!handedOff) {
+        const conflicted = composerDraft.isConflicted()
+        setSubmitError({
+          title: queue ? "Couldn't queue." : "Couldn't save.",
+          message: conflicted
+            ? DRAFT_CONFLICT_SEND_NOTICE
+            : DRAFT_NOT_SAVED_SEND_NOTICE,
+          retryable: !conflicted,
+          handOff: queue ? 'queue' : 'save'
+        })
+      }
+      setIsPosting(false)
+      settleSend(handedOff)
+    }
+  }
+
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
@@ -1108,14 +1251,13 @@ export const PostBox: FC<Props> = ({
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
         const choices = poll.choices.map((item) => item.text)
-        const pollFingerprint = JSON.stringify({
-          type: 'poll',
+        const pollFingerprint = postBoxPollFingerprint({
           message,
           contentWarning,
           choices,
           durationInSeconds: poll.durationInSeconds,
           pollType: poll.pollType,
-          replyStatusId: replyStatus?.id ?? null,
+          replyStatusId: replyStatus?.id,
           visibility: postExtension.visibility
         })
         if (submitIdempotencyRef.current?.fingerprint !== pollFingerprint) {
@@ -1276,14 +1418,13 @@ export const PostBox: FC<Props> = ({
 
       createAttempt = attachments
       createFitnessFileId = fitnessFileId
-      const noteFingerprint = JSON.stringify({
-        type: 'note',
+      const noteFingerprint = postBoxNoteFingerprint({
         message,
         contentWarning,
-        replyStatusId: replyStatus?.id ?? null,
-        quotedStatusId: quotedStatus?.id ?? null,
+        replyStatusId: replyStatus?.id,
+        quotedStatusId: quotedStatus?.id,
         attachmentIds: attachments.map((attachment) => attachment.id),
-        fitnessFileId: fitnessFileId ?? null,
+        fitnessFileId,
         visibility: postExtension.visibility,
         quoteApprovalPolicy: postExtension.quoteApprovalPolicy
       })
@@ -1368,21 +1509,7 @@ export const PostBox: FC<Props> = ({
         })
       }
     } finally {
-      if (!retargetPendingRef.current) submitInFlightRef.current = false
-      else {
-        retargetPendingRef.current = false
-        // Still this send's composer until it moves on: nothing can be sent
-        // from it (under the new target's mode) while the draft is kept.
-        const moveOn = () => {
-          submitInFlightRef.current = false
-          setRetargetAfterSend((count) => count + 1)
-        }
-        // Not sent: kept in Drafts (or offered in the note) first, as closing
-        // a reply does, so moving on never drops it silently.
-        // An edit of a published post is never a draft, whatever happens to it.
-        if (sent || editStatus) moveOn()
-        else void composerDraft.keep().then(moveOn, moveOn)
-      }
+      settleSend(sent)
     }
   }
 
@@ -1950,6 +2077,19 @@ export const PostBox: FC<Props> = ({
       details: detailsById[item.id] ?? null
     }))
 
+  // Offline a post cannot go out: Post gives way to Save draft and Send when
+  // online. Editing a published post has no draft, so it keeps Update.
+  const offlineSplit =
+    drafts !== null && !editStatus && connectionState !== 'online'
+      ? connectionState
+      : null
+  // Video is never queued (it is too large to hold for a later send).
+  const queueDisabledReason = postExtension.attachments.some((item) =>
+    item.mediaType.startsWith('video/')
+  )
+    ? "Videos stay as drafts. Post this when you're back online."
+    : undefined
+
   const form = (
     <>
       <form ref={formRef} onSubmit={onPost} onInput={composerDraft.schedule}>
@@ -2228,17 +2368,38 @@ export const PostBox: FC<Props> = ({
                 <span className="max-md:sr-only">Cancel Edit</span>
               </Button>
             ) : null}
-            <Button
-              disabled={
-                !allowPost || isPosting || missingDescription || settingsLoading
-              }
-              type="submit"
-              size="sm"
-            >
-              {editStatus ? 'Update' : isPosting ? 'Posting…' : 'Post'}
-            </Button>
+            {offlineSplit ? (
+              <OfflineSubmitButtons
+                disabled={!allowPost || isPosting}
+                queueDisabledReason={queueDisabledReason}
+                reasonId={reasonId}
+                onSaveDraft={() => void onHandOff(false)}
+                onQueue={() => void onHandOff(true)}
+              />
+            ) : (
+              <Button
+                disabled={
+                  !allowPost ||
+                  isPosting ||
+                  missingDescription ||
+                  settingsLoading
+                }
+                type="submit"
+                size="sm"
+              >
+                {editStatus ? 'Update' : isPosting ? 'Posting…' : 'Post'}
+              </Button>
+            )}
           </div>
         </div>
+        {offlineSplit ? (
+          <OfflineSubmitCaption
+            state={offlineSplit}
+            hasPoll={postExtension.poll.showing}
+            queueDisabledReason={queueDisabledReason}
+            reasonId={reasonId}
+          />
+        ) : null}
         {warningMsg ? (
           <div role="alert" className="mt-3 text-xs text-destructive-text">
             {warningMsg}
@@ -2355,7 +2516,14 @@ export const PostBox: FC<Props> = ({
       {submitError ? (
         <Alert
           title={submitError.title}
-          onRetry={submitError.retryable ? () => void onPost() : undefined}
+          onRetry={
+            submitError.retryable
+              ? () =>
+                  void (submitError.handOff
+                    ? onHandOff(submitError.handOff === 'queue')
+                    : onPost())
+              : undefined
+          }
           className="mt-3"
         >
           {submitError.message}

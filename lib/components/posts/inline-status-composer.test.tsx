@@ -19,6 +19,7 @@ interface PostBoxStubProps {
   editStatus?: unknown
   onPostCreated: (status: { id: string }, attachments: unknown[]) => void
   onPostUpdated: (status: { id: string }) => void
+  onHandedOff?: () => void
 }
 
 vi.mock('./status-reply-box', () => ({
@@ -37,7 +38,8 @@ vi.mock('@/lib/components/post-box/post-box', () => ({
     quotedStatus,
     editStatus,
     onPostCreated,
-    onPostUpdated
+    onPostUpdated,
+    onHandedOff
   }: PostBoxStubProps) => (
     <div
       data-testid="post-box"
@@ -47,6 +49,7 @@ vi.mock('@/lib/components/post-box/post-box', () => ({
         pb-create
       </button>
       <button onClick={() => onPostUpdated({ id: 'edit-1' })}>pb-update</button>
+      <button onClick={onHandedOff}>pb-handed-off</button>
     </div>
   )
 }))
@@ -134,6 +137,26 @@ describe('InlineStatusComposer', () => {
     fireEvent.click(screen.getByText('pb-create'))
     expect(onCreated).toHaveBeenCalledWith({ id: 'quote-1' })
     expect(onCancel).toHaveBeenCalled()
+  })
+
+  it('closes a quote once its post is kept as a draft or queued', () => {
+    const onCreated = vi.fn()
+    const onCancel = vi.fn()
+    render(
+      <InlineStatusComposer
+        host="activities.local"
+        profile={profile}
+        mode="quote"
+        status={status}
+        onCancel={onCancel}
+        onCreated={onCreated}
+      />
+    )
+
+    fireEvent.click(screen.getByText('pb-handed-off'))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    // Nothing was created.
+    expect(onCreated).not.toHaveBeenCalled()
   })
 
   it('still closes when no created-callback is provided', () => {
