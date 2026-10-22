@@ -703,7 +703,12 @@ export const drainQueue = async ({
         epoch
       })
       .catch(() => null)
-    if (!claimed) continue
+    if (!claimed) {
+      // A dead tab's send the reader paused was taken back as paused, not
+      // claimed: the list still shows it "Sending" until told.
+      if (item.queue?.pauseRequested) deps.announce(item.id)
+      continue
+    }
     // The list re-reads, so the row shows it is being sent.
     deps.announce(claimed.id)
     result.attempted += 1

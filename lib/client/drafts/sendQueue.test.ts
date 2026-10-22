@@ -951,14 +951,19 @@ describe('drainQueue', () => {
         })
       )
       await pauseQueue({ actorId: 'actor-1' })
+      const marked = (await getDraft('a'))!
       const deps = makeDeps()
       const result = await drain(deps)
       expect(deps.createNote).not.toHaveBeenCalled()
       expect(result.attempted).toBe(0)
-      const queue = (await getDraft('a'))?.queue
-      expect(queue).toMatchObject({ state: 'paused', pausedBy: 'user' })
-      expect(queue).not.toHaveProperty('claim')
-      expect(queue).not.toHaveProperty('pauseRequested')
+      const stored = await getDraft('a')
+      expect(stored?.queue).toMatchObject({ state: 'paused', pausedBy: 'user' })
+      expect(stored?.queue).not.toHaveProperty('claim')
+      expect(stored?.queue).not.toHaveProperty('pauseRequested')
+      // A new revision, so the dead tab's late write conflicts instead of
+      // overwriting it; and announced, so an open list stops showing Sending.
+      expect(stored?.revision).toBeGreaterThan(marked.revision)
+      expect(deps.announce).toHaveBeenCalledWith('a')
     })
 
     it('pauses the only post when Pause is pressed while it is out', async () => {
