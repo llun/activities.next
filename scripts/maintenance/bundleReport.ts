@@ -73,12 +73,16 @@ const kib = (n: number) => n * 1024
 
 // Each ceiling is the measured build plus 15 KiB gzip / 45 KiB raw, rounded up: headroom for normal drift, tight enough to catch a lost code split.
 export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
-  '/': { gzipBytes: kib(556), rawBytes: kib(1710) },
+  // PR 3 (send queue) measured 562.0 / 1717.4: offline-disabled like, boost and
+  // follow, the queue hand-off in the composers and the provider's drain
+  // triggers. The sender itself (sendQueue, draftsDb) stays a lazy chunk.
+  '/': { gzipBytes: kib(565), rawBytes: kib(1725) },
   '/[actor]': { gzipBytes: kib(508), rawBytes: kib(1571) },
   // Includes the drafts provider and connection status the signed-in timeline
   // layout mounts (the drafts DB and the Saved to Drafts note load lazily):
-  // measured 513.5 / 1574.4 when they were added.
-  '/[actor]/[status]': { gzipBytes: kib(516), rawBytes: kib(1580) },
+  // measured 513.5 / 1574.4 when they were added, 519.5 / 1589.0 with the send
+  // queue (offline-disabled actions, the reply box hand-off, drain triggers).
+  '/[actor]/[status]': { gzipBytes: kib(522), rawBytes: kib(1595) },
   '/tags/[tag]': { gzipBytes: kib(506), rawBytes: kib(1560) },
   '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1247) },
   '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1247) },

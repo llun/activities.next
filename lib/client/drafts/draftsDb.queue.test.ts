@@ -1,6 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb'
 
 import {
+  ATTEMPTED_UNQUEUE_MESSAGE,
   DraftBusyError,
   DraftConflictError,
   claimQueuedDraft,
@@ -243,6 +244,77 @@ describe('draftsDb send queue', () => {
         expect(await getDraft('a')).toEqual(returned)
       }
     )
+
+    describe('an attempted draft without a lock', () => {
+      const attachments = [
+        {
+          localId: 'l',
+          mediaId: 'm',
+          owned: true,
+          mediaType: 'image/png',
+          fileName: 'a.png',
+          description: '',
+          decorative: false,
+          hasBlob: true
+        }
+      ]
+      const fitnessFile = {
+        localId: 'f',
+        fitnessFileId: 'fit',
+        owned: true,
+        fileName: 'a.fit',
+        mimeType: 'application/octet-stream',
+        size: 1,
+        hasBlob: true
+      }
+
+      it.each([
+        [
+          'firstAttemptAt',
+          { state: 'couldnt_send', firstAttemptAt: 7 },
+          {} as Partial<DraftRecord>
+        ],
+        [
+          'attemptedAt with submit',
+          { state: 'paused', pausedBy: 'user' },
+          { attemptedAt: 7, submit: { key: 'k', fingerprint: 'f' } }
+        ]
+      ] as const)(
+        'is locked, with its media not owned, on %s',
+        async (_name, queue, patch) => {
+          await store(
+            queued('a', queue, {
+              ...patch,
+              attachments,
+              fitnessFile
+            } as Partial<DraftRecord>)
+          )
+          const returned = await unqueueDraft('a', NOW)
+          expect(returned?.lockedMessage).toBe(ATTEMPTED_UNQUEUE_MESSAGE)
+          expect(returned?.attachments[0].owned).toBe(false)
+          expect(returned?.fitnessFile?.owned).toBe(false)
+          expect(await getDraft('a')).toEqual(returned)
+        }
+      )
+
+      it('keeps an existing lock message', async () => {
+        await store(
+          queued(
+            'a',
+            { state: 'couldnt_send', firstAttemptAt: 7 },
+            { lockedMessage: 'kept' }
+          )
+        )
+        expect((await unqueueDraft('a', NOW))?.lockedMessage).toBe('kept')
+      })
+
+      it('leaves a never-attempted draft unlocked and its media owned', async () => {
+        await store(queued('a', { state: 'waiting' }, { attachments }))
+        const returned = await unqueueDraft('a', NOW)
+        expect(returned?.lockedMessage).toBeUndefined()
+        expect(returned?.attachments[0].owned).toBe(true)
+      })
+    })
 
     it('resolves undefined for a missing draft', async () => {
       expect(await unqueueDraft('gone', NOW)).toBeUndefined()

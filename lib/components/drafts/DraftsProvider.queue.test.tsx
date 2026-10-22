@@ -15,8 +15,10 @@ import {
   resetDraftsChannelForTesting,
   resumeQueue,
   runPendingPurges,
+  subscribeDraftsMessages,
   withSenderLock
 } from '@/lib/client/drafts'
+import { CLAIM_LEASE_MS } from '@/lib/client/drafts/sendQueue'
 import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 
@@ -513,6 +515,32 @@ describe('DraftsProvider send queue', () => {
       }
     })
 
+    it('posts nothing on the channel for a drain that claimed nothing', async () => {
+      const seen: string[] = []
+      const unsubscribe = subscribeDraftsMessages((message) =>
+        seen.push(message.type)
+      )
+      vi.mocked(drainQueue).mockImplementation(async ({ onProgress }) => {
+        onProgress(IDLE)
+        return ZERO
+      })
+      renderProvider()
+      await settle()
+      expect(drainQueue).toHaveBeenCalled()
+      expect(seen).not.toContain('queue-progress')
+
+      // A drain that sent still says so, and closes with its result.
+      vi.mocked(drainQueue).mockImplementationOnce(async ({ onProgress }) => {
+        onProgress({ ...IDLE, phase: 'sending', index: 1, total: 1 })
+        onProgress({ ...IDLE, phase: 'result', sent: 1 })
+        return ZERO
+      })
+      await act(async () => screen.getByText('drain').click())
+      await settle()
+      expect(seen.filter((type) => type === 'queue-progress')).toHaveLength(2)
+      unsubscribe()
+    })
+
     it('goes back to idle when a drain that was sending is aborted or fails', async () => {
       vi.mocked(drainQueue).mockImplementationOnce(async ({ onProgress }) => {
         onProgress({ ...IDLE, phase: 'sending', index: 1, total: 2 })
@@ -522,6 +550,50 @@ describe('DraftsProvider send queue', () => {
       await settle()
 
       expect(screen.getByTestId('status')).toHaveTextContent('idle 0/0')
+    })
+
+    it('expires a received "sending" at CLAIM_LEASE_MS, one millisecond apart, and drains', async () => {
+      renderProvider()
+      await settle()
+      vi.mocked(drainQueue).mockClear()
+
+      await post(progressMessage({ phase: 'sending', index: 1, total: 2 }))
+      await advance(CLAIM_LEASE_MS - 1)
+      expect(screen.getByTestId('status')).toHaveTextContent('sending 1/2')
+      expect(drainQueue).not.toHaveBeenCalled()
+
+      await advance(1)
+      expect(screen.getByTestId('status')).toHaveTextContent('idle')
+      expect(drainQueue).toHaveBeenCalledTimes(1)
+    })
+
+    it('restarts the expiry on every progress update', async () => {
+      renderProvider()
+      await settle()
+      vi.mocked(drainQueue).mockClear()
+
+      await post(progressMessage({ phase: 'sending', index: 1, total: 2 }))
+      await advance(CLAIM_LEASE_MS - 1)
+      await post(progressMessage({ phase: 'sending', index: 2, total: 2 }))
+      await advance(CLAIM_LEASE_MS - 1)
+      expect(screen.getByTestId('status')).toHaveTextContent('sending 2/2')
+      expect(drainQueue).not.toHaveBeenCalled()
+      await advance(1)
+      expect(screen.getByTestId('status')).toHaveTextContent('idle')
+    })
+
+    it('keeps its own progress while its own drain is still running', async () => {
+      const pending = createDeferred<typeof ZERO>()
+      vi.mocked(drainQueue).mockImplementationOnce(({ onProgress }) => {
+        onProgress({ ...IDLE, phase: 'sending', index: 1, total: 1 })
+        return pending.promise
+      })
+      renderProvider()
+      await settle()
+
+      await advance(CLAIM_LEASE_MS + 1)
+      expect(screen.getByTestId('status')).toHaveTextContent('sending 1/1')
+      expect(drainQueue).toHaveBeenCalledTimes(1)
     })
 
     it('reverts a result at RESULT_VISIBLE_MS, one millisecond apart', async () => {
