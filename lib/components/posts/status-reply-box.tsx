@@ -30,6 +30,8 @@ import {
 } from '@/lib/components/post-box/reducers'
 import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
 import {
+  DRAFT_CONFLICT_SEND_NOTICE,
+  DRAFT_NOT_SAVED_SEND_NOTICE,
   type DraftContent,
   fromDraftAttachment,
   loadDraftFiles,
@@ -188,7 +190,11 @@ export const StatusReplyBox: FC<Props> = ({
     draft,
     keepWhenEmpty,
     isSeeding: () => draftSeedingRef.current,
-    getContent: getDraftContent
+    getContent: getDraftContent,
+    // The draft this composer let go of keeps its key; new content gets its own.
+    onUnlock: () => {
+      submitIdempotencyRef.current = null
+    }
   })
 
   useEffect(() => {
@@ -458,7 +464,9 @@ export const StatusReplyBox: FC<Props> = ({
       // send the same reply again under a new key after a reload.
       if (!(await composerDraft.recordAttempt(submitIdempotencyRef.current))) {
         setWarningMsg(
-          "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
+          composerDraft.isConflicted()
+            ? DRAFT_CONFLICT_SEND_NOTICE
+            : DRAFT_NOT_SAVED_SEND_NOTICE
         )
         isSubmittingRef.current = false
         setIsPosting(false)

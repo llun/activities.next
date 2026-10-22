@@ -220,3 +220,22 @@ export const deleteFitnessFile = async (id: string): Promise<void> => {
     throw new Error(errorDetails)
   }
 }
+
+/**
+ * Deletes a fitness file only if no post uses it. Resolves false when the
+ * server kept it because a post does (422), true once it is gone (a 404
+ * included: deleted in another tab). Rejects with the server's message.
+ */
+export const deleteUnpostedFitnessFile = async (
+  id: string
+): Promise<boolean> => {
+  const response = await fetch(
+    `/api/v1/accounts/fitness-files/${encodeURIComponent(id)}?if_unposted=true`,
+    { method: 'DELETE' }
+  )
+  if (response.status === 422) return false
+  if (response.ok || response.status === 404) return true
+  throw new Error(
+    await parseApiError(response, 'Failed to delete fitness file.')
+  )
+}

@@ -5,7 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 
-import { deleteAccountMedia, updateNote } from '@/lib/client'
+import { deleteUnpostedMedia, updateNote } from '@/lib/client'
 import { ApiRequestError } from '@/lib/client/http'
 import { createDeferred } from '@/lib/testing/deferred'
 
@@ -23,9 +23,9 @@ import {
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
   createPoll: vi.fn(),
-  deleteFitnessFile: vi.fn(),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   describeMedia: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
@@ -344,7 +344,7 @@ describe('PostBox media details', () => {
       expect(alert).toHaveTextContent('Service unavailable')
       // Edits never keep the post on failure, so the new upload is cleaned up.
       unmount()
-      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledTimes(1)
     })
 
     it('does not require a description for legacy undescribed media', async () => {
@@ -388,7 +388,7 @@ describe('PostBox media details', () => {
       )
       unmount()
 
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     })
 
     it('does not delete media added during an edit when the parent unmounts the composer in onPostUpdated', async () => {
@@ -427,7 +427,7 @@ describe('PostBox media details', () => {
 
       await screen.findByText('closed')
       expect(vi.mocked(updateNote)).toHaveBeenCalledTimes(1)
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     })
 
     it('deletes media uploaded during the edit when it is removed', async () => {
@@ -443,10 +443,10 @@ describe('PostBox media details', () => {
         screen.getByRole('button', { name: 'Remove media new.png' })
       )
 
-      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
-      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
-        mediaId: 'media-new.png'
-      })
+      expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith(
+        'media-new.png'
+      )
     })
   })
 })

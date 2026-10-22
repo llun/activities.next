@@ -31,6 +31,13 @@ const loadDrafts = () => import('@/lib/client/drafts')
 
 export const DRAFT_SAVE_DEBOUNCE_MS = 800
 
+// Why a send was blocked before the POST (the checkpoint could not be written).
+// After a conflict, trying again cannot work: only a new draft can be sent.
+export const DRAFT_NOT_SAVED_SEND_NOTICE =
+  "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
+export const DRAFT_CONFLICT_SEND_NOTICE =
+  'This draft was changed in another tab, so nothing was sent. Copy your text, then clear the box to start a new draft.'
+
 export type DraftSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 /** What a composer hands the hook: the draft's content, not its bookkeeping. */
@@ -79,6 +86,11 @@ interface Options {
    * refs, so a poll choice typed into an uncontrolled input is included.
    */
   getContent: (force?: boolean) => DraftContent | null
+  /**
+   * Called when an emptied composer lets go of a conflicted draft: anything
+   * the composer keeps for that draft (its submit key) must go with it.
+   */
+  onUnlock?: () => void
 }
 
 // Everything that belongs to one draft. Replaced wholesale when the composer
@@ -311,7 +323,8 @@ export const useComposerDraft = ({
   draft,
   keepWhenEmpty = false,
   isSeeding,
-  getContent
+  getContent,
+  onUnlock
 }: Options) => {
   const drafts = useDrafts()
   const enabled = drafts !== null && !editing && !drafts.signingOut
@@ -329,7 +342,8 @@ export const useComposerDraft = ({
     quoteOf,
     keepWhenEmpty,
     isSeeding,
-    getContent
+    getContent,
+    onUnlock
   })
   live.current = {
     enabled,
@@ -339,7 +353,8 @@ export const useComposerDraft = ({
     quoteOf,
     keepWhenEmpty,
     isSeeding,
-    getContent
+    getContent,
+    onUnlock
   }
 
   // Status objects are large and a draft needs a JSON-safe copy of each once,
@@ -497,6 +512,7 @@ export const useComposerDraft = ({
       }
       try {
         if (!content) {
+          let letGo = false
           if (d.id && d.revision > 0) {
             // Only the revision this tab saved: a newer one from another tab
             // stays as that tab's draft, and this composer starts afresh.
@@ -505,6 +521,7 @@ export const useComposerDraft = ({
               announceChanged(snap)
             } catch (error) {
               if (!(error instanceof DraftConflictError)) throw error
+              letGo = true
             }
           } else {
             dropUnstoredBlobs(d)
@@ -518,6 +535,7 @@ export const useComposerDraft = ({
             d.lastKey = ''
             setStatus(d, 'idle')
             if (s.mounted) setDraftId(null)
+            if (letGo) live.current.onUnlock?.()
           }
           return true
         }
@@ -587,7 +605,10 @@ export const useComposerDraft = ({
         // Emptied: the other tab's record and bytes stay as they are, and the
         // composer starts a new draft. Saves still queued for the old one
         // keep writing nothing.
-        if (live.current.getContent() === null) forget()
+        if (live.current.getContent() === null) {
+          forget()
+          live.current.onUnlock?.()
+        }
         return
       }
       clearTimer()
@@ -613,6 +634,10 @@ export const useComposerDraft = ({
       (s.d.revision > 0 ||
         s.d.pending > 0 ||
         (s.timer !== undefined && live.current.getContent() !== null))
+
+    // Another tab saved, deleted or signed out of this draft: its record may
+    // still need the media this composer holds, so nothing is deleted.
+    const isConflicted = (): boolean => s.d.conflicted
 
     const attachBlob = (localId: string, file: File, poster?: File) => {
       if (!live.current.enabled || !live.current.drafts) return
@@ -804,6 +829,7 @@ export const useComposerDraft = ({
       schedule,
       flush,
       hasDraft,
+      isConflicted,
       attachBlob,
       recordAttempt,
       recordLock,

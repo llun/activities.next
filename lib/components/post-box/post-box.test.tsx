@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { deleteAccountMedia, getCustomEmojis } from '@/lib/client'
+import { deleteUnpostedMedia, getCustomEmojis } from '@/lib/client'
 import {
   ApiRequestError,
   DRAFT_LOCKED_NOTICE,
@@ -31,8 +31,8 @@ import {
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   createPoll: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
-  deleteFitnessFile: vi.fn(),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
   getGallerySettings: vi.fn().mockResolvedValue({
@@ -1244,7 +1244,7 @@ describe('PostBox idempotency key', () => {
       lockedKey
     )
     unmount()
-    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
   })
 
   it('mints a new key when the same text is retyped after Discard draft', async () => {

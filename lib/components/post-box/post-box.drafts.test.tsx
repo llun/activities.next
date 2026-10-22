@@ -12,10 +12,18 @@ import {
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 import { StrictMode } from 'react'
 
-import { createPoll, deleteAccountMedia } from '@/lib/client'
+import {
+  createPoll,
+  deleteAccountMedia,
+  deleteFitnessFile,
+  deleteUnpostedFitnessFile,
+  deleteUnpostedMedia,
+  uploadFitnessFile
+} from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
 import {
   type DraftRecord,
+  deleteDraftIfRevision,
   getDraftBlob,
   listDrafts,
   resetDraftsChannelForTesting,
@@ -40,9 +48,12 @@ import { choosePostOption } from './post-box.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
-  createPoll: vi.fn(),
+  // The unguarded deletes: the composer must never call them.
+  deleteAccountMedia: vi.fn(),
   deleteFitnessFile: vi.fn(),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
+  createPoll: vi.fn(),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   describeMedia: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
@@ -225,7 +236,7 @@ describe('PostBox on-device drafts', () => {
 
       unmount()
 
-      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       const [draft] = await storedDrafts()
       expect(draft.attachments[0]).toMatchObject({
         mediaId: 'media-a.png',
@@ -246,7 +257,7 @@ describe('PostBox on-device drafts', () => {
       // Unmounted before the debounce fired: the flush still keeps it.
       unmount()
 
-      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(1))
     })
 
@@ -267,9 +278,7 @@ describe('PostBox on-device drafts', () => {
 
       unmount()
 
-      expect(deleteAccountMedia).toHaveBeenCalledWith({
-        mediaId: 'media-a.png'
-      })
+      expect(deleteUnpostedMedia).toHaveBeenCalledWith('media-a.png')
     })
 
     it('deletes the media when no draft could be stored', async () => {
@@ -285,9 +294,7 @@ describe('PostBox on-device drafts', () => {
 
       unmount()
 
-      expect(deleteAccountMedia).toHaveBeenCalledWith({
-        mediaId: 'media-a.png'
-      })
+      expect(deleteUnpostedMedia).toHaveBeenCalledWith('media-a.png')
     })
 
     it('shows "Not saved" when the photo bytes cannot be stored', async () => {
@@ -303,6 +310,149 @@ describe('PostBox on-device drafts', () => {
           { timeout: 4000 }
         )
       ).toBeVisible()
+    })
+  })
+
+  describe('another tab may hold the same draft', () => {
+    const chooseFitnessFile = (container: HTMLElement) =>
+      fireEvent.change(
+        container.querySelector(
+          'input[type="file"][accept=".fit,.gpx,.tcx"]'
+        ) as HTMLInputElement,
+        { target: { files: [new File(['data'], 'run.gpx')] } }
+      )
+
+    // Tab B posts the draft and releases it: its post now uses the uploads.
+    const sendFromAnotherTab = async () => {
+      const [stored] = await storedDrafts()
+      await deleteDraftIfRevision(stored.id, stored.revision)
+    }
+
+    // A send whose response was lost: the uploads exist, the draft holds them.
+    const failToSend = async (setup: (container: HTMLElement) => void) => {
+      createNoteMock.mockRejectedValueOnce(new Error('lost response'))
+      const view = render(composer())
+      setup(view.container)
+      fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
+      await screen.findByRole('alert')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attemptedAt).toBeDefined()
+      )
+      return view
+    }
+
+    const withPhoto = async () => {
+      type('with a photo')
+      attach('a.png')
+      await screen.findByRole('button', { name: 'Remove media a.png' })
+    }
+
+    const withFitnessFile = (container: HTMLElement) => {
+      vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
+        id: 'fitness-1'
+      } as never)
+      chooseFitnessFile(container)
+      type('Morning run')
+    }
+
+    const removePhoto = () =>
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media a.png' })
+      )
+
+    const removeFitnessFile = async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove selected fitness file' })
+      )
+      await waitFor(() => expect(screen.queryByText('run.gpx')).toBeNull())
+    }
+
+    // The composer finds out on its next save.
+    const conflict = async () => {
+      type('edited here too')
+      await screen.findByText('Not saved, copy your text')
+    }
+
+    it('removing a photo another tab sent asks the server to keep it', async () => {
+      render(composer())
+      await withPhoto()
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      await sendFromAnotherTab()
+      // The server refuses (422): a post uses it.
+      vi.mocked(deleteUnpostedMedia).mockRejectedValueOnce(
+        new Error('This photo is in a post, so it can’t be deleted.')
+      )
+
+      removePhoto()
+
+      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-a.png')
+    })
+
+    it('removing a fitness file another tab sent asks the server to keep it', async () => {
+      await failToSend(withFitnessFile)
+      await sendFromAnotherTab()
+      vi.mocked(deleteUnpostedFitnessFile).mockResolvedValueOnce(false)
+
+      await removeFitnessFile()
+
+      expect(deleteFitnessFile).not.toHaveBeenCalled()
+      expect(deleteUnpostedFitnessFile).toHaveBeenCalledExactlyOnceWith(
+        'fitness-1'
+      )
+      // Kept by the server is not a failure.
+      expect(screen.queryByText(/Failed to delete/)).toBeNull()
+    })
+
+    it('a conflicted composer deletes no photo on the server', async () => {
+      render(composer())
+      await withPhoto()
+      await waitForSaved()
+      await sendFromAnotherTab()
+      await conflict()
+
+      removePhoto()
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Not saved, copy your text')).toBeNull()
+      )
+
+      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+    })
+
+    it('a conflicted composer deletes no fitness file on the server', async () => {
+      await failToSend(withFitnessFile)
+      await sendFromAnotherTab()
+      await conflict()
+
+      await removeFitnessFile()
+
+      expect(deleteFitnessFile).not.toHaveBeenCalled()
+      expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
+    })
+
+    it('a reopened draft leaves the photos it came with on the server', async () => {
+      const first = render(composer())
+      await withPhoto()
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      first.unmount()
+      const [draft] = await storedDrafts()
+
+      render(composer({ draft }))
+      await screen.findByRole('button', { name: 'Remove media a.png' })
+      removePhoto()
+
+      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
   })
 
@@ -388,7 +538,9 @@ describe('PostBox on-device drafts', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
       const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('nothing was sent')
+      expect(alert).toHaveTextContent(
+        "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
+      )
       expect(createNoteMock).not.toHaveBeenCalled()
       expect(screen.getByText('Not saved, copy your text')).toBeVisible()
       expect(textarea()).not.toHaveAttribute('readonly')
@@ -443,8 +595,9 @@ describe('PostBox on-device drafts', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
+      // Trying again cannot work: only a new draft can be sent.
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'nothing was sent'
+        'This draft was changed in another tab, so nothing was sent. Copy your text, then clear the box to start a new draft.'
       )
       expect(createNoteMock).not.toHaveBeenCalled()
       expect(screen.getByText('Not saved, copy your text')).toBeVisible()
@@ -493,6 +646,72 @@ describe('PostBox on-device drafts', () => {
       expect(all[0].submit?.key).toBe(
         createNoteMock.mock.calls[0][0].idempotencyKey
       )
+    })
+
+    it('gives a new draft a new key after letting go of the other tab’s draft', async () => {
+      createNoteMock.mockRejectedValueOnce(new Error('lost response'))
+      render(composer())
+      type('hello')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await screen.findByRole('alert')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.submit).toBeDefined()
+      )
+      const [draft] = await storedDrafts()
+      await saveDraft(
+        { ...draft, text: 'written in another tab' },
+        { expectedRevision: draft.revision, epoch: 0 }
+      )
+      type('hello there')
+      await screen.findByText('Not saved, copy your text')
+
+      // Emptied, then the same text again: the same content, but a new draft.
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Not saved, copy your text')).toBeNull()
+      )
+      type('hello')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, second] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(second.message).toBe(first.message)
+      expect(second.idempotencyKey).not.toBe(first.idempotencyKey)
+    })
+
+    it('gives a new key when the composer is emptied before it notices the other tab', async () => {
+      createNoteMock.mockRejectedValueOnce(new Error('lost response'))
+      render(composer())
+      type('hello')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await screen.findByRole('alert')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.submit).toBeDefined()
+      )
+      const [draft] = await storedDrafts()
+      const other = await saveDraft(
+        { ...draft, text: 'written in another tab' },
+        { expectedRevision: draft.revision, epoch: 0 }
+      )
+
+      // The emptying save is the one that finds the newer revision.
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Saved on this device')).toBeNull()
+      )
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      type('hello')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, second] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(second.message).toBe(first.message)
+      expect(second.idempotencyKey).not.toBe(first.idempotencyKey)
+      expect(await storedDrafts()).toContainEqual(other)
     })
 
     it('writes the key and the attempt before the request leaves', async () => {
@@ -577,7 +796,7 @@ describe('PostBox on-device drafts', () => {
         expect.objectContaining({ id: 'media-a.png' })
       ])
       expect(uploadAttachmentMock).toHaveBeenCalledTimes(uploads)
-      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
 
     it('reopens an uncertain send (no lock) and retries under the same key without uploading again', async () => {
@@ -680,7 +899,7 @@ describe('PostBox on-device drafts', () => {
       )
 
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
-      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
   })
 
@@ -699,7 +918,7 @@ describe('PostBox on-device drafts', () => {
         timeout: 500
       })
       expect(await getDraftBlob('temp-0')).toBeUndefined()
-      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
   })
 

@@ -82,6 +82,23 @@ export const DELETE = traceApiRoute(
         })
       }
 
+      // Settings → Fitness files deletes a posted activity on purpose, so the
+      // in-use check is opt-in: the composer asks for it, because a post sent
+      // from another tab may already use the file it is letting go of.
+      if (
+        req.nextUrl.searchParams.get('if_unposted') === 'true' &&
+        fitnessFile.statusId
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            error: 'This activity is in a post, so it can’t be deleted.'
+          },
+          responseStatusCode: 422
+        })
+      }
+
       const deleted = await deleteFitnessFileFromStorage(
         database,
         fitnessFileId,

@@ -14,8 +14,8 @@ import {
 import {
   createNote,
   createPoll,
-  deleteAccountMedia,
-  deleteFitnessFile,
+  deleteUnpostedFitnessFile,
+  deleteUnpostedMedia,
   getCustomEmojis,
   getDefaultQuotePolicy,
   getGallerySettings,
@@ -123,6 +123,8 @@ import {
 import { ReplyPreview } from './reply-preview'
 import { UploadMediaButton } from './upload-media-button'
 import {
+  DRAFT_CONFLICT_SEND_NOTICE,
+  DRAFT_NOT_SAVED_SEND_NOTICE,
   type DraftContent,
   fromDraftAttachment,
   loadDraftFiles,
@@ -392,7 +394,11 @@ export const PostBox: FC<Props> = ({
     draft,
     keepWhenEmpty,
     isSeeding: () => draftSeedingRef.current,
-    getContent: getDraftContent
+    getContent: getDraftContent,
+    // The draft this composer let go of keeps its key; new content gets its own.
+    onUnlock: () => {
+      submitIdempotencyRef.current = null
+    }
   })
   const drafts = useDrafts()
 
@@ -563,16 +569,29 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
+  // Another tab may hold the same draft: while this one is conflicted, or for
+  // an upload the reopened draft came with, its record may still need the
+  // server copy, so the composer lets go of it without deleting it.
+  function mayDeleteFromServer(id: string) {
+    if (composerDraft.isConflicted()) return false
+    return !(
+      draft?.attachments.some((item) => item.mediaId === id) ||
+      draft?.fitnessFile?.fitnessFileId === id
+    )
+  }
+
   // Best-effort delete of media that was uploaded on attach but never posted.
   // Attachments still holding a file have no server copy yet, and the original
-  // attachments of a status being edited are never deleted.
+  // attachments of a status being edited are never deleted. The server refuses
+  // (422) media a post uses, e.g. one another tab sent this draft as.
   function discardUploadedMedia(attachments: PostBoxAttachment[]) {
     attachments.forEach((attachment) => {
       if (attachment.file || attachment.isLoading) return
       if (originalMediaIdsRef.current.has(attachment.id)) return
       if (keptMediaIdsRef.current.has(attachment.id)) return
       if (postedMediaIdsRef.current.has(attachment.id)) return
-      deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
+      if (!mayDeleteFromServer(attachment.id)) return
+      deleteUnpostedMedia(attachment.id).catch(() => undefined)
     })
   }
 
@@ -793,7 +812,7 @@ export const PostBox: FC<Props> = ({
         // Removed (or the composer unmounted) while uploading: the server copy
         // is an orphan, so delete it (best effort) and leave no state behind.
         if (!current || !isMountedRef.current) {
-          deleteAccountMedia({ mediaId: uploaded.id }).catch(() => undefined)
+          deleteUnpostedMedia(uploaded.id).catch(() => undefined)
           return
         }
         localIdByIdRef.current.set(
@@ -1025,8 +1044,9 @@ export const PostBox: FC<Props> = ({
     if (await composerDraft.recordAttempt(key)) return true
     setSubmitError({
       title: "Couldn't send.",
-      message:
-        "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
+      message: composerDraft.isConflicted()
+        ? DRAFT_CONFLICT_SEND_NOTICE
+        : DRAFT_NOT_SAVED_SEND_NOTICE
     })
     setIsPosting(false)
     setAllowPost(true)
@@ -1436,7 +1456,8 @@ export const PostBox: FC<Props> = ({
 
     if (
       !fitnessFile.uploadedId ||
-      keptFitnessFileIdsRef.current.has(fitnessFile.uploadedId)
+      keptFitnessFileIdsRef.current.has(fitnessFile.uploadedId) ||
+      !mayDeleteFromServer(fitnessFile.uploadedId)
     ) {
       clearFitnessFile()
       return true
@@ -1452,7 +1473,8 @@ export const PostBox: FC<Props> = ({
     const cleanupPromise = (async () => {
       try {
         setWarningMsg(null)
-        await deleteFitnessFile(uploadedId)
+        // False: a post uses it (another tab sent this draft), so it stays.
+        await deleteUnpostedFitnessFile(uploadedId)
         clearFitnessFile()
         return true
       } catch (error) {

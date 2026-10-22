@@ -268,7 +268,7 @@ describe('StatusReplyBox on-device drafts', () => {
       post()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'nothing was sent'
+        "Your draft couldn't be saved on this device, so nothing was sent. Copy your text, then try again."
       )
       expect(createNoteMock).not.toHaveBeenCalled()
     })
@@ -286,7 +286,7 @@ describe('StatusReplyBox on-device drafts', () => {
       post()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'nothing was sent'
+        'This draft was changed in another tab, so nothing was sent. Copy your text, then clear the box to start a new draft.'
       )
       expect(createNoteMock).not.toHaveBeenCalled()
 
@@ -334,6 +334,42 @@ describe('StatusReplyBox on-device drafts', () => {
       )
       expect(createNoteMock).toHaveBeenCalledTimes(1)
       expect(await stored()).toHaveLength(1)
+    })
+
+    it('gives a new draft a new key after letting go of the other tab’s draft', async () => {
+      createNoteMock.mockRejectedValueOnce(new Error('lost response'))
+      renderBox()
+      type('Reply body')
+      await waitForSaved()
+      post()
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      await waitFor(async () =>
+        expect((await stored())[0].submit).toBeDefined()
+      )
+      const [draft] = await stored()
+      await saveDraft(
+        { ...draft, text: 'written in another tab' },
+        { expectedRevision: draft.revision, epoch: 0 }
+      )
+      type('Reply body, edited')
+      await screen.findByText('Not saved, copy your text')
+
+      // Emptied, then the same text again: the same content, but a new draft.
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Not saved, copy your text')).toBeNull()
+      )
+      type('Reply body')
+      await waitForSaved()
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+      )
+      post()
+
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+      const [first, second] = createNoteMock.mock.calls.map(([call]) => call)
+      expect(second.message).toBe(first.message)
+      expect(second.idempotencyKey).not.toBe(first.idempotencyKey)
     })
   })
 
