@@ -226,6 +226,70 @@ describe('PostBox on-device drafts', () => {
     expect(screen.queryByText('Saved to Drafts')).toBeNull()
   })
 
+  it('never saves an edit as a draft when it turns into a quote mid-update', async () => {
+    const post = {
+      id: 'https://activities.local/users/llun/statuses/post-1',
+      actorId: profile.id,
+      actor: profile,
+      type: StatusType.enum.Note,
+      text: 'Followers only',
+      summary: null,
+      attachments: [],
+      tags: [],
+      to: [],
+      cc: [],
+      edits: []
+    } as never
+    const update = createDeferred<never>()
+    vi.mocked(updateNote).mockImplementationOnce(() => update.promise)
+    const { rerender } = render(composer({ editStatus: post }))
+    type('Followers only, edited')
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    await waitFor(() => expect(updateNote).toHaveBeenCalledTimes(1))
+
+    rerender(composer({ quotedStatus: post }))
+    // Longer than the autosave pause, while the update is still in flight.
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    update.reject(new Error('offline'))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    expect(await storedDrafts()).toHaveLength(0)
+  })
+
+  it('keeps a failed quote in Drafts when the row turns into an edit mid-send', async () => {
+    const post = {
+      id: 'https://activities.local/users/llun/statuses/post-1',
+      actorId: profile.id,
+      actor: profile,
+      type: StatusType.enum.Note,
+      text: 'The quoted post',
+      summary: null,
+      attachments: [],
+      tags: [],
+      to: [],
+      cc: [],
+      edits: []
+    } as never
+    const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const { rerender } = render(composer({ quotedStatus: post }))
+    type('My take on it')
+    await waitForSaved()
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(composer({ editStatus: post }))
+    send.reject(new Error('offline'))
+
+    expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+    expect((await storedDrafts())[0]).toMatchObject({
+      text: 'My take on it',
+      quoteOf: expect.objectContaining({
+        id: 'https://activities.local/users/llun/statuses/post-1'
+      })
+    })
+  })
+
   it('shows "Not saved, copy your text" when the device storage is full', async () => {
     makeFull()
     render(composer())

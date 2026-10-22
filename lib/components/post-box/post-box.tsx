@@ -328,8 +328,16 @@ export const PostBox: FC<Props> = ({
   // True while a reopened draft's attachment bytes are loading.
   const draftSeedingRef = useRef(false)
 
+  // What the draft is written for: it follows the props only when the
+  // composer is re-targeted, after the previous draft was let go of.
+  const [draftTarget, setDraftTarget] = useState({
+    replyTo: replyStatus,
+    quoteOf: quotedStatus,
+    editId: editStatus?.id
+  })
   const getDraftContent = (force = false): DraftContent | null => {
-    if (editStatus) return null
+    // The applied target (see draftTarget): an edit is never a draft.
+    if (draftTarget.editId) return null
     const extension = postExtensionRef.current
     const value = textRef.current
     // Not owned: a gallery photo the composer opened with, or media a kept
@@ -389,16 +397,11 @@ export const PostBox: FC<Props> = ({
     }
   }
 
-  // What the draft is written for: it follows the props only when the
-  // composer is re-targeted, after the previous draft was let go of.
-  const [draftTarget, setDraftTarget] = useState({
-    replyTo: replyStatus,
-    quoteOf: quotedStatus,
-    editId: editStatus?.id
-  })
   const composerDraft = useComposerDraft({
     composer: 'post-box',
-    editing: Boolean(editStatus),
+    // The applied target, not the prop: an edit turning into a new post (Quote
+    // on the same row mid-update) must not save the edit's text meanwhile.
+    editing: Boolean(draftTarget.editId),
     replyTo: draftTarget.replyTo,
     quoteOf: draftTarget.quoteOf,
     draft,
@@ -1071,8 +1074,6 @@ export const PostBox: FC<Props> = ({
     submitInFlightRef.current = true
     // Set once the post went out: a re-target waiting for it then just moves on.
     let sent = false
-    // An edit of a published post is never a draft, whatever happens to it.
-    const editing = Boolean(editStatus)
     const retryingLockedDraft = draftLocked
 
     setAllowPost(false)
@@ -1364,7 +1365,8 @@ export const PostBox: FC<Props> = ({
         const moveOn = () => setRetargetAfterSend((count) => count + 1)
         // Not sent: kept in Drafts (or offered in the note) first, as closing
         // a reply does, so moving on never drops it silently.
-        if (sent || editing) moveOn()
+        // An edit of a published post is never a draft, whatever happens to it.
+        if (sent || editStatus) moveOn()
         else void composerDraft.keep().then(moveOn, moveOn)
       }
     }
