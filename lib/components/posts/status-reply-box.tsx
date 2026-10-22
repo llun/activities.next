@@ -285,6 +285,8 @@ export const StatusReplyBox: FC<Props> = ({
   // and target preview. Do NOT overwrite an edited draft when unrelated status props refresh.
   useEffect(() => {
     if (initializedStatusIdRef.current === replyStatus.id) {
+      // Back to the target it holds (A, B, then A again) waits for nothing.
+      retargetPendingRef.current = false
       return
     }
     // A send in flight keeps its draft and this box until it settles.
@@ -302,6 +304,8 @@ export const StatusReplyBox: FC<Props> = ({
       removedAttachmentIdsRef.current.clear()
     }
     setDraftReplyTo(replyStatus)
+    // A failure banner belongs to the reply it was about.
+    setWarningMsg(null)
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
     setLockedMessage(null)

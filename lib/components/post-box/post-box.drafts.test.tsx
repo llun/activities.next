@@ -19,6 +19,7 @@ import {
   deleteFitnessFile,
   deleteUnpostedFitnessFile,
   deleteUnpostedMedia,
+  updateNote,
   uploadFitnessFile
 } from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
@@ -193,6 +194,36 @@ describe('PostBox on-device drafts', () => {
 
     expect(screen.queryByText(/Saving|Saved on this device/)).toBeNull()
     expect(await storedDrafts()).toHaveLength(0)
+  })
+
+  it('never offers a failed edit as a draft when the next post to edit opens', async () => {
+    const edited = (id: string) =>
+      ({
+        id: `https://activities.local/users/llun/statuses/${id}`,
+        actorId: profile.id,
+        actor: profile,
+        type: StatusType.enum.Note,
+        text: `Original ${id}`,
+        summary: null,
+        attachments: [],
+        tags: [],
+        to: [],
+        cc: [],
+        edits: []
+      }) as never
+    const update = createDeferred<never>()
+    vi.mocked(updateNote).mockImplementationOnce(() => update.promise)
+    const { rerender } = render(composer({ editStatus: edited('post-1') }))
+    type('Original post-1, edited')
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    await waitFor(() => expect(updateNote).toHaveBeenCalledTimes(1))
+
+    rerender(composer({ editStatus: edited('post-2') }))
+    update.reject(new Error('offline'))
+
+    await waitFor(() => expect(textarea()).toHaveValue('Original post-2'))
+    expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
+    expect(screen.queryByText('Saved to Drafts')).toBeNull()
   })
 
   it('shows "Not saved, copy your text" when the device storage is full', async () => {
@@ -405,6 +436,25 @@ describe('PostBox on-device drafts', () => {
 
       expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
       // Nothing moves on later either: no keep, no re-target.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(screen.queryByText('Saved to Drafts')).toBeNull()
+      expect(textarea().value).toBe('@bob@activities.local my reply')
+    })
+
+    it('stays put after a failed send when the target went away and came back', async () => {
+      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => send.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      rerender(composer({ replyStatus: replyTo('first') }))
+      send.reject(new Error('offline'))
+
+      expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
       await new Promise((resolve) => setTimeout(resolve, 300))
       expect(screen.queryByText('Saved to Drafts')).toBeNull()
       expect(textarea().value).toBe('@bob@activities.local my reply')

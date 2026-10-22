@@ -752,4 +752,41 @@ describe('PostBox edit character limit', () => {
     // 500 would wrongly re-enable Post for this 120-character draft.
     expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
   })
+
+  it('opens the next post to edit once the update in flight settles', async () => {
+    const response = await updateNoteMock({} as never)
+    updateNoteMock.mockClear()
+    const update = createDeferred<Awaited<ReturnType<typeof updateNote>>>()
+    updateNoteMock.mockImplementationOnce(() => update.promise)
+    const box = (status: typeof editStatus) => (
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={status}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+    const { rerender } = render(box(editStatus))
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Original post text!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    await waitFor(() => expect(updateNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      box({
+        ...editStatus,
+        id: `${editStatus.id}-next`,
+        text: 'The next post'
+      })
+    )
+    await act(async () => {
+      update.resolve(response)
+    })
+
+    await waitFor(() => expect(textarea).toHaveValue('The next post'))
+  })
 })

@@ -650,6 +650,8 @@ describe('StatusReplyBox on-device drafts', () => {
 
     expect(await screen.findByText('Saved to Drafts')).toBeVisible()
     await waitFor(() => expect(textarea()).not.toHaveValue('Reply body'))
+    // The failure was about the reply left behind, not the new one.
+    expect(sendAlerts()).toHaveLength(0)
     expect((await stored())[0]).toMatchObject({
       text: 'Reply body',
       replyTo: expect.objectContaining({ id: replyStatus.id })
@@ -683,6 +685,35 @@ describe('StatusReplyBox on-device drafts', () => {
       expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
     )
     expect((await stored())[0].attachments).toHaveLength(1)
+  })
+
+  it('stays put after a failed reply when the target went away and came back', async () => {
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const box = (id: string) => (
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    const { rerender } = render(box(replyStatus.id))
+    type('Reply body')
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(box(`${replyStatus.id}-other`))
+    rerender(box(replyStatus.id))
+    send.reject(new Error('offline'))
+
+    expect(await findSendAlert()).toBeVisible()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(screen.queryByText('Saved to Drafts')).toBeNull()
+    expect(textarea()).toHaveValue('Reply body')
   })
 
   it('without drafts, a re-target still starts the new reply without the old photo', async () => {

@@ -393,7 +393,8 @@ export const PostBox: FC<Props> = ({
   // composer is re-targeted, after the previous draft was let go of.
   const [draftTarget, setDraftTarget] = useState({
     replyTo: replyStatus,
-    quoteOf: quotedStatus
+    quoteOf: quotedStatus,
+    editId: editStatus?.id
   })
   const composerDraft = useComposerDraft({
     composer: 'post-box',
@@ -1070,6 +1071,8 @@ export const PostBox: FC<Props> = ({
     submitInFlightRef.current = true
     // Set once the post went out: a re-target waiting for it then just moves on.
     let sent = false
+    // An edit of a published post is never a draft, whatever happens to it.
+    const editing = Boolean(editStatus)
     const retryingLockedDraft = draftLocked
 
     setAllowPost(false)
@@ -1362,7 +1365,7 @@ export const PostBox: FC<Props> = ({
         const moveOn = () => setRetargetAfterSend((count) => count + 1)
         // Not sent: kept in Drafts (or offered in the note) first, as closing
         // a reply does, so moving on never drops it silently.
-        if (sent) moveOn()
+        if (sent || editing) moveOn()
         else void composerDraft.keep().then(moveOn, moveOn)
       }
     }
@@ -1770,12 +1773,11 @@ export const PostBox: FC<Props> = ({
     // A send in flight keeps its draft and this composer until it settles;
     // only a new target waits for it.
     if (submitInFlightRef.current) {
-      if (
+      // Back to the target it holds (A, B, then A again) waits for nothing.
+      retargetPendingRef.current =
         replyStatus?.id !== draftTarget.replyTo?.id ||
-        quotedStatus?.id !== draftTarget.quoteOf?.id
-      ) {
-        retargetPendingRef.current = true
-      }
+        quotedStatus?.id !== draftTarget.quoteOf?.id ||
+        editStatus?.id !== draftTarget.editId
       return
     }
     // The photos a "Post" action in Gallery handed over. They seed the first
@@ -1804,7 +1806,11 @@ export const PostBox: FC<Props> = ({
     const reopening = Boolean(draft) && !draftSeededRef.current
     const draftOwnsMedia = !reopening && composerDraft.hasDraft()
     if (draftOwnsMedia) void composerDraft.detach()
-    setDraftTarget({ replyTo: replyStatus, quoteOf: quotedStatus })
+    setDraftTarget({
+      replyTo: replyStatus,
+      quoteOf: quotedStatus,
+      editId: editStatus?.id
+    })
     if (!draftOwnsMedia) {
       discardUploadedMedia(postExtensionRef.current.attachments)
     }
