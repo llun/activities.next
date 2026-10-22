@@ -309,7 +309,7 @@ describe('DraftRow', () => {
     expect(onConflict).toHaveBeenCalledTimes(1)
     // No Retry: the list re-reads the newest save for a fresh Delete.
     expect(onDeleteError).toHaveBeenLastCalledWith(
-      'This draft changed in another tab. Review it, then delete again.'
+      'This draft was changed. Review it, then delete again.'
     )
     expect(announceDraftsChanged).not.toHaveBeenCalled()
   })

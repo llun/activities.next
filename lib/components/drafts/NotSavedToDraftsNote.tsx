@@ -21,9 +21,11 @@ export const DismissButton = ({ onDismiss }: { onDismiss: () => void }) => (
 )
 
 /**
- * Shown instead when a closed reply or quote could not be kept (storage full
- * or blocked, or another tab changed the draft). The note is the only place
- * left that holds the text, so it stays until dismissed. DraftsProvider imports
+ * Shown instead when a closed reply or quote could not be kept: storage full or
+ * blocked, a conflicted draft (another tab saved, locked or deleted it), a
+ * sign-out in another tab, or a reopened draft whose bytes are still loading
+ * (seeding). The note is the only place left that holds the text, so it stays
+ * until dismissed. DraftsProvider imports
  * it statically (nothing here loads IndexedDB code), so it renders offline.
  */
 export function NotSavedToDraftsNote({

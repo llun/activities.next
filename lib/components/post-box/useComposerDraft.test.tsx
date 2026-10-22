@@ -232,147 +232,230 @@ describe('useComposerDraft', () => {
 
   describe('two tabs on one draft', () => {
     const key = { key: 'key-1', fingerprint: 'fp-1' }
+    const newKey = { key: 'key-2', fingerprint: 'fp-2' }
 
-    it("forks: keeps the other tab's save and carries on as a new draft that can be sent", async () => {
-      const { result } = setup()
-      act(() => result.current.schedule())
-      await advance(DRAFT_SAVE_DEBOUNCE_MS)
-      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
-      const original = await stored()
-      const tabB = await editElsewhere(original, 'written in the other tab')
-
-      current = content({ text: 'typed here' })
-      act(() => result.current.schedule())
+    // This tab saves, then another tab changes the stored draft (`change`).
+    const savedThenChanged = async (
+      change: (draft: DraftRecord) => Promise<unknown>
+    ) => {
+      const hook = setup()
+      act(() => hook.result.current.schedule())
       await advance(DRAFT_SAVE_DEBOUNCE_MS)
       await vi.waitFor(() =>
-        expect(result.current.draftId).not.toBe(original.id)
+        expect(hook.result.current.saveState).toBe('saved')
       )
-      expect(result.current.saveState).toBe('saved')
-      const fork = result.current.draftId as string
-      expect((await getDraft(fork))?.text).toBe('typed here')
-      expect((await getDraft(original.id))?.text).toBe(
-        'written in the other tab'
-      )
-
-      // It carries on in the fork, never touching the other tab's draft.
-      current = content({ text: 'typed here, more' })
-      act(() => result.current.schedule())
-      await advance(DRAFT_SAVE_DEBOUNCE_MS)
-      await vi.waitFor(async () =>
-        expect((await getDraft(fork))?.revision).toBe(2)
-      )
-      expect((await getDraft(fork))?.text).toBe('typed here, more')
-      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(2)
-
-      // Post is allowed, from the fork, with its own key.
-      await act(async () => {
-        await expect(result.current.recordAttempt(key)).resolves.toBe(true)
-      })
-      expect((await getDraft(fork))?.submit).toEqual(key)
-      const other = await getDraft(original.id)
-      expect(other?.text).toBe('written in the other tab')
-      expect(other?.submit).toBeUndefined()
-      tabB.unmount()
-    })
-
-    it('a fork owns none of the media it shares with the other draft, and says it lacks their bytes', async () => {
-      const { result } = setup()
-      current = content({
-        attachments: [
-          attachment({ mediaId: 'shared-media' }),
-          attachment({ localId: 'local-2', mediaId: undefined })
-        ]
-      })
-      act(() =>
-        result.current.attachBlob(
-          'local-2',
-          new File(['bytes'], 'b.png', { type: 'image/png' })
-        )
-      )
-      act(() => result.current.schedule())
-      await advance(DRAFT_SAVE_DEBOUNCE_MS)
-      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
       const original = await stored()
-      const tabB = await editElsewhere(original, 'written in the other tab')
+      await change(original)
+      return { ...hook, original }
+    }
 
-      current = { ...current, text: 'typed here' } as DraftContent
+    // Types `text`, waits for the conflict, and checks Post is blocked.
+    const typeIntoConflict = async (
+      result: { current: ReturnType<typeof useComposerDraft> },
+      text: string
+    ) => {
+      current = content({ text })
       act(() => result.current.schedule())
       await advance(DRAFT_SAVE_DEBOUNCE_MS)
-      await vi.waitFor(() =>
-        expect(result.current.draftId).not.toBe(original.id)
-      )
-      const fork = await getDraft(result.current.draftId as string)
-      expect(fork?.attachments.map((a) => [a.owned, a.hasBlob])).toEqual([
-        [false, false],
-        [false, false]
-      ])
-      // Its photo without an upload has no bytes of its own: never silent.
-      expect(result.current.saveState).toBe('error')
-
-      await act(async () => {
-        await result.current.discard()
-      })
-      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
-      expect((await getDraft(original.id))?.text).toBe(
-        'written in the other tab'
-      )
-      expect((await getDraftBlob('local-2'))?.draftId).toBe(original.id)
-      tabB.unmount()
-    })
-
-    it.each<
-      [string, (hook: ReturnType<typeof useComposerDraft>) => Promise<unknown>]
-    >([
-      ['a send key', (hook) => hook.recordAttempt(key)],
-      ['a lock', (hook) => hook.recordLock('kept it', key)]
-    ])(
-      'a draft holding %s never forks: it stops on that key and blocks the send',
-      async (_name, hold) => {
-        const { result } = setup()
-        await act(async () => {
-          await hold(result.current)
-        })
-        const original = await stored()
-        const tabB = await editElsewhere(original, 'written in the other tab')
-
-        current = content({ text: 'typed here' })
-        act(() => result.current.schedule())
-        await advance(DRAFT_SAVE_DEBOUNCE_MS)
-        await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
-        await act(async () => {
-          await expect(result.current.recordAttempt(key)).resolves.toBe(false)
-        })
-
-        const all = await listDrafts({ actorId: 'actor-1' })
-        expect(all).toHaveLength(1)
-        expect(all[0].text).toBe('written in the other tab')
-        expect(all[0].submit).toEqual(key)
-        expect(result.current.draftId).toBe(original.id)
-
-        tabB.unmount()
-      }
-    )
-
-    it('an emptied draft holding a send key does not fork either', async () => {
-      const { result } = setup()
-      await act(async () => {
-        await result.current.recordAttempt(key)
-      })
-      const original = await stored()
-      const tabB = await editElsewhere(original, 'written in the other tab')
-
-      current = null
-      act(() => result.current.schedule())
-      await advance(DRAFT_SAVE_DEBOUNCE_MS)
-
       await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
-      expect(result.current.draftId).toBe(original.id)
-      current = content({ text: 'typed after emptying' })
       await act(async () => {
         await expect(result.current.recordAttempt(key)).resolves.toBe(false)
       })
-      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(1)
-      tabB.unmount()
+    }
+
+    // Empties the composer, then types `text` as a new draft.
+    const emptyThenType = async (
+      result: { current: ReturnType<typeof useComposerDraft> },
+      text: string
+    ) => {
+      current = null
+      act(() => result.current.schedule())
+      expect(result.current.saveState).toBe('idle')
+      expect(result.current.draftId).toBeNull()
+      current = content({ text })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+    }
+
+    it("stops on a conflict: Not saved, Post blocked, and the other tab's record unchanged", async () => {
+      let tabB: ReturnType<typeof renderHook> | undefined
+      const { result, original } = await savedThenChanged(async (draft) => {
+        tabB = await editElsewhere(draft, 'written in the other tab')
+      })
+      const before = await getDraft(original.id)
+
+      await typeIntoConflict(result, 'typed here')
+
+      // Later edits do not try again either.
+      current = content({ text: 'typed here, more' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS * 2)
+      expect(result.current.saveState).toBe('error')
+      expect(result.current.draftId).toBe(original.id)
+      expect(await listDrafts({ actorId: 'actor-1' })).toEqual([before])
+      tabB?.unmount()
+    })
+
+    it('emptying a conflicted composer unlocks it: new text is a new draft that sends once under a new key', async () => {
+      let tabB: ReturnType<typeof renderHook> | undefined
+      const { result, original } = await savedThenChanged(async (draft) => {
+        tabB = await editElsewhere(draft, 'written in the other tab')
+      })
+      const before = await getDraft(original.id)
+      await typeIntoConflict(result, 'typed here')
+
+      await emptyThenType(result, 'a fresh start')
+
+      const fresh = result.current.draftId as string
+      expect(fresh).not.toBe(original.id)
+      expect((await getDraft(fresh))?.text).toBe('a fresh start')
+      await act(async () => {
+        await expect(result.current.recordAttempt(newKey)).resolves.toBe(true)
+      })
+      expect((await getDraft(fresh))?.submit).toEqual(newKey)
+      await act(async () => {
+        await result.current.release()
+      })
+      expect(await listDrafts({ actorId: 'actor-1' })).toEqual([before])
+      tabB?.unmount()
+    })
+
+    it.each<[string, (draft: DraftRecord) => Promise<unknown>]>([
+      [
+        'holds a send key',
+        async (draft) => {
+          const tab = renderHook(() =>
+            useComposerDraft({
+              composer: 'post-box',
+              draft,
+              getContent: () => ({ ...content(), ...draft })
+            })
+          )
+          await act(async () => {
+            await tab.result.current.recordAttempt(key)
+          })
+          tab.unmount()
+        }
+      ],
+      [
+        'was deleted',
+        async (draft) => {
+          const { deleteDraft } = await import('@/lib/client/drafts')
+          await deleteDraft(draft.id)
+        }
+      ],
+      [
+        'was sent and released',
+        async (draft) => {
+          const tab = renderHook(() =>
+            useComposerDraft({
+              composer: 'post-box',
+              draft,
+              getContent: () => ({ ...content(), ...draft })
+            })
+          )
+          await act(async () => {
+            await tab.result.current.release()
+          })
+          tab.unmount()
+        }
+      ]
+    ])(
+      'when the draft %s in another tab: no new record and no send until the composer is emptied',
+      async (_name, change) => {
+        const { result, original } = await savedThenChanged(change)
+        const before = await listDrafts({ actorId: 'actor-1' })
+
+        await typeIntoConflict(result, 'typed here')
+        // Bytes attached meanwhile are not stored under the other draft.
+        act(() =>
+          result.current.attachBlob(
+            'local-late',
+            new File(['bytes'], 'late.png', { type: 'image/png' })
+          )
+        )
+        await advance(DRAFT_SAVE_DEBOUNCE_MS)
+        expect(await getDraftBlob('local-late')).toBeUndefined()
+        expect(await listDrafts({ actorId: 'actor-1' })).toEqual(before)
+
+        await emptyThenType(result, 'a fresh start')
+
+        expect(result.current.draftId).not.toBe(original.id)
+        await act(async () => {
+          await expect(result.current.recordAttempt(newKey)).resolves.toBe(true)
+        })
+        const all = await listDrafts({ actorId: 'actor-1' })
+        expect(all).toHaveLength(before.length + 1)
+        expect(all).toEqual(expect.arrayContaining(before))
+      }
+    )
+
+    describe("leaving a conflicted composer keeps the other tab's record and bytes", () => {
+      const conflictedWithBytes = async () => {
+        const hook = setup()
+        current = content({
+          attachments: [attachment({ localId: 'local-2', mediaId: undefined })]
+        })
+        act(() =>
+          hook.result.current.attachBlob(
+            'local-2',
+            new File(['bytes'], 'b.png', { type: 'image/png' })
+          )
+        )
+        act(() => hook.result.current.schedule())
+        await advance(DRAFT_SAVE_DEBOUNCE_MS)
+        await vi.waitFor(() =>
+          expect(hook.result.current.saveState).toBe('saved')
+        )
+        const original = await stored()
+        const tabB = await editElsewhere(original, 'written in the other tab')
+        const before = await getDraft(original.id)
+        current = { ...current, text: 'typed here' } as DraftContent
+        act(() => hook.result.current.schedule())
+        await advance(DRAFT_SAVE_DEBOUNCE_MS)
+        await vi.waitFor(() =>
+          expect(hook.result.current.saveState).toBe('error')
+        )
+        const untouched = async () => {
+          expect(await listDrafts({ actorId: 'actor-1' })).toEqual([before])
+          expect((await getDraftBlob('local-2'))?.draftId).toBe(original.id)
+          expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+        }
+        return { ...hook, tabB, untouched }
+      }
+
+      it('Discard', async () => {
+        const { result, tabB, untouched } = await conflictedWithBytes()
+
+        await act(async () => {
+          await result.current.discard()
+        })
+
+        await untouched()
+        expect(result.current.saveState).toBe('idle')
+        expect(result.current.draftId).toBeNull()
+        tabB.unmount()
+      })
+
+      it('Cancel: the note offers the text, and the emptied composer starts afresh', async () => {
+        const { result, tabB, untouched } = await conflictedWithBytes()
+
+        await act(async () => {
+          await expect(result.current.keep()).resolves.toBe(false)
+        })
+        expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('typed here')
+        expect(notifySavedToDrafts).not.toHaveBeenCalled()
+        // The composer clears its text after Cancel.
+        current = null
+        act(() => result.current.schedule())
+        await advance(DRAFT_SAVE_DEBOUNCE_MS)
+
+        await untouched()
+        expect(result.current.saveState).toBe('idle')
+        expect(result.current.draftId).toBeNull()
+        tabB.unmount()
+      })
     })
   })
 
@@ -443,25 +526,6 @@ describe('useComposerDraft', () => {
 
       expect((await stored()).text).toBe('written in the other tab')
     })
-  })
-
-  it('never recreates a draft another tab deleted: its text carries on as a new draft', async () => {
-    const { result } = setup()
-    act(() => result.current.schedule())
-    await advance(DRAFT_SAVE_DEBOUNCE_MS)
-    await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
-    const { deleteDraft } = await import('@/lib/client/drafts')
-    const deleted = (await stored()).id
-    await deleteDraft(deleted)
-
-    current = content({ text: 'more' })
-    act(() => result.current.schedule())
-    await advance(DRAFT_SAVE_DEBOUNCE_MS)
-    await vi.waitFor(async () =>
-      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(1)
-    )
-    expect(await getDraft(deleted)).toBeUndefined()
-    expect((await stored()).text).toBe('more')
   })
 
   it('shows "error" when the account signed out under a stale tab (epoch)', async () => {
@@ -592,7 +656,7 @@ describe('useComposerDraft', () => {
       expect((await stored()).submit).toBeUndefined()
     })
 
-    it('forks on a revision conflict before the first send: the send goes out from a new draft with its own key and attempt', async () => {
+    it('blocks the send on a revision conflict and leaves the other record as it is', async () => {
       const { result } = setup()
       act(() => result.current.schedule())
       await advance(DRAFT_SAVE_DEBOUNCE_MS)
@@ -601,16 +665,13 @@ describe('useComposerDraft', () => {
       await saveDraft(draft, { expectedRevision: 1, epoch: 0 })
 
       await act(async () => {
-        await expect(result.current.recordAttempt(key)).resolves.toBe(true)
+        await expect(result.current.recordAttempt(key)).resolves.toBe(false)
       })
 
-      const fork = await getDraft(result.current.draftId as string)
-      expect(fork?.id).not.toBe(draft.id)
-      expect(fork?.submit).toEqual(key)
-      expect(fork?.attemptedAt).toEqual(expect.any(Number))
-      const other = await getDraft(draft.id)
-      expect(other?.submit).toBeUndefined()
-      expect(other?.attemptedAt).toBeUndefined()
+      const all = await listDrafts({ actorId: 'actor-1' })
+      expect(all).toHaveLength(1)
+      expect(all[0].submit).toBeUndefined()
+      expect(all[0].attemptedAt).toBeUndefined()
     })
 
     it('blocks the send when the account signed out', async () => {

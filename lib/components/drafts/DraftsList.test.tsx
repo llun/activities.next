@@ -349,7 +349,7 @@ describe('DraftsList', () => {
     })
 
     expect(
-      await screen.findByText(/changed in another tab/)
+      await screen.findByText(/This draft was changed/)
     ).toBeInTheDocument()
     expect((await getDraft('a'))?.text).toBe('drop me, edited')
   })
@@ -407,7 +407,7 @@ describe('DraftsList', () => {
     expect(await screen.findByText('after')).toBeInTheDocument()
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent("Couldn't delete draft")
-    expect(alert).toHaveTextContent('changed in another tab')
+    expect(alert).toHaveTextContent('This draft was changed')
     expect(alert.closest('li')).toBeNull()
     expect(within(alert).queryByRole('button', { name: 'Retry' })).toBeNull()
     expect(await getDraft('a')).toBeDefined()

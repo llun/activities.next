@@ -433,24 +433,36 @@ describe('PostBox on-device drafts', () => {
       )
     })
 
-    it('sends once, from a new draft, after another tab changed the draft', async () => {
+    it('does not send after another tab changed the draft, and sends once after the composer is emptied and retyped', async () => {
       await saveThenFailToCheckpoint()
       const [draft] = await storedDrafts()
-      await saveDraft(
+      const other = await saveDraft(
         { ...draft, text: 'written in another tab' },
         { expectedRevision: draft.revision, epoch: 0 }
       )
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      expect(createNoteMock.mock.calls[0][0].message).toBe('hello')
-      // The other tab's draft stays; the sent fork is released.
-      await waitFor(async () =>
-        expect((await storedDrafts()).map((d) => d.text)).toEqual([
-          'written in another tab'
-        ])
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'nothing was sent'
       )
+      expect(createNoteMock).not.toHaveBeenCalled()
+      expect(screen.getByText('Not saved, copy your text')).toBeVisible()
+
+      // Emptied, the composer lets go of the other tab's draft.
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Not saved, copy your text')).toBeNull()
+      )
+      type('a fresh start')
+      await waitForSaved()
+      expect(await storedDrafts()).toHaveLength(2)
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      expect(createNoteMock.mock.calls[0][0].message).toBe('a fresh start')
+      // The sent draft is released; the other tab's is exactly as it was.
+      await waitFor(async () => expect(await storedDrafts()).toEqual([other]))
     })
 
     it('does not send after another tab changed a draft that already holds a key', async () => {

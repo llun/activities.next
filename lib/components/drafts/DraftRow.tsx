@@ -161,9 +161,7 @@ export const DraftRow: FC<Props> = ({
       if (error instanceof DraftConflictError) {
         // Another tab saved this draft since it was read: nothing was deleted.
         // The list re-reads it, so Delete retries against the newest save.
-        onDeleteError(
-          'This draft changed in another tab. Review it, then delete again.'
-        )
+        onDeleteError('This draft was changed. Review it, then delete again.')
         onConflict()
       } else {
         onDeleteError('Something went wrong on this device. Try again.', () => {

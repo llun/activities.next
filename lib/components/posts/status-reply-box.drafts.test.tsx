@@ -273,24 +273,36 @@ describe('StatusReplyBox on-device drafts', () => {
       expect(createNoteMock).not.toHaveBeenCalled()
     })
 
-    it('sends once, from a new draft, after another tab changed the draft', async () => {
+    it('does not send after another tab changed the draft, and sends once after the reply is emptied and retyped', async () => {
       renderBox()
       type('Reply body')
       await waitForSaved()
       const [draft] = await stored()
-      await saveDraft(
+      const other = await saveDraft(
         { ...draft, text: 'written in another tab' },
         { expectedRevision: draft.revision, epoch: 0 }
       )
 
       post()
 
-      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      await waitFor(async () =>
-        expect((await stored()).map((d) => d.text)).toEqual([
-          'written in another tab'
-        ])
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'nothing was sent'
       )
+      expect(createNoteMock).not.toHaveBeenCalled()
+
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Not saved, copy your text')).toBeNull()
+      )
+      type('A fresh reply')
+      await waitForSaved()
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+      )
+      post()
+
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      await waitFor(async () => expect(await stored()).toEqual([other]))
     })
 
     it('does not send after another tab changed a draft that already holds a key', async () => {
