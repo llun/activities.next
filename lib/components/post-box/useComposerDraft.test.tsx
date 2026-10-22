@@ -947,6 +947,33 @@ describe('useComposerDraft', () => {
       expect(notifySavedToDrafts).toHaveBeenCalled()
     })
 
+    it('keeps a deferred delete while a save that still holds the media lands', async () => {
+      const { result } = setup()
+      current = content({ attachments: [attachment()] })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+      const del = vi.fn().mockResolvedValue(undefined)
+
+      current = content({ text: 'b', attachments: [attachment()] })
+      act(() => result.current.schedule())
+      let flushing: Promise<void> = Promise.resolve()
+      act(() => {
+        flushing = result.current.flush()
+        // The photo is removed while the save that still holds it is in flight.
+        expect(result.current.deferServerDelete('media-1', del)).toBe(true)
+      })
+      await act(async () => {
+        await flushing
+      })
+      expect(del).not.toHaveBeenCalled()
+
+      current = content({ text: 'c' })
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(del).toHaveBeenCalledTimes(1))
+    })
+
     it('discard deletes only the media the draft owns', async () => {
       const { result } = setup()
       current = content({

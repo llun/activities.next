@@ -374,7 +374,7 @@ describe('PostBox on-device drafts', () => {
       await screen.findByText('Not saved, copy your text')
     }
 
-    it('removing a photo another tab sent deletes nothing, even after the composer lets go', async () => {
+    it('removing a photo another tab sent deletes nothing after the conflict', async () => {
       render(composer())
       await withPhoto()
       await waitFor(async () =>
