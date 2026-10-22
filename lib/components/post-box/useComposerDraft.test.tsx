@@ -1300,6 +1300,28 @@ describe('useComposerDraft', () => {
       expect(await getDraft(draft.id)).toEqual(draft)
     })
 
+    it('queue: a draft holding an attempt enters as checking, from its attempt time', async () => {
+      const { result } = setup()
+      await act(async () => {
+        await result.current.recordLock('kept it', {
+          key: 'key-1',
+          fingerprint: 'fp-1'
+        })
+      })
+      const attemptedAt = (await stored()).attemptedAt
+
+      await expect(handOff(result, true)).resolves.toBe(true)
+
+      const draft = await stored()
+      expect(draft.queue).toEqual({
+        state: 'checking',
+        queuedAt: Date.now(),
+        attempts: 0,
+        firstAttemptAt: attemptedAt
+      })
+      expect(draft.submit).toEqual({ key: 'key-1', fingerprint: 'fp-1' })
+    })
+
     it('save draft: keeps no queue, does not ask for a drain, and forgets the draft', async () => {
       const { result } = setup()
 

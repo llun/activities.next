@@ -23,6 +23,7 @@ import {
   postDraftsMessage,
   subscribeDraftsMessages
 } from '@/lib/client/drafts/draftsChannel'
+import { CLAIM_LEASE_MS } from '@/lib/client/drafts/sendQueue'
 import type {
   DraftQueueState,
   SendQueueProgress
@@ -351,6 +352,8 @@ export function DraftsProvider({
             signal: controller.signal,
             deps,
             onProgress: (next) => {
+              // A drain that claimed nothing is silent: no one needs an idle.
+              if (next.phase === 'idle' && last.phase === 'idle') return
               last.phase = next.phase
               postDraftsMessage({
                 type: 'queue-progress',
@@ -433,6 +436,20 @@ export function DraftsProvider({
   useEffect(() => {
     if (progress.phase !== 'result') return
     const id = setTimeout(() => setProgress(IDLE_PROGRESS), RESULT_VISIBLE_MS)
+    return () => clearTimeout(id)
+  }, [progress])
+
+  // A sender that closed mid-drain never says it stopped. Its lease is the
+  // longest it can hold an item, so after one lease without an update the
+  // progress is stale: show idle and drain, which reclaims the expired lease.
+  // A drain running in this tab renews its own lease, so it keeps its progress.
+  useEffect(() => {
+    if (progress.phase !== 'sending') return
+    const id = setTimeout(() => {
+      if (drainingRef.current) return
+      setProgress(IDLE_PROGRESS)
+      drainRef.current()
+    }, CLAIM_LEASE_MS)
     return () => clearTimeout(id)
   }, [progress])
 
