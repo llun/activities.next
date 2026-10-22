@@ -23,7 +23,7 @@ import {
   postDraftsMessage,
   subscribeDraftsMessages
 } from '@/lib/client/drafts/draftsChannel'
-import { CLAIM_LEASE_MS } from '@/lib/client/drafts/sendQueue'
+import { CLAIM_LEASE_MS } from '@/lib/client/drafts/queueConstants'
 import type {
   DraftQueueState,
   SendQueueProgress
