@@ -966,6 +966,25 @@ describe('drainQueue', () => {
       expect(deps.announce).toHaveBeenCalledWith('a')
     })
 
+    it('does not mark a post attempted when the drain is aborted before its POST', async () => {
+      await store(draft('a'))
+      const controller = new AbortController()
+      const deps = makeDeps({
+        // The abort lands just as the claim commits.
+        claimQueuedDraft: async (...args) => {
+          const claimed = await claimQueuedDraft(...args)
+          controller.abort()
+          return claimed
+        }
+      })
+      await drain(deps, { signal: controller.signal })
+      expect(deps.createNote).not.toHaveBeenCalled()
+      const stored = await getDraft('a')
+      expect(stored?.queue).toMatchObject({ state: 'waiting', attempts: 0 })
+      expect(stored?.queue).not.toHaveProperty('firstAttemptAt')
+      expect(stored).not.toHaveProperty('submit')
+    })
+
     it('pauses the only post when Pause is pressed while it is out', async () => {
       await store(draft('only'))
       const deps = makeDeps({
@@ -1304,19 +1323,33 @@ describe('drainQueue', () => {
         expect(await getDraft('a')).toBeUndefined()
       })
 
-      it('a null upload is Couldn’t send, with the file name', async () => {
-        await queuedPhotos()
-        const deps = makeDeps({
-          uploadAttachment: vi.fn<UploadAttachment>().mockResolvedValue(null)
-        })
-        const result = await drain(deps)
-        expect(result.failed).toBe(1)
-        expect((await getDraft('a'))?.queue).toMatchObject({
-          state: 'couldnt_send',
-          reason: "The server didn't accept p1.png."
-        })
-        expect(deps.createNote).not.toHaveBeenCalled()
-      })
+      it.each([
+        [
+          'a null upload (a non-200 the helper hides)',
+          () => vi.fn<UploadAttachment>().mockResolvedValue(null)
+        ],
+        [
+          'a plain Error (a failed storage PUT)',
+          () =>
+            vi
+              .fn<UploadAttachment>()
+              .mockRejectedValue(new Error('Failed to upload file'))
+        ]
+      ])(
+        'waits with backoff after %s, posting nothing',
+        async (_name, upload) => {
+          await queuedPhotos()
+          const deps = makeDeps({ uploadAttachment: upload() })
+          const result = await drain(deps)
+          expect(result.failed).toBe(0)
+          expect((await getDraft('a'))?.queue).toMatchObject({
+            state: 'waiting',
+            attempts: 0,
+            nextAttemptAt: NOW + 5_000
+          })
+          expect(deps.createNote).not.toHaveBeenCalled()
+        }
+      )
 
       it.each([
         ['a TypeError', new TypeError('Load failed')],

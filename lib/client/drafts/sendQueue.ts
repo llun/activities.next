@@ -122,6 +122,27 @@ const isAbortLike = (error: unknown): boolean => {
   return name === 'AbortError' || name === 'TimeoutError'
 }
 
+/**
+ * An upload refused before any POST. The upload helpers return null or a
+ * plain Error without the status, so it is retried with backoff, as a
+ * network error is, rather than given up on (a restarting server answers
+ * 502/503); the 24 h pre-flight limit still ends it.
+ */
+class UploadFailedError extends Error {}
+
+const asUploadFailure = (error: unknown): never => {
+  if (
+    error instanceof ApiRequestError ||
+    error instanceof TypeError ||
+    isAbortLike(error)
+  ) {
+    throw error
+  }
+  throw new UploadFailedError(
+    error instanceof Error ? error.message : 'The upload failed.'
+  )
+}
+
 const wayOut = (draft: DraftRecord) =>
   draft.composer === 'reply-box' ? 'cancel the reply' : 'discard the draft'
 
@@ -178,6 +199,7 @@ export const classifySendOutcome = (
   }
   const networkLike =
     error instanceof TypeError ||
+    error instanceof UploadFailedError ||
     isAbortLike(error) ||
     (status !== undefined && status >= 500)
   if (preflight && networkLike) {
@@ -402,8 +424,10 @@ const uploadPending = async (
         blobRecordToPosterFile(blob),
         expected
       )
-    )
-    if (!media) throw new Error(`The server didn't accept ${item.fileName}.`)
+    ).catch(asUploadFailure)
+    if (!media) {
+      throw new UploadFailedError(`The server didn't accept ${item.fileName}.`)
+    }
     const saved = await persist(
       (record) => ({
         ...record,
@@ -432,7 +456,7 @@ const uploadPending = async (
     const blob = await blobFor(file.localId, file.fileName)
     const uploaded = await untilAborted(
       deps.uploadFitnessFile(blobRecordToFile(blob), undefined, expected)
-    )
+    ).catch(asUploadFailure)
     const saved = await persist(
       (record) => {
         if (!record.fitnessFile) throw new Error('The activity file is gone')
@@ -484,6 +508,9 @@ const sendOne = async (
       draft = held.draft
     }
 
+    // An abort (sign-out, a profile switch) before the checkpoint: nothing
+    // was sent, so it must not read as attempted.
+    if (signal.aborted) throw signal.reason
     // Checkpoint, as `recordAttempt` does: the key used is persisted before
     // the POST. If this write fails, nothing is sent.
     const request = buildSubmitRequest(draft)
