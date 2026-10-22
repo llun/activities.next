@@ -18,6 +18,7 @@ import {
   resetDraftsDbForTesting,
   saveDraft,
   setDraftsIndexedDBFactory,
+  unqueueDraft,
   updateQueuedDraft
 } from './draftsDb'
 import {
@@ -752,6 +753,56 @@ describe('drainQueue', () => {
       expect(stored).not.toHaveProperty('lockedMessage')
     })
 
+    it('410 after a POST: Review reopens it unlocked, with no POST marks left', async () => {
+      await store(
+        draft(
+          'a',
+          { state: 'checking', attempts: 1, firstAttemptAt: NOW - 100 },
+          { attemptedAt: NOW - 100, submit: { key: 'k', fingerprint: 'f' } }
+        )
+      )
+      await drain(
+        makeDeps({
+          createNote: vi.fn<CreateNote>().mockRejectedValue(apiError(410))
+        })
+      )
+      const stored = await getDraft('a')
+      expect(stored).not.toHaveProperty('attemptedAt')
+      expect(stored?.queue).not.toHaveProperty('firstAttemptAt')
+
+      const reviewed = await unqueueDraft('a')
+      expect(reviewed).not.toHaveProperty('lockedMessage')
+      expect(reviewed).not.toHaveProperty('submit')
+    })
+
+    it('classifies a failure at the time it happened, not when the item was claimed', async () => {
+      await store(draft('a'))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(async () => {
+          clock = NOW + 40_000
+          throw new TypeError('Load failed')
+        })
+      })
+      await drain(deps)
+      expect((await getDraft('a'))?.queue).toMatchObject({
+        state: 'checking',
+        nextAttemptAt: NOW + 40_000 + 5_000
+      })
+    })
+
+    it('tells the list once the item is claimed, before the POST settles', async () => {
+      await store(draft('a'))
+      const pending = createDeferred<never>()
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>(() => pending.promise)
+      })
+      const running = drain(deps)
+      await settle(() => vi.mocked(deps.createNote).mock.calls.length)
+      expect(deps.announce).toHaveBeenCalledWith('a')
+      pending.resolve(undefined as never)
+      await running
+    })
+
     it('paused(auth) stops the rest of the drain', async () => {
       await store(draft('first', { queuedAt: NOW - 20 }))
       await store(draft('second', { queuedAt: NOW - 10 }))
@@ -1003,6 +1054,27 @@ describe('drainQueue', () => {
         expect((await getDraft('b'))?.queue?.state).toBe('waiting')
       })
 
+      it('uploads as the expected actor, and an actor mismatch pauses and stops the drain', async () => {
+        await queuedPhotos()
+        await store(draft('b', { queuedAt: NOW - 1 }))
+        const deps = makeDeps({
+          uploadAttachment: vi
+            .fn<UploadAttachment>()
+            .mockRejectedValue(apiError(409, EXPECTED_ACTOR_MISMATCH_ERROR))
+        })
+        const result = await drain(deps)
+        expect(vi.mocked(deps.uploadAttachment).mock.calls[0][2]).toEqual({
+          expectedActorId: 'actor-1'
+        })
+        expect(result.paused).toBe(1)
+        expect((await getDraft('a'))?.queue).toMatchObject({
+          state: 'paused',
+          pausedBy: 'actor'
+        })
+        expect((await getDraft('b'))?.queue?.state).toBe('waiting')
+        expect(deps.createNote).not.toHaveBeenCalled()
+      })
+
       it.each([
         ['missing', undefined],
         ['foreign', 'other']
@@ -1106,6 +1178,24 @@ describe('drainQueue', () => {
           })
           expect(stored).not.toHaveProperty('submit')
           expect(stored).not.toHaveProperty('lockedMessage')
+        })
+
+        it('uploads as the expected actor; a mismatch pauses for the actor', async () => {
+          await queuedFit()
+          const deps = makeDeps({
+            uploadFitnessFile: vi
+              .fn<UploadFitness>()
+              .mockRejectedValue(apiError(409, EXPECTED_ACTOR_MISMATCH_ERROR))
+          })
+          await drain(deps)
+          expect(vi.mocked(deps.uploadFitnessFile).mock.calls[0][2]).toEqual({
+            expectedActorId: 'actor-1'
+          })
+          expect((await getDraft('a'))?.queue).toMatchObject({
+            state: 'paused',
+            pausedBy: 'actor'
+          })
+          expect(deps.createNote).not.toHaveBeenCalled()
         })
 
         it('a network failure waits; a missing blob is Couldn’t send', async () => {

@@ -9,6 +9,7 @@ import {
   type SendQueueProgress,
   drainQueue,
   getAccountEpoch,
+  getDraft,
   listDrafts,
   pauseQueue,
   postDraftsMessage,
@@ -25,6 +26,7 @@ import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
 import {
   DraftsProvider,
   RESULT_VISIBLE_MS,
+  RETRY_SOON_MS,
   useDrafts,
   useSendQueueStatus
 } from './DraftsProvider'
@@ -59,6 +61,7 @@ vi.mock('@/lib/client/drafts', async (importOriginal) => ({
   getAccountEpoch: vi.fn(),
   countDrafts: vi.fn(),
   listDrafts: vi.fn(),
+  getDraft: vi.fn(),
   resumeQueue: vi.fn(),
   pauseQueue: vi.fn(),
   drainQueue: vi.fn(),
@@ -98,6 +101,9 @@ const queued = (
 ): DraftRecord =>
   ({ id, accountId: 'account-1', actorId: 'actor-1', queue }) as DraftRecord
 
+/** Claimable now, and never a wake time of its own. */
+const DUE = queued('due', { state: 'waiting', queuedAt: NOW, attempts: 0 })
+
 const Probe = () => {
   const drafts = useDrafts()
   const status = useSendQueueStatus()
@@ -105,11 +111,12 @@ const Probe = () => {
     <div>
       <p data-testid="status">
         {status
-          ? `${status.phase} ${status.index}/${status.total} sent=${status.sent}`
+          ? `${status.phase} ${status.index}/${status.total} sent=${status.sent} drainFailed=${status.drainFailed} pauseFailed=${status.pauseFailed}`
           : 'none'}
       </p>
       <button onClick={() => drafts?.requestDrain()}>drain</button>
       <button onClick={() => void status?.pause()}>pause</button>
+      <button onClick={() => status?.retry()}>retry</button>
     </div>
   )
 }
@@ -176,11 +183,15 @@ describe('DraftsProvider send queue', () => {
     route.pathname = '/drafts'
     vi.mocked(runPendingPurges).mockResolvedValue(undefined)
     vi.mocked(getAccountEpoch).mockResolvedValue(3)
-    vi.mocked(listDrafts).mockResolvedValue([])
+    vi.mocked(listDrafts).mockResolvedValue([DUE])
+    vi.mocked(getDraft).mockResolvedValue(DUE)
     vi.mocked(resumeQueue).mockResolvedValue(0)
     vi.mocked(pauseQueue).mockResolvedValue(0)
     vi.mocked(drainQueue).mockResolvedValue(ZERO)
-    vi.mocked(withSenderLock).mockImplementation((fn) => fn())
+    vi.mocked(withSenderLock).mockImplementation(async (fn) => {
+      await fn()
+      return true
+    })
   })
 
   afterEach(() => {
@@ -331,12 +342,13 @@ describe('DraftsProvider send queue', () => {
       ])
       renderProvider()
       await settle()
-      drainQueueCalls(1)
+      // Nothing is due yet, so the mount pass skips the sender.
+      drainQueueCalls(0)
 
       await advance(4_999)
-      drainQueueCalls(1)
+      drainQueueCalls(0)
       await advance(1)
-      drainQueueCalls(2)
+      drainQueueCalls(1)
     })
 
     it('fires at claim.until for a lease a closed tab left behind', async () => {
@@ -351,12 +363,12 @@ describe('DraftsProvider send queue', () => {
       ])
       renderProvider()
       await settle()
-      drainQueueCalls(1)
+      drainQueueCalls(0)
 
       await advance(89_999)
-      drainQueueCalls(1)
+      drainQueueCalls(0)
       await advance(1)
-      drainQueueCalls(2)
+      drainQueueCalls(1)
     })
 
     it('waits for the user on needs-review, couldn’t-send and user-paused items', async () => {
@@ -379,7 +391,8 @@ describe('DraftsProvider send queue', () => {
       await settle()
       await advance(60_000)
 
-      drainQueueCalls(1)
+      expect(withSenderLock).not.toHaveBeenCalled()
+      drainQueueCalls(0)
     })
 
     it('wakes a rate-limit pause when it is due', async () => {
@@ -394,8 +407,78 @@ describe('DraftsProvider send queue', () => {
       ])
       renderProvider()
       await settle()
+      drainQueueCalls(0)
 
       await advance(60_000)
+      drainQueueCalls(1)
+    })
+
+    it('tries a past-due item again soon, never in a tight loop, and not while offline', async () => {
+      vi.mocked(listDrafts).mockResolvedValue([
+        queued('late', {
+          state: 'checking',
+          queuedAt: NOW - 60_000,
+          attempts: 1,
+          firstAttemptAt: NOW - 60_000,
+          nextAttemptAt: NOW - 1
+        })
+      ])
+      renderProvider()
+      await settle()
+      drainQueueCalls(1)
+
+      await advance(RETRY_SOON_MS - 1)
+      drainQueueCalls(1)
+      await advance(1)
+      drainQueueCalls(2)
+
+      connection.state = 'offline'
+      await advance(RETRY_SOON_MS)
+      drainQueueCalls(2)
+      const reads = vi.mocked(listDrafts).mock.calls.length
+      await advance(60_000)
+      expect(listDrafts).toHaveBeenCalledTimes(reads)
+    })
+
+    it('tries again once another tab’s pass ends, so a fresh item is not left waiting', async () => {
+      // One lock between the two providers, as between two tabs.
+      let held = false
+      vi.mocked(withSenderLock).mockImplementation(async (fn) => {
+        if (held) return false
+        held = true
+        try {
+          await fn()
+        } finally {
+          held = false
+        }
+        return true
+      })
+      const first = createDeferred<typeof ZERO>()
+      vi.mocked(drainQueue).mockReturnValueOnce(first.promise)
+      render(
+        <>
+          <DraftsProvider accountId="account-1" actorId="actor-1">
+            <Probe />
+          </DraftsProvider>
+          <DraftsProvider accountId="account-1" actorId="actor-1">
+            <div />
+          </DraftsProvider>
+        </>
+      )
+      await settle()
+      // One holds the lock; the other was turned away.
+      expect(withSenderLock).toHaveBeenCalledTimes(2)
+      drainQueueCalls(1)
+
+      // While the holder drains, the other only checks every RETRY_SOON_MS.
+      await advance(RETRY_SOON_MS)
+      expect(withSenderLock).toHaveBeenCalledTimes(3)
+      drainQueueCalls(1)
+
+      first.resolve(ZERO)
+      await settle()
+      drainQueueCalls(1)
+      await advance(RETRY_SOON_MS)
       drainQueueCalls(2)
     })
 
@@ -441,6 +524,37 @@ describe('DraftsProvider send queue', () => {
       unmount()
       await advance(60_000)
       drainQueueCalls(2)
+    })
+
+    it('rescans on a change to a queued draft only, not on every autosave', async () => {
+      renderProvider()
+      await settle()
+      vi.mocked(listDrafts).mockClear()
+
+      vi.mocked(getDraft).mockResolvedValue({
+        id: 'plain',
+        accountId: 'account-1',
+        actorId: 'actor-1'
+      } as DraftRecord)
+      await post({
+        type: 'changed',
+        accountId: 'account-1',
+        actorId: 'actor-1',
+        draftId: 'plain'
+      })
+      await settle()
+      expect(getDraft).toHaveBeenCalledWith('plain')
+      expect(listDrafts).not.toHaveBeenCalled()
+
+      vi.mocked(getDraft).mockResolvedValue(DUE)
+      await post({
+        type: 'changed',
+        accountId: 'account-1',
+        actorId: 'actor-1',
+        draftId: 'due'
+      })
+      await settle()
+      expect(listDrafts).toHaveBeenCalledTimes(1)
     })
 
     it('ignores another actor’s changes', async () => {
@@ -637,6 +751,44 @@ describe('DraftsProvider send queue', () => {
       await settle()
       expect(screen.getByTestId('status')).toHaveTextContent('idle')
     })
+  })
+
+  it('skips the sender, its code and the lock when nothing is due', async () => {
+    vi.mocked(listDrafts).mockResolvedValue([])
+    renderProvider()
+    await settle()
+
+    expect(listDrafts).toHaveBeenCalled()
+    expect(withSenderLock).not.toHaveBeenCalled()
+    drainQueueCalls(0)
+  })
+
+  it('records a failed drain for the Drafts page, and clears it on a good retry', async () => {
+    vi.mocked(drainQueue).mockRejectedValueOnce(new Error('storage'))
+    renderProvider()
+    await settle()
+    expect(screen.getByTestId('status')).toHaveTextContent('drainFailed=true')
+
+    fireEvent.click(screen.getByText('retry'))
+    await settle()
+    drainQueueCalls(2)
+    expect(screen.getByTestId('status')).toHaveTextContent('drainFailed=false')
+  })
+
+  it('records a failed Pause while sending, and forgets it once sending ends', async () => {
+    vi.mocked(pauseQueue).mockRejectedValue(new Error('no db'))
+    renderProvider()
+    await settle()
+    await post(progressMessage({ phase: 'sending', index: 1, total: 2 }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('pause'))
+    })
+    await settle()
+    expect(screen.getByTestId('status')).toHaveTextContent('pauseFailed=true')
+
+    await post(progressMessage({ phase: 'result', sent: 2 }))
+    expect(screen.getByTestId('status')).toHaveTextContent('pauseFailed=false')
   })
 
   it('pause() pauses this actor’s queue and tells the other views', async () => {

@@ -134,8 +134,10 @@ const lockMessage = (
   }).message
 
 /**
- * Turns a failed pre-flight, upload or POST into a queue outcome (plan §4.3
- * table, checked in order). `preflight`: nothing was POSTed in this attempt.
+ * Turns a failed pre-flight, upload or POST into a queue outcome; the checks
+ * run in order, so the first match wins. `preflight`: nothing was POSTed in
+ * this attempt. `now` is read when the failure is classified, so a backoff
+ * never starts already in the past.
  */
 export const classifySendOutcome = (
   error: unknown,
@@ -202,10 +204,10 @@ export const classifySendOutcome = (
     }
   }
   if (status !== undefined) {
-    // Plan §14 amendment 4: the route can answer 400 after the status was
-    // committed (its catch-all, a swallowed discard failure, serialization
-    // or the replay path), so a 400 to a POST is treated as a kept post:
-    // locked under the same key, media not ours to delete.
+    // The route can answer 400 after the status was committed (its
+    // catch-all, a swallowed discard failure, serialization or the replay
+    // path), so a 400 to a POST is treated as a kept post: locked under the
+    // same key, media not ours to delete.
     const mayBeKept = status === 400 && !preflight
     return {
       kind: 'couldnt_send',
@@ -242,7 +244,10 @@ const settingsFailOpen = (error: unknown) =>
  */
 export const preflight = async (
   draft: DraftRecord,
-  deps: Pick<SendQueueDeps, 'getStatusIfReadable' | 'getGallerySettings'>,
+  deps: Pick<
+    SendQueueDeps,
+    'getStatusIfReadable' | 'getGallerySettings' | 'now'
+  >,
   now: number,
   signal?: AbortSignal
 ): Promise<Outcome | null> => {
@@ -294,7 +299,10 @@ export const preflight = async (
       }
     }
   } catch (error) {
-    return classifySendOutcome(error, draft, { now, preflight: true })
+    return classifySendOutcome(error, draft, {
+      now: deps.now(),
+      preflight: true
+    })
   }
   return null
 }
@@ -337,8 +345,11 @@ interface SendContext {
  */
 const uploadPending = async (
   held: { draft: DraftRecord },
-  { signal, deps }: Pick<SendContext, 'signal' | 'deps'>
+  { actorId, signal, deps }: Pick<SendContext, 'actorId' | 'signal' | 'deps'>
 ): Promise<boolean> => {
+  // Refused (409, actor mismatch) unless this is still the signed-in profile,
+  // so a stale tab never uploads its bytes as another actor.
+  const expected = { expectedActorId: actorId }
   const claimed = held.draft
   // A failed write means another tab owns the draft: delete the orphan upload.
   const persist = async (
@@ -371,7 +382,8 @@ const uploadPending = async (
     const blob = await blobFor(item.localId, item.fileName)
     const media = await deps.uploadAttachment(
       blobRecordToFile(blob),
-      blobRecordToPosterFile(blob)
+      blobRecordToPosterFile(blob),
+      expected
     )
     if (!media) throw new Error(`The server didn't accept ${item.fileName}.`)
     const saved = await persist(
@@ -400,7 +412,11 @@ const uploadPending = async (
   if (file && !file.fitnessFileId) {
     if (signal.aborted) throw signal.reason
     const blob = await blobFor(file.localId, file.fileName)
-    const uploaded = await deps.uploadFitnessFile(blobRecordToFile(blob))
+    const uploaded = await deps.uploadFitnessFile(
+      blobRecordToFile(blob),
+      undefined,
+      expected
+    )
     const saved = await persist(
       (record) => {
         if (!record.fitnessFile) throw new Error('The activity file is gone')
@@ -447,7 +463,7 @@ const sendOne = async (
 
     const held = { draft }
     try {
-      if (!(await uploadPending(held, { signal, deps }))) return null
+      if (!(await uploadPending(held, { actorId, signal, deps }))) return null
     } finally {
       draft = held.draft
     }
@@ -498,7 +514,10 @@ const sendOne = async (
     if (!signal.aborted) deps.reportRequestFailure(error)
     return {
       draft,
-      outcome: classifySendOutcome(error, draft, { now, preflight: !posting })
+      outcome: classifySendOutcome(error, draft, {
+        now: deps.now(),
+        preflight: !posting
+      })
     }
   }
 }
@@ -514,8 +533,9 @@ const withoutClaim = (queue: DraftQueueState) => {
   return rest
 }
 
-// The server may hold the post (PR 2 §2.5(5)): lock the draft under its key
-// (`submit` is kept) and never delete the media it uses.
+// The server may hold the post (a 503, 409 or 400 to the POST): lock the
+// draft under its key (`submit` is kept) and never delete the media it uses,
+// as the composer does.
 const lockIfKept = (
   record: DraftRecord,
   lockedMessage: string | undefined
@@ -585,11 +605,24 @@ const applyOutcome = (
         outcome.lockedMessage
       )
     case 'needs_review': {
-      // 410: nothing is kept under the key any more, so unlock and drop it.
-      const { submit: _submit, lockedMessage: _locked, ...rest } = record
+      if (!outcome.clearSubmit) {
+        return {
+          ...record,
+          queue: { ...base, state: 'needs_review', reason: outcome.reason }
+        }
+      }
+      // 410: nothing is kept under the key any more. Drop the key and every
+      // "a POST was made" mark, so Review reopens the draft unlocked.
+      const {
+        submit: _submit,
+        lockedMessage: _locked,
+        attemptedAt: _attemptedAt,
+        ...rest
+      } = record
+      const { firstAttemptAt: _firstAttemptAt, ...queue } = base
       return {
-        ...(outcome.clearSubmit ? rest : record),
-        queue: { ...base, state: 'needs_review', reason: outcome.reason }
+        ...rest,
+        queue: { ...queue, state: 'needs_review', reason: outcome.reason }
       }
     }
   }
@@ -650,6 +683,8 @@ export const drainQueue = async ({
       })
       .catch(() => null)
     if (!claimed) continue
+    // The list re-reads, so the row shows it is being sent.
+    deps.announce(claimed.id)
     result.attempted += 1
     onProgress({ phase: 'sending', index: index + 1, total, ...counts() })
 

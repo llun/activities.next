@@ -91,6 +91,19 @@ describe('getSlotMessage', () => {
       )
     })
 
+    it('says a failed Pause in the title, keeping the count', () => {
+      expect(
+        getSlotMessage(snapshot({ state: 'online' }), 'llun.test', 0, {
+          ...queue({ phase: 'sending', index: 1, total: 2 }),
+          pauseFailed: true
+        })
+      ).toEqual({
+        kind: 'sending',
+        title: "Couldn't pause sending.",
+        detail: 'Sending 1 of 2 posts'
+      })
+    })
+
     it('joins only the non-zero parts of a result', () => {
       expect(
         message({

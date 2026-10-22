@@ -153,9 +153,9 @@ function SlotActions({
           type="button"
           variant="outline"
           size="sm"
-          // A failed pause leaves the queue running; the Drafts page is the
-          // way to see what is waiting.
-          onClick={() => void queue?.pause().catch(() => {})}
+          // A failed pause leaves the queue running and says so in the
+          // title; pressing Pause again retries it.
+          onClick={() => void queue?.pause()}
         >
           Pause
         </Button>

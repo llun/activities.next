@@ -20,6 +20,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 
 import { DraftEditor } from './DraftEditor'
 import { DraftRow } from './DraftRow'
+import { useSendQueueStatus } from './DraftsProvider'
 
 interface Props {
   host: string
@@ -56,6 +57,7 @@ export const DraftsList: FC<Props> = ({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const loadToken = useRef(0)
+  const queue = useSendQueueStatus()
 
   const load = useCallback(() => {
     const token = ++loadToken.current
@@ -114,7 +116,7 @@ export const DraftsList: FC<Props> = ({
       return
     }
     try {
-      const unqueued = await unqueueDraft(draft.id, Date.now())
+      const unqueued = await unqueueDraft(draft.id)
       if (!unqueued) {
         // Gone since the list was read (sent, or deleted elsewhere).
         load()
@@ -202,7 +204,14 @@ export const DraftsList: FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      {isBusy ? <Alert title="This post is being sent now." /> : null}
+      {isBusy ? (
+        <Alert tone="info" title="This post is being sent now." />
+      ) : null}
+      {queue?.drainFailed && queued.length > 0 ? (
+        <Alert title="Couldn't send queued posts" onRetry={queue.retry}>
+          Something went wrong on this device.
+        </Alert>
+      ) : null}
       {actionError ? (
         <Alert title="Couldn't update this post">{actionError}</Alert>
       ) : null}

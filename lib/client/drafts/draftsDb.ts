@@ -13,6 +13,7 @@ import {
   DraftSignedOutError,
   DraftsUnavailableError
 } from './errors'
+import { retriesOnItsOwn } from './queueConstants'
 import {
   DRAFTS_DB_NAME,
   DRAFTS_DB_VERSION,
@@ -443,7 +444,7 @@ export const deleteAccountDrafts = (accountId: string): Promise<number> =>
     }
   )
 
-// Send-queue operations (plan §4.1). Each is one readwrite transaction, so
+// Send-queue operations. Each is one readwrite transaction, so
 // two tabs claiming the same draft are serialized and exactly one wins. Queue
 // writes keep `updatedAt` ("content saved at").
 
@@ -455,11 +456,7 @@ export const isQueueClaimable = (
   if (!queue) return false
   // A `sending` entry is claimable only once its lease ran out (a dead tab).
   if (queue.state === 'sending') return (queue.claim?.until ?? 0) <= now
-  const ready =
-    queue.state === 'waiting' ||
-    queue.state === 'checking' ||
-    (queue.state === 'paused' && queue.pausedBy === 'rate_limit')
-  return ready && (queue.nextAttemptAt ?? 0) <= now
+  return retriesOnItsOwn(queue) && (queue.nextAttemptAt ?? 0) <= now
 }
 
 /**
@@ -584,10 +581,7 @@ export const ATTEMPTED_UNQUEUE_MESSAGE =
  * same key may settle it. Keeps `submit`, `attemptedAt` and `lockedMessage`;
  * an attempted draft without one is locked (media `owned: false`).
  */
-export const unqueueDraft = (
-  id: string,
-  _now: number
-): Promise<DraftRecord | undefined> =>
+export const unqueueDraft = (id: string): Promise<DraftRecord | undefined> =>
   runTx<DraftRecord | undefined>(
     [DRAFTS_STORE],
     'readwrite',

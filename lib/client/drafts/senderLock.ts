@@ -8,13 +8,25 @@ export const SENDER_LOCK_NAME = 'activities-drafts-sender'
 /** One per tab (module load): the owner of a claim's lease. */
 export const TAB_ID = generatePublicId()
 
-/** Runs `fn` unless another tab holds the lock, in which case it does nothing. */
+/**
+ * Runs `fn` unless another tab holds the lock. Resolves false when it did not
+ * run, so the caller can try again once that tab's pass is over.
+ */
 export const withSenderLock = async (
   fn: () => Promise<void>
-): Promise<void> => {
+): Promise<boolean> => {
   const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
-  if (!locks) return fn()
-  await locks.request(SENDER_LOCK_NAME, { ifAvailable: true }, (lock) =>
-    lock ? fn() : undefined
+  if (!locks) {
+    await fn()
+    return true
+  }
+  return locks.request(
+    SENDER_LOCK_NAME,
+    { ifAvailable: true },
+    async (lock) => {
+      if (!lock) return false
+      await fn()
+      return true
+    }
   )
 }
