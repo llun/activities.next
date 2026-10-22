@@ -60,7 +60,7 @@ describe('NavigationSettings', () => {
   it('lists the items this account can reach, with their descriptions', () => {
     renderSettings(<NavigationSettings fitnessUrl="/fitness" isAdmin />)
 
-    expect(screen.getAllByRole('listitem')).toHaveLength(12)
+    expect(screen.getAllByRole('listitem')).toHaveLength(13)
     expect(
       screen.getByText('Posts from accounts you follow')
     ).toBeInTheDocument()
@@ -194,7 +194,7 @@ describe('NavigationSettings', () => {
     )
 
     expect(
-      await screen.findByText('Search moved up, position 1 of 10')
+      await screen.findByText('Search moved up, position 1 of 11')
     ).toBeVisible()
   })
 
@@ -265,7 +265,7 @@ describe('NavigationSettings', () => {
     const spoken = liveRegions()
       .map((region) => region.textContent?.trim())
       .filter(Boolean)
-    expect(spoken).toEqual(['Search moved up, position 1 of 10'])
+    expect(spoken).toEqual(['Search moved up, position 1 of 11'])
   })
 
   it('keeps the retry under the finger that pressed it while its save runs', async () => {

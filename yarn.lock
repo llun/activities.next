@@ -3786,6 +3786,7 @@ __metadata:
     dotenv-flow: "npm:^4.1.0"
     eld: "npm:^2.1.0"
     exifr: "npm:^7.1.3"
+    fake-indexeddb: "npm:^6.2.6"
     fast-xml-parser: "npm:^5.11.2"
     fit-file-parser: "npm:^6.2.2"
     got: "npm:^16.1.0"
@@ -4805,6 +4806,13 @@ __metadata:
   version: 3.0.2
   resolution: "extend@npm:3.0.2"
   checksum: 10c0/73bf6e27406e80aa3e85b0d1c4fd987261e628064e170ca781125c0b635a3dabad5e05adbf07595ea0cf1e6c5396cacb214af933da7cbaf24fe75ff14818e8f9
+  languageName: node
+  linkType: hard
+
+"fake-indexeddb@npm:^6.2.6":
+  version: 6.2.6
+  resolution: "fake-indexeddb@npm:6.2.6"
+  checksum: 10c0/d55b3155548f08da1c9d7552314eed30fd1880c1f7643654c8b0c1fdf80591682d9f88e7a5c481113f48b994cb09820d61eee0dd8b966ca4f4497fce0eb748de
   languageName: node
   linkType: hard
 

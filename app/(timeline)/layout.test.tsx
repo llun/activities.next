@@ -92,6 +92,31 @@ vi.mock('@/lib/components/layout/nav-preferences-context', () => ({
   )
 }))
 
+vi.mock('@/lib/components/connection/ConnectionStatus', () => ({
+  ConnectionAnnouncer: () => <div data-testid="connection-announcer" />,
+  ConnectionStatusBar: () => <div data-testid="connection-bar" />,
+  ConnectionStatusStrip: () => <div data-testid="connection-strip" />
+}))
+vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
+  DraftsProvider: ({
+    accountId,
+    actorId,
+    children
+  }: {
+    accountId: string
+    actorId: string
+    children: ReactNode
+  }) => (
+    <div
+      data-testid="drafts-provider"
+      data-account-id={accountId}
+      data-actor-id={actorId}
+    >
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('@/app/Modal', () => ({ Modal: () => <div data-testid="modal" /> }))
 vi.mock('@/lib/components/layout/sidebar', () => ({
   Sidebar: ({ fitnessUrl }: { fitnessUrl?: string }) => (
@@ -170,6 +195,36 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
+  })
+
+  it('mounts the drafts provider, the status bar and the announcer for signed-in users', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+
+    await renderLayout()
+
+    const provider = screen.getByTestId('drafts-provider')
+    expect(provider).toHaveAttribute('data-account-id', 'account-1')
+    expect(provider).toHaveAttribute('data-actor-id', signedInActor.id)
+    // The provider wraps the nav too (the Drafts badge) and the page.
+    expect(provider).toContainElement(screen.getByTestId('sidebar'))
+    expect(provider).toContainElement(screen.getByTestId('child'))
+    // The bar is the first thing in the content column; the announcer is once.
+    const bar = screen.getByTestId('connection-bar')
+    expect(bar.nextElementSibling).toBe(screen.getByTestId('child'))
+    expect(screen.getAllByTestId('connection-announcer')).toHaveLength(1)
+    expect(screen.getByRole('main')).not.toContainElement(
+      screen.getByTestId('connection-announcer')
+    )
+  })
+
+  it('mounts none of the drafts or connection chrome for logged-out visitors', async () => {
+    mockGetActorFromSession.mockResolvedValue(null)
+
+    await renderLayout()
+
+    expect(screen.queryByTestId('drafts-provider')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('connection-bar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('connection-announcer')).not.toBeInTheDocument()
   })
 
   it('mounts SessionKeepAlive for signed-in users', async () => {

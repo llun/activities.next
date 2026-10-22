@@ -14,8 +14,8 @@ import {
 import {
   createNote,
   createPoll,
-  deleteAccountMedia,
-  deleteFitnessFile,
+  deleteUnpostedFitnessFile,
+  deleteUnpostedMedia,
   getCustomEmojis,
   getDefaultQuotePolicy,
   getGallerySettings,
@@ -25,17 +25,22 @@ import {
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
+import { reportRequestFailure } from '@/lib/client/connection'
+import type { DraftRecord } from '@/lib/client/drafts'
 import {
   DRAFT_LOCKED_NOTICE,
   classifyFailedPost,
   isPostKeptByServer
 } from '@/lib/client/http'
+import { DraftsLink } from '@/lib/components/drafts/DraftsLink'
+import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import type {
   MediaDetailsDialogItem,
   MediaDetailsSavedItem
 } from '@/lib/components/media-details/media-details-dialog'
 import { ContentWarning } from '@/lib/components/posts/content-warning'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
@@ -68,6 +73,7 @@ import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
+import { DraftSaveStatus } from './DraftSaveStatus'
 import {
   ComposerAttachmentTiles,
   getAttachmentLabel
@@ -94,7 +100,9 @@ import { QuotedPreview } from './quoted-preview'
 import {
   addAttachment,
   addPollChoice,
+  createChoices,
   createDefaultState,
+  loadExtension,
   removeFitnessFile,
   removePollChoice,
   resetExtension,
@@ -114,6 +122,15 @@ import {
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
 import { UploadMediaButton } from './upload-media-button'
+import {
+  DRAFT_CONFLICT_SEND_NOTICE,
+  DRAFT_NOT_SAVED_SEND_NOTICE,
+  type DraftContent,
+  fromDraftAttachment,
+  loadDraftFiles,
+  toDraftAttachment,
+  useComposerDraft
+} from './useComposerDraft'
 
 // Only shown once a media's details are opened, so keep it (and its gallery
 // dependencies) out of the initial bundle.
@@ -149,6 +166,17 @@ interface Props {
   onPostCreated: (status: Status, attachments: Attachment[]) => void
   onPostUpdated: (status: Status) => void
   onDiscardEdit: () => void
+  /** A saved draft to reopen: seeds the composer on its first run. */
+  draft?: DraftRecord
+  /** Drafts page only: an emptied draft stays saved until the editor closes. */
+  keepWhenEmpty?: boolean
+  /**
+   * When set, the form is wrapped in a `<section>` with these classes and the
+   * submit Alert renders after it, outside the framed card.
+   */
+  frameClassName?: string
+  /** The home composer only: shows the "N drafts · Open" link. */
+  showDraftsLink?: boolean
 }
 
 export const PostBox: FC<Props> = ({
@@ -163,7 +191,11 @@ export const PostBox: FC<Props> = ({
   onPostUpdated,
   onDiscardReply,
   onDiscardQuote,
-  onDiscardEdit
+  onDiscardEdit,
+  draft,
+  keepWhenEmpty,
+  frameClassName,
+  showDraftsLink
 }) => {
   // The instance's configured status length (admin setting `posts.maxCharacters`,
   // published by the (timeline) layout). Client-side UX only — the create/edit
@@ -175,6 +207,13 @@ export const PostBox: FC<Props> = ({
   const [showPreview, setShowPreview] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
+  // A failed submit, shown as an Alert after the composer card.
+  const [submitError, setSubmitError] = useState<{
+    title: string
+    message: string
+    // False for a conflict: trying again can only block again.
+    retryable: boolean
+  } | null>(null)
   // Set once the server kept a create (503/409): the draft is locked so Post
   // retries the same payload under the same Idempotency-Key. Any edit would
   // mint a new key and strand the kept post (or duplicate it).
@@ -187,9 +226,10 @@ export const PostBox: FC<Props> = ({
     draftLockedRef.current = message !== null
     setLockedMessageState(message)
   }
-  // Bumped when the composer is re-targeted: a submit still in flight belongs
-  // to the previous draft and must not lock the new one.
-  const draftGenerationRef = useRef(0)
+  // A new target that arrived while a send was in flight: applied once it
+  // settles, so the send and its draft always stay this composer's own.
+  const retargetPendingRef = useRef(false)
+  const [retargetAfterSend, setRetargetAfterSend] = useState(0)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(postBoxRef, text)
   const formRef = useRef<HTMLFormElement>(null)
@@ -273,6 +313,110 @@ export const PostBox: FC<Props> = ({
   // resetExtension() that follows a successful create.
   const defaultQuotePolicyRef = useRef<QuoteApprovalPolicy>('public')
 
+  // On-device draft. The pre-fill a reply starts with is not the author's
+  // text, so it alone never makes a draft.
+  const initialTextRef = useRef('')
+  // Server media id -> the local id the draft knows the attachment by (the
+  // temporary id it was first drawn with), kept synchronously for the draft.
+  const localIdByIdRef = useRef(new Map<string, string>())
+  const fitnessLocalIdRef = useRef<string | null>(null)
+  const draftSeededRef = useRef(false)
+  // Bumped when a reopened draft is put back, so `allowPost` is worked out
+  // again from what the composer then holds.
+  const [draftSeedVersion, setDraftSeedVersion] = useState(0)
+
+  // True while a reopened draft's attachment bytes are loading.
+  const draftSeedingRef = useRef(false)
+
+  // What the draft is written for: it follows the props only when the
+  // composer is re-targeted, after the previous draft was let go of.
+  const [draftTarget, setDraftTarget] = useState({
+    replyTo: replyStatus,
+    quoteOf: quotedStatus,
+    editId: editStatus?.id
+  })
+  const getDraftContent = (force = false): DraftContent | null => {
+    // The applied target (see draftTarget): an edit is never a draft.
+    if (draftTarget.editId) return null
+    const extension = postExtensionRef.current
+    const value = textRef.current
+    // Not owned: a gallery photo the composer opened with, or media a kept
+    // post uses. Discarding the draft never deletes these.
+    const owned = (id: string) =>
+      !keptMediaIdsRef.current.has(id) && !postedMediaIdsRef.current.has(id)
+    const attachments = extension.attachments.map((attachment) =>
+      toDraftAttachment(attachment, {
+        localIds: localIdByIdRef.current,
+        isOwned: owned,
+        fileName: fileNames[attachment.id],
+        decorative: Boolean(decorativeIdsRef.current[attachment.id])
+      })
+    )
+    const poll = extension.poll.showing
+      ? {
+          choices: extension.poll.choices.map((choice) => choice.text),
+          durationInSeconds: extension.poll.durationInSeconds,
+          pollType: extension.poll.pollType
+        }
+      : undefined
+    const fitness = extension.fitnessFile
+    if (fitness && !fitnessLocalIdRef.current) {
+      fitnessLocalIdRef.current = generatePublicId()
+    }
+    const fitnessFile =
+      fitness && fitnessLocalIdRef.current
+        ? {
+            localId: fitnessLocalIdRef.current,
+            fileName: fitness.file.name,
+            mimeType: fitness.file.type,
+            size: fitness.file.size,
+            fitnessFileId: fitness.uploadedId,
+            owned: !(
+              fitness.uploadedId &&
+              keptFitnessFileIdsRef.current.has(fitness.uploadedId)
+            )
+          }
+        : undefined
+    const worthKeeping =
+      (value.trim() !== '' && value !== initialTextRef.current) ||
+      extension.contentWarning.trim() !== '' ||
+      attachments.some((attachment) => attachment.owned) ||
+      Boolean(poll?.choices.some((choice) => choice.trim() !== '')) ||
+      Boolean(fitnessFile)
+    // A locked draft stays until it is discarded, whatever it holds.
+    if (!worthKeeping && !force && !draftLockedRef.current) return null
+    return {
+      text: value,
+      contentWarning: extension.contentWarning,
+      contentWarningVisible: extension.contentWarningVisible,
+      visibility: extension.visibility,
+      quoteApprovalPolicy: extension.quoteApprovalPolicy,
+      poll,
+      attachments,
+      fitnessFile
+    }
+  }
+
+  const composerDraft = useComposerDraft({
+    composer: 'post-box',
+    // The applied target, not the prop: an edit turning into a new post (Quote
+    // on the same row mid-update) must not save the edit's text meanwhile.
+    editing: Boolean(draftTarget.editId),
+    replyTo: draftTarget.replyTo,
+    quoteOf: draftTarget.quoteOf,
+    draft,
+    keepWhenEmpty,
+    isSeeding: () => draftSeedingRef.current,
+    getContent: getDraftContent,
+    // The draft this composer let go of keeps its key; new content gets its own.
+    onUnlock: () => {
+      submitIdempotencyRef.current = null
+      // The block belonged to the draft this composer let go of.
+      setSubmitError(null)
+    }
+  })
+  const drafts = useDrafts()
+
   useEffect(() => {
     postExtensionRef.current = postExtension
     if (
@@ -289,7 +433,8 @@ export const PostBox: FC<Props> = ({
     getDefaultQuotePolicy().then((policy) => {
       if (!active) return
       defaultQuotePolicyRef.current = policy
-      dispatch(setQuoteApprovalPolicy(policy))
+      // A reopened draft keeps the policy it was written with.
+      if (!draft) dispatch(setQuoteApprovalPolicy(policy))
     })
     return () => {
       active = false
@@ -309,6 +454,13 @@ export const PostBox: FC<Props> = ({
   useEffect(() => {
     textRef.current = text
   }, [text])
+
+  // Autosave. Poll choices are uncontrolled inputs that write into their
+  // Choice objects, so typing in one never renders: the form's onInput covers it.
+  useEffect(() => {
+    composerDraft.schedule()
+    // schedule is stable and reads the composer through refs.
+  }, [text, postExtension, decorativeIds, fileNames, lockedMessage])
 
   const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([])
   useEffect(() => {
@@ -400,15 +552,25 @@ export const PostBox: FC<Props> = ({
     // Deliberately keyed only on the limit, the in-flight flag, the edit target
     // (to pick the predicate) and the draft lock: the draft itself is read from
     // refs, and every draft edit already recomputes `allowPost` in its handler.
-  }, [maxStatusCharacters, isPosting, editStatus, draftLocked])
+  }, [
+    maxStatusCharacters,
+    isPosting,
+    editStatus,
+    draftLocked,
+    draftSeedVersion
+  ])
 
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
+      // A saved draft owns its media: keeping it wins over deleting it.
+      const draftOwnsMedia = composerDraft.hasDraft()
+      void composerDraft.flush()
       // Uploads happen on attach, so media still in the composer when it goes
-      // away was never posted: delete it (unless a submit is using it).
-      if (!submitInFlightRef.current) {
+      // away was never posted: delete it (unless a submit is using it, or a
+      // draft keeps it).
+      if (!submitInFlightRef.current && !draftOwnsMedia) {
         discardUploadedMedia(postExtensionRef.current.attachments)
       }
       postExtensionRef.current.attachments.forEach((attachment) => {
@@ -424,14 +586,18 @@ export const PostBox: FC<Props> = ({
 
   // Best-effort delete of media that was uploaded on attach but never posted.
   // Attachments still holding a file have no server copy yet, and the original
-  // attachments of a status being edited are never deleted.
+  // attachments of a status being edited are never deleted. The server refuses
+  // (422) media a post uses, e.g. one another tab sent this draft as.
   function discardUploadedMedia(attachments: PostBoxAttachment[]) {
     attachments.forEach((attachment) => {
       if (attachment.file || attachment.isLoading) return
       if (originalMediaIdsRef.current.has(attachment.id)) return
       if (keptMediaIdsRef.current.has(attachment.id)) return
       if (postedMediaIdsRef.current.has(attachment.id)) return
-      deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
+      const del = () => deleteUnpostedMedia(attachment.id)
+      // One the stored draft holds waits for the next save (useComposerDraft).
+      if (composerDraft.deferServerDelete(attachment.id, del)) return
+      del().catch(() => undefined)
     })
   }
 
@@ -652,9 +818,13 @@ export const PostBox: FC<Props> = ({
         // Removed (or the composer unmounted) while uploading: the server copy
         // is an orphan, so delete it (best effort) and leave no state behind.
         if (!current || !isMountedRef.current) {
-          deleteAccountMedia({ mediaId: uploaded.id }).catch(() => undefined)
+          deleteUnpostedMedia(uploaded.id).catch(() => undefined)
           return
         }
+        localIdByIdRef.current.set(
+          uploaded.id,
+          localIdByIdRef.current.get(tempId) ?? tempId
+        )
         setClientKeys((keys) => ({
           ...keys,
           [uploaded.id]: keys[tempId] ?? tempId
@@ -823,6 +993,8 @@ export const PostBox: FC<Props> = ({
     setFileNames({})
     setDetailsPending({})
     setActiveDetailsId(null)
+    localIdByIdRef.current.clear()
+    fitnessLocalIdRef.current = null
   }
 
   decorativeIdsRef.current = decorativeIds
@@ -869,6 +1041,26 @@ export const PostBox: FC<Props> = ({
     hasUndescribedAttachment && !gallerySettings && !settingsFailed
   const missingDescription = descriptionRequired && hasUndescribedAttachment
 
+  // The key and the attempt are written to the draft before the POST. If that
+  // write fails the post is NOT sent: a lost response plus a lost key would
+  // send the same post again under a new key after a reload.
+  const checkpointAttempt = async () => {
+    const key = submitIdempotencyRef.current
+    if (!key) return true
+    if (await composerDraft.recordAttempt(key)) return true
+    const conflicted = composerDraft.isConflicted()
+    setSubmitError({
+      title: "Couldn't send.",
+      message: conflicted
+        ? DRAFT_CONFLICT_SEND_NOTICE
+        : DRAFT_NOT_SAVED_SEND_NOTICE,
+      retryable: !conflicted
+    })
+    setIsPosting(false)
+    setAllowPost(true)
+    return false
+  }
+
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
@@ -879,13 +1071,24 @@ export const PostBox: FC<Props> = ({
     )
       return
     if (submitInFlightRef.current) return
+    // New props not applied yet (the re-target effect runs after the render
+    // that brought them): never send this composer's content under them.
+    if (
+      editStatus?.id !== draftTarget.editId ||
+      replyStatus?.id !== draftTarget.replyTo?.id ||
+      quotedStatus?.id !== draftTarget.quoteOf?.id
+    ) {
+      return
+    }
     submitInFlightRef.current = true
-    const generation = draftGenerationRef.current
+    // Set once the post went out: a re-target waiting for it then just moves on.
+    let sent = false
     const retryingLockedDraft = draftLocked
 
     setAllowPost(false)
     setIsPosting(true)
     setWarningMsg(null)
+    setSubmitError(null)
     const message = text
     const contentWarning = postExtension.contentWarningVisible
       ? postExtension.contentWarning
@@ -921,6 +1124,7 @@ export const PostBox: FC<Props> = ({
             key: generatePublicId()
           }
         }
+        if (!(await checkpointAttempt())) return
         await createPoll({
           message,
           contentWarning,
@@ -934,6 +1138,7 @@ export const PostBox: FC<Props> = ({
 
         submitIdempotencyRef.current = null
         setLockedMessage(null)
+        void composerDraft.release()
         dispatch(resetExtension())
         resetMediaState()
         // Clear the draft like the note branch does. Leaving the question text
@@ -942,6 +1147,7 @@ export const PostBox: FC<Props> = ({
         setText('')
         textRef.current = ''
         setIsPosting(false)
+        sent = true
         return
       }
 
@@ -1037,6 +1243,16 @@ export const PostBox: FC<Props> = ({
             )
             fitnessFileId = uploadedFitnessFile.id
             dispatch(setFitnessFileUploaded(uploadedFitnessFile.id))
+            // The draft reads the ref, which only follows a render.
+            if (postExtensionRef.current.fitnessFile) {
+              postExtensionRef.current = {
+                ...postExtensionRef.current,
+                fitnessFile: {
+                  ...postExtensionRef.current.fitnessFile,
+                  uploadedId: uploadedFitnessFile.id
+                }
+              }
+            }
           } catch (error) {
             dispatch(setFitnessFileUploading(false))
             const errorMessage =
@@ -1078,6 +1294,7 @@ export const PostBox: FC<Props> = ({
         }
       }
 
+      if (!(await checkpointAttempt())) return
       const response = await createNote({
         message,
         contentWarning,
@@ -1094,6 +1311,8 @@ export const PostBox: FC<Props> = ({
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
+      // The posted status owns the media now: drop the draft and its bytes only.
+      void composerDraft.release()
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       resetMediaState()
@@ -1103,9 +1322,11 @@ export const PostBox: FC<Props> = ({
 
       setText('')
       setIsPosting(false)
+      sent = true
     } catch (error) {
       setIsPosting(false)
       setAllowPost(true)
+      reportRequestFailure(error)
       const fallbackMessage = editStatus
         ? 'Fail to update the post'
         : 'Fail to create a post'
@@ -1123,20 +1344,45 @@ export const PostBox: FC<Props> = ({
         wayOut: 'discard the draft',
         kept: keptByServer
       })
-      if (generation === draftGenerationRef.current) {
-        if (action === 'lock') {
-          setLockedMessage(failureMessage)
-        } else if (action === 'unlock') {
+      if (action === 'lock') {
+        setLockedMessage(failureMessage)
+        // Persist the key and the lock: a reopened draft must retry under the
+        // same key, or it duplicates the post the server kept.
+        void composerDraft.recordLock(
+          failureMessage,
+          submitIdempotencyRef.current
+        )
+      } else {
+        if (action === 'unlock') {
           // Nothing is kept under this key any more: let the draft be edited
           // again under a new key instead of stranding it.
           setLockedMessage(null)
           submitIdempotencyRef.current = null
+          void composerDraft.recordLock(null, null)
         }
-        // A stale failure belongs to a previous draft: say nothing on this one.
-        alert(failureMessage)
+        // A lock shows only its own status line.
+        setSubmitError({
+          title: editStatus ? "Couldn't update." : "Couldn't send.",
+          message: failureMessage,
+          retryable: true
+        })
       }
     } finally {
-      submitInFlightRef.current = false
+      if (!retargetPendingRef.current) submitInFlightRef.current = false
+      else {
+        retargetPendingRef.current = false
+        // Still this send's composer until it moves on: nothing can be sent
+        // from it (under the new target's mode) while the draft is kept.
+        const moveOn = () => {
+          submitInFlightRef.current = false
+          setRetargetAfterSend((count) => count + 1)
+        }
+        // Not sent: kept in Drafts (or offered in the note) first, as closing
+        // a reply does, so moving on never drops it silently.
+        // An edit of a published post is never a draft, whatever happens to it.
+        if (sent || editStatus) moveOn()
+        else void composerDraft.keep().then(moveOn, moveOn)
+      }
     }
   }
 
@@ -1145,10 +1391,13 @@ export const PostBox: FC<Props> = ({
   // it), so they are only dropped from the composer, never deleted.
   const onDiscardLockedDraft = () => {
     if (submitInFlightRef.current) return
-    draftGenerationRef.current += 1
+    // Before the composer clears: the draft's media is the kept post's, so
+    // this deletes only the local record.
+    void composerDraft.discard()
     submitIdempotencyRef.current = null
     setLockedMessage(null)
     setWarningMsg(null)
+    setSubmitError(null)
     setText('')
     textRef.current = ''
     postExtensionRef.current = createDefaultState()
@@ -1158,12 +1407,25 @@ export const PostBox: FC<Props> = ({
     setAllowPost(false)
   }
 
+  // Closing a reply or quote: text worth keeping stays in Drafts (and says
+  // so); a locked or empty draft is dropped.
+  const settleDraftOnClose = () => {
+    if (editStatus) return
+    if (!draftLocked && getDraftContent() !== null) void composerDraft.keep()
+    else void composerDraft.discard()
+  }
+
   const onCloseReply = () => {
+    // A submit in flight owns the draft: closing now would lose its result.
+    if (submitInFlightRef.current) return
+    settleDraftOnClose()
     onDiscardReply()
     setText('')
   }
 
   const onCloseQuote = () => {
+    if (submitInFlightRef.current) return
+    settleDraftOnClose()
     onDiscardQuote?.()
   }
 
@@ -1222,25 +1484,28 @@ export const PostBox: FC<Props> = ({
       )
     }
 
+    const uploadedId = fitnessFile.uploadedId
     if (
-      !fitnessFile.uploadedId ||
-      keptFitnessFileIdsRef.current.has(fitnessFile.uploadedId)
+      !uploadedId ||
+      keptFitnessFileIdsRef.current.has(uploadedId) ||
+      composerDraft.deferServerDelete(uploadedId, () =>
+        deleteUnpostedFitnessFile(uploadedId)
+      )
     ) {
       clearFitnessFile()
       return true
     }
 
     const inFlight = fitnessCleanupInFlightRef.current
-    if (inFlight?.uploadedId === fitnessFile.uploadedId) {
+    if (inFlight?.uploadedId === uploadedId) {
       return inFlight.promise
     }
-
-    const uploadedId = fitnessFile.uploadedId
 
     const cleanupPromise = (async () => {
       try {
         setWarningMsg(null)
-        await deleteFitnessFile(uploadedId)
+        // False: a post uses it (another tab sent this draft), so it stays.
+        await deleteUnpostedFitnessFile(uploadedId)
         clearFitnessFile()
         return true
       } catch (error) {
@@ -1324,6 +1589,10 @@ export const PostBox: FC<Props> = ({
     }
     postExtensionRef.current = nextExtension
     dispatch(setFitnessFile(file))
+    if (!editStatus) {
+      fitnessLocalIdRef.current = generatePublicId()
+      composerDraft.attachBlob(fitnessLocalIdRef.current, file)
+    }
     setAllowPost(
       hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
     )
@@ -1408,7 +1677,125 @@ export const PostBox: FC<Props> = ({
     void onRemoveFitnessFile()
   }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
+  // Puts a reopened draft back in the composer. The draft's own revision, key
+  // and lock are already in the hook; this restores what the author sees.
+  // Attachments the server already has are used as they are (never uploaded
+  // again, so the submit fingerprint and its key stay the same); the ones that
+  // never finished uploading are rebuilt from the kept bytes and uploaded.
+  const seedFromDraft = (seed: DraftRecord) => {
+    const apply = (files: Awaited<ReturnType<typeof loadDraftFiles>>) => {
+      const pending: PostBoxAttachment[] = []
+      const attachments: PostBoxAttachment[] = []
+      const names: Record<string, string> = {}
+      const decorative: Record<string, true> = {}
+      const keys: Record<string, string> = {}
+      for (const item of seed.attachments) {
+        const restored = fromDraftAttachment(item, files)
+        // The bytes are gone and the server never had it: nothing to restore.
+        if (!restored) continue
+        if (item.mediaId) {
+          attachments.push(restored)
+          names[item.mediaId] = item.fileName
+          keys[item.mediaId] = item.localId
+          localIdByIdRef.current.set(item.mediaId, item.localId)
+          if (item.decorative) decorative[item.mediaId] = true
+          // A locked draft's media belongs to the post the server kept.
+          if (!item.owned) postedMediaIdsRef.current.add(item.mediaId)
+          continue
+        }
+        const attachment: PostBoxAttachment = { ...restored, isLoading: true }
+        attachments.push(attachment)
+        pending.push(attachment)
+      }
+
+      let fitnessFile:
+        { file: File; uploading: boolean; uploadedId?: string } | undefined
+      const savedFitness = seed.fitnessFile
+      if (savedFitness) {
+        const stored = files.get(savedFitness.localId)
+        if (stored || savedFitness.fitnessFileId) {
+          fitnessFile = {
+            file:
+              stored?.file ??
+              new File([], savedFitness.fileName, {
+                type: savedFitness.mimeType
+              }),
+            uploading: false,
+            uploadedId: savedFitness.fitnessFileId
+          }
+          fitnessLocalIdRef.current = savedFitness.localId
+          // The file may be in use by a post the server kept or may have kept.
+          if (
+            savedFitness.fitnessFileId &&
+            (!savedFitness.owned || seed.attemptedAt)
+          ) {
+            keptFitnessFileIdsRef.current.add(savedFitness.fitnessFileId)
+          }
+        }
+      }
+
+      const nextExtension = {
+        ...createDefaultState(),
+        attachments,
+        contentWarning: seed.contentWarning,
+        contentWarningVisible: seed.contentWarningVisible,
+        visibility: seed.visibility,
+        quoteApprovalPolicy: seed.quoteApprovalPolicy,
+        fitnessFile,
+        poll: seed.poll
+          ? {
+              showing: true,
+              choices: createChoices(seed.poll.choices),
+              durationInSeconds: seed.poll.durationInSeconds,
+              pollType: seed.poll.pollType
+            }
+          : createDefaultState().poll
+      }
+      postExtensionRef.current = nextExtension
+      dispatch(loadExtension(nextExtension))
+      setFileNames(names)
+      setDecorativeIds(decorative)
+      decorativeIdsRef.current = decorative
+      setClientKeys(keys)
+      textRef.current = seed.text
+      setText(seed.text)
+      submitIdempotencyRef.current = seed.submit ?? null
+      setLockedMessage(seed.lockedMessage ?? null)
+      setDraftSeedVersion((version) => version + 1)
+      pending.forEach((attachment) => startUpload(attachment))
+      attachments
+        .filter((attachment) => !attachment.file)
+        .forEach((attachment) => void loadDetails(attachment.id))
+    }
+
+    const needsBytes =
+      seed.attachments.some((item) => !item.mediaId) || seed.fitnessFile
+    if (!needsBytes) {
+      apply(new Map())
+      return
+    }
+    draftSeedingRef.current = true
+    void loadDraftFiles(seed).then((files) => {
+      draftSeedingRef.current = false
+      if (isMountedRef.current) apply(files)
+    })
+  }
+
   useEffect(() => {
+    // A composer opened from a draft is that draft's composer: it is never
+    // re-targeted, and React StrictMode's second run must not reset it.
+    if (draft && draftSeededRef.current) return
+    // A send in flight keeps its draft and this composer until it settles;
+    // only a new target waits for it.
+    if (submitInFlightRef.current) {
+      // Back to the target it holds (A, B, then A again) waits for nothing.
+      retargetPendingRef.current =
+        replyStatus?.id !== draftTarget.replyTo?.id ||
+        quotedStatus?.id !== draftTarget.quoteOf?.id ||
+        editStatus?.id !== draftTarget.editId
+      return
+    }
+    retargetPendingRef.current = false
     // The photos a "Post" action in Gallery handed over. They seed the first
     // time through. React StrictMode re-runs effects in development before the
     // seeded photos have been drawn, and the profile can change identity
@@ -1427,13 +1814,34 @@ export const PostBox: FC<Props> = ({
         ? seededMediaRef.current
         : []
 
-    // The composer is being re-targeted: media uploaded for the previous draft
-    // and never posted is abandoned (unless a submit is still using it).
-    if (!submitInFlightRef.current) {
+    // The composer is being re-targeted (never while a send is in flight):
+    // media uploaded for the previous draft and never posted is abandoned.
+    // A saved draft keeps its media and is left behind as it is.
+    // The first run for a reopened draft has nothing to leave behind: the draft
+    // is this composer's own.
+    const reopening = Boolean(draft) && !draftSeededRef.current
+    const draftOwnsMedia = !reopening && composerDraft.hasDraft()
+    if (draftOwnsMedia) void composerDraft.detach()
+    setDraftTarget({
+      replyTo: replyStatus,
+      quoteOf: quotedStatus,
+      editId: editStatus?.id
+    })
+    if (!draftOwnsMedia) {
       discardUploadedMedia(postExtensionRef.current.attachments)
     }
     setLockedMessage(null)
-    draftGenerationRef.current += 1
+    setSubmitError(null)
+    if (draft && !editStatus) {
+      draftSeededRef.current = true
+      originalMediaIdsRef.current = new Set()
+      initialMediaTakenRef.current = true
+      if (quotedStatus) {
+        setTimeout(() => postBoxRef.current?.focus(), 0)
+      }
+      seedFromDraft(draft)
+      return
+    }
     if (editStatus) {
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
@@ -1494,6 +1902,7 @@ export const PostBox: FC<Props> = ({
         ? getDefaultMessage(profile, replyStatus)
         : null
 
+    initialTextRef.current = defaultReplyMessage?.[0] ?? ''
     if (defaultReplyMessage) {
       const [replyText, replyStart, replyEnd] = defaultReplyMessage
       setText(replyText)
@@ -1523,7 +1932,8 @@ export const PostBox: FC<Props> = ({
         }
       }, 0)
     }
-  }, [profile, replyStatus, editStatus, quotedStatus])
+    // retargetAfterSend: run again with the latest props once a send settles.
+  }, [profile, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
   const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
     // Items still reading their details have nothing to edit yet.
@@ -1540,9 +1950,9 @@ export const PostBox: FC<Props> = ({
       details: detailsById[item.id] ?? null
     }))
 
-  return (
-    <div>
-      <form ref={formRef} onSubmit={onPost}>
+  const form = (
+    <>
+      <form ref={formRef} onSubmit={onPost} onInput={composerDraft.schedule}>
         <div className="flex items-start gap-3 mb-3">
           <Avatar className="size-12">
             <AvatarImage
@@ -1559,13 +1969,13 @@ export const PostBox: FC<Props> = ({
               host={host}
               status={replyStatus}
               onClose={onCloseReply}
-              disabled={draftLocked}
+              disabled={draftLocked || isPosting}
             />
             <QuotedPreview
               host={host}
               status={quotedStatus}
               onClose={onCloseQuote}
-              disabled={draftLocked}
+              disabled={draftLocked || isPosting}
             />
             {postExtension.contentWarningVisible ? (
               <input
@@ -1591,6 +2001,21 @@ export const PostBox: FC<Props> = ({
               value={text}
               readOnly={draftLocked}
             />
+
+            {composerDraft.saveState !== 'idle' ||
+            (showDraftsLink && (drafts?.count ?? 0) > 0) ? (
+              <div className="flex items-center justify-between gap-3">
+                <DraftSaveStatus
+                  saveState={composerDraft.saveState}
+                  text={text}
+                />
+                {showDraftsLink ? (
+                  <div className="ml-auto">
+                    <DraftsLink excludeId={composerDraft.draftId} />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {showPreview ? (
               <div className="rounded-lg border bg-background p-3">
@@ -1715,6 +2140,13 @@ export const PostBox: FC<Props> = ({
                 postExtensionRef.current = nextExtension
                 dispatch(addAttachment(pendingAttachment, maxMediaAttachments))
                 startUpload(pendingAttachment)
+                if (!editStatus && attachment.file) {
+                  composerDraft.attachBlob(
+                    pendingAttachment.id,
+                    attachment.file,
+                    attachment.posterFile
+                  )
+                }
                 if (editStatus) {
                   setAllowPost(
                     isEditSubmittable(textRef.current, nextExtension)
@@ -1905,6 +2337,32 @@ export const PostBox: FC<Props> = ({
           suggestionsPending={suggestionsPending}
           ownerId={profile.id}
         />
+      ) : null}
+    </>
+  )
+
+  return (
+    // The home feed below is pulled up 24px on a phone so it meets the card's
+    // divider; an Alert in between hands that gap back (padding, because a
+    // margin here would collapse into the pull).
+    <div className={cn(frameClassName && submitError && 'max-md:pb-6')}>
+      {frameClassName ? (
+        <section className={frameClassName}>{form}</section>
+      ) : (
+        form
+      )}
+      {/* After the card, never inside it. */}
+      {submitError ? (
+        <Alert
+          title={submitError.title}
+          onRetry={submitError.retryable ? () => void onPost() : undefined}
+          className="mt-3"
+        >
+          {submitError.message}
+          {!editStatus && composerDraft.saveState === 'saved'
+            ? `${/[.!?]$/.test(submitError.message.trim()) ? '' : '.'} Your post is saved as a draft.`
+            : ''}
+        </Alert>
       ) : null}
     </div>
   )

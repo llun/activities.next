@@ -13,6 +13,7 @@ export const NAV_ITEM_IDS = [
   'search',
   'explore',
   'messages',
+  'drafts',
   'favorites',
   'bookmarks',
   'lists',

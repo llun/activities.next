@@ -15,6 +15,7 @@ import {
   TimelineRequestError,
   getTimeline
 } from '@/lib/client'
+import { checkServerHealth } from '@/lib/client/health'
 import {
   clearAllOfflineData,
   getOfflineTimeline,
@@ -32,7 +33,11 @@ import {
   createStatus,
   installIntersectionObserver,
   profile,
-  resetIntersectionObserver
+  resetConnectionSimulation,
+  resetIntersectionObserver,
+  simulateBackOnline,
+  simulateOffline,
+  simulateServerUnreachable
 } from './MainPageTimeline.testUtils'
 
 vi.mock('next/navigation', () => ({
@@ -63,6 +68,8 @@ vi.mock('@/lib/client/offline', async () => {
     saveOfflineScrollAnchor: vi.fn().mockResolvedValue(undefined)
   }
 })
+
+vi.mock('@/lib/client/health', () => ({ checkServerHealth: vi.fn() }))
 
 vi.mock('@/lib/client/statuses', () => ({
   reconcileCachedStatuses: vi.fn().mockResolvedValue({
@@ -148,6 +155,10 @@ describe('MainPageTimeline', () => {
       removedStatusIds: []
     })
     resetIntersectionObserver()
+  })
+
+  afterEach(() => {
+    resetConnectionSimulation()
   })
 
   it('renders posts using the currentTime prop, not a freshly computed Date.now()', () => {
@@ -1364,7 +1375,8 @@ describe('MainPageTimeline', () => {
 
           // Trigger an online refresh while scrolled down at scrollY = 400
           // (captures post2 at top: 120, bottom: 220 > 80)
-          fireEvent(window, new Event('online'))
+          await simulateOffline()
+          await simulateBackOnline()
 
           // User clicks "Back to top" while refresh is still in flight
           fireEvent.click(pill)
@@ -1445,7 +1457,7 @@ describe('MainPageTimeline', () => {
       })
     })
 
-    it('renders offline status bar with last updated time when offline event fires', async () => {
+    it('shows the "Updated …" freshness line only while not online, with no status pill of its own', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
 
       render(
@@ -1459,21 +1471,80 @@ describe('MainPageTimeline', () => {
         />
       )
 
+      expect(screen.queryByText(/Updated/)).not.toBeInTheDocument()
+
+      await simulateOffline()
+      expect(screen.getByText('Updated 2m ago')).toBeInTheDocument()
+      // The connection bar and strip own the announcement; the timeline adds
+      // no live region of its own.
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Offline/)).not.toBeInTheDocument()
 
-      fireEvent(window, new Event('offline'))
+      await simulateBackOnline()
+      expect(screen.queryByText(/Updated/)).not.toBeInTheDocument()
+    })
 
-      await waitFor(() => {
-        const statusBar = screen.getByRole('status')
-        expect(statusBar).toBeInTheDocument()
-        expect(statusBar).toHaveTextContent(/Offline · Updated 2m ago/)
-      })
+    it('shows the freshness line when the server is unreachable too', async () => {
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[createStatus('https://activities.local/users/llun/s/1')]}
+          initialLastRefreshedAt={FIXED_CURRENT_TIME - 2 * 60 * 1000}
+        />
+      )
 
-      fireEvent(window, new Event('online'))
+      await simulateServerUnreachable()
 
-      await waitFor(() => {
-        expect(screen.queryByRole('status')).not.toBeInTheDocument()
-      })
+      expect(screen.getByText('Updated 2m ago')).toBeInTheDocument()
+    })
+
+    it('hands a failed load-more to the connection store, so a network error triggers a probe', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      vi.mocked(getTimeline).mockRejectedValue(new TypeError('Load failed'))
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          initialNextMaxStatusId="cursor-1"
+        />
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: /load more/i }))
+
+      await waitFor(() => expect(checkServerHealth).toHaveBeenCalled())
+      expect(
+        await screen.findByText('Failed to load posts')
+      ).toBeInTheDocument()
+    })
+
+    it('does not probe for a failure that is not network-shaped', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      vi.mocked(getTimeline).mockRejectedValue(new Error('boom'))
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          initialNextMaxStatusId="cursor-1"
+        />
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: /load more/i }))
+
+      expect(
+        await screen.findByText('Failed to load posts')
+      ).toBeInTheDocument()
+      expect(checkServerHealth).not.toHaveBeenCalled()
     })
 
     it('renders skeleton on initial mount when refreshOnMount is true and statuses is empty, then transitions when fetch settles', async () => {

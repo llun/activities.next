@@ -2,6 +2,7 @@
 
 import { type ReactNode } from 'react'
 
+import { ConnectionStatusStrip } from '@/lib/components/connection/ConnectionStatus'
 import {
   MOBILE_COMPACT_HEADER_CLASS,
   breakoutStyle
@@ -31,6 +32,11 @@ export interface MobileCompactHeaderProps {
    * the content below.
    */
   actions?: ReactNode
+  /**
+   * Spacing for the bar. The offline strip under it continues the bar, so it
+   * takes the same classes, and the bar drops its margin while the strip shows:
+   * the pair keeps one gap, under the strip.
+   */
   className?: string
 }
 
@@ -53,26 +59,36 @@ export function MobileCompactHeader({
   if (!nav) return null
 
   return (
-    <div
-      data-mobile-compact-header=""
-      className={cn(MOBILE_COMPACT_HEADER_CLASS, className)}
-      style={breakoutStyle}
-    >
-      <MobileNavigationTrigger className="shrink-0" />
-      <Title
-        className="min-w-0 flex-1 truncate text-lg font-semibold"
-        // The visual title truncates; a string title stays whole in the
-        // tooltip, and the heading's accessible name is never cut.
-        title={typeof title === 'string' ? title : undefined}
+    <>
+      <div
+        data-mobile-compact-header=""
+        className={cn(
+          MOBILE_COMPACT_HEADER_CLASS,
+          className,
+          'has-[+[data-connection-strip]]:mb-0'
+        )}
+        style={breakoutStyle}
       >
-        {title}
-      </Title>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
-      {bottomSlot ? (
-        <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center px-4 pt-2">
-          {bottomSlot}
-        </div>
-      ) : null}
-    </div>
+        <MobileNavigationTrigger className="shrink-0" />
+        <Title
+          className="min-w-0 flex-1 truncate text-lg font-semibold"
+          // The visual title truncates; a string title stays whole in the
+          // tooltip, and the heading's accessible name is never cut.
+          title={typeof title === 'string' ? title : undefined}
+        >
+          {title}
+        </Title>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+        {bottomSlot ? (
+          <div
+            data-compact-header-overlay
+            className="pointer-events-none absolute inset-x-0 top-full flex justify-center px-4 pt-2"
+          >
+            {bottomSlot}
+          </div>
+        ) : null}
+      </div>
+      <ConnectionStatusStrip className={className} />
+    </>
   )
 }

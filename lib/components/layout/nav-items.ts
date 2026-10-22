@@ -3,6 +3,7 @@ import {
   Bell,
   Bookmark,
   Compass,
+  FileText,
   Heart,
   Home,
   Images,
@@ -78,6 +79,12 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
     label: 'Messages',
     icon: Mail,
     blurb: 'Direct conversations'
+  },
+  drafts: {
+    href: '/drafts',
+    label: 'Drafts',
+    icon: FileText,
+    blurb: 'Posts saved on this device'
   },
   favorites: {
     href: '/favorites',

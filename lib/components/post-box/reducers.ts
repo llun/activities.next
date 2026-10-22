@@ -10,7 +10,7 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 import { Choice } from './poll-choices'
 
-interface StatusExtension {
+export interface StatusExtension {
   attachments: PostBoxAttachment[]
   contentWarning: string
   contentWarningVisible: boolean
@@ -32,6 +32,13 @@ interface StatusExtension {
 
 export const resetExtension = () => ({ type: 'resetExtension' as const })
 type ActionReset = ReturnType<typeof resetExtension>
+
+// Replaces the whole state: a reopened draft arrives as one piece.
+export const loadExtension = (extension: StatusExtension) => ({
+  type: 'loadExtension' as const,
+  extension
+})
+type ActionLoadExtension = ReturnType<typeof loadExtension>
 
 export const setAttachments = (attachments: PostBoxAttachment[]) => ({
   type: 'setAttachments' as const,
@@ -150,6 +157,7 @@ type ActionRemoveFitnessFile = ReturnType<typeof removeFitnessFile>
 
 type Actions =
   | ActionReset
+  | ActionLoadExtension
   | ActionSetAttachments
   | ActionSetPollVisibility
   | ActionSetContentWarning
@@ -188,6 +196,9 @@ export const createDefaultChoices = (): Choice[] => [
   { key: key(), text: '' }
 ]
 
+export const createChoices = (texts: string[]): Choice[] =>
+  texts.map((text) => ({ key: key(), text }))
+
 export const createDefaultState = (): StatusExtension => ({
   attachments: [],
   contentWarning: '',
@@ -219,6 +230,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       // Reset everything including visibility to default state after posting.
       // A fresh state, so the next poll starts from empty choice objects.
       return createDefaultState()
+    }
+    case 'loadExtension': {
+      return action.extension
     }
     case 'setAttachments': {
       const hasAttachments = action.attachments.length > 0

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   deleteFitnessFile,
+  deleteUnpostedFitnessFile,
   getFitnessRouteData,
   getFitnessSummary,
   retryAllFitnessImports
@@ -263,6 +264,42 @@ describe('fitnessRoutes client module', () => {
 
       await expect(getFitnessSummary(params)).rejects.toThrow(
         'Fitness summary response is invalid'
+      )
+    })
+  })
+
+  describe('deleteUnpostedFitnessFile', () => {
+    it('asks the server to keep a file a post uses', async () => {
+      fetchMock.mockResponseOnce('', { status: 200 })
+
+      await expect(deleteUnpostedFitnessFile('file-123')).resolves.toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/fitness-files/file-123?if_unposted=true',
+        { method: 'DELETE' }
+      )
+    })
+
+    it('resolves false when a post uses it (422)', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'in a post' }), {
+        status: 422
+      })
+
+      await expect(deleteUnpostedFitnessFile('file-123')).resolves.toBe(false)
+    })
+
+    it('treats a file already gone as deleted', async () => {
+      fetchMock.mockResponseOnce('', { status: 404 })
+
+      await expect(deleteUnpostedFitnessFile('file-123')).resolves.toBe(true)
+    })
+
+    it('rejects with the server message otherwise', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Boom' }), {
+        status: 500
+      })
+
+      await expect(deleteUnpostedFitnessFile('file-123')).rejects.toThrow(
+        'Boom'
       )
     })
   })

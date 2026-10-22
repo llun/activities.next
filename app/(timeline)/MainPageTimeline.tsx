@@ -15,6 +15,11 @@ import {
 
 import { getTimeline } from '@/lib/client'
 import {
+  getConnectionSnapshot,
+  onConnectionRestored,
+  reportRequestFailure
+} from '@/lib/client/connection'
+import {
   HydratedTimelineSegment,
   ScrollAnchorState,
   appendOlderPageToSegments,
@@ -52,6 +57,7 @@ import { scrollPageToTop } from '@/lib/components/scroll-to-top-button/scrollPag
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -286,7 +292,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   const [hydratedActorId, setHydratedActorId] = useState<string | null>(() =>
     initialSegments && initialSegments.length > 0 ? profile.id : null
   )
-  const [isOffline, setIsOffline] = useState<boolean>(false)
+  const connection = useConnectionStatus()
 
   const isLoadingRef = useRef<boolean>(false)
   const isPollingRef = useRef<boolean>(false)
@@ -915,6 +921,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         onUnauthorized?.()
         setFetchError('Session expired. Please sign in again.')
       } else {
+        reportRequestFailure(error)
         setFetchError('Failed to load posts')
         lastFailedFetchRef.current = loadMoreStatuses
       }
@@ -1150,6 +1157,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           onUnauthorized?.()
           setFetchError('Session expired. Please sign in again.')
         } else {
+          reportRequestFailure(error)
           setFetchError('Failed to load posts')
           lastFailedFetchRef.current = () => refreshTimeline(options)
         }
@@ -1199,6 +1207,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           }
           onUnauthorized?.()
           setFetchError('Session expired. Please sign in again.')
+        } else {
+          reportRequestFailure(error)
         }
       } finally {
         setLoadingGapSegmentIndex(null)
@@ -1264,23 +1274,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     clearScrollAnchorAndJumpToTop()
   }, [newerPostsCount, handleCleanTopSnapshot, clearScrollAnchorAndJumpToTop])
 
-  // Offline / online listeners and auto-reconnect refresh
-  useEffect(() => {
-    setIsOffline(!navigator.onLine)
-    const handleOnline = () => {
-      setIsOffline(false)
-      void refreshTimeline({ preserveScroll: true })
-    }
-    const handleOffline = () => {
-      setIsOffline(true)
-    }
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [refreshTimeline])
+  // Auto-reconnect refresh: the connection store fires this once per
+  // transition back to online.
+  useEffect(
+    () =>
+      onConnectionRestored(
+        () => void refreshTimeline({ preserveScroll: true })
+      ),
+    [refreshTimeline]
+  )
 
   useEffect(() => {
     if (refreshOnMount) {
@@ -1302,7 +1304,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       if (
         isLoadingRef.current ||
         isPollingRef.current ||
-        (typeof navigator !== 'undefined' && !navigator.onLine)
+        getConnectionSnapshot().state !== 'online'
       ) {
         return
       }
@@ -1414,43 +1416,34 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }
       />
 
-      {isOffline && (
-        <div
-          role="status"
-          className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3.5 py-2 text-xs text-muted-foreground"
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="size-2 rounded-full bg-muted-foreground/60"
-              aria-hidden="true"
-            />
-            <span>
-              {lastRefreshedAt
-                ? `Offline · Updated ${formatLastUpdated(lastRefreshedAt, currentTime)}`
-                : 'Offline · Showing saved timeline'}
-            </span>
-          </div>
-        </div>
-      )}
+      {connection.state !== 'online' && lastRefreshedAt ? (
+        <p className="text-xs text-muted-foreground">
+          Updated {formatLastUpdated(lastRefreshedAt, currentTime)}
+        </p>
+      ) : null}
 
-      <section
-        className={cn(POST_LIST_FRAME_CLASS, 'p-4', MOBILE_FEED_SURFACE_CLASS)}
-      >
-        {/* The home timeline keeps a top composer for brand-new posts. Reply,
-            quote, and edit happen inline in the feed via the shared composer,
-            like every other surface. */}
-        <PostBox
-          host={host}
-          profile={profile}
-          isMediaUploadEnabled={isMediaUploadEnabled}
-          initialMedia={initialMedia}
-          onDiscardReply={() => {}}
-          onDiscardQuote={() => {}}
-          onDiscardEdit={() => {}}
-          onPostCreated={onStatusCreated}
-          onPostUpdated={onPostUpdated}
-        />
-      </section>
+      {/* The home timeline keeps a top composer for brand-new posts. Reply,
+          quote, and edit happen inline in the feed via the shared composer,
+          like every other surface. PostBox draws the card itself
+          (`frameClassName`) so its failure Alert lands after the card, never
+          inside it. */}
+      <PostBox
+        host={host}
+        profile={profile}
+        isMediaUploadEnabled={isMediaUploadEnabled}
+        initialMedia={initialMedia}
+        frameClassName={cn(
+          POST_LIST_FRAME_CLASS,
+          'p-4',
+          MOBILE_FEED_SURFACE_CLASS
+        )}
+        showDraftsLink
+        onDiscardReply={() => {}}
+        onDiscardQuote={() => {}}
+        onDiscardEdit={() => {}}
+        onPostCreated={onStatusCreated}
+        onPostUpdated={onPostUpdated}
+      />
 
       <div
         aria-hidden="true"

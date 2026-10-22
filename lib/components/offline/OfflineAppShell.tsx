@@ -28,6 +28,11 @@ import {
   saveClientBootstrapSnapshot
 } from '@/lib/client/offline'
 import { TimelineRequestError } from '@/lib/client/timelines'
+import {
+  ConnectionAnnouncer,
+  ConnectionStatusBar
+} from '@/lib/components/connection/ConnectionStatus'
+import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
@@ -390,62 +395,71 @@ export function OfflineAppShell() {
           >
             <MobileNavigationProvider>
               <PendingProfileNavigationProvider>
-                <div className="min-h-dvh">
-                  <Sidebar
-                    user={user}
-                    currentActor={currentActor}
-                    actors={formattedActors}
-                    unreadCount={bootstrap.unreadCount}
-                    fitnessUrl={bootstrap.fitnessUrl}
-                    galleryUrl={bootstrap.galleryUrl}
-                    isAdmin={bootstrap.isAdmin}
-                    lists={formattedLists}
-                    features={bootstrap.features}
-                  />
-                  <MobileNav
-                    user={user}
-                    currentActor={currentActor}
-                    actors={formattedActors}
-                    unreadCount={bootstrap.unreadCount}
-                    fitnessUrl={bootstrap.fitnessUrl}
-                    galleryUrl={bootstrap.galleryUrl}
-                    isAdmin={bootstrap.isAdmin}
-                    lists={formattedLists}
-                    features={bootstrap.features}
-                  />
-                  <main
-                    data-app-shell=""
-                    className={cn(
-                      'flex min-h-dvh flex-col overflow-x-clip pb-6',
-                      'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
-                    )}
-                  >
-                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-                      <MainPageTimeline
-                        host={bootstrap.host}
-                        currentTime={bootstrap.currentTime || bootstrap.savedAt}
-                        statuses={timeline?.statuses || []}
-                        timelineContext={{
-                          ancestorsById: timeline?.ancestorsById || {}
-                        }}
-                        initialNextMaxStatusId={
-                          timeline?.nextMaxStatusId ?? null
-                        }
-                        profile={bootstrap.profile}
-                        isMediaUploadEnabled={bootstrap.isMediaUploadEnabled}
-                        initialSegments={timeline?.segments}
-                        initialScrollAnchor={timeline?.scrollAnchor}
-                        initialLastRefreshedAt={timeline?.lastRefreshedAt}
-                        refreshOnMount={true}
-                        readingGroupBoosts={bootstrap.readingGroupBoosts}
-                        postLineLimit={bootstrap.postLineLimit}
-                        onUnauthorized={handleUnauthorized}
-                      />
-                    </div>
-                    <PendingProfileOverlay variant="signed-in" />
-                  </main>
-                  <SessionKeepAlive />
-                </div>
+                <DraftsProvider
+                  accountId={bootstrap.accountId}
+                  actorId={bootstrap.actorId}
+                >
+                  <div className="min-h-dvh">
+                    <Sidebar
+                      user={user}
+                      currentActor={currentActor}
+                      actors={formattedActors}
+                      unreadCount={bootstrap.unreadCount}
+                      fitnessUrl={bootstrap.fitnessUrl}
+                      galleryUrl={bootstrap.galleryUrl}
+                      isAdmin={bootstrap.isAdmin}
+                      lists={formattedLists}
+                      features={bootstrap.features}
+                    />
+                    <MobileNav
+                      user={user}
+                      currentActor={currentActor}
+                      actors={formattedActors}
+                      unreadCount={bootstrap.unreadCount}
+                      fitnessUrl={bootstrap.fitnessUrl}
+                      galleryUrl={bootstrap.galleryUrl}
+                      isAdmin={bootstrap.isAdmin}
+                      lists={formattedLists}
+                      features={bootstrap.features}
+                    />
+                    <main
+                      data-app-shell=""
+                      className={cn(
+                        'flex min-h-dvh flex-col overflow-x-clip pb-6',
+                        'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+                      )}
+                    >
+                      <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                        <ConnectionStatusBar />
+                        <MainPageTimeline
+                          host={bootstrap.host}
+                          currentTime={
+                            bootstrap.currentTime || bootstrap.savedAt
+                          }
+                          statuses={timeline?.statuses || []}
+                          timelineContext={{
+                            ancestorsById: timeline?.ancestorsById || {}
+                          }}
+                          initialNextMaxStatusId={
+                            timeline?.nextMaxStatusId ?? null
+                          }
+                          profile={bootstrap.profile}
+                          isMediaUploadEnabled={bootstrap.isMediaUploadEnabled}
+                          initialSegments={timeline?.segments}
+                          initialScrollAnchor={timeline?.scrollAnchor}
+                          initialLastRefreshedAt={timeline?.lastRefreshedAt}
+                          refreshOnMount={true}
+                          readingGroupBoosts={bootstrap.readingGroupBoosts}
+                          postLineLimit={bootstrap.postLineLimit}
+                          onUnauthorized={handleUnauthorized}
+                        />
+                      </div>
+                      <PendingProfileOverlay variant="signed-in" />
+                    </main>
+                    <SessionKeepAlive />
+                    <ConnectionAnnouncer />
+                  </div>
+                </DraftsProvider>
               </PendingProfileNavigationProvider>
             </MobileNavigationProvider>
           </NavPreferencesProvider>

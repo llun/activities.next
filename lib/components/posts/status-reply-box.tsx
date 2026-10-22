@@ -12,11 +12,15 @@ import {
 } from 'react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import { reportRequestFailure } from '@/lib/client/connection'
+import type { DraftRecord } from '@/lib/client/drafts'
 import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
+import { DraftSaveStatus } from '@/lib/components/post-box/DraftSaveStatus'
 import {
   addAttachment,
   createDefaultState,
+  loadExtension,
   resetExtension,
   setAttachments,
   setContentWarning,
@@ -25,6 +29,15 @@ import {
   updateAttachment
 } from '@/lib/components/post-box/reducers'
 import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
+import {
+  DRAFT_CONFLICT_SEND_NOTICE,
+  DRAFT_NOT_SAVED_SEND_NOTICE,
+  type DraftContent,
+  fromDraftAttachment,
+  loadDraftFiles,
+  toDraftAttachment,
+  useComposerDraft
+} from '@/lib/components/post-box/useComposerDraft'
 import { ActorInfo } from '@/lib/components/posts/actor'
 import { ReplyTargetContent } from '@/lib/components/posts/reply-target-content'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
@@ -32,7 +45,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -51,6 +64,10 @@ interface Props {
   isMediaUploadEnabled?: boolean
   onCancel: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
+  /** A saved draft to reopen: seeds the reply box on its first run. */
+  draft?: DraftRecord
+  /** Drafts page only: an emptied draft stays saved until the editor closes. */
+  keepWhenEmpty?: boolean
 }
 
 export const StatusReplyBox: FC<Props> = ({
@@ -58,7 +75,9 @@ export const StatusReplyBox: FC<Props> = ({
   replyStatus,
   isMediaUploadEnabled,
   onCancel,
-  onPostCreated
+  onPostCreated,
+  draft,
+  keepWhenEmpty
 }) => {
   // The instance's configured status length (admin setting posts.maxCharacters).
   // The reply endpoint enforces it too, so without this the reply box would let
@@ -79,9 +98,10 @@ export const StatusReplyBox: FC<Props> = ({
     draftLockedRef.current = message !== null
     setLockedMessageState(message)
   }
-  // Bumped when the reply target changes: a submit still in flight belongs to
-  // the previous draft and must not lock the new one.
-  const draftGenerationRef = useRef(0)
+  // A new target that arrived while a send was in flight: applied once it
+  // settles, so the send and its draft always stay this box's own.
+  const retargetPendingRef = useRef(false)
+  const [retargetAfterSend, setRetargetAfterSend] = useState(0)
   const [mentionMode, setMentionMode] = useState<ReplyMentionMode>('all')
   const [targetPreview, setTargetPreview] = useState<ReplyTargetPreview | null>(
     null
@@ -118,9 +138,79 @@ export const StatusReplyBox: FC<Props> = ({
   const postExtensionRef = useRef(postExtension)
   const removedAttachmentIdsRef = useRef<Set<string>>(new Set())
 
+  // On-device draft. The mention pre-fill is not the author's text, so it
+  // alone never makes a draft.
+  const textRef = useRef(text)
+  textRef.current = text
+  const initialTextRef = useRef('')
+  const draftSeededRef = useRef(false)
+  // Uploaded media id -> the local id the draft knows the attachment by.
+  const localIdByIdRef = useRef(new Map<string, string>())
+  // Media the server kept with a post: a draft never owns (or deletes) it.
+  const keptIdsRef = useRef(new Set<string>())
+  const inheritedRef = useRef<{
+    visibility: MastodonVisibility
+    language?: string
+  }>({ visibility: 'public' })
+  inheritedRef.current = {
+    visibility: inheritedVisibility,
+    language: inheritedLanguage
+  }
+
+  // True while a reopened draft's attachment bytes are loading.
+  const draftSeedingRef = useRef(false)
+
+  const getDraftContent = (force = false): DraftContent | null => {
+    const extension = postExtensionRef.current
+    const value = textRef.current
+    const attachments = extension.attachments.map((attachment) =>
+      toDraftAttachment(attachment, {
+        localIds: localIdByIdRef.current,
+        isOwned: (mediaId) => !keptIdsRef.current.has(mediaId)
+      })
+    )
+    const worthKeeping =
+      (value.trim() !== '' && value !== initialTextRef.current) ||
+      attachments.some((attachment) => attachment.owned)
+    // A locked draft stays until it is discarded, whatever it holds.
+    if (!worthKeeping && !force && !draftLockedRef.current) return null
+    return {
+      text: value,
+      contentWarning: extension.contentWarning,
+      contentWarningVisible: extension.contentWarningVisible,
+      visibility: inheritedRef.current.visibility,
+      quoteApprovalPolicy: extension.quoteApprovalPolicy,
+      language: inheritedRef.current.language,
+      attachments
+    }
+  }
+
+  // What the draft is written for: it follows the prop only when the box is
+  // re-targeted, after the previous draft was let go of.
+  const [draftReplyTo, setDraftReplyTo] = useState(replyStatus)
+  const composerDraft = useComposerDraft({
+    composer: 'reply-box',
+    replyTo: draftReplyTo,
+    draft,
+    keepWhenEmpty,
+    isSeeding: () => draftSeedingRef.current,
+    getContent: getDraftContent,
+    // The draft this composer let go of keeps its key; new content gets its own.
+    onUnlock: () => {
+      submitIdempotencyRef.current = null
+      // The block belonged to the draft this composer let go of.
+      setWarningMsg(null)
+    }
+  })
+
   useEffect(() => {
     postExtensionRef.current = postExtension
   }, [postExtension])
+
+  useEffect(() => {
+    composerDraft.schedule()
+    // schedule is stable and reads the composer through refs.
+  }, [text, postExtension, lockedMessage])
 
   // Allow posting if text has content OR if there are media attachments
   // (permitting valid attachment-only replies per repository guidelines).
@@ -131,8 +221,11 @@ export const StatusReplyBox: FC<Props> = ({
   const allowPost =
     hasContent && (draftLocked || text.length <= maxStatusCharacters)
 
+  const mountedRef = useRef(true)
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       postExtensionRef.current.attachments.forEach((attachment) => {
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
@@ -144,60 +237,131 @@ export const StatusReplyBox: FC<Props> = ({
     }
   }, [])
 
+  // Puts a reopened draft back in the box. Uploaded attachments are used as
+  // they are (the submit fingerprint, and so its key, stay the same); the ones
+  // that never uploaded are rebuilt from the kept bytes and upload on Post.
+  const seedFromDraft = (seed: DraftRecord) => {
+    const apply = (files: Awaited<ReturnType<typeof loadDraftFiles>>) => {
+      const attachments: PostBoxAttachment[] = []
+      for (const item of seed.attachments) {
+        const restored = fromDraftAttachment(item, files)
+        // Neither the server nor the device has it: nothing to restore.
+        if (!restored) continue
+        attachments.push(restored)
+        if (item.mediaId) {
+          localIdByIdRef.current.set(item.mediaId, item.localId)
+          if (!item.owned) keptIdsRef.current.add(item.mediaId)
+        }
+      }
+      const nextExtension = {
+        ...createDefaultState(),
+        attachments,
+        contentWarning: seed.contentWarning,
+        contentWarningVisible: seed.contentWarningVisible,
+        quoteApprovalPolicy: seed.quoteApprovalPolicy
+      }
+      postExtensionRef.current = nextExtension
+      dispatch(loadExtension(nextExtension))
+      userHasEditedTextRef.current = true
+      setInheritedVisibility(seed.visibility)
+      setInheritedLanguage(seed.language)
+      textRef.current = seed.text
+      setText(seed.text)
+      submitIdempotencyRef.current = seed.submit ?? null
+      setLockedMessage(seed.lockedMessage ?? null)
+    }
+    if (!seed.attachments.some((item) => !item.mediaId)) {
+      apply(new Map())
+      return
+    }
+    draftSeedingRef.current = true
+    void loadDraftFiles(seed).then((files) => {
+      draftSeedingRef.current = false
+      if (mountedRef.current) apply(files)
+    })
+  }
+
   // Initialize draft helper: compute mentions, CW, visibility, declared language,
   // and target preview. Do NOT overwrite an edited draft when unrelated status props refresh.
   useEffect(() => {
     if (initializedStatusIdRef.current === replyStatus.id) {
+      // Back to the target it holds (A, B, then A again) waits for nothing.
+      retargetPendingRef.current = false
       return
     }
+    // A send in flight keeps its draft and this box until it settles.
+    if (isSubmittingRef.current) {
+      retargetPendingRef.current = true
+      return
+    }
+    retargetPendingRef.current = false
 
+    const seeded = Boolean(draft) && !draftSeededRef.current
+    // Re-targeted: the previous target's draft stays where it was saved, with
+    // its attachments; the new target starts without them.
+    if (!seeded) {
+      if (composerDraft.hasDraft()) void composerDraft.detach()
+      dispatch(resetExtension())
+      removedAttachmentIdsRef.current.clear()
+    }
+    setDraftReplyTo(replyStatus)
+    // A failure banner belongs to the reply it was about.
+    setWarningMsg(null)
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
-    draftGenerationRef.current += 1
     setLockedMessage(null)
 
-    const draft = prepareReplyDraft({
+    const prepared = prepareReplyDraft({
       targetStatus: replyStatus,
       currentViewer: profile,
       mentionMode
     })
 
-    setTargetPreview(draft.targetPreview)
-    setInheritedVisibility(draft.visibility)
-    setInheritedLanguage(draft.language)
-    setMentionsSummary(draft.mentions)
+    setTargetPreview(prepared.targetPreview)
+    setInheritedVisibility(prepared.visibility)
+    setInheritedLanguage(prepared.language)
+    setMentionsSummary(prepared.mentions)
+    initialTextRef.current = prepared.initialText
 
-    setText(draft.initialText)
-    if (draft.isSpoilerVisible) {
+    setText(prepared.initialText)
+    if (prepared.isSpoilerVisible) {
       dispatch(setContentWarningVisibility(true))
-      dispatch(setContentWarning(draft.spoilerText))
+      dispatch(setContentWarning(prepared.spoilerText))
     } else {
       dispatch(setContentWarningVisibility(false))
       dispatch(setContentWarning(''))
     }
 
+    if (seeded && draft) {
+      draftSeededRef.current = true
+      seedFromDraft(draft)
+    }
+
+    const cursor = seeded && draft ? draft.text.length : prepared.cursorPosition
     setTimeout(() => {
       if (textareaRef.current) {
-        textareaRef.current.selectionStart = draft.cursorPosition
-        textareaRef.current.selectionEnd = draft.cursorPosition
+        textareaRef.current.selectionStart = cursor
+        textareaRef.current.selectionEnd = cursor
         textareaRef.current.focus()
       }
     }, 0)
-  }, [profile, replyStatus, mentionMode])
+    // retargetAfterSend: run again with the latest props once a send settles.
+  }, [profile, replyStatus, mentionMode, retargetAfterSend])
 
   const handleMentionModeChange = (mode: ReplyMentionMode) => {
     setMentionMode(mode)
     if (!userHasEditedTextRef.current) {
-      const draft = prepareReplyDraft({
+      const prepared = prepareReplyDraft({
         targetStatus: replyStatus,
         currentViewer: profile,
         mentionMode: mode
       })
-      setText(draft.initialText)
+      initialTextRef.current = prepared.initialText
+      setText(prepared.initialText)
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.selectionStart = draft.cursorPosition
-          textareaRef.current.selectionEnd = draft.cursorPosition
+          textareaRef.current.selectionStart = prepared.cursorPosition
+          textareaRef.current.selectionEnd = prepared.cursorPosition
           textareaRef.current.focus()
         }
       }, 0)
@@ -211,8 +375,18 @@ export const StatusReplyBox: FC<Props> = ({
     if (isSubmittingRef.current || isPosting) {
       return
     }
+    // A new target not applied yet (the re-target effect runs after the render
+    // that brought it, and its state lands a render later still): never send
+    // this box's reply to it.
+    if (
+      initializedStatusIdRef.current !== replyStatus.id ||
+      draftReplyTo.id !== replyStatus.id
+    ) {
+      return
+    }
     isSubmittingRef.current = true
-    const generation = draftGenerationRef.current
+    // Set once the reply went out: a re-target waiting for it then just moves on.
+    let sent = false
     const retryingLockedDraft = draftLocked
     setIsPosting(true)
     setWarningMsg(null)
@@ -252,6 +426,10 @@ export const StatusReplyBox: FC<Props> = ({
               URL.revokeObjectURL(attachment.posterUrl)
             }
 
+            localIdByIdRef.current.set(
+              uploaded.id,
+              localIdByIdRef.current.get(attachment.id) ?? attachment.id
+            )
             const newAttachment = {
               ...attachment,
               ...uploaded,
@@ -292,6 +470,12 @@ export const StatusReplyBox: FC<Props> = ({
         )
         .map((a) => a.uploadedAttachment)
 
+      // The draft reads the ref, which only follows a render.
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        attachments
+      }
+
       const replyFingerprint = JSON.stringify({
         message,
         contentWarning: contentWarning ?? null,
@@ -305,6 +489,20 @@ export const StatusReplyBox: FC<Props> = ({
           fingerprint: replyFingerprint,
           key: generatePublicId()
         }
+      }
+
+      // The key and the attempt are written to the draft before the POST. If
+      // that write fails nothing is sent: a lost response plus a lost key would
+      // send the same reply again under a new key after a reload.
+      if (!(await composerDraft.recordAttempt(submitIdempotencyRef.current))) {
+        setWarningMsg(
+          composerDraft.isConflicted()
+            ? DRAFT_CONFLICT_SEND_NOTICE
+            : DRAFT_NOT_SAVED_SEND_NOTICE
+        )
+        isSubmittingRef.current = false
+        setIsPosting(false)
+        return
       }
 
       const response = await createNote({
@@ -321,17 +519,19 @@ export const StatusReplyBox: FC<Props> = ({
       submitIdempotencyRef.current = null
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
+      // The posted reply owns the media now: drop the draft and its bytes only.
+      void composerDraft.release()
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       removedAttachmentIdsRef.current.clear()
       setText('')
       isSubmittingRef.current = false
       setIsPosting(false)
+      sent = true
     } catch (error) {
       isSubmittingRef.current = false
       setIsPosting(false)
-      // A stale failure belongs to a previous draft: say nothing on this one.
-      if (generation !== draftGenerationRef.current) return
+      reportRequestFailure(error)
       // Surface the server's message without wiping user draft, CW, or attachments.
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
@@ -340,6 +540,16 @@ export const StatusReplyBox: FC<Props> = ({
       })
       if (action === 'lock') {
         setLockedMessage(failureMessage)
+        // The server keeps the reply and the media it uses.
+        postExtensionRef.current.attachments.forEach((attachment) => {
+          if (!attachment.file) keptIdsRef.current.add(attachment.id)
+        })
+        // Persist the key and the lock: a reopened draft must retry under the
+        // same key, or it duplicates the reply the server kept.
+        void composerDraft.recordLock(
+          failureMessage,
+          submitIdempotencyRef.current
+        )
       } else {
         setWarningMsg(failureMessage)
         if (action === 'unlock') {
@@ -347,7 +557,23 @@ export const StatusReplyBox: FC<Props> = ({
           // again under a new key instead of stranding it.
           setLockedMessage(null)
           submitIdempotencyRef.current = null
+          void composerDraft.recordLock(null, null)
         }
+      }
+    } finally {
+      if (retargetPendingRef.current) {
+        retargetPendingRef.current = false
+        // Still this send's box until it moves on: nothing can be sent from
+        // it while the draft is kept.
+        isSubmittingRef.current = true
+        const moveOn = () => {
+          isSubmittingRef.current = false
+          setRetargetAfterSend((count) => count + 1)
+        }
+        // Not sent: kept in Drafts (or offered in the note) first, as Cancel
+        // does, so moving on never drops it silently.
+        if (sent) moveOn()
+        else void composerDraft.keep().then(moveOn, moveOn)
       }
     }
   }
@@ -357,8 +583,11 @@ export const StatusReplyBox: FC<Props> = ({
   const onCancelReply = () => {
     // A submit in flight owns the key: closing now would lose its result.
     if (isSubmittingRef.current) return
+    // Text worth keeping stays in Drafts (and says so); a locked or empty
+    // reply is dropped.
+    if (!draftLocked && getDraftContent() !== null) void composerDraft.keep()
+    else void composerDraft.discard()
     if (draftLocked) {
-      draftGenerationRef.current += 1
       submitIdempotencyRef.current = null
       setLockedMessage(null)
       setWarningMsg(null)
@@ -566,6 +795,13 @@ export const StatusReplyBox: FC<Props> = ({
               </div>
             )}
 
+            <div className="mt-2 empty:hidden">
+              <DraftSaveStatus
+                saveState={composerDraft.saveState}
+                text={text}
+              />
+            </div>
+
             {warningMsg ? (
               <div role="alert" className="text-xs text-destructive-text mt-2">
                 {warningMsg}
@@ -631,6 +867,13 @@ export const StatusReplyBox: FC<Props> = ({
                     ]
                   }
                   dispatch(addAttachment(attachment, maxMediaAttachments))
+                  if (attachment.file) {
+                    composerDraft.attachBlob(
+                      attachment.id,
+                      attachment.file,
+                      attachment.posterFile
+                    )
+                  }
                 }}
                 onDuplicateError={() =>
                   setWarningMsg('Some files are already selected')

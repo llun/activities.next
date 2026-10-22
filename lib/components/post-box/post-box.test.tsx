@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { deleteAccountMedia, getCustomEmojis } from '@/lib/client'
+import { deleteUnpostedMedia, getCustomEmojis } from '@/lib/client'
 import {
   ApiRequestError,
   DRAFT_LOCKED_NOTICE,
@@ -31,8 +31,8 @@ import {
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   createPoll: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
-  deleteFitnessFile: vi.fn(),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
   getGallerySettings: vi.fn().mockResolvedValue({
@@ -487,7 +487,6 @@ describe('PostBox poll creation', () => {
   })
 
   it('reuses the idempotencyKey when a failed poll is retried and mints a fresh key for the next poll', async () => {
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined)
     createPollMock
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValue(undefined)
@@ -527,7 +526,6 @@ describe('PostBox poll creation', () => {
     expect(nextKey).not.toBe(firstKey)
   })
   it('mints a fresh idempotencyKey when a failed poll is edited before the retry', async () => {
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined)
     createPollMock
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValue(undefined)
@@ -1031,7 +1029,9 @@ describe('PostBox idempotency key', () => {
           SESSION_EXPIRED_NOTICE
         )
       )
-      expect(window.alert).toHaveBeenLastCalledWith(SESSION_EXPIRED_NOTICE)
+      // A lock says it on its own status line, with no Alert.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(window.alert).not.toHaveBeenCalled()
       expect(textarea).toHaveAttribute('readonly')
 
       fireEvent.click(postButton)
@@ -1049,7 +1049,10 @@ describe('PostBox idempotency key', () => {
       fireEvent.change(textarea, { target: { value: 'First post' } })
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
-      await waitFor(() => expect(window.alert).toHaveBeenCalledWith('no'))
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent("Couldn't send.")
+      expect(alert).toHaveTextContent('no')
+      expect(window.alert).not.toHaveBeenCalled()
       expect(textarea).not.toHaveAttribute('readonly')
       expect(screen.queryByRole('status')).not.toBeInTheDocument()
     }
@@ -1145,7 +1148,8 @@ describe('PostBox idempotency key', () => {
       expect(screen.getByRole('status')).toHaveTextContent(
         `${lockedMessage} ${DRAFT_LOCKED_NOTICE}`
       )
-      expect(window.alert).toHaveBeenLastCalledWith(lockedMessage)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(window.alert).not.toHaveBeenCalled()
 
       fireEvent.click(postButton)
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(3))
@@ -1194,6 +1198,7 @@ describe('PostBox idempotency key', () => {
 
     // The failure belongs to the old draft: the new one hears nothing.
     expect(window.alert).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByText(/Editing is locked/)).not.toBeInTheDocument()
     expect(document.querySelector('textarea')).not.toHaveAttribute('readonly')
   })
@@ -1239,7 +1244,7 @@ describe('PostBox idempotency key', () => {
       lockedKey
     )
     unmount()
-    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
   })
 
   it('mints a new key when the same text is retyped after Discard draft', async () => {

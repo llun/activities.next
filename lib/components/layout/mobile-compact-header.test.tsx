@@ -7,7 +7,34 @@ import { render, screen, within } from '@testing-library/react'
 import { MobileCompactHeader } from './mobile-compact-header'
 import { MobileNavigationProvider } from './mobile-navigation-context'
 
+vi.mock('@/lib/components/connection/ConnectionStatus', () => ({
+  ConnectionStatusStrip: ({ className }: { className?: string }) => (
+    <div data-testid="connection-strip" className={className} />
+  )
+}))
+
 describe('MobileCompactHeader', () => {
+  it.each([
+    { className: undefined, flush: false },
+    { className: 'mb-0', flush: true }
+  ])(
+    'gives the offline strip the bar’s spacing, so the pair keeps one gap under the strip ($className)',
+    ({ className, flush }) => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <MobileCompactHeader title="Edit list" className={className} />
+        </MobileNavigationProvider>
+      )
+
+      const bar = container.querySelector('[data-mobile-compact-header]')
+      // While the strip follows, the bar hands its gap to the strip.
+      expect(bar).toHaveClass('has-[+[data-connection-strip]]:mb-0')
+      const strip = screen.getByTestId('connection-strip')
+      expect(strip.previousElementSibling).toBe(bar)
+      expect(strip.classList.contains('mb-0')).toBe(flush)
+    }
+  )
+
   it('renders nothing without a MobileNavigationProvider', () => {
     const { container } = render(<MobileCompactHeader title="Timeline" />)
     expect(container).toBeEmptyDOMElement()
@@ -33,6 +60,21 @@ describe('MobileCompactHeader', () => {
     expect(scope.queryByRole('link')).not.toBeInTheDocument()
     expect(scope.queryByRole('img')).not.toBeInTheDocument()
     expect(bar?.textContent).toBe('Notifications')
+  })
+
+  it('marks the bottom slot with the attribute the strip offset in globals.css targets', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader
+          title="Timeline"
+          bottomSlot={<span>3 new posts</span>}
+        />
+      </MobileNavigationProvider>
+    )
+
+    const overlay = container.querySelector('[data-compact-header-overlay]')
+    expect(overlay).toHaveTextContent('3 new posts')
+    expect(overlay?.parentElement).toHaveAttribute('data-mobile-compact-header')
   })
 
   it('ends with the actions a page opts into, after the title', () => {
@@ -78,5 +120,24 @@ describe('MobileCompactHeader', () => {
 
     const heading = screen.getByRole('heading', { name: longTitle })
     expect(heading).toHaveAttribute('title', longTitle)
+  })
+
+  it('renders the status strip right after the bar, as its sibling', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader title="Timeline" />
+      </MobileNavigationProvider>
+    )
+
+    const bar = container.querySelector('[data-mobile-compact-header]')
+    const strip = screen.getByTestId('connection-strip')
+    expect(bar?.nextElementSibling).toBe(strip)
+    expect(bar).not.toContainElement(strip)
+  })
+
+  it('renders no strip without a MobileNavigationProvider', () => {
+    render(<MobileCompactHeader title="Timeline" />)
+
+    expect(screen.queryByTestId('connection-strip')).not.toBeInTheDocument()
   })
 })

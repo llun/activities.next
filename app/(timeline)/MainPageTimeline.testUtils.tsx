@@ -2,6 +2,8 @@ import { act } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { vi } from 'vitest'
 
+import { probeNow, resetConnectionForTesting } from '@/lib/client/connection'
+import { checkServerHealth } from '@/lib/client/health'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -366,4 +368,55 @@ export const resetIntersectionObserver = () => {
   observerCallbacks.length = 0
   observeMock.mockClear()
   disconnectMock.mockClear()
+}
+
+// Drive the real connection store instead of `navigator.onLine`: the test file
+// must `vi.mock('@/lib/client/health', ...)` so the probe is ours to answer.
+let onLineSpy: ReturnType<typeof vi.spyOn> | null = null
+
+const setBrowserOnLine = (value: boolean) => {
+  onLineSpy?.mockRestore()
+  onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(value)
+}
+
+export const simulateOffline = async () => {
+  setBrowserOnLine(false)
+  vi.mocked(checkServerHealth).mockRejectedValue(new TypeError('offline'))
+  await act(async () => {
+    window.dispatchEvent(new Event('offline'))
+    await probeNow()
+  })
+}
+
+export const simulateServerUnreachable = async () => {
+  setBrowserOnLine(true)
+  vi.mocked(checkServerHealth).mockResolvedValue(false)
+  await act(async () => {
+    await probeNow()
+  })
+}
+
+export const simulateBackOnline = async () => {
+  setBrowserOnLine(true)
+  vi.mocked(checkServerHealth).mockResolvedValue(true)
+  await act(async () => {
+    window.dispatchEvent(new Event('online'))
+    await probeNow()
+  })
+}
+
+// The server answers again, with no browser `online` event (a Retry, or the
+// next backoff probe, found it).
+export const simulateServerRecovered = async () => {
+  vi.mocked(checkServerHealth).mockResolvedValue(true)
+  await act(async () => {
+    await probeNow()
+  })
+}
+
+export const resetConnectionSimulation = () => {
+  onLineSpy?.mockRestore()
+  onLineSpy = null
+  resetConnectionForTesting()
+  vi.mocked(checkServerHealth).mockReset()
 }

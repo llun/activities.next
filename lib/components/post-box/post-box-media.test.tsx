@@ -13,8 +13,8 @@ import { StrictMode, useState } from 'react'
 
 import {
   createNote,
-  deleteAccountMedia,
-  deleteFitnessFile,
+  deleteUnpostedFitnessFile,
+  deleteUnpostedMedia,
   getGallerySettings,
   getMedia,
   uploadFitnessFile
@@ -46,9 +46,9 @@ import { choosePostOption, expectPostOptionsLocked } from './post-box.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
   createPoll: vi.fn(),
-  deleteFitnessFile: vi.fn(),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   describeMedia: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
@@ -320,19 +320,16 @@ describe('PostBox media details', () => {
   })
 
   it('marks a failed upload, retries it, and blocks submit while it is failed', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     uploadAttachmentMock.mockRejectedValueOnce(new Error('disk full'))
-    try {
+    {
       renderPostBox()
 
       attach('heron.png')
 
       expect(await screen.findByText('Upload failed')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() =>
-        expect(alertMock).toHaveBeenCalledWith(
-          'Fail to upload heron.png: disk full'
-        )
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Fail to upload heron.png: disk full'
       )
       expect(createNoteMock).not.toHaveBeenCalled()
 
@@ -347,8 +344,6 @@ describe('PostBox media details', () => {
         expect(getMediaMock).toHaveBeenCalledWith('media-heron.png')
       )
       expect(uploadAttachmentMock).toHaveBeenCalledTimes(2)
-    } finally {
-      alertMock.mockRestore()
     }
   })
 
@@ -374,9 +369,7 @@ describe('PostBox media details', () => {
 
     await choosePostOption('Poll')
 
-    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
-      mediaId: 'media-a.png'
-    })
+    expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith('media-a.png')
     expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:media')
     expect(
       screen.queryByRole('button', { name: 'Remove media a.png' })
@@ -878,9 +871,7 @@ describe('PostBox media details', () => {
     upload.resolve(uploaded('media-heron', 'heron.png'))
 
     await waitFor(() =>
-      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
-        mediaId: 'media-heron'
-      })
+      expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith('media-heron')
     )
     expect(getMediaMock).not.toHaveBeenCalled()
   })
@@ -892,9 +883,7 @@ describe('PostBox media details', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove media a.png' }))
 
-    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
-      mediaId: 'media-a.png'
-    })
+    expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith('media-a.png')
   })
 
   it('shows Reading details only after the upload, while the details load', async () => {
@@ -942,7 +931,7 @@ describe('PostBox media details', () => {
     expect(open).toBeDisabled()
     fireEvent.click(remove)
     fireEvent.click(open)
-    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Remove media a.png' })
@@ -1015,9 +1004,7 @@ describe('PostBox media details', () => {
 
     unmount()
 
-    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
-      mediaId: 'media-a.png'
-    })
+    expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith('media-a.png')
   })
 
   it('deletes a late upload result after unmount and sets no state', async () => {
@@ -1028,13 +1015,11 @@ describe('PostBox media details', () => {
     await screen.findByText('Uploading…')
 
     unmount()
-    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     upload.resolve(uploaded('media-heron', 'heron.png'))
 
     await waitFor(() =>
-      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
-        mediaId: 'media-heron'
-      })
+      expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith('media-heron')
     )
     expect(getMediaMock).not.toHaveBeenCalled()
   })
@@ -1106,7 +1091,7 @@ describe('PostBox media details', () => {
 
     await screen.findByText('closed')
     expect(createNoteMock).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
   })
   describe.each([
     [
@@ -1116,7 +1101,6 @@ describe('PostBox media details', () => {
     [409, 'Your post is still being sent. Please wait a moment.']
   ])('when the server kept the post (%i)', (status, message) => {
     const failWith = async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       createNoteMock.mockRejectedValueOnce(
         new ApiRequestError('retry with the same Idempotency-Key', status)
       )
@@ -1124,7 +1108,11 @@ describe('PostBox media details', () => {
       attach('a.png')
       await screen.findByText('Review')
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+      // A lock shows only its own status line, never an Alert.
+      expect(await screen.findByText(/Editing is locked/)).toHaveTextContent(
+        message
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       return view
     }
 
@@ -1133,7 +1121,6 @@ describe('PostBox media details', () => {
     })
 
     it('locks the fitness draft and retries the same file under the same key', async () => {
-      vi.spyOn(window, 'alert').mockImplementation(() => {})
       vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
         id: 'fitness-1'
       } as never)
@@ -1152,7 +1139,9 @@ describe('PostBox media details', () => {
       })
       fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      await waitFor(() => expect(window.alert).toHaveBeenCalledWith(message))
+      expect(await screen.findByText(/Editing is locked/)).toHaveTextContent(
+        message
+      )
 
       expect(screen.getByText(/Editing is locked/)).toHaveTextContent(message)
       expect(
@@ -1162,7 +1151,7 @@ describe('PostBox media details', () => {
         screen.getByRole('button', { name: 'Remove selected fitness file' })
       ).toBeDisabled()
       await expectPostOptionsLocked()
-      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedFitnessFile)).not.toHaveBeenCalled()
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
@@ -1173,7 +1162,7 @@ describe('PostBox media details', () => {
         fitnessFileId: 'fitness-1'
       })
       expect(vi.mocked(uploadFitnessFile)).toHaveBeenCalledTimes(1)
-      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedFitnessFile)).not.toHaveBeenCalled()
 
       // A success unlocks and clears the composer.
       await waitFor(() =>
@@ -1189,7 +1178,7 @@ describe('PostBox media details', () => {
     it('does not delete the kept media on unmount', async () => {
       const { unmount } = await failWith()
       unmount()
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     })
 
     it('locks the media draft and retries the same attachment under the same key', async () => {
@@ -1200,7 +1189,7 @@ describe('PostBox media details', () => {
         screen.getByRole('button', { name: 'Remove media a.png' })
       ).toBeDisabled()
       await expectPostOptionsLocked()
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
 
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
@@ -1246,13 +1235,12 @@ describe('PostBox media details', () => {
       )
 
     it('does not delete the media a kept post uses', async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       createNoteMock.mockRejectedValueOnce(new ApiRequestError('kept', 503))
       const view = renderPostBox()
       attach('a.png')
       await screen.findByText('Review')
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+      await screen.findByText(/Editing is locked/)
 
       retarget(view)
 
@@ -1261,11 +1249,10 @@ describe('PostBox media details', () => {
           screen.queryByRole('button', { name: 'Remove media a.png' })
         ).not.toBeInTheDocument()
       )
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     })
 
     it('does not delete the fitness file a kept post uses', async () => {
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
       vi.mocked(uploadFitnessFile).mockResolvedValueOnce({
         id: 'fitness-1'
       } as never)
@@ -1281,14 +1268,14 @@ describe('PostBox media details', () => {
         target: { value: 'Morning run' }
       })
       fireEvent.click(await screen.findByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(alertSpy).toHaveBeenCalled())
+      await screen.findByText(/Editing is locked/)
 
       retarget(view)
 
       await waitFor(() =>
         expect(screen.queryByText('run.gpx')).not.toBeInTheDocument()
       )
-      expect(vi.mocked(deleteFitnessFile)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedFitnessFile)).not.toHaveBeenCalled()
     })
   })
 
@@ -1296,15 +1283,14 @@ describe('PostBox media details', () => {
     ['500', new ApiRequestError('Server exploded', 500), 'Server exploded'],
     ['plain Error', new Error('offline'), 'offline']
   ])('still discards media after a %s failure', async (_n, err, message) => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     createNoteMock.mockRejectedValueOnce(err)
     const { unmount } = renderPostBox()
     attach('a.png')
     await screen.findByText('Review')
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message))
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
     unmount()
-    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledTimes(1)
   })
 
   describe('photos from Gallery (initialMedia)', () => {
@@ -1447,11 +1433,11 @@ describe('PostBox media details', () => {
       fireEvent.click(
         await screen.findByRole('button', { name: 'Remove media A heron' })
       )
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
 
       unmount()
 
-      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     })
 
     it('does not seed a reply', async () => {

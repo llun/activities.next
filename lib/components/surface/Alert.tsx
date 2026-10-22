@@ -1,4 +1,10 @@
-import { AlertTriangle, CheckCircle2, Info, RefreshCw } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  type LucideIcon,
+  RefreshCw
+} from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -45,6 +51,8 @@ interface Props {
   /** `error` unless said otherwise. */
   tone?: AlertTone
   title: ReactNode
+  /** Replaces the tone's icon, for a state the tone does not name (offline). */
+  icon?: LucideIcon
   /** Friendly copy saying what happened and what to do; muted under the title. */
   children?: ReactNode
   /** A recovery control, set at the end of the row. */
@@ -80,13 +88,22 @@ interface Props {
 export const Alert: FC<Props> = ({
   tone = 'error',
   title,
+  icon,
   children,
   action,
   onRetry,
   live = true,
   className
 }) => {
-  const { Icon, surface, outline, rule, icon, role } = TONES[tone]
+  const {
+    Icon: ToneIcon,
+    surface,
+    outline,
+    rule,
+    icon: iconClass,
+    role
+  } = TONES[tone]
+  const Icon = icon ?? ToneIcon
   return (
     <div
       role={live ? role : undefined}
@@ -105,7 +122,7 @@ export const Alert: FC<Props> = ({
           (the sidebar) the action drops below the row instead of the icon
           dropping above the title. */}
       <div className="flex min-w-0 flex-[1_1_18rem] items-center gap-3">
-        <Icon className={cn('size-5 shrink-0', icon)} aria-hidden="true" />
+        <Icon className={cn('size-5 shrink-0', iconClass)} aria-hidden="true" />
         <div className="min-w-0 flex-1 text-sm">
           <p className="font-semibold break-words">{title}</p>
           {children ? (

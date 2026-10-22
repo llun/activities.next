@@ -9,6 +9,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TimelineRequestError } from '@/lib/client/timelines'
@@ -59,6 +60,31 @@ vi.mock('@/app/(timeline)/MainPageTimeline', () => ({
     <div data-testid="main-timeline">
       <span>Timeline for {props.profile?.username}</span>
       <button onClick={() => props.onUnauthorized?.()}>Trigger 401</button>
+    </div>
+  )
+}))
+
+vi.mock('@/lib/components/connection/ConnectionStatus', () => ({
+  ConnectionAnnouncer: () => <div data-testid="connection-announcer" />,
+  ConnectionStatusBar: () => <div data-testid="connection-bar" />,
+  ConnectionStatusStrip: () => <div data-testid="connection-strip" />
+}))
+vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
+  DraftsProvider: ({
+    accountId,
+    actorId,
+    children
+  }: {
+    accountId: string
+    actorId: string
+    children: ReactNode
+  }) => (
+    <div
+      data-testid="drafts-provider"
+      data-account-id={accountId}
+      data-actor-id={actorId}
+    >
+      {children}
     </div>
   )
 }))
@@ -200,6 +226,29 @@ describe('OfflineAppShell', () => {
         freshBootstrap
       )
     })
+  })
+
+  it('mounts the drafts provider, the status bar and the announcer once the shell is ready', async () => {
+    mockGetActiveOfflineSession.mockResolvedValueOnce({
+      actorId: 'actor-1',
+      accountId: 'account-1'
+    })
+    mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+    mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+    mockGetAccountBootstrap.mockResolvedValueOnce(null)
+
+    render(<OfflineAppShell />)
+
+    const timeline = await screen.findByTestId('main-timeline')
+    const provider = screen.getByTestId('drafts-provider')
+    expect(provider).toHaveAttribute('data-account-id', 'account-1')
+    expect(provider).toHaveAttribute('data-actor-id', 'actor-1')
+    expect(provider).toContainElement(screen.getByTestId('desktop-sidebar'))
+    expect(provider).toContainElement(timeline)
+    expect(screen.getByTestId('connection-bar').nextElementSibling).toBe(
+      timeline
+    )
+    expect(screen.getAllByTestId('connection-announcer')).toHaveLength(1)
   })
 
   it('redirects to sign in on onUnauthorized callback', async () => {

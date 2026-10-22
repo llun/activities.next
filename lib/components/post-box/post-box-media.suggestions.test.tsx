@@ -19,9 +19,9 @@ import {
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
   createPoll: vi.fn(),
-  deleteFitnessFile: vi.fn(),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   describeMedia: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),

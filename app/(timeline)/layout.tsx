@@ -5,6 +5,11 @@ import {
   PendingProfileOverlay
 } from '@/app/(timeline)/PendingProfileNavigation'
 import { Modal } from '@/app/Modal'
+import {
+  ConnectionAnnouncer,
+  ConnectionStatusBar
+} from '@/lib/components/connection/ConnectionStatus'
+import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
@@ -151,44 +156,51 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
         >
           <MobileNavigationProvider>
             <PendingProfileNavigationProvider>
-              <div className="min-h-dvh">
-                <Sidebar
-                  user={user}
-                  currentActor={currentActor}
-                  actors={formattedActors}
-                  unreadCount={unreadCount}
-                  fitnessUrl={fitnessUrl}
-                  galleryUrl={galleryUrl}
-                  isAdmin={isAdmin}
-                  lists={formattedLists}
-                  features={features}
-                />
-                <MobileNav
-                  user={user}
-                  currentActor={currentActor}
-                  actors={formattedActors}
-                  unreadCount={unreadCount}
-                  fitnessUrl={fitnessUrl}
-                  galleryUrl={galleryUrl}
-                  isAdmin={isAdmin}
-                  lists={formattedLists}
-                  features={features}
-                />
-                <main
-                  data-app-shell=""
-                  className={cn(
-                    'flex min-h-dvh flex-col overflow-x-clip pb-6',
-                    'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
-                  )}
-                >
-                  <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-                    {children}
-                  </div>
-                  <PendingProfileOverlay variant="signed-in" />
-                </main>
-                <Modal />
-                <SessionKeepAlive />
-              </div>
+              <DraftsProvider
+                accountId={actor.account?.id ?? ''}
+                actorId={actor.id}
+              >
+                <div className="min-h-dvh">
+                  <Sidebar
+                    user={user}
+                    currentActor={currentActor}
+                    actors={formattedActors}
+                    unreadCount={unreadCount}
+                    fitnessUrl={fitnessUrl}
+                    galleryUrl={galleryUrl}
+                    isAdmin={isAdmin}
+                    lists={formattedLists}
+                    features={features}
+                  />
+                  <MobileNav
+                    user={user}
+                    currentActor={currentActor}
+                    actors={formattedActors}
+                    unreadCount={unreadCount}
+                    fitnessUrl={fitnessUrl}
+                    galleryUrl={galleryUrl}
+                    isAdmin={isAdmin}
+                    lists={formattedLists}
+                    features={features}
+                  />
+                  <main
+                    data-app-shell=""
+                    className={cn(
+                      'flex min-h-dvh flex-col overflow-x-clip pb-6',
+                      'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+                    )}
+                  >
+                    <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                      <ConnectionStatusBar />
+                      {children}
+                    </div>
+                    <PendingProfileOverlay variant="signed-in" />
+                  </main>
+                  <Modal />
+                  <SessionKeepAlive />
+                  <ConnectionAnnouncer />
+                </div>
+              </DraftsProvider>
             </PendingProfileNavigationProvider>
           </MobileNavigationProvider>
         </NavPreferencesProvider>

@@ -15,6 +15,7 @@ describe('robots metadata route', () => {
         '/auth/',
         '/authorize_interaction',
         '/bookmarks',
+        '/drafts',
         '/favorites',
         '/fitness',
         '/gallery',

@@ -24,8 +24,8 @@ import {
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   createPoll: vi.fn(),
-  deleteAccountMedia: vi.fn().mockResolvedValue(true),
-  deleteFitnessFile: vi.fn(),
+  deleteUnpostedMedia: vi.fn().mockResolvedValue(undefined),
+  deleteUnpostedFitnessFile: vi.fn().mockResolvedValue(true),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
   getGallerySettings: vi.fn().mockResolvedValue({
@@ -293,85 +293,73 @@ describe('PostBox edit media', () => {
   })
 
   it('shows an edit-specific alert when updating a post fails', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     updateNoteMock.mockRejectedValueOnce(new Error('update failed'))
 
-    try {
-      render(
-        <PostBox
-          host="activities.local"
-          profile={profile}
-          editStatus={editStatus}
-          isMediaUploadEnabled
-          onDiscardReply={vi.fn()}
-          onPostCreated={vi.fn()}
-          onPostUpdated={vi.fn()}
-          onDiscardEdit={vi.fn()}
-        />
-      )
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
 
-      fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
-        target: { value: 'Updated post text' }
-      })
-      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'Updated post text' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-      await waitFor(() => {
-        expect(alertMock).toHaveBeenCalledWith('update failed')
-      })
-    } finally {
-      alertMock.mockRestore()
-    }
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't update.")
+    expect(alert).toHaveTextContent('update failed')
   })
 
   it('shows media upload failure details when edit media upload fails', async () => {
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
     uploadAttachmentMock.mockRejectedValueOnce(new Error('unsupported file'))
 
-    try {
-      render(
-        <PostBox
-          host="activities.local"
-          profile={profile}
-          editStatus={editStatus}
-          isMediaUploadEnabled
-          onDiscardReply={vi.fn()}
-          onPostCreated={vi.fn()}
-          onPostUpdated={vi.fn()}
-          onDiscardEdit={vi.fn()}
-        />
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media existing.jpg' })
+    )
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
       )
+    ).at(-1)!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['replacement'], 'replacement.png', { type: 'image/png' })
+        ]
+      }
+    })
 
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Remove media existing.jpg' })
-      )
-      const fileInput = Array.from(
-        document.querySelectorAll<HTMLInputElement>(
-          'input[type="file"][name="file"]'
-        )
-      ).at(-1)!
-      fireEvent.change(fileInput, {
-        target: {
-          files: [
-            new File(['replacement'], 'replacement.png', { type: 'image/png' })
-          ]
-        }
-      })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
-      })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
 
-      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
-
-      await waitFor(() => {
-        expect(alertMock).toHaveBeenCalledWith(
-          'Fail to upload replacement.png: unsupported file'
-        )
-      })
-      expect(updateNoteMock).not.toHaveBeenCalled()
-    } finally {
-      alertMock.mockRestore()
-    }
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Fail to upload replacement.png: unsupported file'
+    )
+    expect(updateNoteMock).not.toHaveBeenCalled()
   })
 
   it('does not submit an edit when text, warning, and media are unchanged', async () => {
@@ -763,5 +751,42 @@ describe('PostBox edit character limit', () => {
     // hasEditPostChanged runs from the attachment call site here — a hardcoded
     // 500 would wrongly re-enable Post for this 120-character draft.
     expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
+  })
+
+  it('opens the next post to edit once the update in flight settles', async () => {
+    const response = await updateNoteMock({} as never)
+    updateNoteMock.mockClear()
+    const update = createDeferred<Awaited<ReturnType<typeof updateNote>>>()
+    updateNoteMock.mockImplementationOnce(() => update.promise)
+    const box = (status: typeof editStatus) => (
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={status}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+    const { rerender } = render(box(editStatus))
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'Original post text!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    await waitFor(() => expect(updateNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      box({
+        ...editStatus,
+        id: `${editStatus.id}-next`,
+        text: 'The next post'
+      })
+    )
+    await act(async () => {
+      update.resolve(response)
+    })
+
+    await waitFor(() => expect(textarea).toHaveValue('The next post'))
   })
 })
