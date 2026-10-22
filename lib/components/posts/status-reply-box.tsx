@@ -376,8 +376,14 @@ export const StatusReplyBox: FC<Props> = ({
       return
     }
     // A new target not applied yet (the re-target effect runs after the render
-    // that brought it): never send this box's reply to it.
-    if (initializedStatusIdRef.current !== replyStatus.id) return
+    // that brought it, and its state lands a render later still): never send
+    // this box's reply to it.
+    if (
+      initializedStatusIdRef.current !== replyStatus.id ||
+      draftReplyTo.id !== replyStatus.id
+    ) {
+      return
+    }
     isSubmittingRef.current = true
     // Set once the reply went out: a re-target waiting for it then just moves on.
     let sent = false
