@@ -305,23 +305,35 @@ describe('StatusReplyBox offline hand-off', () => {
       expect(createNote).not.toHaveBeenCalled()
     })
 
-    it('saves a draft when the queue is unavailable (video)', async () => {
-      const onCancel = vi.fn()
-      render(box(replyStatus, onCancel))
-      await goOffline()
-      type('with a clip')
-      attachPhoto('clip.mp4', 'video/mp4')
-      await waitFor(() =>
-        expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
-      )
-      await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+    it.each([
+      ['the shortcut', () => shortcut()],
+      [
+        'an implicit form submit',
+        () => {
+          // Default prevented: no native navigation away from the page.
+          expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
+        }
+      ]
+    ])(
+      'saves a draft when the queue is unavailable (video), from %s',
+      async (_how, submit) => {
+        const onCancel = vi.fn()
+        render(box(replyStatus, onCancel))
+        await goOffline()
+        type('with a clip')
+        attachPhoto('clip.mp4', 'video/mp4')
+        await waitFor(() =>
+          expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+        )
+        await screen.findByText('Saved on this device', {}, { timeout: 4000 })
 
-      shortcut()
+        submit()
 
-      await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
-      expect((await stored())[0].queue).toBeUndefined()
-      expect(createNote).not.toHaveBeenCalled()
-    })
+        await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
+        expect((await stored())[0].queue).toBeUndefined()
+        expect(createNote).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('Send when online', () => {

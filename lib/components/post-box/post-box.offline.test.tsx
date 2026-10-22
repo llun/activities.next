@@ -448,28 +448,40 @@ describe('PostBox offline hand-off', () => {
       expect(createNoteMock).not.toHaveBeenCalled()
     })
 
-    it('saves a draft when the queue is unavailable (video)', async () => {
-      const onHandedOff = vi.fn()
-      render(composer({ onHandedOff }))
-      await goOffline()
-      const fileInput = document.querySelector<HTMLInputElement>(
-        'input[type="file"][name="file"]'
-      )!
-      fireEvent.change(fileInput, {
-        target: {
-          files: [new File(['v'], 'clip.mp4', { type: 'video/mp4' })]
+    it.each([
+      ['the shortcut', () => shortcut()],
+      [
+        'an implicit form submit',
+        () => {
+          // Default prevented: no native navigation away from the page.
+          expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
         }
-      })
-      await screen.findByRole('button', { name: 'Remove media clip.mp4' })
-      await screen.findByText('Saved on this device', {}, { timeout: 4000 })
+      ]
+    ])(
+      'saves a draft when the queue is unavailable (video), from %s',
+      async (_how, submit) => {
+        const onHandedOff = vi.fn()
+        render(composer({ onHandedOff }))
+        await goOffline()
+        const fileInput = document.querySelector<HTMLInputElement>(
+          'input[type="file"][name="file"]'
+        )!
+        fireEvent.change(fileInput, {
+          target: {
+            files: [new File(['v'], 'clip.mp4', { type: 'video/mp4' })]
+          }
+        })
+        await screen.findByRole('button', { name: 'Remove media clip.mp4' })
+        await screen.findByText('Saved on this device', {}, { timeout: 4000 })
 
-      shortcut()
+        submit()
 
-      await waitFor(() => expect(onHandedOff).toHaveBeenCalledTimes(1))
-      expect(await storedDrafts()).toHaveLength(1)
-      expect((await storedDrafts())[0].queue).toBeUndefined()
-      expect(createNoteMock).not.toHaveBeenCalled()
-    })
+        await waitFor(() => expect(onHandedOff).toHaveBeenCalledTimes(1))
+        expect(await storedDrafts()).toHaveLength(1)
+        expect((await storedDrafts())[0].queue).toBeUndefined()
+        expect(createNoteMock).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('an untouched composer', () => {

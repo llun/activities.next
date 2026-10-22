@@ -244,6 +244,7 @@ export const StatusReplyBox: FC<Props> = ({
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     if (!offlineSplit) return onPost(event)
     event.preventDefault()
+    if (!allowPost) return
     void onHandOff(!queueDisabledReason)
   }
 

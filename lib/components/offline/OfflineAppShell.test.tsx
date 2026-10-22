@@ -26,9 +26,13 @@ const mockUnsubscribe = vi.fn()
 const mockOnConnectionRestored = vi.fn(
   (_listener: () => void) => mockUnsubscribe
 )
+const connection = { state: 'unreachable' }
+const mockProbeNow = vi.fn(async () => {})
 vi.mock('@/lib/client/connection', () => ({
   onConnectionRestored: (listener: () => void) =>
-    mockOnConnectionRestored(listener)
+    mockOnConnectionRestored(listener),
+  probeNow: () => mockProbeNow(),
+  getConnectionSnapshot: () => ({ state: connection.state })
 }))
 
 vi.mock('@/lib/components/drafts/DraftsList', () => ({
@@ -514,6 +518,11 @@ describe('OfflineAppShell', () => {
       expect(
         screen.getByRole('heading', { name: 'Not saved for offline' })
       ).toBeVisible()
+      // It reloads into the real page once back online, like Drafts.
+      expect(screen.getByTestId('drafts-provider')).toHaveAttribute(
+        'data-sends',
+        'false'
+      )
       expect(screen.getByRole('link', { name: 'Open drafts' })).toHaveAttribute(
         'href',
         '/drafts'
@@ -528,6 +537,56 @@ describe('OfflineAppShell', () => {
 
       expect(screen.getByTestId('main-timeline')).toBeInTheDocument()
       expect(mockOnConnectionRestored).not.toHaveBeenCalled()
+    })
+
+    it('probes on mount and reloads once when the server already answers', async () => {
+      mockPathname = '/drafts'
+      connection.state = 'online'
+      const reload = vi.fn()
+      const original = window.location
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: { ...original, reload }
+      })
+      try {
+        const mount = async () => {
+          mockGetActiveOfflineSession.mockResolvedValueOnce({
+            actorId: 'actor-1',
+            accountId: 'account-1'
+          })
+          mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+          mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+          mockGetAccountBootstrap.mockResolvedValueOnce(null)
+          const view = render(<OfflineAppShell />)
+          await screen.findByTestId('drafts-list')
+          return view
+        }
+        // No restore event will come: the store already says online.
+        const first = await mount()
+        await waitFor(() => expect(reload).toHaveBeenCalledTimes(1))
+        expect(mockProbeNow).toHaveBeenCalled()
+        first.unmount()
+
+        // Back on the shell right away (the page's own fetch failed again):
+        // no second reload, so it can never loop.
+        await mount()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(reload).toHaveBeenCalledTimes(1)
+        // Held back from reloading, and online: the queue sends from here.
+        await waitFor(() =>
+          expect(screen.getByTestId('drafts-provider')).toHaveAttribute(
+            'data-sends',
+            'true'
+          )
+        )
+      } finally {
+        connection.state = 'unreachable'
+        sessionStorage.clear()
+        Object.defineProperty(window, 'location', {
+          configurable: true,
+          value: original
+        })
+      }
     })
 
     it('reloads when the connection returns on a non-timeline view and stops listening on unmount', async () => {

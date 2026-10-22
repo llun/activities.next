@@ -20,7 +20,11 @@ import {
 } from '@/app/(timeline)/PendingProfileNavigation'
 import { DraftsPage } from '@/app/(timeline)/drafts/DraftsPage'
 import { getAccountBootstrap } from '@/lib/client/bootstrap'
-import { onConnectionRestored } from '@/lib/client/connection'
+import {
+  getConnectionSnapshot,
+  onConnectionRestored,
+  probeNow
+} from '@/lib/client/connection'
 import {
   type ClientBootstrapSnapshot,
   type HydratedOfflineTimeline,
@@ -60,6 +64,26 @@ type ShellState =
 
 type ShellView = 'timeline' | 'drafts' | 'unavailable'
 
+const SHELL_RELOAD_KEY = 'activities-shell-reloaded-at'
+const SHELL_RELOAD_GAP_MS = 30_000
+
+/**
+ * Reloads into the real page, at most once in SHELL_RELOAD_GAP_MS: a page whose
+ * own fetch still fails while /health answers would otherwise bounce back to
+ * the shell and reload forever. False when it held back.
+ */
+const reloadOnce = (): boolean => {
+  try {
+    const last = Number(sessionStorage.getItem(SHELL_RELOAD_KEY) ?? 0)
+    if (Date.now() - last < SHELL_RELOAD_GAP_MS) return false
+    sessionStorage.setItem(SHELL_RELOAD_KEY, String(Date.now()))
+  } catch {
+    // Storage blocked: reload anyway, the restore listener is the backstop.
+  }
+  window.location.reload()
+  return true
+}
+
 const getShellView = (pathname: string | null): ShellView => {
   if (pathname === '/' || pathname === '/app') return 'timeline'
   // The worker serves this shell for both forms when offline.
@@ -73,6 +97,7 @@ export function OfflineAppShell() {
   // The Drafts page measures "Queued … ago" against now: posts queued offline
   // are newer than the cached bootstrap's server time.
   const [openedAt] = useState(() => Date.now())
+  const [staysOnline, setStaysOnline] = useState(false)
   const [shellState, setShellState] = useState<ShellState>({
     status: 'loading'
   })
@@ -166,10 +191,19 @@ export function OfflineAppShell() {
   }, [])
 
   // The shell stands in for a route it cannot draw: once back online, load the
-  // real page over it.
+  // real page over it. The store starts out online, so a navigation that failed
+  // while it still says so would never see a restore: probe once on mount.
   useEffect(() => {
     if (view === 'timeline') return
-    return onConnectionRestored(() => window.location.reload())
+    const stop = onConnectionRestored(() => window.location.reload())
+    void probeNow().then(() => {
+      // Online but held back from reloading: nothing will cut a send off now,
+      // so the queue sends from here.
+      if (getConnectionSnapshot().state === 'online' && !reloadOnce()) {
+        setStaysOnline(true)
+      }
+    })
+    return stop
   }, [view])
 
   const handleUnauthorized = useCallback(() => {
@@ -423,7 +457,7 @@ export function OfflineAppShell() {
                   actorId={bootstrap.actorId}
                   // The other views reload into the real page once back
                   // online (above); that page sends.
-                  sends={view === 'timeline'}
+                  sends={view === 'timeline' || staysOnline}
                 >
                   <div className="min-h-dvh">
                     <Sidebar
