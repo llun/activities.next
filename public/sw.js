@@ -21,6 +21,19 @@ function getSvgPlaceholderResponse() {
   })
 }
 
+// Static and `no-store`: it holds no personal data and is never cached.
+function offlinePageResponse() {
+  const html =
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not saved for offline</title><style>:root{color-scheme:light dark}body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fff;color:#0f172a}main{max-width:28rem}a{color:#c2410c;margin-right:16px}@media (prefers-color-scheme:dark){body{background:#0f172a;color:#f1f5f9}a{color:#fdba74}}</style></head><body><main><h1>Not saved for offline</h1><p>This page wasn\'t saved on this device. Connect to the internet to open it.</p><p><a href="/drafts">Drafts</a><a href="/">Home</a></p></main></body></html>'
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store'
+    }
+  })
+}
+
 const RESERVED_STATIC_DIRS = new Set([
   'chunks',
   'css',
@@ -267,9 +280,13 @@ sw.addEventListener('install', (event) => {
 
 sw.addEventListener('activate', (event) => {
   const c = getClients()
-  if (c && typeof c.claim === 'function') {
-    event.waitUntil(c.claim())
+  const tasks = []
+  if (c && typeof c.claim === 'function') tasks.push(c.claim())
+  const preload = sw.registration && sw.registration.navigationPreload
+  if (preload && typeof preload.enable === 'function') {
+    tasks.push(preload.enable())
   }
+  event.waitUntil(Promise.all(tasks))
 })
 
 sw.addEventListener('fetch', (event) => {
@@ -337,6 +354,26 @@ sw.addEventListener('fetch', (event) => {
       return
     }
 
+    // Everything else outside /api/: network first. Only a rejected fetch falls
+    // back (an HTTP error or redirect is returned as is). The app shell stands
+    // in for /drafts alone; any other path gets the static page, never chrome.
+    if (url.pathname.startsWith('/api/')) {
+      return
+    }
+
+    event.respondWith(
+      (async () => {
+        try {
+          return (await event.preloadResponse) || (await fetch(request))
+        } catch (_err) {
+          if (url.pathname === '/drafts' && (await hasActiveOfflineSession())) {
+            const shell = await getCachedAppShell()
+            if (shell) return shell
+          }
+          return offlinePageResponse()
+        }
+      })()
+    )
     return
   }
 
