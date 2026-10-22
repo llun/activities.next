@@ -543,8 +543,13 @@ export const useComposerDraft = ({
             // Only the revision this tab saved: a newer one from another tab
             // stays as that tab's draft, and this composer starts afresh.
             try {
-              await (await loadDrafts()).deleteDraftIfRevision(d.id, d.revision)
+              const gone = await (
+                await loadDrafts()
+              ).deleteDraftIfRevision(d.id, d.revision)
               announceChanged(snap)
+              // Already gone: another tab sent, discarded or signed out of it,
+              // and may still be attaching what this tab removed.
+              if (!gone) d.removed.clear()
             } catch (error) {
               if (!(error instanceof DraftConflictError)) throw error
               letGo = true

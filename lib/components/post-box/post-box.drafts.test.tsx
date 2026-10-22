@@ -522,8 +522,9 @@ describe('PostBox on-device drafts', () => {
       expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-b.png')
     })
 
-    // This tab holds the newest revision: a copy in another tab conflicts
-    // before it can post, and the server keeps (422) anything a post uses.
+    // Only after this tab's own save lands does it hold the newest revision; a
+    // copy in another tab then conflicts before it can post, and the server
+    // keeps (422) anything a post uses.
     it('a reopened draft deletes a photo it came with through the guarded delete', async () => {
       const first = render(composer())
       await withPhoto()
@@ -572,6 +573,29 @@ describe('PostBox on-device drafts', () => {
         expect(deleteUnpostedMedia).toHaveBeenCalledWith('media-a.png')
       )
       expect(deleteUnpostedMedia).toHaveBeenCalledTimes(1)
+    })
+
+    it('an emptied reopened draft deletes nothing when another tab already removed the record', async () => {
+      const first = render(composer())
+      attach('a.png')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      first.unmount()
+      const [draft] = await storedDrafts()
+
+      render(composer({ draft }))
+      await screen.findByRole('button', { name: 'Remove media a.png' })
+      // Another tab sent, discarded or signed out of the draft: that tab may
+      // still be attaching the photo.
+      await sendFromAnotherTab()
+      removePhoto()
+
+      // The debounced emptying delete has run and found no record.
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
     })
 
     it('a reopened draft deletes a fitness file it came with through the guarded delete', async () => {
