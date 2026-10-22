@@ -1,0 +1,39 @@
+lib/client/drafts/sendQueue.test.ts
+  s_512188f2b1db53::t_f06cc3255b1b39 839-853
+lib/components/drafts/DraftsProvider.tsx
+  s_512188f2b1db53::t_84f79f597cbcdf 28
+lib/components/drafts/DraftsList.tsx
+  s_512188f2b1db53::t_84f79f597cbcdf 14,222-225,227
+  s_512188f2b1db53::t_89561237f6dc50 148
+  s_512188f2b1db53::t_e16b8f2b5bdfcd 149-150,226
+  s_512188f2b1db53::t_7de46f03f2f977 228
+lib/components/drafts/DraftsProvider.queue.test.tsx
+  s_512188f2b1db53::t_ce864044256dbc 502-503,505,627,629-634,636-640,642
+  s_512188f2b1db53::t_85c86214837687 628,635
+  s_512188f2b1db53::t_0a4ed9ffafa6d8 641,643-646
+docs/architecture.md
+  s_512188f2b1db53::t_80b620cc7aafa0 3086
+  s_512188f2b1db53::t_13e212a9e0a7da 3091
+lib/client/drafts/queueConstants.ts
+  s_512188f2b1db53::t_f9a4e447d7b6fc 22-26
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_e16b8f2b5bdfcd 667-705
+lib/client/drafts/sendQueue.ts
+  s_512188f2b1db53::t_cbd1156cdfba75 43-44,659-668
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c93b680e03f2e1f89c2c71dba0a3ffaad4e083ab",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
