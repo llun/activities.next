@@ -669,11 +669,12 @@ export const useComposerDraft = ({
 
     // True only while a record is stored or a save is on its way: a draft whose
     // saves all failed holds nothing, so its uploaded media is not kept.
+    // Not tied to `enabled`: a draft stored before another tab began signing
+    // out still owns its media.
     const hasDraft = (): boolean =>
-      live.current.enabled &&
-      (s.d.revision > 0 ||
-        s.d.pending > 0 ||
-        (s.timer !== undefined && live.current.getContent() !== null))
+      s.d.revision > 0 ||
+      s.d.pending > 0 ||
+      (s.timer !== undefined && live.current.getContent() !== null)
 
     // Another tab saved, deleted or signed out of this draft: a send is
     // blocked until the composer is emptied.
@@ -822,8 +823,8 @@ export const useComposerDraft = ({
     // Saves what the composer holds, then lets it move on to new content
     // without touching the saved draft.
     const detach = (): Promise<void> => {
-      if (!live.current.enabled) return Promise.resolve()
-      const snap = capture()
+      // Let go even while saving is off: the next content is a new draft.
+      const snap = live.current.enabled ? capture() : null
       forget()
       if (!snap) return Promise.resolve()
       return queueSave(snap).then(() => undefined)

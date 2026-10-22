@@ -351,6 +351,65 @@ describe('PostBox on-device drafts', () => {
       )
     })
 
+    it('keeps a failed post in Drafts and says so before moving to the new target', async () => {
+      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => send.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      send.reject(new Error('offline'))
+
+      expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+      await waitFor(() => expect(textarea().value).not.toContain('my reply'))
+      const [draft] = await storedDrafts()
+      expect(draft).toMatchObject({
+        text: '@bob@activities.local my reply',
+        replyTo: expect.objectContaining({ id: replyTo('first').id })
+      })
+    })
+
+    it('offers the text of a failed post it could not keep before moving on', async () => {
+      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => send.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      makeFull()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      send.reject(new Error('offline'))
+
+      expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
+    })
+
+    it('stays put after a failed send when only the profile changed', async () => {
+      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => send.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(
+        composer({ replyStatus: replyTo('first'), profile: { ...profile } })
+      )
+      send.reject(new Error('offline'))
+
+      expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
+      // Nothing moves on later either: no keep, no re-target.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(screen.queryByText('Saved to Drafts')).toBeNull()
+      expect(textarea().value).toBe('@bob@activities.local my reply')
+    })
+
     it('cannot dismiss the reply while it is being sent', async () => {
       pendingSend()
       render(composer({ replyStatus: replyTo('first') }))

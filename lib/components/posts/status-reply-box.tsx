@@ -98,9 +98,6 @@ export const StatusReplyBox: FC<Props> = ({
     draftLockedRef.current = message !== null
     setLockedMessageState(message)
   }
-  // Bumped when the reply target changes: a submit still in flight belongs to
-  // the previous draft and must not lock the new one.
-  const draftGenerationRef = useRef(0)
   // A new target that arrived while a send was in flight: applied once it
   // settles, so the send and its draft always stay this box's own.
   const retargetPendingRef = useRef(false)
@@ -299,15 +296,14 @@ export const StatusReplyBox: FC<Props> = ({
     const seeded = Boolean(draft) && !draftSeededRef.current
     // Re-targeted: the previous target's draft stays where it was saved, with
     // its attachments; the new target starts without them.
-    if (!seeded && composerDraft.hasDraft()) {
-      void composerDraft.detach()
+    if (!seeded) {
+      if (composerDraft.hasDraft()) void composerDraft.detach()
       dispatch(resetExtension())
       removedAttachmentIdsRef.current.clear()
     }
     setDraftReplyTo(replyStatus)
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
-    draftGenerationRef.current += 1
     setLockedMessage(null)
 
     const prepared = prepareReplyDraft({
@@ -375,7 +371,8 @@ export const StatusReplyBox: FC<Props> = ({
       return
     }
     isSubmittingRef.current = true
-    const generation = draftGenerationRef.current
+    // Set once the reply went out: a re-target waiting for it then just moves on.
+    let sent = false
     const retryingLockedDraft = draftLocked
     setIsPosting(true)
     setWarningMsg(null)
@@ -509,21 +506,18 @@ export const StatusReplyBox: FC<Props> = ({
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       // The posted reply owns the media now: drop the draft and its bytes only.
-      if (generation === draftGenerationRef.current) {
-        void composerDraft.release()
-      }
+      void composerDraft.release()
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       removedAttachmentIdsRef.current.clear()
       setText('')
       isSubmittingRef.current = false
       setIsPosting(false)
+      sent = true
     } catch (error) {
       isSubmittingRef.current = false
       setIsPosting(false)
       reportRequestFailure(error)
-      // A stale failure belongs to a previous draft: say nothing on this one.
-      if (generation !== draftGenerationRef.current) return
       // Surface the server's message without wiping user draft, CW, or attachments.
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
@@ -555,7 +549,11 @@ export const StatusReplyBox: FC<Props> = ({
     } finally {
       if (retargetPendingRef.current) {
         retargetPendingRef.current = false
-        setRetargetAfterSend((count) => count + 1)
+        const moveOn = () => setRetargetAfterSend((count) => count + 1)
+        // Not sent: kept in Drafts (or offered in the note) first, as Cancel
+        // does, so moving on never drops it silently.
+        if (sent) moveOn()
+        else void composerDraft.keep().then(moveOn, moveOn)
       }
     }
   }
@@ -570,7 +568,6 @@ export const StatusReplyBox: FC<Props> = ({
     if (!draftLocked && getDraftContent() !== null) void composerDraft.keep()
     else void composerDraft.discard()
     if (draftLocked) {
-      draftGenerationRef.current += 1
       submitIdempotencyRef.current = null
       setLockedMessage(null)
       setWarningMsg(null)

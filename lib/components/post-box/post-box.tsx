@@ -226,9 +226,6 @@ export const PostBox: FC<Props> = ({
     draftLockedRef.current = message !== null
     setLockedMessageState(message)
   }
-  // Bumped when the composer is re-targeted: a submit still in flight belongs
-  // to the previous draft and must not lock the new one.
-  const draftGenerationRef = useRef(0)
   // A new target that arrived while a send was in flight: applied once it
   // settles, so the send and its draft always stay this composer's own.
   const retargetPendingRef = useRef(false)
@@ -1071,7 +1068,8 @@ export const PostBox: FC<Props> = ({
       return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
-    const generation = draftGenerationRef.current
+    // Set once the post went out: a re-target waiting for it then just moves on.
+    let sent = false
     const retryingLockedDraft = draftLocked
 
     setAllowPost(false)
@@ -1127,9 +1125,7 @@ export const PostBox: FC<Props> = ({
 
         submitIdempotencyRef.current = null
         setLockedMessage(null)
-        if (generation === draftGenerationRef.current) {
-          void composerDraft.release()
-        }
+        void composerDraft.release()
         dispatch(resetExtension())
         resetMediaState()
         // Clear the draft like the note branch does. Leaving the question text
@@ -1138,6 +1134,7 @@ export const PostBox: FC<Props> = ({
         setText('')
         textRef.current = ''
         setIsPosting(false)
+        sent = true
         return
       }
 
@@ -1218,6 +1215,7 @@ export const PostBox: FC<Props> = ({
 
         setText('')
         setIsPosting(false)
+        sent = true
         return
       }
 
@@ -1302,9 +1300,7 @@ export const PostBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
       // The posted status owns the media now: drop the draft and its bytes only.
-      if (generation === draftGenerationRef.current) {
-        void composerDraft.release()
-      }
+      void composerDraft.release()
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       resetMediaState()
@@ -1314,6 +1310,7 @@ export const PostBox: FC<Props> = ({
 
       setText('')
       setIsPosting(false)
+      sent = true
     } catch (error) {
       setIsPosting(false)
       setAllowPost(true)
@@ -1335,37 +1332,38 @@ export const PostBox: FC<Props> = ({
         wayOut: 'discard the draft',
         kept: keptByServer
       })
-      if (generation === draftGenerationRef.current) {
-        if (action === 'lock') {
-          setLockedMessage(failureMessage)
-          // Persist the key and the lock: a reopened draft must retry under the
-          // same key, or it duplicates the post the server kept.
-          void composerDraft.recordLock(
-            failureMessage,
-            submitIdempotencyRef.current
-          )
-        } else {
-          if (action === 'unlock') {
-            // Nothing is kept under this key any more: let the draft be edited
-            // again under a new key instead of stranding it.
-            setLockedMessage(null)
-            submitIdempotencyRef.current = null
-            void composerDraft.recordLock(null, null)
-          }
-          // A lock shows only its own status line. A stale failure belongs to
-          // a previous draft: say nothing on this one.
-          setSubmitError({
-            title: editStatus ? "Couldn't update." : "Couldn't send.",
-            message: failureMessage,
-            retryable: true
-          })
+      if (action === 'lock') {
+        setLockedMessage(failureMessage)
+        // Persist the key and the lock: a reopened draft must retry under the
+        // same key, or it duplicates the post the server kept.
+        void composerDraft.recordLock(
+          failureMessage,
+          submitIdempotencyRef.current
+        )
+      } else {
+        if (action === 'unlock') {
+          // Nothing is kept under this key any more: let the draft be edited
+          // again under a new key instead of stranding it.
+          setLockedMessage(null)
+          submitIdempotencyRef.current = null
+          void composerDraft.recordLock(null, null)
         }
+        // A lock shows only its own status line.
+        setSubmitError({
+          title: editStatus ? "Couldn't update." : "Couldn't send.",
+          message: failureMessage,
+          retryable: true
+        })
       }
     } finally {
       submitInFlightRef.current = false
       if (retargetPendingRef.current) {
         retargetPendingRef.current = false
-        setRetargetAfterSend((count) => count + 1)
+        const moveOn = () => setRetargetAfterSend((count) => count + 1)
+        // Not sent: kept in Drafts (or offered in the note) first, as closing
+        // a reply does, so moving on never drops it silently.
+        if (sent) moveOn()
+        else void composerDraft.keep().then(moveOn, moveOn)
       }
     }
   }
@@ -1378,7 +1376,6 @@ export const PostBox: FC<Props> = ({
     // Before the composer clears: the draft's media is the kept post's, so
     // this deletes only the local record.
     void composerDraft.discard()
-    draftGenerationRef.current += 1
     submitIdempotencyRef.current = null
     setLockedMessage(null)
     setWarningMsg(null)
@@ -1770,9 +1767,15 @@ export const PostBox: FC<Props> = ({
     // A composer opened from a draft is that draft's composer: it is never
     // re-targeted, and React StrictMode's second run must not reset it.
     if (draft && draftSeededRef.current) return
-    // A send in flight keeps its draft and this composer until it settles.
+    // A send in flight keeps its draft and this composer until it settles;
+    // only a new target waits for it.
     if (submitInFlightRef.current) {
-      retargetPendingRef.current = true
+      if (
+        replyStatus?.id !== draftTarget.replyTo?.id ||
+        quotedStatus?.id !== draftTarget.quoteOf?.id
+      ) {
+        retargetPendingRef.current = true
+      }
       return
     }
     // The photos a "Post" action in Gallery handed over. They seed the first
@@ -1793,8 +1796,8 @@ export const PostBox: FC<Props> = ({
         ? seededMediaRef.current
         : []
 
-    // The composer is being re-targeted: media uploaded for the previous draft
-    // and never posted is abandoned (unless a submit is still using it).
+    // The composer is being re-targeted (never while a send is in flight):
+    // media uploaded for the previous draft and never posted is abandoned.
     // A saved draft keeps its media and is left behind as it is.
     // The first run for a reopened draft has nothing to leave behind: the draft
     // is this composer's own.
@@ -1802,12 +1805,11 @@ export const PostBox: FC<Props> = ({
     const draftOwnsMedia = !reopening && composerDraft.hasDraft()
     if (draftOwnsMedia) void composerDraft.detach()
     setDraftTarget({ replyTo: replyStatus, quoteOf: quotedStatus })
-    if (!submitInFlightRef.current && !draftOwnsMedia) {
+    if (!draftOwnsMedia) {
       discardUploadedMedia(postExtensionRef.current.attachments)
     }
     setLockedMessage(null)
     setSubmitError(null)
-    draftGenerationRef.current += 1
     if (draft && !editStatus) {
       draftSeededRef.current = true
       originalMediaIdsRef.current = new Set()

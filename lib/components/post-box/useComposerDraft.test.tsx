@@ -1144,6 +1144,22 @@ describe('useComposerDraft', () => {
       expect((await stored())?.text).toBe('hello')
     })
 
+    it('a stored draft still owns its media while another tab signs out, and is let go of on a re-target', async () => {
+      const { result, rerender } = setup()
+      act(() => result.current.schedule())
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+
+      vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
+      rerender()
+      expect(result.current.hasDraft()).toBe(true)
+
+      await act(async () => {
+        await result.current.detach()
+      })
+      expect(result.current.hasDraft()).toBe(false)
+    })
+
     it('keep offers the text when another tab is signing out', async () => {
       vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
       const { result } = setup()

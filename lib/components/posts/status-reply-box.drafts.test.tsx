@@ -626,6 +626,91 @@ describe('StatusReplyBox on-device drafts', () => {
     )
   })
 
+  it('keeps a failed reply in Drafts and says so before moving to the new target', async () => {
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const { rerender } = renderBox()
+    type('Reply body')
+    await waitForSaved()
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    send.reject(new Error('offline'))
+
+    expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+    await waitFor(() => expect(textarea()).not.toHaveValue('Reply body'))
+    expect((await stored())[0]).toMatchObject({
+      text: 'Reply body',
+      replyTo: expect.objectContaining({ id: replyStatus.id })
+    })
+  })
+
+  it('leaves a saved reply’s photo with its draft when the box is re-targeted', async () => {
+    const { rerender } = renderBox()
+    type('Reply with a photo')
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    await waitFor(async () =>
+      expect((await stored())[0]?.attachments).toHaveLength(1)
+    )
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
+    )
+    expect((await stored())[0].attachments).toHaveLength(1)
+  })
+
+  it('without drafts, a re-target still starts the new reply without the old photo', async () => {
+    const box = (id: string) => (
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={{ ...replyStatus, id }}
+        isMediaUploadEnabled
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+    const { rerender } = render(box(replyStatus.id))
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    )
+
+    rerender(box(`${replyStatus.id}-other`))
+
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
+    )
+  })
+
   it('does not carry the sent reply’s photo over to the new target', async () => {
     const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
     createNoteMock.mockImplementationOnce(() => send.promise)
