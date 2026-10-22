@@ -352,6 +352,15 @@ describe('classifySendOutcome', () => {
     ).toEqual(expected)
   })
 
+  it('never gives up on a network failure before the POST, however many', () => {
+    expect(
+      classifySendOutcome(new TypeError('x'), draft('a', { retries: 9 }), {
+        now: NOW,
+        preflight: true
+      })
+    ).toEqual({ kind: 'waiting', nextAttemptAt: NOW + 300_000 })
+  })
+
   it('backs off pre-POST failures by their own count, not by POSTs made', () => {
     expect(
       classifySendOutcome(new TypeError('x'), posted, {
@@ -995,6 +1004,18 @@ describe('drainQueue', () => {
       expect(stored?.queue).toMatchObject({ state: 'waiting', attempts: 0 })
       expect(stored?.queue).not.toHaveProperty('firstAttemptAt')
       expect(stored).not.toHaveProperty('submit')
+    })
+
+    it('drops the pre-POST counts once a POST is made', async () => {
+      await store(draft('a', { retries: 3, uploadRetries: 2 }))
+      const deps = makeDeps({
+        createNote: vi.fn<CreateNote>().mockRejectedValue(new TypeError('x'))
+      })
+      await drain(deps)
+      const queue = (await getDraft('a'))?.queue
+      expect(queue?.state).toBe('checking')
+      expect(queue).not.toHaveProperty('retries')
+      expect(queue).not.toHaveProperty('uploadRetries')
     })
 
     it('pauses the only post when Pause is pressed while it is out', async () => {

@@ -367,6 +367,22 @@ describe('draftsDb send queue', () => {
       expect((await getDraft('s'))?.revision).toBe(sending.revision)
     })
 
+    it('starts a lifted or resumed item’s pre-POST counts afresh', async () => {
+      await store(
+        queued('held', {
+          state: 'paused',
+          pausedBy: 'auth',
+          retries: 4,
+          uploadRetries: 3
+        })
+      )
+      await resumeQueue({ actorId: 'actor-1', pausedBy: ['auth', 'actor'] })
+      const queue = (await getDraft('held'))?.queue
+      expect(queue?.state).toBe('waiting')
+      expect(queue).not.toHaveProperty('retries')
+      expect(queue).not.toHaveProperty('uploadRetries')
+    })
+
     it('marks an item held for sign-in, and Resume takes the mark off', async () => {
       await store(queued('held', { state: 'paused', pausedBy: 'auth' }))
       expect(await pauseQueue({ actorId: 'actor-1' })).toBe(1)
