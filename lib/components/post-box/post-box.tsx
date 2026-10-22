@@ -1033,7 +1033,13 @@ export const PostBox: FC<Props> = ({
   // The key and the attempt are written to the draft before the POST. If that
   // write fails the post is NOT sent: a lost response plus a lost key would
   // send the same post again under a new key after a reload.
-  const checkpointAttempt = async () => {
+  const checkpointAttempt = async (generation: number) => {
+    // Re-targeted while uploading: the draft was left in Drafts as it was, with
+    // no key, and nothing was sent.
+    if (generation !== draftGenerationRef.current) {
+      setIsPosting(false)
+      return false
+    }
     const key = submitIdempotencyRef.current
     if (!key) return true
     if (await composerDraft.recordAttempt(key)) return true
@@ -1103,7 +1109,7 @@ export const PostBox: FC<Props> = ({
             key: generatePublicId()
           }
         }
-        if (!(await checkpointAttempt())) return
+        if (!(await checkpointAttempt(generation))) return
         await createPoll({
           message,
           contentWarning,
@@ -1275,7 +1281,7 @@ export const PostBox: FC<Props> = ({
         }
       }
 
-      if (!(await checkpointAttempt())) return
+      if (!(await checkpointAttempt(generation))) return
       const response = await createNote({
         message,
         contentWarning,
@@ -1351,6 +1357,12 @@ export const PostBox: FC<Props> = ({
             retryable: true
           })
         }
+      } else if (action !== 'none') {
+        // Re-targeted mid-send: the draft left behind takes the lock (a reopen
+        // must retry under the same key); this composer says nothing.
+        void composerDraft.recordSentLock(
+          action === 'lock' ? failureMessage : null
+        )
       }
     } finally {
       submitInFlightRef.current = false

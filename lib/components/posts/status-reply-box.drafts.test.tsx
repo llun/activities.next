@@ -517,6 +517,116 @@ describe('StatusReplyBox on-device drafts', () => {
     })
   })
 
+  it('sends nothing when re-targeted while the photo uploads, and keeps the reply for its own target', async () => {
+    const upload =
+      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
+    const { rerender } = renderBox()
+    type('Reply body')
+    await waitForSaved()
+    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    post()
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    upload.resolve({
+      id: 'media-b.png',
+      type: 'upload',
+      mediaType: 'image/png',
+      url: 'https://activities.local/media/b.png',
+      width: 100,
+      height: 100
+    })
+
+    await waitFor(async () =>
+      expect(await stored()).toEqual([
+        expect.objectContaining({
+          text: expect.stringContaining('Reply body'),
+          replyTo: expect.objectContaining({ id: replyStatus.id })
+        })
+      ])
+    )
+    expect(createNoteMock).not.toHaveBeenCalled()
+    expect((await stored())[0].submit).toBeUndefined()
+  })
+
+  it('locks the reply it left behind when the server keeps it after a re-target', async () => {
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const { rerender } = renderBox()
+    type('Reply body')
+    await waitForSaved()
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    const key = createNoteMock.mock.calls[0][0].idempotencyKey
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    send.reject(new ApiRequestError('kept', 503))
+
+    await waitFor(async () =>
+      expect((await stored())[0]?.lockedMessage).toBeTruthy()
+    )
+    const [draft] = await stored()
+    expect(draft.submit?.key).toBe(key)
+    expect(draft.replyTo?.id).toBe(replyStatus.id)
+    expect(sendAlerts()).toHaveLength(0)
+  })
+
+  it('does not carry the sent reply’s photo over to the new target', async () => {
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const onPostCreated = vi.fn()
+    const { rerender } = renderBox({ onPostCreated })
+    type('Reply body')
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="file"]')!,
+      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
+    )
+    await waitFor(() =>
+      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
+    )
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={onPostCreated}
+        />
+      </DraftsProvider>
+    )
+    send.resolve({ status: replyStatus, attachments: [] })
+    await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
+
+    expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
+  })
+
   it('drops the sent draft when re-targeted while the reply is in flight', async () => {
     const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
     createNoteMock.mockImplementationOnce(() => send.promise)

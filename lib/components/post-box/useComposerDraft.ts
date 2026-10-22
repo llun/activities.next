@@ -114,6 +114,10 @@ interface DraftState {
   submit?: SubmitCheckpoint
   lockedMessage?: string
   attemptedAt?: number
+  /** What the draft replies to or quotes, as of its last capture. */
+  target?: { replyTo?: Status; quoteOf?: Status }
+  /** What it held when the composer let go of it (re-targeted). */
+  left?: Snapshot
   lastError: unknown
 }
 
@@ -158,7 +162,8 @@ const stateFromDraft = (draft: DraftRecord): DraftState => ({
   lastKey: recordKey(draft),
   submit: draft.submit,
   lockedMessage: draft.lockedMessage,
-  attemptedAt: draft.attemptedAt
+  attemptedAt: draft.attemptedAt,
+  target: { replyTo: draft.replyTo, quoteOf: draft.quoteOf }
 })
 
 interface Snapshot {
@@ -445,7 +450,9 @@ export const useComposerDraft = ({
 
     // Reads the content now: a save that runs later must write what the
     // composer held when it was asked, even if the composer is reset meanwhile.
-    const capture = (force = false): Snapshot | null => {
+    // `keepTarget`: the composer was re-targeted, so its props already name the
+    // new target; the draft it leaves behind keeps the one it was written for.
+    const capture = (force = false, keepTarget = false): Snapshot | null => {
       const { enabled: on, drafts: ctx } = live.current
       if (!on || !ctx || live.current.isSeeding?.()) return null
       const d = s.d
@@ -458,13 +465,21 @@ export const useComposerDraft = ({
         d.id = generatePublicId()
         d.createdAt = Date.now()
       }
+      const target =
+        keepTarget && d.target
+          ? d.target
+          : {
+              replyTo: copyOf('replyTo', live.current.replyTo),
+              quoteOf: copyOf('quoteOf', live.current.quoteOf)
+            }
+      d.target = target
       return {
         d,
         content,
         ctx,
         composer: live.current.composer,
-        replyTo: copyOf('replyTo', live.current.replyTo),
-        quoteOf: copyOf('quoteOf', live.current.quoteOf),
+        replyTo: target.replyTo,
+        quoteOf: target.quoteOf,
         submit: d.submit,
         lockedMessage: d.lockedMessage,
         attemptedAt: d.attemptedAt
@@ -832,10 +847,28 @@ export const useComposerDraft = ({
     // without touching the saved draft.
     const detach = (): Promise<void> => {
       if (!live.current.enabled) return Promise.resolve()
-      const snap = capture()
+      const snap = capture(false, true)
       forget()
       if (!snap) return Promise.resolve()
+      snap.d.left = snap
       return queueSave(snap).then(() => undefined)
+    }
+
+    // A send that failed after the composer was re-targeted: the lock (or, with
+    // null, its release) belongs to the draft the composer left behind.
+    const recordSentLock = (message: string | null): Promise<boolean> => {
+      const d = s.sent
+      if (!live.current.enabled || !d || d === s.d || !d.left?.content) {
+        return Promise.resolve(false)
+      }
+      d.lockedMessage = message ?? undefined
+      if (!message) d.submit = undefined
+      return queueSave({
+        ...d.left,
+        submit: d.submit,
+        lockedMessage: d.lockedMessage,
+        attemptedAt: d.attemptedAt
+      })
     }
 
     // Closing with content: the draft stays, and the composer stops saving.
@@ -897,6 +930,7 @@ export const useComposerDraft = ({
       attachBlob,
       recordAttempt,
       recordLock,
+      recordSentLock,
       release,
       discard,
       detach,

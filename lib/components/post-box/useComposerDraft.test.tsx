@@ -19,6 +19,7 @@ import { deleteFitnessFile } from '@/lib/client/fitnessRoutes'
 import { deleteUnpostedMedia } from '@/lib/client/media'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import type { Status } from '@/lib/types/domain/status'
 
 import {
   DRAFT_SAVE_DEBOUNCE_MS,
@@ -204,6 +205,52 @@ describe('useComposerDraft', () => {
       result.current.recordAttempt({ key: 'k', fingerprint: 'f' })
     ).resolves.toBe(true)
     expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+  })
+
+  it('the draft it let go of never sets the new draft’s status', async () => {
+    const { result } = setup()
+    act(() => result.current.schedule())
+    // Re-targeted: the old draft is still being saved when the composer moves on.
+    let detached: Promise<void> = Promise.resolve()
+    act(() => {
+      detached = result.current.detach()
+    })
+    current = null
+    await act(async () => {
+      await detached
+    })
+
+    expect((await stored())?.text).toBe('hello')
+    expect(result.current.saveState).toBe('idle')
+  })
+
+  it('a draft left behind on a re-target keeps the target it was written for', async () => {
+    const statusA = { id: 'status-a' } as Status
+    const statusB = { id: 'status-b' } as Status
+    const { result, rerender } = renderHook(
+      ({ replyTo }) =>
+        useComposerDraft({
+          composer: 'post-box',
+          replyTo,
+          getContent: () => current
+        }),
+      { initialProps: { replyTo: statusA } }
+    )
+    act(() => result.current.schedule())
+    await advance(DRAFT_SAVE_DEBOUNCE_MS)
+    await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
+
+    // The props name the new target by the time the composer lets go.
+    rerender({ replyTo: statusB })
+    current = content({ text: 'typed for A, not yet saved' })
+    await act(async () => {
+      await result.current.detach()
+    })
+
+    expect(await stored()).toMatchObject({
+      text: 'typed for A, not yet saved',
+      replyTo: { id: 'status-a' }
+    })
   })
 
   it('flushes a pending save when the page is hidden', async () => {

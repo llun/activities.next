@@ -289,6 +289,9 @@ export const StatusReplyBox: FC<Props> = ({
     // A send in flight keeps its own draft too.
     if (!seeded && (composerDraft.hasDraft() || isSubmittingRef.current)) {
       void composerDraft.detach()
+      // Its attachments stay with it: the new target starts without them.
+      dispatch(resetExtension())
+      removedAttachmentIdsRef.current.clear()
     }
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
@@ -464,6 +467,13 @@ export const StatusReplyBox: FC<Props> = ({
         }
       }
 
+      // Re-targeted while uploading: the draft was left in Drafts as it was,
+      // with no key, and nothing was sent.
+      if (generation !== draftGenerationRef.current) {
+        isSubmittingRef.current = false
+        setIsPosting(false)
+        return
+      }
       // The key and the attempt are written to the draft before the POST. If
       // that write fails nothing is sent: a lost response plus a lost key would
       // send the same reply again under a new key after a reload.
@@ -507,14 +517,23 @@ export const StatusReplyBox: FC<Props> = ({
       isSubmittingRef.current = false
       setIsPosting(false)
       reportRequestFailure(error)
-      // A stale failure belongs to a previous draft: say nothing on this one.
-      if (generation !== draftGenerationRef.current) return
       // Surface the server's message without wiping user draft, CW, or attachments.
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
         fallbackMessage: 'Fail to create a reply',
         wayOut: 'cancel the reply'
       })
+      // A stale failure belongs to a previous draft: say nothing on this one.
+      // The draft left behind takes the lock (a reopen must retry under the
+      // same key).
+      if (generation !== draftGenerationRef.current) {
+        if (action !== 'none') {
+          void composerDraft.recordSentLock(
+            action === 'lock' ? failureMessage : null
+          )
+        }
+        return
+      }
       if (action === 'lock') {
         setLockedMessage(failureMessage)
         // The server keeps the reply and the media it uses.
