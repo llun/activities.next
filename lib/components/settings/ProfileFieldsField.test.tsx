@@ -410,7 +410,10 @@ describe('ProfileFieldsField', () => {
     })
 
     it('does not reveal the error when the blur comes from pressing the row\u2019s own button', () => {
-      renderField([{ name: 'Blog', value: 'x' }])
+      renderField([
+        { name: 'Blog', value: 'x' },
+        { name: 'Site', value: 'y' }
+      ])
       const content = screen.getByLabelText('Field 1 content')
       fireEvent.change(content, { target: { value: '' } })
 
@@ -423,6 +426,51 @@ describe('ProfileFieldsField', () => {
       expect(screen.queryByText(PROFILE_FIELD_ERROR)).not.toBeInTheDocument()
 
       // A later plain blur is a real departure again.
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
+    })
+
+    it('reveals the error when the pressed button is in another row', () => {
+      renderField([
+        { name: 'Blog', value: 'x' },
+        { name: 'Site', value: 'y' }
+      ])
+      const content = screen.getByLabelText('Field 1 content')
+      fireEvent.change(content, { target: { value: '' } })
+
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'Move field 2, Site up' })
+      )
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
+    })
+
+    it('does not reveal the error when the blur follows pointerup, as on iOS Safari', () => {
+      renderField([
+        { name: 'Blog', value: 'x' },
+        { name: 'Site', value: 'y' }
+      ])
+      const content = screen.getByLabelText('Field 1 content')
+      fireEvent.change(content, { target: { value: '' } })
+
+      // iOS Safari orders it pointerdown, pointerup, then the blur.
+      const button = screen.getByRole('button', {
+        name: 'Move field 1, Blog down'
+      })
+      fireEvent.pointerDown(button)
+      fireEvent.pointerUp(button)
+      fireEvent.blur(content, { relatedTarget: null })
+      expect(screen.queryByText(PROFILE_FIELD_ERROR)).not.toBeInTheDocument()
+    })
+
+    it('does not arm the press for a disabled button', () => {
+      renderField([{ name: 'Blog', value: 'x' }])
+      const content = screen.getByLabelText('Field 1 content')
+      fireEvent.change(content, { target: { value: '' } })
+
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'Move field 1, Blog up' })
+      )
       fireEvent.blur(content, { relatedTarget: null })
       expect(screen.getByText(PROFILE_FIELD_ERROR)).toBeInTheDocument()
     })
@@ -706,6 +754,19 @@ describe('ProfileFieldsField', () => {
       })
       expect(within(preview()).getByText('Porto')).toBeInTheDocument()
       expect(within(preview()).queryByText('Lisbon')).not.toBeInTheDocument()
+    })
+
+    it('keeps typed markup as text', () => {
+      renderField([
+        { name: 'Bio', value: '<b>bold</b><img src=x onerror=alert(1)>' }
+      ])
+
+      expect(
+        within(preview()).getByText('<b>bold</b><img src=x onerror=alert(1)>', {
+          exact: false
+        })
+      ).toBeInTheDocument()
+      expect(preview().querySelector('b, img')).toBeNull()
     })
 
     it('shows a custom emoji shortcode as an image when tags are given', () => {

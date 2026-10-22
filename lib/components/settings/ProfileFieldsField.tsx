@@ -112,8 +112,10 @@ export const ProfileFieldsField: FC<Props> = ({
   const edited = useRef(false)
   // Safari and Firefox on macOS do not focus a button on click, so pressing a
   // row's own button blurs its input with no relatedTarget. This marks that
-  // press so the blur is not mistaken for leaving the row.
-  const pressedInRow = useRef(false)
+  // press so the blur is not mistaken for leaving the row. It holds the id of
+  // the row whose button is pressed, since another row's press says nothing
+  // about this row's blur.
+  const pressedRow = useRef<number | null>(null)
 
   useEffect(() => {
     rows.forEach((row) => {
@@ -278,19 +280,24 @@ export const ProfileFieldsField: FC<Props> = ({
             <div
               className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-2 sm:grid-cols-[1.25rem_7.75rem_minmax(0,1fr)_auto]"
               onPointerDown={(event) => {
-                pressedInRow.current = Boolean(
-                  (event.target as Element).closest('button')
+                // A disabled button is never clicked, so nothing would clear it.
+                pressedRow.current = (event.target as Element).closest(
+                  'button:not(:disabled)'
                 )
+                  ? row.id
+                  : null
               }}
-              onPointerUp={() => {
-                pressedInRow.current = false
+              // The click ends the press: on iOS Safari the input blurs after
+              // pointerup, so pointerup is too early to clear it.
+              onClickCapture={() => {
+                pressedRow.current = null
               }}
               onPointerCancel={() => {
-                pressedInRow.current = false
+                pressedRow.current = null
               }}
               onBlur={(event) => {
-                const pressed = pressedInRow.current
-                pressedInRow.current = false
+                const pressed = pressedRow.current === row.id
+                pressedRow.current = null
                 // Moving within a row is not leaving it.
                 if (event.currentTarget.contains(event.relatedTarget)) return
                 if (pressed && event.relatedTarget === null) return
