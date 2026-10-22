@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   configure,
   fireEvent,
   render,
@@ -713,6 +714,7 @@ describe('StatusReplyBox on-device drafts', () => {
     expect(await findSendAlert()).toBeVisible()
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(screen.queryByText('Saved to Drafts')).toBeNull()
+    expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
     expect(textarea()).toHaveValue('Reply body')
   })
 
@@ -740,6 +742,39 @@ describe('StatusReplyBox on-device drafts', () => {
     await waitFor(() =>
       expect(document.querySelectorAll('div.aspect-square')).toHaveLength(0)
     )
+  })
+
+  it('sends nothing from a failed reply while it is kept before moving on', async () => {
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
+    const { rerender } = renderBox()
+    type('Reply body')
+    await waitForSaved()
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    type('Reply body, again')
+    // The send fails; before the draft is kept (an IndexedDB write), Post.
+    await act(async () => {
+      send.reject(new Error('offline'))
+      for (let i = 0; i < 20; i += 1) await Promise.resolve()
+    })
+    post()
+
+    expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(createNoteMock).toHaveBeenCalledTimes(1)
   })
 
   it('does not carry the sent reply’s photo over to the new target', async () => {

@@ -294,6 +294,7 @@ export const StatusReplyBox: FC<Props> = ({
       retargetPendingRef.current = true
       return
     }
+    retargetPendingRef.current = false
 
     const seeded = Boolean(draft) && !draftSeededRef.current
     // Re-targeted: the previous target's draft stays where it was saved, with
@@ -553,7 +554,13 @@ export const StatusReplyBox: FC<Props> = ({
     } finally {
       if (retargetPendingRef.current) {
         retargetPendingRef.current = false
-        const moveOn = () => setRetargetAfterSend((count) => count + 1)
+        // Still this send's box until it moves on: nothing can be sent from
+        // it while the draft is kept.
+        isSubmittingRef.current = true
+        const moveOn = () => {
+          isSubmittingRef.current = false
+          setRetargetAfterSend((count) => count + 1)
+        }
         // Not sent: kept in Drafts (or offered in the note) first, as Cancel
         // does, so moving on never drops it silently.
         if (sent) moveOn()

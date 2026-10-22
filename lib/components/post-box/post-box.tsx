@@ -1359,10 +1359,15 @@ export const PostBox: FC<Props> = ({
         })
       }
     } finally {
-      submitInFlightRef.current = false
-      if (retargetPendingRef.current) {
+      if (!retargetPendingRef.current) submitInFlightRef.current = false
+      else {
         retargetPendingRef.current = false
-        const moveOn = () => setRetargetAfterSend((count) => count + 1)
+        // Still this send's composer until it moves on: nothing can be sent
+        // from it (under the new target's mode) while the draft is kept.
+        const moveOn = () => {
+          submitInFlightRef.current = false
+          setRetargetAfterSend((count) => count + 1)
+        }
         // Not sent: kept in Drafts (or offered in the note) first, as closing
         // a reply does, so moving on never drops it silently.
         // An edit of a published post is never a draft, whatever happens to it.
@@ -1781,6 +1786,7 @@ export const PostBox: FC<Props> = ({
         editStatus?.id !== draftTarget.editId
       return
     }
+    retargetPendingRef.current = false
     // The photos a "Post" action in Gallery handed over. They seed the first
     // time through. React StrictMode re-runs effects in development before the
     // seeded photos have been drawn, and the profile can change identity
