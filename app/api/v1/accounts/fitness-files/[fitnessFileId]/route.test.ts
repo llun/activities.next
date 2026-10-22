@@ -225,7 +225,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     })
   })
 
-  it('still deletes a posted file without if_unposted (Settings → Fitness files)', async () => {
+  it('still deletes a posted file without if_unposted (Fitness → Files)', async () => {
     const file = await mockDb.getFitnessFile({ id: 'fitness-file-1' })
     mockDb.getFitnessFile.mockResolvedValue({ ...file!, statusId: 'status-1' })
 

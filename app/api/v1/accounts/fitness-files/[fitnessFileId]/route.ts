@@ -101,7 +101,7 @@ export const DELETE = traceApiRoute(
         })
       }
 
-      // Settings → Fitness files deletes a posted activity on purpose, so the
+      // Fitness → Files deletes a posted activity on purpose, so the
       // in-use check is opt-in: the composer asks for it, because a post sent
       // from another tab may already use the file it is letting go of.
       if (query.data.if_unposted === 'true' && fitnessFile.statusId) {

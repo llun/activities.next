@@ -1014,7 +1014,7 @@ An uploaded image carries optional owner-edited details on its `medias` row: `su
   is a broken-image icon, and once the bytes are gone nothing can compute one.
   Do not dismiss a broken-image report as handled by design.
 - **Fitness files follow the same split.** `DELETE /api/v1/accounts/fitness-files/:fitnessFileId`
-  deletes a file a post uses, because Settings → Fitness files deletes a posted
+  deletes a file a post uses, because Fitness → Files deletes a posted
   activity on purpose; its opt-in guard `?if_unposted=true` answers 422 instead
   (any value other than `true` or `false` is 400), and the composer and drafts
   always ask that way. See [Fitness file storage](fitness-file-storage.md).
