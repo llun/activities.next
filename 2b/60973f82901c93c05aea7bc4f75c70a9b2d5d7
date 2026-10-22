@@ -1,0 +1,71 @@
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_bef3b11a0ffc93 126-127
+  s_512188f2b1db53::t_abe3f6bee84efa 17-18,397-401,572-582,585-586,593-594,815,1459-1460,1476-1477
+  s_512188f2b1db53::t_07c6ebd10bc11e 1047-1049
+lib/components/post-box/post-box.edit.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 27-28
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_e8be64854dc146 15-22,26,51-52,316-392,394-455
+  s_512188f2b1db53::t_41d58bfd4feafb 541-543,598,600,651-681
+  s_512188f2b1db53::t_cd4cb4810ba406 702
+  s_512188f2b1db53::t_030611ec09ea9e 393
+  s_512188f2b1db53::t_517e17cb4d7304 54-56,239,260,281,297,799,902,921
+  s_512188f2b1db53::t_d8221980d9c1ab 456,682,684-701,703-716
+  s_512188f2b1db53::t_96a80483aec158 457-458,683
+lib/components/post-box/post-box-media.suggestions.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 22,24
+docs/fitness-file-storage.md
+  s_512188f2b1db53::t_cd4cb4810ba406 309
+lib/components/post-box/post-box.options.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 28-29
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_5ffa317276eece 89-93,326-327,345-346,356-357,608-611,638-641,832
+  s_512188f2b1db53::t_79dacacbe91609 515,524,538
+  s_512188f2b1db53::t_8911532b0985c5 34-40
+lib/components/post-box/post-box-media.edit.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 8,26,28,347,391,430,446
+  s_512188f2b1db53::t_030611ec09ea9e 447-449
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_55421c5f4d60f8 271,289,338-372
+  s_512188f2b1db53::t_7217a75ffd6fd0 373
+lib/components/post-box/post-box-media.test.tsx
+  s_512188f2b1db53::t_030611ec09ea9e 17
+  s_512188f2b1db53::t_517e17cb4d7304 16,49,51,372,874,886,934,1007,1018,1022,1094,1154,1165,1181,1192,1252,1278,1293,1436,1440
+docs/architecture.md
+  s_512188f2b1db53::t_cd4cb4810ba406 3069,3071-3072
+lib/components/post-box/post-box.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 7,34-35,1247
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.ts
+  s_512188f2b1db53::t_030611ec09ea9e 95-97
+  s_512188f2b1db53::t_df45869ef69aae 85-94,98-101
+lib/client/fitnessRoutes.ts
+  s_512188f2b1db53::t_5caece6f4a2de9 223-241
+lib/components/post-box/post-box.quote.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 20-21
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_bef3b11a0ffc93 33-34,193-197,467-469
+lib/components/drafts/DraftEditor.integration.test.tsx
+  s_512188f2b1db53::t_517e17cb4d7304 48,50
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  s_512188f2b1db53::t_030611ec09ea9e 162-165
+  s_512188f2b1db53::t_aa62fc070f066b 150-161,166-193
+lib/client/fitnessRoutes.test.ts
+  s_512188f2b1db53::t_7ebaad6b52171e 6,271-304
+  s_512188f2b1db53::t_82616c3798a744 305-306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2b60973f82901c93c05aea7bc4f75c70a9b2d5d7",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
