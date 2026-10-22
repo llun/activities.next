@@ -6,12 +6,14 @@ import { createDeferred } from '@/lib/testing/deferred'
 import type { Status } from '@/lib/types/domain/status'
 
 import {
+  DraftConflictError,
   DraftsUnavailableError,
   claimQueuedDraft,
   deleteDraftIfRevision,
   getDraft,
   getDraftBlob,
   listDrafts,
+  putDraftBlob,
   renewClaim,
   resetDraftsDbForTesting,
   saveDraft,
@@ -802,14 +804,343 @@ describe('drainQueue', () => {
       }
     })
 
-    it('an attachment without an id cannot be sent yet (V2b)', async () => {
-      await store(
-        draft('a', {}, { attachments: [uploaded({ mediaId: undefined })] })
+    describe('uploads', () => {
+      type UploadAttachment = SendQueueDeps['uploadAttachment']
+      type UploadFitness = SendQueueDeps['uploadFitnessFile']
+
+      const media = (id: string) =>
+        ({
+          type: 'upload',
+          id,
+          mediaType: 'image/png',
+          url: `https://example.test/${id}.png`,
+          width: 3,
+          height: 2,
+          posterUrl: `https://example.test/${id}-poster.png`
+        }) as NonNullable<Awaited<ReturnType<UploadAttachment>>>
+      const photo = (n: number) =>
+        uploaded({
+          localId: `local-${n}`,
+          mediaId: undefined,
+          owned: false,
+          url: undefined,
+          fileName: `p${n}.png`
+        })
+      const fitness = (patch = {}) => ({
+        localId: 'fit',
+        fileName: 'run.fit',
+        mimeType: 'application/octet-stream',
+        size: 3,
+        owned: false,
+        hasBlob: true,
+        ...patch
+      })
+      const storeBlob = (
+        id: string,
+        draftId: string,
+        patch: Record<string, unknown> = {}
+      ) =>
+        putDraftBlob(
+          {
+            id,
+            draftId,
+            bytes: new Uint8Array([1, 2, 3]).buffer,
+            mimeType: 'image/png',
+            fileName: `${id}.png`,
+            lastModified: 5,
+            ...patch
+          },
+          { accountId: 'account-1', epoch: 0 }
+        )
+      const queuedPhotos = async (id = 'a') => {
+        await store(draft(id, {}, { attachments: [photo(1), photo(2)] }))
+        await storeBlob('local-1', id)
+        await storeBlob('local-2', id)
+      }
+
+      it('persists each id before the next upload and before the POST', async () => {
+        await queuedPhotos()
+        const seen: Array<Array<string | undefined>> = []
+        const uploadAttachment = vi.fn<UploadAttachment>(async (file) => {
+          const ids = (await getDraft('a'))!.attachments.map((x) => x.mediaId)
+          seen.push(ids)
+          return media(`m-${file.name}`)
+        })
+        const deps = makeDeps({
+          uploadAttachment,
+          createNote: vi.fn<CreateNote>(async () => {
+            seen.push((await getDraft('a'))!.attachments.map((x) => x.mediaId))
+            return {} as never
+          })
+        })
+
+        await drain(deps)
+
+        expect(seen).toEqual([
+          [undefined, undefined],
+          ['m-local-1.png', undefined],
+          ['m-local-1.png', 'm-local-2.png']
+        ])
+        expect(uploadAttachment.mock.calls[0][0]).toMatchObject({
+          name: 'local-1.png',
+          type: 'image/png'
+        })
+        expect(vi.mocked(deps.createNote).mock.calls[0][0]).toMatchObject({
+          attachments: [
+            expect.objectContaining({ id: 'm-local-1.png' }),
+            expect.objectContaining({ id: 'm-local-2.png' })
+          ]
+        })
+      })
+
+      it('sends the poster, saves the upload fields and keeps the bytes', async () => {
+        await store(draft('a', {}, { attachments: [photo(1)] }))
+        await storeBlob('local-1', 'a', {
+          poster: {
+            bytes: new Uint8Array([9]).buffer,
+            mimeType: 'image/jpeg',
+            fileName: 'poster.jpg'
+          }
+        })
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>(async () => media('m1')),
+          createNote: vi
+            .fn<CreateNote>()
+            .mockRejectedValue(new TypeError('Load failed'))
+        })
+
+        await drain(deps)
+
+        expect(vi.mocked(deps.uploadAttachment).mock.calls[0][1]).toMatchObject(
+          { name: 'poster.jpg', type: 'image/jpeg' }
+        )
+        expect((await getDraft('a'))?.attachments[0]).toMatchObject({
+          mediaId: 'm1',
+          url: 'https://example.test/m1.png',
+          posterUrl: 'https://example.test/m1-poster.png',
+          width: 3,
+          height: 2,
+          owned: true,
+          hasBlob: true
+        })
+        expect(await getDraftBlob('local-1')).toBeDefined()
+      })
+
+      it('reuses an uploaded id on retry: no second upload', async () => {
+        await queuedPhotos()
+        const uploadAttachment = vi
+          .fn<UploadAttachment>()
+          .mockResolvedValueOnce(media('m1'))
+          .mockRejectedValueOnce(new TypeError('Load failed'))
+          .mockResolvedValueOnce(media('m2'))
+        const deps = makeDeps({ uploadAttachment })
+
+        await drain(deps)
+        expect((await getDraft('a'))?.attachments[0].mediaId).toBe('m1')
+
+        clock = NOW + 5_000
+        await drain(deps)
+
+        expect(uploadAttachment).toHaveBeenCalledTimes(3)
+        expect(uploadAttachment.mock.calls[2][0].name).toBe('local-2.png')
+        expect(deps.createNote).toHaveBeenCalledTimes(1)
+        expect(await getDraft('a')).toBeUndefined()
+      })
+
+      it('a null upload is Couldn’t send, with the file name', async () => {
+        await queuedPhotos()
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>().mockResolvedValue(null)
+        })
+        const result = await drain(deps)
+        expect(result.failed).toBe(1)
+        expect((await getDraft('a'))?.queue).toMatchObject({
+          state: 'couldnt_send',
+          reason: "The server didn't accept p1.png."
+        })
+        expect(deps.createNote).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        ['a TypeError', new TypeError('Load failed')],
+        ['a 503', apiError(503, 'down')],
+        ['a timeout', new DOMException('slow', 'TimeoutError')]
+      ])(
+        '%s while uploading waits with backoff, never checks',
+        async (_name, error) => {
+          await queuedPhotos()
+          const deps = makeDeps({
+            uploadAttachment: vi.fn<UploadAttachment>().mockRejectedValue(error)
+          })
+          await drain(deps)
+          const stored = await getDraft('a')
+          expect(stored?.queue).toMatchObject({
+            state: 'waiting',
+            attempts: 0,
+            nextAttemptAt: NOW + 5_000
+          })
+          expect(stored?.queue).not.toHaveProperty('firstAttemptAt')
+          expect(stored).not.toHaveProperty('submit')
+          expect(deps.reportRequestFailure).toHaveBeenCalledWith(error)
+          expect(deps.createNote).not.toHaveBeenCalled()
+        }
       )
-      const deps = makeDeps()
-      await drain(deps)
-      expect(deps.createNote).not.toHaveBeenCalled()
-      expect((await getDraft('a'))?.queue?.state).toBe('couldnt_send')
+
+      it('a 401 while uploading pauses for sign-in and stops the drain', async () => {
+        await queuedPhotos()
+        await store(draft('b', { queuedAt: NOW - 1 }))
+        const deps = makeDeps({
+          uploadAttachment: vi
+            .fn<UploadAttachment>()
+            .mockRejectedValue(apiError(401, 'no'))
+        })
+        const result = await drain(deps)
+        expect(result.paused).toBe(1)
+        expect((await getDraft('a'))?.queue).toMatchObject({
+          state: 'paused',
+          pausedBy: 'auth'
+        })
+        expect((await getDraft('b'))?.queue?.state).toBe('waiting')
+      })
+
+      it.each([
+        ['missing', undefined],
+        ['foreign', 'other']
+      ])('a %s blob is Couldn’t send', async (_name, owner) => {
+        await store(draft('a', {}, { attachments: [photo(1)] }))
+        if (owner) await storeBlob('local-1', owner)
+        const deps = makeDeps()
+        await drain(deps)
+        expect((await getDraft('a'))?.queue).toMatchObject({
+          state: 'couldnt_send',
+          reason: 'p1.png is no longer on this device.'
+        })
+        expect(deps.uploadAttachment).not.toHaveBeenCalled()
+        expect(deps.createNote).not.toHaveBeenCalled()
+      })
+
+      it('deletes the upload when its id cannot be saved, and does not POST', async () => {
+        await queuedPhotos()
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>(async () => media('m1')),
+          updateQueuedDraft: vi.fn(async () => {
+            throw new DraftConflictError()
+          })
+        })
+        const result = await drain(deps)
+        expect(deps.deleteUnpostedMedia).toHaveBeenCalledWith('m1')
+        expect(deps.uploadAttachment).toHaveBeenCalledTimes(1)
+        expect(deps.createNote).not.toHaveBeenCalled()
+        expect(result.sent + result.failed).toBe(0)
+      })
+
+      it('stops uploading once the drain is aborted', async () => {
+        await queuedPhotos()
+        const controller = new AbortController()
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>(async () => {
+            controller.abort()
+            return media('m1')
+          })
+        })
+        await drain(deps, { signal: controller.signal })
+        expect(deps.uploadAttachment).toHaveBeenCalledTimes(1)
+        const stored = await getDraft('a')
+        expect(stored?.attachments[0].mediaId).toBe('m1')
+        expect(stored?.queue).toMatchObject({ state: 'waiting' })
+        expect(stored?.queue).not.toHaveProperty('claim')
+      })
+
+      describe('activity files', () => {
+        const queuedFit = async () => {
+          await store(draft('a', {}, { fitnessFile: fitness() }))
+          await storeBlob('fit', 'a', {
+            mimeType: 'application/octet-stream',
+            fileName: 'run.fit'
+          })
+        }
+
+        it('uploads the file, persists the id before the POST and reuses it', async () => {
+          await queuedFit()
+          const seen: Array<string | undefined> = []
+          const deps = makeDeps({
+            uploadFitnessFile: vi.fn<UploadFitness>(
+              async () => ({ id: 'fit-1' }) as never
+            ),
+            createNote: vi.fn<CreateNote>(async () => {
+              seen.push((await getDraft('a'))!.fitnessFile?.fitnessFileId)
+              throw new TypeError('Load failed')
+            })
+          })
+
+          await drain(deps)
+
+          expect(seen).toEqual(['fit-1'])
+          expect(
+            vi.mocked(deps.uploadFitnessFile).mock.calls[0][0]
+          ).toMatchObject({ name: 'run.fit' })
+          expect((await getDraft('a'))?.fitnessFile).toMatchObject({
+            fitnessFileId: 'fit-1',
+            owned: true,
+            hasBlob: true
+          })
+          expect(await getDraftBlob('fit')).toBeDefined()
+
+          clock = NOW + 5_000
+          await drain({ ...deps, createNote: vi.fn<CreateNote>() })
+          expect(deps.uploadFitnessFile).toHaveBeenCalledTimes(1)
+        })
+
+        it('a 4xx is Couldn’t send with the server message and no key', async () => {
+          await queuedFit()
+          const deps = makeDeps({
+            uploadFitnessFile: vi
+              .fn<UploadFitness>()
+              .mockRejectedValue(apiError(422, 'Unsupported file'))
+          })
+          await drain(deps)
+          const stored = await getDraft('a')
+          expect(stored?.queue).toMatchObject({
+            state: 'couldnt_send',
+            reason: 'Unsupported file'
+          })
+          expect(stored).not.toHaveProperty('submit')
+          expect(stored).not.toHaveProperty('lockedMessage')
+        })
+
+        it('a network failure waits; a missing blob is Couldn’t send', async () => {
+          await queuedFit()
+          const deps = makeDeps({
+            uploadFitnessFile: vi
+              .fn<UploadFitness>()
+              .mockRejectedValue(new TypeError('Load failed'))
+          })
+          await drain(deps)
+          expect((await getDraft('a'))?.queue?.state).toBe('waiting')
+
+          await store(draft('b', {}, { fitnessFile: fitness() }))
+          await drain(makeDeps())
+          expect((await getDraft('b'))?.queue).toMatchObject({
+            state: 'couldnt_send',
+            reason: 'run.fit is no longer on this device.'
+          })
+        })
+
+        it('deletes the file when its id cannot be saved', async () => {
+          await queuedFit()
+          const deps = makeDeps({
+            uploadFitnessFile: vi.fn<UploadFitness>(
+              async () => ({ id: 'fit-1' }) as never
+            ),
+            updateQueuedDraft: vi.fn(async () => {
+              throw new DraftConflictError()
+            })
+          })
+          await drain(deps)
+          expect(deps.deleteUnpostedFitnessFile).toHaveBeenCalledWith('fit-1')
+          expect(deps.createNote).not.toHaveBeenCalled()
+        })
+      })
     })
   })
 
