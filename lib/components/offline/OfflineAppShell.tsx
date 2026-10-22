@@ -70,6 +70,9 @@ const getShellView = (pathname: string | null): ShellView => {
 export function OfflineAppShell() {
   const router = useRouter()
   const view = getShellView(usePathname())
+  // The Drafts page measures "Queued … ago" against now: posts queued offline
+  // are newer than the cached bootstrap's server time.
+  const [openedAt] = useState(() => Date.now())
   const [shellState, setShellState] = useState<ShellState>({
     status: 'loading'
   })
@@ -418,6 +421,9 @@ export function OfflineAppShell() {
                 <DraftsProvider
                   accountId={bootstrap.accountId}
                   actorId={bootstrap.actorId}
+                  // The other views reload into the real page once back
+                  // online (above); that page sends.
+                  sends={view === 'timeline'}
                 >
                   <div className="min-h-dvh">
                     <Sidebar
@@ -481,9 +487,7 @@ export function OfflineAppShell() {
                           <DraftsPage
                             host={bootstrap.host}
                             profile={bootstrap.profile}
-                            currentTime={
-                              bootstrap.currentTime || bootstrap.savedAt
-                            }
+                            currentTime={openedAt}
                             isMediaUploadEnabled={
                               bootstrap.isMediaUploadEnabled
                             }

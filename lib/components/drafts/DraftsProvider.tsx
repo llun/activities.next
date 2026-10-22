@@ -186,12 +186,19 @@ interface DraftsProviderProps {
   accountId: string
   actorId: string
   children: ReactNode
+  /**
+   * False where the page reloads itself when the connection returns (the
+   * offline shell's Drafts and unavailable views): the reload would cut off a
+   * send it had started, and the reloaded page sends on mount.
+   */
+  sends?: boolean
 }
 
 export function DraftsProvider({
   accountId,
   actorId,
-  children
+  children,
+  sends = true
 }: DraftsProviderProps) {
   const [epoch, setEpoch] = useState<number | null>(null)
   const [count, setCount] = useState(0)
@@ -314,10 +321,11 @@ export function DraftsProvider({
 
   const canDrain = useCallback(
     () =>
+      sends &&
       epochRef.current !== null &&
       !signingOutRef.current &&
       getConnectionSnapshot().state === 'online',
-    []
+    [sends]
   )
 
   // One timer, for the earliest moment a queued item becomes sendable again:

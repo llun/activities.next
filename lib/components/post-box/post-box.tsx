@@ -2088,9 +2088,17 @@ export const PostBox: FC<Props> = ({
       : null
   const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
 
+  // Offline an implicit submit (Enter in a lone text field, such as the
+  // content warning) follows the primary button too, never a live send.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!offlineSplit) return onPost(event)
+    event.preventDefault()
+    void onHandOff(!queueDisabledReason)
+  }
+
   const form = (
     <>
-      <form ref={formRef} onSubmit={onPost} onInput={composerDraft.schedule}>
+      <form ref={formRef} onSubmit={onSubmit} onInput={composerDraft.schedule}>
         <div className="flex items-start gap-3 mb-3">
           <Avatar className="size-12">
             <AvatarImage

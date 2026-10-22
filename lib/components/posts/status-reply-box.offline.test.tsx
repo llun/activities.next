@@ -291,6 +291,20 @@ describe('StatusReplyBox offline hand-off', () => {
       expect(createNote).not.toHaveBeenCalled()
     })
 
+    it('queues on an implicit form submit too (Enter in the content warning)', async () => {
+      const onCancel = vi.fn()
+      render(box(replyStatus, onCancel))
+      await goOffline()
+      await typeAndWaitForSave('submitted by the form')
+
+      // jsdom has no implicit submission: submit the form as Enter would.
+      fireEvent.submit(textarea().closest('form')!)
+
+      await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1))
+      expect((await stored())[0].queue).toMatchObject({ state: 'waiting' })
+      expect(createNote).not.toHaveBeenCalled()
+    })
+
     it('saves a draft when the queue is unavailable (video)', async () => {
       const onCancel = vi.fn()
       render(box(replyStatus, onCancel))

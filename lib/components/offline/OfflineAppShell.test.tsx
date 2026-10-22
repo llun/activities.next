@@ -92,16 +92,19 @@ vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
   DraftsProvider: ({
     accountId,
     actorId,
+    sends,
     children
   }: {
     accountId: string
     actorId: string
+    sends?: boolean
     children: ReactNode
   }) => (
     <div
       data-testid="drafts-provider"
       data-account-id={accountId}
       data-actor-id={actorId}
+      data-sends={String(sends)}
     >
       {children}
     </div>
@@ -241,6 +244,11 @@ describe('OfflineAppShell', () => {
       expect(screen.getByTestId('main-timeline')).toBeInTheDocument()
       expect(screen.getByText('Timeline for alice')).toBeInTheDocument()
     })
+    // The timeline view stays put once back online, so it sends the queue.
+    expect(screen.getByTestId('drafts-provider')).toHaveAttribute(
+      'data-sends',
+      'true'
+    )
 
     await waitFor(() => {
       expect(mockGetAccountBootstrap).toHaveBeenCalled()
@@ -476,17 +484,26 @@ describe('OfflineAppShell', () => {
       'renders the real DraftsPage with bootstrap props on %s',
       async (path) => {
         mockPathname = path
+        const openedAt = 1_800_000_000_000
+        const now = vi.spyOn(Date, 'now').mockReturnValue(openedAt)
         await renderReady()
+        now.mockRestore()
 
         expect(
           screen.getAllByRole('heading', { name: 'Drafts' }).length
         ).toBeGreaterThan(0)
         // DraftsPage's own header, not a copy of it.
         expect(screen.getByText('Saved on this device')).toBeVisible()
+        // Measured against now, not the cached bootstrap's server time.
         expect(screen.getByTestId('drafts-list')).toHaveTextContent(
-          `llun.social|alice|${dummyBootstrap.currentTime}|true`
+          `llun.social|alice|${openedAt}|true`
         )
         expect(screen.queryByTestId('main-timeline')).not.toBeInTheDocument()
+        // It reloads into the real page once back online: that page sends.
+        expect(screen.getByTestId('drafts-provider')).toHaveAttribute(
+          'data-sends',
+          'false'
+        )
       }
     )
 

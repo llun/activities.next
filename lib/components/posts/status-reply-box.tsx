@@ -239,6 +239,14 @@ export const StatusReplyBox: FC<Props> = ({
     drafts !== null && connectionState !== 'online' ? connectionState : null
   const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
 
+  // Offline an implicit submit (Enter in a lone text field, such as the
+  // content warning) follows the primary button too, never a live send.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!offlineSplit) return onPost(event)
+    event.preventDefault()
+    void onHandOff(!queueDisabledReason)
+  }
+
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
@@ -800,7 +808,7 @@ export const StatusReplyBox: FC<Props> = ({
         </div>
       ) : null}
 
-      <form ref={formRef} onSubmit={onPost}>
+      <form ref={formRef} onSubmit={onSubmit}>
         <div className="flex items-start gap-3">
           <Avatar className="size-8 shrink-0">
             <AvatarImage

@@ -432,6 +432,22 @@ describe('PostBox offline hand-off', () => {
       await waitFor(() => expect(textarea()).toHaveValue(''))
     })
 
+    it('queues on an implicit form submit too (Enter in the content warning)', async () => {
+      render(composer())
+      await goOffline()
+      await typeAndWaitForSave('submitted by the form')
+
+      // jsdom has no implicit submission: submit the form as Enter would.
+      fireEvent.submit(textarea().closest('form')!)
+
+      await waitFor(async () =>
+        expect((await storedDrafts())[0].queue).toMatchObject({
+          state: 'waiting'
+        })
+      )
+      expect(createNoteMock).not.toHaveBeenCalled()
+    })
+
     it('saves a draft when the queue is unavailable (video)', async () => {
       const onHandedOff = vi.fn()
       render(composer({ onHandedOff }))
