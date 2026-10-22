@@ -836,6 +836,21 @@ describe('drainQueue', () => {
       expect((await getDraft('second'))?.queue?.state).toBe('waiting')
     })
 
+    it.each(['auth', 'actor'] as const)(
+      'sends nothing while another item is paused by %s',
+      async (pausedBy) => {
+        await store(
+          draft('held', { queuedAt: NOW - 20, state: 'paused', pausedBy })
+        )
+        await store(draft('next', { queuedAt: NOW - 10 }))
+        const deps = makeDeps()
+        const result = await drain(deps)
+        expect(deps.createNote).not.toHaveBeenCalled()
+        expect(result.attempted).toBe(0)
+        expect((await getDraft('next'))?.queue?.state).toBe('waiting')
+      }
+    )
+
     it('counts a sent post even when deleting the draft fails', async () => {
       await store(draft('a'))
       const deps = makeDeps({

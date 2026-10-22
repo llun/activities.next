@@ -499,7 +499,10 @@ describe('DraftsProvider send queue', () => {
           // The load that lifts it is the mount's (mocked here): until then
           // no pass, timer or trigger sends anything.
           drainQueueCalls(0)
+          // Nor does the wake timer poll the store meanwhile.
+          const reads = vi.mocked(listDrafts).mock.calls.length
           await advance(60_000)
+          expect(listDrafts).toHaveBeenCalledTimes(reads)
           await act(async () => {
             document.dispatchEvent(new Event('visibilitychange'))
           })
@@ -615,6 +618,26 @@ describe('DraftsProvider send queue', () => {
           accountId: 'account-1',
           actorId: 'actor-1',
           draftId: DUE.id
+        })
+        await settle()
+        await advance(RETRY_SOON_MS)
+        drainQueueCalls(2)
+      })
+
+      it('tries a stalled item again once it changes', async () => {
+        let store: DraftRecord[] = [{ ...PAST_DUE, revision: 1 }]
+        vi.mocked(listDrafts).mockImplementation(async () => store)
+        renderProvider()
+        await settle()
+        drainQueueCalls(1)
+
+        // Another tab wrote it (say, released a claim): a new revision.
+        store = [{ ...PAST_DUE, revision: 2 }]
+        await post({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          draftId: PAST_DUE.id
         })
         await settle()
         await advance(RETRY_SOON_MS)

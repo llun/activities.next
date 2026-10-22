@@ -40,7 +40,8 @@ import {
   DEFAULT_RETRY_AFTER_MS,
   MAX_QUEUE_AGE_MS,
   SEND_BACKOFF_MS,
-  SEND_TIMEOUT_MS
+  SEND_TIMEOUT_MS,
+  holdsQueue
 } from './queueConstants'
 import { buildSubmitRequest } from './submitRequest'
 import type {
@@ -655,13 +656,16 @@ export const drainQueue = async ({
     paused: 0
   }
   const startedAt = deps.now()
-  const queued = (await deps.listDrafts({ actorId }))
-    .filter(
-      (draft) =>
-        draft.accountId === accountId &&
-        isQueueClaimable(draft.queue, startedAt)
-    )
-    .sort((a, b) => (a.queue?.queuedAt ?? 0) - (b.queue?.queuedAt ?? 0))
+  const drafts = (await deps.listDrafts({ actorId })).filter(
+    (draft) => draft.accountId === accountId
+  )
+  // Listed under the sender lock, so this sees a 401 or profile switch that
+  // another tab's pass wrote after this tab decided to drain: send nothing.
+  const queued = drafts.some((draft) => holdsQueue(draft.queue))
+    ? []
+    : drafts
+        .filter((draft) => isQueueClaimable(draft.queue, startedAt))
+        .sort((a, b) => (a.queue?.queuedAt ?? 0) - (b.queue?.queuedAt ?? 0))
   const total = queued.length
   const counts = () => ({
     sent: result.sent,

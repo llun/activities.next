@@ -25,6 +25,7 @@ import {
 } from '@/lib/client/drafts/draftsChannel'
 import {
   CLAIM_LEASE_MS,
+  holdsQueue,
   retriesOnItsOwn
 } from '@/lib/client/drafts/queueConstants'
 import type {
@@ -113,11 +114,6 @@ const wakeTimeOf = (queue: DraftQueueState): number | null => {
 
 /** A queued item as one pass saw it: any later write makes it a new one. */
 const itemKey = (draft: DraftRecord): string => `${draft.id}@${draft.revision}`
-
-/** A 401 or a profile switch: the queue waits for the next load to lift it. */
-const holdsQueue = (queue: DraftQueueState | undefined): boolean =>
-  queue?.state === 'paused' &&
-  (queue.pausedBy === 'auth' || queue.pausedBy === 'actor')
 
 const SavedToDraftsNote = dynamic(
   () =>

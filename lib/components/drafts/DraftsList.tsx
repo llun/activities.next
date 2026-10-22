@@ -11,6 +11,7 @@ import {
   subscribeDraftsMessages,
   unqueueDraft
 } from '@/lib/client/drafts'
+import { holdsQueue } from '@/lib/client/drafts/queueConstants'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
@@ -144,6 +145,9 @@ export const DraftsList: FC<Props> = ({
     .filter((draft) => draft.queue && editing?.id !== draft.id)
     .sort((a, b) => (a.queue?.queuedAt ?? 0) - (b.queue?.queuedAt ?? 0))
   const plain = drafts.filter((draft) => !queued.includes(draft))
+  // A 401 or profile switch holds every other queued post too, until reload.
+  const heldBy = queued.find((draft) => holdsQueue(draft.queue))?.queue
+    ?.pausedBy
 
   if (drafts.length === 0) {
     return (
@@ -214,6 +218,13 @@ export const DraftsList: FC<Props> = ({
       ) : null}
       {actionError ? (
         <Alert title="Couldn't update this post">{actionError}</Alert>
+      ) : null}
+      {heldBy ? (
+        <Alert tone="info" title="Sending is paused">
+          {heldBy === 'auth'
+            ? 'Sign in again, and the rest of the queue sends after that.'
+            : 'Another tab switched profile. Switch back to this one, then reload, and the rest of the queue sends.'}
+        </Alert>
       ) : null}
       {queued.length > 0 ? (
         <Section

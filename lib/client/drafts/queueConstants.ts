@@ -19,6 +19,11 @@ export const DEFAULT_RETRY_AFTER_MS = 60_000
  * the rest (needs review, couldn't send, paused by the user, auth or actor)
  * wait for them. A `sending` entry is the lease's, not this rule's.
  */
+/** A 401 or a profile switch: the queue waits for the next load to lift it. */
+export const holdsQueue = (queue: DraftQueueState | undefined): boolean =>
+  queue?.state === 'paused' &&
+  (queue.pausedBy === 'auth' || queue.pausedBy === 'actor')
+
 export const retriesOnItsOwn = (queue: DraftQueueState): boolean =>
   queue.state === 'waiting' ||
   queue.state === 'checking' ||

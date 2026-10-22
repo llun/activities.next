@@ -664,6 +664,45 @@ describe('DraftsList', () => {
       }
     })
 
+    it.each([
+      ['auth', 'Sign in again, and the rest of the queue sends after that.'],
+      [
+        'actor',
+        'Another tab switched profile. Switch back to this one, then reload, and the rest of the queue sends.'
+      ]
+    ] as const)(
+      'says the queue is held while a post is paused by %s',
+      async (pausedBy, text) => {
+        await seed({
+          id: 'held',
+          text: 'held post',
+          queue: queue({ state: 'paused', pausedBy })
+        })
+        await seed({
+          id: 'next',
+          text: 'next post',
+          queue: queue({ state: 'waiting' })
+        })
+        renderList()
+        await screen.findByText('held post')
+
+        expect(screen.getByText('Sending is paused')).toBeInTheDocument()
+        expect(screen.getByText(text)).toBeInTheDocument()
+      }
+    )
+
+    it('says nothing about a hold for a pause by the reader', async () => {
+      await seed({
+        id: 'mine',
+        text: 'my pause',
+        queue: queue({ state: 'paused', pausedBy: 'user' })
+      })
+      renderList()
+      await screen.findByText('my pause')
+
+      expect(screen.queryByText('Sending is paused')).toBeNull()
+    })
+
     it('shows a failed Edit as an Alert above the list', async () => {
       await seed({
         id: 'q',
