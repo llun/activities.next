@@ -573,14 +573,6 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
-  // While conflicted, another tab's record may hold what this tab last stored,
-  // so the composer lets go of it without deleting it. Otherwise this tab holds
-  // the newest revision (any other copy conflicts before it can post), and the
-  // guarded deletes keep (422) whatever a post uses.
-  function mayDeleteFromServer(id: string) {
-    return !(composerDraft.isConflicted() && composerDraft.isStoredId(id))
-  }
-
   // Best-effort delete of media that was uploaded on attach but never posted.
   // Attachments still holding a file have no server copy yet, and the original
   // attachments of a status being edited are never deleted. The server refuses
@@ -591,8 +583,10 @@ export const PostBox: FC<Props> = ({
       if (originalMediaIdsRef.current.has(attachment.id)) return
       if (keptMediaIdsRef.current.has(attachment.id)) return
       if (postedMediaIdsRef.current.has(attachment.id)) return
-      if (!mayDeleteFromServer(attachment.id)) return
-      deleteUnpostedMedia(attachment.id).catch(() => undefined)
+      const del = () => deleteUnpostedMedia(attachment.id)
+      // One the stored draft holds waits for the next save (useComposerDraft).
+      if (composerDraft.deferServerDelete(attachment.id, del)) return
+      del().catch(() => undefined)
     })
   }
 
@@ -1458,21 +1452,22 @@ export const PostBox: FC<Props> = ({
       )
     }
 
+    const uploadedId = fitnessFile.uploadedId
     if (
-      !fitnessFile.uploadedId ||
-      keptFitnessFileIdsRef.current.has(fitnessFile.uploadedId) ||
-      !mayDeleteFromServer(fitnessFile.uploadedId)
+      !uploadedId ||
+      keptFitnessFileIdsRef.current.has(uploadedId) ||
+      composerDraft.deferServerDelete(uploadedId, () =>
+        deleteUnpostedFitnessFile(uploadedId)
+      )
     ) {
       clearFitnessFile()
       return true
     }
 
     const inFlight = fitnessCleanupInFlightRef.current
-    if (inFlight?.uploadedId === fitnessFile.uploadedId) {
+    if (inFlight?.uploadedId === uploadedId) {
       return inFlight.promise
     }
-
-    const uploadedId = fitnessFile.uploadedId
 
     const cleanupPromise = (async () => {
       try {

@@ -374,7 +374,7 @@ describe('PostBox on-device drafts', () => {
       await screen.findByText('Not saved, copy your text')
     }
 
-    it('removing a photo another tab sent asks the server to keep it', async () => {
+    it('removing a photo another tab sent deletes nothing, even after the composer lets go', async () => {
       render(composer())
       await withPhoto()
       await waitFor(async () =>
@@ -382,31 +382,99 @@ describe('PostBox on-device drafts', () => {
           'media-a.png'
         )
       )
+      // The record is readable a moment before the composer hears its
+      // save landed.
+      await waitForSaved()
       await sendFromAnotherTab()
-      // The server refuses (422): a post uses it.
-      vi.mocked(deleteUnpostedMedia).mockRejectedValueOnce(
-        new Error('This photo is in a post, so it can’t be deleted.')
+
+      removePhoto()
+      // The save that would have let it go finds the draft gone.
+      await screen.findByText('Not saved, copy your text')
+      type('')
+      await waitFor(() =>
+        expect(screen.queryByText('Not saved, copy your text')).toBeNull()
       )
+      type('a fresh start')
+      await waitForSaved()
+
+      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+    })
+
+    it('removing a fitness file another tab sent deletes nothing', async () => {
+      await failToSend(withFitnessFile)
+      await sendFromAnotherTab()
+
+      await removeFitnessFile()
+      await screen.findByText('Not saved, copy your text')
+
+      expect(deleteFitnessFile).not.toHaveBeenCalled()
+      expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
+    })
+
+    // Tab B saved a newer revision that still holds the upload; this tab has
+    // not saved since, so it does not know yet.
+    const saveInAnotherTab = async () => {
+      const [stored] = await storedDrafts()
+      await saveDraft(
+        { ...stored, text: 'edited in another tab' },
+        { expectedRevision: stored.revision, epoch: 0 }
+      )
+    }
+
+    it('a stale tab removing a photo leaves it for the newer revision', async () => {
+      render(composer())
+      await withPhoto()
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      // The record is readable a moment before the composer hears its
+      // save landed.
+      await waitForSaved()
+      await saveInAnotherTab()
+
+      removePhoto()
+      await screen.findByText('Not saved, copy your text')
+
+      expect(deleteAccountMedia).not.toHaveBeenCalled()
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      const [stored] = await storedDrafts()
+      expect(stored.text).toBe('edited in another tab')
+      expect(stored.attachments[0]?.mediaId).toBe('media-a.png')
+    })
+
+    it('a stale tab emptying its composer leaves the photo for the newer revision', async () => {
+      render(composer())
+      attach('a.png')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      // The record is readable a moment before the composer hears its
+      // save landed.
+      await waitForSaved()
+      await saveInAnotherTab()
+
+      removePhoto()
+      // The debounced emptying delete has run and found the newer revision.
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      const [stored] = await storedDrafts()
+      expect(stored.attachments[0]?.mediaId).toBe('media-a.png')
+    })
+
+    it('a fresh upload removed before any save is deleted at once', async () => {
+      render(composer())
+      attach('a.png')
+      await screen.findByRole('button', { name: 'Remove media a.png' })
 
       removePhoto()
 
-      expect(deleteAccountMedia).not.toHaveBeenCalled()
       expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-a.png')
-    })
-
-    it('removing a fitness file another tab sent asks the server to keep it', async () => {
-      await failToSend(withFitnessFile)
-      await sendFromAnotherTab()
-      vi.mocked(deleteUnpostedFitnessFile).mockResolvedValueOnce(false)
-
-      await removeFitnessFile()
-
-      expect(deleteFitnessFile).not.toHaveBeenCalled()
-      expect(deleteUnpostedFitnessFile).toHaveBeenCalledExactlyOnceWith(
-        'fitness-1'
-      )
-      // Kept by the server is not a failure.
-      expect(screen.queryByText(/Failed to delete/)).toBeNull()
     })
 
     it('a conflicted composer deletes no photo on the server', async () => {
@@ -471,8 +539,39 @@ describe('PostBox on-device drafts', () => {
       await screen.findByRole('button', { name: 'Remove media a.png' })
       removePhoto()
 
+      // Not before this tab's save lands: another tab may hold a newer one.
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments).toEqual([])
+      )
+      await waitFor(() =>
+        expect(deleteUnpostedMedia).toHaveBeenCalledWith('media-a.png')
+      )
       expect(deleteAccountMedia).not.toHaveBeenCalled()
-      expect(deleteUnpostedMedia).toHaveBeenCalledExactlyOnceWith('media-a.png')
+      expect(deleteUnpostedMedia).toHaveBeenCalledTimes(1)
+    })
+
+    it('an emptied reopened draft deletes its photo once the record is gone', async () => {
+      const first = render(composer())
+      attach('a.png')
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.attachments[0]?.mediaId).toBe(
+          'media-a.png'
+        )
+      )
+      first.unmount()
+      const [draft] = await storedDrafts()
+
+      render(composer({ draft }))
+      await screen.findByRole('button', { name: 'Remove media a.png' })
+      removePhoto()
+
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      await waitFor(async () => expect(await storedDrafts()).toEqual([]))
+      await waitFor(() =>
+        expect(deleteUnpostedMedia).toHaveBeenCalledWith('media-a.png')
+      )
+      expect(deleteUnpostedMedia).toHaveBeenCalledTimes(1)
     })
 
     it('a reopened draft deletes a fitness file it came with through the guarded delete', async () => {
@@ -503,10 +602,36 @@ describe('PostBox on-device drafts', () => {
       await screen.findByText('run.gpx')
       await removeFitnessFile()
 
-      expect(deleteFitnessFile).not.toHaveBeenCalled()
-      expect(deleteUnpostedFitnessFile).toHaveBeenCalledExactlyOnceWith(
-        'fitness-1'
+      expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.fitnessFile).toBeUndefined()
       )
+      await waitFor(() =>
+        expect(deleteUnpostedFitnessFile).toHaveBeenCalledWith('fitness-1')
+      )
+      expect(deleteFitnessFile).not.toHaveBeenCalled()
+      expect(deleteUnpostedFitnessFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('a stale tab removing a fitness file leaves it for the newer revision', async () => {
+      await failToSend(withFitnessFile)
+      await waitFor(async () =>
+        expect((await storedDrafts())[0]?.fitnessFile?.fitnessFileId).toBe(
+          'fitness-1'
+        )
+      )
+      // The record is readable a moment before the composer hears its
+      // save landed.
+      await waitForSaved()
+      await saveInAnotherTab()
+
+      await removeFitnessFile()
+      await screen.findByText('Not saved, copy your text')
+
+      expect(deleteFitnessFile).not.toHaveBeenCalled()
+      expect(deleteUnpostedFitnessFile).not.toHaveBeenCalled()
+      const [stored] = await storedDrafts()
+      expect(stored.fitnessFile?.fitnessFileId).toBe('fitness-1')
     })
   })
 
