@@ -1,0 +1,35 @@
+app/(timeline)/notifications/components/FollowNotification.test.tsx
+  s_512188f2b1db53::t_d5df611217e256 5,12-20,104-158
+app/(timeline)/notifications/components/FollowNotification.tsx
+  s_512188f2b1db53::t_5acec8ad0b4e3d 6-10,22-26,29-32,53-64,67-71
+lib/components/follow-action/follow-action.test.tsx
+  s_512188f2b1db53::t_a3f03b32792a37 5,18-26,203-272
+lib/components/follow-action/follow-action.tsx
+  s_512188f2b1db53::t_9f8e078babc962 11-15,44-46,53-59,80-93,95-97,99,101-103,105,107-112
+lib/components/posts/actions/actionButtonShared.tsx
+  s_512188f2b1db53::t_4fee19cd9f2714 1,3-8,14-34
+lib/components/posts/actions/like-button.test.tsx
+  s_512188f2b1db53::t_1047ad9fffccb8 19-27,177-228
+lib/components/posts/actions/like-button.tsx
+  s_512188f2b1db53::t_71e4b53117a665 8-11,37,61-75,79-85,87-89,91-117
+lib/components/posts/actions/repost-button.test.tsx
+  s_512188f2b1db53::t_c4c08ffaca5226 19-27,213-264
+lib/components/posts/actions/repost-button.tsx
+  s_512188f2b1db53::t_f5cd4f7f974fa9 5-12,41-42,56-76,78-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1af51dd27e2b1c70456474adc4ec62089950d8dc",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
