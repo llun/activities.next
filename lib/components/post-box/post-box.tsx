@@ -1118,13 +1118,16 @@ export const PostBox: FC<Props> = ({
         submitIdempotencyRef.current = null
         setLockedMessage(null)
         void composerDraft.release()
-        dispatch(resetExtension())
-        resetMediaState()
-        // Clear the draft like the note branch does. Leaving the question text
-        // behind re-arms the (now poll-less) composer, so a second click posts
-        // it again as a plain note.
-        setText('')
-        textRef.current = ''
+        // Re-targeted mid-send: the composer now holds the new target's draft.
+        if (generation === draftGenerationRef.current) {
+          dispatch(resetExtension())
+          resetMediaState()
+          // Clear the draft like the note branch does. Leaving the question
+          // text behind re-arms the (now poll-less) composer, so a second click
+          // posts it again as a plain note.
+          setText('')
+          textRef.current = ''
+        }
         setIsPosting(false)
         return
       }
@@ -1292,13 +1295,15 @@ export const PostBox: FC<Props> = ({
       // The posted status owns the media now: drop the draft and its bytes only.
       void composerDraft.release()
       onPostCreated(status, storedAttachments)
-      dispatch(resetExtension())
-      resetMediaState()
-      // resetExtension() drops the policy back to the default 'public';
-      // re-apply the actor's configured default so it stays sticky.
-      dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
-
-      setText('')
+      // Re-targeted mid-send: the composer now holds the new target's draft.
+      if (generation === draftGenerationRef.current) {
+        dispatch(resetExtension())
+        resetMediaState()
+        // resetExtension() drops the policy back to the default 'public';
+        // re-apply the actor's configured default so it stays sticky.
+        dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
+        setText('')
+      }
       setIsPosting(false)
     } catch (error) {
       setIsPosting(false)
@@ -1777,7 +1782,10 @@ export const PostBox: FC<Props> = ({
     // is this composer's own.
     const reopening = Boolean(draft) && !draftSeededRef.current
     const draftOwnsMedia = !reopening && composerDraft.hasDraft()
-    if (draftOwnsMedia) void composerDraft.detach()
+    // A send in flight keeps its own draft: the new target never writes into it.
+    if (draftOwnsMedia || (!reopening && submitInFlightRef.current)) {
+      void composerDraft.detach()
+    }
     if (!submitInFlightRef.current && !draftOwnsMedia) {
       discardUploadedMedia(postExtensionRef.current.attachments)
     }

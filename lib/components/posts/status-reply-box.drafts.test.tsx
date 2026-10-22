@@ -23,7 +23,9 @@ import {
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
 import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { resizeImage } from '@/lib/utils/resizeImage'
@@ -113,21 +115,6 @@ const cancel = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
-// The save line under the text area ("Not saved, copy your text") is an alert
-// of its own: these look for the send's.
-const sendAlerts = () =>
-  screen
-    .queryAllByRole('alert')
-    .filter(
-      (alert) => !alert.textContent?.includes('Not saved, copy your text')
-    )
-const findSendAlert = () =>
-  waitFor(() => {
-    const [alert] = sendAlerts()
-    expect(alert).toBeDefined()
-    return alert
-  })
-
 configure({ asyncUtilTimeout: 4000 })
 
 describe('StatusReplyBox on-device drafts', () => {
@@ -531,13 +518,8 @@ describe('StatusReplyBox on-device drafts', () => {
   })
 
   it('drops the sent draft when re-targeted while the reply is in flight', async () => {
-    let finish = () => undefined as void
-    createNoteMock.mockImplementationOnce(
-      () =>
-        new Promise((done) => {
-          finish = () => done({ status: replyStatus, attachments: [] })
-        })
-    )
+    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => send.promise)
     const onPostCreated = vi.fn()
     const { rerender } = renderBox({ onPostCreated })
     type('Reply body')
@@ -556,7 +538,7 @@ describe('StatusReplyBox on-device drafts', () => {
         />
       </DraftsProvider>
     )
-    finish()
+    send.resolve({ status: replyStatus, attachments: [] })
     await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
 
     await waitFor(async () => expect(await stored()).toHaveLength(0))

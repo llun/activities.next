@@ -552,6 +552,35 @@ describe('useComposerDraft', () => {
     await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
   })
 
+  it('stays on "error" while storage keeps failing, so the alert is not repeated', async () => {
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    const states: string[] = []
+    const { result } = renderHook(() => {
+      const draft = useComposerDraft({
+        composer: 'post-box',
+        getContent: () => current
+      })
+      states.push(draft.saveState)
+      return draft
+    })
+    act(() => result.current.schedule())
+    await advance(DRAFT_SAVE_DEBOUNCE_MS)
+    await vi.waitFor(() => expect(result.current.saveState).toBe('error'))
+    const failedAt = states.length
+
+    current = content({ text: 'still typing' })
+    act(() => result.current.schedule())
+    await advance(DRAFT_SAVE_DEBOUNCE_MS)
+    await act(async () => {
+      await result.current.flush()
+    })
+
+    expect(states.slice(failedAt)).not.toContain('saving')
+    expect(result.current.saveState).toBe('error')
+  })
+
   it('shows "error" when the database cannot be opened', async () => {
     setDraftsIndexedDBFactory(null)
     vi.stubGlobal('indexedDB', undefined)
@@ -1050,6 +1079,52 @@ describe('useComposerDraft', () => {
       await vi.waitFor(async () =>
         expect((await stored())?.text).toBe('typed while signing out')
       )
+    })
+
+    it('does not save into another account that took over the tab', async () => {
+      vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
+      const { result, rerender } = setup()
+      act(() => result.current.schedule())
+
+      vi.mocked(useDrafts).mockReturnValue(
+        context({ accountId: 'account-2', actorId: 'actor-2' })
+      )
+      rerender()
+      await advance(DRAFT_SAVE_DEBOUNCE_MS)
+      await act(async () => {
+        await result.current.flush()
+      })
+
+      expect(await listDrafts({ actorId: 'actor-1' })).toHaveLength(0)
+      expect(await listDrafts({ actorId: 'actor-2' })).toHaveLength(0)
+    })
+
+    it('a send while signing out never releases an earlier send’s draft', async () => {
+      const { result, rerender } = setup()
+      // The first send fails: its draft stays, kept when the composer moves on.
+      await act(async () => {
+        await result.current.recordAttempt({ key: 'k1', fingerprint: 'f1' })
+      })
+      await act(async () => {
+        await result.current.detach()
+      })
+      expect(await stored()).toBeDefined()
+
+      // The next send happens while another tab is signing out (no checkpoint),
+      // and that sign-out is cancelled before it succeeds.
+      current = content({ text: 'the second post' })
+      vi.mocked(useDrafts).mockReturnValue(context({ signingOut: true }))
+      rerender()
+      await act(async () => {
+        await result.current.recordAttempt({ key: 'k2', fingerprint: 'f2' })
+      })
+      vi.mocked(useDrafts).mockReturnValue(context())
+      rerender()
+      await act(async () => {
+        await result.current.release()
+      })
+
+      expect((await stored())?.text).toBe('hello')
     })
 
     it('keep offers the text when another tab is signing out', async () => {

@@ -286,7 +286,10 @@ export const StatusReplyBox: FC<Props> = ({
 
     const seeded = Boolean(draft) && !draftSeededRef.current
     // Re-targeted: the previous target's draft stays where it was saved.
-    if (!seeded && composerDraft.hasDraft()) void composerDraft.detach()
+    // A send in flight keeps its own draft too.
+    if (!seeded && (composerDraft.hasDraft() || isSubmittingRef.current)) {
+      void composerDraft.detach()
+    }
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
     draftGenerationRef.current += 1
@@ -492,9 +495,12 @@ export const StatusReplyBox: FC<Props> = ({
       // The posted reply owns the media now: drop the draft and its bytes only.
       void composerDraft.release()
       onPostCreated(status, storedAttachments)
-      dispatch(resetExtension())
-      removedAttachmentIdsRef.current.clear()
-      setText('')
+      // Re-targeted mid-send: the box now holds the new target's draft.
+      if (generation === draftGenerationRef.current) {
+        dispatch(resetExtension())
+        removedAttachmentIdsRef.current.clear()
+        setText('')
+      }
       isSubmittingRef.current = false
       setIsPosting(false)
     } catch (error) {

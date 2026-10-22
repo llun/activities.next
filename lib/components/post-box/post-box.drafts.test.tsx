@@ -34,7 +34,9 @@ import {
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
 import { DraftsProvider } from '@/lib/components/drafts/DraftsProvider'
+import { createDeferred } from '@/lib/testing/deferred'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
+import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { PostBox } from './post-box'
@@ -124,21 +126,6 @@ const failOnce = (error: unknown) => createNoteMock.mockRejectedValueOnce(error)
 const makeFull = () =>
   vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
     throw new DOMException('full', 'QuotaExceededError')
-  })
-
-// The save line under the text area ("Not saved, copy your text") is an alert
-// of its own: these look for the send's.
-const sendAlerts = () =>
-  screen
-    .queryAllByRole('alert')
-    .filter(
-      (alert) => !alert.textContent?.includes('Not saved, copy your text')
-    )
-const findSendAlert = () =>
-  waitFor(() => {
-    const [alert] = sendAlerts()
-    expect(alert).toBeDefined()
-    return alert
   })
 
 // Real IndexedDB plus a loaded machine: the 1 s default is too tight.
@@ -246,14 +233,9 @@ describe('PostBox on-device drafts', () => {
       }) as Status
 
     const pendingSend = () => {
-      let finish = () => undefined as void
-      createNoteMock.mockImplementationOnce(
-        () =>
-          new Promise((done) => {
-            finish = () => done({ status: {} as never, attachments: [] })
-          })
-      )
-      return () => finish()
+      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => send.promise)
+      return () => send.resolve({ status: {} as never, attachments: [] })
     }
 
     it('drops the draft that was sent, not the new one', async () => {
@@ -273,6 +255,37 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
 
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
+    })
+
+    it('keeps what was typed for the new target when the old send lands', async () => {
+      const finish = pendingSend()
+      const onPostCreated = vi.fn()
+      const { rerender } = render(
+        composer({ replyStatus: replyTo('first'), onPostCreated })
+      )
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second'), onPostCreated }))
+      type('@bob@activities.local the next reply')
+      await waitFor(async () =>
+        expect((await storedDrafts()).map((draft) => draft.text)).toContain(
+          '@bob@activities.local the next reply'
+        )
+      )
+      finish()
+      await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
+
+      expect(textarea().value).toBe('@bob@activities.local the next reply')
+      // Still the same draft: no second record for the new target.
+      type('@bob@activities.local the next reply, edited')
+      await waitFor(async () =>
+        expect((await storedDrafts()).map((draft) => draft.text)).toEqual([
+          '@bob@activities.local the next reply, edited'
+        ])
+      )
     })
 
     it('cannot dismiss the reply while it is being sent', async () => {

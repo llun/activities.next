@@ -588,7 +588,9 @@ export const useComposerDraft = ({
           setStatus(d, d.blobFailures.size > 0 ? 'error' : 'saved')
           return true
         }
-        setStatus(d, 'saving')
+        // A failure stays on screen until a save lands: flipping back to
+        // Saving would announce the alert again after every pause.
+        if (s.status !== 'error') setStatus(d, 'saving')
         const epoch = epochFor(snap.ctx)
         const saved = await (
           await loadDrafts()
@@ -746,9 +748,11 @@ export const useComposerDraft = ({
     const recordAttempt = async (
       submit: SubmitCheckpoint
     ): Promise<boolean> => {
+      // Even when nothing can be written: a later release must never pick up
+      // an earlier send's draft.
+      s.sent = s.d
       if (!live.current.enabled) return true
       const d = s.d
-      s.sent = d
       d.submit = submit
       d.attemptedAt ??= Date.now()
       const ok = await saveNow(true)
@@ -920,13 +924,16 @@ export const useComposerDraft = ({
   }, [api, s])
 
   // Signing out in another tab: drop the pending save (the epoch would abort
-  // it anyway). If that sign-out is cancelled, save what was typed meanwhile.
-  const wasEnabled = useRef(enabled)
+  // it anyway). If that sign-out is cancelled, save what was typed meanwhile,
+  // but never into another account that took over this tab.
+  const accountId = drafts?.accountId
+  const before = useRef({ enabled, accountId })
   useEffect(() => {
+    const was = before.current
+    before.current = { enabled, accountId }
     if (!enabled) clearTimer()
-    else if (!wasEnabled.current) api.schedule()
-    wasEnabled.current = enabled
-  }, [enabled, clearTimer, api])
+    else if (!was.enabled && was.accountId === accountId) api.schedule()
+  }, [enabled, accountId, clearTimer, api])
 
   // The provider's epoch resolving is what lets a refused save go through.
   const epoch = drafts?.epoch
