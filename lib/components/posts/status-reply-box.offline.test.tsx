@@ -336,6 +336,18 @@ describe('StatusReplyBox offline hand-off', () => {
     )
   })
 
+  it('does nothing on an implicit submit while the buttons are disabled (over the limit)', async () => {
+    const onCancel = vi.fn()
+    render(box(replyStatus, onCancel))
+    await goOffline()
+    attachPhoto('clip.mp4', 'video/mp4')
+    await typeAndWaitForSave('x'.repeat(5000))
+
+    expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(onCancel).not.toHaveBeenCalled()
+  })
+
   describe('Send when online', () => {
     it('stores a waiting record for the reply and closes the box', async () => {
       const onCancel = vi.fn()

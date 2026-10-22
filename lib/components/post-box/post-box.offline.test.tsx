@@ -484,6 +484,25 @@ describe('PostBox offline hand-off', () => {
     )
   })
 
+  it('does nothing on an implicit submit while the buttons are disabled (over the limit)', async () => {
+    const onHandedOff = vi.fn()
+    render(composer({ onHandedOff }))
+    await goOffline()
+    const fileInput = document.querySelector<HTMLInputElement>(
+      'input[type="file"][name="file"]'
+    )!
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['v'], 'clip.mp4', { type: 'video/mp4' })] }
+    })
+    await screen.findByRole('button', { name: 'Remove media clip.mp4' })
+    await typeAndWaitForSave('x'.repeat(5000))
+    expect(saveDraftButton()).toBeDisabled()
+
+    expect(fireEvent.submit(textarea().closest('form')!)).toBe(false)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(onHandedOff).not.toHaveBeenCalled()
+  })
+
   describe('an untouched composer', () => {
     it('hands nothing off: a reply holding only its mention writes no record', async () => {
       const onHandedOff = vi.fn()

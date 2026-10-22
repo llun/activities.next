@@ -20,7 +20,7 @@ import {
 } from '@/app/(timeline)/PendingProfileNavigation'
 import { DraftsPage } from '@/app/(timeline)/drafts/DraftsPage'
 import { getAccountBootstrap } from '@/lib/client/bootstrap'
-import { onConnectionRestored } from '@/lib/client/connection'
+import { onConnectionRestored, probeNow } from '@/lib/client/connection'
 import {
   type ClientBootstrapSnapshot,
   type HydratedOfflineTimeline,
@@ -171,7 +171,11 @@ export function OfflineAppShell() {
   // there would only cut off a send it had started.
   useEffect(() => {
     if (view !== 'unavailable') return
-    return onConnectionRestored(() => window.location.reload())
+    const stop = onConnectionRestored(() => window.location.reload())
+    // The store starts out online, so a server that is down while the device
+    // says online would never be noticed, nor its return: check once.
+    void probeNow()
+    return stop
   }, [view])
 
   const handleUnauthorized = useCallback(() => {

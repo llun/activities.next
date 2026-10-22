@@ -26,9 +26,11 @@ const mockUnsubscribe = vi.fn()
 const mockOnConnectionRestored = vi.fn(
   (_listener: () => void) => mockUnsubscribe
 )
+const mockProbeNow = vi.fn(async () => {})
 vi.mock('@/lib/client/connection', () => ({
   onConnectionRestored: (listener: () => void) =>
-    mockOnConnectionRestored(listener)
+    mockOnConnectionRestored(listener),
+  probeNow: () => mockProbeNow()
 }))
 
 vi.mock('@/lib/components/drafts/DraftsList', () => ({
@@ -544,6 +546,8 @@ describe('OfflineAppShell', () => {
         const { unmount } = render(<OfflineAppShell />)
         await screen.findByRole('heading', { name: 'Not saved for offline' })
 
+        // Checked once, so a server down while the device says online is seen.
+        expect(mockProbeNow).toHaveBeenCalledTimes(1)
         expect(mockOnConnectionRestored).toHaveBeenCalledTimes(1)
         mockOnConnectionRestored.mock.calls[0][0]()
         expect(reload).toHaveBeenCalledTimes(1)
