@@ -13,6 +13,8 @@ export const SEND_BACKOFF_MS = [
   5_000, 15_000, 45_000, 120_000, 300_000
 ] as const
 export const DEFAULT_RETRY_AFTER_MS = 60_000
+/** Tries for an upload refused without a status: about 8 minutes of backoff. */
+export const UPLOAD_RETRY_LIMIT = 6
 
 /** A 401 or a profile switch: the queue waits for the next load to lift it. */
 export const holdsQueue = (queue: DraftQueueState | undefined): boolean =>

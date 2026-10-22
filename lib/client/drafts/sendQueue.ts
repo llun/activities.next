@@ -41,6 +41,7 @@ import {
   MAX_QUEUE_AGE_MS,
   SEND_BACKOFF_MS,
   SEND_TIMEOUT_MS,
+  UPLOAD_RETRY_LIMIT,
   holdsQueue,
   pausedByReader,
   retriesOnItsOwn
@@ -130,6 +131,9 @@ const isAbortLike = (error: unknown): boolean => {
  */
 class UploadFailedError extends Error {}
 
+const withoutRetries = ({ retries: _retries, ...queue }: DraftQueueState) =>
+  queue
+
 const asUploadFailure = (error: unknown): never => {
   if (
     error instanceof ApiRequestError ||
@@ -202,8 +206,14 @@ export const classifySendOutcome = (
     error instanceof UploadFailedError ||
     isAbortLike(error) ||
     (status !== undefined && status >= 500)
+  // Nothing was sent: these back off by their own count, as attempts only
+  // counts POSTs. A refusal that outlasts a server restart is final.
+  const retries = draft.queue?.retries ?? 0
+  if (error instanceof UploadFailedError && retries + 1 >= UPLOAD_RETRY_LIMIT) {
+    return { kind: 'couldnt_send', reason: error.message }
+  }
   if (preflight && networkLike) {
-    return { kind: 'waiting', nextAttemptAt: now + backoff(attempts) }
+    return { kind: 'waiting', nextAttemptAt: now + backoff(retries) }
   }
   if (networkLike || status === 409) {
     return {
@@ -533,7 +543,7 @@ const sendOne = async (
           submit: { key, fingerprint: request.fingerprint },
           attemptedAt: r.attemptedAt ?? now,
           queue: {
-            ...r.queue,
+            ...withoutRetries(r.queue),
             firstAttemptAt: r.queue.firstAttemptAt ?? now,
             attempts: r.queue.attempts + 1
           }
@@ -627,7 +637,8 @@ const applyOutcome = (
         queue: {
           ...base,
           state: 'waiting',
-          nextAttemptAt: outcome.nextAttemptAt
+          nextAttemptAt: outcome.nextAttemptAt,
+          retries: (record.queue.retries ?? 0) + 1
         }
       }
     case 'checking':

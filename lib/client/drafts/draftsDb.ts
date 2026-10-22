@@ -699,6 +699,7 @@ export const resumeQueue = ({
       pausedBy: _pausedBy,
       reason: _reason,
       nextAttemptAt: _nextAttemptAt,
+      retries: _retries,
       pauseRequested,
       ...rest
     } = queue

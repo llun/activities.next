@@ -68,6 +68,8 @@ export interface DraftQueueState {
   queuedAt: number
   /** POSTs made; indexes the send backoff. */
   attempts: number
+  /** Failures in a row before a POST (pre-flight, upload); indexes their backoff. */
+  retries?: number
   /** First POST; the 6-day give-up clock, and "may have posted". */
   firstAttemptAt?: number
   /** Not claimable before this. */

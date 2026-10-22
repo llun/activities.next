@@ -30,6 +30,7 @@ import {
   MAX_QUEUE_AGE_MS,
   SEND_TIMEOUT_MS,
   type SendQueueDeps,
+  UPLOAD_RETRY_LIMIT,
   classifySendOutcome,
   drainQueue,
   preflight
@@ -146,6 +147,8 @@ const apiError = (status: number, message = 'bad', retryAfterMs?: number) =>
 
 describe('classifySendOutcome', () => {
   const posted = draft('a', { attempts: 1, firstAttemptAt: NOW - 10 })
+  // Failed once before posting: the pre-POST backoff's second step.
+  const retried = draft('a', { retries: 1 })
   const locked = { ...posted, lockedMessage: 'Kept.' }
   const timeout = new DOMException('timed out', 'TimeoutError')
   const abort = new DOMException('aborted', 'AbortError')
@@ -209,21 +212,21 @@ describe('classifySendOutcome', () => {
     [
       'pre-flight TypeError',
       new TypeError('Load failed'),
-      posted,
+      retried,
       true,
       { kind: 'waiting', nextAttemptAt: NOW + 15_000 }
     ],
     [
       'pre-flight AbortError',
       abort,
-      posted,
+      retried,
       true,
       { kind: 'waiting', nextAttemptAt: NOW + 15_000 }
     ],
     [
       'pre-flight 503',
       apiError(503),
-      posted,
+      retried,
       true,
       { kind: 'waiting', nextAttemptAt: NOW + 15_000 }
     ],
@@ -347,6 +350,15 @@ describe('classifySendOutcome', () => {
     expect(
       classifySendOutcome(error, record, { now: NOW, preflight: isPreflight })
     ).toEqual(expected)
+  })
+
+  it('backs off pre-POST failures by their own count, not by POSTs made', () => {
+    expect(
+      classifySendOutcome(new TypeError('x'), posted, {
+        now: NOW,
+        preflight: true
+      })
+    ).toEqual({ kind: 'waiting', nextAttemptAt: NOW + 5_000 })
   })
 
   it('names the reply box way out for a locked reply', () => {
@@ -1323,6 +1335,30 @@ describe('drainQueue', () => {
         expect(await getDraft('a')).toBeUndefined()
       })
 
+      it('gives up on an upload refused without a status after UPLOAD_RETRY_LIMIT tries', async () => {
+        await store(draft('a', {}, { attachments: [photo(1)] }))
+        await storeBlob('local-1', 'a')
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>().mockResolvedValue(null)
+        })
+        const gaps: number[] = []
+        for (let i = 0; i < UPLOAD_RETRY_LIMIT; i += 1) {
+          await drain(deps)
+          const queue = (await getDraft('a'))?.queue
+          if (queue?.state !== 'waiting') break
+          gaps.push(queue.nextAttemptAt! - clock)
+          clock = queue.nextAttemptAt!
+        }
+        // 5 s, 15 s, 45 s, 2 min, 5 min: then it is final.
+        expect(gaps).toEqual([5_000, 15_000, 45_000, 120_000, 300_000])
+        expect((await getDraft('a'))?.queue).toMatchObject({
+          state: 'couldnt_send',
+          reason: "The server didn't accept p1.png."
+        })
+        expect(deps.uploadAttachment).toHaveBeenCalledTimes(UPLOAD_RETRY_LIMIT)
+        expect(deps.createNote).not.toHaveBeenCalled()
+      })
+
       it.each([
         [
           'a null upload (a non-200 the helper hides)',
@@ -1494,6 +1530,23 @@ describe('drainQueue', () => {
             fileName: 'run.fit'
           })
         }
+
+        it('waits with backoff when the activity upload fails without a status', async () => {
+          await queuedFit()
+          const deps = makeDeps({
+            // A 200 with a body that isn't JSON (a proxy or captive portal).
+            uploadFitnessFile: vi
+              .fn<UploadFitness>()
+              .mockRejectedValue(new SyntaxError('Unexpected token <'))
+          })
+          await drain(deps)
+          expect(deps.createNote).not.toHaveBeenCalled()
+          expect((await getDraft('a'))?.queue).toMatchObject({
+            state: 'waiting',
+            attempts: 0,
+            nextAttemptAt: NOW + 5_000
+          })
+        })
 
         it('stops waiting on a hung activity upload once the drain is aborted', async () => {
           await queuedFit()
