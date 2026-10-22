@@ -29,6 +29,7 @@ import {
 } from '@/lib/client/drafts/queueConstants'
 import type {
   DraftQueueState,
+  DraftRecord,
   SendQueueProgress
 } from '@/lib/client/drafts/types'
 import { NotSavedToDraftsNote } from '@/lib/components/drafts/NotSavedToDraftsNote'
@@ -110,7 +111,10 @@ const wakeTimeOf = (queue: DraftQueueState): number | null => {
   return retriesOnItsOwn(queue) ? (queue.nextAttemptAt ?? 0) : null
 }
 
-/** A drain stops at a 401 or a profile switch, so nothing else posts into it. */
+/** A queued item as one pass saw it: any later write makes it a new one. */
+const itemKey = (draft: DraftRecord): string => `${draft.id}@${draft.revision}`
+
+/** A 401 or a profile switch: the queue waits for the next load to lift it. */
 const holdsQueue = (queue: DraftQueueState | undefined): boolean =>
   queue?.state === 'paused' &&
   (queue.pausedBy === 'auth' || queue.pausedBy === 'actor')
@@ -238,9 +242,10 @@ export function DraftsProvider({
   const generationRef = useRef(0)
   const wakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeToken = useRef(0)
-  // The last pass moved nothing: it failed, or claimed none of the items it
-  // found due.
-  const stalledRef = useRef(false)
+  // The items (by id and revision) the last pass found due and could not
+  // move: it failed, or claimed none of them. A new or changed item is not
+  // one of them.
+  const stalledRef = useRef<ReadonlySet<string>>(new Set())
 
   const refreshCount = useCallback(() => {
     const token = ++refreshToken.current
@@ -323,8 +328,9 @@ export function DraftsProvider({
   // the backoff of a retry, or the end of a lease a closed tab left behind.
   // An item already due (fresh, past its time, or turned away by another
   // tab's sender lock) is tried RETRY_SOON_MS from now, unless the last pass
-  // moved nothing or a 401 or profile switch holds the queue: repeating those
-  // would only spin, so they wait for the next trigger. "Already" is before
+  // found it due and moved nothing, or a 401 or profile switch holds the
+  // queue: repeating those would only spin, so they wait for the next trigger
+  // or a change to the item. "Already" is before
   // the read, so an item falling due during it still gets its own time.
   // While this tab cannot drain, only the future counts: coming back online,
   // an epoch or a cancelled sign-out drains on its own.
@@ -336,16 +342,19 @@ export function DraftsProvider({
       .then((m) => m.listDrafts({ actorId }))
       .then((drafts) => {
         if (token !== wakeToken.current) return
-        const queues = drafts
-          .filter((draft) => draft.accountId === accountId)
-          .map((draft) => draft.queue)
-          .filter((queue): queue is DraftQueueState => queue !== undefined)
+        const queued = drafts.filter(
+          (draft) => draft.accountId === accountId && draft.queue
+        )
         const soon =
-          canDrain() && !queues.some(holdsQueue) ? now + RETRY_SOON_MS : null
-        const upcoming = queues
-          .map(wakeTimeOf)
-          .filter((at): at is number => at !== null)
-          .map((at) => (at > now ? at : stalledRef.current ? null : soon))
+          canDrain() && !queued.some((draft) => holdsQueue(draft.queue))
+            ? now + RETRY_SOON_MS
+            : null
+        const upcoming = queued
+          .map((draft) => {
+            const at = draft.queue ? wakeTimeOf(draft.queue) : null
+            if (at === null || at > now) return at
+            return stalledRef.current.has(itemKey(draft)) ? null : soon
+          })
           .filter((at): at is number => at !== null)
         if (upcoming.length === 0) return
         wakeTimerRef.current = setTimeout(
@@ -377,19 +386,25 @@ export function DraftsProvider({
       const controller = new AbortController()
       abortRef.current = controller
       const last: { phase: SendQueueProgress['phase'] } = { phase: 'idle' }
+      let due: string[] = []
       try {
         const m = await loadDrafts()
         const epoch = epochRef.current
         if (epoch === null) return
         // Most triggers find nothing due: skip the sender's code and the lock.
         const startedAt = Date.now()
-        const due = (await m.listDrafts({ actorId })).some(
-          (draft) =>
-            draft.accountId === accountId &&
-            m.isQueueClaimable(draft.queue, startedAt)
+        const drafts = (await m.listDrafts({ actorId })).filter(
+          (draft) => draft.accountId === accountId
         )
-        if (!due) {
-          stalledRef.current = false
+        // A 401 or profile switch holds the whole queue until the next load
+        // lifts it (above), so no pass, rerun or trigger posts into it.
+        due = drafts.some((draft) => holdsQueue(draft.queue))
+          ? []
+          : drafts
+              .filter((draft) => m.isQueueClaimable(draft.queue, startedAt))
+              .map(itemKey)
+        if (due.length === 0) {
+          stalledRef.current = new Set()
           setDrainFailed(false)
           return
         }
@@ -419,12 +434,12 @@ export function DraftsProvider({
         })
         // A lock miss is no stall: another tab is draining, and an item it
         // listed too late is still due here, so it is tried again soon.
-        stalledRef.current = ran && attempted === 0
+        stalledRef.current = new Set(ran && attempted === 0 ? due : [])
         setDrainFailed(false)
       } catch {
         // Storage or a chunk failed to load: the next trigger tries again,
         // and the Drafts page offers Retry meanwhile.
-        stalledRef.current = true
+        stalledRef.current = new Set(due)
         if (!controller.signal.aborted) setDrainFailed(true)
       } finally {
         abortRef.current = null

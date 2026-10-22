@@ -496,12 +496,47 @@ describe('DraftsProvider send queue', () => {
           vi.mocked(drainQueue).mockResolvedValue({ ...ZERO, attempted: 1 })
           renderProvider()
           await settle()
-          drainQueueCalls(1)
-
+          // The load that lifts it is the mount's (mocked here): until then
+          // no pass, timer or trigger sends anything.
+          drainQueueCalls(0)
           await advance(60_000)
-          drainQueueCalls(1)
+          await act(async () => {
+            document.dispatchEvent(new Event('visibilitychange'))
+          })
+          await settle()
+          drainQueueCalls(0)
         }
       )
+
+      it('does not let a rerun asked for during a pass post into a fresh 401', async () => {
+        let store: DraftRecord[] = [DUE, PAST_DUE]
+        vi.mocked(listDrafts).mockImplementation(async () => store)
+        const first = createDeferred<typeof ZERO>()
+        vi.mocked(drainQueue).mockImplementationOnce(async () => {
+          await first.promise
+          // The first item got a 401, and the drain stopped there.
+          store = [
+            {
+              ...DUE,
+              queue: { ...DUE.queue!, state: 'paused', pausedBy: 'auth' }
+            },
+            PAST_DUE
+          ]
+          return { ...ZERO, attempted: 1, paused: 1 }
+        })
+        renderProvider()
+        await settle()
+        drainQueueCalls(1)
+
+        // A trigger while the POST is out asks for one more pass.
+        await act(async () => {
+          document.dispatchEvent(new Event('visibilitychange'))
+        })
+        first.resolve(ZERO)
+        await settle()
+        await advance(60_000)
+        drainQueueCalls(1)
+      })
 
       it('ignores another account’s item with the same actor', async () => {
         vi.mocked(listDrafts).mockResolvedValue([
@@ -563,6 +598,26 @@ describe('DraftsProvider send queue', () => {
         read.resolve([PAST_DUE, later])
         await settle()
         await advance(0)
+        drainQueueCalls(2)
+      })
+
+      it('still sends an item another tab queues after a pass that claimed nothing', async () => {
+        let store: DraftRecord[] = [PAST_DUE]
+        vi.mocked(listDrafts).mockImplementation(async () => store)
+        renderProvider()
+        await settle()
+        drainQueueCalls(1)
+
+        // Only the item the pass could not move waits; a new one is sent.
+        store = [PAST_DUE, DUE]
+        await post({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          draftId: DUE.id
+        })
+        await settle()
+        await advance(RETRY_SOON_MS)
         drainQueueCalls(2)
       })
 
