@@ -24,6 +24,7 @@ import type {
 import { EXPECTED_ACTOR_MISMATCH_ERROR } from '@/lib/services/statuses/expectedActor'
 import { generatePublicId } from '@/lib/utils/publicId'
 
+import { blobRecordToFile, blobRecordToPosterFile } from './draftMedia'
 import {
   type claimQueuedDraft,
   type deleteDraftIfRevision,
@@ -327,6 +328,100 @@ interface SendContext {
 }
 
 /**
+ * Uploads what a draft still lacks, from the bytes in IndexedDB (kept after
+ * the upload). Each id is written before the next upload and before the
+ * checkpoint, so a retry reuses it and never uploads twice. A thrown error
+ * leaves `submit` unset: nothing was POSTed, so it is classified as pre-flight.
+ * `held.draft` follows every write (even when this throws, so the outcome
+ * write has the current revision). Returns false when another writer owns
+ * the item now.
+ */
+const uploadPending = async (
+  held: { draft: DraftRecord },
+  { signal, deps }: Pick<SendContext, 'signal' | 'deps'>
+): Promise<boolean> => {
+  const claimed = held.draft
+  // A failed write means another tab owns the draft: delete the orphan upload.
+  const persist = async (
+    mutate: (record: DraftRecord) => DraftRecord,
+    cleanup: () => Promise<unknown>
+  ) => {
+    try {
+      held.draft = await deps.updateQueuedDraft(
+        claimed.id,
+        held.draft.revision,
+        mutate
+      )
+      return true
+    } catch {
+      await cleanup().catch(() => undefined)
+      return false
+    }
+  }
+  const blobFor = async (localId: string, fileName: string) => {
+    const blob = await deps.getDraftBlob(localId)
+    if (!blob || blob.draftId !== claimed.id) {
+      throw new Error(`${fileName} is no longer on this device.`)
+    }
+    return blob
+  }
+
+  for (const item of claimed.attachments) {
+    if (item.mediaId) continue
+    if (signal.aborted) throw signal.reason
+    const blob = await blobFor(item.localId, item.fileName)
+    const media = await deps.uploadAttachment(
+      blobRecordToFile(blob),
+      blobRecordToPosterFile(blob)
+    )
+    if (!media) throw new Error(`The server didn't accept ${item.fileName}.`)
+    const saved = await persist(
+      (record) => ({
+        ...record,
+        attachments: record.attachments.map((a) =>
+          a.localId === item.localId
+            ? {
+                ...a,
+                mediaId: media.id,
+                url: media.url,
+                posterUrl: media.posterUrl,
+                width: media.width,
+                height: media.height,
+                owned: true
+              }
+            : a
+        )
+      }),
+      () => deps.deleteUnpostedMedia(media.id)
+    )
+    if (!saved) return false
+  }
+
+  const file = claimed.fitnessFile
+  if (file && !file.fitnessFileId) {
+    if (signal.aborted) throw signal.reason
+    const blob = await blobFor(file.localId, file.fileName)
+    const uploaded = await deps.uploadFitnessFile(blobRecordToFile(blob))
+    const saved = await persist(
+      (record) => {
+        if (!record.fitnessFile) throw new Error('The activity file is gone')
+        return {
+          ...record,
+          fitnessFile: {
+            ...record.fitnessFile,
+            fitnessFileId: uploaded.id,
+            owned: true
+          }
+        }
+      },
+      () => deps.deleteUnpostedFitnessFile(uploaded.id)
+    )
+    if (!saved) return false
+  }
+  return true
+}
+
+/**
  * One claimed draft, through the POST. Returns the latest record this tab
  * wrote with the outcome, or `null` when the item is dropped for this drain
  * (the checkpoint could not be written, so nothing was sent).
@@ -351,21 +446,11 @@ const sendOne = async (
       }
     }
 
-    // V2b: uploads from the stored bytes. Until then an item that still needs
-    // one cannot be sent from the queue.
-    const pending =
-      draft.attachments.find((item) => !item.mediaId) ??
-      (draft.fitnessFile && !draft.fitnessFile.fitnessFileId
-        ? draft.fitnessFile
-        : undefined)
-    if (pending) {
-      return {
-        draft,
-        outcome: {
-          kind: 'couldnt_send',
-          reason: `${pending.fileName} hasn't been uploaded yet.`
-        }
-      }
+    const held = { draft }
+    try {
+      if (!(await uploadPending(held, { signal, deps }))) return null
+    } finally {
+      draft = held.draft
     }
 
     // Checkpoint, as `recordAttempt` does: the key used is persisted before
