@@ -4,8 +4,13 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import {
+  EXPECTED_ACTOR_HEADER,
+  EXPECTED_ACTOR_MISMATCH_ERROR
+} from '@/lib/services/statuses/expectedActor'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 import { POST } from './route'
 
@@ -77,10 +82,17 @@ const buildForm = () => {
   return form
 }
 
-const postRequest = (token?: string, form?: FormData) => {
+const postRequest = (
+  token?: string,
+  form?: FormData,
+  headers: Record<string, string> = {}
+) => {
   const req = new NextRequest('https://llun.test/api/v2/media', {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers
+    }
   })
   // jest / undici cannot materialise a multipart body from a FormData passed to
   // NextRequest — mock formData() directly (see update_credentials route test).
@@ -309,6 +321,52 @@ describe('POST /api/v2/media', () => {
     })
 
     expect(response.status).toBe(500)
+  })
+
+  describe('Activities-Expected-Actor', () => {
+    beforeEach(() => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: Date.now() + 60_000,
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+    })
+
+    it.each([
+      { description: 'absent', headers: {} as Record<string, string> },
+      {
+        description: 'the token actor',
+        headers: { [EXPECTED_ACTOR_HEADER]: ACTOR1_ID }
+      }
+    ])('uploads when the header is $description', async ({ headers }) => {
+      const response = await POST(
+        postRequest('write-media-token', undefined, headers),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses another actor with 409 before reading or storing the upload', async () => {
+      const req = postRequest('write-media-token', undefined, {
+        [EXPECTED_ACTOR_HEADER]: ACTOR2_ID,
+        Origin: 'https://other.test'
+      })
+
+      const response = await POST(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: EXPECTED_ACTOR_MISMATCH_ERROR
+      })
+      // A CORS route: the refusal stays readable cross-origin.
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
+        'https://other.test'
+      )
+      expect(req.formData).not.toHaveBeenCalled()
+      expect(mockSaveMedia).not.toHaveBeenCalled()
+    })
   })
 
   describe('automatic alt text generation', () => {

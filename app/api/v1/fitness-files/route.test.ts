@@ -2,7 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
+import {
+  EXPECTED_ACTOR_HEADER,
+  EXPECTED_ACTOR_MISMATCH_ERROR
+} from '@/lib/services/statuses/expectedActor'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { logger } from '@/lib/utils/logger'
 
 import { POST } from './route'
@@ -44,21 +49,21 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-const uploadForm = (form: FormData) =>
+const uploadForm = (form: FormData, headers: Record<string, string> = {}) =>
   new NextRequest('https://llun.test/api/v1/fitness-files', {
     method: 'POST',
-    headers: { Origin: 'https://llun.test' },
+    headers: { Origin: 'https://llun.test', ...headers },
     body: form
   })
 
-const upload = (description?: string) => {
+const upload = (description?: string, headers?: Record<string, string>) => {
   const form = new FormData()
   form.set(
     'file',
     new File(['<gpx></gpx>'], 'ride.gpx', { type: 'application/gpx+xml' })
   )
   if (description !== undefined) form.set('description', description)
-  return uploadForm(form)
+  return uploadForm(form, headers)
 }
 
 const context = { params: Promise.resolve({}) }
@@ -197,6 +202,35 @@ describe('POST /api/v1/fitness-files', () => {
     expect(logger.error).toHaveBeenCalledWith({
       message: 'Failed to save fitness file'
     })
+  })
+
+  it.each([
+    { description: 'absent', headers: {} as Record<string, string> },
+    {
+      description: 'the signed-in actor',
+      headers: { [EXPECTED_ACTOR_HEADER]: ACTOR1_ID }
+    }
+  ])(
+    'saves the file when Activities-Expected-Actor is $description',
+    async ({ headers }) => {
+      const response = await POST(upload(undefined, headers), context)
+
+      expect(response.status).toBe(200)
+      expect(mockSaveFitnessFile).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('refuses another actor in Activities-Expected-Actor with 409 and saves nothing', async () => {
+    const response = await POST(
+      upload('Lunch ride', { [EXPECTED_ACTOR_HEADER]: ACTOR2_ID }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: EXPECTED_ACTOR_MISMATCH_ERROR
+    })
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
   })
 
   it('answers 500 and logs when storage throws', async () => {

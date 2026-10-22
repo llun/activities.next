@@ -20,6 +20,7 @@ import {
 } from '@/lib/services/medias/mediaDetailsRequest'
 import { FileSchema, MediaSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
+import { expectedActorMismatchResponse } from '@/lib/services/statuses/expectedActorMismatch'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import {
   Media,
@@ -258,6 +259,13 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   context
 ) => {
   const { database, currentActor, params } = context
+  // A queued upload's thumbnail names its profile: before any file is stored.
+  const actorMismatch = expectedActorMismatchResponse(
+    req,
+    currentActor.id,
+    CORS_HEADERS
+  )
+  if (actorMismatch) return actorMismatch
   const account = currentActor.account
   if (!account) {
     return apiResponse({
