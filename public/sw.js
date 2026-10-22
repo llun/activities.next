@@ -305,10 +305,7 @@ sw.addEventListener('fetch', (event) => {
 
   // 1. Navigation handling
   if (request.mode === 'navigate') {
-    // NEVER intercept Next.js RSC requests
-    const isRsc =
-      request.headers.get('rsc') === '1' || url.searchParams.has('_rsc')
-    if (isRsc || request.method !== 'GET') {
+    if (request.method !== 'GET') {
       return
     }
 
@@ -317,6 +314,17 @@ sw.addEventListener('fetch', (event) => {
     const preload = Promise.resolve(event.preloadResponse).catch(
       () => undefined
     )
+
+    // Never cache or stand in for Next.js RSC requests or /api/ navigations
+    // (OAuth callbacks among them), but still answer them from the preload:
+    // returning without respondWith makes the browser request them again, and
+    // a one-time callback must reach the server once.
+    const isRsc =
+      request.headers.get('rsc') === '1' || url.searchParams.has('_rsc')
+    if (isRsc || url.pathname.startsWith('/api/')) {
+      event.respondWith((async () => (await preload) || fetch(request))())
+      return
+    }
 
     if (url.pathname === '/app') {
       event.respondWith(
@@ -360,13 +368,9 @@ sw.addEventListener('fetch', (event) => {
       return
     }
 
-    // Everything else outside /api/: network first. Only a rejected fetch falls
-    // back (an HTTP error or redirect is returned as is). The app shell stands
-    // in for /drafts alone; any other path gets the static page, never chrome.
-    if (url.pathname.startsWith('/api/')) {
-      return
-    }
-
+    // Everything else: network first. Only a rejected fetch falls back (an
+    // HTTP error or redirect is returned as is). The app shell stands in for
+    // /drafts alone; any other path gets the static page, never chrome.
     event.respondWith(
       (async () => {
         try {

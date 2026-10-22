@@ -41,7 +41,9 @@ import {
   MAX_QUEUE_AGE_MS,
   SEND_BACKOFF_MS,
   SEND_TIMEOUT_MS,
-  holdsQueue
+  holdsQueue,
+  pausedByReader,
+  retriesOnItsOwn
 } from './queueConstants'
 import { buildSubmitRequest } from './submitRequest'
 import type {
@@ -369,6 +371,19 @@ const uploadPending = async (
       return false
     }
   }
+  // The upload helpers take no signal, so a hung upload would hold the sender
+  // lock past a sign-out or unmount. Stop waiting instead; an upload that
+  // lands later stays on the server as unposted media (Settings → Media).
+  const untilAborted = <T>(work: Promise<T>): Promise<T> => {
+    const aborted = new Promise<never>((_, reject) => {
+      if (signal.aborted) reject(signal.reason)
+      else signal.addEventListener('abort', () => reject(signal.reason))
+    })
+    // Settled after the race when the upload wins: not an unhandled rejection.
+    aborted.catch(() => undefined)
+    // An upload that already finished wins, so its id is still persisted.
+    return Promise.race([work, aborted])
+  }
   const blobFor = async (localId: string, fileName: string) => {
     const blob = await deps.getDraftBlob(localId)
     if (!blob || blob.draftId !== claimed.id) {
@@ -381,10 +396,12 @@ const uploadPending = async (
     if (item.mediaId) continue
     if (signal.aborted) throw signal.reason
     const blob = await blobFor(item.localId, item.fileName)
-    const media = await deps.uploadAttachment(
-      blobRecordToFile(blob),
-      blobRecordToPosterFile(blob),
-      expected
+    const media = await untilAborted(
+      deps.uploadAttachment(
+        blobRecordToFile(blob),
+        blobRecordToPosterFile(blob),
+        expected
+      )
     )
     if (!media) throw new Error(`The server didn't accept ${item.fileName}.`)
     const saved = await persist(
@@ -413,10 +430,8 @@ const uploadPending = async (
   if (file && !file.fitnessFileId) {
     if (signal.aborted) throw signal.reason
     const blob = await blobFor(file.localId, file.fileName)
-    const uploaded = await deps.uploadFitnessFile(
-      blobRecordToFile(blob),
-      undefined,
-      expected
+    const uploaded = await untilAborted(
+      deps.uploadFitnessFile(blobRecordToFile(blob), undefined, expected)
     )
     const saved = await persist(
       (record) => {
@@ -724,10 +739,21 @@ export const drainQueue = async ({
       deps.announce(draft.id)
       break
     }
+    // Pause skipped this item while its request was out: a retry it settles
+    // into joins the pause instead of going out on its own.
+    const readerPaused = (await deps.listDrafts({ actorId })).some(
+      (other) =>
+        other.accountId === accountId &&
+        other.queue?.state === 'paused' &&
+        other.queue.pausedBy === 'user'
+    )
     const written = await deps
-      .updateQueuedDraft(draft.id, draft.revision, (record) =>
-        applyOutcome(record, outcome)
-      )
+      .updateQueuedDraft(draft.id, draft.revision, (record) => {
+        const next = applyOutcome(record, outcome)
+        return readerPaused && next.queue && retriesOnItsOwn(next.queue)
+          ? { ...next, queue: pausedByReader(next.queue) }
+          : next
+      })
       .then(
         () => true,
         // Someone else owns the item now (a revision conflict).

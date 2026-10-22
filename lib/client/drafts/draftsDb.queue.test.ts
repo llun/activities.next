@@ -354,6 +354,21 @@ describe('draftsDb send queue', () => {
       expect((await getDraft('o'))?.queue?.state).toBe('waiting')
     })
 
+    it('pauses a rate-limited item too, dropping its "trying again" reason', async () => {
+      await store(
+        queued('limited', {
+          state: 'paused',
+          pausedBy: 'rate_limit',
+          reason: 'Too many posts. Trying again soon.',
+          nextAttemptAt: NOW + 60_000
+        })
+      )
+      expect(await pauseQueue({ actorId: 'actor-1' })).toBe(1)
+      const paused = (await getDraft('limited'))?.queue
+      expect(paused).toMatchObject({ state: 'paused', pausedBy: 'user' })
+      expect(paused).not.toHaveProperty('reason')
+    })
+
     it('resumes only the named pauses, to checking once attempted', async () => {
       await store(
         queued('auth', {

@@ -13,7 +13,7 @@ import {
   DraftSignedOutError,
   DraftsUnavailableError
 } from './errors'
-import { retriesOnItsOwn } from './queueConstants'
+import { pausedByReader, retriesOnItsOwn } from './queueConstants'
 import {
   DRAFTS_DB_NAME,
   DRAFTS_DB_VERSION,
@@ -645,9 +645,7 @@ const rewriteQueue = (
 /** Pause: `waiting`/`checking` → `paused(user)`. Never touches a `sending` item. */
 export const pauseQueue = ({ actorId }: { actorId: string }): Promise<number> =>
   rewriteQueue(actorId, (queue) =>
-    queue.state === 'waiting' || queue.state === 'checking'
-      ? { ...queue, state: 'paused', pausedBy: 'user' }
-      : null
+    retriesOnItsOwn(queue) ? pausedByReader(queue) : null
   )
 
 /** Resume matching pauses to `checking` once a POST was made, else `waiting`. */

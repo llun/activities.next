@@ -362,18 +362,24 @@ return {
       }
     }
 
-    it('NEVER intercepts Next.js RSC requests', async () => {
+    it('passes Next.js RSC requests straight to the network, never the shell', async () => {
+      const shellCache = await caches.open('activities-shell-v1')
+      await shellCache.put('/app', new Response('<h1>Cached App Shell</h1>'))
+
       const reqHeader = new Request('https://llun.social/app', {
         headers: { rsc: '1' }
       })
       Object.defineProperty(reqHeader, 'mode', { value: 'navigate' })
-      const resHeader = await triggerFetch(reqHeader)
-      expect(resHeader.response).toBeNull()
+      const fromHeader = new Response('rsc payload')
+      mockFetch.mockResolvedValueOnce(fromHeader)
+      expect((await triggerFetch(reqHeader)).response).toBe(fromHeader)
 
       const reqQuery = new Request('https://llun.social/app?_rsc=abc')
       Object.defineProperty(reqQuery, 'mode', { value: 'navigate' })
-      const resQuery = await triggerFetch(reqQuery)
-      expect(resQuery.response).toBeNull()
+      const fromQuery = new Response('rsc payload')
+      mockFetch.mockResolvedValueOnce(fromQuery)
+      expect((await triggerFetch(reqQuery)).response).toBe(fromQuery)
+      expect(mockFetch).toHaveBeenCalledTimes(2)
     })
 
     it('serves cached /app immediately for GET /app and triggers background staging', async () => {
@@ -665,8 +671,31 @@ return {
         expect(mockFetch).not.toHaveBeenCalledWith(req)
       })
 
-      it('does not intercept /api/ navigations or non-GET requests', async () => {
-        expect((await navigate('/api/v1/accounts')).response).toBeNull()
+      it('answers an /api/ navigation from its preload, so a one-time callback reaches the server once', async () => {
+        const preload = new Response(null, { status: 302 })
+        const req = new Request(
+          'https://llun.social/api/v1/fitness/strava/callback?code=abc&state=s'
+        )
+        Object.defineProperty(req, 'mode', { value: 'navigate' })
+        let responded: Promise<Response> | null = null
+        eventListeners['fetch'][0]({
+          request: req,
+          preloadResponse: Promise.resolve(preload),
+          respondWith: (p: Promise<Response>) => {
+            responded = p
+          },
+          waitUntil: () => {}
+        })
+
+        expect(await responded!).toBe(preload)
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
+      it('fetches an /api/ navigation once when there is no preload, and leaves non-GET requests alone', async () => {
+        const fetched = new Response('{}')
+        mockFetch.mockResolvedValueOnce(fetched)
+        expect((await navigate('/api/v1/accounts')).response).toBe(fetched)
+        expect(mockFetch).toHaveBeenCalledTimes(1)
 
         const post = new Request('https://llun.social/notifications', {
           method: 'POST'

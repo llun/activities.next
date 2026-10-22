@@ -62,7 +62,8 @@ type ShellView = 'timeline' | 'drafts' | 'unavailable'
 
 const getShellView = (pathname: string | null): ShellView => {
   if (pathname === '/' || pathname === '/app') return 'timeline'
-  if (pathname === '/drafts') return 'drafts'
+  // The worker serves this shell for both forms when offline.
+  if (pathname === '/drafts' || pathname === '/drafts/') return 'drafts'
   return 'unavailable'
 }
 

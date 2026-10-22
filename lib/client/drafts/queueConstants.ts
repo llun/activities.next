@@ -20,6 +20,20 @@ export const holdsQueue = (queue: DraftQueueState | undefined): boolean =>
   (queue.pausedBy === 'auth' || queue.pausedBy === 'actor')
 
 /**
+ * What Pause makes of an item that would retry on its own. A rate limit's
+ * "trying again soon" no longer holds, so its reason goes.
+ */
+export const pausedByReader = (queue: DraftQueueState): DraftQueueState => {
+  const { reason, ...rest } = queue
+  return {
+    ...rest,
+    ...(reason && queue.pausedBy !== 'rate_limit' ? { reason } : {}),
+    state: 'paused',
+    pausedBy: 'user'
+  }
+}
+
+/**
  * States the sender retries without the user once `nextAttemptAt` passes;
  * the rest (needs review, couldn't send, paused by the user, auth or actor)
  * wait for them. A `sending` entry is the lease's, not this rule's.

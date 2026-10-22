@@ -13,6 +13,7 @@ import {
   getDraft,
   getDraftBlob,
   listDrafts,
+  pauseQueue,
   putDraftBlob,
   renewClaim,
   resetDraftsDbForTesting,
@@ -868,6 +869,38 @@ describe('drainQueue', () => {
       expect((await getDraft('theirs-due'))?.queue?.state).toBe('waiting')
     })
 
+    it.each([
+      ['a network error', () => new TypeError('Load failed')],
+      ['a 429', () => apiError(429, 'slow down', 30_000)]
+    ])(
+      'joins a Pause pressed while its request was out (%s)',
+      async (_name, failure) => {
+        await store(draft('first', { queuedAt: NOW - 20 }))
+        await store(draft('second', { queuedAt: NOW - 10 }))
+        const deps = makeDeps({
+          createNote: vi.fn<CreateNote>(async () => {
+            // The reader presses Pause while this POST is out.
+            await pauseQueue({ actorId: 'actor-1' })
+            throw failure()
+          })
+        })
+        await drain(deps)
+        expect((await getDraft('first'))?.queue).toMatchObject({
+          state: 'paused',
+          pausedBy: 'user'
+        })
+        expect((await getDraft('second'))?.queue).toMatchObject({
+          state: 'paused',
+          pausedBy: 'user'
+        })
+
+        // Nothing goes out on its own later.
+        clock = NOW + 10 * 60_000
+        await drain(deps)
+        expect(deps.createNote).toHaveBeenCalledTimes(1)
+      }
+    )
+
     it('counts a sent post even when deleting the draft fails', async () => {
       await store(draft('a'))
       const deps = makeDeps({
@@ -1167,6 +1200,22 @@ describe('drainQueue', () => {
         expect(deps.uploadAttachment).toHaveBeenCalledTimes(1)
         expect(deps.createNote).not.toHaveBeenCalled()
         expect(result.sent + result.failed).toBe(0)
+      })
+
+      it('stops waiting on a hung upload once the drain is aborted', async () => {
+        await queuedPhotos()
+        const controller = new AbortController()
+        const deps = makeDeps({
+          uploadAttachment: vi.fn<UploadAttachment>(() => {
+            controller.abort()
+            return new Promise<never>(() => {})
+          })
+        })
+        await drain(deps, { signal: controller.signal })
+        expect(deps.createNote).not.toHaveBeenCalled()
+        const stored = await getDraft('a')
+        expect(stored?.queue).toMatchObject({ state: 'waiting' })
+        expect(stored?.queue).not.toHaveProperty('claim')
       })
 
       it('stops uploading once the drain is aborted', async () => {

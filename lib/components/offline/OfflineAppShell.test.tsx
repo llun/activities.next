@@ -472,20 +472,23 @@ describe('OfflineAppShell', () => {
       await screen.findByTestId('desktop-sidebar')
     }
 
-    it('renders the real DraftsPage with bootstrap props on /drafts', async () => {
-      mockPathname = '/drafts'
-      await renderReady()
+    it.each(['/drafts', '/drafts/'])(
+      'renders the real DraftsPage with bootstrap props on %s',
+      async (path) => {
+        mockPathname = path
+        await renderReady()
 
-      expect(
-        screen.getAllByRole('heading', { name: 'Drafts' }).length
-      ).toBeGreaterThan(0)
-      // DraftsPage's own header, not a copy of it.
-      expect(screen.getByText('Saved on this device')).toBeVisible()
-      expect(screen.getByTestId('drafts-list')).toHaveTextContent(
-        `llun.social|alice|${dummyBootstrap.currentTime}|true`
-      )
-      expect(screen.queryByTestId('main-timeline')).not.toBeInTheDocument()
-    })
+        expect(
+          screen.getAllByRole('heading', { name: 'Drafts' }).length
+        ).toBeGreaterThan(0)
+        // DraftsPage's own header, not a copy of it.
+        expect(screen.getByText('Saved on this device')).toBeVisible()
+        expect(screen.getByTestId('drafts-list')).toHaveTextContent(
+          `llun.social|alice|${dummyBootstrap.currentTime}|true`
+        )
+        expect(screen.queryByTestId('main-timeline')).not.toBeInTheDocument()
+      }
+    )
 
     it('renders Not saved for offline with an Open drafts link on any other path', async () => {
       mockPathname = '/notifications'
