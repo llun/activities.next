@@ -19,6 +19,7 @@ import {
   getMedia,
   uploadFitnessFile
 } from '@/lib/client'
+import { resetConnectionForTesting } from '@/lib/client/connection'
 import { ApiRequestError } from '@/lib/client/http'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -70,6 +71,10 @@ vi.mock('@/lib/utils/extractVideoPoster', () => ({
 vi.mock('@/lib/utils/resizeImage', () => ({
   resizeImage: vi.fn((file) => Promise.resolve(file))
 }))
+
+// A failed request probes the connection, which cannot succeed under test: the
+// next test must not start offline (uploads would be deferred).
+beforeEach(() => resetConnectionForTesting())
 
 describe('PostBox media details', () => {
   const originalResizeObserver = global.ResizeObserver

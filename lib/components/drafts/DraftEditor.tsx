@@ -63,6 +63,7 @@ export const DraftEditor: FC<Props> = ({
         onDiscardEdit={onClose}
         onPostCreated={onClose}
         onPostUpdated={onClose}
+        onHandedOff={onClose}
       />
     )}
   </div>
