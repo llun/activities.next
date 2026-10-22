@@ -1,0 +1,49 @@
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_512188f2b1db53::t_437680c9216c6f 297-298
+lib/client/drafts/draftMedia.test.ts
+  s_512188f2b1db53::t_3fcf4f1201cba1 4-7,29-32,81-82,129-131,133,146,161,189,205
+docs/fitness-file-storage.md
+  s_512188f2b1db53::t_bcfbdaba4b0531 309
+lib/components/post-box/post-box.tsx
+  s_512188f2b1db53::t_4422f69df34ef6 214-215,403-404,576-579,581,1046,1049,1051-1052,1355-1356,2315
+lib/components/posts/status-reply-box.tsx
+  s_512188f2b1db53::t_a407942ba5bf5e 197-198
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.ts
+  s_512188f2b1db53::t_fbbb3de185fff6 107
+  s_512188f2b1db53::t_1c7c1eb6dc5079 1-2,23-27,49-57
+  s_512188f2b1db53::t_a5895017e0ca05 58-60
+lib/components/drafts/DraftsList.test.tsx
+  s_512188f2b1db53::t_3fcf4f1201cba1 33-36
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  s_512188f2b1db53::t_e3a3644346ff75 184-223
+  s_512188f2b1db53::t_6128259f7a0c75 180-183
+lib/client/drafts/draftMedia.ts
+  s_512188f2b1db53::t_a407942ba5bf5e 1,62-64,83
+lib/components/post-box/useComposerDraft.ts
+  s_512188f2b1db53::t_30bb040b9619c9 105-106,124,137-144,154,543,574,656-660,852
+docs/maintenance.md
+  s_512188f2b1db53::t_bcfbdaba4b0531 1016-1020
+docs/architecture.md
+  s_512188f2b1db53::t_bcfbdaba4b0531 3069,3071-3072
+lib/components/post-box/post-box.drafts.test.tsx
+  s_512188f2b1db53::t_79ef81ad3783d1 479-480,482-483,485-500
+  s_512188f2b1db53::t_b58a6f45f02a09 481
+  s_512188f2b1db53::t_fbbb3de185fff6 657
+  s_512188f2b1db53::t_437680c9216c6f 10-11,440-459,475-478,484,501-509,653-654,666-667
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39ab21c57c20003d6f2cac5413984cba39e49de8",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
