@@ -2,12 +2,21 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { Mastodon } from '@/lib/types/activitypub'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 import { FollowNotification } from './FollowNotification'
+
+const connection = vi.hoisted(() => ({ state: 'online' as string }))
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: () => ({
+    state: connection.state,
+    nextProbeAt: null,
+    probing: false
+  })
+}))
 
 // `@/lib/client` is deliberately NOT mocked: the regression this covers lives
 // in the client helper's id handling, not in the component. Stubbing fetch
@@ -90,5 +99,60 @@ describe('FollowNotification', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       "Couldn't follow back. Please try again."
     )
+  })
+})
+
+const fetchMock = vi.fn()
+
+describe('FollowNotification offline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    connection.state = 'offline'
+    // Radix Tooltip content measures itself; jsdom has no ResizeObserver.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => {
+    connection.state = 'online'
+  })
+
+  it('is aria-disabled but focusable, and a click makes no request', () => {
+    render(<FollowNotification account={buildAccount(generatePublicId())} />)
+    const button = screen.getByRole('button', { name: 'Follow back' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).not.toBeDisabled()
+    button.focus()
+    expect(button).toHaveFocus()
+
+    fireEvent.click(button)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("You're offline", { selector: '[role]' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the tooltip on focus', async () => {
+    render(<FollowNotification account={buildAccount(generatePublicId())} />)
+    act(() => screen.getByRole('button', { name: 'Follow back' }).focus())
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "You're offline"
+    )
+  })
+
+  it('has no aria-disabled when unreachable', () => {
+    connection.state = 'unreachable'
+    render(<FollowNotification account={buildAccount(generatePublicId())} />)
+    expect(
+      screen.getByRole('button', { name: 'Follow back' })
+    ).not.toHaveAttribute('aria-disabled')
   })
 })

@@ -3,6 +3,11 @@
 import { FC, useState } from 'react'
 
 import { follow } from '@/lib/client'
+import {
+  OFFLINE_MESSAGE,
+  OfflineTooltip,
+  useIsOffline
+} from '@/lib/components/posts/actions/actionButtonShared'
 import { Button } from '@/lib/components/ui/button'
 import type { Mastodon } from '@/lib/types/activitypub'
 
@@ -14,11 +19,17 @@ interface Props {
 // "Follow back" action. The "<name> followed you" headline lives in
 // NotificationItem.
 export const FollowNotification: FC<Props> = ({ account }) => {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(
-    'idle'
-  )
+  const [state, setState] = useState<
+    'idle' | 'loading' | 'done' | 'error' | 'offline'
+  >('idle')
+
+  const offline = useIsOffline()
 
   const handleFollowBack = async () => {
+    if (offline) {
+      setState('offline')
+      return
+    }
     setState('loading')
     try {
       const ok = await follow({ targetActorId: account.id })
@@ -39,17 +50,25 @@ export const FollowNotification: FC<Props> = ({ account }) => {
             Following
           </span>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            onClick={handleFollowBack}
-            disabled={state === 'loading'}
-          >
-            Follow back
-          </Button>
+          <OfflineTooltip offline={offline}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              onClick={handleFollowBack}
+              disabled={state === 'loading'}
+              aria-disabled={offline || undefined}
+            >
+              Follow back
+            </Button>
+          </OfflineTooltip>
         )}
       </div>
+      {offline && state === 'offline' && (
+        <p className="mt-1 text-xs text-destructive-text" role="status">
+          {OFFLINE_MESSAGE}
+        </p>
+      )}
       {state === 'error' && (
         <p className="mt-1 text-xs text-destructive-text" role="alert">
           Couldn&apos;t follow back. Please try again.
