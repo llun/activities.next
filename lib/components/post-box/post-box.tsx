@@ -1071,6 +1071,15 @@ export const PostBox: FC<Props> = ({
     )
       return
     if (submitInFlightRef.current) return
+    // New props not applied yet (the re-target effect runs after the render
+    // that brought them): never send this composer's content under them.
+    if (
+      editStatus?.id !== draftTarget.editId ||
+      replyStatus?.id !== draftTarget.replyTo?.id ||
+      quotedStatus?.id !== draftTarget.quoteOf?.id
+    ) {
+      return
+    }
     submitInFlightRef.current = true
     // Set once the post went out: a re-target waiting for it then just moves on.
     let sent = false

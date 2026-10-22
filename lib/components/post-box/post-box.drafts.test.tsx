@@ -646,6 +646,38 @@ describe('PostBox on-device drafts', () => {
       expect(textarea().value).toBe('@bob@activities.local my reply')
     })
 
+    it('a target change while a failed draft is kept does not linger for the next send', async () => {
+      const first = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
+      createNoteMock.mockImplementationOnce(() => first.promise)
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local my reply')
+      await waitForSaved()
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+      rerender(composer({ replyStatus: replyTo('second') }))
+      type('@bob@activities.local my reply, edited')
+      await act(async () => {
+        first.reject(new Error('offline'))
+        for (let i = 0; i < 6; i += 1) await Promise.resolve()
+      })
+      // Changed again while that draft is being kept.
+      rerender(composer({ replyStatus: replyTo('third') }))
+      expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+      await waitFor(() => expect(textarea().value).not.toContain('my reply'))
+
+      // The next send under the third target fails: it stays as it is.
+      createNoteMock.mockRejectedValueOnce(new Error('offline'))
+      type('@bob@activities.local the third reply')
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      expect(await findSendAlert()).toHaveTextContent("Couldn't send.")
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(textarea().value).toBe('@bob@activities.local the third reply')
+      expect(sendAlerts()).toHaveLength(1)
+    })
+
     it('cannot dismiss the reply while it is being sent', async () => {
       pendingSend()
       render(composer({ replyStatus: replyTo('first') }))

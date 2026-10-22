@@ -777,6 +777,53 @@ describe('StatusReplyBox on-device drafts', () => {
     expect(createNoteMock).toHaveBeenCalledTimes(1)
   })
 
+  it('a target change while a failed reply is kept does not linger for the next send', async () => {
+    const first = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockImplementationOnce(() => first.promise)
+    const box = (id: string) => (
+      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={{ ...replyStatus, id }}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </DraftsProvider>
+    )
+    const { rerender } = render(box(replyStatus.id))
+    type('Reply body')
+    await waitForSaved()
+    post()
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    rerender(box(`${replyStatus.id}-second`))
+    type('Reply body, edited')
+    await act(async () => {
+      first.reject(new Error('offline'))
+      for (let i = 0; i < 6; i += 1) await Promise.resolve()
+    })
+    // Changed again while that reply is being kept.
+    rerender(box(`${replyStatus.id}-third`))
+    expect(await screen.findByText('Saved to Drafts')).toBeVisible()
+    await waitFor(() =>
+      expect(textarea()).not.toHaveValue('Reply body, edited')
+    )
+
+    // The next send fails: the box keeps saving what is typed afterwards.
+    createNoteMock.mockRejectedValueOnce(new Error('offline'))
+    type('The third reply')
+    post()
+    expect(await findSendAlert()).toBeVisible()
+    type('The third reply, still saving')
+
+    await waitFor(async () =>
+      expect((await stored()).map((draft) => draft.text)).toContain(
+        'The third reply, still saving'
+      )
+    )
+  })
+
   it('does not carry the sent reply’s photo over to the new target', async () => {
     const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
     createNoteMock.mockImplementationOnce(() => send.promise)
