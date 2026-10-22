@@ -482,8 +482,10 @@ describe('DraftsProvider send queue', () => {
       it.each(['auth', 'actor'] as const)(
         'holds the queue while an item is paused by %s',
         async (pausedBy) => {
+          // Neither a past-due nor a fresh item posts into the same 401 or 409.
           vi.mocked(listDrafts).mockResolvedValue([
             PAST_DUE,
+            DUE,
             queued('held', {
               state: 'paused',
               pausedBy,
@@ -512,6 +514,114 @@ describe('DraftsProvider send queue', () => {
         await advance(60_000)
         expect(listDrafts).toHaveBeenCalledTimes(reads)
         drainQueueCalls(0)
+      })
+
+      it('sends an item another tab queued but could not send', async () => {
+        let store: DraftRecord[] = []
+        vi.mocked(listDrafts).mockImplementation(async () => store)
+        renderProvider()
+        await settle()
+        drainQueueCalls(0)
+
+        // Queued in a tab that can't reach the server, then left.
+        store = [DUE]
+        await post({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          draftId: DUE.id
+        })
+        await settle()
+        await advance(RETRY_SOON_MS)
+        drainQueueCalls(1)
+      })
+
+      it('keeps the time of an item that falls due while a reschedule reads', async () => {
+        const later = queued('later', {
+          state: 'checking',
+          queuedAt: NOW,
+          attempts: 1,
+          firstAttemptAt: NOW,
+          nextAttemptAt: NOW + 5_000
+        })
+        vi.mocked(listDrafts).mockResolvedValue([PAST_DUE, later])
+        renderProvider()
+        await settle()
+        // The mount pass claimed nothing: past-due items wait from here on.
+        drainQueueCalls(1)
+
+        await advance(4_999)
+        const read = createDeferred<DraftRecord[]>()
+        vi.mocked(listDrafts).mockImplementationOnce(() => read.promise)
+        await post({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          draftId: later.id
+        })
+        await advance(2)
+        read.resolve([PAST_DUE, later])
+        await settle()
+        await advance(0)
+        drainQueueCalls(2)
+      })
+
+      it('stops retrying a lock miss once the other tab sent the item', async () => {
+        let store = [DUE]
+        vi.mocked(listDrafts).mockImplementation(async () => store)
+        vi.mocked(withSenderLock).mockResolvedValueOnce(false)
+        renderProvider()
+        await settle()
+
+        // The holder sent it: the retry finds nothing due, and stops there.
+        store = []
+        await advance(RETRY_SOON_MS)
+        const reads = vi.mocked(listDrafts).mock.calls.length
+        await advance(60_000)
+        expect(listDrafts).toHaveBeenCalledTimes(reads)
+      })
+
+      it('stops retrying a lock miss once a pass fails', async () => {
+        vi.mocked(listDrafts).mockResolvedValue([DUE])
+        vi.mocked(withSenderLock)
+          .mockResolvedValueOnce(false)
+          .mockRejectedValue(new Error('chunk'))
+        renderProvider()
+        await settle()
+        expect(withSenderLock).toHaveBeenCalledTimes(1)
+
+        await advance(RETRY_SOON_MS)
+        expect(withSenderLock).toHaveBeenCalledTimes(2)
+        await advance(60_000)
+        expect(withSenderLock).toHaveBeenCalledTimes(2)
+      })
+
+      it('forgets a stalled pass once a later pass finds nothing due', async () => {
+        let store = [PAST_DUE]
+        vi.mocked(listDrafts).mockImplementation(async () => store)
+        vi.mocked(withSenderLock).mockRejectedValueOnce(new Error('chunk'))
+        renderProvider()
+        await settle()
+
+        store = []
+        await act(async () => {
+          document.dispatchEvent(new Event('visibilitychange'))
+        })
+        await settle()
+
+        // A past-due item seen later is tried soon again.
+        store = [PAST_DUE]
+        vi.mocked(drainQueue).mockResolvedValue({ ...ZERO, attempted: 1 })
+        await post({
+          type: 'changed',
+          accountId: 'account-1',
+          actorId: 'actor-1',
+          draftId: PAST_DUE.id
+        })
+        await settle()
+        drainQueueCalls(0)
+        await advance(RETRY_SOON_MS)
+        drainQueueCalls(1)
       })
     })
 
@@ -578,15 +688,12 @@ describe('DraftsProvider send queue', () => {
       expect(withSenderLock).toHaveBeenCalledTimes(3)
       drainQueueCalls(1)
 
-      // The holder sent only what it listed; the other tab's retry sends the
-      // rest.
+      // The late item is sent once the holder's pass ends, by one tab.
       first.resolve(ZERO)
       await settle()
-      drainQueueCalls(1)
-      expect(store).toEqual([late])
       await advance(RETRY_SOON_MS)
-      drainQueueCalls(2)
       expect(store).toEqual([])
+      drainQueueCalls(2)
     })
 
     it('is recomputed on a changed message, and cleared on unmount', async () => {

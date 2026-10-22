@@ -100,14 +100,14 @@ const loadSendQueueDeps = async (
 }
 
 /**
- * When a queued item next needs the sender: its backoff ends, or a dead tab's
- * lease runs out. A fresh item has no time of its own (the trigger that queued
- * it drains), and items that wait for the user (needs review, paused by them)
- * never wake it.
+ * When a queued item next needs the sender: now for a fresh one (the tab that
+ * queued it may be unable to drain), when its backoff ends, or when a dead
+ * tab's lease runs out. Items that wait for the user (needs review, paused by
+ * them) never wake it.
  */
 const wakeTimeOf = (queue: DraftQueueState): number | null => {
   if (queue.state === 'sending') return queue.claim?.until ?? null
-  return retriesOnItsOwn(queue) ? (queue.nextAttemptAt ?? null) : null
+  return retriesOnItsOwn(queue) ? (queue.nextAttemptAt ?? 0) : null
 }
 
 /** A drain stops at a 401 or a profile switch, so nothing else posts into it. */
@@ -238,9 +238,8 @@ export function DraftsProvider({
   const generationRef = useRef(0)
   const wakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeToken = useRef(0)
-  // Set by the last pass: another tab's sender lock turned it away, or it
-  // moved nothing (it failed, or claimed none of the items it found due).
-  const lockMissedRef = useRef(false)
+  // The last pass moved nothing: it failed, or claimed none of the items it
+  // found due.
   const stalledRef = useRef(false)
 
   const refreshCount = useCallback(() => {
@@ -322,20 +321,21 @@ export function DraftsProvider({
 
   // One timer, for the earliest moment a queued item becomes sendable again:
   // the backoff of a retry, or the end of a lease a closed tab left behind.
-  // A time already past and a pass the sender lock turned away are tried
-  // RETRY_SOON_MS from now (kept in refs, so a `changed` reschedule keeps
-  // them), unless the last pass moved nothing or a 401 or profile switch
-  // holds the queue: repeating those would only spin, so they wait for the
-  // next trigger. While this tab cannot drain, only the future counts: coming
-  // back online, an epoch or a cancelled sign-out drains on its own.
+  // An item already due (fresh, past its time, or turned away by another
+  // tab's sender lock) is tried RETRY_SOON_MS from now, unless the last pass
+  // moved nothing or a 401 or profile switch holds the queue: repeating those
+  // would only spin, so they wait for the next trigger. "Already" is before
+  // the read, so an item falling due during it still gets its own time.
+  // While this tab cannot drain, only the future counts: coming back online,
+  // an epoch or a cancelled sign-out drains on its own.
   const scheduleWake = useCallback(() => {
     clearWake()
     const token = wakeToken.current
+    const now = Date.now()
     loadDrafts()
       .then((m) => m.listDrafts({ actorId }))
       .then((drafts) => {
         if (token !== wakeToken.current) return
-        const now = Date.now()
         const queues = drafts
           .filter((draft) => draft.accountId === accountId)
           .map((draft) => draft.queue)
@@ -346,7 +346,6 @@ export function DraftsProvider({
           .map(wakeTimeOf)
           .filter((at): at is number => at !== null)
           .map((at) => (at > now ? at : stalledRef.current ? null : soon))
-          .concat(lockMissedRef.current ? [soon] : [])
           .filter((at): at is number => at !== null)
         if (upcoming.length === 0) return
         wakeTimerRef.current = setTimeout(
@@ -354,7 +353,7 @@ export function DraftsProvider({
             wakeTimerRef.current = null
             drainRef.current()
           },
-          Math.min(...upcoming) - now
+          Math.min(...upcoming) - Date.now()
         )
       })
       // Unavailable storage: the next trigger schedules again.
@@ -390,7 +389,6 @@ export function DraftsProvider({
             m.isQueueClaimable(draft.queue, startedAt)
         )
         if (!due) {
-          lockMissedRef.current = false
           stalledRef.current = false
           setDrainFailed(false)
           return
@@ -419,16 +417,13 @@ export function DraftsProvider({
           })
           attempted = result.attempted
         })
-        // Another tab is draining: an item it listed too late is tried again
-        // soon. A pass that claimed none of what it found due would only
-        // repeat itself.
-        lockMissedRef.current = !ran
+        // A lock miss is no stall: another tab is draining, and an item it
+        // listed too late is still due here, so it is tried again soon.
         stalledRef.current = ran && attempted === 0
         setDrainFailed(false)
       } catch {
         // Storage or a chunk failed to load: the next trigger tries again,
         // and the Drafts page offers Retry meanwhile.
-        lockMissedRef.current = false
         stalledRef.current = true
         if (!controller.signal.aborted) setDrainFailed(true)
       } finally {
