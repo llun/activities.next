@@ -64,7 +64,8 @@ export const fileToBlobRecord = async ({
  *   tab sent).
  * It never calls `deleteAccountMedia`. A locked draft's attachments are
  * `owned: false`, so discarding one deletes no media. Offline, the media stays
- * in the author's Gallery, where it is visible and deletable.
+ * listed under Settings → Media (or Settings → Fitness files for an activity
+ * file), where it can be deleted; Gallery does not list it.
  */
 export const deleteDraftAndOwnedMedia = async (
   draft: DraftRecord
