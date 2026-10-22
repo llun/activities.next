@@ -239,7 +239,7 @@ describe('PostBox on-device drafts', () => {
       return () => send.resolve({ status: {} as never, attachments: [] })
     }
 
-    it('drops the draft that was sent, not the new one', async () => {
+    it('finishes the send for its own target, then moves to the new one', async () => {
       const finish = pendingSend()
       const onPostCreated = vi.fn()
       const { rerender } = render(
@@ -252,109 +252,25 @@ describe('PostBox on-device drafts', () => {
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
 
       rerender(composer({ replyStatus: replyTo('second'), onPostCreated }))
+      // Still the send's own composer until it settles.
+      expect(textarea().value).toBe('@bob@activities.local my reply')
       finish()
       await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
 
+      expect(createNoteMock.mock.calls[0][0].replyStatus?.id).toBe(
+        replyTo('first').id
+      )
+      await waitFor(() => expect(textarea().value).not.toContain('my reply'))
       await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
     })
 
-    it('keeps what was typed for the new target when the old send lands', async () => {
-      const finish = pendingSend()
-      const onPostCreated = vi.fn()
-      const { rerender } = render(
-        composer({ replyStatus: replyTo('first'), onPostCreated })
-      )
-      await screen.findByDisplayValue(/@bob/)
-      type('@bob@activities.local my reply')
-      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-
-      rerender(composer({ replyStatus: replyTo('second'), onPostCreated }))
-      type('@bob@activities.local the next reply')
-      await waitFor(async () =>
-        expect((await storedDrafts()).map((draft) => draft.text)).toContain(
-          '@bob@activities.local the next reply'
-        )
-      )
-      finish()
-      await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
-
-      expect(textarea().value).toBe('@bob@activities.local the next reply')
-      // Still the same draft: no second record for the new target.
-      type('@bob@activities.local the next reply, edited')
-      await waitFor(async () =>
-        expect((await storedDrafts()).map((draft) => draft.text)).toEqual([
-          '@bob@activities.local the next reply, edited'
-        ])
-      )
-    })
-
-    it('keeps what was typed for the new target when an old poll lands', async () => {
-      vi.stubGlobal(
-        'ResizeObserver',
-        class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        }
-      )
-      const send = createDeferred<undefined>()
-      vi.mocked(createPoll).mockImplementationOnce(() => send.promise)
-      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
-      await screen.findByDisplayValue(/@bob/)
-      type('@bob@activities.local which one?')
-      await choosePostOption('Poll')
-      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(createPoll).toHaveBeenCalledTimes(1))
-
-      rerender(composer({ replyStatus: replyTo('second') }))
-      type('@bob@activities.local the next reply')
-      send.resolve(undefined)
-
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
-      )
-      expect(textarea().value).toBe('@bob@activities.local the next reply')
-    })
-
-    it('keeps the new target’s draft when the sending draft was never stored', async () => {
-      const finish = pendingSend()
-      const onPostCreated = vi.fn()
-      const { rerender } = render(
-        composer({ replyStatus: replyTo('first'), onPostCreated })
-      )
-      await screen.findByDisplayValue(/@bob/)
-      type('@bob@activities.local my reply')
-      const full = makeFull()
-      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      full.mockRestore()
-
-      rerender(composer({ replyStatus: replyTo('second'), onPostCreated }))
-      type('@bob@activities.local the next reply')
-      await waitFor(async () =>
-        expect((await storedDrafts()).map((draft) => draft.text)).toContain(
-          '@bob@activities.local the next reply'
-        )
-      )
-      finish()
-      await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
-      // Let the release run.
-      await new Promise((resolve) => setTimeout(resolve, 300))
-
-      expect((await storedDrafts()).map((draft) => draft.text)).toContain(
-        '@bob@activities.local the next reply'
-      )
-    })
-
-    it('sends nothing when re-targeted while the photo uploads, and keeps the post for its own target', async () => {
+    it('sends the photo of a post re-targeted while it uploads', async () => {
       const upload =
         createDeferred<Awaited<ReturnType<typeof uploadAttachmentMock>>>()
       uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
       const { rerender } = render(composer({ replyStatus: replyTo('first') }))
       await screen.findByDisplayValue(/@bob/)
       type('@bob@activities.local my reply')
-      await waitForSaved()
       attach('a.png')
       await screen.findByRole('button', { name: 'Remove media a.png' })
       fireEvent.click(screen.getByRole('button', { name: 'Post' }))
@@ -363,62 +279,14 @@ describe('PostBox on-device drafts', () => {
       rerender(composer({ replyStatus: replyTo('second') }))
       upload.resolve(uploaded('media-a.png', 'a.png'))
 
-      await waitFor(async () =>
-        expect(await storedDrafts()).toEqual([
-          expect.objectContaining({
-            text: '@bob@activities.local my reply',
-            replyTo: expect.objectContaining({ id: replyTo('first').id })
-          })
-        ])
-      )
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: 'Post' })
-        ).not.toHaveTextContent(/Posting/)
-      )
-      expect(createNoteMock).not.toHaveBeenCalled()
-      expect((await storedDrafts())[0].submit).toBeUndefined()
-    })
-
-    it('offers the text when the photo upload fails after a re-target and the post was not kept', async () => {
-      const upload =
-        createDeferred<Awaited<ReturnType<typeof uploadAttachmentMock>>>()
-      uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
-      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
-      await screen.findByDisplayValue(/@bob/)
-      type('@bob@activities.local my reply')
-      attach('a.png')
-      await screen.findByRole('button', { name: 'Remove media a.png' })
-      makeFull()
-      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
-      await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
-
-      rerender(composer({ replyStatus: replyTo('second') }))
-      upload.reject(new Error('upload failed'))
-
-      expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
-      expect(createNoteMock).not.toHaveBeenCalled()
-      expect(sendAlerts()).toHaveLength(0)
-    })
-
-    it('offers the text when a send fails after a re-target and the post could not be kept', async () => {
-      const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
-      createNoteMock.mockImplementationOnce(() => send.promise)
-      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
-      await screen.findByDisplayValue(/@bob/)
-      type('@bob@activities.local my reply')
-      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
       await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-      makeFull()
-
-      rerender(composer({ replyStatus: replyTo('second') }))
-      send.reject(new Error('offline'))
-
-      expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
-      expect(sendAlerts()).toHaveLength(0)
+      expect(createNoteMock.mock.calls[0][0]).toMatchObject({
+        replyStatus: expect.objectContaining({ id: replyTo('first').id }),
+        attachments: [expect.objectContaining({ id: 'media-a.png' })]
+      })
     })
 
-    it('locks the post it left behind when the server keeps it after a re-target', async () => {
+    it('locks a kept post for its own target, then moves to the new one', async () => {
       const send = createDeferred<Awaited<ReturnType<typeof createNoteMock>>>()
       createNoteMock.mockImplementationOnce(() => send.promise)
       const { rerender } = render(composer({ replyStatus: replyTo('first') }))
@@ -432,13 +300,55 @@ describe('PostBox on-device drafts', () => {
       rerender(composer({ replyStatus: replyTo('second') }))
       send.reject(new ApiRequestError('kept', 503))
 
+      await waitFor(() => expect(textarea().value).not.toContain('my reply'))
       await waitFor(async () =>
         expect((await storedDrafts())[0]?.lockedMessage).toBeTruthy()
       )
       const [draft] = await storedDrafts()
       expect(draft.submit?.key).toBe(key)
       expect(draft.replyTo?.id).toBe(replyTo('first').id)
-      expect(sendAlerts()).toHaveLength(0)
+      expect(draft.text).toBe('@bob@activities.local my reply')
+    })
+
+    it('a draft re-targeted before its first save keeps its own target', async () => {
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      const prefill = textarea().value
+      // Once one save lands the drafts store is ready; back to the pre-fill
+      // (no draft), the next text is typed and re-targeted before it saves.
+      type('@bob@activities.local warming up')
+      await waitForSaved()
+      type(prefill)
+      await waitFor(async () => expect(await storedDrafts()).toHaveLength(0))
+      type('@bob@activities.local typed for the first')
+      rerender(composer({ replyStatus: replyTo('second') }))
+
+      await waitFor(async () =>
+        expect(await storedDrafts()).toEqual([
+          expect.objectContaining({
+            text: '@bob@activities.local typed for the first',
+            replyTo: expect.objectContaining({ id: replyTo('first').id })
+          })
+        ])
+      )
+    })
+
+    it('a saved draft left behind on a re-target keeps its target and last edit', async () => {
+      const { rerender } = render(composer({ replyStatus: replyTo('first') }))
+      await screen.findByDisplayValue(/@bob/)
+      type('@bob@activities.local saved')
+      await waitForSaved()
+      type('@bob@activities.local saved, then edited')
+      rerender(composer({ replyStatus: replyTo('second') }))
+
+      await waitFor(async () =>
+        expect(await storedDrafts()).toEqual([
+          expect.objectContaining({
+            text: '@bob@activities.local saved, then edited',
+            replyTo: expect.objectContaining({ id: replyTo('first').id })
+          })
+        ])
+      )
     })
 
     it('cannot dismiss the reply while it is being sent', async () => {

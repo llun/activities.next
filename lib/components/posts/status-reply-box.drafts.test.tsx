@@ -517,135 +517,6 @@ describe('StatusReplyBox on-device drafts', () => {
     })
   })
 
-  it('sends nothing when re-targeted while the photo uploads, and keeps the reply for its own target', async () => {
-    const upload =
-      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
-    const { rerender } = renderBox()
-    type('Reply body')
-    await waitForSaved()
-    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
-    fireEvent.change(
-      document.querySelector<HTMLInputElement>('input[type="file"]')!,
-      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
-    )
-    await waitFor(() =>
-      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
-    )
-    post()
-    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
-
-    rerender(
-      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
-        <StatusReplyBox
-          profile={profile}
-          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
-          isMediaUploadEnabled
-          onCancel={vi.fn()}
-          onPostCreated={vi.fn()}
-        />
-      </DraftsProvider>
-    )
-    upload.resolve({
-      id: 'media-b.png',
-      type: 'upload',
-      mediaType: 'image/png',
-      url: 'https://activities.local/media/b.png',
-      width: 100,
-      height: 100
-    })
-
-    await waitFor(async () =>
-      expect(await stored()).toEqual([
-        expect.objectContaining({
-          text: expect.stringContaining('Reply body'),
-          replyTo: expect.objectContaining({ id: replyStatus.id })
-        })
-      ])
-    )
-    expect(createNoteMock).not.toHaveBeenCalled()
-    expect((await stored())[0].submit).toBeUndefined()
-  })
-
-  it('offers the text instead of dropping it when a send stopped by a re-target cannot be kept', async () => {
-    const upload =
-      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
-    const { rerender } = renderBox()
-    type('Reply body')
-    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
-    fireEvent.change(
-      document.querySelector<HTMLInputElement>('input[type="file"]')!,
-      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
-    )
-    await waitFor(() =>
-      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
-    )
-    post()
-    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
-      throw new DOMException('full', 'QuotaExceededError')
-    })
-
-    rerender(
-      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
-        <StatusReplyBox
-          profile={profile}
-          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
-          isMediaUploadEnabled
-          onCancel={vi.fn()}
-          onPostCreated={vi.fn()}
-        />
-      </DraftsProvider>
-    )
-    upload.resolve({
-      id: 'media-b.png',
-      type: 'upload',
-      mediaType: 'image/png',
-      url: 'https://activities.local/media/b.png',
-      width: 100,
-      height: 100
-    })
-
-    expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
-    expect(createNoteMock).not.toHaveBeenCalled()
-  })
-
-  it('offers the text when the photo upload fails after a re-target and the reply was not kept', async () => {
-    const upload =
-      createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
-    const { rerender } = renderBox()
-    type('Reply body')
-    uploadAttachmentMock.mockImplementationOnce(() => upload.promise)
-    fireEvent.change(
-      document.querySelector<HTMLInputElement>('input[type="file"]')!,
-      { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } }
-    )
-    await waitFor(() =>
-      expect(document.querySelectorAll('div.aspect-square')).toHaveLength(1)
-    )
-    post()
-    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
-      throw new DOMException('full', 'QuotaExceededError')
-    })
-
-    rerender(
-      <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
-        <StatusReplyBox
-          profile={profile}
-          replyStatus={{ ...replyStatus, id: `${replyStatus.id}-other` }}
-          isMediaUploadEnabled
-          onCancel={vi.fn()}
-          onPostCreated={vi.fn()}
-        />
-      </DraftsProvider>
-    )
-    upload.reject(new Error('upload failed'))
-
-    expect(await screen.findByText('Couldn’t save to Drafts')).toBeVisible()
-    expect(createNoteMock).not.toHaveBeenCalled()
-    expect(screen.queryByText(/Fail to upload/)).toBeNull()
-  })
-
   it('without drafts, a reply re-targeted while its photo uploads is sent with the photo', async () => {
     const upload =
       createDeferred<Awaited<ReturnType<typeof uploadAttachment>>>()
@@ -688,16 +559,16 @@ describe('StatusReplyBox on-device drafts', () => {
     })
   })
 
-  it('locks the reply it left behind when the server keeps it after a re-target', async () => {
-    const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
-    createNoteMock.mockImplementationOnce(() => send.promise)
+  it('a reply re-targeted before its first save keeps its own target', async () => {
     const { rerender } = renderBox()
-    type('Reply body')
+    const prefill = textarea().value
+    // Once one save lands the drafts store is ready; back to the pre-fill
+    // (no draft), the next text is typed and re-targeted before it saves.
+    type('Warming up')
     await waitForSaved()
-    post()
-    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-    const key = createNoteMock.mock.calls[0][0].idempotencyKey
-
+    type(prefill)
+    await waitFor(async () => expect(await stored()).toHaveLength(0))
+    type('Typed for the first')
     rerender(
       <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
         <StatusReplyBox
@@ -709,31 +580,26 @@ describe('StatusReplyBox on-device drafts', () => {
         />
       </DraftsProvider>
     )
-    send.reject(new ApiRequestError('kept', 503))
 
     await waitFor(async () =>
-      expect((await stored())[0]?.lockedMessage).toBeTruthy()
+      expect(await stored()).toEqual([
+        expect.objectContaining({
+          text: expect.stringContaining('Typed for the first'),
+          replyTo: expect.objectContaining({ id: replyStatus.id })
+        })
+      ])
     )
-    const [draft] = await stored()
-    expect(draft.submit?.key).toBe(key)
-    expect(draft.replyTo?.id).toBe(replyStatus.id)
-    expect(sendAlerts()).toHaveLength(0)
   })
 
-  it('keeps what was typed for the new target when the old reply lands', async () => {
+  it('finishes a reply for its own target before moving to the new one', async () => {
     const send = createDeferred<Awaited<ReturnType<typeof createNote>>>()
     createNoteMock.mockImplementationOnce(() => send.promise)
     const onPostCreated = vi.fn()
     const { rerender } = renderBox({ onPostCreated })
     type('Reply body')
-    const full = vi
-      .spyOn(IDBObjectStore.prototype, 'put')
-      .mockImplementation(() => {
-        throw new DOMException('full', 'QuotaExceededError')
-      })
+    await waitForSaved()
     post()
     await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
-    full.mockRestore()
 
     rerender(
       <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
@@ -746,20 +612,17 @@ describe('StatusReplyBox on-device drafts', () => {
         />
       </DraftsProvider>
     )
-    type('The next reply')
-    await waitFor(async () =>
-      expect((await stored()).map((draft) => draft.text)).toContain(
-        'The next reply'
-      )
-    )
-    send.resolve({ status: replyStatus, attachments: [] })
-    await waitFor(() => expect(onPostCreated).toHaveBeenCalled())
-    // Let the release run.
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(textarea()).toHaveValue('Reply body')
+    send.reject(new ApiRequestError('kept', 503))
 
-    expect(textarea()).toHaveValue('The next reply')
-    expect((await stored()).map((draft) => draft.text)).toContain(
-      'The next reply'
+    await waitFor(() => expect(textarea()).not.toHaveValue('Reply body'))
+    await waitFor(async () =>
+      expect((await stored())[0]?.lockedMessage).toBeTruthy()
+    )
+    const [draft] = await stored()
+    expect(draft.replyTo?.id).toBe(replyStatus.id)
+    expect(draft.submit?.key).toBe(
+      createNoteMock.mock.calls[0][0].idempotencyKey
     )
   })
 

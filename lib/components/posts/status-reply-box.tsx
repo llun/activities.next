@@ -101,6 +101,10 @@ export const StatusReplyBox: FC<Props> = ({
   // Bumped when the reply target changes: a submit still in flight belongs to
   // the previous draft and must not lock the new one.
   const draftGenerationRef = useRef(0)
+  // A new target that arrived while a send was in flight: applied once it
+  // settles, so the send and its draft always stay this box's own.
+  const retargetPendingRef = useRef(false)
+  const [retargetAfterSend, setRetargetAfterSend] = useState(0)
   const [mentionMode, setMentionMode] = useState<ReplyMentionMode>('all')
   const [targetPreview, setTargetPreview] = useState<ReplyTargetPreview | null>(
     null
@@ -184,9 +188,12 @@ export const StatusReplyBox: FC<Props> = ({
     }
   }
 
+  // What the draft is written for: it follows the prop only when the box is
+  // re-targeted, after the previous draft was let go of.
+  const [draftReplyTo, setDraftReplyTo] = useState(replyStatus)
   const composerDraft = useComposerDraft({
     composer: 'reply-box',
-    replyTo: replyStatus,
+    replyTo: draftReplyTo,
     draft,
     keepWhenEmpty,
     isSeeding: () => draftSeedingRef.current,
@@ -283,16 +290,21 @@ export const StatusReplyBox: FC<Props> = ({
     if (initializedStatusIdRef.current === replyStatus.id) {
       return
     }
+    // A send in flight keeps its draft and this box until it settles.
+    if (isSubmittingRef.current) {
+      retargetPendingRef.current = true
+      return
+    }
 
     const seeded = Boolean(draft) && !draftSeededRef.current
-    // Re-targeted: the previous target's draft stays where it was saved.
-    // A send in flight keeps its own draft too.
-    if (!seeded && (composerDraft.hasDraft() || isSubmittingRef.current)) {
+    // Re-targeted: the previous target's draft stays where it was saved, with
+    // its attachments; the new target starts without them.
+    if (!seeded && composerDraft.hasDraft()) {
       void composerDraft.detach()
-      // Its attachments stay with it: the new target starts without them.
       dispatch(resetExtension())
       removedAttachmentIdsRef.current.clear()
     }
+    setDraftReplyTo(replyStatus)
     initializedStatusIdRef.current = replyStatus.id
     userHasEditedTextRef.current = false
     draftGenerationRef.current += 1
@@ -332,7 +344,8 @@ export const StatusReplyBox: FC<Props> = ({
         textareaRef.current.focus()
       }
     }, 0)
-  }, [profile, replyStatus, mentionMode])
+    // retargetAfterSend: run again with the latest props once a send settles.
+  }, [profile, replyStatus, mentionMode, retargetAfterSend])
 
   const handleMentionModeChange = (mode: ReplyMentionMode) => {
     setMentionMode(mode)
@@ -432,19 +445,6 @@ export const StatusReplyBox: FC<Props> = ({
         })
       )
 
-      // Re-targeted while uploading: the draft stays in Drafts as the box left
-      // it, and nothing is sent or written to the new target's composer.
-      // If it could not be kept, the not-saved note offers its text; with no
-      // drafts at all, the send goes ahead with what it uploaded.
-      const retargeted = generation !== draftGenerationRef.current
-      if (retargeted && (await composerDraft.leftBehind()) !== 'none') {
-        isSubmittingRef.current = false
-        setIsPosting(false)
-        return
-      }
-
-      // Removed while uploading: left out. After a re-target the box holds the
-      // new target's attachments, so only the uploads themselves count.
       const currentAttachmentIds = new Set(
         postExtensionRef.current.attachments.map((a) => a.id)
       )
@@ -452,20 +452,17 @@ export const StatusReplyBox: FC<Props> = ({
       const attachments = uploadResults
         .filter(
           (a) =>
-            retargeted ||
-            (!removedAttachmentIds.has(a.originalId) &&
-              !removedAttachmentIds.has(a.uploadedAttachment.id) &&
-              (currentAttachmentIds.has(a.originalId) ||
-                currentAttachmentIds.has(a.uploadedAttachment.id)))
+            !removedAttachmentIds.has(a.originalId) &&
+            !removedAttachmentIds.has(a.uploadedAttachment.id) &&
+            (currentAttachmentIds.has(a.originalId) ||
+              currentAttachmentIds.has(a.uploadedAttachment.id))
         )
         .map((a) => a.uploadedAttachment)
 
-      if (!retargeted) {
-        // The draft reads the ref, which only follows a render.
-        postExtensionRef.current = {
-          ...postExtensionRef.current,
-          attachments
-        }
+      // The draft reads the ref, which only follows a render.
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        attachments
       }
 
       const replyFingerprint = JSON.stringify({
@@ -512,38 +509,27 @@ export const StatusReplyBox: FC<Props> = ({
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       // The posted reply owns the media now: drop the draft and its bytes only.
-      void composerDraft.release()
-      onPostCreated(status, storedAttachments)
-      // Re-targeted mid-send: the box now holds the new target's draft.
       if (generation === draftGenerationRef.current) {
-        dispatch(resetExtension())
-        removedAttachmentIdsRef.current.clear()
-        setText('')
+        void composerDraft.release()
       }
+      onPostCreated(status, storedAttachments)
+      dispatch(resetExtension())
+      removedAttachmentIdsRef.current.clear()
+      setText('')
       isSubmittingRef.current = false
       setIsPosting(false)
     } catch (error) {
       isSubmittingRef.current = false
       setIsPosting(false)
       reportRequestFailure(error)
+      // A stale failure belongs to a previous draft: say nothing on this one.
+      if (generation !== draftGenerationRef.current) return
       // Surface the server's message without wiping user draft, CW, or attachments.
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
         fallbackMessage: 'Fail to create a reply',
         wayOut: 'cancel the reply'
       })
-      // A stale failure belongs to a previous draft: say nothing on this one.
-      // The draft left behind takes the lock (a reopen must retry under the
-      // same key).
-      if (generation !== draftGenerationRef.current) {
-        void composerDraft.leftBehind()
-        if (action !== 'none') {
-          void composerDraft.recordSentLock(
-            action === 'lock' ? failureMessage : null
-          )
-        }
-        return
-      }
       if (action === 'lock') {
         setLockedMessage(failureMessage)
         // The server keeps the reply and the media it uses.
@@ -565,6 +551,11 @@ export const StatusReplyBox: FC<Props> = ({
           submitIdempotencyRef.current = null
           void composerDraft.recordLock(null, null)
         }
+      }
+    } finally {
+      if (retargetPendingRef.current) {
+        retargetPendingRef.current = false
+        setRetargetAfterSend((count) => count + 1)
       }
     }
   }

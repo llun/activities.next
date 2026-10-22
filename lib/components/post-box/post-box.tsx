@@ -229,6 +229,10 @@ export const PostBox: FC<Props> = ({
   // Bumped when the composer is re-targeted: a submit still in flight belongs
   // to the previous draft and must not lock the new one.
   const draftGenerationRef = useRef(0)
+  // A new target that arrived while a send was in flight: applied once it
+  // settles, so the send and its draft always stay this composer's own.
+  const retargetPendingRef = useRef(false)
+  const [retargetAfterSend, setRetargetAfterSend] = useState(0)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(postBoxRef, text)
   const formRef = useRef<HTMLFormElement>(null)
@@ -388,11 +392,17 @@ export const PostBox: FC<Props> = ({
     }
   }
 
+  // What the draft is written for: it follows the props only when the
+  // composer is re-targeted, after the previous draft was let go of.
+  const [draftTarget, setDraftTarget] = useState({
+    replyTo: replyStatus,
+    quoteOf: quotedStatus
+  })
   const composerDraft = useComposerDraft({
     composer: 'post-box',
     editing: Boolean(editStatus),
-    replyTo: replyStatus,
-    quoteOf: quotedStatus,
+    replyTo: draftTarget.replyTo,
+    quoteOf: draftTarget.quoteOf,
     draft,
     keepWhenEmpty,
     isSeeding: () => draftSeedingRef.current,
@@ -1117,17 +1127,16 @@ export const PostBox: FC<Props> = ({
 
         submitIdempotencyRef.current = null
         setLockedMessage(null)
-        void composerDraft.release()
-        // Re-targeted mid-send: the composer now holds the new target's draft.
         if (generation === draftGenerationRef.current) {
-          dispatch(resetExtension())
-          resetMediaState()
-          // Clear the draft like the note branch does. Leaving the question
-          // text behind re-arms the (now poll-less) composer, so a second click
-          // posts it again as a plain note.
-          setText('')
-          textRef.current = ''
+          void composerDraft.release()
         }
+        dispatch(resetExtension())
+        resetMediaState()
+        // Clear the draft like the note branch does. Leaving the question text
+        // behind re-arms the (now poll-less) composer, so a second click posts
+        // it again as a plain note.
+        setText('')
+        textRef.current = ''
         setIsPosting(false)
         return
       }
@@ -1236,13 +1245,6 @@ export const PostBox: FC<Props> = ({
             }
           } catch (error) {
             dispatch(setFitnessFileUploading(false))
-            // Re-targeted meanwhile: the failure belongs to the draft left
-            // behind (offered in the note if it was not kept), not this one.
-            if (generation !== draftGenerationRef.current) {
-              void composerDraft.leftBehind()
-              setIsPosting(false)
-              return
-            }
             const errorMessage =
               error instanceof Error && error.message
                 ? error.message
@@ -1256,17 +1258,6 @@ export const PostBox: FC<Props> = ({
       }
 
       const attachments = await uploadMediaAttachments()
-      // Re-targeted while uploading: the draft stays in Drafts as the composer
-      // left it, and nothing is sent or written to the new target's composer.
-      // If it could not be kept, the not-saved note offers its text; with no
-      // drafts at all, the send goes ahead.
-      if (
-        generation !== draftGenerationRef.current &&
-        (await composerDraft.leftBehind()) !== 'none'
-      ) {
-        setIsPosting(false)
-        return
-      }
       if (await hasMissingDescriptionAfterUploads(attachments)) {
         setIsPosting(false)
         setAllowPost(true)
@@ -1311,17 +1302,17 @@ export const PostBox: FC<Props> = ({
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
       // The posted status owns the media now: drop the draft and its bytes only.
-      void composerDraft.release()
-      onPostCreated(status, storedAttachments)
-      // Re-targeted mid-send: the composer now holds the new target's draft.
       if (generation === draftGenerationRef.current) {
-        dispatch(resetExtension())
-        resetMediaState()
-        // resetExtension() drops the policy back to the default 'public';
-        // re-apply the actor's configured default so it stays sticky.
-        dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
-        setText('')
+        void composerDraft.release()
       }
+      onPostCreated(status, storedAttachments)
+      dispatch(resetExtension())
+      resetMediaState()
+      // resetExtension() drops the policy back to the default 'public';
+      // re-apply the actor's configured default so it stays sticky.
+      dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
+
+      setText('')
       setIsPosting(false)
     } catch (error) {
       setIsPosting(false)
@@ -1369,19 +1360,13 @@ export const PostBox: FC<Props> = ({
             retryable: true
           })
         }
-      } else {
-        // Re-targeted mid-send: the draft left behind takes the lock (a reopen
-        // must retry under the same key), or the note offers its text if it
-        // was not kept; this composer says nothing.
-        void composerDraft.leftBehind()
-        if (action !== 'none') {
-          void composerDraft.recordSentLock(
-            action === 'lock' ? failureMessage : null
-          )
-        }
       }
     } finally {
       submitInFlightRef.current = false
+      if (retargetPendingRef.current) {
+        retargetPendingRef.current = false
+        setRetargetAfterSend((count) => count + 1)
+      }
     }
   }
 
@@ -1785,6 +1770,11 @@ export const PostBox: FC<Props> = ({
     // A composer opened from a draft is that draft's composer: it is never
     // re-targeted, and React StrictMode's second run must not reset it.
     if (draft && draftSeededRef.current) return
+    // A send in flight keeps its draft and this composer until it settles.
+    if (submitInFlightRef.current) {
+      retargetPendingRef.current = true
+      return
+    }
     // The photos a "Post" action in Gallery handed over. They seed the first
     // time through. React StrictMode re-runs effects in development before the
     // seeded photos have been drawn, and the profile can change identity
@@ -1810,10 +1800,8 @@ export const PostBox: FC<Props> = ({
     // is this composer's own.
     const reopening = Boolean(draft) && !draftSeededRef.current
     const draftOwnsMedia = !reopening && composerDraft.hasDraft()
-    // A send in flight keeps its own draft: the new target never writes into it.
-    if (draftOwnsMedia || (!reopening && submitInFlightRef.current)) {
-      void composerDraft.detach()
-    }
+    if (draftOwnsMedia) void composerDraft.detach()
+    setDraftTarget({ replyTo: replyStatus, quoteOf: quotedStatus })
     if (!submitInFlightRef.current && !draftOwnsMedia) {
       discardUploadedMedia(postExtensionRef.current.attachments)
     }
@@ -1920,7 +1908,8 @@ export const PostBox: FC<Props> = ({
         }
       }, 0)
     }
-  }, [profile, replyStatus, editStatus, quotedStatus])
+    // retargetAfterSend: run again with the latest props once a send settles.
+  }, [profile, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
   const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
     // Items still reading their details have nothing to edit yet.

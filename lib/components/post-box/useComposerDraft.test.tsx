@@ -19,7 +19,6 @@ import { deleteFitnessFile } from '@/lib/client/fitnessRoutes'
 import { deleteUnpostedMedia } from '@/lib/client/media'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { installFakeBroadcastChannel } from '@/lib/testing/fakeBroadcastChannel'
-import type { Status } from '@/lib/types/domain/status'
 
 import {
   DRAFT_SAVE_DEBOUNCE_MS,
@@ -222,94 +221,6 @@ describe('useComposerDraft', () => {
 
     expect((await stored())?.text).toBe('hello')
     expect(result.current.saveState).toBe('idle')
-  })
-
-  it('a draft left behind on a re-target keeps the target it was written for', async () => {
-    const statusA = { id: 'status-a' } as Status
-    const statusB = { id: 'status-b' } as Status
-    const { result, rerender } = renderHook(
-      ({ replyTo }) =>
-        useComposerDraft({
-          composer: 'post-box',
-          replyTo,
-          getContent: () => current
-        }),
-      { initialProps: { replyTo: statusA } }
-    )
-    act(() => result.current.schedule())
-    await advance(DRAFT_SAVE_DEBOUNCE_MS)
-    await vi.waitFor(() => expect(result.current.saveState).toBe('saved'))
-
-    // The props name the new target by the time the composer lets go.
-    rerender({ replyTo: statusB })
-    current = content({ text: 'typed for A, not yet saved' })
-    await act(async () => {
-      await result.current.detach()
-    })
-
-    expect(await stored()).toMatchObject({
-      text: 'typed for A, not yet saved',
-      replyTo: { id: 'status-a' }
-    })
-  })
-
-  it('a draft never saved keeps its own target when the composer is re-targeted', async () => {
-    const { result, rerender } = renderHook(
-      ({ replyTo }) =>
-        useComposerDraft({
-          composer: 'post-box',
-          replyTo,
-          getContent: () => current
-        }),
-      { initialProps: { replyTo: { id: 'status-a' } as Status } }
-    )
-    // Typed, and re-targeted before the debounced save ran.
-    act(() => result.current.schedule())
-    rerender({ replyTo: { id: 'status-b' } as Status })
-    await act(async () => {
-      await result.current.detach()
-    })
-
-    expect((await stored())?.replyTo).toMatchObject({ id: 'status-a' })
-  })
-
-  it('keeps the target a draft was written for even if an autosave runs after the props change', async () => {
-    const { result, rerender } = renderHook(
-      ({ replyTo }) =>
-        useComposerDraft({
-          composer: 'post-box',
-          replyTo,
-          getContent: () => current
-        }),
-      { initialProps: { replyTo: { id: 'status-a' } as Status } }
-    )
-    rerender({ replyTo: { id: 'status-b' } as Status })
-    // An autosave effect of the same commit runs before the re-target's.
-    act(() => result.current.schedule())
-    await act(async () => {
-      await result.current.detach()
-    })
-
-    expect((await stored())?.replyTo).toMatchObject({ id: 'status-a' })
-  })
-
-  it('a second, empty re-target does not hide that the first draft was not kept', async () => {
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
-      throw new DOMException('full', 'QuotaExceededError')
-    })
-    const { result } = setup()
-    await act(async () => {
-      await result.current.detach()
-    })
-    current = null
-    await act(async () => {
-      await result.current.detach()
-    })
-
-    await act(async () => {
-      await expect(result.current.leftBehind()).resolves.toBe('noted')
-    })
-    expect(notifyNotSavedToDrafts).toHaveBeenCalledWith('hello')
   })
 
   it('flushes a pending save when the page is hidden', async () => {
