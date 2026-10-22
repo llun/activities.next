@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
 
@@ -26,6 +28,12 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
     username: 'anna',
     domain: 'llun.test',
     name: 'Anna',
+    createdAt: 1700000000000,
+    updatedAt: 1700000000000,
+    inboxUrl: 'https://llun.test/users/anna/inbox',
+    sharedInboxUrl: 'https://llun.test/inbox',
+    followersUrl: 'https://llun.test/users/anna/followers',
+    publicKey: 'public-key',
     account: { id: 'acct-1', defaultActorId: null }
   })
 }))
@@ -140,15 +148,17 @@ describe('/settings', () => {
     )
   })
 
-  describe('profile links', () => {
+  describe('profile fields', () => {
     it('puts the row after Summary and before the image uploads, inside the profile form', async () => {
-      getActorSettings.mockResolvedValue(null)
+      getActorSettings.mockResolvedValue({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      })
 
       render(await Page())
 
       const profile = screen.getByRole('group', { name: 'Profile' })
       const summary = screen.getByLabelText('Summary')
-      const links = screen.getByLabelText('Link 1 label')
+      const links = screen.getByLabelText('Field 1 label')
       const upload = screen.getAllByTestId('image-upload')[0]
       expect(profile).toContainElement(links)
       expect(
@@ -164,9 +174,17 @@ describe('/settings', () => {
       ).toBe(true)
       expect(
         screen.getByText(
-          'Up to 4. Shown on your profile and on other servers. Plain text works too.'
+          'Up to 4, like Location, Pronouns or a website. Shown on your profile and on other servers.'
         )
       ).toBeInTheDocument()
+      // The row label names the first control, so a click on it works.
+      expect(
+        (
+          screen.getByText('Profile fields', {
+            selector: 'label'
+          }) as HTMLLabelElement
+        ).control
+      ).toBe(links)
     })
 
     it('posts the saved fields with the profile form', async () => {
@@ -201,6 +219,32 @@ describe('/settings', () => {
 
       expect(screen.getAllByText('Verified')).toHaveLength(1)
       expect(screen.getAllByText('Not verified')).toHaveLength(1)
+    })
+
+    it('renders the actor\u2019s custom emoji in the fields preview', async () => {
+      vi.mocked(getActorFromSession).mockResolvedValueOnce({
+        ...(await getActorFromSession(mockDatabase as never, null)),
+        tags: [
+          {
+            type: 'emoji',
+            name: ':blobcat:',
+            value: 'https://llun.test/emoji/blobcat.png'
+          }
+        ]
+      } as never)
+      getActorSettings.mockResolvedValue({
+        fields: [{ name: 'Mood', value: 'happy :blobcat:' }]
+      })
+
+      render(await Page())
+
+      const preview = document.querySelector(
+        '[data-slot="profile-fields-preview"]'
+      ) as HTMLElement
+      expect(within(preview).getByAltText(':blobcat:')).toHaveAttribute(
+        'src',
+        'https://llun.test/emoji/blobcat.png'
+      )
     })
 
     it('shows the rel me snippet with the real profile URL', async () => {

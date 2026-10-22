@@ -1,25 +1,14 @@
 'use client'
 
-import {
-  Activity,
-  Check,
-  Globe,
-  Image as ImageIcon,
-  type LucideIcon,
-  Mail,
-  MapPin,
-  Tag
-} from 'lucide-react'
+import { Check, type LucideIcon } from 'lucide-react'
 import { FC, ReactNode, useId, useMemo, useState } from 'react'
 
 import {
   ActorDisplayName,
   type CustomEmojiTextProps
 } from '@/lib/components/actors/ActorDisplayName'
-import {
-  type ProfileFieldIconKind,
-  chooseProfileFieldIcon
-} from '@/lib/components/profile/profileFieldIcon'
+import { chooseProfileFieldIcon } from '@/lib/components/profile/profileFieldIcon'
+import { PROFILE_FIELD_ICONS } from '@/lib/components/profile/profileFieldIcons'
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
@@ -57,15 +46,6 @@ const LINK_CLASS =
   '[&_a]:text-(color:--link-color) [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-(color:--link-color-hover)'
 const VERIFIED_LINK_CLASS =
   '[&_a]:font-medium [&_a]:text-success-text [&_a]:underline [&_a]:underline-offset-2'
-
-const ICONS: Record<ProfileFieldIconKind, LucideIcon> = {
-  location: MapPin,
-  image: ImageIcon,
-  activity: Activity,
-  mail: Mail,
-  link: Globe,
-  text: Tag
-}
 
 // Items shown before "+N more": the first 2 below `sm`, the first 3 from `sm`.
 const PHONE_VISIBLE = 2
@@ -141,7 +121,7 @@ export const ProfileFieldsBlock: FC<Props> = ({ fields, tags }) => {
           const named = [label, text].filter(Boolean).join(': ')
           return {
             key: `${index}-${field.name}`,
-            Icon: ICONS[choice.kind],
+            Icon: PROFILE_FIELD_ICONS[choice.kind],
             verified: Boolean(field.verifiedAt),
             showLabel: choice.kind === 'text',
             isLink: choice.isLink,
