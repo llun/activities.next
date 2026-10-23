@@ -329,12 +329,31 @@ export const resolveExistingIdempotentStatus = async ({
   ) {
     throw new IdempotencyConflictError()
   }
-  return loadIdempotentStatus({
-    database,
-    actorId,
-    key: idempotency.key,
-    statusId: existingKey.statusId
-  })
+  // The key names a post an earlier request saved: an unexpected failure
+  // answering it fails as a kept post, never as the route's 400, which would
+  // let the client post it again under a new key.
+  try {
+    return await loadIdempotentStatus({
+      database,
+      actorId,
+      key: idempotency.key,
+      statusId: existingKey.statusId
+    })
+  } catch (error) {
+    if (
+      error instanceof IdempotencyDeletedError ||
+      error instanceof IdempotencyInProgressError ||
+      error instanceof StatusPublishFailedError
+    ) {
+      throw error
+    }
+    logger.error({
+      message: 'Status create: an Idempotency-Key replay failed',
+      statusId: existingKey.statusId,
+      err: toLoggableError(error)
+    })
+    throw new StatusPublishFailedError(true)
+  }
 }
 
 // Undoes a create whose completion steps failed with `error` before its job

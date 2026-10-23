@@ -183,6 +183,26 @@ describe('idempotent status lookup', () => {
     ).resolves.toMatchObject({ id: statusId })
   })
 
+  it('fails a replay as a kept post when answering it fails unexpectedly', async () => {
+    const statusId = await createKeyedNote('replay-claim-fails')
+    await setState('replay-claim-fails', statusId, 'publish_failed')
+    vi.spyOn(database, 'claimIdempotencyKeyPublish').mockRejectedValueOnce(
+      new Error('database gone')
+    )
+
+    await expect(
+      resolveExistingIdempotentStatus({
+        database,
+        actorId,
+        idempotency: {
+          key: 'replay-claim-fails',
+          contentHash: 'hash-replay-claim-fails'
+        }
+      })
+    ).rejects.toBeInstanceOf(StatusPublishFailedError)
+    await expect(stateOf('replay-claim-fails')).resolves.toBe('publish_failed')
+  })
+
   it('answers 409 for a pending key until it is IDEMPOTENCY_PENDING_STALE_MS old, then sends the post', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const claimedAt = new Date('2026-10-20T10:00:00.000Z').getTime()
