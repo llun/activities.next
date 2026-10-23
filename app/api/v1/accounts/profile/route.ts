@@ -134,14 +134,18 @@ export const POST = traceApiRoute(
           : null)
       })
     // Only a change to what the federated Person carries is sent: this form
-    // also saves the post line limit, which remote servers never see.
+    // also saves the post line limit, which remote servers never see. `before`
+    // and `after` are read in one transaction under the row lock, so a null
+    // `before` next to a saved actor cannot happen; publishing then is only a
+    // defensive default.
     if (
       updatedActor &&
       (!before || hasFederatedProfileChange(before, updatedActor))
     ) {
       await publishActorUpdate({ actorId: currentActor.id })
     }
-    if (profileFields.status === 'ok') {
+    // Links are checked only for an actor that was saved.
+    if (updatedActor && profileFields.status === 'ok') {
       await queueProfileLinkVerification({
         actorId: currentActor.id,
         before: before?.fields,
@@ -194,12 +198,14 @@ const toSavedProfile = (
   })),
   iconUrl: actor.iconUrl ?? null,
   headerImageUrl: actor.headerImageUrl ?? null,
+  // Tab flags come from the saved row (read in the save's transaction); only
+  // the alt texts, which the Actor does not carry, come from the settings.
   avatarDescription: settings?.avatarDescription ?? '',
   headerDescription: settings?.headerDescription ?? '',
-  showReplies: settings?.showReplies ?? true,
-  showMedia: settings?.showMedia ?? true,
-  showGallery: settings?.showGallery ?? true,
-  showFitness: settings?.showFitness ?? true
+  showReplies: actor.showReplies ?? true,
+  showMedia: actor.showMedia ?? true,
+  showGallery: actor.showGallery ?? true,
+  showFitness: actor.showFitness ?? true
 })
 
 export const PATCH = traceApiRoute(
@@ -320,7 +326,10 @@ export const PATCH = traceApiRoute(
       }
       saved = updatedActor
       // At most one Update(Person), and none for a save of tabs, alt texts
-      // or unchanged values: remote servers never see those.
+      // or unchanged values: remote servers never see those. A null
+      // `lockedBefore` next to a saved actor cannot happen (both are read in
+      // one transaction under the row lock); publishing then is only a
+      // defensive default.
       if (
         !lockedBefore ||
         hasFederatedProfileChange(lockedBefore, updatedActor)

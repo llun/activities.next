@@ -59,6 +59,8 @@ const mockUpdateActor = vi.fn(
     ]) {
       if (params[key] === undefined) continue
       mockSettings = { ...mockSettings, [key]: params[key] }
+      // The saved row carries the tab flags too (getActorFromId reads them).
+      if (key.startsWith('show')) next[key] = params[key]
     }
     return next as Actor
   }
@@ -291,6 +293,19 @@ describe('POST /api/v1/accounts/profile', () => {
         after: [{ name: 'Blog', value: 'https://blog.example' }],
         remote: false
       })
+    })
+
+    it('queues no link check and sends no Update when the actor is gone mid-save', async () => {
+      mockUpdateActor.mockResolvedValueOnce(null)
+
+      const response = await post({
+        'fields[0][name]': 'Blog',
+        'fields[0][value]': 'https://blog.example'
+      })
+
+      expect(response.status).toBe(303)
+      expect(queueProfileLinkVerification).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 
     it('does not queue the link check when the form sends no links', async () => {
@@ -591,6 +606,36 @@ describe('PATCH /api/v1/accounts/profile', () => {
       showGallery: false,
       showFitness: true
     })
+  })
+
+  it('answers with the tab flags of the saved row, not a later settings read', async () => {
+    // A concurrent save lands after this one commits: the settings read then
+    // holds its flags, but the response must describe the row this save wrote.
+    mockUpdateActorWithPrevious.mockImplementationOnce(async (params) => {
+      const result = {
+        before: mockStoredActor ?? mockCurrentActor,
+        after: await mockUpdateActor(params)
+      }
+      mockSettings = {
+        ...mockSettings,
+        showReplies: true,
+        showMedia: true,
+        showGallery: true,
+        avatarDescription: 'Alt'
+      }
+      return result
+    })
+    const response = await patch({ showReplies: false, showMedia: false })
+
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        showReplies: false,
+        showMedia: false,
+        showGallery: true,
+        showFitness: true,
+        avatarDescription: 'Alt'
+      })
+    )
   })
 
   it('returns 404 and queues nothing when the actor is gone mid-save', async () => {

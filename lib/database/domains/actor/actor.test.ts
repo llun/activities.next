@@ -252,6 +252,27 @@ describe('ActorDatabase', () => {
         )
       })
 
+      it('updateActorWithPrevious reads the row under the write lock when two saves race', async () => {
+        const username = `update-race-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        await database.updateActor({ actorId, name: 'Orig' })
+
+        const results = await Promise.all([
+          database.updateActorWithPrevious({ actorId, name: 'A' }),
+          database.updateActorWithPrevious({ actorId, name: 'Orig' })
+        ])
+
+        // Whichever save runs second must see the first one's write as its
+        // `before`; a read outside the transaction would give 'Orig->A' twice
+        // or 'Orig->Orig'.
+        expect(
+          results
+            .map(({ before, after }) => `${before?.name}->${after?.name}`)
+            .sort()
+        ).toEqual(['A->Orig', 'Orig->A'])
+      })
+
       it('updateActorWithPrevious returns null for both when the actor does not exist', async () => {
         const result = await database.updateActorWithPrevious({
           actorId: `https://${TEST_DOMAIN}/users/missing-${crypto.randomUUID().slice(0, 8)}`,

@@ -698,6 +698,20 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     )
   })
 
+  it('queues no link check and sends no Update when the actor is gone mid-save', async () => {
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
+    updateActor.mockResolvedValueOnce({ before: null, after: null })
+    const form = new FormData()
+    form.set('fields_attributes[0][name]', 'Website')
+    form.set('fields_attributes[0][value]', 'https://gone.example')
+
+    await PATCH(createRequest(form), { params: Promise.resolve({}) })
+
+    expect(queueProfileLinkVerification).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
   it('does not queue the link check when no fields are sent', async () => {
     const form = new FormData()
     form.set('display_name', 'Someone')

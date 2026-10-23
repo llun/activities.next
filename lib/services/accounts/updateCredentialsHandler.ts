@@ -441,14 +441,16 @@ export const updateCredentialsHandler = (
         })
       // Only a change to what the federated Person carries is sent: this also
       // saves posting defaults, tab flags and alt texts, which remote servers
-      // never see.
+      // never see. `before` and `after` are read in one transaction under the
+      // row lock, so a null `before` next to a saved actor cannot happen;
+      // publishing then is only a defensive default.
       if (
         updatedActor &&
         (!before || hasFederatedProfileChange(before, updatedActor))
       ) {
         await publishActorUpdate({ actorId: currentActor.id })
       }
-      if (fields !== undefined) {
+      if (updatedActor && fields !== undefined) {
         await queueProfileLinkVerification({
           actorId: currentActor.id,
           before: before?.fields,

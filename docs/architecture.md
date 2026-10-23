@@ -1619,7 +1619,7 @@ legacy shape left to copy.
   `hasFederatedProfileChange` (`lib/services/actors/hasFederatedProfileChange.ts`);
   a `before` read earlier, outside the lock, would
   let two interleaved saves each compare against a row the other already
-  replaced and skip an Update remote servers need (a null `before` publishes).
+  replaced and skip an Update remote servers need (a null `before` next to a saved actor cannot happen, since both are read in one transaction; the guard publishes as a defensive default).
   It compares the `getPersonFromActor` documents (emoji `updated` stamps
   aside), so the list of federated fields is whatever that document carries.
   A save of the post line limit, the profile tabs, image alt texts or any other
@@ -1629,7 +1629,7 @@ legacy shape left to copy.
   `fields` (the profile links) must call it too, or remote servers keep the old profile until their own periodic
   re-fetch. Queueing is best effort and never fails the request: the profile is
   already saved. The profile link check still queues whenever the links
-  changed, whether or not an Update was sent.
+  changed, whether or not an Update was sent, but only for an actor that was saved.
   `updateActor` writes `name` and `summary` whenever they are not `undefined`, so an
   empty string clears the display name or bio (profiles then show the username);
   a caller that must not wipe a stored value leaves the key out, as remote
