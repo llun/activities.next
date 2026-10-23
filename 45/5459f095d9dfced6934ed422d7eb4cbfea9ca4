@@ -1,0 +1,38 @@
+app/api/v1/statuses/route.test.ts
+  s_512188f2b1db53::t_0814f6e3966e0c 19,68-76,1121-1193
+  s_512188f2b1db53::t_b30940eacb3556 1194
+app/api/v1/statuses/route.ts
+  s_512188f2b1db53::t_be872359250344 620-622
+  s_512188f2b1db53::t_0a9d43a868ad44 243-245,280,613,654-663,667-672
+lib/client/drafts/sendQueue.ts
+  s_512188f2b1db53::t_e6b338d780b2bf 256-258
+docs/architecture.md
+  s_512188f2b1db53::t_e6b338d780b2bf 3098
+lib/actions/createPoll.test.ts
+  s_512188f2b1db53::t_cb193093754398 4,6,60-103
+lib/actions/createNote.idempotency.test.ts
+  s_512188f2b1db53::t_47a918a6e9ed37 338-340,351-389
+  s_512188f2b1db53::t_06c0af0a5072af 390
+docs/mastodon-api-compatibility.md
+  s_512188f2b1db53::t_5e8a8f4b92c072 518-522
+lib/actions/createNote.ts
+  s_512188f2b1db53::t_6e56a7a4c0dbe5 340-348,353-354,360-361,368-375,379-380,383,1040,1044-1045
+lib/actions/createPoll.ts
+  s_512188f2b1db53::t_6e56a7a4c0dbe5 257,261-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "455459f095d9dfced6934ed422d7eb4cbfea9ca4",
+  "prompts": {},
+  "sessions": {
+    "s_512188f2b1db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e467608a-8346-4544-b69a-fc45fca93669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
