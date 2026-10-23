@@ -29,6 +29,7 @@ import {
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
+import { ProfileTabVisibility } from '@/lib/types/domain/profileTabs'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getActorProfileFields } from '@/lib/utils/activitypubActor'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -67,6 +68,11 @@ type ProfileData = {
   // Both are scoped to the viewer, so the tab's presence discloses nothing.
   hasGalleryMedia: boolean
   gallerySubviews: GallerySubview[]
+  // Which profile tabs the owner shows (a local actor's `showReplies`,
+  // `showMedia`, `showGallery` and `showFitness` settings, each shown unless
+  // set to false). Presentation only: it hides a tab, it does not protect what
+  // is in it. Absent means every tab, which is what a remote profile has.
+  tabVisibility?: ProfileTabVisibility
   isPixelfed?: boolean
   isPeerTube?: boolean
   isMediaService?: boolean
@@ -196,6 +202,15 @@ const getLocalProfileData = async (
       database.getActorFollowersCount({ actorId: persistedActor.id })
     ])
 
+  // A tab the owner hid is not offered to anyone, so the data behind it is not
+  // queried. Posts is always shown.
+  const tabVisibility: ProfileTabVisibility = {
+    replies: persistedActor.showReplies !== false,
+    media: persistedActor.showMedia !== false,
+    gallery: persistedActor.showGallery !== false,
+    fitness: persistedActor.showFitness !== false
+  }
+
   const visibilityScope = {
     publicOnly: audience.publicOnly,
     visibleToActorId: audience.visibleToActorId,
@@ -219,18 +234,24 @@ const getLocalProfileData = async (
         limit: PER_PAGE_LIMIT,
         ...visibilityScope
       }),
-      database.getAttachmentsForActor({
-        actorId: persistedActor.id,
-        ...visibilityScope
-      }),
-      database.getActorHasFitnessData({
-        actorId: persistedActor.id,
-        ...visibilityScope
-      }),
-      database.getActorHasGalleryMedia({
-        actorId: persistedActor.id,
-        audience: galleryAudience
-      })
+      tabVisibility.media
+        ? database.getAttachmentsForActor({
+            actorId: persistedActor.id,
+            ...visibilityScope
+          })
+        : Promise.resolve([] as Attachment[]),
+      tabVisibility.fitness
+        ? database.getActorHasFitnessData({
+            actorId: persistedActor.id,
+            ...visibilityScope
+          })
+        : Promise.resolve(false),
+      tabVisibility.gallery
+        ? database.getActorHasGalleryMedia({
+            actorId: persistedActor.id,
+            audience: galleryAudience
+          })
+        : Promise.resolve(false)
     ])
 
   const gallerySubviews: GallerySubview[] = []
@@ -313,6 +334,7 @@ const getLocalProfileData = async (
     hasFitnessData,
     hasGalleryMedia,
     gallerySubviews,
+    tabVisibility,
     isPixelfed: false,
     isPeerTube: false,
     isMediaService: false,

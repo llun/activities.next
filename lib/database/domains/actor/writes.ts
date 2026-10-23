@@ -181,6 +181,9 @@ export const updateActor = async (
     showMedia,
     showMediaReplies,
     showFeatured,
+    showReplies,
+    showGallery,
+    showFitness,
     navOrder,
     navHidden,
 
@@ -261,6 +264,9 @@ export const updateActor = async (
     ...(showMedia !== undefined ? { showMedia } : null),
     ...(showMediaReplies !== undefined ? { showMediaReplies } : null),
     ...(showFeatured !== undefined ? { showFeatured } : null),
+    ...(showReplies !== undefined ? { showReplies } : null),
+    ...(showGallery !== undefined ? { showGallery } : null),
+    ...(showFitness !== undefined ? { showFitness } : null),
     ...(navOrder !== undefined ? { navOrder } : null),
     ...(navHidden !== undefined ? { navHidden } : null),
 

@@ -183,6 +183,10 @@ export type UpdateActorParams = {
   showMedia?: boolean
   showMediaReplies?: boolean
   showFeatured?: boolean
+  // Profile tab visibility (absent means shown); see ActorSettings.
+  showReplies?: boolean
+  showGallery?: boolean
+  showFitness?: boolean
   // Navigation customization (see ActorSettings). Callers send the whole list
   // each time; an empty array resets that half to the shipped defaults.
   navOrder?: string[]

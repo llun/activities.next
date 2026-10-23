@@ -174,6 +174,7 @@ const Page: FC<Props> = async ({ params }) => {
     hasFitnessData,
     hasGalleryMedia,
     gallerySubviews,
+    tabVisibility,
     isPixelfed,
     isMediaService,
     isInternalAccount,
@@ -425,6 +426,7 @@ const Page: FC<Props> = async ({ params }) => {
         hasFitnessData={hasFitnessData}
         hasGalleryMedia={hasGalleryMedia}
         gallerySubviews={gallerySubviews}
+        tabVisibility={tabVisibility}
         handle={profileHandle}
         mapProvider={getPublicMapProvider()}
         isMediaUploadEnabled={Boolean(mediaStorage)}

@@ -10,6 +10,7 @@ import {
   PROFILE_FIELD_VALUE_MAX_LENGTH
 } from '@/lib/services/accounts/profileFieldLimits'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { hasFederatedProfileChange } from '@/lib/services/actors/hasFederatedProfileChange'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -385,7 +386,7 @@ export const updateCredentialsHandler = (
             ]
           : undefined
 
-      await database.updateActor({
+      const updatedActor = await database.updateActor({
         actorId: currentActor.id,
         ...(display_name !== undefined ? { name: display_name } : null),
         ...(note !== undefined ? { summary: note } : null),
@@ -430,7 +431,15 @@ export const updateCredentialsHandler = (
           ? { showFeatured: showFeaturedFlag }
           : null)
       })
-      await publishActorUpdate({ actorId: currentActor.id })
+      // Only a change to what the federated Person carries is sent: this also
+      // saves posting defaults, tab flags and alt texts, which remote servers
+      // never see.
+      if (
+        updatedActor &&
+        hasFederatedProfileChange(currentActor, updatedActor)
+      ) {
+        await publishActorUpdate({ actorId: currentActor.id })
+      }
       if (fields !== undefined) {
         await queueProfileLinkVerification({
           actorId: currentActor.id,

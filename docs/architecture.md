@@ -1609,15 +1609,36 @@ legacy shape left to copy.
   queued by `publishActorUpdate` (`lib/services/actors/actorUpdate.ts`) after
   every route that writes a published profile field:
   `PATCH /api/v1/accounts/update_credentials`, `PATCH /api/v1/profile`, the web
-  settings form `POST /api/v1/accounts/profile`, and
-  `DELETE /api/v1/profile/{avatar,header}`.** A new route that writes `name`,
+  settings form `POST /api/v1/accounts/profile`, the profile editor's JSON save
+  `PATCH /api/v1/accounts/profile`, and
+  `DELETE /api/v1/profile/{avatar,header}`.** A save sends an Update **only when
+  something the federated Person carries changed**: the four save routes above
+  (not the avatar and header deletes, which always send) compare the actor
+  before and after with
+  `hasFederatedProfileChange` (`lib/services/actors/hasFederatedProfileChange.ts`),
+  which compares the `getPersonFromActor` documents (emoji `updated` stamps
+  aside), so the list of federated fields is whatever that document carries.
+  A save of the post line limit, the profile tabs, image alt texts or any other
+  setting remote servers never see sends no Update(Person), and a save that
+  changes the profile sends exactly one. A new route that writes `name`,
   `summary`, `iconUrl`, `headerImageUrl`, `manuallyApprovesFollowers` or
   `fields` (the profile links) must call it too, or remote servers keep the old profile until their own periodic
   re-fetch. Queueing is best effort and never fails the request: the profile is
-  already saved. The object is `getPersonFromActor`, the same document the actor
+  already saved. The profile link check still queues whenever the links
+  changed, whether or not an Update was sent. The object is `getPersonFromActor`, the same document the actor
   URL serves, and the audience is follower inboxes plus accepted relays, as in
   Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
   carried in the job so a retried job resends the same Update.
+- **Profile tab visibility is presentation only.** A local actor's settings
+  `showReplies`, `showMedia` (Mastodon's flag, reused for the Media tab),
+  `showGallery` and `showFitness` (each shown unless `false`) decide which tabs
+  `ActorTimelines` offers, to every viewer including the owner; Posts is always
+  offered and a media-only profile whose Media tab is hidden falls back to the
+  ordinary tabs, which open on Posts. `getProfileData` skips the attachments,
+  fitness and gallery queries of a hidden tab. Nothing else changes: the API,
+  the gallery pages and the outbox still serve the same data, and saving the
+  flags never calls `publishActorUpdate`. The profile editor writes them with
+  `PATCH /api/v1/accounts/profile` (`updateProfile()` in `lib/client`).
 - **Discovery flags and moved accounts.** `getPersonFromActor` emits Mastodon's
   `discoverable` and `indexable` (declared as `toot:discoverable` and
   `toot:indexable` in `@context`, next to `toot`), read from the actor's

@@ -148,6 +148,35 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     updateActor.mockRestore()
   })
 
+  it('sends no Update(Person) when only settings remote servers never see change', async () => {
+    const form = new FormData()
+    form.set('source[quote_policy]', 'followers')
+    form.set('source[language]', 'th')
+    form.set('show_media', 'false')
+    form.set('avatar_description', 'Alt text')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sends exactly one Update(Person) for a change and none when it is saved again', async () => {
+    const form = () => {
+      const next = new FormData()
+      next.set('display_name', 'Federated once')
+      return next
+    }
+
+    await PATCH(createRequest(form()), { params: Promise.resolve({}) })
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+
+    await PATCH(createRequest(form()), { params: Promise.resolve({}) })
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
   it('persists source[quote_policy] as the default quote policy and echoes it in source', async () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()

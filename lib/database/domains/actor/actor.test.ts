@@ -444,6 +444,42 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('persists the profile tab flags and reads them back on the actor, false included', async () => {
+        const username = `profile-tabs-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        const before = await database.getActorFromId({ id: actorId })
+        expect(before?.showGallery).toBeUndefined()
+
+        await database.updateActor({
+          actorId,
+          showReplies: false,
+          showGallery: false,
+          showFitness: true,
+          showMedia: false
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor).toMatchObject({
+          showReplies: false,
+          showGallery: false,
+          showFitness: true,
+          showMedia: false
+        })
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject({
+          showReplies: false,
+          showGallery: false,
+          showFitness: true
+        })
+
+        // A later save of another setting keeps the flags.
+        await database.updateActor({ actorId, postLineLimit: 10 })
+        const kept = await database.getActorFromId({ id: actorId })
+        expect(kept?.showGallery).toBe(false)
+      })
+
       it('persists and returns reading preferences', async () => {
         const username = `reading-pref-${crypto.randomUUID().slice(0, 8)}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`

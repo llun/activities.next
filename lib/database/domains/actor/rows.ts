@@ -172,6 +172,19 @@ export const getActor = (
     ...(settings.readingAutoplayGifs !== undefined
       ? { readingAutoplayGifs: settings.readingAutoplayGifs }
       : null),
+    // Profile tab visibility, only when the owner set it.
+    ...(settings.showReplies !== undefined
+      ? { showReplies: settings.showReplies }
+      : null),
+    ...(settings.showMedia !== undefined
+      ? { showMedia: settings.showMedia }
+      : null),
+    ...(settings.showGallery !== undefined
+      ? { showGallery: settings.showGallery }
+      : null),
+    ...(settings.showFitness !== undefined
+      ? { showFitness: settings.showFitness }
+      : null),
     followersUrl: settings.followersUrl,
     inboxUrl: settings.inboxUrl,
     sharedInboxUrl: settings.sharedInboxUrl,

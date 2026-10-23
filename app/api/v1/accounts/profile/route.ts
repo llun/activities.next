@@ -1,17 +1,29 @@
 import { z } from 'zod'
 
-import { parseProfileFieldsForm } from '@/lib/services/accounts/profileFields'
+import {
+  normalizeProfileFieldRows,
+  parseProfileFieldsForm
+} from '@/lib/services/accounts/profileFields'
 import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { hasFederatedProfileChange } from '@/lib/services/actors/hasFederatedProfileChange'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import {
+  ActorSettings,
   POST_LINE_LIMIT_VALUES,
   PostLineLimit
 } from '@/lib/types/database/rows'
-import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
+import { Actor } from '@/lib/types/domain/actor'
+import { SavedProfile } from '@/lib/types/domain/savedProfile'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 // The settings form's own fields, and nothing else. `publicKey`,
@@ -102,7 +114,7 @@ export const POST = traceApiRoute(
       }
     }
 
-    await database.updateActor({
+    const updatedActor = await database.updateActor({
       actorId: currentActor.id,
       ...safeParsed,
       ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
@@ -117,7 +129,11 @@ export const POST = traceApiRoute(
         ? { fields: profileFields.fields }
         : null)
     })
-    await publishActorUpdate({ actorId: currentActor.id })
+    // Only a change to what the federated Person carries is sent: this form
+    // also saves the post line limit, which remote servers never see.
+    if (updatedActor && hasFederatedProfileChange(currentActor, updatedActor)) {
+      await publishActorUpdate({ actorId: currentActor.id })
+    }
     if (profileFields.status === 'ok') {
       await queueProfileLinkVerification({
         actorId: currentActor.id,
@@ -132,5 +148,160 @@ export const POST = traceApiRoute(
     // 303 so the browser GETs /settings; a 307 would re-POST the form to the
     // page, which answers 404
     return Response.redirect(url.toString(), 303)
+  })
+)
+
+// The JSON editor's save. Every key is optional and an absent key leaves the
+// stored value alone. As in the form above, only these keys are read; Zod
+// strips anything else (the key and inbox endpoints included).
+const DESCRIPTION_MAX_LENGTH = 1500
+
+const ProfilePatchRequest = z.object({
+  name: z.string().max(255).optional(),
+  summary: z.string().max(500).optional(),
+  fields: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+  iconUrl: z.string().nullable().optional(),
+  headerImageUrl: z.string().nullable().optional(),
+  avatarDescription: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
+  headerDescription: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
+  showReplies: z.boolean().optional(),
+  showMedia: z.boolean().optional(),
+  showGallery: z.boolean().optional(),
+  showFitness: z.boolean().optional()
+})
+
+const toSavedProfile = (
+  actor: Actor,
+  settings: ActorSettings | undefined
+): SavedProfile => ({
+  name: actor.name ?? '',
+  summary: actor.summary ?? '',
+  fields: (actor.fields ?? []).map((field) => ({
+    name: field.name,
+    value: field.value,
+    verifiedAt: field.verifiedAt ? getISOTimeUTC(field.verifiedAt) : null
+  })),
+  iconUrl: actor.iconUrl ?? null,
+  headerImageUrl: actor.headerImageUrl ?? null,
+  avatarDescription: settings?.avatarDescription ?? '',
+  headerDescription: settings?.headerDescription ?? '',
+  showReplies: settings?.showReplies ?? true,
+  showMedia: settings?.showMedia ?? true,
+  showGallery: settings?.showGallery ?? true,
+  showFitness: settings?.showFitness ?? true
+})
+
+export const PATCH = traceApiRoute(
+  'patchProfile',
+  AuthenticatedGuard(async (req, context) => {
+    const { currentActor, database } = context
+    const invalid = (message: string) =>
+      apiResponse({
+        req,
+        allowedMethods: ['PATCH'],
+        data: { error: message },
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const parsed = ProfilePatchRequest.safeParse(body)
+    if (!parsed.success) {
+      return invalid(
+        parsed.error.issues[0]
+          ? `Invalid ${parsed.error.issues[0].path.join('.') || 'request'}`
+          : 'Invalid request'
+      )
+    }
+    const { fields: submittedFields, ...rest } = parsed.data
+
+    // Same validation and echo semantics as the form: a URL this instance
+    // serves, an echo of the stored value is "no change", and null clears.
+    const config = getServedHostConfig()
+    const iconUrl = parseProfileImageUrl(
+      rest.iconUrl,
+      config,
+      currentActor.iconUrl
+    )
+    if (!iconUrl.valid) return invalid('Invalid iconUrl')
+    const headerImageUrl = parseProfileImageUrl(
+      rest.headerImageUrl,
+      config,
+      currentActor.headerImageUrl
+    )
+    if (!headerImageUrl.valid) return invalid('Invalid headerImageUrl')
+
+    const profileFields =
+      submittedFields === undefined
+        ? null
+        : normalizeProfileFieldRows(submittedFields)
+    if (profileFields?.status === 'invalid') return invalid('Invalid fields')
+
+    // An empty body (or one of unknown keys only) writes nothing.
+    const hasChange = Object.keys(parsed.data).length > 0
+
+    let saved: Actor = currentActor
+    if (hasChange) {
+      const updatedActor = await database.updateActor({
+        actorId: currentActor.id,
+        ...(rest.name !== undefined ? { name: rest.name } : null),
+        ...(rest.summary !== undefined ? { summary: rest.summary } : null),
+        ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
+        ...(headerImageUrl.value !== undefined
+          ? { headerImageUrl: headerImageUrl.value }
+          : null),
+        ...(profileFields?.status === 'ok'
+          ? { fields: profileFields.fields }
+          : null),
+        ...(rest.avatarDescription !== undefined
+          ? { avatarDescription: rest.avatarDescription }
+          : null),
+        ...(rest.headerDescription !== undefined
+          ? { headerDescription: rest.headerDescription }
+          : null),
+        ...(rest.showReplies !== undefined
+          ? { showReplies: rest.showReplies }
+          : null),
+        ...(rest.showMedia !== undefined
+          ? { showMedia: rest.showMedia }
+          : null),
+        ...(rest.showGallery !== undefined
+          ? { showGallery: rest.showGallery }
+          : null),
+        ...(rest.showFitness !== undefined
+          ? { showFitness: rest.showFitness }
+          : null)
+      })
+      if (updatedActor) {
+        saved = updatedActor
+        // At most one Update(Person), and none for a save of tabs, alt texts
+        // or unchanged values: remote servers never see those.
+        if (hasFederatedProfileChange(currentActor, updatedActor)) {
+          await publishActorUpdate({ actorId: currentActor.id })
+        }
+      }
+      if (profileFields?.status === 'ok') {
+        await queueProfileLinkVerification({
+          actorId: currentActor.id,
+          before: currentActor.fields,
+          after: profileFields.fields,
+          remote: false
+        })
+      }
+    }
+
+    const settings = await database.getActorSettings({
+      actorId: currentActor.id
+    })
+    return apiResponse({
+      req,
+      allowedMethods: ['PATCH'],
+      data: toSavedProfile(saved, settings)
+    })
   })
 )

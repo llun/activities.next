@@ -79,6 +79,12 @@ export const Actor = ActorProfile.extend({
   readingExpandMedia: z.enum(['default', 'show_all', 'hide_all']).optional(),
   readingExpandSpoilers: z.boolean().optional(),
   readingAutoplayGifs: z.boolean().optional(),
+  // Profile tab visibility (a tab is shown unless the owner set its flag to
+  // false). Presentation only; kept on Actor so it stays out of ActorProfile.
+  showReplies: z.boolean().optional(),
+  showMedia: z.boolean().optional(),
+  showGallery: z.boolean().optional(),
+  showFitness: z.boolean().optional(),
   updatedAt: z.number(),
   deletionStatus: z.enum(['scheduled', 'deleting']).nullable().optional(),
   deletionScheduledAt: z.number().nullable().optional(),

@@ -7,6 +7,7 @@
 export * from './client/accountPreferences'
 export * from './client/accounts'
 export * from './client/accountSettings'
+export * from './client/profile'
 export * from './client/bootstrap'
 
 // --- Admin ---
