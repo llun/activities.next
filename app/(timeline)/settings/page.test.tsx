@@ -4,8 +4,6 @@
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
 import Page from './page'
 
 const getActorSettings = vi.fn()
@@ -59,9 +57,6 @@ vi.mock('next/navigation', () => ({
 // Client pieces that are not under test here.
 vi.mock('@/lib/components/theme', () => ({
   ThemeControl: () => <div data-testid="theme-control" />
-}))
-vi.mock('@/lib/components/settings/ImageUploadField', () => ({
-  ImageUploadField: () => <div data-testid="image-upload" />
 }))
 vi.mock('@/lib/components/settings/DeleteActorSection', () => ({
   DeleteActorSection: () => <div data-testid="delete-actor" />
@@ -148,115 +143,73 @@ describe('/settings', () => {
     )
   })
 
-  describe('profile fields', () => {
-    it('puts the row after Summary and before the image uploads, inside the profile form', async () => {
+  describe('the profile moved to Edit profile', () => {
+    it('sends only the timeline and privacy settings with the form, never a name, bio, image or link', async () => {
+      getActorSettings.mockResolvedValue({
+        postLineLimit: 10,
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      })
+
+      render(await Page())
+
+      const form = (
+        screen.getByLabelText('Post line limit') as HTMLSelectElement
+      ).form as HTMLFormElement
+      expect(form).toHaveAttribute('action', '/api/v1/accounts/profile')
+      expect([...new FormData(form).keys()].sort()).toEqual([
+        'manuallyApprovesFollowers_marker',
+        'postLineLimit'
+      ])
+    })
+
+    it('has no name, summary, handle, image or profile field controls any more', async () => {
       getActorSettings.mockResolvedValue({
         fields: [{ name: 'Blog', value: 'https://blog.example' }]
       })
 
       render(await Page())
 
-      const profile = screen.getByRole('group', { name: 'Profile' })
-      const summary = screen.getByLabelText('Summary')
-      const links = screen.getByLabelText('Field 1 label')
-      const upload = screen.getAllByTestId('image-upload')[0]
-      expect(profile).toContainElement(links)
-      expect(
-        summary.compareDocumentPosition(links) &
-          Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy()
-      expect(
-        links.compareDocumentPosition(upload) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy()
-      expect(
-        (links as HTMLInputElement).form ===
-          (summary as HTMLTextAreaElement).form
-      ).toBe(true)
-      expect(
-        screen.getByText(
-          'Up to 4, like Location, Pronouns or a website. Shown on your profile and on other servers.'
-        )
-      ).toBeInTheDocument()
-      // The row label names the first control, so a click on it works.
-      expect(
-        (
-          screen.getByText('Profile fields', {
-            selector: 'label'
-          }) as HTMLLabelElement
-        ).control
-      ).toBe(links)
+      expect(screen.queryByLabelText('Name')).toBeNull()
+      expect(screen.queryByLabelText('Summary')).toBeNull()
+      expect(screen.queryByLabelText('Handle')).toBeNull()
+      expect(screen.queryByLabelText('Field 1 label')).toBeNull()
+      expect(screen.queryByText('Icon image')).toBeNull()
+      expect(screen.queryByText('Header image')).toBeNull()
+      expect(screen.queryByRole('group', { name: 'Profile' })).toBeNull()
     })
 
-    it('posts the saved fields with the profile form', async () => {
-      getActorSettings.mockResolvedValue({
-        fields: [{ name: 'Blog', value: 'https://blog.example' }]
-      })
-
-      render(await Page())
-
-      const form = (screen.getByLabelText('Summary') as HTMLTextAreaElement)
-        .form as HTMLFormElement
-      const data = new FormData(form)
-      expect(data.get('fields[0][name]')).toBe('Blog')
-      expect(data.get('fields[0][value]')).toBe('https://blog.example')
-      expect(data.get('fields[3][name]')).toBe('')
-    })
-
-    it('shows each saved link\u2019s verification next to its inputs', async () => {
-      getActorSettings.mockResolvedValue({
-        fields: [
-          {
-            name: 'Blog',
-            value: 'https://blog.example',
-            verifiedAt: 1700000000000
-          },
-          { name: 'Site', value: 'https://site.example' },
-          { name: 'Pronouns', value: 'they/them' }
-        ]
-      })
-
-      render(await Page())
-
-      expect(screen.getAllByText('Verified')).toHaveLength(1)
-      expect(screen.getAllByText('Not verified')).toHaveLength(1)
-    })
-
-    it('renders the actor\u2019s custom emoji in the fields preview', async () => {
-      vi.mocked(getActorFromSession).mockResolvedValueOnce({
-        ...(await getActorFromSession(mockDatabase as never, null)),
-        tags: [
-          {
-            type: 'emoji',
-            name: ':blobcat:',
-            value: 'https://llun.test/emoji/blobcat.png'
-          }
-        ]
-      } as never)
-      getActorSettings.mockResolvedValue({
-        fields: [{ name: 'Mood', value: 'happy :blobcat:' }]
-      })
-
-      render(await Page())
-
-      const preview = document.querySelector(
-        '[data-slot="profile-fields-preview"]'
-      ) as HTMLElement
-      expect(within(preview).getByAltText(':blobcat:')).toHaveAttribute(
-        'src',
-        'https://llun.test/emoji/blobcat.png'
-      )
-    })
-
-    it('shows the rel me snippet with the real profile URL', async () => {
+    it('keeps Appearance, Timeline, Privacy and the Danger zone', async () => {
       getActorSettings.mockResolvedValue(null)
 
       render(await Page())
 
+      expect(screen.getByRole('heading', { name: 'Appearance' })).toBeVisible()
+      expect(screen.getByRole('group', { name: 'Timeline' })).toBeVisible()
+      expect(screen.getByRole('group', { name: 'Privacy' })).toBeVisible()
+      expect(screen.getByRole('heading', { name: 'Danger zone' })).toBeVisible()
       expect(
-        screen.getByText(
-          '<a rel="me" href="https://llun.test/@anna">Activities.next</a>'
-        ).tagName
-      ).toBe('CODE')
+        screen.getByText('Appearance, timeline and who can follow you.')
+      ).toBeVisible()
+    })
+
+    it('points to Edit profile in an Alert card outside the form box', async () => {
+      getActorSettings.mockResolvedValue(null)
+
+      render(await Page())
+
+      const callout = screen
+        .getByText('Looking for your name, bio or profile fields?')
+        .closest('[data-slot="alert"]') as HTMLElement
+      expect(callout).not.toBeNull()
+      expect(callout).toHaveTextContent(
+        'They moved to Edit profile, together with featured hashtags.'
+      )
+      expect(callout.closest('[data-slot="frame"]')).toBeNull()
+      expect(
+        within(callout).getByRole('link', { name: 'Edit profile' })
+      ).toHaveAttribute('href', '/settings/profile')
+      // It is page content at load, not news to announce.
+      expect(callout).not.toHaveAttribute('role')
     })
   })
 })

@@ -1,30 +1,23 @@
 import { Metadata } from 'next'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-import { getActorEmojiTags } from '@/lib/actions/utils'
 import { PageHeader } from '@/lib/components/page-header'
 import { AppearanceSection } from '@/lib/components/settings/AppearanceSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
-import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { NativeFormSaveBar } from '@/lib/components/settings/NativeFormSaveBar'
-import { ProfileFieldsField } from '@/lib/components/settings/ProfileFieldsField'
-import { PROFILE_FIELDS_FIRST_CONTROL_ID } from '@/lib/components/settings/profileFieldsFieldIds'
+import { Alert } from '@/lib/components/surface/Alert'
 import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
-import { Input } from '@/lib/components/ui/input'
+import { Button } from '@/lib/components/ui/button'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
-import { Textarea } from '@/lib/components/ui/textarea'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import {
-  getActorProfileUrl,
-  getPersonFromActor
-} from '@/lib/utils/getPersonFromActor'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +38,6 @@ const Page = async () => {
   }
 
   const profile = getActorProfile(actor)
-  const emojiTags = getActorEmojiTags(getPersonFromActor(actor))
   const settings = await database.getActorSettings({ actorId: actor.id })
   const actors = await database.getActorsForAccount({
     accountId: actor.account.id
@@ -54,8 +46,23 @@ const Page = async () => {
     <div className="space-y-6">
       <PageHeader
         title="General"
-        description="Profile, appearance, and privacy for this actor."
+        description="Appearance, timeline and who can follow you."
       />
+
+      {/* A standing pointer, not news: the profile fields moved to their own
+          page. It sits in the page stack, beside the boxes. */}
+      <Alert
+        tone="info"
+        live={false}
+        title="Looking for your name, bio or profile fields?"
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/settings/profile">Edit profile</Link>
+          </Button>
+        }
+      >
+        They moved to Edit profile, together with featured hashtags.
+      </Alert>
 
       <AppearanceSection />
 
@@ -87,79 +94,6 @@ const Page = async () => {
                 </Select>
               )}
             </FormRow>
-          </FormGroup>
-
-          <FormGroup
-            title="Profile"
-            description="Public information visible on your profile."
-          >
-            <FormRow
-              label="Handle"
-              htmlFor="handleInput"
-              hint="Your unique identifier on the fediverse"
-            >
-              {({ describedBy }) => (
-                <Input
-                  id="handleInput"
-                  aria-describedby={describedBy}
-                  value={`@${profile.username}@${profile.domain}`}
-                  disabled
-                />
-              )}
-            </FormRow>
-            <FormRow
-              label="Name"
-              htmlFor="nameInput"
-              hint="Name that you want to show in profile"
-            >
-              {({ describedBy }) => (
-                <Input
-                  type="text"
-                  id="nameInput"
-                  name="name"
-                  aria-describedby={describedBy}
-                  defaultValue={profile.name || ''}
-                  placeholder="Your display name"
-                />
-              )}
-            </FormRow>
-            <FormRow label="Summary" htmlFor="summaryInput">
-              <Textarea
-                rows={3}
-                name="summary"
-                id="summaryInput"
-                defaultValue={profile.summary || ''}
-                placeholder="A brief description about yourself"
-              />
-            </FormRow>
-            <FormRow
-              label="Profile fields"
-              htmlFor={PROFILE_FIELDS_FIRST_CONTROL_ID}
-              hint="Up to 4, like Location, Pronouns or a website. Shown on your profile and on other servers."
-              className="sm:items-start"
-            >
-              {({ describedBy, labelledBy }) => (
-                <ProfileFieldsField
-                  fields={settings?.fields ?? []}
-                  profileUrl={getActorProfileUrl(actor)}
-                  describedBy={describedBy}
-                  labelledBy={labelledBy}
-                  tags={emojiTags}
-                />
-              )}
-            </FormRow>
-            <ImageUploadField
-              fieldName="iconUrl"
-              currentUrl={profile.iconUrl || null}
-              label="Icon image"
-              previewType="thumbnail"
-            />
-            <ImageUploadField
-              fieldName="headerImageUrl"
-              currentUrl={profile.headerImageUrl || null}
-              label="Header image"
-              previewType="landscape"
-            />
           </FormGroup>
 
           <FormGroup title="Privacy" description="Control who can follow you.">
