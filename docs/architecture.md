@@ -1643,8 +1643,9 @@ legacy shape left to copy.
   ordinary tabs, which open on Posts. `getProfileData` skips the attachments,
   fitness and gallery queries of a hidden tab. Nothing else changes: the API,
   the gallery pages and the outbox still serve the same data, and saving the
-  flags never calls `publishActorUpdate`. The profile editor writes them with
-  `PATCH /api/v1/accounts/profile` (`updateProfile()` in `lib/client`).
+  flags never calls `publishActorUpdate`. They are written with
+  `PATCH /api/v1/accounts/profile` (`updateProfile()` in `lib/client`); the
+  settings UI for them arrives with the Edit profile page.
 - **Discovery flags and moved accounts.** `getPersonFromActor` emits Mastodon's
   `discoverable` and `indexable` (declared as `toot:discoverable` and
   `toot:indexable` in `@context`, next to `toot`), read from the actor's

@@ -114,6 +114,10 @@ export const POST = traceApiRoute(
       }
     }
 
+    // The guard's actor is a partial one (no links, discovery flags or
+    // attribution domains), so changes are measured against the stored actor.
+    const before =
+      (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
     const updatedActor = await database.updateActor({
       actorId: currentActor.id,
       ...safeParsed,
@@ -131,13 +135,13 @@ export const POST = traceApiRoute(
     })
     // Only a change to what the federated Person carries is sent: this form
     // also saves the post line limit, which remote servers never see.
-    if (updatedActor && hasFederatedProfileChange(currentActor, updatedActor)) {
+    if (updatedActor && hasFederatedProfileChange(before, updatedActor)) {
       await publishActorUpdate({ actorId: currentActor.id })
     }
     if (profileFields.status === 'ok') {
       await queueProfileLinkVerification({
         actorId: currentActor.id,
-        before: currentActor.fields,
+        before: before.fields,
         after: profileFields.fields,
         remote: false
       })
@@ -224,18 +228,23 @@ export const PATCH = traceApiRoute(
     }
     const { fields: submittedFields, ...rest } = parsed.data
 
+    // The guard's actor is a partial one (no links, discovery flags or
+    // attribution domains), so compare and echo against the stored actor.
+    const before =
+      (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
+
     // Echo semantics, as for the image URLs: re-sending the stored value is
     // not a proposal, so it is accepted even when it predates the cap.
     if (
       rest.name !== undefined &&
-      rest.name !== (currentActor.name ?? '') &&
+      rest.name !== (before.name ?? '') &&
       rest.name.length > NAME_MAX_LENGTH
     ) {
       return invalid('Invalid name')
     }
     if (
       rest.summary !== undefined &&
-      rest.summary !== (currentActor.summary ?? '') &&
+      rest.summary !== (before.summary ?? '') &&
       rest.summary.length > SUMMARY_MAX_LENGTH
     ) {
       return invalid('Invalid summary')
@@ -244,16 +253,12 @@ export const PATCH = traceApiRoute(
     // Same validation and echo semantics as the form: a URL this instance
     // serves, an echo of the stored value is "no change", and null clears.
     const config = getServedHostConfig()
-    const iconUrl = parseProfileImageUrl(
-      rest.iconUrl,
-      config,
-      currentActor.iconUrl
-    )
+    const iconUrl = parseProfileImageUrl(rest.iconUrl, config, before.iconUrl)
     if (!iconUrl.valid) return invalid('Invalid iconUrl')
     const headerImageUrl = parseProfileImageUrl(
       rest.headerImageUrl,
       config,
-      currentActor.headerImageUrl
+      before.headerImageUrl
     )
     if (!headerImageUrl.valid) return invalid('Invalid headerImageUrl')
 
@@ -266,7 +271,7 @@ export const PATCH = traceApiRoute(
     // An empty body (or one of unknown keys only) writes nothing.
     const hasChange = Object.keys(parsed.data).length > 0
 
-    let saved: Actor = currentActor
+    let saved: Actor = before
     if (hasChange) {
       const updatedActor = await database.updateActor({
         actorId: currentActor.id,
@@ -302,14 +307,14 @@ export const PATCH = traceApiRoute(
         saved = updatedActor
         // At most one Update(Person), and none for a save of tabs, alt texts
         // or unchanged values: remote servers never see those.
-        if (hasFederatedProfileChange(currentActor, updatedActor)) {
+        if (hasFederatedProfileChange(before, updatedActor)) {
           await publishActorUpdate({ actorId: currentActor.id })
         }
       }
       if (profileFields?.status === 'ok') {
         await queueProfileLinkVerification({
           actorId: currentActor.id,
-          before: currentActor.fields,
+          before: before.fields,
           after: profileFields.fields,
           remote: false
         })

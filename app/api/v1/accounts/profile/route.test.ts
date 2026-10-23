@@ -23,12 +23,18 @@ const mockCurrentActor: Actor = MockActor({
   id: 'https://llun.test/users/llun'
 })
 let mockSettings: Partial<ActorSettings> | undefined
+// The actor as stored. The guard hands the route a partial session actor
+// (no links), so a test that sets this one apart from mockCurrentActor checks
+// that changes are measured against the stored actor.
+let mockStoredActor: Actor | null = null
 
 // Applies the params a profile save writes onto the actor, the way the
 // database does, so the route sees the actor as saved.
 const mockUpdateActor = vi.fn(
   async (params: Record<string, unknown>): Promise<Actor | null> => {
-    const next: Record<string, unknown> = { ...mockCurrentActor }
+    const next: Record<string, unknown> = {
+      ...(mockStoredActor ?? mockCurrentActor)
+    }
     for (const key of [
       'name',
       'summary',
@@ -46,6 +52,7 @@ const mockUpdateActor = vi.fn(
 )
 const mockDatabase = {
   updateActor: mockUpdateActor,
+  getActorFromId: vi.fn(async () => mockStoredActor ?? mockCurrentActor),
   getActorSettings: vi.fn(async () => mockSettings)
 }
 
@@ -80,6 +87,7 @@ describe('POST /api/v1/accounts/profile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSettings = undefined
+    mockStoredActor = null
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
     delete mockCurrentActor.fields
@@ -214,6 +222,23 @@ describe('POST /api/v1/accounts/profile', () => {
 
       expect(mockDatabase.updateActor).toHaveBeenCalledWith(
         expect.objectContaining({ fields: [] })
+      )
+    })
+
+    it('sends an Update(Person) when every stored link is removed, though the session actor has none', async () => {
+      mockStoredActor = {
+        ...mockCurrentActor,
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      }
+
+      await post({ 'fields[0][name]': '', 'fields[0][value]': '' })
+
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          before: [{ name: 'Blog', value: 'https://blog.example' }],
+          after: []
+        })
       )
     })
 
@@ -445,6 +470,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSettings = undefined
+    mockStoredActor = null
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
     delete mockCurrentActor.fields
@@ -618,6 +644,46 @@ describe('PATCH /api/v1/accounts/profile', () => {
     )
     expect((await response.json()).name).toBe('')
     expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  describe('when the session actor lacks the stored links', () => {
+    const storedLinks = [{ name: 'Blog', value: 'https://blog.example' }]
+    beforeEach(() => {
+      mockStoredActor = { ...mockCurrentActor, fields: storedLinks }
+    })
+
+    it('sends an Update(Person) when every link is removed', async () => {
+      const response = await patch({ fields: [] })
+
+      expect(response.status).toBe(200)
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ before: storedLinks, after: [] })
+      )
+    })
+
+    it('sends no Update(Person) for a tab-only change', async () => {
+      await patch({ showReplies: false, showMedia: false })
+
+      expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sends no Update(Person) for an alt-text-only change', async () => {
+      await patch({ avatarDescription: 'Alt text' })
+
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('echoes the stored links for an empty body', async () => {
+      const response = await patch({})
+
+      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+      expect((await response.json()).fields).toEqual([
+        { name: 'Blog', value: 'https://blog.example', verifiedAt: null }
+      ])
+    })
   })
 
   it('writes nothing for an empty body', async () => {

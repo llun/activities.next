@@ -61,8 +61,8 @@ const UpdateCredentialsRequest = z.object({
   // clients simply never send them. Descriptions cap at 1500 chars (Mastodon's
   // media-description limit). Booleans accept the string forms exactly like
   // locked/bot/discoverable because form bodies deliver strings.
-  avatar_description: z.string().max(1500).optional(),
-  header_description: z.string().max(1500).optional(),
+  avatar_description: z.string().trim().max(1500).optional(),
+  header_description: z.string().trim().max(1500).optional(),
   show_media: z.union([z.boolean(), z.string()]).optional(),
   show_media_replies: z.union([z.boolean(), z.string()]).optional(),
   show_featured: z.union([z.boolean(), z.string()]).optional(),
@@ -386,6 +386,10 @@ export const updateCredentialsHandler = (
             ]
           : undefined
 
+      // The guard's actor is a partial one (no links, discovery flags or
+      // attribution domains), so changes are measured against the stored actor.
+      const before =
+        (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
       const updatedActor = await database.updateActor({
         actorId: currentActor.id,
         ...(display_name !== undefined ? { name: display_name } : null),
@@ -434,16 +438,13 @@ export const updateCredentialsHandler = (
       // Only a change to what the federated Person carries is sent: this also
       // saves posting defaults, tab flags and alt texts, which remote servers
       // never see.
-      if (
-        updatedActor &&
-        hasFederatedProfileChange(currentActor, updatedActor)
-      ) {
+      if (updatedActor && hasFederatedProfileChange(before, updatedActor)) {
         await publishActorUpdate({ actorId: currentActor.id })
       }
       if (fields !== undefined) {
         await queueProfileLinkVerification({
           actorId: currentActor.id,
-          before: currentActor.fields,
+          before: before.fields,
           after: fields,
           remote: false
         })

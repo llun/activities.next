@@ -163,6 +163,41 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(publishActorUpdate).not.toHaveBeenCalled()
   })
 
+  it('trims avatar_description and header_description', async () => {
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('avatar_description', '  Alt text  ')
+    form.set('header_description', '\tHeader alt\n')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        avatarDescription: 'Alt text',
+        headerDescription: 'Header alt'
+      })
+    )
+  })
+
+  it('sends an Update(Person) when discoverable is switched off, though the session actor does not carry it', async () => {
+    // The session guard builds a partial actor (no discoverable flag), so the
+    // change must be measured against the stored actor.
+    await database.updateActor({ actorId: ACTOR1_ID, discoverable: true })
+    vi.mocked(publishActorUpdate).mockClear()
+
+    const form = new FormData()
+    form.set('discoverable', 'false')
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
   it('sends exactly one Update(Person) for a change and none when it is saved again', async () => {
     const form = () => {
       const next = new FormData()
