@@ -87,6 +87,12 @@ interface SaveBarProps {
    */
   submit?: boolean
   /**
+   * With `submit`, the `id` of a `<form>` the bar sits outside of (a sticky
+   * footer drawn apart from the form): Save submits that form, and Enter in
+   * its fields presses it.
+   */
+  formId?: string
+  /**
    * Why Save is off although the form has changes ("Add a keyword to save").
    * Shown next to "Unsaved changes" (as muted status text on its own in the
    * `create` variant), so the bar never claims there is nothing
@@ -130,6 +136,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   error,
   onSave,
   submit = false,
+  formId,
   disabledReason,
   disabled = false,
   actions,
@@ -139,6 +146,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   const saveButton = (
     <Button
       type={submit ? 'submit' : 'button'}
+      form={submit ? formId : undefined}
       onClick={submit ? undefined : onSave}
       disabled={
         saving || disabled || (!isCreate && !dirty) || Boolean(disabledReason)

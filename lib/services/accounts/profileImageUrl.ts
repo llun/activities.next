@@ -36,12 +36,13 @@ type SubmissionOutcome = 'unchanged' | 'clear' | 'candidate'
  * all takes the `candidate` path and has to pass every check, and an empty
  * submission still clears — so a stale row stays removable rather than sticky.
  *
- * That matters because `/settings` is a SINGLE form around name, summary, both
- * images and the privacy switch, and `ImageUploadField` seeds its hidden input
- * from the stored URL and resubmits it untouched. Re-validating it would 422
- * the WHOLE form for an actor carrying a URL stored before this rule existed —
- * which the field's old `https://example.com/avatar.jpg` placeholder actively
- * invited — losing an unrelated name edit to a bare JSON body with no error UI.
+ * That matters because the Edit profile page (`/settings/profile`) seeds its
+ * draft from the stored image URLs and sends back a patch; a client that echoes
+ * a stored value untouched (an older client, or a save whose draft still holds
+ * it) must not have the WHOLE save refused for an actor carrying a URL stored
+ * before this rule existed — which the field's old
+ * `https://example.com/avatar.jpg` placeholder actively invited — losing an
+ * unrelated name edit to a 422 the person cannot fix.
  *
  * **The three tests must run in exactly this order.** Each guards a case the
  * other two collide on, because a legacy stored value can be nothing but

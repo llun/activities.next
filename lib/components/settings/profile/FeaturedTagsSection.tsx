@@ -126,21 +126,13 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
   </FramedListItem>
 )
 
-interface FeaturedTagsSectionProps {
-  /**
-   * `page` is the standalone Featured hashtags page: an "Add a hashtag" section
-   * over a "Your featured hashtags" section. `embedded` is the Edit profile
-   * page's one "Featured hashtags" section (`id="featured-hashtags"`, so
-   * `/settings/profile#featured-hashtags` lands on it) with the add bar over
-   * the list. Either way adding and removing a tag saves at once; they never
-   * wait for the page's Save.
-   */
-  variant?: 'page' | 'embedded'
-}
-
-export const FeaturedTagsSection: FC<FeaturedTagsSectionProps> = ({
-  variant = 'page'
-}) => {
+/**
+ * The Edit profile page's one "Featured hashtags" section
+ * (`id="featured-hashtags"`, so `/settings/profile#featured-hashtags` lands on
+ * it) with the add bar over the list. Adding and removing a tag saves at once;
+ * it never waits for the page's Save.
+ */
+export const FeaturedTagsSection: FC = () => {
   const [loading, setLoading] = useState(true)
   const [tags, setTags] = useState<FeaturedTag[]>([])
   const [suggestions, setSuggestions] = useState<Tag[]>([])
@@ -403,41 +395,18 @@ export const FeaturedTagsSection: FC<FeaturedTagsSectionProps> = ({
     </>
   )
 
-  if (variant === 'embedded') {
-    return (
-      <Section
-        id="featured-hashtags"
-        title="Featured hashtags"
-        description="Tags you post about most, shown under your bio. Adding or removing one saves at once."
-        meta={countMeta}
-        className="scroll-mt-24"
-      >
-        <div className="space-y-3">
-          {addBar}
-          {list}
-        </div>
-      </Section>
-    )
-  }
-
   return (
-    <div className="space-y-6">
-      <Section
-        icon={Plus}
-        title="Add a hashtag"
-        description="Type a hashtag or pick one of your most-used tags. People can tap it to see all of your posts with that tag."
-        meta={countMeta}
-      >
+    <Section
+      id="featured-hashtags"
+      title="Featured hashtags"
+      description="Tags you post about most, shown under your bio. Adding or removing one saves at once."
+      meta={countMeta}
+      className="scroll-mt-24"
+    >
+      <div className="space-y-3">
         {addBar}
-      </Section>
-
-      <Section
-        icon={Hash}
-        title="Your featured hashtags"
-        description="Shown on your profile in the order below. They link to your posts tagged with each hashtag."
-      >
         {list}
-      </Section>
-    </div>
+      </div>
+    </Section>
   )
 }

@@ -3,14 +3,24 @@
 import { Info } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  FC,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { ApiRequestError, updateProfile } from '@/lib/client'
 import type { CustomEmojiTextProps } from '@/lib/components/actors/ActorDisplayName'
 import { BackLink } from '@/lib/components/back-link'
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { PageHeader } from '@/lib/components/page-header'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { ProfileFieldsField } from '@/lib/components/settings/ProfileFieldsField'
+import { PROFILE_FIELDS_FIRST_CONTROL_ID } from '@/lib/components/settings/profileFieldsFieldIds'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
@@ -30,6 +40,7 @@ import {
   PROFILE_SAVED_TITLE,
   ProfileSavedToast
 } from './ProfileSavedToast'
+import { EDIT_PROFILE_PATH } from './SwitchedNotice'
 import {
   NAME_MAX_LENGTH,
   type ProfileDraft,
@@ -40,6 +51,8 @@ import {
   getChangedKeys,
   getErrorField,
   getPendingLinkValues,
+  mergePendingLinks,
+  reconcileDraft,
   toDraft
 } from './profileDraft'
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
@@ -56,6 +69,8 @@ interface Props {
   profilePath: string
   /** The actor's custom emoji, so link values show shortcodes as images. */
   tags?: CustomEmojiTextProps['tags']
+  /** The page was opened with `?switched=1`; the first save drops it. */
+  switched?: boolean
 }
 
 const TAB_ROWS = [
@@ -73,6 +88,17 @@ const TAB_ROWS = [
   }
 ] as const
 
+// Where focus goes after a failed save, by the field the message is about.
+const FOCUS_SELECTORS: Record<Exclude<ProfileFieldName, 'form'>, string> = {
+  name: '#profileNameInput',
+  summary: '#profileSummaryInput',
+  fields: `#${PROFILE_FIELDS_FIRST_CONTROL_ID}`,
+  iconUrl: '[data-focus-target="iconUrl"]',
+  headerImageUrl: '[data-focus-target="headerImageUrl"]',
+  avatarDescription: '[data-focus-target="avatarDescription"]',
+  headerDescription: '[data-focus-target="headerDescription"]'
+}
+
 const FIELD_ERROR_CLASS = 'text-destructive-text mt-1 text-xs'
 
 /**
@@ -89,10 +115,13 @@ export const ProfileEditor: FC<Props> = ({
   handle,
   profileUrl,
   profilePath,
-  tags
+  tags,
+  switched = false
 }) => {
   const router = useRouter()
   const formRef = useRef<HTMLFormElement>(null)
+  const alertRef = useRef<HTMLDivElement>(null)
+  const formId = useId()
   const [saved, setSaved] = useState(profile)
   const [draft, setDraft] = useState<ProfileDraft>(() => toDraft(profile))
   const [pendingLinks, setPendingLinks] = useState<string[]>([])
@@ -100,12 +129,17 @@ export const ProfileEditor: FC<Props> = ({
   const [errors, setErrors] = useState<
     Partial<Record<ProfileFieldName, string>>
   >({})
+  const [uploads, setUploads] = useState({ avatar: false, header: false })
+  const [focusAfterError, setFocusAfterError] =
+    useState<ProfileFieldName | null>(null)
   const [toastId, setToastId] = useState<number | null>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
   const changedKeys = getChangedKeys(draft, saved)
   const dirty = changedKeys.length > 0
   const guard = useUnsavedChangesGuard(dirty)
+  const uploading = uploads.avatar || uploads.header
+  const hasError = Object.keys(errors).length > 0
 
   const change = useCallback(
     (changes: Partial<ProfileDraft>) =>
@@ -132,21 +166,44 @@ export const ProfileEditor: FC<Props> = ({
     [change]
   )
 
+  // After a failed save, focus goes to the invalid control (the form's own
+  // Alert for any other failure) once it is on the page.
+  useEffect(() => {
+    if (focusAfterError === null) return
+    setFocusAfterError(null)
+    const target =
+      focusAfterError === 'form'
+        ? alertRef.current
+        : formRef.current?.querySelector<HTMLElement>(
+            FOCUS_SELECTORS[focusAfterError]
+          )
+    target?.scrollIntoView?.({ block: 'center' })
+    target?.focus({ preventScroll: true })
+  }, [focusAfterError])
+
   const handleSave = async () => {
-    if (saving || !dirty) return
+    if (saving || uploading || !dirty) return
     // The link rows block a half-filled row through the browser's own checks.
     if (formRef.current && !formRef.current.reportValidity()) return
+    // What is sent is a snapshot: the person can keep typing while it saves.
+    const sent = draft
+    const before = saved
     setSaving(true)
     setErrors({})
     try {
-      const result = await updateProfile(buildProfilePatch(draft, saved))
-      setPendingLinks(getPendingLinkValues(saved, result))
+      const result = await updateProfile(buildProfilePatch(sent, before))
+      setPendingLinks((current) =>
+        mergePendingLinks(current, getPendingLinkValues(before, result), result)
+      )
       setSaved(result)
-      // The server's copy is the truth (it trims the alt texts); the link rows
-      // keep what the field holds, which compares equal after trimming.
-      setDraft((current) => ({ ...toDraft(result), fields: current.fields }))
+      // The server's copy is the truth (it trims the alt texts) for whatever
+      // was not edited since the save was sent; those edits stay and keep the
+      // page unsaved. The link rows keep what the field holds.
+      setDraft((current) => reconcileDraft(current, sent, result))
       setToastId((current) => (current ?? 0) + 1)
-      router.refresh()
+      // The switch notice has done its job once a save went through.
+      if (switched) router.replace(EDIT_PROFILE_PATH)
+      else router.refresh()
     } catch (error) {
       const message =
         error instanceof Error && error.message
@@ -157,6 +214,7 @@ export const ProfileEditor: FC<Props> = ({
           ? getErrorField(message)
           : 'form'
       setErrors({ [field]: message })
+      setFocusAfterError(field)
     } finally {
       setSaving(false)
     }
@@ -182,7 +240,7 @@ export const ProfileEditor: FC<Props> = ({
     [saved.fields]
   )
   const initial = (draft.name.trim() || username).charAt(0).toUpperCase()
-  const question = confirmingCancel || guard.pendingHref !== null
+  const question = confirmingCancel || guard.pending
 
   const saveBar = (
     <SaveBar
@@ -191,7 +249,16 @@ export const ProfileEditor: FC<Props> = ({
       saved={false}
       dirtyLabel="You have unsaved changes"
       actionLabel="Save changes"
-      onSave={handleSave}
+      submit
+      formId={formId}
+      disabledReason={uploading ? 'Uploading a picture…' : undefined}
+      error={
+        hasError
+          ? errors.form
+            ? 'Couldn’t save your profile.'
+            : 'Fix the highlighted field to save.'
+          : null
+      }
       actions={
         <Button type="button" variant="outline" onClick={handleCancel}>
           Cancel
@@ -212,13 +279,20 @@ export const ProfileEditor: FC<Props> = ({
       {/* Phones: Cancel, the title and Save in one bar at the top. */}
       <div
         data-slot="profile-editor-phone-bar"
-        className="flex items-center justify-between gap-2 md:hidden"
+        // Sticky under the settings section's own mobile bar (56px plus the
+        // top safe area, z-30), so it never covers it: one z-step below.
+        className="sticky top-[calc(56px+env(safe-area-inset-top,0px))] z-20 flex items-center justify-between gap-2 border-b bg-background px-4 py-2 md:hidden"
+        style={breakoutStyle}
       >
         <Button type="button" variant="ghost" onClick={handleCancel}>
           Cancel
         </Button>
         <h2 className="text-base font-semibold">Edit profile</h2>
-        <Button type="button" disabled={!dirty || saving} onClick={handleSave}>
+        <Button
+          type="submit"
+          form={formId}
+          disabled={!dirty || saving || uploading}
+        >
           Save
         </Button>
       </div>
@@ -238,13 +312,16 @@ export const ProfileEditor: FC<Props> = ({
       </div>
 
       {errors.form ? (
-        <Alert title="Couldn’t save your profile">{errors.form}</Alert>
+        <div ref={alertRef} tabIndex={-1} className="outline-none">
+          <Alert title="Couldn’t save your profile">{errors.form}</Alert>
+        </div>
       ) : null}
 
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start xl:gap-8">
         <div className="min-w-0 space-y-6">
           <form
             ref={formRef}
+            id={formId}
             className="space-y-6"
             onSubmit={(event) => {
               event.preventDefault()
@@ -271,6 +348,9 @@ export const ProfileEditor: FC<Props> = ({
                     clearError('headerDescription')
                     change({ headerDescription })
                   }}
+                  onUploadingChange={(header) =>
+                    setUploads((current) => ({ ...current, header }))
+                  }
                 />
                 <ProfileImageField
                   kind="avatar"
@@ -287,6 +367,9 @@ export const ProfileEditor: FC<Props> = ({
                     clearError('avatarDescription')
                     change({ avatarDescription })
                   }}
+                  onUploadingChange={(avatar) =>
+                    setUploads((current) => ({ ...current, avatar }))
+                  }
                 />
               </Frame>
             </Section>
@@ -406,7 +489,7 @@ export const ProfileEditor: FC<Props> = ({
 
           {/* Outside the form: adding and removing a hashtag saves at once,
               and its add bar is a form of its own. */}
-          <FeaturedTagsSection variant="embedded" />
+          <FeaturedTagsSection />
 
           <Section
             title="Profile tabs"
@@ -484,7 +567,7 @@ export const ProfileEditor: FC<Props> = ({
           guard.keepEditing()
         }}
         onConfirm={() => {
-          if (guard.pendingHref !== null) {
+          if (guard.pending) {
             guard.discard()
           } else {
             setConfirmingCancel(false)

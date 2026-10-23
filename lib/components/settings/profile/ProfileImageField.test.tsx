@@ -174,6 +174,45 @@ describe('ProfileImageField', () => {
     expect(textarea).toHaveAttribute('maxlength', '1500')
   })
 
+  it('opens the alt text when an error for it arrives later', () => {
+    const { rerender } = renderField()
+    const panel = () =>
+      screen.getByLabelText('Avatar alt text', { selector: 'textarea' })
+        .parentElement as HTMLElement
+    expect(panel()).toHaveAttribute('hidden')
+
+    rerender(
+      <ProfileImageField
+        kind="avatar"
+        url={null}
+        alt=""
+        initial="A"
+        altError="Invalid avatarDescription"
+        onUrlChange={vi.fn()}
+        onAltChange={vi.fn()}
+      />
+    )
+
+    expect(panel()).not.toHaveAttribute('hidden')
+    expect(
+      screen.getByRole('button', { name: 'Avatar alt text' })
+    ).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('tells the page while a file is uploading', async () => {
+    const pending = createDeferred<{ url: string }>()
+    mockUpload.mockReturnValue(pending.promise)
+    const onUploadingChange = vi.fn()
+    const { fileInput } = renderField({ onUploadingChange })
+
+    choose(fileInput, new File(['x'], 'me.png', { type: 'image/png' }))
+    await waitFor(() => expect(onUploadingChange).toHaveBeenCalledWith(true))
+    expect(onUploadingChange).not.toHaveBeenCalledWith(false)
+
+    await act(async () => pending.resolve({ url: MEDIA_URL }))
+    expect(onUploadingChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('shows the save’s message for the alt text and marks the field', () => {
     const { container } = renderField({ altError: 'Invalid avatarDescription' })
 

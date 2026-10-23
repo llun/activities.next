@@ -1652,8 +1652,9 @@ legacy shape left to copy.
   Profile tabs section of the Edit profile page.
 - **The Edit profile page is `/settings/profile`, the first section of
   Settings.** `app/(timeline)/settings/profile/page.tsx` (server, with its
-  `loading.tsx`) builds a `SavedProfile` from the actor and its settings and
-  hands it to the client `ProfileEditor` (`lib/components/settings/profile/`).
+  `loading.tsx`) builds a `SavedProfile` from the stored actor
+  (`database.getActorFromId`, never the session actor, which is partial: no tab
+  flags, links or tags) and its settings and hands it to the client `ProfileEditor` (`lib/components/settings/profile/`).
   It owns the name, bio, avatar and header (with their alt texts), the profile
   fields and the four profile tabs, and it replaces the profile half of General
   and the old Featured hashtags settings tab (the layout lists Profile first and
@@ -1666,8 +1667,7 @@ legacy shape left to copy.
   (`uploadProfileImage` → `uploadAttachment`, the same type check, resize and
   instance size cap `ImageUploadField` uses); only the returned media URL joins
   the draft, and it is saved with the rest. Featured hashtags keep their own
-  immediate save: `FeaturedTagsSection` (the body of the old page, with
-  `variant="embedded"` giving one section with `id="featured-hashtags"`) sits
+  immediate save: `FeaturedTagsSection` (one section with `id="featured-hashtags"`) sits
   outside the page's `<form>` because its add bar is a form of its own, and
   never makes the page dirty. The page sets the `?switched=1` Alert ("Switched
   to @handle. You're now posting as this profile.") above the editor, for the
@@ -1681,18 +1681,29 @@ legacy shape left to copy.
   profile's "Edit profile" button links to `/settings/profile`, and
   `/settings/featured-hashtags` is a server redirect to
   `/settings/profile#featured-hashtags`. `useUnsavedChangesGuard`
-  holds back in-app link clicks (a capture-phase click listener) behind a
-  "Discard changes?" `ConfirmDialog` and asks the browser through
-  `beforeunload`; it reads the dirty state when the click or unload happens, and
-  `allowNavigation()` stands it down for Cancel's confirmed discard. A
+  holds back in-app link clicks to another path (a capture-phase click
+  listener; the same path with another query is not leaving) and the browser's
+  Back and Forward (a capture-phase `popstate` listener that stops the event
+  before Next's router sees it, steps back to the entry the person was on, and
+  replays the step on Discard; it needs the Navigation API for the step's size,
+  and without it only `beforeunload` asks) behind a "Discard changes?"
+  `ConfirmDialog`, and asks the browser through `beforeunload`; it reads the
+  dirty state when the event happens, and `allowNavigation()` stands it down for
+  Cancel's confirmed discard (a later edit turns it back on). A save sends a
+  snapshot of the draft: what the person typed while it was in flight stays and
+  keeps the page dirty (`reconcileDraft`), and Save waits for a picture upload.
+  Enter in a field submits the form (the Save buttons are `type=submit` with
+  `form=`), and a failed save moves focus to the invalid control or the form's
+  `Alert`. The `?switched=1` notice (`SwitchedNotice`) has a Dismiss and goes
+  after the first save. A
   successful save shows `ProfileSavedToast` (in the shape of
   `GalleryAddedToast`, with the words also in an always-mounted polite region)
   and calls `router.refresh()`. From `xl` a live preview column
   (`ProfilePreview`: avatar, header, name, handle, bio, the links through
   `ProfileFieldsBlock` with "+N more", the tab strip, and a "Set in Settings"
   card linking Who can follow you, Fitness privacy and Gallery privacy) sits
-  beside the form; below `md` the top bar is Cancel, "Edit profile" and Save and
-  the sticky bottom `SaveBar` is hidden. General (`/settings`) no longer sends
+  beside the form; below `md` the bar is Cancel, "Edit profile" and Save, sticky under the
+  settings mobile bar, and the sticky bottom `SaveBar` is hidden. General (`/settings`) no longer sends
   `name`, `summary`, images or `fields[...]` with its native POST, because an
   empty `name` or `summary` now clears them; it keeps `postLineLimit` and
   `manuallyApprovesFollowers`, and an `Alert` card at its top points to Edit

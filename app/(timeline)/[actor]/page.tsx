@@ -207,6 +207,16 @@ const Page: FC<Props> = async ({ params }) => {
         accountActor.id === person.id && !accountActor.deletionStatus
     )
 
+  // The avatar's saved description is the image's alt text. Only a local
+  // profile has one; it is the active actor's own settings when that is the
+  // profile shown (already read above).
+  const avatarDescription = isInternalAccount
+    ? (isCurrentUser
+        ? actorSettings
+        : await database.getActorSettings({ actorId: person.id })
+      )?.avatarDescription?.trim()
+    : undefined
+
   const initials = getInitials(person.name || '', person.preferredUsername)
   // The full `@user@domain`, qualified with the domain this profile was
   // resolved under — the one in the URL, which is the actor's own domain on a
@@ -341,7 +351,10 @@ const Page: FC<Props> = async ({ params }) => {
 
         <div className="relative px-4">
           <Avatar className="relative -mt-14 size-20 border-4 border-background">
-            <AvatarImage src={iconImageUrl || undefined} />
+            <AvatarImage
+              src={iconImageUrl || undefined}
+              alt={avatarDescription || ''}
+            />
             {/* The 4px border takes the avatar's content box down to 72px, so
                 the shared 42cqw initial would come out 30px; the Avatar board
                 draws the 80px monogram at 34. */}

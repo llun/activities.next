@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 
 import { getActorEmojiTags } from '@/lib/actions/utils'
 import { ProfileEditor } from '@/lib/components/settings/profile/ProfileEditor'
-import { Alert } from '@/lib/components/surface/Alert'
+import { SwitchedNotice } from '@/lib/components/settings/profile/SwitchedNotice'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
@@ -32,8 +32,14 @@ const Page = async ({ searchParams }: Props) => {
   }
 
   const session = await getServerAuthSession()
-  const actor = await getActorFromSession(database, session)
-  if (!actor || !actor.account) {
+  const sessionActor = await getActorFromSession(database, session)
+  if (!sessionActor || !sessionActor.account) {
+    return redirect('/auth/signin')
+  }
+  // The session's actor is a partial one (no tab flags, links or tags), so
+  // every value the editor starts from comes from the stored actor.
+  const actor = await database.getActorFromId({ id: sessionActor.id })
+  if (!actor) {
     return redirect('/auth/signin')
   }
 
@@ -66,14 +72,11 @@ const Page = async ({ searchParams }: Props) => {
     <div className="space-y-6">
       {/* Part of the page's stack, not the editor's: "Edit profile" on another
           profile you own switches to it first and lands here with ?switched=1. */}
-      {switched ? (
-        <Alert tone="info" title={`Switched to ${handle}.`}>
-          You’re now posting as this profile.
-        </Alert>
-      ) : null}
+      {switched ? <SwitchedNotice handle={handle} /> : null}
       <ProfileEditor
         key={actor.id}
         profile={saved}
+        switched={switched}
         username={actor.username}
         handle={handle}
         profileUrl={getActorProfileUrl(actor)}

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
 
@@ -16,6 +16,7 @@ const Harness = ({ dirty }: { dirty: boolean }) => {
       <a href="/elsewhere?x=1#top">In app</a>
       <a href="https://other.example/page">Outside</a>
       <a href="#section">Same page</a>
+      <a href="/">Same path, other query</a>
       <a href="/elsewhere" target="_blank">
         New tab
       </a>
@@ -31,7 +32,9 @@ const Harness = ({ dirty }: { dirty: boolean }) => {
       <button type="button" onClick={guard.discard}>
         Discard
       </button>
-      <output>{guard.pendingHref ?? 'none'}</output>
+      <output>
+        {guard.pendingHref ?? (guard.pending ? 'history' : 'none')}
+      </output>
     </div>
   )
 }
@@ -42,8 +45,148 @@ const unload = () => {
   return event.defaultPrevented
 }
 
+// jsdom has no Navigation API: a small stand-in that reports the entry change
+// before the popstate, as browsers do.
+class FakeNavigation extends EventTarget {
+  currentEntry = { index: 3 }
+  traverse(delta: number) {
+    const from = this.currentEntry
+    this.currentEntry = { index: from.index + delta }
+    const event = new Event('currententrychange')
+    Object.assign(event, { from })
+    this.dispatchEvent(event)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+}
+
 describe('useUnsavedChangesGuard', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  describe('same path', () => {
+    it('leaves a link to the same path with another query alone', () => {
+      window.history.replaceState(null, '', '/?switched=1')
+      render(<Harness dirty />)
+
+      expect(
+        fireEvent.click(
+          screen.getByRole('link', { name: 'Same path, other query' })
+        )
+      ).toBe(true)
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+      window.history.replaceState(null, '', '/')
+    })
+
+    it('asks again when the person edits after a move that did not leave', () => {
+      const { rerender } = render(<Harness dirty />)
+      fireEvent.click(screen.getByRole('link', { name: 'In app' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+      // Still here: the page was edited again.
+      rerender(<Harness dirty={false} />)
+      rerender(<Harness dirty />)
+
+      expect(
+        fireEvent.click(screen.getByRole('link', { name: 'In app' }))
+      ).toBe(false)
+      expect(unload()).toBe(true)
+    })
+  })
+
+  describe('Back and Forward', () => {
+    let navigation: FakeNavigation
+    let go: ReturnType<typeof vi.spyOn>
+    let nextRouterSawIt: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      navigation = new FakeNavigation()
+      Object.defineProperty(window, 'navigation', {
+        value: navigation,
+        configurable: true
+      })
+      go = vi.spyOn(window.history, 'go').mockImplementation(() => {})
+      // Next listens in the bubble phase.
+      nextRouterSawIt = vi.fn()
+      window.addEventListener('popstate', nextRouterSawIt as EventListener)
+    })
+    afterEach(() => {
+      window.removeEventListener('popstate', nextRouterSawIt as EventListener)
+      go.mockRestore()
+      Reflect.deleteProperty(window, 'navigation')
+    })
+
+    it('holds Back from the router, returns to the entry and asks', () => {
+      render(<Harness dirty />)
+
+      act(() => navigation.traverse(-1))
+
+      expect(nextRouterSawIt).not.toHaveBeenCalled()
+      expect(go).toHaveBeenCalledWith(1)
+      expect(screen.getByRole('status')).toHaveTextContent('history')
+    })
+
+    it('does not mistake its own step back for a second press', () => {
+      render(<Harness dirty />)
+      act(() => navigation.traverse(-1))
+
+      act(() => navigation.traverse(1))
+
+      expect(nextRouterSawIt).not.toHaveBeenCalled()
+      expect(go).toHaveBeenCalledTimes(1)
+    })
+
+    it('replays Back on discard with the guard off', () => {
+      render(<Harness dirty />)
+      act(() => navigation.traverse(-1))
+      act(() => navigation.traverse(1))
+      go.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+      expect(go).toHaveBeenCalledWith(-1)
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+      act(() => navigation.traverse(-1))
+      expect(nextRouterSawIt).toHaveBeenCalledTimes(1)
+    })
+
+    it('replays Forward the same way', () => {
+      render(<Harness dirty />)
+      act(() => navigation.traverse(1))
+      expect(go).toHaveBeenCalledWith(-1)
+      act(() => navigation.traverse(-1))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+      expect(go).toHaveBeenLastCalledWith(1)
+    })
+
+    it('stays on the page on keep editing', () => {
+      render(<Harness dirty />)
+      act(() => navigation.traverse(-1))
+      act(() => navigation.traverse(1))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Keep' }))
+
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+      expect(go).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets Back through when clean', () => {
+      render(<Harness dirty={false} />)
+
+      act(() => navigation.traverse(-1))
+
+      expect(nextRouterSawIt).toHaveBeenCalledTimes(1)
+      expect(go).not.toHaveBeenCalled()
+    })
+
+    it('stops listening on unmount', () => {
+      const { unmount } = render(<Harness dirty />)
+      unmount()
+
+      act(() => navigation.traverse(-1))
+
+      expect(nextRouterSawIt).toHaveBeenCalledTimes(1)
+    })
+  })
 
   it('holds back an in-app link click while dirty and remembers where it led', () => {
     render(<Harness dirty />)

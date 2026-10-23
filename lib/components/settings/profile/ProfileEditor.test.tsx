@@ -27,9 +27,10 @@ import { ProfileEditor } from './ProfileEditor'
 
 const push = vi.fn()
 const refresh = vi.fn()
+const replace = vi.fn()
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push, refresh })
+  useRouter: () => ({ push, refresh, replace })
 }))
 
 vi.mock('@/lib/client', async () => {
@@ -77,9 +78,13 @@ const buildProfile = (overrides: Partial<SavedProfile> = {}): SavedProfile => ({
   ...overrides
 })
 
-const renderEditor = (profile: SavedProfile = buildProfile()) =>
+const renderEditor = (
+  profile: SavedProfile = buildProfile(),
+  extra: Partial<React.ComponentProps<typeof ProfileEditor>> = {}
+) =>
   render(
     <ProfileEditor
+      {...extra}
       profile={profile}
       username="anna"
       handle="@anna@llun.test"
@@ -599,6 +604,304 @@ describe('ProfileEditor', () => {
           avatarDescription: 'A smiling woman'
         })
       )
+    })
+  })
+
+  describe('edits while a save is in flight', () => {
+    it('keeps what was typed after the request was sent, and stays unsaved', async () => {
+      const pending = createDeferred<SavedProfile>()
+      mockUpdateProfile.mockReturnValue(pending.promise)
+      renderEditor()
+
+      type(bio(), 'First')
+      fireEvent.click(saveButton())
+      await waitFor(() =>
+        expect(mockUpdateProfile).toHaveBeenCalledWith({ summary: 'First' })
+      )
+      type(bio(), 'First and more')
+      type(name(), 'Anna K')
+      await act(async () => pending.resolve(buildProfile({ summary: 'First' })))
+
+      expect(bio()).toHaveValue('First and more')
+      expect(name()).toHaveValue('Anna K')
+      expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
+      expect(saveButton()).toBeEnabled()
+      // The next save sends only what is still unsaved.
+      mockUpdateProfile.mockResolvedValue(
+        buildProfile({ summary: 'First and more', name: 'Anna K' })
+      )
+      fireEvent.click(saveButton())
+      await waitFor(() =>
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith({
+          name: 'Anna K',
+          summary: 'First and more'
+        })
+      )
+    })
+
+    it('takes the server copy for what was not touched meanwhile', async () => {
+      mockUpdateProfile.mockResolvedValue(
+        buildProfile({ avatarDescription: 'A smiling woman' })
+      )
+      renderEditor()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Avatar alt text' }))
+      const alt = screen.getByLabelText('Avatar alt text', {
+        selector: 'textarea'
+      })
+      type(alt, 'A smiling woman  ')
+      fireEvent.click(saveButton())
+
+      await waitFor(() => expect(alt).toHaveValue('A smiling woman'))
+      expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
+    })
+  })
+
+  describe('picture uploads', () => {
+    it('holds Save back while a picture uploads, in both Save controls', async () => {
+      const pending = createDeferred<{ url: string }>()
+      mockUpload.mockReturnValue(pending.promise)
+      renderEditor()
+      type(bio(), 'New bio')
+      expect(saveButton()).toBeEnabled()
+
+      const input = screen
+        .getByRole('region', { name: 'Photos' })
+        .querySelectorAll<HTMLInputElement>('input[type="file"]')[1]
+      fireEvent.change(input, {
+        target: { files: [new File(['x'], 'me.png', { type: 'image/png' })] }
+      })
+
+      await waitFor(() => expect(saveButton()).toBeDisabled())
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      expect(screen.getByText(/Uploading a picture/)).toBeInTheDocument()
+      fireEvent.submit(name().closest('form') as HTMLFormElement)
+      expect(mockUpdateProfile).not.toHaveBeenCalled()
+
+      mockUpdateProfile.mockResolvedValue(buildProfile())
+      await act(async () => pending.resolve({ url: MEDIA_URL }))
+      await waitFor(() => expect(saveButton()).toBeEnabled())
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    })
+  })
+
+  describe('keyboard', () => {
+    it('submits the form from both Save buttons, which sit outside it', () => {
+      renderEditor()
+      const form = name().closest('form') as HTMLFormElement
+
+      for (const button of [
+        saveButton(),
+        screen.getByRole('button', { name: 'Save' })
+      ]) {
+        expect(button).toHaveAttribute('type', 'submit')
+        expect(button).toHaveAttribute('form', form.id)
+        expect(form.contains(button)).toBe(false)
+      }
+    })
+
+    it('saves when the form is submitted, as Enter in a field does', async () => {
+      mockUpdateProfile.mockResolvedValue(buildProfile({ name: 'Anna K' }))
+      renderEditor()
+      type(name(), 'Anna K')
+
+      fireEvent.submit(name().closest('form') as HTMLFormElement)
+
+      await waitFor(() =>
+        expect(mockUpdateProfile).toHaveBeenCalledWith({ name: 'Anna K' })
+      )
+    })
+
+    it('does nothing on submit while clean', () => {
+      renderEditor()
+
+      fireEvent.submit(name().closest('form') as HTMLFormElement)
+
+      expect(mockUpdateProfile).not.toHaveBeenCalled()
+    })
+
+    it('keeps the featured hashtags add form apart from the profile form', async () => {
+      mockUpdateProfile.mockResolvedValue(buildProfile())
+      ;(addFeaturedTag as jest.Mock).mockResolvedValue({
+        tag: {
+          id: 't2',
+          name: 'owls',
+          url: 'https://llun.test/@anna/tagged/owls',
+          statuses_count: '0',
+          last_status_at: null
+        }
+      })
+      renderEditor()
+      type(name(), 'Anna K')
+      const tagInput = await screen.findByRole('textbox', {
+        name: 'Add a hashtag'
+      })
+      const tagForm = tagInput.closest('form') as HTMLFormElement
+      expect(tagForm).not.toBe(name().closest('form'))
+      expect(tagForm.contains(name())).toBe(false)
+
+      type(tagInput, 'owls')
+      fireEvent.submit(tagForm)
+
+      await waitFor(() => expect(addFeaturedTag).toHaveBeenCalledWith('owls'))
+      expect(mockUpdateProfile).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('phone bar', () => {
+    it('sticks under the settings mobile bar with a background', () => {
+      renderEditor()
+
+      const bar = document.querySelector(
+        '[data-slot="profile-editor-phone-bar"]'
+      ) as HTMLElement
+      expect(bar).toHaveClass(
+        'sticky',
+        'md:hidden',
+        'bg-background',
+        'border-b'
+      )
+      // The settings page's own mobile bar is 56px plus the top safe area, at
+      // z-30; this one sits below it at the same offset.
+      expect(bar.className).toContain(
+        'top-[calc(56px+env(safe-area-inset-top,0px))]'
+      )
+      expect(bar).toHaveClass('z-20')
+    })
+  })
+
+  describe('focus after a failed save', () => {
+    const fail = async (message: string, status = 422) => {
+      mockUpdateProfile.mockRejectedValue(new ApiRequestError(message, status))
+      type(name(), 'Anna K')
+      fireEvent.click(saveButton())
+      await screen.findByText(message, { exact: false })
+    }
+
+    it('focuses the bio for an invalid bio and says so in the Save bar', async () => {
+      renderEditor()
+
+      await fail('Invalid summary')
+
+      await waitFor(() => expect(bio()).toHaveFocus())
+      expect(
+        screen.getByText('Fix the highlighted field to save.')
+      ).toBeInTheDocument()
+    })
+
+    it('focuses the display name for an invalid name', async () => {
+      renderEditor()
+
+      await fail('Invalid name')
+
+      await waitFor(() => expect(name()).toHaveFocus())
+    })
+
+    it('focuses the first link field for invalid links', async () => {
+      renderEditor(
+        buildProfile({
+          fields: [
+            { name: 'Blog', value: 'https://a.example', verifiedAt: null }
+          ]
+        })
+      )
+
+      await fail('Invalid fields')
+
+      await waitFor(() =>
+        expect(screen.getByLabelText('Field 1 label')).toHaveFocus()
+      )
+    })
+
+    it('focuses the Change button for a rejected image', async () => {
+      renderEditor()
+
+      await fail('Invalid iconUrl')
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Change avatar' })
+        ).toHaveFocus()
+      )
+    })
+
+    it('opens and focuses the alt text for a rejected description', async () => {
+      renderEditor()
+
+      await fail('Invalid headerDescription')
+
+      const alt = screen.getByLabelText('Header alt text', {
+        selector: 'textarea'
+      })
+      await waitFor(() => expect(alt).toHaveFocus())
+      expect(alt.parentElement).not.toHaveAttribute('hidden')
+    })
+
+    it('focuses the form Alert for any other failure', async () => {
+      renderEditor()
+
+      await fail('Not found', 404)
+
+      const alert = screen
+        .getByText('Couldn’t save your profile')
+        .closest('[data-slot="alert"]') as HTMLElement
+      await waitFor(() => expect(alert.parentElement).toHaveFocus())
+      expect(
+        screen.getByText('Couldn’t save your profile.')
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('the switch notice', () => {
+    it('drops ?switched=1 after the first save', async () => {
+      mockUpdateProfile.mockResolvedValue(buildProfile({ name: 'Anna K' }))
+      renderEditor(buildProfile(), { switched: true })
+
+      type(name(), 'Anna K')
+      fireEvent.click(saveButton())
+
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith('/settings/profile')
+      )
+      expect(refresh).not.toHaveBeenCalled()
+    })
+
+    it('only refreshes when the page was not opened by a switch', async () => {
+      mockUpdateProfile.mockResolvedValue(buildProfile({ name: 'Anna K' }))
+      renderEditor()
+
+      type(name(), 'Anna K')
+      fireEvent.click(saveButton())
+
+      await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+      expect(replace).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pending link checks across saves', () => {
+    it('keeps Checking… for a link a later name-only save did not touch', async () => {
+      renderEditor()
+      fireEvent.click(screen.getByRole('button', { name: 'Website' }))
+      type(screen.getByLabelText('Field 1 content'), 'https://anna.example')
+      const withLink = buildProfile({
+        fields: [
+          { name: 'Website', value: 'https://anna.example', verifiedAt: null }
+        ]
+      })
+      mockUpdateProfile.mockResolvedValueOnce(withLink)
+      fireEvent.click(saveButton())
+      await screen.findByText(/Checking for a link back/)
+
+      mockUpdateProfile.mockResolvedValueOnce({ ...withLink, name: 'Anna K' })
+      type(name(), 'Anna K')
+      fireEvent.click(saveButton())
+      await waitFor(() =>
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith({ name: 'Anna K' })
+      )
+
+      await waitFor(() => expect(saveButton()).toBeDisabled())
+      expect(screen.getByText(/Checking for a link back/)).toBeInTheDocument()
+      expect(screen.queryByText('Not verified')).toBeNull()
     })
   })
 

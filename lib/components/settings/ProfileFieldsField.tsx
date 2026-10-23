@@ -92,14 +92,13 @@ const TOUCH_SIZE = 'max-sm:size-11 pointer-coarse:size-11'
 const TOUCH_HEIGHT = 'max-sm:h-11 pointer-coarse:h-11'
 
 /**
- * The control column of the settings "Profile fields" row. Only filled or
- * added fields show as rows (0 to 4); suggestion chips add a row with its label
- * filled in. The form always submits four `fields[i][name]` / `fields[i][value]`
- * pairs in row order (unused slots as empty hidden inputs), because the server
- * keeps the stored fields when a form sends no field keys at all, so emptying
- * the list must still send something. A half-filled row blocks the native
- * submit through the browser's own validation and says why under the row; the
- * route checks the same rule again.
+ * The control column of the Edit profile page's "Profile fields" section. Only
+ * filled or added fields show as rows (0 to 4); suggestion chips add a row with
+ * its label filled in. It is a controlled-by-callback field, not a native form
+ * control: it reports the rows through `onRowsChange` and the page sends them as
+ * JSON with the rest of the profile. A half-filled row blocks the page's Save
+ * through the browser's own validation (`setCustomValidity`) and says why under
+ * the row; the route checks the same rule again.
  */
 export const ProfileFieldsField: FC<Props> = ({
   fields,
@@ -136,8 +135,6 @@ export const ProfileFieldsField: FC<Props> = ({
   const downRefs = useRef(new Map<number, HTMLButtonElement | null>())
   const firstChipRef = useRef<HTMLButtonElement | null>(null)
   const pendingFocus = useRef<PendingFocus | null>(null)
-  const groupRef = useRef<HTMLDivElement>(null)
-  const edited = useRef(false)
   // Safari and Firefox on macOS do not focus a button on click, so pressing a
   // row's own button blurs its input with no relatedTarget. This marks that
   // press so the blur is not mistaken for leaving the row. It holds the id of
@@ -168,15 +165,6 @@ export const ProfileFieldsField: FC<Props> = ({
     rowsChangeRef.current?.(
       rows.map((row) => ({ name: row.name, value: row.value }))
     )
-  }, [rows])
-
-  // Adding, moving and removing a row press buttons, which fire no `input` or
-  // `change` event, so tell the form (its save bar enables Save from those) once
-  // the rows are in the DOM.
-  useEffect(() => {
-    if (!edited.current) return
-    edited.current = false
-    groupRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
   }, [rows])
 
   // Focus moves after the render that creates, moves or drops the row.
@@ -217,12 +205,10 @@ export const ProfileFieldsField: FC<Props> = ({
   const add = (name: string) => {
     if (rows.length >= PROFILE_FIELD_LIMIT) return
     const id = nextId.current++
-    edited.current = true
     pendingFocus.current = { kind: name ? 'value' : 'name', id }
     setRows([...rows, { id, name, value: '' }])
   }
   const remove = (index: number) => {
-    edited.current = true
     const next = rows[index + 1] ?? rows[index - 1]
     pendingFocus.current = next
       ? { kind: 'name', id: next.id }
@@ -232,7 +218,6 @@ export const ProfileFieldsField: FC<Props> = ({
   const move = (index: number, direction: 'up' | 'down') => {
     const other = direction === 'up' ? index - 1 : index + 1
     if (other < 0 || other >= rows.length) return
-    edited.current = true
     pendingFocus.current = { kind: 'move', id: rows[index].id, direction }
     const next = [...rows]
     ;[next[index], next[other]] = [next[other], next[index]]
@@ -296,12 +281,7 @@ export const ProfileFieldsField: FC<Props> = ({
   const left = PROFILE_FIELD_LIMIT - rows.length
 
   return (
-    <div
-      ref={groupRef}
-      role="group"
-      aria-labelledby={labelledBy}
-      className="space-y-2"
-    >
+    <div role="group" aria-labelledby={labelledBy} className="space-y-2">
       {rows.map((row, index) => {
         const { icon, hasStatus, checking, verifiedAt } = rowViews[index]
         const Icon = PROFILE_FIELD_ICONS[icon]
@@ -368,7 +348,6 @@ export const ProfileFieldsField: FC<Props> = ({
                 }}
                 type="text"
                 id={index === 0 ? PROFILE_FIELDS_FIRST_CONTROL_ID : undefined}
-                name={`fields[${index}][name]`}
                 aria-label={`Field ${index + 1} label`}
                 placeholder="Label"
                 maxLength={PROFILE_FIELD_NAME_MAX_LENGTH}
@@ -389,7 +368,6 @@ export const ProfileFieldsField: FC<Props> = ({
                   valueRefs.current.set(row.id, node)
                 }}
                 type="text"
-                name={`fields[${index}][value]`}
                 aria-label={`Field ${index + 1} content`}
                 placeholder="https://… or text"
                 maxLength={PROFILE_FIELD_VALUE_MAX_LENGTH}
@@ -479,16 +457,6 @@ export const ProfileFieldsField: FC<Props> = ({
           </div>
         )
       })}
-      {/* Always four pairs, so removing every field clears them on save. */}
-      {Array.from(
-        { length: PROFILE_FIELD_LIMIT - rows.length },
-        (_, offset) => rows.length + offset
-      ).map((index) => (
-        <span key={`empty-${index}`} hidden>
-          <input type="hidden" name={`fields[${index}][name]`} value="" />
-          <input type="hidden" name={`fields[${index}][value]`} value="" />
-        </span>
-      ))}
       {left > 0 ? (
         <div className="space-y-2 pt-1">
           <p id={chipsLabelId} className="text-xs text-muted-foreground">

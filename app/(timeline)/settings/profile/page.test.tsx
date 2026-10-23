@@ -9,7 +9,8 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import Page from './page'
 
 const getActorSettings = vi.fn()
-const mockDatabase = { getActorSettings }
+const getActorFromId = vi.fn()
+const mockDatabase = { getActorSettings, getActorFromId }
 
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn(() => mockDatabase)
@@ -29,7 +30,8 @@ const redirect = vi.fn((path: string) => {
   throw new Error(`redirect:${path}`)
 })
 vi.mock('next/navigation', () => ({
-  redirect: (path: string) => redirect(path)
+  redirect: (path: string) => redirect(path),
+  useRouter: () => ({ replace: vi.fn() })
 }))
 
 const editorProps = vi.fn()
@@ -66,6 +68,7 @@ describe('/settings/profile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getActorFromSession).mockResolvedValue(ACTOR as never)
+    getActorFromId.mockResolvedValue(ACTOR)
     getActorSettings.mockResolvedValue({
       avatarDescription: 'A smiling woman',
       fields: [
@@ -91,6 +94,7 @@ describe('/settings/profile', () => {
     expect(editorProps).toHaveBeenCalledWith(
       expect.objectContaining({
         username: 'anna',
+        switched: false,
         handle: '@anna@llun.test',
         profileUrl: 'https://llun.test/@anna',
         profilePath: '/@anna@llun.test',
@@ -115,6 +119,47 @@ describe('/settings/profile', () => {
         }
       })
     )
+  })
+
+  it('takes every value from the stored actor, not the partial session actor', async () => {
+    // What getActorsForAccount returns: no tab flags, tags or profile text.
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: ACTOR.id,
+      username: 'anna',
+      domain: 'llun.test',
+      account: ACTOR.account
+    } as never)
+    getActorFromId.mockResolvedValue({
+      ...ACTOR,
+      name: 'Stored Anna',
+      showReplies: false,
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
+    })
+
+    render(await Page({}))
+
+    expect(getActorFromId).toHaveBeenCalledWith({ id: ACTOR.id })
+    expect(getActorSettings).toHaveBeenCalledWith({ actorId: ACTOR.id })
+    expect(editorProps.mock.calls[0][0].profile).toEqual(
+      expect.objectContaining({
+        name: 'Stored Anna',
+        summary: 'Bio',
+        showReplies: false,
+        showMedia: false,
+        showGallery: true,
+        showFitness: false,
+        avatarDescription: 'A smiling woman',
+        fields: [expect.objectContaining({ name: 'Website' })]
+      })
+    )
+  })
+
+  it('redirects when the stored actor is gone', async () => {
+    getActorFromId.mockResolvedValue(null)
+
+    await expect(Page({})).rejects.toThrow('redirect:/auth/signin')
   })
 
   it('works for an actor with no settings row', async () => {

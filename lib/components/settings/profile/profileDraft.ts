@@ -117,6 +117,40 @@ export const getErrorField = (message: string): ProfileFieldName => {
 }
 
 /**
+ * The draft after a save answered: the server's copy for every value the
+ * person has not touched since the save was sent (it trims the alt texts), and
+ * what they typed meanwhile for the rest, which then reads as unsaved. The link
+ * rows are always what the field holds.
+ */
+export const reconcileDraft = (
+  current: ProfileDraft,
+  sent: ProfileDraft,
+  result: SavedProfile
+): ProfileDraft => {
+  const next: Record<string, unknown> = { ...current }
+  for (const key of SCALAR_KEYS) {
+    if (current[key] === sent[key]) next[key] = result[key]
+  }
+  return next as ProfileDraft
+}
+
+/**
+ * The links still waiting for a check after a save: the earlier ones that have
+ * not been verified yet, and this save's new ones. A later save that did not
+ * touch a link must not turn its "Checking…" into "Not verified".
+ */
+export const mergePendingLinks = (
+  previous: string[],
+  added: string[],
+  after: SavedProfile
+): string[] => {
+  const unverified = new Set(
+    after.fields.filter((field) => !field.verifiedAt).map((f) => f.value.trim())
+  )
+  return [...new Set([...previous.filter((v) => unverified.has(v)), ...added])]
+}
+
+/**
  * Link values saved by this save that nothing has checked yet: a link that is
  * new or changed and came back unverified. The server queues the check and does
  * not say when it ends, so the page words them as "Checking…" until it reloads.
@@ -132,7 +166,9 @@ export const getPendingLinkValues = (
     .filter((value) => value !== '' && !known.has(value))
 }
 
-// In the order the page lists them, which is the order the question names them.
+// The order the question names them: the avatar before the header image, then
+// the descriptions, name, bio, links and tabs (the page's own order, except that
+// it draws the header image above the avatar).
 const CHANGE_LABELS: [keyof ProfileDraft, string][] = [
   ['iconUrl', 'your avatar'],
   ['headerImageUrl', 'your header image'],

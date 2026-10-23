@@ -7,7 +7,9 @@ import {
   getErrorField,
   getPendingLinkValues,
   isDraftDirty,
+  mergePendingLinks,
   normalizeFields,
+  reconcileDraft,
   toDraft
 } from './profileDraft'
 
@@ -182,5 +184,65 @@ describe('describeChanges', () => {
     expect(describeChanges(['avatarDescription', 'headerDescription'])).toBe(
       'your image descriptions'
     )
+  })
+})
+
+describe('reconcileDraft', () => {
+  const sent = toDraft({ ...SAVED, name: ' Anna B ', avatarDescription: 'x ' })
+  const result: SavedProfile = {
+    ...SAVED,
+    name: 'Anna B',
+    avatarDescription: 'x'
+  }
+
+  it('takes the server copy for what was sent and not touched since', () => {
+    const next = reconcileDraft(sent, sent, result)
+
+    expect(next.name).toBe('Anna B')
+    expect(next.avatarDescription).toBe('x')
+  })
+
+  it('keeps what was typed while the save was in flight', () => {
+    const typed = { ...sent, name: ' Anna B and more', showMedia: false }
+
+    const next = reconcileDraft(typed, sent, result)
+
+    expect(next.name).toBe(' Anna B and more')
+    expect(next.showMedia).toBe(false)
+    expect(next.avatarDescription).toBe('x')
+    expect(isDraftDirty(next, result)).toBe(true)
+  })
+
+  it('keeps the link rows the field holds', () => {
+    const typed = { ...sent, fields: [{ name: 'A', value: 'b' }] }
+
+    expect(reconcileDraft(typed, sent, result).fields).toEqual(typed.fields)
+  })
+})
+
+describe('mergePendingLinks', () => {
+  const after: SavedProfile = {
+    ...SAVED,
+    fields: [
+      { name: 'A', value: 'https://a.example', verifiedAt: null },
+      { name: 'B', value: 'https://b.example', verifiedAt: null },
+      { name: 'C', value: 'https://c.example', verifiedAt: '2026-10-01' }
+    ]
+  }
+
+  it('keeps earlier unchecked links a later save did not touch', () => {
+    expect(
+      mergePendingLinks(['https://a.example'], ['https://b.example'], after)
+    ).toEqual(['https://a.example', 'https://b.example'])
+  })
+
+  it('drops links that are verified or gone', () => {
+    expect(
+      mergePendingLinks(
+        ['https://c.example', 'https://gone.example'],
+        [],
+        after
+      )
+    ).toEqual([])
   })
 })

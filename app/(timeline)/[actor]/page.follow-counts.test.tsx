@@ -12,7 +12,8 @@ import { getProfileData } from './getProfileData'
 import Page from './page'
 
 const mockDatabase = {
-  getFeaturedTags: vi.fn().mockResolvedValue([])
+  getFeaturedTags: vi.fn().mockResolvedValue([]),
+  getActorSettings: vi.fn().mockResolvedValue(undefined)
 }
 
 vi.mock('@/lib/config', () => ({

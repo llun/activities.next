@@ -26,6 +26,8 @@ interface Props {
   altError?: string | null
   onUrlChange: (url: string | null) => void
   onAltChange: (alt: string) => void
+  /** Tells the page when a file is being uploaded, so it can hold Save back. */
+  onUploadingChange?: (uploading: boolean) => void
 }
 
 const COPY = {
@@ -61,7 +63,8 @@ export const ProfileImageField: FC<Props> = ({
   imageError,
   altError,
   onUrlChange,
-  onAltChange
+  onAltChange,
+  onUploadingChange
 }) => {
   const copy = COPY[kind]
   const { maxMediaFileSize } = useInstanceLimits()
@@ -75,14 +78,23 @@ export const ProfileImageField: FC<Props> = ({
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [altOpen, setAltOpen] = useState(alt !== '' || Boolean(altError))
+  // An alt text error that arrives with the panel shut opens it, so the message
+  // and the field it is about can be seen (and focused).
+  const [seenAltError, setSeenAltError] = useState(altError)
+  if (altError !== seenAltError) {
+    setSeenAltError(altError)
+    if (altError) setAltOpen(true)
+  }
   const shownImageError = uploadError ?? imageError ?? null
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return
     setUploadError(null)
     setUploading(true)
+    onUploadingChange?.(true)
     const result = await uploadProfileImage(file, maxMediaFileSize)
     setUploading(false)
+    onUploadingChange?.(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (result.error !== undefined) {
       setUploadError(result.error)
@@ -117,6 +129,9 @@ export const ProfileImageField: FC<Props> = ({
             <Button
               ref={changeButtonRef}
               id={changeId}
+              data-focus-target={
+                kind === 'avatar' ? 'iconUrl' : 'headerImageUrl'
+              }
               type="button"
               variant="outline"
               size="sm"
@@ -183,6 +198,9 @@ export const ProfileImageField: FC<Props> = ({
           <div id={altId} hidden={!altOpen}>
             <Textarea
               rows={2}
+              data-focus-target={
+                kind === 'avatar' ? 'avatarDescription' : 'headerDescription'
+              }
               value={alt}
               maxLength={DESCRIPTION_MAX_LENGTH}
               aria-label={copy.altLabel}

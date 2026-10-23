@@ -28,13 +28,15 @@ const renderField = (
     </form>
   )
 
-// What the form would submit, in DOM order.
-const submitted = (container: HTMLElement) => {
-  const form = container.querySelector('form') as HTMLFormElement
-  return [...new FormData(form).entries()].map(
-    ([key, value]) => [key, String(value)] as const
-  )
-}
+// The rows on the page, top to bottom.
+const rowsOf = () =>
+  screen
+    .queryAllByLabelText(/^Field \d+ label$/)
+    .map((label, index) => [
+      (label as HTMLInputElement).value,
+      (screen.getByLabelText(`Field ${index + 1} content`) as HTMLInputElement)
+        .value
+    ])
 
 const chip = (name: string) => screen.getByRole('button', { name })
 
@@ -186,7 +188,7 @@ describe('ProfileFieldsField', () => {
     })
 
     it('allows the same chip twice and saves the label as typed', () => {
-      const { container } = renderField()
+      renderField()
 
       fireEvent.click(chip('Website'))
       fireEvent.change(screen.getByLabelText('Field 1 content'), {
@@ -201,11 +203,9 @@ describe('ProfileFieldsField', () => {
       })
 
       expect(screen.getByLabelText('Field 1 label')).toHaveValue('Website')
-      expect(submitted(container).slice(0, 4)).toEqual([
-        ['fields[0][name]', 'Website'],
-        ['fields[0][value]', 'https://a.example'],
-        ['fields[1][name]', 'My shop'],
-        ['fields[1][value]', 'https://b.example']
+      expect(rowsOf()).toEqual([
+        ['Website', 'https://a.example'],
+        ['My shop', 'https://b.example']
       ])
     })
 
@@ -229,66 +229,9 @@ describe('ProfileFieldsField', () => {
     })
   })
 
-  describe('form edits', () => {
-    it('tells the form about adding, moving and removing a row', () => {
-      const onInput = vi.fn()
-      const { container } = renderField([
-        { name: 'A', value: '1' },
-        { name: 'B', value: '2' }
-      ])
-      container.querySelector('form')?.addEventListener('input', onInput)
-
-      fireEvent.click(chip('Website'))
-      expect(onInput).toHaveBeenCalledTimes(1)
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Move field 2, B up' })
-      )
-      expect(onInput).toHaveBeenCalledTimes(2)
-      fireEvent.click(screen.getByRole('button', { name: 'Remove field 2, A' }))
-      expect(onInput).toHaveBeenCalledTimes(3)
-    })
-  })
-
-  describe('submitted fields', () => {
-    it.each([
-      ['no saved field', [], 0],
-      ['one saved field', [{ name: 'Blog', value: 'x' }], 1]
-    ])(
-      'always submits four pairs with %s, padding unused slots with empty values',
-      (_case, saved: Saved[], filled) => {
-        const { container } = renderField(saved)
-
-        expect(submitted(container)).toEqual(
-          [0, 1, 2, 3].flatMap((i) => [
-            [`fields[${i}][name]`, i < filled ? saved[i].name : ''],
-            [`fields[${i}][value]`, i < filled ? saved[i].value : '']
-          ])
-        )
-      }
-    )
-
-    it('still submits four empty pairs once every field is removed', () => {
-      const { container } = renderField([
-        { name: 'A', value: '1' },
-        { name: 'B', value: '2' }
-      ])
-
-      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, A' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, B' }))
-
-      const entries = submitted(container)
-      expect(entries).toHaveLength(8)
-      expect(entries.every(([, value]) => value === '')).toBe(true)
-      expect(entries.map(([key]) => key)).toEqual(
-        [0, 1, 2, 3].flatMap((i) => [
-          `fields[${i}][name]`,
-          `fields[${i}][value]`
-        ])
-      )
-    })
-
-    it('reorders the submitted names with Move up and Move down', () => {
-      const { container } = renderField([
+  describe('row order', () => {
+    it('reorders the rows with Move up and Move down', () => {
+      renderField([
         { name: 'A', value: '1' },
         { name: 'B', value: '2' },
         { name: 'C', value: '3' }
@@ -297,23 +240,16 @@ describe('ProfileFieldsField', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'Move field 3, C up' })
       )
-      expect(submitted(container).slice(0, 6)).toEqual([
-        ['fields[0][name]', 'A'],
-        ['fields[0][value]', '1'],
-        ['fields[1][name]', 'C'],
-        ['fields[1][value]', '3'],
-        ['fields[2][name]', 'B'],
-        ['fields[2][value]', '2']
+      expect(rowsOf()).toEqual([
+        ['A', '1'],
+        ['C', '3'],
+        ['B', '2']
       ])
 
       fireEvent.click(
         screen.getByRole('button', { name: 'Move field 1, A down' })
       )
-      expect(
-        submitted(container)
-          .filter(([key]) => key.endsWith('[name]'))
-          .map(([, value]) => value)
-      ).toEqual(['C', 'A', 'B', ''])
+      expect(rowsOf().map(([name]) => name)).toEqual(['C', 'A', 'B'])
     })
 
     it('disables Move up on the first row and Move down on the last', () => {
