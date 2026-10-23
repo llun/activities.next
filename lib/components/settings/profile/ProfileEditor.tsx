@@ -141,11 +141,16 @@ export const ProfileEditor: FC<Props> = ({
   const uploading = uploads.avatar || uploads.header
   const hasError = Object.keys(errors).length > 0
 
-  const change = useCallback(
-    (changes: Partial<ProfileDraft>) =>
-      setDraft((current) => ({ ...current, ...changes })),
-    []
-  )
+  const change = useCallback((changes: Partial<ProfileDraft>) => {
+    setDraft((current) => ({ ...current, ...changes }))
+    // An edit answers a failure that belongs to no field ("Couldn’t save").
+    setErrors((current) => {
+      if (!current.form) return current
+      const next = { ...current }
+      delete next.form
+      return next
+    })
+  }, [])
   const clearError = (field: ProfileFieldName) =>
     setErrors((current) => {
       if (!current[field]) return current
@@ -165,6 +170,14 @@ export const ProfileEditor: FC<Props> = ({
     },
     [change]
   )
+
+  // Nothing left to save (the edits were undone): a failure from before no
+  // longer applies, and the bar goes back to its calm note.
+  useEffect(() => {
+    if (!dirty) {
+      setErrors((current) => (Object.keys(current).length === 0 ? current : {}))
+    }
+  }, [dirty])
 
   // After a failed save, focus goes to the invalid control (the form's own
   // Alert for any other failure) once it is on the page.
@@ -271,17 +284,22 @@ export const ProfileEditor: FC<Props> = ({
     <div className="space-y-6">
       {/* One polite region, always mounted, so the save is announced. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {toastId !== null
-          ? `${PROFILE_SAVED_TITLE}. ${PROFILE_SAVED_MESSAGE}`
-          : ''}
+        {toastId !== null ? (
+          // A new node for every save, so a second save while the first
+          // message is still up is announced again.
+          <span key={toastId}>
+            {PROFILE_SAVED_TITLE}. {PROFILE_SAVED_MESSAGE}
+          </span>
+        ) : null}
       </div>
 
       {/* Phones: Cancel, the title and Save in one bar at the top. */}
       <div
         data-slot="profile-editor-phone-bar"
         // Sticky under the settings section's own mobile bar (56px plus the
-        // top safe area, z-30), so it never covers it: one z-step below.
-        className="sticky top-[calc(56px+env(safe-area-inset-top,0px))] z-20 flex items-center justify-between gap-2 border-b bg-background px-4 py-2 md:hidden"
+        // top safe area and, while the app is not online, the connection strip
+        // below it, z-30), so it never covers it: one z-step below.
+        className="sticky top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))] z-20 flex items-center justify-between gap-2 border-b bg-background px-4 py-2 md:hidden"
         style={breakoutStyle}
       >
         <Button type="button" variant="ghost" onClick={handleCancel}>

@@ -45,17 +45,40 @@ const unload = () => {
   return event.defaultPrevented
 }
 
-// jsdom has no Navigation API: a small stand-in that reports the entry change
-// before the popstate, as browsers do.
+// jsdom has no Navigation API: a small stand-in that fires the `navigate`
+// event of a traversal before anything changes, as browsers do, and reports
+// whether a listener cancelled it.
+interface TraverseOptions {
+  url?: string
+  cancelable?: boolean
+  sameDocument?: boolean
+  navigationType?: string
+}
 class FakeNavigation extends EventTarget {
-  currentEntry = { index: 3 }
-  traverse(delta: number) {
-    const from = this.currentEntry
-    this.currentEntry = { index: from.index + delta }
-    const event = new Event('currententrychange')
-    Object.assign(event, { from })
-    this.dispatchEvent(event)
-    window.dispatchEvent(new PopStateEvent('popstate'))
+  committed = true
+  traverseTo = vi.fn((key: string) => {
+    this.navigate({ key })
+    return {
+      committed: this.committed
+        ? Promise.resolve()
+        : Promise.reject(new Error('InvalidStateError')),
+      finished: Promise.resolve()
+    }
+  })
+  /** Returns true when the traversal went ahead, false when it was cancelled. */
+  navigate({
+    key = 'entry-1',
+    url = 'http://localhost/settings',
+    cancelable = true,
+    sameDocument = true,
+    navigationType = 'traverse'
+  }: TraverseOptions & { key?: string } = {}) {
+    const event = new Event('navigate', { cancelable })
+    Object.assign(event, {
+      navigationType,
+      destination: { key, url, sameDocument }
+    })
+    return this.dispatchEvent(event)
   }
 }
 
@@ -93,8 +116,6 @@ describe('useUnsavedChangesGuard', () => {
 
   describe('Back and Forward', () => {
     let navigation: FakeNavigation
-    let go: ReturnType<typeof vi.spyOn>
-    let nextRouterSawIt: ReturnType<typeof vi.fn>
 
     beforeEach(() => {
       navigation = new FakeNavigation()
@@ -102,89 +123,187 @@ describe('useUnsavedChangesGuard', () => {
         value: navigation,
         configurable: true
       })
-      go = vi.spyOn(window.history, 'go').mockImplementation(() => {})
-      // Next listens in the bubble phase.
-      nextRouterSawIt = vi.fn()
-      window.addEventListener('popstate', nextRouterSawIt as EventListener)
     })
     afterEach(() => {
-      window.removeEventListener('popstate', nextRouterSawIt as EventListener)
-      go.mockRestore()
       Reflect.deleteProperty(window, 'navigation')
     })
 
-    it('holds Back from the router, returns to the entry and asks', () => {
+    it('cancels Back before anything changes and asks', () => {
       render(<Harness dirty />)
 
-      act(() => navigation.traverse(-1))
+      let went = true
+      act(() => {
+        went = navigation.navigate()
+      })
 
-      expect(nextRouterSawIt).not.toHaveBeenCalled()
-      expect(go).toHaveBeenCalledWith(1)
+      expect(went).toBe(false)
       expect(screen.getByRole('status')).toHaveTextContent('history')
+      expect(navigation.traverseTo).not.toHaveBeenCalled()
     })
 
-    it('does not mistake its own step back for a second press', () => {
+    it('replays the held step with traverseTo on discard, once', () => {
       render(<Harness dirty />)
-      act(() => navigation.traverse(-1))
-
-      act(() => navigation.traverse(1))
-
-      expect(nextRouterSawIt).not.toHaveBeenCalled()
-      expect(go).toHaveBeenCalledTimes(1)
-    })
-
-    it('replays Back on discard with the guard off', () => {
-      render(<Harness dirty />)
-      act(() => navigation.traverse(-1))
-      act(() => navigation.traverse(1))
-      go.mockClear()
+      act(() => {
+        navigation.navigate({ key: 'entry-7' })
+      })
 
       fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
 
-      expect(go).toHaveBeenCalledWith(-1)
+      expect(navigation.traverseTo).toHaveBeenCalledExactlyOnceWith('entry-7')
       expect(screen.getByRole('status')).toHaveTextContent('none')
-      act(() => navigation.traverse(-1))
-      expect(nextRouterSawIt).toHaveBeenCalledTimes(1)
+      // The replay was let through, and the guard is spent: the next Back asks.
+      let went = true
+      act(() => {
+        went = navigation.navigate()
+      })
+      expect(went).toBe(false)
     })
 
     it('replays Forward the same way', () => {
       render(<Harness dirty />)
-      act(() => navigation.traverse(1))
-      expect(go).toHaveBeenCalledWith(-1)
-      act(() => navigation.traverse(-1))
+      act(() => {
+        navigation.navigate({ key: 'entry-9', url: 'http://localhost/later' })
+      })
 
       fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
 
-      expect(go).toHaveBeenLastCalledWith(1)
+      expect(navigation.traverseTo).toHaveBeenCalledExactlyOnceWith('entry-9')
     })
 
-    it('stays on the page on keep editing', () => {
+    it('keeps the latest step when Back is pressed again while asking', () => {
       render(<Harness dirty />)
-      act(() => navigation.traverse(-1))
-      act(() => navigation.traverse(1))
+      act(() => {
+        navigation.navigate({ key: 'entry-2' })
+        navigation.navigate({ key: 'entry-1' })
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+      expect(navigation.traverseTo).toHaveBeenCalledExactlyOnceWith('entry-1')
+    })
+
+    it('stays on the page on keep editing and still asks next time', () => {
+      render(<Harness dirty />)
+      act(() => {
+        navigation.navigate()
+      })
 
       fireEvent.click(screen.getByRole('button', { name: 'Keep' }))
 
       expect(screen.getByRole('status')).toHaveTextContent('none')
-      expect(go).toHaveBeenCalledTimes(1)
+      expect(navigation.traverseTo).not.toHaveBeenCalled()
+      let went = true
+      act(() => {
+        went = navigation.navigate()
+      })
+      expect(went).toBe(false)
     })
 
-    it('lets Back through when clean', () => {
+    it('lets Back and Forward through when clean', () => {
       render(<Harness dirty={false} />)
 
-      act(() => navigation.traverse(-1))
+      expect(navigation.navigate()).toBe(true)
+      expect(navigation.navigate({ key: 'entry-3' })).toBe(true)
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+    })
 
-      expect(nextRouterSawIt).toHaveBeenCalledTimes(1)
-      expect(go).not.toHaveBeenCalled()
+    it('never asks for a traversal that stays on this path', () => {
+      render(<Harness dirty />)
+
+      expect(
+        navigation.navigate({ url: 'http://localhost/?switched=1#top' })
+      ).toBe(true)
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+    })
+
+    it('leaves what it cannot or should not hold to beforeunload', () => {
+      render(<Harness dirty />)
+
+      // The browser does not let the page cancel it.
+      expect(navigation.navigate({ cancelable: false })).toBe(true)
+      // Another document: beforeunload asks.
+      expect(navigation.navigate({ sameDocument: false })).toBe(true)
+      // Not a Back or Forward.
+      expect(navigation.navigate({ navigationType: 'push' })).toBe(true)
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+    })
+
+    it('stays and asks again when the held entry is gone', async () => {
+      render(<Harness dirty />)
+      act(() => {
+        navigation.navigate()
+      })
+      navigation.committed = false
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+      })
+
+      let went = true
+      act(() => {
+        went = navigation.navigate()
+      })
+      expect(went).toBe(false)
     })
 
     it('stops listening on unmount', () => {
       const { unmount } = render(<Harness dirty />)
       unmount()
 
-      act(() => navigation.traverse(-1))
+      expect(navigation.navigate()).toBe(true)
+    })
+  })
 
-      expect(nextRouterSawIt).toHaveBeenCalledTimes(1)
+  describe('allowNavigation', () => {
+    let navigation: FakeNavigation
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      navigation = new FakeNavigation()
+      Object.defineProperty(window, 'navigation', {
+        value: navigation,
+        configurable: true
+      })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+      Reflect.deleteProperty(window, 'navigation')
+    })
+
+    it('ends with the first navigation to another path', () => {
+      render(<Harness dirty />)
+      fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+
+      expect(navigation.navigate({ navigationType: 'push' })).toBe(true)
+
+      expect(unload()).toBe(true)
+      expect(
+        fireEvent.click(screen.getByRole('link', { name: 'In app' }))
+      ).toBe(false)
+    })
+
+    it('ends after a while when no navigation came', () => {
+      render(<Harness dirty />)
+      fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+      expect(unload()).toBe(false)
+
+      act(() => {
+        vi.advanceTimersByTime(6000)
+      })
+
+      expect(unload()).toBe(true)
+    })
+
+    it('is not spent by a navigation that stays on this path', () => {
+      render(<Harness dirty />)
+      fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+
+      navigation.navigate({
+        navigationType: 'replace',
+        url: 'http://localhost/?a=1'
+      })
+
+      expect(unload()).toBe(false)
     })
   })
 
@@ -254,7 +373,7 @@ describe('useUnsavedChangesGuard', () => {
     expect(unload()).toBe(false)
   })
 
-  it('stands down for good once navigation is allowed', () => {
+  it('stands down while navigation is allowed', () => {
     render(<Harness dirty />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))

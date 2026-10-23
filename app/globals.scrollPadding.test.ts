@@ -59,6 +59,19 @@ describe('mobile scroll-padding for fixed chrome', () => {
     expect(rem).toBeGreaterThanOrEqual(3.5)
   })
 
+  it('clears the compact bar and the Edit profile phone bar together', () => {
+    const body = bodyOf(
+      mobileQuery,
+      /html:has\(\[data-mobile-compact-header\]\):has\(\s*\[data-slot='profile-editor-phone-bar'\]\s*\)\s*\{/
+    )
+    const match = body.match(
+      /calc\(\s*env\(safe-area-inset-top,\s*0px\)\s*\+\s*([\d.]+)rem\s*\+\s*var\(--status-strip-h,\s*0px\)\s*\)/
+    )
+    expect(match).not.toBeNull()
+    // 56px compact bar + 53px profile bar is 6.8rem; keep a gap below it.
+    expect(Number(match?.[1])).toBeGreaterThanOrEqual(6.8)
+  })
+
   it('clears the 44px floating menu button at its 16px inset plus the safe area', () => {
     const rem = offsetOf('html:has([data-floating-nav-trigger])')
     // 16px inset + 44px button is 3.75rem; the offset keeps a gap below it.

@@ -336,6 +336,30 @@ describe('ProfileEditor', () => {
       expect(refresh).toHaveBeenCalledTimes(1)
     })
 
+    it('announces a second save again while the first message is still up', async () => {
+      renderEditor()
+      mockUpdateProfile.mockResolvedValueOnce(buildProfile({ summary: 'One' }))
+      type(bio(), 'One')
+      fireEvent.click(saveButton())
+      await screen.findByTestId('profile-saved-toast')
+      const region = screen
+        .getAllByRole('status')
+        .find((element) => element.classList.contains('sr-only')) as HTMLElement
+      const first = within(region).getByText(/Profile saved/)
+
+      mockUpdateProfile.mockResolvedValueOnce(buildProfile({ summary: 'Two' }))
+      type(bio(), 'Two')
+      fireEvent.click(saveButton())
+      await waitFor(() =>
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith({ summary: 'Two' })
+      )
+
+      await waitFor(() =>
+        expect(within(region).getByText(/Profile saved/)).not.toBe(first)
+      )
+      expect(first.isConnected).toBe(false)
+    })
+
     it('sends a flipped tab and the filled-in links, and nothing else', async () => {
       mockUpdateProfile.mockResolvedValue(
         buildProfile({
@@ -539,6 +563,55 @@ describe('ProfileEditor', () => {
     })
   })
 
+  describe('clearing a failure', () => {
+    it('drops the note and the alert when the edits are undone', async () => {
+      mockUpdateProfile.mockRejectedValue(new ApiRequestError('Not found', 404))
+      renderEditor()
+      type(bio(), 'New bio')
+      fireEvent.click(saveButton())
+      await screen.findByText('Couldn’t save your profile')
+      expect(
+        screen.getAllByText('Couldn’t save your profile.').length
+      ).toBeGreaterThan(0)
+
+      type(bio(), 'Wildlife photographer.')
+
+      expect(screen.queryByText('Couldn’t save your profile')).toBeNull()
+      expect(screen.queryByText('Couldn’t save your profile.')).toBeNull()
+      expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
+    })
+
+    it('drops a form-level failure at the next edit', async () => {
+      mockUpdateProfile.mockRejectedValue(new ApiRequestError('Not found', 404))
+      renderEditor()
+      type(bio(), 'New bio')
+      fireEvent.click(saveButton())
+      await screen.findByText('Couldn’t save your profile')
+
+      type(bio(), 'New bio again')
+
+      expect(screen.queryByText('Couldn’t save your profile')).toBeNull()
+      expect(screen.queryByText('Couldn’t save your profile.')).toBeNull()
+      expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
+    })
+
+    it('drops a field failure when that field is edited, and the bar note with it', async () => {
+      mockUpdateProfile.mockRejectedValue(
+        new ApiRequestError('Invalid summary', 422)
+      )
+      renderEditor()
+      type(bio(), 'x'.repeat(10))
+      fireEvent.click(saveButton())
+      await screen.findByText('Fix the highlighted field to save.')
+
+      type(bio(), 'Shorter')
+
+      expect(
+        screen.queryByText('Fix the highlighted field to save.')
+      ).toBeNull()
+    })
+  })
+
   describe('photos', () => {
     it('uploads a chosen header through the media upload and saves its URL', async () => {
       mockUpload.mockResolvedValue({ url: MEDIA_URL })
@@ -655,6 +728,49 @@ describe('ProfileEditor', () => {
       await waitFor(() => expect(alt).toHaveValue('A smiling woman'))
       expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
     })
+
+    it('takes the server copy of one field and keeps the in-flight edit of another, in the same render', async () => {
+      const pending = createDeferred<SavedProfile>()
+      mockUpdateProfile.mockReturnValue(pending.promise)
+      renderEditor()
+      fireEvent.click(screen.getByRole('button', { name: 'Avatar alt text' }))
+      const alt = screen.getByLabelText('Avatar alt text', {
+        selector: 'textarea'
+      })
+      type(alt, 'A smiling woman  ')
+      type(bio(), 'Sent bio')
+      fireEvent.click(saveButton())
+      await waitFor(() => expect(mockUpdateProfile).toHaveBeenCalled())
+      // Typed after the request left: only the bio is touched again.
+      type(bio(), 'Sent bio, then more')
+
+      await act(async () =>
+        pending.resolve(
+          buildProfile({
+            avatarDescription: 'A smiling woman',
+            summary: 'Sent bio'
+          })
+        )
+      )
+
+      // The alt text takes the server's trimmed copy; the bio keeps the newer
+      // typing, and only it is unsaved.
+      expect(alt).toHaveValue('A smiling woman')
+      expect(bio()).toHaveValue('Sent bio, then more')
+      expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
+      mockUpdateProfile.mockResolvedValue(
+        buildProfile({
+          avatarDescription: 'A smiling woman',
+          summary: 'Sent bio, then more'
+        })
+      )
+      fireEvent.click(saveButton())
+      await waitFor(() =>
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith({
+          summary: 'Sent bio, then more'
+        })
+      )
+    })
   })
 
   describe('picture uploads', () => {
@@ -762,9 +878,10 @@ describe('ProfileEditor', () => {
         'border-b'
       )
       // The settings page's own mobile bar is 56px plus the top safe area, at
-      // z-30; this one sits below it at the same offset.
+      // z-30, and the connection strip hangs under it while the app is not
+      // online; this one sits below both, one z-step down.
       expect(bar.className).toContain(
-        'top-[calc(56px+env(safe-area-inset-top,0px))]'
+        'top-[calc(56px+env(safe-area-inset-top,0px)+var(--status-strip-h,0px))]'
       )
       expect(bar).toHaveClass('z-20')
     })
@@ -1020,6 +1137,56 @@ describe('ProfileEditor', () => {
       fireEvent.click(back, { button: 1 })
 
       expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
+    describe('Back and Forward', () => {
+      class FakeNavigation extends EventTarget {
+        traverseTo = vi.fn()
+        back(url = 'http://localhost/settings') {
+          const event = new Event('navigate', { cancelable: true })
+          Object.assign(event, {
+            navigationType: 'traverse',
+            destination: { key: 'prev', url, sameDocument: true }
+          })
+          return this.dispatchEvent(event)
+        }
+      }
+      let navigation: FakeNavigation
+      beforeEach(() => {
+        navigation = new FakeNavigation()
+        Object.defineProperty(window, 'navigation', {
+          value: navigation,
+          configurable: true
+        })
+      })
+      afterEach(() => Reflect.deleteProperty(window, 'navigation'))
+
+      it('cancels Back with unsaved changes and asks, and Discard replays it', () => {
+        renderEditor()
+        type(bio(), 'Changed')
+
+        let went = true
+        act(() => {
+          went = navigation.back()
+        })
+
+        expect(went).toBe(false)
+        expect(
+          screen.getByRole('dialog', { name: 'Discard changes?' })
+        ).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+        expect(navigation.traverseTo).toHaveBeenCalledExactlyOnceWith('prev')
+      })
+
+      it('lets Back through on a clean page, and after the changes are undone', () => {
+        renderEditor()
+        expect(navigation.back()).toBe(true)
+
+        type(bio(), 'Changed')
+        type(bio(), 'Wildlife photographer.')
+        expect(navigation.back()).toBe(true)
+        expect(screen.queryByRole('dialog')).toBeNull()
+      })
     })
 
     it('goes straight to the profile on Cancel when clean', () => {

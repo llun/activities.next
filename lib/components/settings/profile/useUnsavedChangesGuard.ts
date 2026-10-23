@@ -17,8 +17,10 @@ export interface UnsavedChangesGuard {
   discard: () => void
   /**
    * Lets the next navigation through without asking, for a page that leaves
-   * on purpose after the changes were saved or already confirmed away
-   * (Cancel). It stays on until the guard unmounts.
+   * on purpose after the changes were already confirmed away (Cancel). It ends
+   * with the first navigation to another path, after a few seconds if none
+   * started, or when the changes are edited again, so it cannot stay off while
+   * the page is still here with unsaved changes.
    */
   allowNavigation: () => void
 }
@@ -48,20 +50,42 @@ const getInAppHref = (event: MouseEvent): string | null => {
   return `${url.pathname}${url.search}${url.hash}`
 }
 
-type Pending =
-  { kind: 'link'; href: string } | { kind: 'history'; delta: number }
+type Pending = { kind: 'link'; href: string } | { kind: 'history'; key: string }
 
-// The Navigation API (where the browser has it) says how many history entries
-// a Back or Forward moved, which `popstate` alone does not. It tells the change
-// of the current entry before `popstate` fires.
+// How long a way out that was let through on purpose (Discard, Cancel) may take
+// to start. Past it the guard asks again: the move did not happen.
+const ALLOW_WINDOW_MS = 5000
+
+// The Navigation API, where the browser has it (Chromium; Firefox and Safari
+// only in recent versions). Its `navigate` event fires before a Back or Forward
+// changes anything, and a traversal can be cancelled there, which `popstate`
+// (fired after the history entry changed and Next's router has re-rendered)
+// cannot do.
+interface NavigateEventLike extends Event {
+  readonly navigationType: string
+  readonly cancelable: boolean
+  readonly destination: {
+    readonly key: string
+    readonly url: string
+    readonly sameDocument: boolean
+  }
+}
 interface NavigationLike extends EventTarget {
-  currentEntry: { index: number } | null
+  traverseTo: (key: string) => {
+    committed: Promise<unknown>
+    finished: Promise<unknown>
+  }
 }
 const getNavigation = (): NavigationLike | null => {
   const navigation = (window as unknown as { navigation?: NavigationLike })
     .navigation
-  return navigation ?? null
+  return navigation && typeof navigation.traverseTo === 'function'
+    ? navigation
+    : null
 }
+
+const isThisPath = (url: string) =>
+  new URL(url, window.location.href).pathname === window.location.pathname
 
 /**
  * Asks before the page is left with unsaved changes. A click on an in-app link
@@ -70,33 +94,54 @@ const getNavigation = (): NavigationLike | null => {
  * outside link gets the browser's own prompt through `beforeunload`. Pass
  * `dirty` as false once the changes are saved: nothing is held back then.
  *
- * Back and Forward: the capture-phase `popstate` listener stops the event
- * before Next's router (which listens in the bubble phase) can start a
- * traversal, then sends the browser back to the entry it left, so the router
- * never notices. Discard replays the step with the guard off. This needs the
- * Navigation API to know the step's size and direction; a browser without it
- * keeps only the `beforeunload` prompt.
+ * Back and Forward are held back by cancelling the Navigation API's `navigate`
+ * event of the traversal, before the URL or Next's router change, and Discard
+ * replays the step with `traverseTo`. Limits: a browser without the Navigation
+ * API keeps only the `beforeunload` prompt, and Chromium only lets a page
+ * cancel a traversal after the person has interacted with it since the last
+ * one, so a second Back pressed before touching the page again goes through
+ * and the unsaved edits are lost. Traversals to another document (an outside
+ * site, a reload) are left to `beforeunload`, and traversals that stay on this
+ * path (only the query or hash differs) never ask.
  */
 export const useUnsavedChangesGuard = (dirty: boolean): UnsavedChangesGuard => {
   const router = useRouter()
   const [pending, setPending] = useState<Pending | null>(null)
   const allowed = useRef(false)
+  const allowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Read at the moment of the click or unload, not when an effect last ran: a
   // save that just finished must stand the guard down at once, before React has
   // got round to re-subscribing.
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
 
-  // Allowing navigation (Discard, Cancel) is for the move being made. If the
-  // person is still here editing again, the move did not leave: ask again.
+  const disarmTimer = useCallback(() => {
+    if (allowTimer.current !== null) clearTimeout(allowTimer.current)
+    allowTimer.current = null
+  }, [])
+  // Lets one move through. It ends with the first navigation to another path,
+  // or when the window runs out without one, or when the person edits again.
+  const allowOnce = useCallback(() => {
+    allowed.current = true
+    disarmTimer()
+    allowTimer.current = setTimeout(() => {
+      allowed.current = false
+      allowTimer.current = null
+    }, ALLOW_WINDOW_MS)
+  }, [disarmTimer])
+  const rearm = useCallback(() => {
+    allowed.current = false
+    disarmTimer()
+  }, [disarmTimer])
+
   useEffect(() => {
-    if (dirty) allowed.current = false
-  }, [dirty])
+    if (dirty) rearm()
+  }, [dirty, rearm])
+
+  useEffect(() => disarmTimer, [disarmTimer])
 
   useEffect(() => {
     const navigation = getNavigation()
-    let lastDelta = 0
-    let restoring = false
 
     const onClick = (event: MouseEvent) => {
       if (!dirtyRef.current || allowed.current) return
@@ -114,55 +159,54 @@ export const useUnsavedChangesGuard = (dirty: boolean): UnsavedChangesGuard => {
       // Some browsers still need a return value to show the prompt.
       event.returnValue = ''
     }
-    const onEntryChange = (event: Event) => {
-      const from = (event as Event & { from?: { index: number } }).from
-      const current = navigation?.currentEntry
-      lastDelta = from && current ? current.index - from.index : 0
-    }
-    const onPopState = (event: PopStateEvent) => {
-      if (restoring) {
-        // Our own step back to the entry the person was on.
-        restoring = false
-        event.stopImmediatePropagation()
+    const onNavigate = (raw: Event) => {
+      const event = raw as NavigateEventLike
+      if (isThisPath(event.destination.url)) return
+      if (allowed.current) {
+        // The move that was let through is under way.
+        rearm()
         return
       }
-      if (!dirtyRef.current || allowed.current || lastDelta === 0) return
-      event.stopImmediatePropagation()
-      restoring = true
-      window.history.go(-lastDelta)
-      setPending({ kind: 'history', delta: lastDelta })
+      if (!dirtyRef.current) return
+      if (event.navigationType !== 'traverse') return
+      // Another document is for `beforeunload`; a traversal the browser does
+      // not let the page cancel cannot be held.
+      if (!event.destination.sameDocument || !event.cancelable) return
+      event.preventDefault()
+      setPending({ kind: 'history', key: event.destination.key })
     }
     document.addEventListener('click', onClick, true)
     window.addEventListener('beforeunload', onBeforeUnload)
-    if (navigation) {
-      navigation.addEventListener('currententrychange', onEntryChange)
-      window.addEventListener('popstate', onPopState, true)
-    }
+    navigation?.addEventListener('navigate', onNavigate)
     return () => {
       document.removeEventListener('click', onClick, true)
       window.removeEventListener('beforeunload', onBeforeUnload)
-      navigation?.removeEventListener('currententrychange', onEntryChange)
-      window.removeEventListener('popstate', onPopState, true)
+      navigation?.removeEventListener('navigate', onNavigate)
     }
-  }, [])
+  }, [rearm])
 
   const keepEditing = useCallback(() => setPending(null), [])
-  const allowNavigation = useCallback(() => {
-    allowed.current = true
-  }, [])
   const discard = useCallback(() => {
-    allowed.current = true
     const held = pending
     setPending(null)
-    if (held?.kind === 'link') router.push(held.href)
-    else if (held?.kind === 'history') window.history.go(held.delta)
-  }, [pending, router])
+    if (!held) return
+    allowOnce()
+    if (held.kind === 'link') {
+      router.push(held.href)
+      return
+    }
+    const traversal = getNavigation()?.traverseTo(held.key)
+    // The entry is gone (the history was cleared meanwhile): stay, and ask
+    // again next time.
+    traversal?.committed.catch(rearm)
+    traversal?.finished.catch(() => {})
+  }, [pending, router, allowOnce, rearm])
 
   return {
     pendingHref: pending?.kind === 'link' ? pending.href : null,
     pending: pending !== null,
     keepEditing,
     discard,
-    allowNavigation
+    allowNavigation: allowOnce
   }
 }
