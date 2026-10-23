@@ -28,13 +28,15 @@ const renderField = (
     </form>
   )
 
-// What the form would submit, in DOM order.
-const submitted = (container: HTMLElement) => {
-  const form = container.querySelector('form') as HTMLFormElement
-  return [...new FormData(form).entries()].map(
-    ([key, value]) => [key, String(value)] as const
-  )
-}
+// The rows on the page, top to bottom.
+const rowsOf = () =>
+  screen
+    .queryAllByLabelText(/^Field \d+ label$/)
+    .map((label, index) => [
+      (label as HTMLInputElement).value,
+      (screen.getByLabelText(`Field ${index + 1} content`) as HTMLInputElement)
+        .value
+    ])
 
 const chip = (name: string) => screen.getByRole('button', { name })
 
@@ -186,7 +188,7 @@ describe('ProfileFieldsField', () => {
     })
 
     it('allows the same chip twice and saves the label as typed', () => {
-      const { container } = renderField()
+      renderField()
 
       fireEvent.click(chip('Website'))
       fireEvent.change(screen.getByLabelText('Field 1 content'), {
@@ -201,11 +203,9 @@ describe('ProfileFieldsField', () => {
       })
 
       expect(screen.getByLabelText('Field 1 label')).toHaveValue('Website')
-      expect(submitted(container).slice(0, 4)).toEqual([
-        ['fields[0][name]', 'Website'],
-        ['fields[0][value]', 'https://a.example'],
-        ['fields[1][name]', 'My shop'],
-        ['fields[1][value]', 'https://b.example']
+      expect(rowsOf()).toEqual([
+        ['Website', 'https://a.example'],
+        ['My shop', 'https://b.example']
       ])
     })
 
@@ -229,66 +229,9 @@ describe('ProfileFieldsField', () => {
     })
   })
 
-  describe('form edits', () => {
-    it('tells the form about adding, moving and removing a row', () => {
-      const onInput = vi.fn()
-      const { container } = renderField([
-        { name: 'A', value: '1' },
-        { name: 'B', value: '2' }
-      ])
-      container.querySelector('form')?.addEventListener('input', onInput)
-
-      fireEvent.click(chip('Website'))
-      expect(onInput).toHaveBeenCalledTimes(1)
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Move field 2, B up' })
-      )
-      expect(onInput).toHaveBeenCalledTimes(2)
-      fireEvent.click(screen.getByRole('button', { name: 'Remove field 2, A' }))
-      expect(onInput).toHaveBeenCalledTimes(3)
-    })
-  })
-
-  describe('submitted fields', () => {
-    it.each([
-      ['no saved field', [], 0],
-      ['one saved field', [{ name: 'Blog', value: 'x' }], 1]
-    ])(
-      'always submits four pairs with %s, padding unused slots with empty values',
-      (_case, saved: Saved[], filled) => {
-        const { container } = renderField(saved)
-
-        expect(submitted(container)).toEqual(
-          [0, 1, 2, 3].flatMap((i) => [
-            [`fields[${i}][name]`, i < filled ? saved[i].name : ''],
-            [`fields[${i}][value]`, i < filled ? saved[i].value : '']
-          ])
-        )
-      }
-    )
-
-    it('still submits four empty pairs once every field is removed', () => {
-      const { container } = renderField([
-        { name: 'A', value: '1' },
-        { name: 'B', value: '2' }
-      ])
-
-      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, A' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Remove field 1, B' }))
-
-      const entries = submitted(container)
-      expect(entries).toHaveLength(8)
-      expect(entries.every(([, value]) => value === '')).toBe(true)
-      expect(entries.map(([key]) => key)).toEqual(
-        [0, 1, 2, 3].flatMap((i) => [
-          `fields[${i}][name]`,
-          `fields[${i}][value]`
-        ])
-      )
-    })
-
-    it('reorders the submitted names with Move up and Move down', () => {
-      const { container } = renderField([
+  describe('row order', () => {
+    it('reorders the rows with Move up and Move down', () => {
+      renderField([
         { name: 'A', value: '1' },
         { name: 'B', value: '2' },
         { name: 'C', value: '3' }
@@ -297,23 +240,16 @@ describe('ProfileFieldsField', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'Move field 3, C up' })
       )
-      expect(submitted(container).slice(0, 6)).toEqual([
-        ['fields[0][name]', 'A'],
-        ['fields[0][value]', '1'],
-        ['fields[1][name]', 'C'],
-        ['fields[1][value]', '3'],
-        ['fields[2][name]', 'B'],
-        ['fields[2][value]', '2']
+      expect(rowsOf()).toEqual([
+        ['A', '1'],
+        ['C', '3'],
+        ['B', '2']
       ])
 
       fireEvent.click(
         screen.getByRole('button', { name: 'Move field 1, A down' })
       )
-      expect(
-        submitted(container)
-          .filter(([key]) => key.endsWith('[name]'))
-          .map(([, value]) => value)
-      ).toEqual(['C', 'A', 'B', ''])
+      expect(rowsOf().map(([name]) => name)).toEqual(['C', 'A', 'B'])
     })
 
     it('disables Move up on the first row and Move down on the last', () => {
@@ -822,6 +758,116 @@ describe('ProfileFieldsField', () => {
       expect(
         within(preview()).queryByRole('img', { name: 'Verified' })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('for an editor that keeps the profile in its own state', () => {
+    const renderEditorField = (
+      props: Partial<ComponentProps<typeof ProfileFieldsField>> = {}
+    ) =>
+      render(
+        <form>
+          <ProfileFieldsField fields={[]} profileUrl={PROFILE_URL} {...props} />
+        </form>
+      )
+
+    it('reports the rows as they change, not the ones it starts with', () => {
+      const onRowsChange = vi.fn()
+      renderEditorField({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }],
+        onRowsChange
+      })
+      expect(onRowsChange).not.toHaveBeenCalled()
+
+      fireEvent.change(screen.getByLabelText('Field 1 content'), {
+        target: { value: 'https://blog.example/new' }
+      })
+      expect(onRowsChange).toHaveBeenLastCalledWith([
+        { name: 'Blog', value: 'https://blog.example/new' }
+      ])
+
+      fireEvent.click(chip('Website'))
+      expect(onRowsChange).toHaveBeenLastCalledWith([
+        { name: 'Blog', value: 'https://blog.example/new' },
+        { name: 'Website', value: '' }
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: /^Remove field 1/ }))
+      expect(onRowsChange).toHaveBeenLastCalledWith([
+        { name: 'Website', value: '' }
+      ])
+    })
+
+    it('can leave out its own preview', () => {
+      const { container } = renderEditorField({ showPreview: false })
+
+      expect(
+        container.querySelector('[data-slot="profile-fields-preview"]')
+      ).toBeNull()
+    })
+
+    it('keeps its preview by default', () => {
+      const { container } = renderEditorField()
+
+      expect(
+        container.querySelector('[data-slot="profile-fields-preview"]')
+      ).not.toBeNull()
+    })
+
+    it('says nothing about checks unless asked', () => {
+      renderEditorField({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }],
+        pendingValues: ['https://blog.example']
+      })
+
+      expect(
+        screen.queryByText('Checking for a link back to your profile…')
+      ).toBeNull()
+      expect(screen.getByText('Not verified')).toBeInTheDocument()
+    })
+
+    it('says a link changed or added and not saved yet is being checked', () => {
+      renderEditorField({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }],
+        showLinkChecks: true
+      })
+      expect(screen.getByText('Not verified')).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Field 1 content'), {
+        target: { value: 'https://blog.example/new' }
+      })
+      expect(
+        screen.getByText('Checking for a link back to your profile…')
+      ).toBeInTheDocument()
+    })
+
+    it('says a just-saved unverified link is being checked, and a verified one is verified', () => {
+      renderEditorField({
+        fields: [
+          { name: 'Blog', value: 'https://blog.example' },
+          {
+            name: 'Site',
+            value: 'https://site.example',
+            verifiedAt: 1700000000000
+          }
+        ],
+        showLinkChecks: true,
+        pendingValues: ['https://blog.example']
+      })
+
+      expect(
+        screen.getAllByText('Checking for a link back to your profile…')
+      ).toHaveLength(1)
+      expect(screen.getByText('Verified')).toBeInTheDocument()
+    })
+
+    it('gives plain text no link status', () => {
+      renderEditorField({
+        fields: [{ name: 'Pronouns', value: 'they/them' }],
+        showLinkChecks: true
+      })
+
+      expect(screen.queryByText(/Checking|Verified|Not verified/)).toBeNull()
     })
   })
 })

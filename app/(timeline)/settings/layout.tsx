@@ -4,11 +4,11 @@ import {
   Ban,
   Bell,
   Filter,
-  Hash,
   Image as ImageIcon,
   PanelLeft,
   Settings as SettingsIcon,
   SlidersHorizontal,
+  UserRound,
   VolumeX
 } from 'lucide-react'
 import { FC, ReactNode } from 'react'
@@ -30,6 +30,7 @@ interface Props {
 // section (they are account-level, shared across actors). Everything here is
 // specific to a single actor.
 const tabs: SectionNavTab[] = [
+  { name: 'Profile', url: '/settings/profile', icon: UserRound },
   { name: 'General', url: '/settings', icon: SettingsIcon },
   {
     name: 'Preferences',
@@ -37,11 +38,6 @@ const tabs: SectionNavTab[] = [
     icon: SlidersHorizontal
   },
   { name: 'Navigation', url: '/settings/navigation', icon: PanelLeft },
-  {
-    name: 'Featured hashtags',
-    url: '/settings/featured-hashtags',
-    icon: Hash
-  },
   { name: 'Media', url: '/settings/media', icon: ImageIcon },
   { name: 'Notifications', url: '/settings/notifications', icon: Bell },
   { name: 'Blocked accounts', url: '/settings/blocks', icon: Ban },

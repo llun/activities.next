@@ -22,6 +22,12 @@ interface Props {
   headingLevel?: HeadingLevel
   /** An anchor for the section, so a link can point at it (`#laps`). */
   id?: string
+  /**
+   * The heading's own id, so a control inside the section (a group with no
+   * label of its own) can name itself with `aria-labelledby`. Generated when
+   * left out.
+   */
+  headingId?: string
   className?: string
   /** Hides the whole section from assistive tech, e.g. a decorative placeholder. */
   'aria-hidden'?: boolean
@@ -43,11 +49,13 @@ export const Section: FC<Props> = ({
   description,
   headingLevel = 2,
   id,
+  headingId: headingIdProp,
   className,
   'aria-hidden': ariaHidden,
   children
 }) => {
-  const headingId = useId()
+  const generatedId = useId()
+  const headingId = headingIdProp ?? generatedId
   const Heading = `h${headingLevel}` as const
   return (
     <section

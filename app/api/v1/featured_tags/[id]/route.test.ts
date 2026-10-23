@@ -34,14 +34,14 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-const deleteRequest = (id: string) =>
-  new NextRequest(`https://llun.test/api/v1/featured_tags/${id}`, {
+const deleteRequest = (id: string, query = '') =>
+  new NextRequest(`https://llun.test/api/v1/featured_tags/${id}${query}`, {
     method: 'DELETE',
     headers: { host: 'llun.test', origin: 'https://llun.test' }
   })
 
-const invoke = (id: string) =>
-  DELETE(deleteRequest(id), { params: Promise.resolve({ id }) })
+const invoke = (id: string, query = '') =>
+  DELETE(deleteRequest(id, query), { params: Promise.resolve({ id }) })
 
 describe('DELETE /api/v1/featured_tags/:id', () => {
   const database = getTestSQLDatabase()
@@ -106,5 +106,42 @@ describe('DELETE /api/v1/featured_tags/:id', () => {
     })
     const response = await invoke('does-not-exist')
     expect(response.status).toBe(404)
+  })
+
+  it('returns 409 and deletes nothing when the expected actor differs', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const created = await database.createFeaturedTag({
+      actorId: ACTOR1_ID,
+      name: 'staledelete'
+    })
+
+    const response = await invoke(created.id, '?actorId=another-actor')
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'Actor changed' })
+    expect(
+      (await database.getFeaturedTags({ actorId: ACTOR1_ID })).find(
+        (tag) => tag.id === created.id
+      )
+    ).toBeDefined()
+  })
+
+  it('deletes when the expected actor is the current one', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const created = await database.createFeaturedTag({
+      actorId: ACTOR1_ID,
+      name: 'sameactordelete'
+    })
+
+    const response = await invoke(created.id, `?actorId=${ACTOR1_ID}`)
+    expect(response.status).toBe(200)
+    expect(
+      (await database.getFeaturedTags({ actorId: ACTOR1_ID })).find(
+        (tag) => tag.id === created.id
+      )
+    ).toBeUndefined()
   })
 })

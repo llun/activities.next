@@ -15,7 +15,8 @@ import Page from './page'
 
 const mockDatabase = {
   getFeaturedTags: vi.fn().mockResolvedValue([]),
-  getActorSettings: vi.fn().mockResolvedValue(undefined)
+  getActorSettings: vi.fn().mockResolvedValue(undefined),
+  getActorsForAccount: vi.fn().mockResolvedValue([])
 }
 
 vi.mock('@/lib/config', () => ({
@@ -59,12 +60,42 @@ vi.mock('./ActorTimelines', () => ({
   }
 }))
 
+// Radix draws the <img> only once the picture has loaded, which jsdom never
+// does; draw it at once so its alt text can be read.
+vi.mock('@/lib/components/ui/avatar', () => ({
+  Avatar: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  AvatarImage: (props: { src?: string; alt?: string }) =>
+    props.src ? <img data-testid="avatar-image" {...props} /> : null,
+  AvatarFallback: ({ children }: { children: React.ReactNode }) => (
+    <span>{children}</span>
+  )
+}))
+
 vi.mock('./ProfileHeaderImage', () => ({
   ProfileHeaderImage: () => <div data-testid="header-image" />
 }))
 
 vi.mock('./ProfileRelationshipActions', () => ({
   ProfileRelationshipActions: () => <div data-testid="relationship-actions" />
+}))
+
+vi.mock('@/lib/services/accounts/relationship', () => ({
+  getRelationship: vi.fn().mockResolvedValue(null)
+}))
+
+vi.mock('@/lib/types/domain/actor', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/types/domain/actor')>()),
+  getActorProfile: (actor: unknown) => actor
+}))
+
+vi.mock('./EditOwnedProfileButton', () => ({
+  EditOwnedProfileButton: (props: { actorId: string; handle: string }) => (
+    <button data-testid="edit-owned" data-actor-id={props.actorId}>
+      {props.handle}
+    </button>
+  )
 }))
 
 vi.mock('@/lib/services/mastodon/getMastodonFeaturedTag', () => ({
@@ -545,5 +576,217 @@ describe('[actor] page profile links', () => {
     expect(
       document.querySelector('[data-slot="profile-fields"]')
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('[actor] page edit profile entry points', () => {
+  const localPerson = (id: string, username: string) =>
+    ({
+      id,
+      type: 'Person',
+      preferredUsername: username,
+      name: username,
+      summary: ''
+    }) as unknown as Actor
+
+  const profile = (person: Actor, isInternalAccount: boolean) => ({
+    person,
+    profileFields: [],
+    statuses: [],
+    statusesCount: 0,
+    statusPagination: { nextPageUrl: null, prevPageUrl: null },
+    attachments: [],
+    followingCount: 0,
+    followersCount: 0,
+    isInternalAccount,
+    hasFitnessData: false,
+    hasGalleryMedia: false,
+    gallerySubviews: [],
+    isPixelfed: false
+  })
+
+  const active = {
+    id: 'https://llun.social/users/main',
+    account: { id: 'account-1' }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue(active as never)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockDatabase.getActorsForAccount.mockResolvedValue([])
+  })
+
+  const renderPage = async (handle: string) =>
+    render(await Page({ params: Promise.resolve({ actor: handle }) }))
+
+  it('links the own profile Edit profile button to /settings/profile', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(localPerson(active.id, 'main'), true)
+    )
+
+    await renderPage('@main@llun.social')
+
+    expect(screen.getByRole('link', { name: 'Edit profile' })).toHaveAttribute(
+      'href',
+      '/settings/profile'
+    )
+    expect(mockDatabase.getActorsForAccount).not.toHaveBeenCalled()
+  })
+
+  it('shows the owned-profile button for another actor of the account', async () => {
+    const other = localPerson('https://llun.social/users/side', 'side')
+    mockGetProfileData.mockResolvedValue(profile(other, true))
+    mockDatabase.getActorsForAccount.mockResolvedValue([
+      { id: active.id },
+      { id: other.id }
+    ])
+
+    await renderPage('@side@llun.social')
+
+    expect(mockDatabase.getActorsForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1'
+    })
+    const button = screen.getByTestId('edit-owned')
+    expect(button).toHaveAttribute('data-actor-id', other.id)
+    expect(button).toHaveTextContent('@side@llun.social')
+    expect(screen.queryByTestId('relationship-actions')).not.toBeInTheDocument()
+  })
+
+  it('keeps the relationship actions for a local actor of another account', async () => {
+    const other = localPerson('https://llun.social/users/stranger', 'stranger')
+    mockGetProfileData.mockResolvedValue(profile(other, true))
+    mockDatabase.getActorsForAccount.mockResolvedValue([{ id: active.id }])
+
+    await renderPage('@stranger@llun.social')
+
+    expect(screen.queryByTestId('edit-owned')).not.toBeInTheDocument()
+    expect(screen.getByTestId('relationship-actions')).toBeInTheDocument()
+  })
+
+  it('keeps the relationship actions for an owned actor pending deletion', async () => {
+    const other = localPerson('https://llun.social/users/side', 'side')
+    mockGetProfileData.mockResolvedValue(profile(other, true))
+    mockDatabase.getActorsForAccount.mockResolvedValue([
+      { id: other.id, deletionStatus: 'scheduled' }
+    ])
+
+    await renderPage('@side@llun.social')
+
+    expect(screen.queryByTestId('edit-owned')).not.toBeInTheDocument()
+    expect(screen.getByTestId('relationship-actions')).toBeInTheDocument()
+  })
+
+  it('does not read the account actors for a remote profile', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(localPerson('https://mastodon.social/users/bob', 'bob'), false)
+    )
+
+    await renderPage('@bob@mastodon.social')
+
+    expect(mockDatabase.getActorsForAccount).not.toHaveBeenCalled()
+    expect(screen.getByTestId('relationship-actions')).toBeInTheDocument()
+  })
+})
+
+describe('[actor] page avatar description', () => {
+  const person = (id: string) =>
+    ({
+      id,
+      type: 'Person',
+      preferredUsername: 'main',
+      name: 'Main',
+      summary: '',
+      icon: { type: 'Image', url: 'https://llun.social/api/v1/files/a.jpg' }
+    }) as unknown as Actor
+
+  const profile = (p: Actor, isInternalAccount: boolean) => ({
+    person: p,
+    profileFields: [],
+    statuses: [],
+    statusesCount: 0,
+    statusPagination: { nextPageUrl: null, prevPageUrl: null },
+    attachments: [],
+    followingCount: 0,
+    followersCount: 0,
+    isInternalAccount,
+    hasFitnessData: false,
+    hasGalleryMedia: false,
+    gallerySubviews: [],
+    isPixelfed: false
+  })
+
+  const viewer = {
+    id: 'https://llun.social/users/viewer',
+    account: { id: 'a' }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue(viewer as never)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockDatabase.getActorsForAccount.mockResolvedValue([])
+    mockDatabase.getActorSettings.mockResolvedValue(undefined)
+  })
+
+  const renderPage = async () =>
+    render(
+      await Page({ params: Promise.resolve({ actor: '@main@llun.social' }) })
+    )
+
+  it('uses the saved avatar description of a local profile as alt text', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://llun.social/users/main'), true)
+    )
+    mockDatabase.getActorSettings.mockImplementation(
+      async ({ actorId }: { actorId: string }) =>
+        actorId === 'https://llun.social/users/main'
+          ? { avatarDescription: ' A smiling woman ' }
+          : undefined
+    )
+
+    await renderPage()
+
+    expect(screen.getByTestId('avatar-image')).toHaveAttribute(
+      'alt',
+      'A smiling woman'
+    )
+  })
+
+  it('reads the viewer settings only once when it is their own profile', async () => {
+    mockGetProfileData.mockResolvedValue(profile(person(viewer.id), true))
+    mockDatabase.getActorSettings.mockResolvedValue({
+      avatarDescription: 'Me'
+    })
+
+    await renderPage()
+
+    expect(screen.getByTestId('avatar-image')).toHaveAttribute('alt', 'Me')
+    expect(mockDatabase.getActorSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the alt text empty without a saved description', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://llun.social/users/main'), true)
+    )
+    await renderPage()
+    expect(screen.getByTestId('avatar-image')).toHaveAttribute('alt', '')
+  })
+
+  it('does not read settings for a remote profile', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://mastodon.social/users/bob'), false)
+    )
+
+    await renderPage()
+
+    expect(mockDatabase.getActorSettings).toHaveBeenCalledTimes(1) // the viewer's
+    expect(screen.getByTestId('avatar-image')).toHaveAttribute('alt', '')
   })
 })

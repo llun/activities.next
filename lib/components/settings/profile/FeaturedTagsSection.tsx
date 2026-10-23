@@ -9,7 +9,6 @@ import {
   getFeaturedTags,
   removeFeaturedTag
 } from '@/lib/client'
-import { PageHeader } from '@/lib/components/page-header'
 import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -102,9 +101,10 @@ interface TagRowProps {
   tag: FeaturedTag
   onRemove: (tag: FeaturedTag) => void
   busy: boolean
+  disabled?: boolean
 }
 
-const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
+const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy, disabled = false }) => (
   <FramedListItem className="flex items-center gap-3">
     <HashTile />
     <div className="min-w-0 flex-1">
@@ -119,7 +119,7 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
       size="icon-sm"
       aria-label={`Remove #${tag.name}`}
       onClick={() => onRemove(tag)}
-      disabled={busy}
+      disabled={busy || disabled}
       className="shrink-0 border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
     >
       <X className="size-[15px]" />
@@ -127,7 +127,22 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
   </FramedListItem>
 )
 
-export const FeaturedTagsEditor: FC = () => {
+/**
+ * The Edit profile page's one "Featured hashtags" section
+ * (`id="featured-hashtags"`, so `/settings/profile#featured-hashtags` lands on
+ * it) with the add bar over the list. Adding and removing a tag saves at once;
+ * it never waits for the page's Save. Each save names the profile the page
+ * was loaded for; when the session has moved to another one the server
+ * refuses it (409) and `onActorChanged` lets the page say so.
+ */
+export const FeaturedTagsSection: FC<{
+  /** The profile this page was loaded for; the server refuses other ones. */
+  actorId: string
+  /** The session is on another profile now: nothing was saved. */
+  onActorChanged: () => void
+  /** The page is out of date: the add control and Remove buttons are off. */
+  disabled?: boolean
+}> = ({ actorId, onActorChanged, disabled = false }) => {
   const [loading, setLoading] = useState(true)
   const [tags, setTags] = useState<FeaturedTag[]>([])
   const [suggestions, setSuggestions] = useState<Tag[]>([])
@@ -227,8 +242,12 @@ export const FeaturedTagsEditor: FC = () => {
     }
 
     setSubmitting(true)
-    const result = await addFeaturedTag(name)
+    const result = await addFeaturedTag(name, actorId)
     setSubmitting(false)
+    if (result.actorChanged) {
+      onActorChanged()
+      return
+    }
     if (result.error || !result.tag) {
       setMessage({
         tone: 'error',
@@ -255,8 +274,12 @@ export const FeaturedTagsEditor: FC = () => {
 
   const remove = async (tag: FeaturedTag) => {
     setBusyId(tag.id)
-    const removed = await removeFeaturedTag(tag.id)
+    const { removed, actorChanged } = await removeFeaturedTag(tag.id, actorId)
     setBusyId(null)
+    if (actorChanged) {
+      onActorChanged()
+      return
+    }
     if (!removed) {
       setMessage({
         tone: 'error',
@@ -271,139 +294,139 @@ export const FeaturedTagsEditor: FC = () => {
     })
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Featured hashtags"
-        description="Feature up to 10 hashtags on your profile so visitors can browse your posts on the topics you post about most."
-      />
+  const countMeta = (
+    <span
+      className={cn('tabular-nums', atLimit && 'text-primary-text font-medium')}
+    >
+      {tags.length} of {FEATURED_TAGS_LIMIT} featured
+    </span>
+  )
 
-      <Section
-        icon={Plus}
-        title="Add a hashtag"
-        description="Type a hashtag or pick one of your most-used tags. People can tap it to see all of your posts with that tag."
-        meta={
-          <span
-            className={cn(
-              'tabular-nums',
-              atLimit && 'text-primary-text font-medium'
-            )}
-          >
-            {tags.length} of {FEATURED_TAGS_LIMIT} featured
-          </span>
+  const addBar = (
+    <div ref={wrapRef}>
+      <AddBar
+        label="Add a hashtag"
+        id="featured-tag-input"
+        prefix={<Hash className="size-[15px]" />}
+        buttonDisabled={atLimit || submitting || disabled}
+        inputRef={inputRef}
+        onSubmit={(event) => {
+          event.preventDefault()
+          commit(value)
+        }}
+        inputProps={{
+          value,
+          disabled: atLimit || submitting || disabled,
+          placeholder: atLimit
+            ? 'You’ve reached the 10-hashtag limit'
+            : 'Add a hashtag',
+          'aria-describedby': message ? INLINE_MESSAGE_ID : undefined,
+          onChange: (event) => {
+            setValue(event.target.value)
+            setOpen(true)
+            if (message) setMessage(null)
+          },
+          onFocus: () => setOpen(true),
+          onKeyDown: (event) => {
+            if (event.key === 'Escape') setOpen(false)
+          }
+        }}
+        dropdown={
+          open && !atLimit && visibleSuggestions.length > 0 ? (
+            <div className="absolute top-full right-0 left-0 z-40 mt-1 rounded-md border bg-popover p-1 shadow-lg">
+              <div className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
+                Your most-used hashtags
+              </div>
+              {visibleSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.name}
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    commit(suggestion.name)
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
+                >
+                  <Hash className="size-[15px] text-primary" />
+                  <span className="font-medium">#{suggestion.name}</span>
+                  <Plus className="ml-auto size-[15px] text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          ) : null
         }
       >
-        <div ref={wrapRef}>
-          <AddBar
-            label="Add a hashtag"
-            id="featured-tag-input"
-            prefix={<Hash className="size-[15px]" />}
-            buttonDisabled={atLimit || submitting}
-            inputRef={inputRef}
-            onSubmit={(event) => {
-              event.preventDefault()
-              commit(value)
-            }}
-            inputProps={{
-              value,
-              disabled: atLimit || submitting,
-              placeholder: atLimit
-                ? 'You’ve reached the 10-hashtag limit'
-                : 'Add a hashtag',
-              'aria-describedby': message ? INLINE_MESSAGE_ID : undefined,
-              onChange: (event) => {
-                setValue(event.target.value)
-                setOpen(true)
-                if (message) setMessage(null)
-              },
-              onFocus: () => setOpen(true),
-              onKeyDown: (event) => {
-                if (event.key === 'Escape') setOpen(false)
-              }
-            }}
-            dropdown={
-              open && !atLimit && visibleSuggestions.length > 0 ? (
-                <div className="absolute top-full right-0 left-0 z-40 mt-1 rounded-md border bg-popover p-1 shadow-lg">
-                  <div className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
-                    Your most-used hashtags
-                  </div>
-                  {visibleSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion.name}
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault()
-                        commit(suggestion.name)
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
-                    >
-                      <Hash className="size-[15px] text-primary" />
-                      <span className="font-medium">#{suggestion.name}</span>
-                      <Plus className="ml-auto size-[15px] text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
-              ) : null
-            }
-          >
-            <InlineMessageLine message={message} />
-            {atLimit && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                You can feature up to 10 hashtags. Remove one to add another.
-              </p>
-            )}
-          </AddBar>
-        </div>
-      </Section>
-
-      <Section
-        icon={Hash}
-        title="Your featured hashtags"
-        description="Shown on your profile in the order below. They link to your posts tagged with each hashtag."
-      >
-        {loading ? (
-          <Frame className="p-4">
-            <SkeletonRows
-              rows={3}
-              rowClassName="h-14"
-              label="Loading your featured hashtags"
-            />
-          </Frame>
-        ) : loadFailed ? (
-          <Alert title="Couldn’t load your featured hashtags" onRetry={load}>
-            Check your connection and try again.
-          </Alert>
-        ) : tags.length === 0 ? (
-          <EmptyState
-            icon={Hash}
-            title="No featured hashtags yet"
-            action={
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => inputRef.current?.focus()}
-              >
-                <Plus className="size-4" />
-                Add hashtag
-              </Button>
-            }
-          >
-            Add a hashtag above to show your best posts on a topic right from
-            your profile.
-          </EmptyState>
-        ) : (
-          <FramedList aria-label="Your featured hashtags">
-            {tags.map((tag) => (
-              <TagRow
-                key={tag.id}
-                tag={tag}
-                onRemove={remove}
-                busy={busyId === tag.id}
-              />
-            ))}
-          </FramedList>
+        <InlineMessageLine message={message} />
+        {atLimit && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            You can feature up to 10 hashtags. Remove one to add another.
+          </p>
         )}
-      </Section>
+      </AddBar>
     </div>
+  )
+
+  const list = (
+    <>
+      {loading ? (
+        <Frame className="p-4">
+          <SkeletonRows
+            rows={3}
+            rowClassName="h-14"
+            label="Loading your featured hashtags"
+          />
+        </Frame>
+      ) : loadFailed ? (
+        <Alert title="Couldn’t load your featured hashtags" onRetry={load}>
+          Check your connection and try again.
+        </Alert>
+      ) : tags.length === 0 ? (
+        <EmptyState
+          icon={Hash}
+          title="No featured hashtags yet"
+          action={
+            <Button
+              type="button"
+              size="sm"
+              disabled={disabled}
+              onClick={() => inputRef.current?.focus()}
+            >
+              <Plus className="size-4" />
+              Add hashtag
+            </Button>
+          }
+        >
+          Add a hashtag above to show your best posts on a topic right from your
+          profile.
+        </EmptyState>
+      ) : (
+        <FramedList aria-label="Your featured hashtags">
+          {tags.map((tag) => (
+            <TagRow
+              key={tag.id}
+              tag={tag}
+              onRemove={remove}
+              busy={busyId === tag.id}
+              disabled={disabled}
+            />
+          ))}
+        </FramedList>
+      )}
+    </>
+  )
+
+  return (
+    <Section
+      id="featured-hashtags"
+      title="Featured hashtags"
+      description="Tags you post about most, shown under your bio. Adding or removing one saves at once."
+      meta={countMeta}
+      className="scroll-mt-24"
+    >
+      <div className="space-y-3">
+        {addBar}
+        {list}
+      </div>
+    </Section>
   )
 }

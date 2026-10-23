@@ -36,6 +36,30 @@ interface Props {
   labelledBy?: string
   /** The actor's custom emoji, so the preview shows shortcodes as images. */
   tags?: CustomEmojiTextProps['tags']
+  /**
+   * Called with the rows (label and content, as typed) whenever they change, so
+   * an editor that keeps the profile in its own state can compare them with
+   * what was saved and draw a live preview. Not called for the rows it starts
+   * with.
+   */
+  onRowsChange?: (rows: { name: string; value: string }[]) => void
+  /**
+   * The "On your profile" preview under the rows. On by default; a page that
+   * draws its own live preview turns it off.
+   */
+  showPreview?: boolean
+  /**
+   * Show "Checking for a link back to your profile…" for a link that was
+   * changed or added and not saved yet, and for the links in `pendingValues`.
+   * The Edit profile page turns it on; the label is client-only state, the
+   * server does not say when a check is running.
+   */
+  showLinkChecks?: boolean
+  /**
+   * Link values (trimmed) that were just saved and have not been checked yet,
+   * so the page can say a check is on its way. Needs `showLinkChecks`.
+   */
+  pendingValues?: string[]
 }
 
 interface Row {
@@ -68,21 +92,24 @@ const TOUCH_SIZE = 'max-sm:size-11 pointer-coarse:size-11'
 const TOUCH_HEIGHT = 'max-sm:h-11 pointer-coarse:h-11'
 
 /**
- * The control column of the settings "Profile fields" row. Only filled or
- * added fields show as rows (0 to 4); suggestion chips add a row with its label
- * filled in. The form always submits four `fields[i][name]` / `fields[i][value]`
- * pairs in row order (unused slots as empty hidden inputs), because the server
- * keeps the stored fields when a form sends no field keys at all, so emptying
- * the list must still send something. A half-filled row blocks the native
- * submit through the browser's own validation and says why under the row; the
- * route checks the same rule again.
+ * The control column of the Edit profile page's "Profile fields" section. Only
+ * filled or added fields show as rows (0 to 4); suggestion chips add a row with
+ * its label filled in. It is a controlled-by-callback field, not a native form
+ * control: it reports the rows through `onRowsChange` and the page sends them as
+ * JSON with the rest of the profile. A half-filled row blocks the page's Save
+ * through the browser's own validation (`setCustomValidity`) and says why under
+ * the row; the route checks the same rule again.
  */
 export const ProfileFieldsField: FC<Props> = ({
   fields,
   profileUrl,
   describedBy,
   labelledBy,
-  tags
+  tags,
+  onRowsChange,
+  showPreview = true,
+  showLinkChecks = false,
+  pendingValues
 }) => {
   const chipsLabelId = useId()
   const nextId = useRef(0)
@@ -108,8 +135,6 @@ export const ProfileFieldsField: FC<Props> = ({
   const downRefs = useRef(new Map<number, HTMLButtonElement | null>())
   const firstChipRef = useRef<HTMLButtonElement | null>(null)
   const pendingFocus = useRef<PendingFocus | null>(null)
-  const groupRef = useRef<HTMLDivElement>(null)
-  const edited = useRef(false)
   // Safari and Firefox on macOS do not focus a button on click, so pressing a
   // row's own button blurs its input with no relatedTarget. This marks that
   // press so the blur is not mistaken for leaving the row. It holds the id of
@@ -131,13 +156,15 @@ export const ProfileFieldsField: FC<Props> = ({
     })
   }, [rows])
 
-  // Adding, moving and removing a row press buttons, which fire no `input` or
-  // `change` event, so tell the form (its save bar enables Save from those) once
-  // the rows are in the DOM.
+  const rowsChangeRef = useRef(onRowsChange)
+  rowsChangeRef.current = onRowsChange
+  const reportedRows = useRef(rows)
   useEffect(() => {
-    if (!edited.current) return
-    edited.current = false
-    groupRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
+    if (reportedRows.current === rows) return
+    reportedRows.current = rows
+    rowsChangeRef.current?.(
+      rows.map((row) => ({ name: row.name, value: row.value }))
+    )
   }, [rows])
 
   // Focus moves after the render that creates, moves or drops the row.
@@ -178,12 +205,10 @@ export const ProfileFieldsField: FC<Props> = ({
   const add = (name: string) => {
     if (rows.length >= PROFILE_FIELD_LIMIT) return
     const id = nextId.current++
-    edited.current = true
     pendingFocus.current = { kind: name ? 'value' : 'name', id }
     setRows([...rows, { id, name, value: '' }])
   }
   const remove = (index: number) => {
-    edited.current = true
     const next = rows[index + 1] ?? rows[index - 1]
     pendingFocus.current = next
       ? { kind: 'name', id: next.id }
@@ -193,7 +218,6 @@ export const ProfileFieldsField: FC<Props> = ({
   const move = (index: number, direction: 'up' | 'down') => {
     const other = direction === 'up' ? index - 1 : index + 1
     if (other < 0 || other >= rows.length) return
-    edited.current = true
     pendingFocus.current = { kind: 'move', id: rows[index].id, direction }
     const next = [...rows]
     ;[next[index], next[other]] = [next[other], next[index]]
@@ -221,15 +245,23 @@ export const ProfileFieldsField: FC<Props> = ({
           row.name,
           sanitizeText(formatProfileFieldValue(row.value))
         ).kind
-        // A status only for a content that is still a saved https value.
-        const hasStatus = saved.has(value)
+        // A status only for a content that is still a saved https value, or,
+        // with link checks on, a https value a check is running or about to run
+        // for: one just saved, or one changed or added and not saved yet.
+        const isLink = Boolean(getProfileFieldHttpsUrl(value))
+        const checking =
+          showLinkChecks &&
+          isLink &&
+          ((pendingValues ?? []).includes(value) || !saved.has(value))
+        const hasStatus = checking || saved.has(value)
         return {
           icon,
           hasStatus,
-          verifiedAt: hasStatus ? (saved.get(value) ?? null) : null
+          checking,
+          verifiedAt: hasStatus && !checking ? (saved.get(value) ?? null) : null
         }
       }),
-    [rows, saved]
+    [rows, saved, showLinkChecks, pendingValues]
   )
 
   const previewFields = rows.flatMap((row, index) =>
@@ -249,14 +281,9 @@ export const ProfileFieldsField: FC<Props> = ({
   const left = PROFILE_FIELD_LIMIT - rows.length
 
   return (
-    <div
-      ref={groupRef}
-      role="group"
-      aria-labelledby={labelledBy}
-      className="space-y-2"
-    >
+    <div role="group" aria-labelledby={labelledBy} className="space-y-2">
       {rows.map((row, index) => {
-        const { icon, hasStatus, verifiedAt } = rowViews[index]
+        const { icon, hasStatus, checking, verifiedAt } = rowViews[index]
         const Icon = PROFILE_FIELD_ICONS[icon]
         const invalid = shown.has(row.id) && isHalfFilled(row)
         const errorId = `profileField${index}Error`
@@ -321,7 +348,6 @@ export const ProfileFieldsField: FC<Props> = ({
                 }}
                 type="text"
                 id={index === 0 ? PROFILE_FIELDS_FIRST_CONTROL_ID : undefined}
-                name={`fields[${index}][name]`}
                 aria-label={`Field ${index + 1} label`}
                 placeholder="Label"
                 maxLength={PROFILE_FIELD_NAME_MAX_LENGTH}
@@ -342,7 +368,6 @@ export const ProfileFieldsField: FC<Props> = ({
                   valueRefs.current.set(row.id, node)
                 }}
                 type="text"
-                name={`fields[${index}][value]`}
                 aria-label={`Field ${index + 1} content`}
                 placeholder="https://… or text"
                 maxLength={PROFILE_FIELD_VALUE_MAX_LENGTH}
@@ -413,7 +438,11 @@ export const ProfileFieldsField: FC<Props> = ({
                 {verified ? (
                   <Check aria-hidden="true" className="size-3.5 shrink-0" />
                 ) : null}
-                {verified ? 'Verified' : 'Not verified'}
+                {checking
+                  ? 'Checking for a link back to your profile…'
+                  : verified
+                    ? 'Verified'
+                    : 'Not verified'}
               </p>
             ) : null}
             {invalid ? (
@@ -428,16 +457,6 @@ export const ProfileFieldsField: FC<Props> = ({
           </div>
         )
       })}
-      {/* Always four pairs, so removing every field clears them on save. */}
-      {Array.from(
-        { length: PROFILE_FIELD_LIMIT - rows.length },
-        (_, offset) => rows.length + offset
-      ).map((index) => (
-        <span key={`empty-${index}`} hidden>
-          <input type="hidden" name={`fields[${index}][name]`} value="" />
-          <input type="hidden" name={`fields[${index}][value]`} value="" />
-        </span>
-      ))}
       {left > 0 ? (
         <div className="space-y-2 pt-1">
           <p id={chipsLabelId} className="text-xs text-muted-foreground">
@@ -478,23 +497,25 @@ export const ProfileFieldsField: FC<Props> = ({
           </div>
         </div>
       ) : null}
-      <div
-        data-slot="profile-fields-preview"
-        className="rounded-lg border bg-background px-3.5 py-3"
-      >
-        <p className="text-xs font-semibold text-muted-foreground">
-          On your profile
-        </p>
-        {previewFields.length > 0 ? (
-          <div className="-mt-1">
-            <ProfileFieldsBlock fields={previewFields} tags={tags} />
-          </div>
-        ) : (
-          <p className="mt-1 text-sm text-muted-foreground">
-            Nothing to show yet.
+      {showPreview ? (
+        <div
+          data-slot="profile-fields-preview"
+          className="rounded-lg border bg-background px-3.5 py-3"
+        >
+          <p className="text-xs font-semibold text-muted-foreground">
+            On your profile
           </p>
-        )}
-      </div>
+          {previewFields.length > 0 ? (
+            <div className="-mt-1">
+              <ProfileFieldsBlock fields={previewFields} tags={tags} />
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nothing to show yet.
+            </p>
+          )}
+        </div>
+      ) : null}
       <p className="pt-1 text-xs text-muted-foreground">
         To get a check mark next to a link, add a link back to your profile with{' '}
         {'rel="me"'} on that page.

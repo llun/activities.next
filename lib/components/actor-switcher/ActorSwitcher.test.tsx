@@ -7,6 +7,10 @@ import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline'
+import {
+  isProfileUnloadAllowed,
+  setUnsavedProfileChanges
+} from '@/lib/components/settings/profile/unsavedProfileChanges'
 
 import { ActorSwitcher } from './ActorSwitcher'
 
@@ -169,6 +173,67 @@ describe('ActorSwitcher', () => {
           actorId: 'actor-2'
         })
         expect(window.location.reload).toHaveBeenCalled()
+      })
+    })
+
+    describe('with unsaved Edit profile changes', () => {
+      const pickBob = async () => {
+        render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
+        fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' })
+        await screen.findByRole('menu')
+        fireEvent.click(screen.getByText('Bob'))
+      }
+
+      afterEach(() => {
+        setUnsavedProfileChanges(false)
+        vi.restoreAllMocks()
+      })
+
+      it('does not switch when the person keeps editing', async () => {
+        setUnsavedProfileChanges(true)
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+        await pickBob()
+
+        expect(confirm).toHaveBeenCalled()
+        expect(switchActor).not.toHaveBeenCalled()
+      })
+
+      it('switches after the person agrees to discard', async () => {
+        setUnsavedProfileChanges(true)
+        vi.spyOn(window, 'confirm').mockReturnValue(true)
+        vi.mocked(switchActor).mockResolvedValue(true)
+        await pickBob()
+
+        expect(switchActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
+      })
+
+      it('lets the reload through after Discard, and asks again if the switch fails', async () => {
+        setUnsavedProfileChanges(true)
+        vi.spyOn(window, 'confirm').mockReturnValue(true)
+        vi.mocked(switchActor).mockResolvedValue(false)
+        await pickBob()
+
+        await screen.findByText('Failed to switch actor')
+        expect(isProfileUnloadAllowed()).toBe(false)
+      })
+
+      it('keeps the unload allowance while the switch goes ahead', async () => {
+        setUnsavedProfileChanges(true)
+        vi.spyOn(window, 'confirm').mockReturnValue(true)
+        vi.mocked(switchActor).mockResolvedValue(true)
+        await pickBob()
+
+        await waitFor(() => expect(window.location.reload).toHaveBeenCalled())
+        expect(isProfileUnloadAllowed()).toBe(true)
+      })
+
+      it('does not ask when nothing is unsaved', async () => {
+        const confirm = vi.spyOn(window, 'confirm')
+        vi.mocked(switchActor).mockResolvedValue(true)
+        await pickBob()
+
+        expect(confirm).not.toHaveBeenCalled()
+        expect(switchActor).toHaveBeenCalled()
       })
     })
 

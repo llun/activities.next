@@ -69,10 +69,20 @@ interface SaveBarProps {
    * Saved and the error still replace it. `edit` only.
    */
   idleNote?: ReactNode
+  /**
+   * The status text while the form has changes, "Unsaved changes" unless the
+   * form words it for its page ("You have unsaved changes"). `edit` only.
+   */
+  dirtyLabel?: string
   dirty?: boolean
   saving?: boolean
   saved?: boolean
   error?: string | null
+  /**
+   * Whether the error is announced (`role="alert"`). On by default. Turn it
+   * off when another alert on the page already says the same thing.
+   */
+  errorLive?: boolean
   /** Called when Save is pressed. Not needed with `submit`. */
   onSave?: () => void
   /**
@@ -81,6 +91,12 @@ interface SaveBarProps {
    * instead of `onSave`.
    */
   submit?: boolean
+  /**
+   * With `submit`, the `id` of a `<form>` the bar sits outside of (a sticky
+   * footer drawn apart from the form): Save submits that form, and Enter in
+   * its fields presses it.
+   */
+  formId?: string
   /**
    * Why Save is off although the form has changes ("Add a keyword to save").
    * Shown next to "Unsaved changes" (as muted status text on its own in the
@@ -118,12 +134,15 @@ export const SaveBar: FC<SaveBarProps> = ({
   actionLabel = 'Save',
   actionIcon: ActionIcon,
   idleNote,
+  dirtyLabel = 'Unsaved changes',
   dirty = false,
   saving = false,
   saved = false,
   error,
+  errorLive = true,
   onSave,
   submit = false,
+  formId,
   disabledReason,
   disabled = false,
   actions,
@@ -133,6 +152,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   const saveButton = (
     <Button
       type={submit ? 'submit' : 'button'}
+      form={submit ? formId : undefined}
       onClick={submit ? undefined : onSave}
       disabled={
         saving || disabled || (!isCreate && !dirty) || Boolean(disabledReason)
@@ -171,7 +191,10 @@ export const SaveBar: FC<SaveBarProps> = ({
             </p>
           ) : null
         ) : error ? (
-          <p role="alert" className="text-destructive-text break-words">
+          <p
+            role={errorLive ? 'alert' : undefined}
+            className="text-destructive-text break-words"
+          >
             {error}
           </p>
         ) : (
@@ -186,7 +209,7 @@ export const SaveBar: FC<SaveBarProps> = ({
                   aria-hidden="true"
                   className="bg-primary size-2 shrink-0 rounded-full"
                 />
-                Unsaved changes
+                {dirtyLabel}
                 {disabledReason ? <span>· {disabledReason}</span> : null}
               </>
             ) : saved ? (

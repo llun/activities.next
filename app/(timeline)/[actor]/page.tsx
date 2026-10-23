@@ -35,6 +35,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
 import { ActorTimelines } from './ActorTimelines'
+import { EditOwnedProfileButton } from './EditOwnedProfileButton'
 import { ProfileCover } from './ProfileCover'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
@@ -192,6 +193,30 @@ const Page: FC<Props> = async ({ params }) => {
         })
       : null
 
+  // A local profile of the signed-in account that is not the active actor gets
+  // "Edit profile" in place of the relationship actions: the button switches to
+  // it first. Remote profiles and the active actor never read the account's
+  // actors, and a profile whose deletion is scheduled or running is left out.
+  const accountId = currentActor?.account?.id
+  const isOwnedInactiveProfile =
+    isInternalAccount &&
+    !isCurrentUser &&
+    Boolean(accountId) &&
+    (await database.getActorsForAccount({ accountId: accountId! })).some(
+      (accountActor) =>
+        accountActor.id === person.id && !accountActor.deletionStatus
+    )
+
+  // The avatar's saved description is the image's alt text. Only a local
+  // profile has one; it is the active actor's own settings when that is the
+  // profile shown (already read above).
+  const avatarDescription = isInternalAccount
+    ? (isCurrentUser
+        ? actorSettings
+        : await database.getActorSettings({ actorId: person.id })
+      )?.avatarDescription?.trim()
+    : undefined
+
   const initials = getInitials(person.name || '', person.preferredUsername)
   // The full `@user@domain`, qualified with the domain this profile was
   // resolved under — the one in the URL, which is the actor's own domain on a
@@ -326,7 +351,10 @@ const Page: FC<Props> = async ({ params }) => {
 
         <div className="relative px-4">
           <Avatar className="relative -mt-14 size-20 border-4 border-background">
-            <AvatarImage src={iconImageUrl || undefined} />
+            <AvatarImage
+              src={iconImageUrl || undefined}
+              alt={avatarDescription || ''}
+            />
             {/* The 4px border takes the avatar's content box down to 72px, so
                 the shared 42cqw initial would come out 30px; the Avatar board
                 draws the 80px monogram at 34. */}
@@ -360,8 +388,13 @@ const Page: FC<Props> = async ({ params }) => {
             </div>
             {isCurrentUser ? (
               <Button variant="outline" asChild className="shrink-0">
-                <Link href="/settings">Edit profile</Link>
+                <Link href="/settings/profile">Edit profile</Link>
               </Button>
+            ) : isOwnedInactiveProfile ? (
+              <EditOwnedProfileButton
+                actorId={person.id}
+                handle={profileHandle}
+              />
             ) : (
               <ProfileRelationshipActions
                 targetActorId={person.id}

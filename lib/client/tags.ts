@@ -25,10 +25,18 @@ export const getFeaturedTags = async (): Promise<FeaturedTag[]> => {
 export interface AddFeaturedTagResult {
   tag?: FeaturedTag
   error?: string
+  /** The session is on another profile than `actorId`; nothing was saved. */
+  actorChanged?: boolean
 }
 
+/**
+ * Features a hashtag. `actorId` is the profile the page was loaded for: the
+ * server answers 409 (`actorChanged`) and saves nothing when the session is
+ * on another one. Leave it out for the plain Mastodon behaviour.
+ */
 export const addFeaturedTag = async (
-  name: string
+  name: string,
+  actorId?: string
 ): Promise<AddFeaturedTagResult> => {
   try {
     const response = await fetch('/api/v1/featured_tags', {
@@ -36,11 +44,17 @@ export const addFeaturedTag = async (
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ name })
+      body: JSON.stringify(actorId === undefined ? { name } : { name, actorId })
     })
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as {
         error?: string
+      }
+      if (response.status === 409) {
+        return {
+          error: data.error || 'Actor changed',
+          actorChanged: true
+        }
       }
       return { error: data.error || 'Failed to feature hashtag' }
     }
@@ -54,10 +68,22 @@ export const addFeaturedTag = async (
   }
 }
 
-export const removeFeaturedTag = async (id: string): Promise<boolean> => {
+export interface RemoveFeaturedTagResult {
+  removed: boolean
+  /** The session is on another profile than `actorId`; nothing was removed. */
+  actorChanged?: boolean
+}
+
+/** Unfeatures a hashtag; `actorId` works as in `addFeaturedTag`. */
+export const removeFeaturedTag = async (
+  id: string,
+  actorId?: string
+): Promise<RemoveFeaturedTagResult> => {
   try {
+    const query =
+      actorId === undefined ? '' : `?actorId=${encodeURIComponent(actorId)}`
     const response = await fetch(
-      `/api/v1/featured_tags/${encodeURIComponent(id)}`,
+      `/api/v1/featured_tags/${encodeURIComponent(id)}${query}`,
       {
         method: 'DELETE',
         headers: {
@@ -65,10 +91,11 @@ export const removeFeaturedTag = async (id: string): Promise<boolean> => {
         }
       }
     )
-    return response.ok
+    if (response.status === 409) return { removed: false, actorChanged: true }
+    return { removed: response.ok }
   } catch {
     // Network failure — report as not-removed instead of rejecting.
-    return false
+    return { removed: false }
   }
 }
 

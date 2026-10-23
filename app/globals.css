@@ -464,6 +464,16 @@
       );
     }
 
+    /* The Edit profile page adds its own sticky bar (Cancel, title, Save,
+       about 53px) under the compact bar: pad for both. */
+    html:has([data-mobile-compact-header]):has(
+        [data-slot='profile-editor-phone-bar']
+      ) {
+      scroll-padding-top: calc(
+        env(safe-area-inset-top, 0px) + 7.5rem + var(--status-strip-h, 0px)
+      );
+    }
+
     html:has([data-floating-nav-trigger]) {
       scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4.75rem);
     }

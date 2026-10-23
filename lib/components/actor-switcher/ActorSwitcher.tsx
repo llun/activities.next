@@ -8,6 +8,10 @@ import { useEffect, useRef, useState } from 'react'
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import {
+  confirmDiscardProfileChanges,
+  revokeProfileUnloadAllowance
+} from '@/lib/components/settings/profile/unsavedProfileChanges'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
@@ -68,6 +72,9 @@ export function ActorSwitcher({
     const actor = actors.find((a) => a.id === actorId)
     if (actor?.deletionStatus) return
 
+    // Before the session changes, so Keep editing leaves everything as it was.
+    if (!confirmDiscardProfileChanges()) return
+
     setIsSwitching(true)
     setError(null)
     try {
@@ -82,9 +89,11 @@ export function ActorSwitcher({
         // Use hard navigation to ensure full page reload with new actor
         window.location.reload()
       } else {
+        revokeProfileUnloadAllowance()
         setError('Failed to switch actor')
       }
     } catch (err) {
+      revokeProfileUnloadAllowance()
       setError(err instanceof Error ? err.message : 'Failed to switch actor')
     } finally {
       setIsSwitching(false)

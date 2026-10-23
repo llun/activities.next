@@ -82,10 +82,10 @@ describe('Settings Layout', () => {
 
     const menu = await screen.findByRole('menu')
     for (const label of [
+      'Profile',
       'General',
       'Preferences',
       'Navigation',
-      'Featured hashtags',
       'Media',
       'Notifications',
       'Blocked accounts',
@@ -96,6 +96,31 @@ describe('Settings Layout', () => {
         within(menu).getByRole('menuitem', { name: label })
       ).toBeInTheDocument()
     }
+  })
+
+  it('lists Profile first and no longer lists Featured hashtags', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    const items = within(menu).getAllByRole('menuitem')
+    expect(items[0]).toHaveTextContent('Profile')
+    expect(items[0]).toHaveAttribute('href', '/settings/profile')
+    expect(items[1]).toHaveTextContent('General')
+    expect(
+      within(menu).queryByRole('menuitem', { name: 'Featured hashtags' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('reflects the Profile tab in the dropdown trigger on the editor page', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings/profile')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    expect(within(nav).getByRole('button')).toHaveTextContent('Profile')
   })
 
   it('marks the active section as current in the opened dropdown', async () => {

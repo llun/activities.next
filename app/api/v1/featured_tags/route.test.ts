@@ -167,4 +167,32 @@ describe('featured_tags collection endpoints', () => {
     })
     expect(response.status).toBe(422)
   })
+
+  it('features the tag when the expected actor is the current one', async () => {
+    const response = await POST(
+      postRequest({ name: 'sameactor', actorId: ACTOR1_ID }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it('ignores an actorId that is not a string', async () => {
+    const response = await POST(postRequest({ name: 'numactor', actorId: 5 }), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+  })
+
+  it('returns 409 and writes nothing when the expected actor differs', async () => {
+    const response = await POST(
+      postRequest({ name: 'staletab', actorId: 'another-actor' }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'Actor changed' })
+    const tags = await database.getFeaturedTags({ actorId: ACTOR1_ID })
+    expect(tags.find((tag) => tag.name.toLowerCase() === 'staletab')).toBe(
+      undefined
+    )
+  })
 })

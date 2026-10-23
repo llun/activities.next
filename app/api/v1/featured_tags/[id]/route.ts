@@ -4,7 +4,12 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  HTTP_STATUS,
+  apiCorsError,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
@@ -30,6 +35,19 @@ export const DELETE = traceApiRoute(
       const { database, currentActor, params } = context
       const id = (await params).id
       if (!id) return apiCorsError(req, CORS_HEADERS, 400)
+
+      // The Edit profile page names the profile it was loaded for in
+      // `?actorId=`; Mastodon clients do not. A different current profile is a
+      // 409 before anything is deleted.
+      const expectedActorId = new URL(req.url).searchParams.get('actorId')
+      if (expectedActorId !== null && expectedActorId !== currentActor.id) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Actor changed' },
+          responseStatusCode: HTTP_STATUS.CONFLICT
+        })
+      }
 
       const removed = await database.deleteFeaturedTag({
         actorId: currentActor.id,

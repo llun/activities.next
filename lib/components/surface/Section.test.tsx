@@ -105,4 +105,18 @@ describe('Section', () => {
       'laps'
     )
   })
+
+  it('puts a given headingId on the heading, so a control inside can name itself', () => {
+    render(
+      <Section title="Profile fields" headingId="fields-heading">
+        <div role="group" aria-labelledby="fields-heading" />
+      </Section>
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Profile fields' })
+    ).toHaveAttribute('id', 'fields-heading')
+    expect(
+      screen.getByRole('group', { name: 'Profile fields' })
+    ).toBeInTheDocument()
+  })
 })

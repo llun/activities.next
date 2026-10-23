@@ -836,6 +836,44 @@ describe('PATCH /api/v1/accounts/profile', () => {
     })
   })
 
+  describe('actorId', () => {
+    it('saves when it is the session actor', async () => {
+      const response = await patch({
+        actorId: mockCurrentActor.id,
+        name: 'Anna'
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+    })
+
+    it('answers 409 and writes and publishes nothing for another actor', async () => {
+      const response = await patch({
+        actorId: 'https://llun.test/users/other',
+        name: 'Anna'
+      })
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({ error: 'Actor changed' })
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('saves as before when it is absent', async () => {
+      const response = await patch({ name: 'Anna' })
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+    })
+
+    it('writes nothing when it is the only key', async () => {
+      const response = await patch({ actorId: mockCurrentActor.id })
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+    })
+  })
+
   it('writes nothing for an empty body', async () => {
     const response = await patch({})
 

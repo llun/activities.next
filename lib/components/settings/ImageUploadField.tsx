@@ -3,18 +3,12 @@
 import { Loader2, Upload, X } from 'lucide-react'
 import { FC, SyntheticEvent, useEffect, useRef, useState } from 'react'
 
-import { uploadAttachment } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
+import { uploadProfileImage } from '@/lib/components/settings/uploadProfileImage'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import {
-  ACCEPTED_IMAGE_TYPES,
-  MAX_HEIGHT,
-  MAX_WIDTH
-} from '@/lib/services/medias/constants'
-import { formatFileSize } from '@/lib/utils/formatFileSize'
-import { resizeImage } from '@/lib/utils/resizeImage'
+import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 
 interface ImageUploadFieldProps {
   fieldName: 'iconUrl' | 'headerImageUrl'
@@ -106,51 +100,18 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
     // Reset error state
     setUploadError(null)
 
-    // Validate file type
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setUploadError('Please select a JPEG or PNG image')
-      // Reset file input to allow re-selection
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-      return
-    }
-
-    try {
-      setIsUploading(true)
-
-      // Resize image
-      const resizedFile = await resizeImage(file, MAX_WIDTH, MAX_HEIGHT)
-
-      // Validate the size of what is actually uploaded. Checking the original
-      // would reject a large photo that resizing brings comfortably under a
-      // lowered cap.
-      if (resizedFile.size > maxMediaFileSize) {
-        // The enclosing finally clears the uploading flag and the file input.
-        setUploadError(
-          `Image is too large. Maximum size is ${formatFileSize(maxMediaFileSize)}`
-        )
-        return
-      }
-
-      // Upload file
-      const result = await uploadAttachment(resizedFile)
-
-      if (!result) {
-        setUploadError('Failed to upload image. Please try again.')
-        return
-      }
-
+    setIsUploading(true)
+    const result = await uploadProfileImage(file, maxMediaFileSize)
+    if (result.error !== undefined) {
+      setUploadError(result.error)
+    } else {
       // Update image URL with uploaded URL
       setImageUrl(result.url)
-    } catch {
-      setUploadError('Failed to upload image. Please try again.')
-    } finally {
-      setIsUploading(false)
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+    }
+    setIsUploading(false)
+    // Reset file input to allow re-selection
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 

@@ -21,6 +21,31 @@ const renderBar = (props: Partial<Parameters<typeof SaveBar>[0]> = {}) => {
 }
 
 describe('SaveBar', () => {
+  it('shows the error as an alert, or without the role when errorLive is off', () => {
+    const { rerender } = render(
+      <SaveBar
+        dirty
+        saving={false}
+        saved={false}
+        error="Nope"
+        onSave={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Nope')
+    rerender(
+      <SaveBar
+        dirty
+        saving={false}
+        saved={false}
+        error="Nope"
+        errorLive={false}
+        onSave={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('Nope')).toBeVisible()
+  })
+
   it('has a disabled Save button while the form is clean', () => {
     renderBar()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
@@ -68,6 +93,23 @@ describe('SaveBar with a disabledReason', () => {
     expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
     expect(screen.getByText(/Add a keyword to save/)).toBeInTheDocument()
     expect(screen.queryByText('No unsaved changes')).toBeNull()
+  })
+})
+
+describe('SaveBar with a dirtyLabel', () => {
+  it('words the status for the page while the form has changes', () => {
+    renderBar({ dirty: true, dirtyLabel: 'You have unsaved changes' })
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'You have unsaved changes'
+    )
+    expect(screen.queryByText('Unsaved changes')).toBeNull()
+  })
+
+  it('does not use it once the form is clean', () => {
+    renderBar({ dirty: false, dirtyLabel: 'You have unsaved changes' })
+
+    expect(screen.getByText('No unsaved changes')).toBeVisible()
   })
 })
 

@@ -66,10 +66,11 @@ export const POST = traceApiRoute(
     } = parsed.data
 
     // Only a URL shaped like one this instance serves its own media from — a
-    // host and path check, not a lookup. The form always
-    // submits both fields, so an empty one is the user clearing the image
-    // rather than a partial update — `parseProfileImageUrl` answers null for it
-    // and `updateActor` reads that as an explicit clear.
+    // host and path check, not a lookup. An absent field is left alone (the
+    // General form no longer sends the images, Edit profile saves them through
+    // PATCH), while an empty one is the user clearing the image —
+    // `parseProfileImageUrl` answers null for it and `updateActor` reads that
+    // as an explicit clear.
     // The actor's stored values are passed so a form resubmitting one it did
     // not change is treated as "no change" rather than re-validated — see
     // `parseProfileImageUrl`, where the single settings form makes that
@@ -170,6 +171,10 @@ const NAME_MAX_LENGTH = 255
 const SUMMARY_MAX_LENGTH = 500
 
 const ProfilePatchRequest = z.object({
+  // The actor the editor was loaded for. When it is not the session's current
+  // actor any more (switched in another tab or the switcher), nothing is saved.
+  // Absent for callers that do not care.
+  actorId: z.string().optional(),
   // The length caps are checked below, and only against a value that differs
   // from the stored one, so an untouched long bio can be saved again.
   name: z.string().optional(),
@@ -235,7 +240,19 @@ export const PATCH = traceApiRoute(
           : 'Invalid request'
       )
     }
-    const { fields: submittedFields, ...rest } = parsed.data
+    const {
+      actorId: expectedActorId,
+      fields: submittedFields,
+      ...rest
+    } = parsed.data
+    if (expectedActorId !== undefined && expectedActorId !== currentActor.id) {
+      return apiResponse({
+        req,
+        allowedMethods: ['PATCH'],
+        data: { error: 'Actor changed' },
+        responseStatusCode: HTTP_STATUS.CONFLICT
+      })
+    }
 
     // The guard's actor is a partial one (no links, discovery flags or
     // attribution domains), so validate and echo against the stored actor. This
@@ -288,7 +305,7 @@ export const PATCH = traceApiRoute(
     if (profileFields?.status === 'invalid') return invalid('Invalid fields')
 
     // An empty body (or one of unknown keys only) writes nothing.
-    const hasChange = Object.keys(parsed.data).length > 0
+    const hasChange = Object.keys(parsed.data).some((key) => key !== 'actorId')
 
     let saved: Actor = before
     if (hasChange) {
