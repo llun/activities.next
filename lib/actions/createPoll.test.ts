@@ -1,7 +1,9 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
+import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { addStatusToTimelines } from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -55,6 +57,50 @@ describe('Create poll action', () => {
   })
 
   describe('createPollFromUserInput', () => {
+    it('fails as a kept post when the discard of a failed create fails', async () => {
+      vi.mocked(addStatusToTimelines).mockRejectedValueOnce(
+        new Error('timeline write failed')
+      )
+      vi.spyOn(database, 'discardUnpublishedStatus').mockRejectedValueOnce(
+        new Error('database gone')
+      )
+      await expect(
+        createPollFromUserInput({
+          text: 'Kept poll after a failed discard',
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          idempotency: { key: 'kept-poll', contentHash: 'hash-kept-poll' }
+        })
+      ).rejects.toBeInstanceOf(StatusPublishFailedError)
+      const statuses = await database.getActorStatuses({ actorId: actor1.id })
+      expect(
+        findPoll(statuses, 'Kept poll after a failed discard')
+      ).toBeDefined()
+    })
+
+    it('discards a failed create and fails with its error', async () => {
+      vi.mocked(addStatusToTimelines).mockRejectedValueOnce(
+        new Error('timeline write failed')
+      )
+      await expect(
+        createPollFromUserInput({
+          text: 'Discarded poll',
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          idempotency: {
+            key: 'discarded-poll',
+            contentHash: 'hash-discarded-poll'
+          }
+        })
+      ).rejects.toThrow('timeline write failed')
+      const statuses = await database.getActorStatuses({ actorId: actor1.id })
+      expect(findPoll(statuses, 'Discarded poll')).toBeUndefined()
+    })
+
     it('creates a poll with correct recipients', async () => {
       const createdPoll = await createPollFromUserInput({
         text: 'What is your favorite color?',

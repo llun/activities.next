@@ -240,6 +240,9 @@ export const POST = traceApiRoute(
           responseStatusCode: 422
         })
       }
+      // Set once the post exists: a failure after it must not reach the 400
+      // below, which tells the client nothing was kept.
+      let statusSaved = false
       try {
         const content = await parseStatusRequestBody(req)
         const parsed = NoteSchema.safeParse(content)
@@ -274,6 +277,7 @@ export const POST = traceApiRoute(
             idempotency
           })
           if (existingStatus) {
+            statusSaved = true
             const existingMastodonStatus = await getMastodonStatus(
               database,
               existingStatus,
@@ -606,19 +610,16 @@ export const POST = traceApiRoute(
             data: ERROR_422,
             responseStatusCode: 422
           })
+        statusSaved = true
 
         const mastodonStatus = await getMastodonStatus(
           database,
           status,
           currentActor.id
         )
-        if (!mastodonStatus)
-          return apiResponse({
-            req,
-            allowedMethods: CORS_HEADERS,
-            data: ERROR_500,
-            responseStatusCode: 500
-          })
+        if (!mastodonStatus) {
+          throw new Error('The saved status could not be serialized')
+        }
 
         return apiResponse({
           req,
@@ -650,12 +651,25 @@ export const POST = traceApiRoute(
             responseStatusCode: 409
           })
         }
-        // The post is saved; a retry with the same key sends it.
-        if (error instanceof StatusPublishFailedError) {
+        // The post is saved; a retry with the same key sends it (or answers
+        // with it). The client locks the draft under its key on a 503, where a
+        // 400 would let an edit post it again under a new key.
+        if (error instanceof StatusPublishFailedError || statusSaved) {
+          if (!(error instanceof StatusPublishFailedError)) {
+            logger.error(
+              { err: toLoggableError(error) },
+              'createStatus: request failed after the status was saved'
+            )
+          }
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: { error: error.message },
+            data: {
+              error: (error instanceof StatusPublishFailedError
+                ? error
+                : new StatusPublishFailedError(Boolean(idempotencyKey))
+              ).message
+            },
             responseStatusCode: 503
           })
         }

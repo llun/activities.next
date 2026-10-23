@@ -337,43 +337,50 @@ export const resolveExistingIdempotentStatus = async ({
   })
 }
 
-// Undoes a create whose completion steps failed before its job was queued, so
-// a retry (with the same Idempotency-Key, if any) creates the post afresh. A
-// post whose key a retry has taken over (and sent) is kept as it was left.
-// When the discard itself fails, the status and its 'pending' key remain: a
-// retry gets 409 until the key is IDEMPOTENCY_PENDING_STALE_MS old, then sends
-// the post as it was left.
+// Undoes a create whose completion steps failed with `error` before its job
+// was queued, and returns the error the request fails with. A discarded post
+// fails with `error`, and a retry (with the same Idempotency-Key, if any)
+// creates it afresh. A post that stays fails with StatusPublishFailedError, so
+// the client keeps its key instead of posting it again: one whose key a retry
+// has taken over (and sent) is kept as it was left, and when the discard
+// itself fails the status and its 'pending' key remain (a retry gets 409 until
+// the key is IDEMPOTENCY_PENDING_STALE_MS old, then sends the post as it was
+// left).
 export const discardFailedStatusCreate = async ({
   database,
   actorId,
   statusId,
-  idempotency
+  idempotency,
+  error
 }: {
   database: Database
   actorId: string
   statusId: string
   idempotency?: { key: string }
-}): Promise<void> => {
+  error: unknown
+}): Promise<unknown> => {
   try {
     const discarded = await database.discardUnpublishedStatus({
       actorId,
       statusId,
       idempotencyKey: idempotency?.key
     })
-    if (!discarded) {
-      logger.warn({
-        message:
-          'Kept a status whose create failed: a retry with its Idempotency-Key already sent it',
-        statusId
-      })
-    }
-  } catch (error) {
-    logger.error({
-      message: 'Failed to discard a status whose create failed',
+    if (discarded) return error
+    logger.warn({
+      message:
+        'Kept a status whose create failed: a retry with its Idempotency-Key already sent it',
       statusId,
       err: toLoggableError(error)
     })
+  } catch (discardError) {
+    logger.error({
+      message: 'Failed to discard a status whose create failed',
+      statusId,
+      err: toLoggableError(discardError),
+      cause: toLoggableError(error)
+    })
   }
+  return new StatusPublishFailedError(Boolean(idempotency))
 }
 
 const getNotificationEligibleActorIds = async (
@@ -1030,13 +1037,13 @@ export const createNoteFromUserInput = async ({
         }
         status = hydratedStatus
       } catch (error) {
-        await discardFailedStatusCreate({
+        throw await discardFailedStatusCreate({
           database,
           actorId: currentActor.id,
           statusId,
-          idempotency
+          idempotency,
+          error
         })
-        throw error
       }
 
       // After every completion step, so a discarded post was never counted,

@@ -335,7 +335,9 @@ describe('idempotent status lookup', () => {
     await expect(retry('slow-fails')).resolves.toMatchObject({ id: statusId })
 
     emojis.reject(new Error('Emoji lookup failed'))
-    await expect(create).rejects.toThrow('Emoji lookup failed')
+    // The post stays, so the request fails as a kept post (503), never as the
+    // route's 400, which would let the client post it again under a new key.
+    await expect(create).rejects.toBeInstanceOf(StatusPublishFailedError)
 
     expect(mockPublish).toHaveBeenCalledTimes(1)
     await expect(
@@ -344,6 +346,46 @@ describe('idempotent status lookup', () => {
     await expect(stateOf('slow-fails')).resolves.toBe('complete')
     await expect(retry('slow-fails')).resolves.toMatchObject({ id: statusId })
     expect(mockPublish).toHaveBeenCalledTimes(1)
+  })
+
+  const failingCreate = (name: string) => {
+    vi.spyOn(database, 'getCustomEmojis').mockRejectedValueOnce(
+      new Error('Emoji lookup failed')
+    )
+    return database.getActorFromId({ id: actorId }).then((actor) =>
+      createNoteFromUserInput({
+        text: name,
+        currentActor: actor as Actor,
+        idempotency: { key: name, contentHash: `hash-${name}` },
+        database
+      })
+    )
+  }
+
+  it('discards a create whose completion step fails and fails with that error', async () => {
+    await expect(failingCreate('discarded-create')).rejects.toThrow(
+      'Emoji lookup failed'
+    )
+    await expect(
+      database.getIdempotencyKey({ actorId, key: 'discarded-create' })
+    ).resolves.toBeNull()
+  })
+
+  it('fails as a kept post when the discard of a failed create fails', async () => {
+    vi.spyOn(database, 'discardUnpublishedStatus').mockRejectedValueOnce(
+      new Error('database gone')
+    )
+    await expect(failingCreate('kept-create')).rejects.toBeInstanceOf(
+      StatusPublishFailedError
+    )
+    const claim = await database.getIdempotencyKey({
+      actorId,
+      key: 'kept-create'
+    })
+    expect(claim).toMatchObject({ state: 'pending' })
+    await expect(
+      database.getStatus({ statusId: claim!.statusId, withReplies: false })
+    ).resolves.toMatchObject({ id: claim!.statusId })
   })
 
   it('queues the job once for concurrent retries of a failed publish, and marks the key complete only once the queue accepts it', async () => {
