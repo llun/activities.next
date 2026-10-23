@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { sql } from 'kysely'
 
 import {
   createActorPublicIdReader,
@@ -10,6 +11,8 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { holdTransaction } from '@/lib/database/testing/heldTransaction'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
@@ -28,7 +31,7 @@ describe('ActorDatabase', () => {
     await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(table)('%s', (_, database) => {
+  describe.each(table)('%s', (backend, database) => {
     // publicIds are minted at insert and random per run, so expectations read
     // them back off the stored row instead of hard-coding a literal.
     const getActorPublicId = createActorPublicIdReader(database)
@@ -265,7 +268,11 @@ describe('ActorDatabase', () => {
 
         // Either save may take the lock first, but the second must see the
         // first one's write as its `before`; a read outside the lock would
-        // give 'Orig->A' and 'Orig->B'.
+        // give 'Orig->A' and 'Orig->B'. This reliably catches a read outside
+        // the transaction on SQLite, where the transaction owns the one
+        // connection. On PostgreSQL the two saves rarely overlap, so it
+        // seldom catches a read moved before the lock; the next test covers
+        // that ordering.
         expect(results[0].after?.name).toBe('A')
         expect(results[1].after?.name).toBe('B')
         const firsts = results.filter(({ before }) => before?.name === 'Orig')
@@ -273,6 +280,72 @@ describe('ActorDatabase', () => {
         const second = results.find((result) => result !== firsts[0])
         expect(second?.before?.name).toBe(firsts[0].after?.name)
       })
+
+      it.runIf(backend === 'pg')(
+        'updateActorWithPrevious reads its before snapshot only after the actor row lock is granted',
+        async () => {
+          const username = `update-held-${crypto.randomUUID().slice(0, 8)}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          await createSigningAccount(database, username)
+          await database.updateActor({ actorId, name: 'Orig' })
+
+          // A second pool on this worker's database (no prepare, no migrate):
+          // one connection holds the lock, another polls for the wait.
+          const raw = createTestDatabase({ backend: 'pg' })
+          const held = await holdTransaction(raw.db)
+          let pending:
+            ReturnType<typeof database.updateActorWithPrevious> | undefined
+          try {
+            await held.trx
+              .selectFrom('actors')
+              .select('id')
+              .where('id', '=', actorId)
+              .forUpdate()
+              .executeTakeFirstOrThrow()
+            await held.trx
+              .updateTable('actors')
+              .set({ name: 'Held' })
+              .where('id', '=', actorId)
+              .execute()
+
+            pending = database.updateActorWithPrevious({ actorId, name: 'B' })
+            // The save is waiting once a backend of this database waits on a
+            // lock; nothing else here takes one.
+            const deadline = Date.now() + 5000
+            for (;;) {
+              const { rows } = await sql<{ waiting: number }>`
+                select count(*)::int as waiting
+                from pg_stat_activity
+                where datname = current_database()
+                  and wait_event_type = 'Lock'
+                  and pid <> pg_backend_pid()
+              `.execute(raw.db)
+              if (rows[0].waiting > 0) break
+              if (Date.now() > deadline) {
+                throw new Error(
+                  'updateActorWithPrevious never waited for the actor row lock'
+                )
+              }
+              await new Promise((resolve) => setTimeout(resolve, 20))
+            }
+            await held.commit()
+          } catch (error) {
+            await held.rollback()
+            throw error
+          } finally {
+            // Settle the save before the pool goes, so a failed run leaves no
+            // dangling query.
+            await pending?.catch(() => undefined)
+            await raw.destroy()
+          }
+
+          const { before, after } = await (pending as NonNullable<
+            typeof pending
+          >)
+          expect(before?.name).toBe('Held')
+          expect(after?.name).toBe('B')
+        }
+      )
 
       it('updateActorWithPrevious returns null for both when the actor does not exist', async () => {
         const result = await database.updateActorWithPrevious({
