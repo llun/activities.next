@@ -55,9 +55,12 @@ import {
   reconcileDraft,
   toDraft
 } from './profileDraft'
+import { setUnsavedProfileChanges } from './unsavedProfileChanges'
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
 
 interface Props {
+  /** The actor this page was loaded for; a save for any other is refused. */
+  actorId: string
   /** The profile as it is saved now. */
   profile: SavedProfile
   username: string
@@ -110,6 +113,7 @@ const FIELD_ERROR_CLASS = 'text-destructive-text mt-1 text-xs'
  * the page is clean after a save and dirty again only for a later edit.
  */
 export const ProfileEditor: FC<Props> = ({
+  actorId,
   profile,
   username,
   handle,
@@ -134,10 +138,18 @@ export const ProfileEditor: FC<Props> = ({
     useState<ProfileFieldName | null>(null)
   const [toastId, setToastId] = useState<number | null>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  // The session moved to another profile while this page stayed open.
+  const [actorChanged, setActorChanged] = useState(false)
 
   const changedKeys = getChangedKeys(draft, saved)
   const dirty = changedKeys.length > 0
   const guard = useUnsavedChangesGuard(dirty)
+
+  // Tells the actor switcher, which asks before it changes the session.
+  useEffect(() => {
+    setUnsavedProfileChanges(dirty)
+    return () => setUnsavedProfileChanges(false)
+  }, [dirty])
   const uploading = uploads.avatar || uploads.header
   const hasError = Object.keys(errors).length > 0
 
@@ -204,7 +216,10 @@ export const ProfileEditor: FC<Props> = ({
     setSaving(true)
     setErrors({})
     try {
-      const result = await updateProfile(buildProfilePatch(sent, before))
+      const result = await updateProfile({
+        ...buildProfilePatch(sent, before),
+        actorId
+      })
       setPendingLinks((current) =>
         mergePendingLinks(current, getPendingLinkValues(before, result), result)
       )
@@ -218,6 +233,10 @@ export const ProfileEditor: FC<Props> = ({
       if (switched) router.replace(EDIT_PROFILE_PATH)
       else router.refresh()
     } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 409) {
+        setActorChanged(true)
+        return
+      }
       const message =
         error instanceof Error && error.message
           ? error.message
@@ -328,6 +347,24 @@ export const ProfileEditor: FC<Props> = ({
           description={`${handle} · Everything here is public and is sent to servers that follow you when you save.`}
         />
       </div>
+
+      {actorChanged ? (
+        <Alert
+          title="Couldn’t save your profile"
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </Button>
+          }
+        >
+          You switched to another profile, so this page is out of date. Reload
+          to edit the profile you’re using now.
+        </Alert>
+      ) : null}
 
       {errors.form ? (
         <div ref={alertRef} tabIndex={-1} className="outline-none">

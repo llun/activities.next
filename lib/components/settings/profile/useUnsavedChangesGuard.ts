@@ -19,8 +19,8 @@ export interface UnsavedChangesGuard {
    * Lets the next navigation through without asking, for a page that leaves
    * on purpose after the changes were already confirmed away (Cancel). It ends
    * with the first navigation to another path, after a few seconds if none
-   * started, or when the changes are edited again, so it cannot stay off while
-   * the page is still here with unsaved changes.
+   * started, or when a clean page becomes unsaved again, so it cannot stay off
+   * while the page is still here with unsaved changes.
    */
   allowNavigation: () => void
 }
@@ -120,7 +120,7 @@ export const useUnsavedChangesGuard = (dirty: boolean): UnsavedChangesGuard => {
     allowTimer.current = null
   }, [])
   // Lets one move through. It ends with the first navigation to another path,
-  // or when the window runs out without one, or when the person edits again.
+  // or when the window runs out without one, or when a clean page becomes unsaved again.
   const allowOnce = useCallback(() => {
     allowed.current = true
     disarmTimer()
@@ -136,6 +136,9 @@ export const useUnsavedChangesGuard = (dirty: boolean): UnsavedChangesGuard => {
 
   useEffect(() => {
     if (dirty) rearm()
+    // A way out that was held back is moot once nothing is unsaved (a save
+    // finished while the question was open).
+    else setPending(null)
   }, [dirty, rearm])
 
   useEffect(() => disarmTimer, [disarmTimer])

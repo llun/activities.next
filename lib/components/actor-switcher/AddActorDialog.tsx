@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { createActor, getActorDomains, switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline/offlineDb'
+import { confirmDiscardProfileChanges } from '@/lib/components/settings/profile/unsavedProfileChanges'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
@@ -102,6 +103,9 @@ export function AddActorDialog({
       usernameInputRef.current?.focus()
       return
     }
+
+    // The new actor becomes the session's, so ask before it is created.
+    if (!confirmDiscardProfileChanges()) return
 
     const currentRequestId = ++createRequestIdRef.current
     setIsLoading(true)

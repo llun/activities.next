@@ -60,6 +60,7 @@ vi.mock('@/lib/components/instance-limits', () => ({
 const mockUpdateProfile = updateProfile as jest.Mock
 const mockUpload = uploadAttachment as jest.Mock
 
+const ACTOR_ID = 'https://llun.test/users/anna'
 const PROFILE_URL = 'https://llun.test/@anna'
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
 
@@ -84,6 +85,7 @@ const renderEditor = (
 ) =>
   render(
     <ProfileEditor
+      actorId={ACTOR_ID}
       {...extra}
       profile={profile}
       username="anna"
@@ -325,7 +327,10 @@ describe('ProfileEditor', () => {
       fireEvent.click(saveButton())
 
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenCalledWith({ summary: 'New bio' })
+        expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
+          summary: 'New bio'
+        })
       )
       expect(mockUpdateProfile).toHaveBeenCalledTimes(1)
       const toast = await screen.findByTestId('profile-saved-toast')
@@ -351,7 +356,10 @@ describe('ProfileEditor', () => {
       type(bio(), 'Two')
       fireEvent.click(saveButton())
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenLastCalledWith({ summary: 'Two' })
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith({
+          actorId: ACTOR_ID,
+          summary: 'Two'
+        })
       )
 
       await waitFor(() =>
@@ -378,6 +386,7 @@ describe('ProfileEditor', () => {
 
       await waitFor(() =>
         expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
           showFitness: false,
           fields: [{ name: 'Website', value: 'https://anna.example' }]
         })
@@ -392,7 +401,10 @@ describe('ProfileEditor', () => {
       fireEvent.click(saveButton())
 
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenCalledWith({ showGallery: false })
+        expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
+          showGallery: false
+        })
       )
     })
 
@@ -404,7 +416,10 @@ describe('ProfileEditor', () => {
       fireEvent.click(saveButton())
 
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenCalledWith({ iconUrl: null })
+        expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
+          iconUrl: null
+        })
       )
     })
 
@@ -547,6 +562,34 @@ describe('ProfileEditor', () => {
       expect(region).toHaveAttribute('role', 'alert')
     })
 
+    it('tells the person to reload when the profile in use has changed, and keeps the edit unsaved', async () => {
+      mockUpdateProfile.mockRejectedValue(
+        new ApiRequestError('Actor changed', 409)
+      )
+      const reload = vi.fn()
+      vi.stubGlobal('location', { ...window.location, reload })
+      renderEditor()
+
+      type(bio(), 'New bio')
+      fireEvent.click(saveButton())
+
+      expect(
+        await screen.findByText(/You switched to another profile/)
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId('profile-saved-toast')).toBeNull()
+      expect(refresh).not.toHaveBeenCalled()
+      expect(bio()).toHaveValue('New bio')
+      expect(saveButton()).toBeEnabled()
+
+      // The notice stays through further typing.
+      type(bio(), 'Newer bio')
+      fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
+      expect(reload).toHaveBeenCalled()
+      expect(
+        screen.getByText(/You switched to another profile/)
+      ).toBeInTheDocument()
+    })
+
     it('shows any other failure as an Alert above the page', async () => {
       mockUpdateProfile.mockRejectedValue(new ApiRequestError('Not found', 404))
       renderEditor()
@@ -635,6 +678,7 @@ describe('ProfileEditor', () => {
       fireEvent.click(saveButton())
       await waitFor(() =>
         expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
           headerImageUrl: MEDIA_URL
         })
       )
@@ -674,6 +718,7 @@ describe('ProfileEditor', () => {
 
       await waitFor(() =>
         expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
           avatarDescription: 'A smiling woman'
         })
       )
@@ -689,7 +734,10 @@ describe('ProfileEditor', () => {
       type(bio(), 'First')
       fireEvent.click(saveButton())
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenCalledWith({ summary: 'First' })
+        expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
+          summary: 'First'
+        })
       )
       type(bio(), 'First and more')
       type(name(), 'Anna K')
@@ -706,6 +754,7 @@ describe('ProfileEditor', () => {
       fireEvent.click(saveButton())
       await waitFor(() =>
         expect(mockUpdateProfile).toHaveBeenLastCalledWith({
+          actorId: ACTOR_ID,
           name: 'Anna K',
           summary: 'First and more'
         })
@@ -767,6 +816,7 @@ describe('ProfileEditor', () => {
       fireEvent.click(saveButton())
       await waitFor(() =>
         expect(mockUpdateProfile).toHaveBeenLastCalledWith({
+          actorId: ACTOR_ID,
           summary: 'Sent bio, then more'
         })
       )
@@ -824,7 +874,10 @@ describe('ProfileEditor', () => {
       fireEvent.submit(name().closest('form') as HTMLFormElement)
 
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenCalledWith({ name: 'Anna K' })
+        expect(mockUpdateProfile).toHaveBeenCalledWith({
+          actorId: ACTOR_ID,
+          name: 'Anna K'
+        })
       )
     })
 
@@ -1013,7 +1066,10 @@ describe('ProfileEditor', () => {
       type(name(), 'Anna K')
       fireEvent.click(saveButton())
       await waitFor(() =>
-        expect(mockUpdateProfile).toHaveBeenLastCalledWith({ name: 'Anna K' })
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith({
+          actorId: ACTOR_ID,
+          name: 'Anna K'
+        })
       )
 
       await waitFor(() => expect(saveButton()).toBeDisabled())

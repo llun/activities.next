@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import { confirmDiscardProfileChanges } from '@/lib/components/settings/profile/unsavedProfileChanges'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
@@ -67,6 +68,9 @@ export function ActorSwitcher({
     // Check if actor is pending deletion
     const actor = actors.find((a) => a.id === actorId)
     if (actor?.deletionStatus) return
+
+    // Before the session changes, so Keep editing leaves everything as it was.
+    if (!confirmDiscardProfileChanges()) return
 
     setIsSwitching(true)
     setError(null)

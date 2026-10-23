@@ -26,6 +26,11 @@ export type SavedProfile = {
 // The JSON body of `PATCH /api/v1/accounts/profile`; every key is optional and
 // an absent key leaves the stored value alone. A null image URL clears it.
 export type UpdateProfileInput = {
+  /**
+   * The actor the page was loaded for; the server refuses with 409 when the
+   * session has moved to another one.
+   */
+  actorId?: string
   name?: string
   summary?: string
   fields?: { name: string; value: string }[]

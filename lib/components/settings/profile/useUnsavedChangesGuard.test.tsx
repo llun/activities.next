@@ -99,7 +99,17 @@ describe('useUnsavedChangesGuard', () => {
       window.history.replaceState(null, '', '/')
     })
 
-    it('asks again when the person edits after a move that did not leave', () => {
+    it('closes the question when the changes are saved while it is open', () => {
+      const { rerender } = render(<Harness dirty />)
+      fireEvent.click(screen.getByRole('link', { name: 'In app' }))
+      expect(screen.getByRole('status')).toHaveTextContent('/elsewhere')
+
+      rerender(<Harness dirty={false} />)
+
+      expect(screen.getByRole('status')).toHaveTextContent('none')
+    })
+
+    it('asks again when a clean page becomes unsaved after a move that did not leave', () => {
       const { rerender } = render(<Harness dirty />)
       fireEvent.click(screen.getByRole('link', { name: 'In app' }))
       fireEvent.click(screen.getByRole('button', { name: 'Discard' }))

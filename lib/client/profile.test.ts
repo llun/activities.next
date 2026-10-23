@@ -43,6 +43,22 @@ describe('profile client module', () => {
       )
     })
 
+    it('sends the actor the page was loaded for and surfaces a 409', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Actor changed' }), {
+        status: 409
+      })
+
+      const error = await updateProfile({ actorId: 'a1', name: 'x' }).catch(
+        (e) => e
+      )
+
+      expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+        actorId: 'a1',
+        name: 'x'
+      })
+      expect(error).toMatchObject({ message: 'Actor changed', status: 409 })
+    })
+
     it('throws an ApiRequestError with the server message and status', async () => {
       fetchMock.mockResponseOnce(JSON.stringify({ error: 'Invalid fields' }), {
         status: 422

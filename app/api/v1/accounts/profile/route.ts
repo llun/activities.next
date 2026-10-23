@@ -171,6 +171,10 @@ const NAME_MAX_LENGTH = 255
 const SUMMARY_MAX_LENGTH = 500
 
 const ProfilePatchRequest = z.object({
+  // The actor the editor was loaded for. When it is not the session's current
+  // actor any more (switched in another tab or the switcher), nothing is saved.
+  // Absent for callers that do not care.
+  actorId: z.string().optional(),
   // The length caps are checked below, and only against a value that differs
   // from the stored one, so an untouched long bio can be saved again.
   name: z.string().optional(),
@@ -236,7 +240,19 @@ export const PATCH = traceApiRoute(
           : 'Invalid request'
       )
     }
-    const { fields: submittedFields, ...rest } = parsed.data
+    const {
+      actorId: expectedActorId,
+      fields: submittedFields,
+      ...rest
+    } = parsed.data
+    if (expectedActorId !== undefined && expectedActorId !== currentActor.id) {
+      return apiResponse({
+        req,
+        allowedMethods: ['PATCH'],
+        data: { error: 'Actor changed' },
+        responseStatusCode: HTTP_STATUS.CONFLICT
+      })
+    }
 
     // The guard's actor is a partial one (no links, discovery flags or
     // attribution domains), so validate and echo against the stored actor. This
@@ -289,7 +305,7 @@ export const PATCH = traceApiRoute(
     if (profileFields?.status === 'invalid') return invalid('Invalid fields')
 
     // An empty body (or one of unknown keys only) writes nothing.
-    const hasChange = Object.keys(parsed.data).length > 0
+    const hasChange = Object.keys(parsed.data).some((key) => key !== 'actorId')
 
     let saved: Actor = before
     if (hasChange) {

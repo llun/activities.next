@@ -75,6 +75,7 @@ const Page = async ({ searchParams }: Props) => {
       {switched ? <SwitchedNotice handle={handle} /> : null}
       <ProfileEditor
         key={actor.id}
+        actorId={actor.id}
         profile={saved}
         switched={switched}
         username={actor.username}
