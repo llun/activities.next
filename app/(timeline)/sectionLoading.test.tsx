@@ -9,7 +9,6 @@ import SecurityLoading from './account/security/loading'
 import SessionsLoading from './account/sessions/loading'
 import VerifyEmailLoading from './account/verify-email/loading'
 import BlocksLoading from './settings/blocks/loading'
-import FeaturedHashtagsLoading from './settings/featured-hashtags/loading'
 import FiltersLoading from './settings/filters/loading'
 import SettingsLoading from './settings/loading'
 import MediaLoading from './settings/media/loading'
@@ -32,7 +31,6 @@ describe.each([
   ['settings/blocks', BlocksLoading],
   ['settings/mutes', MutesLoading],
   ['settings/media', MediaLoading],
-  ['settings/featured-hashtags', FeaturedHashtagsLoading],
   ['account', AccountLoading],
   ['account/security', SecurityLoading],
   ['account/sessions', SessionsLoading],

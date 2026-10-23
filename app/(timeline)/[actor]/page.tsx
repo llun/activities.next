@@ -35,6 +35,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
 import { ActorTimelines } from './ActorTimelines'
+import { EditOwnedProfileButton } from './EditOwnedProfileButton'
 import { ProfileCover } from './ProfileCover'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
@@ -191,6 +192,20 @@ const Page: FC<Props> = async ({ params }) => {
           targetActorId: person.id
         })
       : null
+
+  // A local profile of the signed-in account that is not the active actor gets
+  // "Edit profile" in place of the relationship actions: the button switches to
+  // it first. Remote profiles and the active actor never read the account's
+  // actors, and a profile whose deletion is scheduled or running is left out.
+  const accountId = currentActor?.account?.id
+  const isOwnedInactiveProfile =
+    isInternalAccount &&
+    !isCurrentUser &&
+    Boolean(accountId) &&
+    (await database.getActorsForAccount({ accountId: accountId! })).some(
+      (accountActor) =>
+        accountActor.id === person.id && !accountActor.deletionStatus
+    )
 
   const initials = getInitials(person.name || '', person.preferredUsername)
   // The full `@user@domain`, qualified with the domain this profile was
@@ -360,8 +375,13 @@ const Page: FC<Props> = async ({ params }) => {
             </div>
             {isCurrentUser ? (
               <Button variant="outline" asChild className="shrink-0">
-                <Link href="/settings">Edit profile</Link>
+                <Link href="/settings/profile">Edit profile</Link>
               </Button>
+            ) : isOwnedInactiveProfile ? (
+              <EditOwnedProfileButton
+                actorId={person.id}
+                handle={profileHandle}
+              />
             ) : (
               <ProfileRelationshipActions
                 targetActorId={person.id}

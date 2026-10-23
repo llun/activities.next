@@ -1671,7 +1671,16 @@ legacy shape left to copy.
   outside the page's `<form>` because its add bar is a form of its own, and
   never makes the page dirty. The page sets the `?switched=1` Alert ("Switched
   to @handle. You're now posting as this profile.") above the editor, for the
-  button that switches to another profile you own. `useUnsavedChangesGuard`
+  button that switches to another profile you own: `EditOwnedProfileButton`
+  (`app/(timeline)/[actor]/`) shows "Edit profile" on a local profile of the
+  signed-in account that is not the active actor (and not pending deletion,
+  found with `getActorsForAccount`, read only for such profiles), calls
+  `switchActor` and `setActiveOfflineSession` like the actor switcher (the
+  latter's failure ignored), and loads `/settings/profile?switched=1` with a
+  full navigation; a failed switch shows an `Alert` and stays. The own
+  profile's "Edit profile" button links to `/settings/profile`, and
+  `/settings/featured-hashtags` is a server redirect to
+  `/settings/profile#featured-hashtags`. `useUnsavedChangesGuard`
   holds back in-app link clicks (a capture-phase click listener) behind a
   "Discard changes?" `ConfirmDialog` and asks the browser through
   `beforeunload`; it reads the dirty state when the click or unload happens, and

@@ -1,31 +1,10 @@
-import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { FeaturedTagsEditor } from './FeaturedTagsEditor'
-
+// The timeline layout reads the config and database, so this is never
+// prerendered.
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Featured hashtags'
-}
-
-const Page = async () => {
-  const database = getDatabase()
-  if (!database) {
-    throw new Error('Failed to load database')
-  }
-
-  const session = await getServerAuthSession()
-  const actor = await getActorFromSession(database, session)
-  if (!actor || !actor.account) {
-    return redirect('/auth/signin')
-  }
-
-  return <FeaturedTagsEditor />
-}
+// Featured hashtags live in the Edit profile page now.
+const Page = () => redirect('/settings/profile#featured-hashtags')
 
 export default Page
