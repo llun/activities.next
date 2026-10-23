@@ -17,12 +17,14 @@ import MutesLoading from './settings/mutes/loading'
 import NavigationLoading from './settings/navigation/loading'
 import NotificationsLoading from './settings/notifications/loading'
 import PreferencesLoading from './settings/preferences/loading'
+import ProfileLoading from './settings/profile/loading'
 
 // Every Settings and Account route draws its final layout while it loads: the
 // section headings and frame outlines as shimmer bars, with one polite
 // "Loading" for assistive tech and no text on screen.
 describe.each([
   ['settings', SettingsLoading],
+  ['settings/profile', ProfileLoading],
   ['settings/preferences', PreferencesLoading],
   ['settings/navigation', NavigationLoading],
   ['settings/notifications', NotificationsLoading],

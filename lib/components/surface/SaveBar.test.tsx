@@ -71,6 +71,23 @@ describe('SaveBar with a disabledReason', () => {
   })
 })
 
+describe('SaveBar with a dirtyLabel', () => {
+  it('words the status for the page while the form has changes', () => {
+    renderBar({ dirty: true, dirtyLabel: 'You have unsaved changes' })
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'You have unsaved changes'
+    )
+    expect(screen.queryByText('Unsaved changes')).toBeNull()
+  })
+
+  it('does not use it once the form is clean', () => {
+    renderBar({ dirty: false, dirtyLabel: 'You have unsaved changes' })
+
+    expect(screen.getByText('No unsaved changes')).toBeVisible()
+  })
+})
+
 describe('SaveBar with an actionLabel and an idleNote', () => {
   it('labels the edit button and shows the note while clean', () => {
     const { onSave } = renderBar({

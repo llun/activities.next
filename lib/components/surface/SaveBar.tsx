@@ -69,6 +69,11 @@ interface SaveBarProps {
    * Saved and the error still replace it. `edit` only.
    */
   idleNote?: ReactNode
+  /**
+   * The status text while the form has changes, "Unsaved changes" unless the
+   * form words it for its page ("You have unsaved changes"). `edit` only.
+   */
+  dirtyLabel?: string
   dirty?: boolean
   saving?: boolean
   saved?: boolean
@@ -118,6 +123,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   actionLabel = 'Save',
   actionIcon: ActionIcon,
   idleNote,
+  dirtyLabel = 'Unsaved changes',
   dirty = false,
   saving = false,
   saved = false,
@@ -186,7 +192,7 @@ export const SaveBar: FC<SaveBarProps> = ({
                   aria-hidden="true"
                   className="bg-primary size-2 shrink-0 rounded-full"
                 />
-                Unsaved changes
+                {dirtyLabel}
                 {disabledReason ? <span>· {disabledReason}</span> : null}
               </>
             ) : saved ? (

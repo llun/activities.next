@@ -824,4 +824,114 @@ describe('ProfileFieldsField', () => {
       ).not.toBeInTheDocument()
     })
   })
+
+  describe('for an editor that keeps the profile in its own state', () => {
+    const renderEditorField = (
+      props: Partial<ComponentProps<typeof ProfileFieldsField>> = {}
+    ) =>
+      render(
+        <form>
+          <ProfileFieldsField fields={[]} profileUrl={PROFILE_URL} {...props} />
+        </form>
+      )
+
+    it('reports the rows as they change, not the ones it starts with', () => {
+      const onRowsChange = vi.fn()
+      renderEditorField({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }],
+        onRowsChange
+      })
+      expect(onRowsChange).not.toHaveBeenCalled()
+
+      fireEvent.change(screen.getByLabelText('Field 1 content'), {
+        target: { value: 'https://blog.example/new' }
+      })
+      expect(onRowsChange).toHaveBeenLastCalledWith([
+        { name: 'Blog', value: 'https://blog.example/new' }
+      ])
+
+      fireEvent.click(chip('Website'))
+      expect(onRowsChange).toHaveBeenLastCalledWith([
+        { name: 'Blog', value: 'https://blog.example/new' },
+        { name: 'Website', value: '' }
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: /^Remove field 1/ }))
+      expect(onRowsChange).toHaveBeenLastCalledWith([
+        { name: 'Website', value: '' }
+      ])
+    })
+
+    it('can leave out its own preview', () => {
+      const { container } = renderEditorField({ showPreview: false })
+
+      expect(
+        container.querySelector('[data-slot="profile-fields-preview"]')
+      ).toBeNull()
+    })
+
+    it('keeps its preview by default', () => {
+      const { container } = renderEditorField()
+
+      expect(
+        container.querySelector('[data-slot="profile-fields-preview"]')
+      ).not.toBeNull()
+    })
+
+    it('says nothing about checks unless asked', () => {
+      renderEditorField({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }],
+        pendingValues: ['https://blog.example']
+      })
+
+      expect(
+        screen.queryByText('Checking for a link back to your profile…')
+      ).toBeNull()
+      expect(screen.getByText('Not verified')).toBeInTheDocument()
+    })
+
+    it('says a link changed or added and not saved yet is being checked', () => {
+      renderEditorField({
+        fields: [{ name: 'Blog', value: 'https://blog.example' }],
+        showLinkChecks: true
+      })
+      expect(screen.getByText('Not verified')).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Field 1 content'), {
+        target: { value: 'https://blog.example/new' }
+      })
+      expect(
+        screen.getByText('Checking for a link back to your profile…')
+      ).toBeInTheDocument()
+    })
+
+    it('says a just-saved unverified link is being checked, and a verified one is verified', () => {
+      renderEditorField({
+        fields: [
+          { name: 'Blog', value: 'https://blog.example' },
+          {
+            name: 'Site',
+            value: 'https://site.example',
+            verifiedAt: 1700000000000
+          }
+        ],
+        showLinkChecks: true,
+        pendingValues: ['https://blog.example']
+      })
+
+      expect(
+        screen.getAllByText('Checking for a link back to your profile…')
+      ).toHaveLength(1)
+      expect(screen.getByText('Verified')).toBeInTheDocument()
+    })
+
+    it('gives plain text no link status', () => {
+      renderEditorField({
+        fields: [{ name: 'Pronouns', value: 'they/them' }],
+        showLinkChecks: true
+      })
+
+      expect(screen.queryByText(/Checking|Verified|Not verified/)).toBeNull()
+    })
+  })
 })

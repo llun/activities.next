@@ -36,6 +36,30 @@ interface Props {
   labelledBy?: string
   /** The actor's custom emoji, so the preview shows shortcodes as images. */
   tags?: CustomEmojiTextProps['tags']
+  /**
+   * Called with the rows (label and content, as typed) whenever they change, so
+   * an editor that keeps the profile in its own state can compare them with
+   * what was saved and draw a live preview. Not called for the rows it starts
+   * with.
+   */
+  onRowsChange?: (rows: { name: string; value: string }[]) => void
+  /**
+   * The "On your profile" preview under the rows. On by default; a page that
+   * draws its own live preview turns it off.
+   */
+  showPreview?: boolean
+  /**
+   * Show "Checking for a link back to your profile…" for a link that was
+   * changed or added and not saved yet, and for the links in `pendingValues`.
+   * The Edit profile page turns it on; the label is client-only state, the
+   * server does not say when a check is running.
+   */
+  showLinkChecks?: boolean
+  /**
+   * Link values (trimmed) that were just saved and have not been checked yet,
+   * so the page can say a check is on its way. Needs `showLinkChecks`.
+   */
+  pendingValues?: string[]
 }
 
 interface Row {
@@ -82,7 +106,11 @@ export const ProfileFieldsField: FC<Props> = ({
   profileUrl,
   describedBy,
   labelledBy,
-  tags
+  tags,
+  onRowsChange,
+  showPreview = true,
+  showLinkChecks = false,
+  pendingValues
 }) => {
   const chipsLabelId = useId()
   const nextId = useRef(0)
@@ -129,6 +157,17 @@ export const ProfileFieldsField: FC<Props> = ({
         .get(row.id)
         ?.setCustomValidity(empty === 'value' ? message : '')
     })
+  }, [rows])
+
+  const rowsChangeRef = useRef(onRowsChange)
+  rowsChangeRef.current = onRowsChange
+  const reportedRows = useRef(rows)
+  useEffect(() => {
+    if (reportedRows.current === rows) return
+    reportedRows.current = rows
+    rowsChangeRef.current?.(
+      rows.map((row) => ({ name: row.name, value: row.value }))
+    )
   }, [rows])
 
   // Adding, moving and removing a row press buttons, which fire no `input` or
@@ -221,15 +260,23 @@ export const ProfileFieldsField: FC<Props> = ({
           row.name,
           sanitizeText(formatProfileFieldValue(row.value))
         ).kind
-        // A status only for a content that is still a saved https value.
-        const hasStatus = saved.has(value)
+        // A status only for a content that is still a saved https value, or,
+        // with link checks on, a https value a check is running or about to run
+        // for: one just saved, or one changed or added and not saved yet.
+        const isLink = Boolean(getProfileFieldHttpsUrl(value))
+        const checking =
+          showLinkChecks &&
+          isLink &&
+          ((pendingValues ?? []).includes(value) || !saved.has(value))
+        const hasStatus = checking || saved.has(value)
         return {
           icon,
           hasStatus,
-          verifiedAt: hasStatus ? (saved.get(value) ?? null) : null
+          checking,
+          verifiedAt: hasStatus && !checking ? (saved.get(value) ?? null) : null
         }
       }),
-    [rows, saved]
+    [rows, saved, showLinkChecks, pendingValues]
   )
 
   const previewFields = rows.flatMap((row, index) =>
@@ -256,7 +303,7 @@ export const ProfileFieldsField: FC<Props> = ({
       className="space-y-2"
     >
       {rows.map((row, index) => {
-        const { icon, hasStatus, verifiedAt } = rowViews[index]
+        const { icon, hasStatus, checking, verifiedAt } = rowViews[index]
         const Icon = PROFILE_FIELD_ICONS[icon]
         const invalid = shown.has(row.id) && isHalfFilled(row)
         const errorId = `profileField${index}Error`
@@ -413,7 +460,11 @@ export const ProfileFieldsField: FC<Props> = ({
                 {verified ? (
                   <Check aria-hidden="true" className="size-3.5 shrink-0" />
                 ) : null}
-                {verified ? 'Verified' : 'Not verified'}
+                {checking
+                  ? 'Checking for a link back to your profile…'
+                  : verified
+                    ? 'Verified'
+                    : 'Not verified'}
               </p>
             ) : null}
             {invalid ? (
@@ -478,23 +529,25 @@ export const ProfileFieldsField: FC<Props> = ({
           </div>
         </div>
       ) : null}
-      <div
-        data-slot="profile-fields-preview"
-        className="rounded-lg border bg-background px-3.5 py-3"
-      >
-        <p className="text-xs font-semibold text-muted-foreground">
-          On your profile
-        </p>
-        {previewFields.length > 0 ? (
-          <div className="-mt-1">
-            <ProfileFieldsBlock fields={previewFields} tags={tags} />
-          </div>
-        ) : (
-          <p className="mt-1 text-sm text-muted-foreground">
-            Nothing to show yet.
+      {showPreview ? (
+        <div
+          data-slot="profile-fields-preview"
+          className="rounded-lg border bg-background px-3.5 py-3"
+        >
+          <p className="text-xs font-semibold text-muted-foreground">
+            On your profile
           </p>
-        )}
-      </div>
+          {previewFields.length > 0 ? (
+            <div className="-mt-1">
+              <ProfileFieldsBlock fields={previewFields} tags={tags} />
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nothing to show yet.
+            </p>
+          )}
+        </div>
+      ) : null}
       <p className="pt-1 text-xs text-muted-foreground">
         To get a check mark next to a link, add a link back to your profile with{' '}
         {'rel="me"'} on that page.
