@@ -38,6 +38,8 @@ const buildTag = (overrides: Partial<FeaturedTag> = {}): FeaturedTag => ({
       : overrides.last_status_at
 })
 
+const onActorChanged = vi.fn()
+
 describe('FeaturedTagsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -47,7 +49,9 @@ describe('FeaturedTagsSection', () => {
 
   it('is one Featured hashtags section with the anchor the redirect lands on', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'birds' })])
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     const section = screen.getByRole('region', { name: 'Featured hashtags' })
     expect(section).toHaveAttribute('id', 'featured-hashtags')
@@ -66,7 +70,9 @@ describe('FeaturedTagsSection', () => {
     mockAddFeaturedTag.mockResolvedValue({
       tag: buildTag({ id: 't2', name: 'owls' })
     })
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('No featured hashtags yet')
 
     const input = screen.getByRole('textbox', { name: 'Add a hashtag' })
@@ -74,12 +80,14 @@ describe('FeaturedTagsSection', () => {
     fireEvent.submit(input.closest('form') as HTMLFormElement)
 
     await screen.findByText('#owls')
-    expect(mockAddFeaturedTag).toHaveBeenCalledWith('owls')
+    expect(mockAddFeaturedTag).toHaveBeenCalledWith('owls', 'actor-1')
   })
 
   it('renders the loaded tags with post count and last-posted date', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag()])
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     expect(await screen.findByText('#running')).toBeInTheDocument()
     expect(
@@ -89,7 +97,9 @@ describe('FeaturedTagsSection', () => {
   })
 
   it('shows the empty state when the account has no featured tags', async () => {
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     expect(
       await screen.findByText('No featured hashtags yet')
     ).toBeInTheDocument()
@@ -102,7 +112,9 @@ describe('FeaturedTagsSection', () => {
     const pendingTags = createDeferred<FeaturedTag[]>()
     mockGetFeaturedTags.mockReturnValue(pendingTags.promise)
 
-    const { container } = render(<FeaturedTagsSection />)
+    const { container } = render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     // jsdom paints no CSS, so the class is the observable — see
     // app/globals.skeleton.test.ts for the definition guard.
@@ -117,7 +129,9 @@ describe('FeaturedTagsSection', () => {
 
   it('clears the loading state and shows an error when the initial load fails', async () => {
     mockGetFeaturedTags.mockRejectedValue(new Error('network'))
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     // The skeleton must not get stuck: a load error renders instead of the
     // misleading "no featured hashtags yet" empty state.
@@ -132,7 +146,9 @@ describe('FeaturedTagsSection', () => {
   it('retries the load from the error alert', async () => {
     mockGetFeaturedTags.mockRejectedValueOnce(new Error('network'))
     mockGetFeaturedTags.mockResolvedValueOnce([buildTag({ name: 'running' })])
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
 
@@ -144,7 +160,9 @@ describe('FeaturedTagsSection', () => {
 
   it('points the empty state at the input with its Add hashtag action', async () => {
     mockGetFeaturedTags.mockResolvedValue([])
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add hashtag' }))
 
@@ -154,7 +172,9 @@ describe('FeaturedTagsSection', () => {
   it('still shows loaded tags when only the suggestions request fails', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
     mockGetSuggestions.mockRejectedValue(new Error('network'))
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
 
     // Suggestions are best-effort: their failure must not blank the editor.
     expect(await screen.findByText('#running')).toBeInTheDocument()
@@ -167,7 +187,9 @@ describe('FeaturedTagsSection', () => {
     mockGetFeaturedTags.mockResolvedValue([
       buildTag({ name: 'trailrun', statuses_count: '0', last_status_at: null })
     ])
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     expect(
       await screen.findByText('0 posts · no posts yet')
     ).toBeInTheDocument()
@@ -177,7 +199,9 @@ describe('FeaturedTagsSection', () => {
     mockAddFeaturedTag.mockResolvedValue({
       tag: buildTag({ id: 't9', name: 'cycling', statuses_count: '5' })
     })
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('No featured hashtags yet')
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
@@ -186,7 +210,7 @@ describe('FeaturedTagsSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
     expect(await screen.findByText('#cycling')).toBeInTheDocument()
-    expect(mockAddFeaturedTag).toHaveBeenCalledWith('cycling')
+    expect(mockAddFeaturedTag).toHaveBeenCalledWith('cycling', 'actor-1')
     expect(
       screen.getByText('#cycling is now featured on your profile.')
     ).toBeInTheDocument()
@@ -198,7 +222,9 @@ describe('FeaturedTagsSection', () => {
     // by the app's ASCII-only /tags/<name> route, so the editor rejects them.
     { description: 'an all-numeric name', value: '2024' }
   ])('rejects $description without calling the API', async ({ value }) => {
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('No featured hashtags yet')
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
@@ -215,7 +241,9 @@ describe('FeaturedTagsSection', () => {
   })
 
   it('rejects a name over the length limit with a length message', async () => {
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('No featured hashtags yet')
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
@@ -231,7 +259,9 @@ describe('FeaturedTagsSection', () => {
 
   it('blocks an already-featured tag client-side', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('#running')
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
@@ -247,7 +277,9 @@ describe('FeaturedTagsSection', () => {
 
   it('surfaces a server error from the add call', async () => {
     mockAddFeaturedTag.mockResolvedValue({ error: 'Invalid hashtag name' })
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('No featured hashtags yet')
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
@@ -264,7 +296,9 @@ describe('FeaturedTagsSection', () => {
         buildTag({ id: `t${index}`, name: `tag${index}` })
       )
     )
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('#tag0')
 
     expect(screen.getByText('10 of 10 featured')).toBeInTheDocument()
@@ -280,8 +314,10 @@ describe('FeaturedTagsSection', () => {
 
   it('removes a featured tag', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
-    mockRemoveFeaturedTag.mockResolvedValue(true)
-    render(<FeaturedTagsSection />)
+    mockRemoveFeaturedTag.mockResolvedValue({ removed: true })
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('#running')
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove #running' }))
@@ -289,7 +325,7 @@ describe('FeaturedTagsSection', () => {
     await waitFor(() =>
       expect(screen.queryByText('#running')).not.toBeInTheDocument()
     )
-    expect(mockRemoveFeaturedTag).toHaveBeenCalledWith('t1')
+    expect(mockRemoveFeaturedTag).toHaveBeenCalledWith('t1', 'actor-1')
     expect(
       screen.getByText('#running is no longer featured.')
     ).toBeInTheDocument()
@@ -297,8 +333,10 @@ describe('FeaturedTagsSection', () => {
 
   it('keeps the row and re-enables remove when the remove call fails', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
-    mockRemoveFeaturedTag.mockResolvedValue(false)
-    render(<FeaturedTagsSection />)
+    mockRemoveFeaturedTag.mockResolvedValue({ removed: false })
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('#running')
 
     const removeButton = screen.getByRole('button', { name: 'Remove #running' })
@@ -319,7 +357,9 @@ describe('FeaturedTagsSection', () => {
     mockAddFeaturedTag.mockResolvedValue({
       tag: buildTag({ id: 't7', name: 'gravel', statuses_count: '3' })
     })
-    render(<FeaturedTagsSection />)
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
     await screen.findByText('No featured hashtags yet')
 
     fireEvent.focus(screen.getByRole('textbox', { name: 'Add a hashtag' }))
@@ -327,7 +367,42 @@ describe('FeaturedTagsSection', () => {
     fireEvent.mouseDown(suggestion)
 
     await waitFor(() =>
-      expect(mockAddFeaturedTag).toHaveBeenCalledWith('gravel')
+      expect(mockAddFeaturedTag).toHaveBeenCalledWith('gravel', 'actor-1')
     )
+  })
+
+  it('reports up when an add finds another profile, and adds nothing', async () => {
+    mockAddFeaturedTag.mockResolvedValue({
+      error: 'Actor changed',
+      actorChanged: true
+    })
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
+    await screen.findByText('No featured hashtags yet')
+
+    const input = screen.getByLabelText('Add a hashtag')
+    fireEvent.change(input, { target: { value: 'owls' } })
+    fireEvent.submit(input.closest('form') as HTMLFormElement)
+
+    await waitFor(() => expect(onActorChanged).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('#owls')).toBeNull()
+  })
+
+  it('reports up when a remove finds another profile, and keeps the row', async () => {
+    mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'running' })])
+    mockRemoveFeaturedTag.mockResolvedValue({
+      removed: false,
+      actorChanged: true
+    })
+    render(
+      <FeaturedTagsSection actorId="actor-1" onActorChanged={onActorChanged} />
+    )
+    await screen.findByText('#running')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove #running' }))
+
+    await waitFor(() => expect(onActorChanged).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('#running')).toBeInTheDocument()
   })
 })

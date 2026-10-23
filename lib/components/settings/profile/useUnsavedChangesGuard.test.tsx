@@ -4,6 +4,11 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import {
+  confirmDiscardProfileChanges,
+  revokeProfileUnloadAllowance,
+  setUnsavedProfileChanges
+} from './unsavedProfileChanges'
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
 
 const push = vi.fn()
@@ -83,6 +88,47 @@ class FakeNavigation extends EventTarget {
 }
 
 describe('useUnsavedChangesGuard', () => {
+  describe('a confirmed discard in the profile switcher', () => {
+    afterEach(() => {
+      setUnsavedProfileChanges(false)
+      vi.restoreAllMocks()
+    })
+
+    it('does not ask again on the reload that follows, however long it takes', () => {
+      vi.useFakeTimers()
+      try {
+        render(<Harness dirty />)
+        setUnsavedProfileChanges(true)
+        vi.spyOn(window, 'confirm').mockReturnValue(true)
+        expect(confirmDiscardProfileChanges()).toBe(true)
+
+        vi.advanceTimersByTime(60_000)
+        expect(unload()).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('asks again once the switch failed and the confirmation was taken back', () => {
+      render(<Harness dirty />)
+      setUnsavedProfileChanges(true)
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      confirmDiscardProfileChanges()
+      revokeProfileUnloadAllowance()
+
+      expect(unload()).toBe(true)
+    })
+
+    it('does not stand down when the person kept editing', () => {
+      render(<Harness dirty />)
+      setUnsavedProfileChanges(true)
+      vi.spyOn(window, 'confirm').mockReturnValue(false)
+      expect(confirmDiscardProfileChanges()).toBe(false)
+
+      expect(unload()).toBe(true)
+    })
+  })
+
   beforeEach(() => vi.clearAllMocks())
 
   describe('same path', () => {

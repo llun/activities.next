@@ -8,7 +8,10 @@ import { useEffect, useRef, useState } from 'react'
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
-import { confirmDiscardProfileChanges } from '@/lib/components/settings/profile/unsavedProfileChanges'
+import {
+  confirmDiscardProfileChanges,
+  revokeProfileUnloadAllowance
+} from '@/lib/components/settings/profile/unsavedProfileChanges'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
@@ -86,9 +89,11 @@ export function ActorSwitcher({
         // Use hard navigation to ensure full page reload with new actor
         window.location.reload()
       } else {
+        revokeProfileUnloadAllowance()
         setError('Failed to switch actor')
       }
     } catch (err) {
+      revokeProfileUnloadAllowance()
       setError(err instanceof Error ? err.message : 'Failed to switch actor')
     } finally {
       setIsSwitching(false)

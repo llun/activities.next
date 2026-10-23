@@ -24,6 +24,7 @@ import { createDeferred } from '@/lib/testing/deferred'
 import type { SavedProfile } from '@/lib/types/domain/savedProfile'
 
 import { ProfileEditor } from './ProfileEditor'
+import { hasUnsavedProfileChanges } from './unsavedProfileChanges'
 
 const push = vi.fn()
 const refresh = vi.fn()
@@ -107,7 +108,7 @@ describe('ProfileEditor', () => {
     ;(getFeaturedTags as jest.Mock).mockResolvedValue([])
     ;(getFeaturedTagSuggestions as jest.Mock).mockResolvedValue([])
     ;(addFeaturedTag as jest.Mock).mockResolvedValue({})
-    ;(removeFeaturedTag as jest.Mock).mockResolvedValue(true)
+    ;(removeFeaturedTag as jest.Mock).mockResolvedValue({ removed: true })
     // The switches measure themselves with a ResizeObserver, which jsdom lacks.
     vi.stubGlobal(
       'ResizeObserver',
@@ -579,7 +580,15 @@ describe('ProfileEditor', () => {
       expect(screen.queryByTestId('profile-saved-toast')).toBeNull()
       expect(refresh).not.toHaveBeenCalled()
       expect(bio()).toHaveValue('New bio')
-      expect(saveButton()).toBeEnabled()
+      // Every retry would be refused, so Save is off and the bar says why.
+      expect(saveButton()).toBeDisabled()
+      expect(screen.getByText('Couldn’t save your profile.')).toBeVisible()
+      // Focus moves to the Alert like for a failed save.
+      expect(document.activeElement).toBe(
+        screen
+          .getByText(/You switched to another profile/)
+          .closest('[tabindex]')
+      )
 
       // The notice stays through further typing.
       type(bio(), 'Newer bio')
@@ -912,7 +921,9 @@ describe('ProfileEditor', () => {
       type(tagInput, 'owls')
       fireEvent.submit(tagForm)
 
-      await waitFor(() => expect(addFeaturedTag).toHaveBeenCalledWith('owls'))
+      await waitFor(() =>
+        expect(addFeaturedTag).toHaveBeenCalledWith('owls', ACTOR_ID)
+      )
       expect(mockUpdateProfile).not.toHaveBeenCalled()
     })
   })
@@ -1296,9 +1307,65 @@ describe('ProfileEditor', () => {
       fireEvent.submit(input.closest('form') as HTMLFormElement)
 
       await screen.findByText('#birds')
-      expect(addFeaturedTag).toHaveBeenCalledWith('birds')
+      expect(addFeaturedTag).toHaveBeenCalledWith('birds', ACTOR_ID)
       expect(mockUpdateProfile).not.toHaveBeenCalled()
       expect(saveButton()).toBeDisabled()
+    })
+
+    it('shows the reload notice once when a hashtag save finds another profile', async () => {
+      ;(addFeaturedTag as jest.Mock).mockResolvedValue({
+        error: 'Actor changed',
+        actorChanged: true
+      })
+      renderEditor()
+      await screen.findByText('No featured hashtags yet')
+
+      const input = screen.getByLabelText('Add a hashtag')
+      type(input, 'birds')
+      fireEvent.submit(input.closest('form') as HTMLFormElement)
+
+      expect(
+        await screen.findByText(/You switched to another profile/)
+      ).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Reload' })).toHaveLength(1)
+      expect(document.activeElement).toBe(
+        screen
+          .getByText(/You switched to another profile/)
+          .closest('[tabindex]')
+      )
+    })
+  })
+
+  describe('unsaved changes flag', () => {
+    it('is set by typing, cleared by undoing the edit and by unmounting', () => {
+      const { unmount } = renderEditor()
+      expect(hasUnsavedProfileChanges()).toBe(false)
+
+      type(bio(), 'Changed')
+      expect(hasUnsavedProfileChanges()).toBe(true)
+
+      type(bio(), buildProfile().summary)
+      expect(hasUnsavedProfileChanges()).toBe(false)
+
+      type(bio(), 'Changed again')
+      expect(hasUnsavedProfileChanges()).toBe(true)
+      unmount()
+      expect(hasUnsavedProfileChanges()).toBe(false)
+    })
+  })
+
+  describe('Cancel question', () => {
+    it('closes when a save lands and the page becomes clean', async () => {
+      mockUpdateProfile.mockResolvedValue(buildProfile({ summary: 'Changed' }))
+      renderEditor()
+      type(bio(), 'Changed')
+      fireEvent.click(screen.getAllByRole('button', { name: 'Cancel' })[0])
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+      fireEvent.submit(bio().closest('form') as HTMLFormElement)
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      expect(push).not.toHaveBeenCalled()
     })
   })
 })

@@ -1693,7 +1693,23 @@ legacy shape left to copy.
   the page again goes through and loses the edits. The hook reads the dirty state
   when the event happens, and `allowNavigation()` lets one move through for
   Cancel's confirmed discard: it ends with the first navigation to another
-  path, after 5 seconds without one, or when a clean page becomes unsaved again. A save sends a
+  path, after 5 seconds without one, or when a clean page becomes unsaved again.
+  Once the person answers OK to the actor switcher's or the Add profile
+  dialog's own "Discard changes?" (`confirmDiscardProfileChanges()`), the guard's
+  `beforeunload` stands down with no time limit (creating a profile and switching
+  can take longer than 5 seconds), and the confirmation is taken back
+  (`revokeProfileUnloadAllowance()`) if the switch or creation fails. **Actor
+  check.** The editor sends the id of the profile it was loaded for with the
+  profile PATCH (`actorId` in the body) and with every featured hashtag save
+  (`actorId` in the `POST /api/v1/featured_tags` body, `?actorId=` on
+  `DELETE /api/v1/featured_tags/:id`); when the session is on another profile
+  by then (a switch in another tab), the route answers 409 `{ error: 'Actor
+changed' }` before any write. Mastodon clients do not send it and are
+  unaffected. The editor shows one Alert for either 409 ("You switched to another
+  profile, so this page is out of date", with Reload), moves focus to it, turns
+  the Save bar to "Couldn't save your profile." and keeps Save off, since every
+  retry would 409; the draft stays so the text can be copied. The editor's own
+  Cancel question closes when a save leaves the page clean, like the guard's. A save sends a
   snapshot of the draft: what the person typed while it was in flight stays and
   keeps the page dirty (`reconcileDraft`), and Save waits for a picture upload.
   Enter in a field submits the form (the Save buttons are `type=submit` with

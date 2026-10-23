@@ -130,9 +130,16 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
  * The Edit profile page's one "Featured hashtags" section
  * (`id="featured-hashtags"`, so `/settings/profile#featured-hashtags` lands on
  * it) with the add bar over the list. Adding and removing a tag saves at once;
- * it never waits for the page's Save.
+ * it never waits for the page's Save. Each save names the profile the page
+ * was loaded for; when the session has moved to another one the server
+ * refuses it (409) and `onActorChanged` lets the page say so.
  */
-export const FeaturedTagsSection: FC = () => {
+export const FeaturedTagsSection: FC<{
+  /** The profile this page was loaded for; the server refuses other ones. */
+  actorId: string
+  /** The session is on another profile now: nothing was saved. */
+  onActorChanged: () => void
+}> = ({ actorId, onActorChanged }) => {
   const [loading, setLoading] = useState(true)
   const [tags, setTags] = useState<FeaturedTag[]>([])
   const [suggestions, setSuggestions] = useState<Tag[]>([])
@@ -232,8 +239,12 @@ export const FeaturedTagsSection: FC = () => {
     }
 
     setSubmitting(true)
-    const result = await addFeaturedTag(name)
+    const result = await addFeaturedTag(name, actorId)
     setSubmitting(false)
+    if (result.actorChanged) {
+      onActorChanged()
+      return
+    }
     if (result.error || !result.tag) {
       setMessage({
         tone: 'error',
@@ -260,8 +271,12 @@ export const FeaturedTagsSection: FC = () => {
 
   const remove = async (tag: FeaturedTag) => {
     setBusyId(tag.id)
-    const removed = await removeFeaturedTag(tag.id)
+    const { removed, actorChanged } = await removeFeaturedTag(tag.id, actorId)
     setBusyId(null)
+    if (actorChanged) {
+      onActorChanged()
+      return
+    }
     if (!removed) {
       setMessage({
         tone: 'error',

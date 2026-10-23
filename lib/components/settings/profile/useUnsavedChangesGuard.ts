@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { isProfileUnloadAllowed } from './unsavedProfileChanges'
+
 export interface UnsavedChangesGuard {
   /** The in-app link the person clicked while there were changes, if any. */
   pendingHref: string | null
@@ -158,6 +160,8 @@ export const useUnsavedChangesGuard = (dirty: boolean): UnsavedChangesGuard => {
     }
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current || allowed.current) return
+      // The person already answered "Discard" in the profile switcher.
+      if (isProfileUnloadAllowed()) return
       event.preventDefault()
       // Some browsers still need a return value to show the prompt.
       event.returnValue = ''

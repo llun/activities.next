@@ -13,7 +13,7 @@ import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeatu
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { isMastodonHashtagName } from '@/lib/utils/text/mastodonHashtag'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -37,7 +37,10 @@ const CreateFeaturedTagRequest = z.object({
     .transform((value) => value.replace(/^#+/, ''))
     .refine((value) => isMastodonHashtagName(value), {
       message: 'Invalid hashtag name'
-    })
+    }),
+  // The profile the Edit profile page was loaded for. Mastodon clients do not
+  // send it; when present and not the current profile, nothing is written.
+  actorId: z.string().optional()
 })
 
 // GET /api/v1/featured_tags — the current user's featured tags.
@@ -83,7 +86,18 @@ export const POST = traceApiRoute(
         })
       }
 
-      const { name } = parsed.data
+      const { name, actorId: expectedActorId } = parsed.data
+      if (
+        expectedActorId !== undefined &&
+        expectedActorId !== currentActor.id
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Actor changed' },
+          responseStatusCode: HTTP_STATUS.CONFLICT
+        })
+      }
       const host = headerHost(req.headers)
 
       const result = await featureTag({

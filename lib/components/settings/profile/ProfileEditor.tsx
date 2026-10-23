@@ -206,8 +206,21 @@ export const ProfileEditor: FC<Props> = ({
     target?.focus({ preventScroll: true })
   }, [focusAfterError])
 
+  // Every save would be refused now, so Save stays off; the draft stays so
+  // the person can still copy their text out. Focus goes to the Alert.
+  const handleActorChanged = useCallback(() => {
+    setActorChanged(true)
+    setFocusAfterError('form')
+  }, [])
+
+  // The edits were undone or a save landed while the Cancel question was open:
+  // there is nothing left to discard.
+  useEffect(() => {
+    if (!dirty) setConfirmingCancel(false)
+  }, [dirty])
+
   const handleSave = async () => {
-    if (saving || uploading || !dirty) return
+    if (actorChanged || saving || uploading || !dirty) return
     // The link rows block a half-filled row through the browser's own checks.
     if (formRef.current && !formRef.current.reportValidity()) return
     // What is sent is a snapshot: the person can keep typing while it saves.
@@ -234,7 +247,7 @@ export const ProfileEditor: FC<Props> = ({
       else router.refresh()
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 409) {
-        setActorChanged(true)
+        handleActorChanged()
         return
       }
       const message =
@@ -284,12 +297,15 @@ export const ProfileEditor: FC<Props> = ({
       submit
       formId={formId}
       disabledReason={uploading ? 'Uploading a picture…' : undefined}
+      disabled={actorChanged}
       error={
-        hasError
-          ? errors.form
-            ? 'Couldn’t save your profile.'
-            : 'Fix the highlighted field to save.'
-          : null
+        actorChanged
+          ? 'Couldn’t save your profile.'
+          : hasError
+            ? errors.form
+              ? 'Couldn’t save your profile.'
+              : 'Fix the highlighted field to save.'
+            : null
       }
       actions={
         <Button type="button" variant="outline" onClick={handleCancel}>
@@ -328,7 +344,7 @@ export const ProfileEditor: FC<Props> = ({
         <Button
           type="submit"
           form={formId}
-          disabled={!dirty || saving || uploading}
+          disabled={!dirty || saving || uploading || actorChanged}
         >
           Save
         </Button>
@@ -348,27 +364,27 @@ export const ProfileEditor: FC<Props> = ({
         />
       </div>
 
-      {actorChanged ? (
-        <Alert
-          title="Couldn’t save your profile"
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => window.location.reload()}
-            >
-              Reload
-            </Button>
-          }
-        >
-          You switched to another profile, so this page is out of date. Reload
-          to edit the profile you’re using now.
-        </Alert>
-      ) : null}
-
-      {errors.form ? (
+      {actorChanged || errors.form ? (
         <div ref={alertRef} tabIndex={-1} className="outline-none">
-          <Alert title="Couldn’t save your profile">{errors.form}</Alert>
+          {actorChanged ? (
+            <Alert
+              title="Couldn’t save your profile"
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload
+                </Button>
+              }
+            >
+              You switched to another profile, so this page is out of date.
+              Reload to edit the profile you’re using now.
+            </Alert>
+          ) : (
+            <Alert title="Couldn’t save your profile">{errors.form}</Alert>
+          )}
         </div>
       ) : null}
 
@@ -544,7 +560,10 @@ export const ProfileEditor: FC<Props> = ({
 
           {/* Outside the form: adding and removing a hashtag saves at once,
               and its add bar is a form of its own. */}
-          <FeaturedTagsSection />
+          <FeaturedTagsSection
+            actorId={actorId}
+            onActorChanged={handleActorChanged}
+          />
 
           <Section
             title="Profile tabs"

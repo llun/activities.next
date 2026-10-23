@@ -11,6 +11,10 @@ import {
   switchActor
 } from '@/lib/client'
 import { setActiveOfflineSession } from '@/lib/client/offline/offlineDb'
+import {
+  isProfileUnloadAllowed,
+  setUnsavedProfileChanges
+} from '@/lib/components/settings/profile/unsavedProfileChanges'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import { AddActorDialog } from './AddActorDialog'
@@ -695,6 +699,55 @@ describe('AddActorDialog', () => {
       await waitFor(() => {
         expect(mockOnSuccess).toHaveBeenCalled()
       })
+    })
+  })
+
+  describe('with unsaved Edit profile changes', () => {
+    afterEach(() => {
+      setUnsavedProfileChanges(false)
+      vi.restoreAllMocks()
+    })
+
+    const submitCarol = async () => {
+      renderDialog()
+      const input = await screen.findByLabelText('Username')
+      fireEvent.change(input, { target: { value: 'carol' } })
+      fireEvent.submit(input.closest('form')!)
+    }
+
+    it('creates nothing when the person keeps editing', async () => {
+      setUnsavedProfileChanges(true)
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      await submitCarol()
+
+      expect(confirm).toHaveBeenCalled()
+      expect(createActor).not.toHaveBeenCalled()
+      expect(isProfileUnloadAllowed()).toBe(false)
+    })
+
+    it('creates the actor after the person agrees to discard', async () => {
+      setUnsavedProfileChanges(true)
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      vi.mocked(createActor).mockResolvedValue({
+        id: 'new-actor-id',
+        username: 'carol',
+        domain: defaultDomain
+      })
+      vi.mocked(switchActor).mockResolvedValue(true)
+      await submitCarol()
+
+      await waitFor(() => expect(mockOnSuccess).toHaveBeenCalled())
+      expect(isProfileUnloadAllowed()).toBe(true)
+    })
+
+    it('takes the confirmation back when creating fails', async () => {
+      setUnsavedProfileChanges(true)
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      vi.mocked(createActor).mockRejectedValue(new Error('Nope'))
+      await submitCarol()
+
+      await screen.findByText('Nope')
+      expect(isProfileUnloadAllowed()).toBe(false)
     })
   })
 })

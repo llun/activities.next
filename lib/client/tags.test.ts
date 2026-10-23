@@ -79,7 +79,7 @@ describe('client tags module', () => {
       fetchMock.mockResponse('', { status: 200 })
 
       const res = await removeFeaturedTag('tag-1')
-      expect(res).toBe(true)
+      expect(res).toEqual({ removed: true })
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/v1/featured_tags/tag-1',
         expect.objectContaining({
@@ -93,14 +93,44 @@ describe('client tags module', () => {
       fetchMock.mockResponse('', { status: 404 })
 
       const res = await removeFeaturedTag('tag-1')
-      expect(res).toBe(false)
+      expect(res).toEqual({ removed: false })
     })
 
     it('returns false on network failure', async () => {
       fetchMock.mockReject(new Error('Network error'))
 
       const res = await removeFeaturedTag('tag-1')
-      expect(res).toBe(false)
+      expect(res).toEqual({ removed: false })
+    })
+  })
+
+  describe('actor check', () => {
+    it('sends the expected actor with an add and reports a 409', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Actor changed' }), {
+        status: 409
+      })
+
+      const res = await addFeaturedTag('running', 'actor-1')
+      expect(res).toEqual({ error: 'Actor changed', actorChanged: true })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/featured_tags',
+        expect.objectContaining({
+          body: JSON.stringify({ name: 'running', actorId: 'actor-1' })
+        })
+      )
+    })
+
+    it('sends the expected actor with a remove and reports a 409', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Actor changed' }), {
+        status: 409
+      })
+
+      const res = await removeFeaturedTag('tag-1', 'actor 1')
+      expect(res).toEqual({ removed: false, actorChanged: true })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/featured_tags/tag-1?actorId=actor%201',
+        expect.objectContaining({ method: 'DELETE' })
+      )
     })
   })
 
