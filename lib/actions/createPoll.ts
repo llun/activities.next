@@ -254,13 +254,13 @@ export const createPollFromUserInput = async ({
         }
         poll = hydratedPoll
       } catch (error) {
-        await discardFailedStatusCreate({
+        throw await discardFailedStatusCreate({
           database,
           actorId: currentActor.id,
           statusId,
-          idempotency
+          idempotency,
+          error
         })
-        throw error
       }
       // A poll queues no job at creation; this marks its key 'complete'.
       await publishCreatedStatus({

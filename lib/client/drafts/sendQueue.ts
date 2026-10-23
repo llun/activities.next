@@ -253,10 +253,9 @@ export const classifySendOutcome = (
     }
   }
   if (status !== undefined) {
-    // The route can answer 400 after the status was committed (its
-    // catch-all, a swallowed discard failure, serialization or the replay
-    // path), so a 400 to a POST is treated as a kept post: locked under the
-    // same key, media not ours to delete.
+    // The route answers 503 once it saved the post, so a 400 means nothing
+    // was kept; it still locks under the same key (media not ours to delete),
+    // as Review reopens any attempted draft locked (unqueueDraft).
     const mayBeKept = status === 400 && !preflight
     return {
       kind: 'couldnt_send',

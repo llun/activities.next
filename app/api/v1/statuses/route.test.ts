@@ -16,6 +16,7 @@ import {
   MAX_FEDERATION_MEDIA_ATTACHMENTS,
   MAX_STORED_MEDIA_ATTACHMENTS
 } from '@/lib/services/mastodon/constants'
+import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import {
@@ -63,6 +64,15 @@ vi.mock('next/headers', () => ({
 vi.mock('better-auth/oauth2', () => ({
   verifyBearerToken: vi.fn()
 }))
+
+// The real serializer, wrapped so a test can make one call fail.
+vi.mock('@/lib/services/mastodon/getMastodonStatus', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/mastodon/getMastodonStatus')
+    >()
+  return { ...actual, getMastodonStatus: vi.fn(actual.getMastodonStatus) }
+})
 
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -1106,6 +1116,93 @@ describe('POST /api/v1/statuses', () => {
       error: 'Your post was saved but could not be sent'
     })
     await expect(statusesWithText(text)).resolves.toHaveLength(1)
+  })
+
+  // A 400 tells the client nothing was kept, so an edit would post the saved
+  // post again under a new key. Every failure after the save answers 503.
+  it.each([
+    {
+      description: 'serializing it throws',
+      fail: () =>
+        vi
+          .mocked(getMastodonStatus)
+          .mockRejectedValueOnce(new Error('serialize failed'))
+    },
+    {
+      description: 'it cannot be loaded for the response',
+      fail: () => vi.mocked(getMastodonStatus).mockResolvedValueOnce(null)
+    }
+  ])(
+    'responds 503, not 400, when a saved post fails because $description, and a retry with the key returns it',
+    async ({ description, fail }) => {
+      const idempotencyKey = `idem-key-saved-${description}`
+      const text = `Saved, then ${description}`
+      fail()
+      const failed = await postStatus({ status: text }, idempotencyKey)
+      expect(failed.status).toBe(503)
+      await expect(failed.json()).resolves.toMatchObject({
+        error: expect.stringContaining('Idempotency-Key')
+      })
+      await expect(statusesWithText(text)).resolves.toHaveLength(1)
+
+      const retried = await postStatus({ status: text }, idempotencyKey)
+      expect(retried.status).toBe(200)
+      await expect(statusesWithText(text)).resolves.toHaveLength(1)
+    }
+  )
+
+  it.each([
+    {
+      description: 'serializing it throws',
+      fail: () =>
+        vi
+          .mocked(getMastodonStatus)
+          .mockRejectedValueOnce(new Error('serialize failed'))
+    },
+    {
+      description: 'it cannot be loaded for the response',
+      fail: () => vi.mocked(getMastodonStatus).mockResolvedValueOnce(null)
+    }
+  ])(
+    'responds 503 when the replay of a kept key fails because $description',
+    async ({ description, fail }) => {
+      const idempotencyKey = `idem-key-replay-${description}`
+      const text = `Replayed post, then ${description}`
+      expect((await postStatus({ status: text }, idempotencyKey)).status).toBe(
+        200
+      )
+      fail()
+      expect((await postStatus({ status: text }, idempotencyKey)).status).toBe(
+        503
+      )
+      await expect(statusesWithText(text)).resolves.toHaveLength(1)
+    }
+  )
+
+  it('responds 503 when a failed create cannot be discarded, because the post stays', async () => {
+    const idempotencyKey = 'idem-key-discard-fails'
+    const text = 'Kept after a failed discard'
+    const media = await createTestMedia('kept-after-discard-photo')
+    const attachmentSpy = vi
+      .spyOn(database, 'createAttachment')
+      .mockRejectedValueOnce(new Error('Database hiccup'))
+    const discardSpy = vi
+      .spyOn(database, 'discardUnpublishedStatus')
+      .mockRejectedValueOnce(new Error('Database gone'))
+    try {
+      const failed = await postStatus(
+        { status: text, media_ids: [media!.id] },
+        idempotencyKey
+      )
+      expect(failed.status).toBe(503)
+    } finally {
+      attachmentSpy.mockRestore()
+      discardSpy.mockRestore()
+    }
+    await expect(statusesWithText(text)).resolves.toHaveLength(1)
+    await expect(
+      database.getIdempotencyKey({ actorId: ACTOR1_ID, key: idempotencyKey })
+    ).resolves.toMatchObject({ state: 'pending' })
   })
 
   it('rejects a fitness file that another status already holds with 422 and creates nothing', async () => {

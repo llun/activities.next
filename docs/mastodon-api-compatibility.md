@@ -515,10 +515,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   key (`discardUnpublishedStatus`), and the route answers `400`, so a retry
   with the same key creates the post afresh. The discard happens only while the
   key is still `pending`: if a retry has taken the key over and sent the post
-  (see below), the post is kept as it was left. Queueing `SendNoteJob` /
-  `ProcessFitnessFileJob` is the commit point, on every queue: a queue error
-  is ambiguous (the job may have been accepted, or run inline), so the post is
-  kept, the key moves to `publish_failed`, and the route answers
+  (see below), the post is kept as it was left. A post that stays (that case,
+  or a discard that itself fails) answers `503` as below, never `400`, and so
+  does any failure after the post was saved or found by a repeat (such as
+  serializing it for the response): a `400` tells a client nothing was kept,
+  and an edited resend under a new key would post it twice. Queueing
+  `SendNoteJob` / `ProcessFitnessFileJob` is the commit point, on every queue:
+  a queue error is ambiguous (the job may have been accepted, or run inline),
+  so the post is kept, the key moves to `publish_failed`, and the route answers
   `503 Service Unavailable` (`{ error }`); the deprecated
   `POST /api/v1/accounts/outbox` answers that `503` too. A retry with the same
   key queues the job again under the same deterministic job id and answers
