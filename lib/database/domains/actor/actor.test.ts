@@ -260,17 +260,18 @@ describe('ActorDatabase', () => {
 
         const results = await Promise.all([
           database.updateActorWithPrevious({ actorId, name: 'A' }),
-          database.updateActorWithPrevious({ actorId, name: 'Orig' })
+          database.updateActorWithPrevious({ actorId, name: 'B' })
         ])
 
-        // Whichever save runs second must see the first one's write as its
-        // `before`; a read outside the transaction would give 'Orig->A' twice
-        // or 'Orig->Orig'.
-        expect(
-          results
-            .map(({ before, after }) => `${before?.name}->${after?.name}`)
-            .sort()
-        ).toEqual(['A->Orig', 'Orig->A'])
+        // Either save may take the lock first, but the second must see the
+        // first one's write as its `before`; a read outside the lock would
+        // give 'Orig->A' and 'Orig->B'.
+        expect(results[0].after?.name).toBe('A')
+        expect(results[1].after?.name).toBe('B')
+        const firsts = results.filter(({ before }) => before?.name === 'Orig')
+        expect(firsts).toHaveLength(1)
+        const second = results.find((result) => result !== firsts[0])
+        expect(second?.before?.name).toBe(firsts[0].after?.name)
       })
 
       it('updateActorWithPrevious returns null for both when the actor does not exist', async () => {
@@ -505,7 +506,7 @@ describe('ActorDatabase', () => {
           showReplies: false,
           showGallery: false,
           showFitness: true,
-          showMedia: false
+          showMedia: true
         })
 
         const actor = await database.getActorFromId({ id: actorId })
@@ -513,13 +514,14 @@ describe('ActorDatabase', () => {
           showReplies: false,
           showGallery: false,
           showFitness: true,
-          showMedia: false
+          showMedia: true
         })
         const settings = await database.getActorSettings({ actorId })
         expect(settings).toMatchObject({
           showReplies: false,
           showGallery: false,
-          showFitness: true
+          showFitness: true,
+          showMedia: true
         })
 
         // A later save of another setting keeps the flags.

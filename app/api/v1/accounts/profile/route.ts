@@ -242,8 +242,15 @@ export const PATCH = traceApiRoute(
     // read can be stale by the time of the write, so it only serves those
     // checks: whether to federate is decided from the row read under the
     // save's lock.
-    const before =
-      (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
+    const before = await database.getActorFromId({ id: currentActor.id })
+    if (!before) {
+      return apiResponse({
+        req,
+        allowedMethods: ['PATCH'],
+        data: { error: 'Not found' },
+        responseStatusCode: HTTP_STATUS.NOT_FOUND
+      })
+    }
 
     // Echo semantics, as for the image URLs: re-sending the stored value is
     // not a proposal, so it is accepted even when it predates the cap.

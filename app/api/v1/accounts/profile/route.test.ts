@@ -27,6 +27,7 @@ let mockSettings: Partial<ActorSettings> | undefined
 // (no links), so a test that sets this one apart from mockCurrentActor checks
 // that changes are measured against the stored actor.
 let mockStoredActor: Actor | null = null
+let mockStoredMissing = false
 
 // Applies the params a profile save writes onto the actor, the way the
 // database does, so the route sees the actor as saved.
@@ -80,7 +81,9 @@ const mockUpdateActorWithPrevious = vi.fn(
 )
 const mockDatabase = {
   updateActorWithPrevious: mockUpdateActorWithPrevious,
-  getActorFromId: vi.fn(async () => mockStoredActor ?? mockCurrentActor),
+  getActorFromId: vi.fn(async () =>
+    mockStoredMissing ? null : (mockStoredActor ?? mockCurrentActor)
+  ),
   getActorSettings: vi.fn(async () => mockSettings)
 }
 
@@ -116,6 +119,7 @@ describe('POST /api/v1/accounts/profile', () => {
     vi.clearAllMocks()
     mockSettings = undefined
     mockStoredActor = null
+    mockStoredMissing = false
     mockLockedBefore = undefined
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
@@ -534,6 +538,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     vi.clearAllMocks()
     mockSettings = undefined
     mockStoredActor = null
+    mockStoredMissing = false
     mockLockedBefore = undefined
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
@@ -571,9 +576,9 @@ describe('PATCH /api/v1/accounts/profile', () => {
       avatarDescription: '  A cat  ',
       headerDescription: '',
       showReplies: false,
-      showMedia: true,
-      showGallery: false,
-      showFitness: true
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
     })
 
     expect(response.status).toBe(200)
@@ -587,9 +592,9 @@ describe('PATCH /api/v1/accounts/profile', () => {
       avatarDescription: 'A cat',
       headerDescription: '',
       showReplies: false,
-      showMedia: true,
-      showGallery: false,
-      showFitness: true
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
     })
     expect(await response.json()).toEqual({
       name: 'New name',
@@ -602,11 +607,32 @@ describe('PATCH /api/v1/accounts/profile', () => {
       avatarDescription: 'A cat',
       headerDescription: '',
       showReplies: false,
-      showMedia: true,
-      showGallery: false,
-      showFitness: true
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
     })
   })
+
+  it.each(['showReplies', 'showMedia', 'showGallery', 'showFitness'])(
+    'saves only %s as false when the other tab flags stay true',
+    async (flag) => {
+      const flags = {
+        showReplies: true,
+        showMedia: true,
+        showGallery: true,
+        showFitness: true,
+        [flag]: false
+      }
+      const response = await patch(flags)
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        ...flags
+      })
+      expect(await response.json()).toMatchObject(flags)
+    }
+  )
 
   it('answers with the tab flags of the saved row, not a later settings read', async () => {
     // A concurrent save lands after this one commits: the settings read then
@@ -816,6 +842,26 @@ describe('PATCH /api/v1/accounts/profile', () => {
     expect(response.status).toBe(200)
     expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('writes nothing for a body of unknown keys only', async () => {
+    const response = await patch({
+      publicKey: 'attacker-supplied-key',
+      inboxUrl: 'https://evil.example/inbox'
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('answers 404 for an empty body when the stored actor no longer exists', async () => {
+    mockStoredMissing = true
+    const response = await patch({})
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'Not found' })
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
   })
 
   it('ignores keys the editor does not own', async () => {

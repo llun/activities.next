@@ -337,7 +337,7 @@ describe('getProfileData', () => {
           showReplies: false,
           showMedia: true,
           showGallery: false,
-          showFitness: false
+          showFitness: true
         })
 
         const result = await load()
@@ -346,7 +346,7 @@ describe('getProfileData', () => {
           replies: false,
           media: true,
           gallery: false,
-          fitness: false
+          fitness: true
         })
       })
 
