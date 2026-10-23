@@ -200,7 +200,7 @@ const toSavedProfile = (
 })
 
 export const PATCH = traceApiRoute(
-  'patchProfile',
+  'patchAccountProfile',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
     const invalid = (message: string) =>
@@ -303,13 +303,19 @@ export const PATCH = traceApiRoute(
           ? { showFitness: rest.showFitness }
           : null)
       })
-      if (updatedActor) {
-        saved = updatedActor
-        // At most one Update(Person), and none for a save of tabs, alt texts
-        // or unchanged values: remote servers never see those.
-        if (hasFederatedProfileChange(before, updatedActor)) {
-          await publishActorUpdate({ actorId: currentActor.id })
-        }
+      if (!updatedActor) {
+        return apiResponse({
+          req,
+          allowedMethods: ['PATCH'],
+          data: { error: 'Not found' },
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
+      }
+      saved = updatedActor
+      // At most one Update(Person), and none for a save of tabs, alt texts
+      // or unchanged values: remote servers never see those.
+      if (hasFederatedProfileChange(before, updatedActor)) {
+        await publishActorUpdate({ actorId: currentActor.id })
       }
       if (profileFields?.status === 'ok') {
         await queueProfileLinkVerification({

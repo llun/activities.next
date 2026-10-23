@@ -47,6 +47,19 @@ const mockUpdateActor = vi.fn(
       if (params[key] === null) delete next[key]
       else next[key] = params[key]
     }
+    // The real updateActor writes these into actors.settings, which
+    // getActorSettings reads back.
+    for (const key of [
+      'avatarDescription',
+      'headerDescription',
+      'showReplies',
+      'showMedia',
+      'showGallery',
+      'showFitness'
+    ]) {
+      if (params[key] === undefined) continue
+      mockSettings = { ...mockSettings, [key]: params[key] }
+    }
     return next as Actor
   }
 )
@@ -537,11 +550,23 @@ describe('PATCH /api/v1/accounts/profile', () => {
       headerImageUrl: HEADER_MEDIA_URL,
       avatarDescription: 'A cat',
       headerDescription: '',
-      showReplies: true,
+      showReplies: false,
       showMedia: true,
       showGallery: false,
       showFitness: true
     })
+  })
+
+  it('returns 404 and queues nothing when the actor is gone mid-save', async () => {
+    mockUpdateActor.mockResolvedValueOnce(null)
+    const response = await patch({
+      fields: [{ name: 'Blog', value: 'https://blog.example' }]
+    })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'Not found' })
+    expect(queueProfileLinkVerification).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
   })
 
   it('returns the verification time of a verified link as ISO text', async () => {
