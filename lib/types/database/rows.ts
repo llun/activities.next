@@ -126,6 +126,12 @@ export interface ActorSettings {
   showMedia?: boolean
   showMediaReplies?: boolean
   showFeatured?: boolean
+  // Profile tab visibility, presentation only (never federated, never a
+  // privacy control): an absent key means the tab is shown. The Media tab is
+  // `showMedia` above, as in Mastodon. Posts is always shown.
+  showReplies?: boolean
+  showGallery?: boolean
+  showFitness?: boolean
   // Navigation customization. Both hold `NavItemId`s from
   // lib/services/navigation/navPreferences (kept as plain strings here so this
   // module stays import-free, matching the inline shapes above): `navOrder` is

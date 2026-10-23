@@ -38,10 +38,24 @@ export const parseProfileFieldsForm = (
     rows.set(index, row)
   }
   if (rows.size === 0) return { status: 'absent' }
-  if (rows.size > PROFILE_FIELD_LIMIT) return { status: 'invalid' }
+  return normalizeProfileFieldRows(
+    [...rows.entries()].sort(([a], [b]) => a - b).map(([, row]) => row)
+  )
+}
+
+/**
+ * The profile links from rows already in order (the JSON editor sends an
+ * array). The rules are the form's: a row with both parts empty is dropped, a
+ * row with only one part, a row over the limits, or more than four rows is
+ * `invalid`.
+ */
+export const normalizeProfileFieldRows = (
+  rows: { name?: string; value?: string }[]
+): ProfileFieldsFormResult => {
+  if (rows.length > PROFILE_FIELD_LIMIT) return { status: 'invalid' }
 
   const fields: { name: string; value: string }[] = []
-  for (const [, row] of [...rows.entries()].sort(([a], [b]) => a - b)) {
+  for (const row of rows) {
     const parsed = ProfileFieldPair.safeParse({
       name: row.name ?? '',
       value: row.value ?? ''

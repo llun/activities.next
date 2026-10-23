@@ -806,24 +806,37 @@ describe('updateActor', () => {
     expect(actor?.iconUrl).toBeUndefined()
   })
 
-  it('keeps a name and a summary given as an empty string', async () => {
+  it('clears a name and a summary given as an empty string', async () => {
     const target = await insertActor('upd-empty', {
       name: 'Old name',
       summary: 'Old summary'
     })
-    const actor = await database.updateActor({
+    await database.updateActor({
       actorId: target,
       name: '',
       summary: '',
       bot: true
     })
-    expect(actor).toMatchObject({ name: 'Old name', summary: 'Old summary' })
     expect(await actorRow(target)).toMatchObject({
-      name: 'Old name',
-      summary: 'Old summary',
+      name: '',
+      summary: '',
       settings: { bot: true }
     })
-    expect((await searchDocument(target))?.documentText).toContain('Old name')
+    expect((await searchDocument(target))?.documentText ?? '').not.toContain(
+      'Old name'
+    )
+  })
+
+  it('keeps a name and a summary left out of the update', async () => {
+    const target = await insertActor('upd-absent', {
+      name: 'Old name',
+      summary: 'Old summary'
+    })
+    await database.updateActor({ actorId: target, bot: true })
+    expect(await actorRow(target)).toMatchObject({
+      name: 'Old name',
+      summary: 'Old summary'
+    })
   })
 })
 

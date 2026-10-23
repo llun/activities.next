@@ -41,6 +41,10 @@ import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import {
+  ProfileTabVisibility,
+  SHOW_ALL_PROFILE_TABS
+} from '@/lib/types/domain/profileTabs'
+import {
   Status,
   StatusNote,
   StatusPoll,
@@ -116,6 +120,11 @@ interface Props {
    */
   hasGalleryMedia?: boolean
   gallerySubviews?: GallerySubview[]
+  /**
+   * Tabs the owner chose to show; absent means all of them. A hidden tab is
+   * not offered to anyone, the owner included, and Posts is always offered.
+   */
+  tabVisibility?: ProfileTabVisibility
   /** `@user@domain`, for links to the posts behind gallery map points. */
   handle?: string
   mapProvider?: PublicMapProvider
@@ -181,6 +190,7 @@ export const ActorTimelines: FC<Props> = ({
   hasFitnessData = false,
   hasGalleryMedia = false,
   gallerySubviews = [],
+  tabVisibility = SHOW_ALL_PROFILE_TABS,
   handle,
   mapProvider = { type: 'osm' },
   isMediaUploadEnabled,
@@ -190,7 +200,12 @@ export const ActorTimelines: FC<Props> = ({
   isMediaOnly: isMediaOnlyProp = false,
   hasHeaderImage = false
 }) => {
-  const isMediaOnly = Boolean(isPixelfed || isMediaService || isMediaOnlyProp)
+  // A media-only profile (Pixelfed, PeerTube) is its media grid. When the
+  // owner hid the Media tab it falls back to the ordinary tabs, which always
+  // start on Posts, so the first view is never a hidden tab.
+  const isMediaOnly =
+    Boolean(isPixelfed || isMediaService || isMediaOnlyProp) &&
+    tabVisibility.media
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -206,9 +221,12 @@ export const ActorTimelines: FC<Props> = ({
   const isLoadingRef = useRef<boolean>(false)
 
   const showActions = Boolean(currentActor)
-  const showFitnessTab = Boolean(hasFitnessData)
-  const showGalleryTab = Boolean(hasGalleryMedia) && gallerySubviews.length > 0
-  const showRepliesTab = Boolean(isInternalAccount)
+  const showFitnessTab = Boolean(hasFitnessData) && tabVisibility.fitness
+  const showGalleryTab =
+    Boolean(hasGalleryMedia) &&
+    gallerySubviews.length > 0 &&
+    tabVisibility.gallery
+  const showRepliesTab = Boolean(isInternalAccount) && tabVisibility.replies
 
   const mediaAttachments = useMemo(() => {
     const statusAttachments = currentStatuses
@@ -226,7 +244,7 @@ export const ActorTimelines: FC<Props> = ({
       : attachments
   }, [attachments, currentStatuses])
 
-  const hasMedia = mediaAttachments.length > 0
+  const hasMedia = mediaAttachments.length > 0 && tabVisibility.media
 
   const hasLoadedMedia =
     attachments.length > 0 ||

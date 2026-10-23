@@ -1,17 +1,29 @@
 import { z } from 'zod'
 
-import { parseProfileFieldsForm } from '@/lib/services/accounts/profileFields'
+import {
+  normalizeProfileFieldRows,
+  parseProfileFieldsForm
+} from '@/lib/services/accounts/profileFields'
 import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { hasFederatedProfileChange } from '@/lib/services/actors/hasFederatedProfileChange'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import {
+  ActorSettings,
   POST_LINE_LIMIT_VALUES,
   PostLineLimit
 } from '@/lib/types/database/rows'
-import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
+import { Actor } from '@/lib/types/domain/actor'
+import { SavedProfile } from '@/lib/types/domain/savedProfile'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import {
+  HTTP_STATUS,
+  apiErrorResponse,
+  apiResponse
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 // The settings form's own fields, and nothing else. `publicKey`,
@@ -102,26 +114,41 @@ export const POST = traceApiRoute(
       }
     }
 
-    await database.updateActor({
-      actorId: currentActor.id,
-      ...safeParsed,
-      ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
-      ...(headerImageUrl.value !== undefined
-        ? { headerImageUrl: headerImageUrl.value }
-        : null),
-      ...(manuallyApprovesFollowers !== undefined
-        ? { manuallyApprovesFollowers }
-        : null),
-      ...(postLineLimit !== undefined ? { postLineLimit } : null),
-      ...(profileFields.status === 'ok'
-        ? { fields: profileFields.fields }
-        : null)
-    })
-    await publishActorUpdate({ actorId: currentActor.id })
-    if (profileFields.status === 'ok') {
+    // Changes are measured against the stored actor as read under the save's
+    // own row lock (`before`), not a read made earlier: a concurrent save may
+    // have committed in between, and the guard's actor is a partial one anyway.
+    const { before, after: updatedActor } =
+      await database.updateActorWithPrevious({
+        actorId: currentActor.id,
+        ...safeParsed,
+        ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
+        ...(headerImageUrl.value !== undefined
+          ? { headerImageUrl: headerImageUrl.value }
+          : null),
+        ...(manuallyApprovesFollowers !== undefined
+          ? { manuallyApprovesFollowers }
+          : null),
+        ...(postLineLimit !== undefined ? { postLineLimit } : null),
+        ...(profileFields.status === 'ok'
+          ? { fields: profileFields.fields }
+          : null)
+      })
+    // Only a change to what the federated Person carries is sent: this form
+    // also saves the post line limit, which remote servers never see. `before`
+    // and `after` are read in one transaction under the row lock, so a null
+    // `before` next to a saved actor cannot happen; publishing then is only a
+    // defensive default.
+    if (
+      updatedActor &&
+      (!before || hasFederatedProfileChange(before, updatedActor))
+    ) {
+      await publishActorUpdate({ actorId: currentActor.id })
+    }
+    // Links are checked only for an actor that was saved.
+    if (updatedActor && profileFields.status === 'ok') {
       await queueProfileLinkVerification({
         actorId: currentActor.id,
-        before: currentActor.fields,
+        before: before?.fields,
         after: profileFields.fields,
         remote: false
       })
@@ -132,5 +159,207 @@ export const POST = traceApiRoute(
     // 303 so the browser GETs /settings; a 307 would re-POST the form to the
     // page, which answers 404
     return Response.redirect(url.toString(), 303)
+  })
+)
+
+// The JSON editor's save. Every key is optional and an absent key leaves the
+// stored value alone. As in the form above, only these keys are read; Zod
+// strips anything else (the key and inbox endpoints included).
+const DESCRIPTION_MAX_LENGTH = 1500
+const NAME_MAX_LENGTH = 255
+const SUMMARY_MAX_LENGTH = 500
+
+const ProfilePatchRequest = z.object({
+  // The length caps are checked below, and only against a value that differs
+  // from the stored one, so an untouched long bio can be saved again.
+  name: z.string().optional(),
+  summary: z.string().optional(),
+  fields: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+  iconUrl: z.string().nullable().optional(),
+  headerImageUrl: z.string().nullable().optional(),
+  avatarDescription: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
+  headerDescription: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
+  showReplies: z.boolean().optional(),
+  showMedia: z.boolean().optional(),
+  showGallery: z.boolean().optional(),
+  showFitness: z.boolean().optional()
+})
+
+const toSavedProfile = (
+  actor: Actor,
+  settings: ActorSettings | undefined
+): SavedProfile => ({
+  name: actor.name ?? '',
+  summary: actor.summary ?? '',
+  fields: (actor.fields ?? []).map((field) => ({
+    name: field.name,
+    value: field.value,
+    verifiedAt: field.verifiedAt ? getISOTimeUTC(field.verifiedAt) : null
+  })),
+  iconUrl: actor.iconUrl ?? null,
+  headerImageUrl: actor.headerImageUrl ?? null,
+  // Tab flags come from the saved row (read in the save's transaction); only
+  // the alt texts, which the Actor does not carry, come from the settings.
+  avatarDescription: settings?.avatarDescription ?? '',
+  headerDescription: settings?.headerDescription ?? '',
+  showReplies: actor.showReplies ?? true,
+  showMedia: actor.showMedia ?? true,
+  showGallery: actor.showGallery ?? true,
+  showFitness: actor.showFitness ?? true
+})
+
+export const PATCH = traceApiRoute(
+  'patchAccountProfile',
+  AuthenticatedGuard(async (req, context) => {
+    const { currentActor, database } = context
+    const invalid = (message: string) =>
+      apiResponse({
+        req,
+        allowedMethods: ['PATCH'],
+        data: { error: message },
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const parsed = ProfilePatchRequest.safeParse(body)
+    if (!parsed.success) {
+      return invalid(
+        parsed.error.issues[0]
+          ? `Invalid ${parsed.error.issues[0].path.join('.') || 'request'}`
+          : 'Invalid request'
+      )
+    }
+    const { fields: submittedFields, ...rest } = parsed.data
+
+    // The guard's actor is a partial one (no links, discovery flags or
+    // attribution domains), so validate and echo against the stored actor. This
+    // read can be stale by the time of the write, so it only serves those
+    // checks: whether to federate is decided from the row read under the
+    // save's lock.
+    const before = await database.getActorFromId({ id: currentActor.id })
+    if (!before) {
+      return apiResponse({
+        req,
+        allowedMethods: ['PATCH'],
+        data: { error: 'Not found' },
+        responseStatusCode: HTTP_STATUS.NOT_FOUND
+      })
+    }
+
+    // Echo semantics, as for the image URLs: re-sending the stored value is
+    // not a proposal, so it is accepted even when it predates the cap.
+    if (
+      rest.name !== undefined &&
+      rest.name !== (before.name ?? '') &&
+      rest.name.length > NAME_MAX_LENGTH
+    ) {
+      return invalid('Invalid name')
+    }
+    if (
+      rest.summary !== undefined &&
+      rest.summary !== (before.summary ?? '') &&
+      rest.summary.length > SUMMARY_MAX_LENGTH
+    ) {
+      return invalid('Invalid summary')
+    }
+
+    // Same validation and echo semantics as the form: a URL this instance
+    // serves, an echo of the stored value is "no change", and null clears.
+    const config = getServedHostConfig()
+    const iconUrl = parseProfileImageUrl(rest.iconUrl, config, before.iconUrl)
+    if (!iconUrl.valid) return invalid('Invalid iconUrl')
+    const headerImageUrl = parseProfileImageUrl(
+      rest.headerImageUrl,
+      config,
+      before.headerImageUrl
+    )
+    if (!headerImageUrl.valid) return invalid('Invalid headerImageUrl')
+
+    const profileFields =
+      submittedFields === undefined
+        ? null
+        : normalizeProfileFieldRows(submittedFields)
+    if (profileFields?.status === 'invalid') return invalid('Invalid fields')
+
+    // An empty body (or one of unknown keys only) writes nothing.
+    const hasChange = Object.keys(parsed.data).length > 0
+
+    let saved: Actor = before
+    if (hasChange) {
+      const { before: lockedBefore, after: updatedActor } =
+        await database.updateActorWithPrevious({
+          actorId: currentActor.id,
+          ...(rest.name !== undefined ? { name: rest.name } : null),
+          ...(rest.summary !== undefined ? { summary: rest.summary } : null),
+          ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
+          ...(headerImageUrl.value !== undefined
+            ? { headerImageUrl: headerImageUrl.value }
+            : null),
+          ...(profileFields?.status === 'ok'
+            ? { fields: profileFields.fields }
+            : null),
+          ...(rest.avatarDescription !== undefined
+            ? { avatarDescription: rest.avatarDescription }
+            : null),
+          ...(rest.headerDescription !== undefined
+            ? { headerDescription: rest.headerDescription }
+            : null),
+          ...(rest.showReplies !== undefined
+            ? { showReplies: rest.showReplies }
+            : null),
+          ...(rest.showMedia !== undefined
+            ? { showMedia: rest.showMedia }
+            : null),
+          ...(rest.showGallery !== undefined
+            ? { showGallery: rest.showGallery }
+            : null),
+          ...(rest.showFitness !== undefined
+            ? { showFitness: rest.showFitness }
+            : null)
+        })
+      if (!updatedActor) {
+        return apiResponse({
+          req,
+          allowedMethods: ['PATCH'],
+          data: { error: 'Not found' },
+          responseStatusCode: HTTP_STATUS.NOT_FOUND
+        })
+      }
+      saved = updatedActor
+      // At most one Update(Person), and none for a save of tabs, alt texts
+      // or unchanged values: remote servers never see those. A null
+      // `lockedBefore` next to a saved actor cannot happen (both are read in
+      // one transaction under the row lock); publishing then is only a
+      // defensive default.
+      if (
+        !lockedBefore ||
+        hasFederatedProfileChange(lockedBefore, updatedActor)
+      ) {
+        await publishActorUpdate({ actorId: currentActor.id })
+      }
+      if (profileFields?.status === 'ok') {
+        await queueProfileLinkVerification({
+          actorId: currentActor.id,
+          before: (lockedBefore ?? before).fields,
+          after: profileFields.fields,
+          remote: false
+        })
+      }
+    }
+
+    const settings = await database.getActorSettings({
+      actorId: currentActor.id
+    })
+    return apiResponse({
+      req,
+      allowedMethods: ['PATCH'],
+      data: toSavedProfile(saved, settings)
+    })
   })
 )

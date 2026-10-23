@@ -314,6 +314,96 @@ describe('getProfileData', () => {
       expect(result?.hasFitnessData).toBe(true)
     })
 
+    describe('profile tab visibility', () => {
+      const load = (isLoggedIn = true) =>
+        getProfileData(mockDatabase, '@localuser@example.com', isLoggedIn, {
+          currentActor: null
+        })
+
+      it('shows every tab when the owner set no flag', async () => {
+        const result = await load()
+
+        expect(result?.tabVisibility).toEqual({
+          replies: true,
+          media: true,
+          gallery: true,
+          fitness: true
+        })
+      })
+
+      it('reads each flag from the actor, a stored false hiding only its tab', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue({
+          ...mockLocalActor,
+          showReplies: false,
+          showMedia: true,
+          showGallery: false,
+          showFitness: true
+        })
+
+        const result = await load()
+
+        expect(result?.tabVisibility).toEqual({
+          replies: false,
+          media: true,
+          gallery: false,
+          fitness: true
+        })
+      })
+
+      it('skips the gallery queries when the Gallery tab is hidden', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue({
+          ...mockLocalActor,
+          showGallery: false
+        })
+        vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(true)
+
+        const result = await load()
+
+        expect(mockDatabase.getActorHasGalleryMedia).not.toHaveBeenCalled()
+        expect(
+          mockDatabase.getActorHasVisibleGalleryAlbums
+        ).not.toHaveBeenCalled()
+        expect(mockDatabase.getGallerySettings).not.toHaveBeenCalled()
+        expect(result?.hasGalleryMedia).toBeFalse()
+        expect(result?.gallerySubviews).toEqual([])
+      })
+
+      it('skips the fitness query when the Fitness tab is hidden', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue({
+          ...mockLocalActor,
+          showFitness: false
+        })
+        ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(
+          true
+        )
+
+        const result = await load()
+
+        expect(mockDatabase.getActorHasFitnessData).not.toHaveBeenCalled()
+        expect(result?.hasFitnessData).toBeFalse()
+      })
+
+      it('skips the attachments query when the Media tab is hidden', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue({
+          ...mockLocalActor,
+          showMedia: false
+        })
+
+        const result = await load()
+
+        expect(mockDatabase.getAttachmentsForActor).not.toHaveBeenCalled()
+        expect(result?.attachments).toEqual([])
+      })
+
+      it('still runs every query for a tab that is shown', async () => {
+        await load()
+
+        expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledTimes(1)
+        expect(mockDatabase.getActorHasFitnessData).toHaveBeenCalledTimes(1)
+        expect(mockDatabase.getActorHasGalleryMedia).toHaveBeenCalledTimes(1)
+      })
+    })
+
     // The profile page used to call getActorStatuses with only currentActorId,
     // which is hydration-only. With none of publicOnly/visibleToActorId/
     // includeFollowersOnly set, the query applies no visibility predicate at

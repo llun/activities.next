@@ -2,8 +2,11 @@ import { NextRequest } from 'next/server'
 
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
+import { MockActor } from '@/lib/stub/actor'
+import { ActorSettings } from '@/lib/types/database/rows'
+import { Actor } from '@/lib/types/domain/actor'
 
-import { POST } from './route'
+import { PATCH, POST } from './route'
 
 vi.mock('@/lib/services/actors/actorUpdate', () => ({
   publishActorUpdate: vi.fn().mockResolvedValue(undefined)
@@ -16,18 +19,72 @@ vi.mock('@/lib/services/profile-links/queueProfileLinkVerification', () => ({
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
 const HEADER_MEDIA_URL = 'https://llun.test/api/v1/files/0718a1b2c3d4e5f6.jpg'
 
-const mockCurrentActor: {
-  id: string
-  domain: string
-  iconUrl?: string
-  headerImageUrl?: string
-  fields?: { name: string; value: string }[]
-} = {
-  id: 'https://llun.test/users/llun',
-  domain: 'llun.test'
-}
+const mockCurrentActor: Actor = MockActor({
+  id: 'https://llun.test/users/llun'
+})
+let mockSettings: Partial<ActorSettings> | undefined
+// The actor as stored. The guard hands the route a partial session actor
+// (no links), so a test that sets this one apart from mockCurrentActor checks
+// that changes are measured against the stored actor.
+let mockStoredActor: Actor | null = null
+let mockStoredMissing = false
+
+// Applies the params a profile save writes onto the actor, the way the
+// database does, so the route sees the actor as saved.
+const mockUpdateActor = vi.fn(
+  async (params: Record<string, unknown>): Promise<Actor | null> => {
+    const next: Record<string, unknown> = {
+      ...(mockStoredActor ?? mockCurrentActor)
+    }
+    for (const key of [
+      'name',
+      'summary',
+      'iconUrl',
+      'headerImageUrl',
+      'fields',
+      'manuallyApprovesFollowers'
+    ]) {
+      if (!(key in params)) continue
+      if (params[key] === null) delete next[key]
+      else next[key] = params[key]
+    }
+    // The real updateActor writes these into actors.settings, which
+    // getActorSettings reads back.
+    for (const key of [
+      'avatarDescription',
+      'headerDescription',
+      'showReplies',
+      'showMedia',
+      'showGallery',
+      'showFitness'
+    ]) {
+      if (params[key] === undefined) continue
+      mockSettings = { ...mockSettings, [key]: params[key] }
+      // The saved row carries the tab flags too (getActorFromId reads them).
+      if (key.startsWith('show')) next[key] = params[key]
+    }
+    return next as Actor
+  }
+)
+// The actor as read under the save's row lock. Undefined means "the stored
+// actor"; a test sets it apart from the stored one to model a save that landed
+// between the route's pre-read and its own write.
+let mockLockedBefore: Actor | null | undefined
+const mockUpdateActorWithPrevious = vi.fn(
+  async (params: Record<string, unknown>) => {
+    const before =
+      mockLockedBefore !== undefined
+        ? mockLockedBefore
+        : (mockStoredActor ?? mockCurrentActor)
+    return { before, after: await mockUpdateActor(params) }
+  }
+)
 const mockDatabase = {
-  updateActor: vi.fn()
+  updateActorWithPrevious: mockUpdateActorWithPrevious,
+  getActorFromId: vi.fn(async () =>
+    mockStoredMissing ? null : (mockStoredActor ?? mockCurrentActor)
+  ),
+  getActorSettings: vi.fn(async () => mockSettings)
 }
 
 vi.mock('@/lib/config', () => ({
@@ -60,10 +117,15 @@ vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 describe('POST /api/v1/accounts/profile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDatabase.updateActor.mockResolvedValue(null)
+    mockSettings = undefined
+    mockStoredActor = null
+    mockStoredMissing = false
+    mockLockedBefore = undefined
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
     delete mockCurrentActor.fields
+    delete mockCurrentActor.name
+    delete mockCurrentActor.summary
   })
 
   const createRequest = (fields: Record<string, string>) => {
@@ -89,7 +151,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(303)
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: mockCurrentActor.id,
           iconUrl: MEDIA_URL,
@@ -123,7 +185,7 @@ describe('POST /api/v1/accounts/profile', () => {
       const response = await post({ iconUrl: value })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('refuses a rejected headerImageUrl even when iconUrl is fine', async () => {
@@ -133,7 +195,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('refuses the whole request without writing any other field', async () => {
@@ -146,13 +208,13 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('clears the stored image when the field is submitted empty', async () => {
       await post({ iconUrl: '', headerImageUrl: '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ iconUrl: null, headerImageUrl: null })
       )
     })
@@ -160,7 +222,7 @@ describe('POST /api/v1/accounts/profile', () => {
     it('leaves the stored images alone when neither field is submitted', async () => {
       await post({ name: 'New name' })
 
-      const params = mockDatabase.updateActor.mock.calls[0][0]
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
       expect(params).not.toHaveProperty('iconUrl')
       expect(params).not.toHaveProperty('headerImageUrl')
     })
@@ -178,7 +240,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(303)
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({
           fields: [
             { name: 'Blog', value: 'https://blog.example' },
@@ -191,17 +253,34 @@ describe('POST /api/v1/accounts/profile', () => {
     it('clears the stored links when every row is emptied', async () => {
       await post({ 'fields[0][name]': '', 'fields[0][value]': '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ fields: [] })
+      )
+    })
+
+    it('sends an Update(Person) when every stored link is removed, though the session actor has none', async () => {
+      mockStoredActor = {
+        ...mockCurrentActor,
+        fields: [{ name: 'Blog', value: 'https://blog.example' }]
+      }
+
+      await post({ 'fields[0][name]': '', 'fields[0][value]': '' })
+
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          before: [{ name: 'Blog', value: 'https://blog.example' }],
+          after: []
+        })
       )
     })
 
     it('leaves the stored links alone when the form sends none', async () => {
       await post({ name: 'New name' })
 
-      expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
-        'fields'
-      )
+      expect(
+        mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      ).not.toHaveProperty('fields')
     })
 
     it('queues the link check with the stored and the submitted fields', async () => {
@@ -220,6 +299,19 @@ describe('POST /api/v1/accounts/profile', () => {
       })
     })
 
+    it('queues no link check and sends no Update when the actor is gone mid-save', async () => {
+      mockUpdateActor.mockResolvedValueOnce(null)
+
+      const response = await post({
+        'fields[0][name]': 'Blog',
+        'fields[0][value]': 'https://blog.example'
+      })
+
+      expect(response.status).toBe(303)
+      expect(queueProfileLinkVerification).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
     it('does not queue the link check when the form sends no links', async () => {
       await post({ name: 'New name' })
 
@@ -233,7 +325,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
   })
@@ -251,7 +343,7 @@ describe('POST /api/v1/accounts/profile', () => {
       const response = await post({ name: 'New name', iconUrl: STALE })
 
       expect(response.status).toBe(303)
-      const params = mockDatabase.updateActor.mock.calls[0][0]
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
       expect(params).toMatchObject({ name: 'New name' })
       expect(params).not.toHaveProperty('iconUrl')
     })
@@ -263,14 +355,14 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('still lets the stale URL be cleared', async () => {
       mockCurrentActor.iconUrl = STALE
       await post({ iconUrl: '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ iconUrl: null })
       )
     })
@@ -282,7 +374,7 @@ describe('POST /api/v1/accounts/profile', () => {
     const aliasUrl = 'https://alias.llun.test/api/v1/files/abc.jpg'
     await post({ iconUrl: aliasUrl })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ iconUrl: aliasUrl })
     )
   })
@@ -291,7 +383,7 @@ describe('POST /api/v1/accounts/profile', () => {
     mockCurrentActor.headerImageUrl = HEADER_MEDIA_URL
     await post({ iconUrl: MEDIA_URL, headerImageUrl: '' })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ iconUrl: MEDIA_URL, headerImageUrl: null })
     )
   })
@@ -308,10 +400,10 @@ describe('POST /api/v1/accounts/profile', () => {
     ])('ignores %s', async (field, value) => {
       await post({ name: 'New name', [field]: value })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
-      expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
-        field
-      )
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+      expect(
+        mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      ).not.toHaveProperty(field)
     })
   })
 
@@ -319,7 +411,7 @@ describe('POST /api/v1/accounts/profile', () => {
     it('updates the name and summary', async () => {
       await post({ name: 'New name', summary: 'New summary' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'New name', summary: 'New summary' })
       )
       expect(publishActorUpdate).toHaveBeenCalledWith({
@@ -345,7 +437,7 @@ describe('POST /api/v1/accounts/profile', () => {
     ])('reads $description', async ({ fields, expected }) => {
       await post(fields)
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ manuallyApprovesFollowers: expected })
       )
     })
@@ -361,11 +453,74 @@ describe('POST /api/v1/accounts/profile', () => {
       async ({ submitted, expected }) => {
         await post({ postLineLimit: submitted })
 
-        expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
           expect.objectContaining({ postLineLimit: expected })
         )
       }
     )
+
+    it('clears the bio when the form is saved with it empty', async () => {
+      mockCurrentActor.summary = 'Old bio'
+      await post({ name: 'Same', summary: '' })
+
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: '' })
+      )
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends no Update(Person) for a post line limit change alone', async () => {
+      await post({ postLineLimit: '10' })
+
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sends no Update(Person) when the form resubmits the stored profile', async () => {
+      mockCurrentActor.name = 'Same name'
+      mockCurrentActor.summary = 'Same bio'
+      await post({ name: 'Same name', summary: 'Same bio', postLineLimit: '5' })
+
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sends an Update(Person) when a concurrent save changed the row after the pre-read, so the pre-read is stale', async () => {
+      // Pre-read: Old. Another save wrote New (and published it) before this
+      // one took the row lock. This save writes Old, which differs from the
+      // locked New, so remote servers must be told.
+      mockCurrentActor.name = 'Old'
+      mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+      await post({ name: 'Old', postLineLimit: '5' })
+
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends no Update(Person) when the row read under the lock already equals the saved one', async () => {
+      mockCurrentActor.name = 'Old'
+      mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+      await post({ name: 'New', postLineLimit: '5' })
+
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sends exactly one Update(Person) for a name change', async () => {
+      await post({ name: 'Another name', postLineLimit: '5' })
+
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('still queues the link check when only the links changed', async () => {
+      mockCurrentActor.fields = [{ name: 'Blog', value: 'https://old.example' }]
+      await post({
+        'fields[0][name]': 'Blog',
+        'fields[0][value]': 'https://blog.example'
+      })
+
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(queueProfileLinkVerification).toHaveBeenCalledTimes(1)
+    })
 
     it('redirects back to the settings page with 303 so the browser loads it with GET', async () => {
       const response = await post({ name: 'New name' })
@@ -374,6 +529,443 @@ describe('POST /api/v1/accounts/profile', () => {
       expect(response.headers.get('location')).toBe(
         'https://llun.test/settings'
       )
+    })
+  })
+})
+
+describe('PATCH /api/v1/accounts/profile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSettings = undefined
+    mockStoredActor = null
+    mockStoredMissing = false
+    mockLockedBefore = undefined
+    delete mockCurrentActor.iconUrl
+    delete mockCurrentActor.headerImageUrl
+    delete mockCurrentActor.fields
+    delete mockCurrentActor.name
+    delete mockCurrentActor.summary
+  })
+
+  const patchRaw = (body: string) =>
+    PATCH(
+      new NextRequest('https://llun.test/api/v1/accounts/profile', {
+        method: 'PATCH',
+        headers: {
+          origin: 'https://llun.test',
+          'content-type': 'application/json'
+        },
+        body
+      }),
+      { params: Promise.resolve({}) }
+    )
+  const patch = (body: Record<string, unknown>) =>
+    patchRaw(JSON.stringify(body))
+
+  it('saves the profile and returns what the editor needs', async () => {
+    mockSettings = { avatarDescription: 'A cat', showGallery: false }
+    const response = await patch({
+      name: 'New name',
+      summary: 'New bio',
+      fields: [
+        { name: ' Blog ', value: ' https://blog.example ' },
+        { name: '', value: '' }
+      ],
+      iconUrl: MEDIA_URL,
+      headerImageUrl: HEADER_MEDIA_URL,
+      avatarDescription: '  A cat  ',
+      headerDescription: '',
+      showReplies: false,
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      name: 'New name',
+      summary: 'New bio',
+      fields: [{ name: 'Blog', value: 'https://blog.example' }],
+      iconUrl: MEDIA_URL,
+      headerImageUrl: HEADER_MEDIA_URL,
+      avatarDescription: 'A cat',
+      headerDescription: '',
+      showReplies: false,
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
+    })
+    expect(await response.json()).toEqual({
+      name: 'New name',
+      summary: 'New bio',
+      fields: [
+        { name: 'Blog', value: 'https://blog.example', verifiedAt: null }
+      ],
+      iconUrl: MEDIA_URL,
+      headerImageUrl: HEADER_MEDIA_URL,
+      avatarDescription: 'A cat',
+      headerDescription: '',
+      showReplies: false,
+      showMedia: false,
+      showGallery: true,
+      showFitness: false
+    })
+  })
+
+  it.each(['showReplies', 'showMedia', 'showGallery', 'showFitness'])(
+    'saves only %s as false when the other tab flags stay true',
+    async (flag) => {
+      const flags = {
+        showReplies: true,
+        showMedia: true,
+        showGallery: true,
+        showFitness: true,
+        [flag]: false
+      }
+      const response = await patch(flags)
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id,
+        ...flags
+      })
+      expect(await response.json()).toMatchObject(flags)
+    }
+  )
+
+  it('answers with the tab flags of the saved row, not a later settings read', async () => {
+    // A concurrent save lands after this one commits: the settings read then
+    // holds its flags, but the response must describe the row this save wrote.
+    mockUpdateActorWithPrevious.mockImplementationOnce(async (params) => {
+      const result = {
+        before: mockStoredActor ?? mockCurrentActor,
+        after: await mockUpdateActor(params)
+      }
+      mockSettings = {
+        ...mockSettings,
+        showReplies: true,
+        showMedia: true,
+        showGallery: true,
+        avatarDescription: 'Alt'
+      }
+      return result
+    })
+    const response = await patch({ showReplies: false, showMedia: false })
+
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        showReplies: false,
+        showMedia: false,
+        showGallery: true,
+        showFitness: true,
+        avatarDescription: 'Alt'
+      })
+    )
+  })
+
+  it('returns 404 and queues nothing when the actor is gone mid-save', async () => {
+    mockUpdateActor.mockResolvedValueOnce(null)
+    const response = await patch({
+      fields: [{ name: 'Blog', value: 'https://blog.example' }]
+    })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'Not found' })
+    expect(queueProfileLinkVerification).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('returns the verification time of a verified link as ISO text', async () => {
+    mockCurrentActor.fields = [
+      { name: 'Blog', value: 'https://blog.example', verifiedAt: 1700000000000 }
+    ]
+    const response = await patch({ showFitness: false })
+
+    const body = await response.json()
+    expect(body.fields).toEqual([
+      {
+        name: 'Blog',
+        value: 'https://blog.example',
+        verifiedAt: '2023-11-14T22:13:20.000Z'
+      }
+    ])
+  })
+
+  it('sends no Update(Person) for a tab-only change', async () => {
+    const response = await patch({
+      showReplies: false,
+      showMedia: false,
+      showGallery: false,
+      showFitness: false,
+      avatarDescription: 'Alt text'
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sends an Update(Person) when a concurrent save changed the row after the pre-read, so the pre-read is stale', async () => {
+    mockCurrentActor.name = 'Old'
+    mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+    await patch({ name: 'Old' })
+
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends no Update(Person) when the row read under the lock already equals the saved one', async () => {
+    mockCurrentActor.name = 'Old'
+    mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+    await patch({ name: 'New' })
+
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sends exactly one Update(Person) for a name change', async () => {
+    await patch({ name: 'Another name', showReplies: false })
+
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    expect(publishActorUpdate).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id
+    })
+  })
+
+  it('sends one Update and queues the link check when the links change', async () => {
+    mockCurrentActor.fields = [{ name: 'Blog', value: 'https://old.example' }]
+    await patch({ fields: [{ name: 'Blog', value: 'https://blog.example' }] })
+
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    expect(queueProfileLinkVerification).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      before: [{ name: 'Blog', value: 'https://old.example' }],
+      after: [{ name: 'Blog', value: 'https://blog.example' }],
+      remote: false
+    })
+  })
+
+  it('does not queue the link check when no links are sent', async () => {
+    await patch({ name: 'Another name' })
+
+    expect(queueProfileLinkVerification).not.toHaveBeenCalled()
+  })
+
+  it('clears an image with null and reports it as null', async () => {
+    mockCurrentActor.iconUrl = MEDIA_URL
+    const response = await patch({ iconUrl: null })
+
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+      expect.objectContaining({ iconUrl: null })
+    )
+    expect((await response.json()).iconUrl).toBeNull()
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats an echo of the stored image as no change', async () => {
+    const stale = 'https://gravatar.example/avatar/abc.jpg'
+    mockCurrentActor.iconUrl = stale
+    const response = await patch({ iconUrl: stale, name: 'New name' })
+
+    expect(response.status).toBe(200)
+    expect(
+      mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+    ).not.toHaveProperty('iconUrl')
+  })
+
+  it('clears the bio with an empty summary and sends one Update', async () => {
+    mockCurrentActor.summary = 'Old bio'
+    const response = await patch({ summary: '' })
+
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: '' })
+    )
+    expect((await response.json()).summary).toBe('')
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the display name with an empty name and sends one Update', async () => {
+    mockCurrentActor.name = 'Old name'
+    const response = await patch({ name: '' })
+
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '' })
+    )
+    expect((await response.json()).name).toBe('')
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  describe('when the session actor lacks the stored links', () => {
+    const storedLinks = [{ name: 'Blog', value: 'https://blog.example' }]
+    beforeEach(() => {
+      mockStoredActor = { ...mockCurrentActor, fields: storedLinks }
+    })
+
+    it('sends an Update(Person) when every link is removed', async () => {
+      const response = await patch({ fields: [] })
+
+      expect(response.status).toBe(200)
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(queueProfileLinkVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ before: storedLinks, after: [] })
+      )
+    })
+
+    it('sends no Update(Person) for a tab-only change', async () => {
+      await patch({ showReplies: false, showMedia: false })
+
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sends no Update(Person) for an alt-text-only change', async () => {
+      await patch({ avatarDescription: 'Alt text' })
+
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('echoes the stored links for an empty body', async () => {
+      const response = await patch({})
+
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+      expect((await response.json()).fields).toEqual([
+        { name: 'Blog', value: 'https://blog.example', verifiedAt: null }
+      ])
+    })
+  })
+
+  it('writes nothing for an empty body', async () => {
+    const response = await patch({})
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('writes nothing for a body of unknown keys only', async () => {
+    const response = await patch({
+      publicKey: 'attacker-supplied-key',
+      inboxUrl: 'https://evil.example/inbox'
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('answers 404 for an empty body when the stored actor no longer exists', async () => {
+    mockStoredMissing = true
+    const response = await patch({})
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'Not found' })
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+  })
+
+  it('ignores keys the editor does not own', async () => {
+    await patch({
+      name: 'New name',
+      publicKey: 'attacker-supplied-key',
+      inboxUrl: 'https://evil.example/inbox'
+    })
+
+    const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+    expect(params).not.toHaveProperty('publicKey')
+    expect(params).not.toHaveProperty('inboxUrl')
+  })
+
+  describe('validation', () => {
+    it.each([
+      {
+        description: 'a name over 255 characters',
+        body: { name: 'a'.repeat(256) }
+      },
+      { description: 'a non-string summary', body: { summary: 5 } },
+      {
+        description: 'five links',
+        body: {
+          fields: Array.from({ length: 5 }, (_, i) => ({
+            name: `n${i}`,
+            value: `v${i}`
+          }))
+        }
+      },
+      {
+        description: 'a link with a name and no value',
+        body: { fields: [{ name: 'Blog', value: '' }] }
+      },
+      {
+        description: 'a link name over its limit',
+        body: { fields: [{ name: 'a'.repeat(1000), value: 'x' }] }
+      },
+      {
+        description: 'a description over 1500 characters',
+        body: { avatarDescription: 'a'.repeat(1501) }
+      },
+      {
+        description: 'a header description over 1500 characters',
+        body: { headerDescription: 'a'.repeat(1501) }
+      },
+      { description: 'a string tab flag', body: { showGallery: 'no' } },
+      {
+        description: 'an icon on somebody else’s host',
+        body: { iconUrl: 'https://evil.example/api/v1/files/abc.jpg' }
+      },
+      {
+        description: 'a javascript: header',
+        body: { headerImageUrl: 'javascript://llun.test/%0aalert(1)' }
+      }
+    ])('answers 422 with an error body for $description', async ({ body }) => {
+      const response = await patch({ name: 'Valid', ...body })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('accepts an unchanged name and bio longer than the caps', async () => {
+      mockCurrentActor.name = 'n'.repeat(300)
+      mockCurrentActor.summary = 's'.repeat(900)
+      const response = await patch({
+        name: 'n'.repeat(300),
+        summary: 's'.repeat(900),
+        showGallery: false
+      })
+
+      expect(response.status).toBe(200)
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('still enforces the caps on a changed long value', async () => {
+      mockCurrentActor.summary = 's'.repeat(900)
+      const longer = await patch({ summary: 's'.repeat(901) })
+      const name = await patch({ name: 'n'.repeat(256) })
+
+      expect(longer.status).toBe(422)
+      expect(name.status).toBe(422)
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
+    })
+
+    it('accepts descriptions of exactly 1500 characters after trimming', async () => {
+      const response = await patch({
+        avatarDescription: ` ${'a'.repeat(1500)} `
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+        expect.objectContaining({ avatarDescription: 'a'.repeat(1500) })
+      )
+    })
+
+    it('answers 400 for a body that is not JSON', async () => {
+      const response = await patchRaw('not json')
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ error: 'Bad Request' })
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
   })
 })

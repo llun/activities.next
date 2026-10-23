@@ -10,6 +10,7 @@ import {
   PROFILE_FIELD_VALUE_MAX_LENGTH
 } from '@/lib/services/accounts/profileFieldLimits'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+import { hasFederatedProfileChange } from '@/lib/services/actors/hasFederatedProfileChange'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -60,8 +61,8 @@ const UpdateCredentialsRequest = z.object({
   // clients simply never send them. Descriptions cap at 1500 chars (Mastodon's
   // media-description limit). Booleans accept the string forms exactly like
   // locked/bot/discoverable because form bodies deliver strings.
-  avatar_description: z.string().max(1500).optional(),
-  header_description: z.string().max(1500).optional(),
+  avatar_description: z.string().trim().max(1500).optional(),
+  header_description: z.string().trim().max(1500).optional(),
   show_media: z.union([z.boolean(), z.string()]).optional(),
   show_media_replies: z.union([z.boolean(), z.string()]).optional(),
   show_featured: z.union([z.boolean(), z.string()]).optional(),
@@ -385,56 +386,74 @@ export const updateCredentialsHandler = (
             ]
           : undefined
 
-      await database.updateActor({
-        actorId: currentActor.id,
-        ...(display_name !== undefined ? { name: display_name } : null),
-        ...(note !== undefined ? { summary: note } : null),
-        ...(manuallyApprovesFollowers !== undefined
-          ? { manuallyApprovesFollowers }
-          : null),
-        ...(botFlag !== undefined ? { bot: botFlag } : null),
-        ...(discoverableFlag !== undefined
-          ? { discoverable: discoverableFlag }
-          : null),
-        ...(indexableFlag !== undefined ? { indexable: indexableFlag } : null),
-        ...(hideCollectionsFlag !== undefined
-          ? { hideCollections: hideCollectionsFlag }
-          : null),
-        ...(attributionDomains !== undefined ? { attributionDomains } : null),
-        ...(fields !== undefined ? { fields } : null),
-        ...(source?.privacy !== undefined
-          ? { defaultPrivacy: source.privacy }
-          : null),
-        ...(sensitiveFlag !== undefined
-          ? { defaultSensitive: sensitiveFlag }
-          : null),
-        ...(source?.language !== undefined
-          ? { defaultLanguage: source.language }
-          : null),
-        ...(source?.quote_policy !== undefined
-          ? { defaultQuotePolicy: source.quote_policy }
-          : null),
-        ...(iconUrl !== undefined ? { iconUrl } : null),
-        ...(headerImageUrl !== undefined ? { headerImageUrl } : null),
-        ...(avatar_description !== undefined
-          ? { avatarDescription: avatar_description }
-          : null),
-        ...(header_description !== undefined
-          ? { headerDescription: header_description }
-          : null),
-        ...(showMediaFlag !== undefined ? { showMedia: showMediaFlag } : null),
-        ...(showMediaRepliesFlag !== undefined
-          ? { showMediaReplies: showMediaRepliesFlag }
-          : null),
-        ...(showFeaturedFlag !== undefined
-          ? { showFeatured: showFeaturedFlag }
-          : null)
-      })
-      await publishActorUpdate({ actorId: currentActor.id })
-      if (fields !== undefined) {
+      // Changes are measured against the stored actor as read under the
+      // save's own row lock (`before`), not a read made earlier: a concurrent
+      // save may have committed in between.
+      const { before, after: updatedActor } =
+        await database.updateActorWithPrevious({
+          actorId: currentActor.id,
+          ...(display_name !== undefined ? { name: display_name } : null),
+          ...(note !== undefined ? { summary: note } : null),
+          ...(manuallyApprovesFollowers !== undefined
+            ? { manuallyApprovesFollowers }
+            : null),
+          ...(botFlag !== undefined ? { bot: botFlag } : null),
+          ...(discoverableFlag !== undefined
+            ? { discoverable: discoverableFlag }
+            : null),
+          ...(indexableFlag !== undefined
+            ? { indexable: indexableFlag }
+            : null),
+          ...(hideCollectionsFlag !== undefined
+            ? { hideCollections: hideCollectionsFlag }
+            : null),
+          ...(attributionDomains !== undefined ? { attributionDomains } : null),
+          ...(fields !== undefined ? { fields } : null),
+          ...(source?.privacy !== undefined
+            ? { defaultPrivacy: source.privacy }
+            : null),
+          ...(sensitiveFlag !== undefined
+            ? { defaultSensitive: sensitiveFlag }
+            : null),
+          ...(source?.language !== undefined
+            ? { defaultLanguage: source.language }
+            : null),
+          ...(source?.quote_policy !== undefined
+            ? { defaultQuotePolicy: source.quote_policy }
+            : null),
+          ...(iconUrl !== undefined ? { iconUrl } : null),
+          ...(headerImageUrl !== undefined ? { headerImageUrl } : null),
+          ...(avatar_description !== undefined
+            ? { avatarDescription: avatar_description }
+            : null),
+          ...(header_description !== undefined
+            ? { headerDescription: header_description }
+            : null),
+          ...(showMediaFlag !== undefined
+            ? { showMedia: showMediaFlag }
+            : null),
+          ...(showMediaRepliesFlag !== undefined
+            ? { showMediaReplies: showMediaRepliesFlag }
+            : null),
+          ...(showFeaturedFlag !== undefined
+            ? { showFeatured: showFeaturedFlag }
+            : null)
+        })
+      // Only a change to what the federated Person carries is sent: this also
+      // saves posting defaults, tab flags and alt texts, which remote servers
+      // never see. `before` and `after` are read in one transaction under the
+      // row lock, so a null `before` next to a saved actor cannot happen;
+      // publishing then is only a defensive default.
+      if (
+        updatedActor &&
+        (!before || hasFederatedProfileChange(before, updatedActor))
+      ) {
+        await publishActorUpdate({ actorId: currentActor.id })
+      }
+      if (updatedActor && fields !== undefined) {
         await queueProfileLinkVerification({
           actorId: currentActor.id,
-          before: currentActor.fields,
+          before: before?.fields,
           after: fields,
           remote: false
         })

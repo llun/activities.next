@@ -143,8 +143,15 @@ export const createActor = async (
   return getActorFromId(db, { id: actorId })
 }
 
-export const updateActor = async (
+type ActorUpdateResult = { before: Actor | null; after: Actor | null }
+
+// The one implementation of updateActor and updateActorWithPrevious. With
+// `withSnapshots` the full actor is read inside the transaction, under the row
+// lock, before and after the write; without it those reads are skipped and the
+// result is read after the commit, as updateActor always did.
+const applyActorUpdate = async (
   db: Db,
+  withSnapshots: boolean,
   {
     actorId,
     type,
@@ -181,6 +188,9 @@ export const updateActor = async (
     showMedia,
     showMediaReplies,
     showFeatured,
+    showReplies,
+    showGallery,
+    showFitness,
     navOrder,
     navHidden,
 
@@ -190,14 +200,14 @@ export const updateActor = async (
     inboxUrl,
     sharedInboxUrl
   }: UpdateActorParams
-): Promise<Actor | null> => {
+): Promise<ActorUpdateResult> => {
   const row = await db
     .selectFrom('actors')
     .selectAll()
     .where('id', '=', actorId)
     .limit(1)
     .executeTakeFirst()
-  if (!row) return null
+  if (!row) return { before: null, after: null }
   const persistedActor = asSQLActor(row)
 
   const persistedSettings = getCompatibleJSON<ActorSettings>(
@@ -261,6 +271,9 @@ export const updateActor = async (
     ...(showMedia !== undefined ? { showMedia } : null),
     ...(showMediaReplies !== undefined ? { showMediaReplies } : null),
     ...(showFeatured !== undefined ? { showFeatured } : null),
+    ...(showReplies !== undefined ? { showReplies } : null),
+    ...(showGallery !== undefined ? { showGallery } : null),
+    ...(showFitness !== undefined ? { showFitness } : null),
     ...(navOrder !== undefined ? { navOrder } : null),
     ...(navHidden !== undefined ? { navHidden } : null),
 
@@ -283,11 +296,16 @@ export const updateActor = async (
   const currentTime = new Date()
   const columnUpdates = {
     ...(type ? { type } : null),
-    ...(name ? { name } : null),
-    ...(summary ? { summary } : null),
+    // `undefined` is "no change"; an empty string clears the display name or
+    // bio. Callers that must not wipe a stored value (a remote refresh whose
+    // document has none) leave the key out, as `getPersistableProfile` does.
+    ...(name !== undefined ? { name } : null),
+    ...(summary !== undefined ? { summary } : null),
     ...(publicKey ? { publicKey } : null)
   }
 
+  let before: Actor | null = null
+  let after: Actor | null = null
   await inTransaction(db, async (trx) => {
     // Re-read the settings inside the transaction (with a row lock on
     // PostgreSQL; SQLite runs one connection, so the read is already atomic
@@ -309,6 +327,9 @@ export const updateActor = async (
           freshActor.settings as string | ActorSettings
         )
       : persistedSettings
+    // The row as it stands under the lock, for a caller that must compare what
+    // this write changes against the state it really replaced.
+    if (withSnapshots) before = await getActorFromId(trx, { id: actorId })
     let settings = applyExplicitClears({
       ...freshSettings,
       ...settingsUpdates,
@@ -345,9 +366,28 @@ export const updateActor = async (
         settings: JSON.stringify(settings)
       }
     })
+    if (withSnapshots) after = await getActorFromId(trx, { id: actorId })
   })
-  return getActorFromId(db, { id: actorId })
+  return {
+    before,
+    after: withSnapshots ? after : await getActorFromId(db, { id: actorId })
+  }
 }
+
+export const updateActor = async (
+  db: Db,
+  params: UpdateActorParams
+): Promise<Actor | null> => (await applyActorUpdate(db, false, params)).after
+
+// updateActor that also returns the actor as it was under the write's row lock
+// (`before`, null when the actor is gone) next to the result (`after`), both
+// read in the transaction. A caller that decides from the difference, such as
+// whether to federate an Update, must not compare with a row it read before
+// the call: a concurrent save may have committed in between.
+export const updateActorWithPrevious = (
+  db: Db,
+  params: UpdateActorParams
+): Promise<ActorUpdateResult> => applyActorUpdate(db, true, params)
 
 // Stamps `verifiedAt` on the stored profile fields whose value is one of
 // `values`, the values the verification job checked, and `linksCheckedAt` with

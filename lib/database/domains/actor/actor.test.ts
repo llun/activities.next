@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { sql } from 'kysely'
 
 import {
   createActorPublicIdReader,
@@ -10,6 +11,8 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { holdTransaction } from '@/lib/database/testing/heldTransaction'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
@@ -28,7 +31,7 @@ describe('ActorDatabase', () => {
     await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(table)('%s', (_, database) => {
+  describe.each(table)('%s', (backend, database) => {
     // publicIds are minted at insert and random per run, so expectations read
     // them back off the stored row instead of hard-coding a literal.
     const getActorPublicId = createActorPublicIdReader(database)
@@ -232,6 +235,125 @@ describe('ActorDatabase', () => {
           followers_count: 0,
           following_count: 0
         })
+      })
+
+      it('updateActorWithPrevious returns the row as it was at write time and the saved one', async () => {
+        const username = `update-previous-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.updateActor({ actorId, name: 'New' })
+        const result = await database.updateActorWithPrevious({
+          actorId,
+          name: 'Old'
+        })
+
+        expect(result.before?.name).toBe('New')
+        expect(result.after?.name).toBe('Old')
+        expect((await database.getActorFromId({ id: actorId }))?.name).toBe(
+          'Old'
+        )
+      })
+
+      it('updateActorWithPrevious reads the row under the write lock when two saves race', async () => {
+        const username = `update-race-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        await database.updateActor({ actorId, name: 'Orig' })
+
+        const results = await Promise.all([
+          database.updateActorWithPrevious({ actorId, name: 'A' }),
+          database.updateActorWithPrevious({ actorId, name: 'B' })
+        ])
+
+        // Either save may take the lock first, but the second must see the
+        // first one's write as its `before`; a read outside the lock would
+        // give 'Orig->A' and 'Orig->B'. This reliably catches a read outside
+        // the transaction on SQLite, where the transaction owns the one
+        // connection. On PostgreSQL the two saves rarely overlap, so it
+        // seldom catches a read moved before the lock; the next test covers
+        // that ordering.
+        expect(results[0].after?.name).toBe('A')
+        expect(results[1].after?.name).toBe('B')
+        const firsts = results.filter(({ before }) => before?.name === 'Orig')
+        expect(firsts).toHaveLength(1)
+        const second = results.find((result) => result !== firsts[0])
+        expect(second?.before?.name).toBe(firsts[0].after?.name)
+      })
+
+      it.runIf(backend === 'pg')(
+        'updateActorWithPrevious reads its before snapshot only after the actor row lock is granted',
+        async () => {
+          const username = `update-held-${crypto.randomUUID().slice(0, 8)}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          await createSigningAccount(database, username)
+          await database.updateActor({ actorId, name: 'Orig' })
+
+          // A second pool on this worker's database (no prepare, no migrate):
+          // one connection holds the lock, another polls for the wait.
+          const raw = createTestDatabase({ backend: 'pg' })
+          const held = await holdTransaction(raw.db)
+          let pending:
+            ReturnType<typeof database.updateActorWithPrevious> | undefined
+          try {
+            await held.trx
+              .selectFrom('actors')
+              .select('id')
+              .where('id', '=', actorId)
+              .forUpdate()
+              .executeTakeFirstOrThrow()
+            await held.trx
+              .updateTable('actors')
+              .set({ name: 'Held' })
+              .where('id', '=', actorId)
+              .execute()
+
+            pending = database.updateActorWithPrevious({ actorId, name: 'B' })
+            // The save is waiting once a backend of this database waits on a
+            // lock; nothing else here takes one.
+            const deadline = Date.now() + 5000
+            for (;;) {
+              const { rows } = await sql<{ waiting: number }>`
+                select count(*)::int as waiting
+                from pg_stat_activity
+                where datname = current_database()
+                  and wait_event_type = 'Lock'
+                  and pid <> pg_backend_pid()
+              `.execute(raw.db)
+              if (rows[0].waiting > 0) break
+              if (Date.now() > deadline) {
+                throw new Error(
+                  'updateActorWithPrevious never waited for the actor row lock'
+                )
+              }
+              await new Promise((resolve) => setTimeout(resolve, 20))
+            }
+            await held.commit()
+          } catch (error) {
+            await held.rollback()
+            throw error
+          } finally {
+            // Settle the save before the pool goes, so a failed run leaves no
+            // dangling query.
+            await pending?.catch(() => undefined)
+            await raw.destroy()
+          }
+
+          const { before, after } = await (pending as NonNullable<
+            typeof pending
+          >)
+          expect(before?.name).toBe('Held')
+          expect(after?.name).toBe('B')
+        }
+      )
+
+      it('updateActorWithPrevious returns null for both when the actor does not exist', async () => {
+        const result = await database.updateActorWithPrevious({
+          actorId: `https://${TEST_DOMAIN}/users/missing-${crypto.randomUUID().slice(0, 8)}`,
+          name: 'Nobody'
+        })
+
+        expect(result).toEqual({ before: null, after: null })
       })
 
       it('sanitizes the HTML note, escapes a local field value as text and keeps source raw', async () => {
@@ -442,6 +564,63 @@ describe('ActorDatabase', () => {
           showFeatured: false,
           attributionDomains: ['news.example.com']
         })
+      })
+
+      it('persists the profile tab flags and reads them back on the actor, false included', async () => {
+        const username = `profile-tabs-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        const before = await database.getActorFromId({ id: actorId })
+        expect(before?.showGallery).toBeUndefined()
+
+        await database.updateActor({
+          actorId,
+          showReplies: false,
+          showGallery: false,
+          showFitness: true,
+          showMedia: true
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor).toMatchObject({
+          showReplies: false,
+          showGallery: false,
+          showFitness: true,
+          showMedia: true
+        })
+        const settings = await database.getActorSettings({ actorId })
+        expect(settings).toMatchObject({
+          showReplies: false,
+          showGallery: false,
+          showFitness: true,
+          showMedia: true
+        })
+
+        // A later save of another setting keeps the flags.
+        await database.updateActor({ actorId, postLineLimit: 10 })
+        const kept = await database.getActorFromId({ id: actorId })
+        expect(kept?.showGallery).toBe(false)
+      })
+
+      it('clears the display name and bio with an empty string, and leaves them for undefined', async () => {
+        const username = `clear-text-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        await database.updateActor({
+          actorId,
+          name: 'Some name',
+          summary: 'Some bio'
+        })
+
+        await database.updateActor({ actorId, postLineLimit: 5 })
+        const kept = await database.getActorFromId({ id: actorId })
+        expect(kept).toMatchObject({ name: 'Some name', summary: 'Some bio' })
+
+        await database.updateActor({ actorId, name: '', summary: '' })
+        const cleared = await database.getActorFromId({ id: actorId })
+        expect(cleared?.name || '').toBe('')
+        expect(cleared?.summary || '').toBe('')
       })
 
       it('persists and returns reading preferences', async () => {
