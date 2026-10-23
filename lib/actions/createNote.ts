@@ -250,18 +250,44 @@ export const publishCreatedStatus = async ({
 //   another process may still be creating or queueing it.
 // Null when that create failed and discarded its status and key, so a retry
 // may create the post afresh; IdempotencyDeletedError when the key outlived
-// its status.
-export const loadIdempotentStatus = async ({
-  database,
-  actorId,
-  key,
-  statusId
-}: {
+// its status. The key names a post an earlier request saved, so any other
+// failure is StatusPublishFailedError, never the route's 400, which would let
+// the client post it again under a new key.
+export const loadIdempotentStatus = async (
+  params: LoadIdempotentStatusParams
+): Promise<Status | null> => {
+  try {
+    return await answerIdempotentStatus(params)
+  } catch (error) {
+    if (
+      error instanceof IdempotencyDeletedError ||
+      error instanceof IdempotencyInProgressError ||
+      error instanceof StatusPublishFailedError
+    ) {
+      throw error
+    }
+    logger.error({
+      message: 'Status create: an Idempotency-Key replay failed',
+      statusId: params.statusId,
+      err: toLoggableError(error)
+    })
+    throw new StatusPublishFailedError(true)
+  }
+}
+
+type LoadIdempotentStatusParams = {
   database: Database
   actorId: string
   key: string
   statusId: string
-}): Promise<Status | null> => {
+}
+
+const answerIdempotentStatus = async ({
+  database,
+  actorId,
+  key,
+  statusId
+}: LoadIdempotentStatusParams): Promise<Status | null> => {
   await waitForInFlightStatusCreation(statusId)
   // The key first: a discard removes the status and the key together, so a
   // key read before the status cannot vouch for a status discarded since.
@@ -329,31 +355,12 @@ export const resolveExistingIdempotentStatus = async ({
   ) {
     throw new IdempotencyConflictError()
   }
-  // The key names a post an earlier request saved: an unexpected failure
-  // answering it fails as a kept post, never as the route's 400, which would
-  // let the client post it again under a new key.
-  try {
-    return await loadIdempotentStatus({
-      database,
-      actorId,
-      key: idempotency.key,
-      statusId: existingKey.statusId
-    })
-  } catch (error) {
-    if (
-      error instanceof IdempotencyDeletedError ||
-      error instanceof IdempotencyInProgressError ||
-      error instanceof StatusPublishFailedError
-    ) {
-      throw error
-    }
-    logger.error({
-      message: 'Status create: an Idempotency-Key replay failed',
-      statusId: existingKey.statusId,
-      err: toLoggableError(error)
-    })
-    throw new StatusPublishFailedError(true)
-  }
+  return loadIdempotentStatus({
+    database,
+    actorId,
+    key: idempotency.key,
+    statusId: existingKey.statusId
+  })
 }
 
 // Undoes a create whose completion steps failed with `error` before its job

@@ -190,16 +190,9 @@ describe('idempotent status lookup', () => {
       new Error('database gone')
     )
 
-    await expect(
-      resolveExistingIdempotentStatus({
-        database,
-        actorId,
-        idempotency: {
-          key: 'replay-claim-fails',
-          contentHash: 'hash-replay-claim-fails'
-        }
-      })
-    ).rejects.toBeInstanceOf(StatusPublishFailedError)
+    await expect(retry('replay-claim-fails')).rejects.toBeInstanceOf(
+      StatusPublishFailedError
+    )
     await expect(stateOf('replay-claim-fails')).resolves.toBe('publish_failed')
   })
 
