@@ -21,6 +21,31 @@ const renderBar = (props: Partial<Parameters<typeof SaveBar>[0]> = {}) => {
 }
 
 describe('SaveBar', () => {
+  it('shows the error as an alert, or without the role when errorLive is off', () => {
+    const { rerender } = render(
+      <SaveBar
+        dirty
+        saving={false}
+        saved={false}
+        error="Nope"
+        onSave={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Nope')
+    rerender(
+      <SaveBar
+        dirty
+        saving={false}
+        saved={false}
+        error="Nope"
+        errorLive={false}
+        onSave={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('Nope')).toBeVisible()
+  })
+
   it('has a disabled Save button while the form is clean', () => {
     renderBar()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()

@@ -40,7 +40,7 @@ const CreateFeaturedTagRequest = z.object({
     }),
   // The profile the Edit profile page was loaded for. Mastodon clients do not
   // send it; when present and not the current profile, nothing is written.
-  actorId: z.string().optional()
+  actorId: z.unknown().optional()
 })
 
 // GET /api/v1/featured_tags — the current user's featured tags.
@@ -86,7 +86,12 @@ export const POST = traceApiRoute(
         })
       }
 
-      const { name, actorId: expectedActorId } = parsed.data
+      const { name } = parsed.data
+      // Like Mastodon with unknown params: anything but a string is ignored.
+      const expectedActorId =
+        typeof parsed.data.actorId === 'string'
+          ? parsed.data.actorId
+          : undefined
       if (
         expectedActorId !== undefined &&
         expectedActorId !== currentActor.id

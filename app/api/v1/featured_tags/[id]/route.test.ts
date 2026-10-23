@@ -138,5 +138,10 @@ describe('DELETE /api/v1/featured_tags/:id', () => {
 
     const response = await invoke(created.id, `?actorId=${ACTOR1_ID}`)
     expect(response.status).toBe(200)
+    expect(
+      (await database.getFeaturedTags({ actorId: ACTOR1_ID })).find(
+        (tag) => tag.id === created.id
+      )
+    ).toBeUndefined()
   })
 })

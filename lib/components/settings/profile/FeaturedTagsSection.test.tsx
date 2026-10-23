@@ -47,6 +47,21 @@ describe('FeaturedTagsSection', () => {
     mockGetSuggestions.mockResolvedValue([])
   })
 
+  it('turns the add control and Remove buttons off when disabled', async () => {
+    mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'birds' })])
+    render(
+      <FeaturedTagsSection
+        actorId="actor-1"
+        disabled
+        onActorChanged={onActorChanged}
+      />
+    )
+
+    await screen.findByText('#birds')
+    expect(screen.getByLabelText('Add a hashtag')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove #birds' })).toBeDisabled()
+  })
+
   it('is one Featured hashtags section with the anchor the redirect lands on', async () => {
     mockGetFeaturedTags.mockResolvedValue([buildTag({ name: 'birds' })])
     render(

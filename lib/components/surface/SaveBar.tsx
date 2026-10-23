@@ -78,6 +78,11 @@ interface SaveBarProps {
   saving?: boolean
   saved?: boolean
   error?: string | null
+  /**
+   * Whether the error is announced (`role="alert"`). On by default. Turn it
+   * off when another alert on the page already says the same thing.
+   */
+  errorLive?: boolean
   /** Called when Save is pressed. Not needed with `submit`. */
   onSave?: () => void
   /**
@@ -134,6 +139,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   saving = false,
   saved = false,
   error,
+  errorLive = true,
   onSave,
   submit = false,
   formId,
@@ -185,7 +191,10 @@ export const SaveBar: FC<SaveBarProps> = ({
             </p>
           ) : null
         ) : error ? (
-          <p role="alert" className="text-destructive-text break-words">
+          <p
+            role={errorLive ? 'alert' : undefined}
+            className="text-destructive-text break-words"
+          >
             {error}
           </p>
         ) : (

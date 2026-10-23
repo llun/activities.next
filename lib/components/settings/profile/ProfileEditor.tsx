@@ -298,9 +298,12 @@ export const ProfileEditor: FC<Props> = ({
       formId={formId}
       disabledReason={uploading ? 'Uploading a picture…' : undefined}
       disabled={actorChanged}
+      errorLive={!actorChanged}
       error={
         actorChanged
-          ? 'Couldn’t save your profile.'
+          ? dirty
+            ? 'Couldn’t save your profile.'
+            : null
           : hasError
             ? errors.form
               ? 'Couldn’t save your profile.'
@@ -562,6 +565,7 @@ export const ProfileEditor: FC<Props> = ({
               and its add bar is a form of its own. */}
           <FeaturedTagsSection
             actorId={actorId}
+            disabled={actorChanged}
             onActorChanged={handleActorChanged}
           />
 

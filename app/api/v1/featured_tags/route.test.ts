@@ -176,6 +176,13 @@ describe('featured_tags collection endpoints', () => {
     expect(response.status).toBe(200)
   })
 
+  it('ignores an actorId that is not a string', async () => {
+    const response = await POST(postRequest({ name: 'numactor', actorId: 5 }), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+  })
+
   it('returns 409 and writes nothing when the expected actor differs', async () => {
     const response = await POST(
       postRequest({ name: 'staletab', actorId: 'another-actor' }),

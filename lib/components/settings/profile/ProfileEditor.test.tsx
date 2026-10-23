@@ -583,6 +583,10 @@ describe('ProfileEditor', () => {
       // Every retry would be refused, so Save is off and the bar says why.
       expect(saveButton()).toBeDisabled()
       expect(screen.getByText('Couldn’t save your profile.')).toBeVisible()
+      // Only the focused Alert announces; the bar's text is not a second alert.
+      expect(
+        screen.getByText('Couldn’t save your profile.')
+      ).not.toHaveAttribute('role')
       // Focus moves to the Alert like for a failed save.
       expect(document.activeElement).toBe(
         screen
@@ -1310,6 +1314,23 @@ describe('ProfileEditor', () => {
       expect(addFeaturedTag).toHaveBeenCalledWith('birds', ACTOR_ID)
       expect(mockUpdateProfile).not.toHaveBeenCalled()
       expect(saveButton()).toBeDisabled()
+    })
+
+    it('after a hashtag 409 on a clean page: no profile-save error, hashtag controls off', async () => {
+      ;(addFeaturedTag as jest.Mock).mockResolvedValue({
+        error: 'Actor changed',
+        actorChanged: true
+      })
+      renderEditor()
+      await screen.findByText('No featured hashtags yet')
+
+      const input = screen.getByLabelText('Add a hashtag')
+      type(input, 'birds')
+      fireEvent.submit(input.closest('form') as HTMLFormElement)
+
+      await screen.findByText(/You switched to another profile/)
+      expect(screen.queryByText('Couldn’t save your profile.')).toBeNull()
+      expect(screen.getByLabelText('Add a hashtag')).toBeDisabled()
     })
 
     it('shows the reload notice once when a hashtag save finds another profile', async () => {

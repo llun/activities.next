@@ -101,9 +101,10 @@ interface TagRowProps {
   tag: FeaturedTag
   onRemove: (tag: FeaturedTag) => void
   busy: boolean
+  disabled?: boolean
 }
 
-const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
+const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy, disabled = false }) => (
   <FramedListItem className="flex items-center gap-3">
     <HashTile />
     <div className="min-w-0 flex-1">
@@ -118,7 +119,7 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
       size="icon-sm"
       aria-label={`Remove #${tag.name}`}
       onClick={() => onRemove(tag)}
-      disabled={busy}
+      disabled={busy || disabled}
       className="shrink-0 border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
     >
       <X className="size-[15px]" />
@@ -139,7 +140,9 @@ export const FeaturedTagsSection: FC<{
   actorId: string
   /** The session is on another profile now: nothing was saved. */
   onActorChanged: () => void
-}> = ({ actorId, onActorChanged }) => {
+  /** The page is out of date: the add control and Remove buttons are off. */
+  disabled?: boolean
+}> = ({ actorId, onActorChanged, disabled = false }) => {
   const [loading, setLoading] = useState(true)
   const [tags, setTags] = useState<FeaturedTag[]>([])
   const [suggestions, setSuggestions] = useState<Tag[]>([])
@@ -305,7 +308,7 @@ export const FeaturedTagsSection: FC<{
         label="Add a hashtag"
         id="featured-tag-input"
         prefix={<Hash className="size-[15px]" />}
-        buttonDisabled={atLimit || submitting}
+        buttonDisabled={atLimit || submitting || disabled}
         inputRef={inputRef}
         onSubmit={(event) => {
           event.preventDefault()
@@ -313,7 +316,7 @@ export const FeaturedTagsSection: FC<{
         }}
         inputProps={{
           value,
-          disabled: atLimit || submitting,
+          disabled: atLimit || submitting || disabled,
           placeholder: atLimit
             ? 'You’ve reached the 10-hashtag limit'
             : 'Add a hashtag',
@@ -385,6 +388,7 @@ export const FeaturedTagsSection: FC<{
             <Button
               type="button"
               size="sm"
+              disabled={disabled}
               onClick={() => inputRef.current?.focus()}
             >
               <Plus className="size-4" />
@@ -403,6 +407,7 @@ export const FeaturedTagsSection: FC<{
               tag={tag}
               onRemove={remove}
               busy={busyId === tag.id}
+              disabled={disabled}
             />
           ))}
         </FramedList>
