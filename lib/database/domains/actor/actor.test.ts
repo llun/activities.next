@@ -234,6 +234,33 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('updateActorWithPrevious returns the row as it was at write time and the saved one', async () => {
+        const username = `update-previous-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.updateActor({ actorId, name: 'New' })
+        const result = await database.updateActorWithPrevious({
+          actorId,
+          name: 'Old'
+        })
+
+        expect(result.before?.name).toBe('New')
+        expect(result.after?.name).toBe('Old')
+        expect((await database.getActorFromId({ id: actorId }))?.name).toBe(
+          'Old'
+        )
+      })
+
+      it('updateActorWithPrevious returns null for both when the actor does not exist', async () => {
+        const result = await database.updateActorWithPrevious({
+          actorId: `https://${TEST_DOMAIN}/users/missing-${crypto.randomUUID().slice(0, 8)}`,
+          name: 'Nobody'
+        })
+
+        expect(result).toEqual({ before: null, after: null })
+      })
+
       it('sanitizes the HTML note, escapes a local field value as text and keeps source raw', async () => {
         const username = `xss-note-${crypto.randomUUID().slice(0, 8)}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`

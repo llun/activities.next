@@ -1613,10 +1613,14 @@ legacy shape left to copy.
   `PATCH /api/v1/accounts/profile`, and
   `DELETE /api/v1/profile/{avatar,header}`.** A save sends an Update **only when
   something the federated Person carries changed**: the four save routes above
-  (not the avatar and header deletes, which always send) compare the actor
-  before and after with
-  `hasFederatedProfileChange` (`lib/services/actors/hasFederatedProfileChange.ts`),
-  which compares the `getPersonFromActor` documents (emoji `updated` stamps
+  (not the avatar and header deletes, which always send) save with
+  `updateActorWithPrevious`, which returns the actor read under the save's own
+  row lock (`before`) and the saved one (`after`), and compare those two with
+  `hasFederatedProfileChange` (`lib/services/actors/hasFederatedProfileChange.ts`);
+  a `before` read earlier, outside the lock, would
+  let two interleaved saves each compare against a row the other already
+  replaced and skip an Update remote servers need (a null `before` publishes).
+  It compares the `getPersonFromActor` documents (emoji `updated` stamps
   aside), so the list of federated fields is whatever that document carries.
   A save of the post line limit, the profile tabs, image alt texts or any other
   setting remote servers never see sends no Update(Person), and a save that

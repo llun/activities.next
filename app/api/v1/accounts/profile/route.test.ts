@@ -63,8 +63,21 @@ const mockUpdateActor = vi.fn(
     return next as Actor
   }
 )
+// The actor as read under the save's row lock. Undefined means "the stored
+// actor"; a test sets it apart from the stored one to model a save that landed
+// between the route's pre-read and its own write.
+let mockLockedBefore: Actor | null | undefined
+const mockUpdateActorWithPrevious = vi.fn(
+  async (params: Record<string, unknown>) => {
+    const before =
+      mockLockedBefore !== undefined
+        ? mockLockedBefore
+        : (mockStoredActor ?? mockCurrentActor)
+    return { before, after: await mockUpdateActor(params) }
+  }
+)
 const mockDatabase = {
-  updateActor: mockUpdateActor,
+  updateActorWithPrevious: mockUpdateActorWithPrevious,
   getActorFromId: vi.fn(async () => mockStoredActor ?? mockCurrentActor),
   getActorSettings: vi.fn(async () => mockSettings)
 }
@@ -101,6 +114,7 @@ describe('POST /api/v1/accounts/profile', () => {
     vi.clearAllMocks()
     mockSettings = undefined
     mockStoredActor = null
+    mockLockedBefore = undefined
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
     delete mockCurrentActor.fields
@@ -131,7 +145,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(303)
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: mockCurrentActor.id,
           iconUrl: MEDIA_URL,
@@ -165,7 +179,7 @@ describe('POST /api/v1/accounts/profile', () => {
       const response = await post({ iconUrl: value })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('refuses a rejected headerImageUrl even when iconUrl is fine', async () => {
@@ -175,7 +189,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('refuses the whole request without writing any other field', async () => {
@@ -188,13 +202,13 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('clears the stored image when the field is submitted empty', async () => {
       await post({ iconUrl: '', headerImageUrl: '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ iconUrl: null, headerImageUrl: null })
       )
     })
@@ -202,7 +216,7 @@ describe('POST /api/v1/accounts/profile', () => {
     it('leaves the stored images alone when neither field is submitted', async () => {
       await post({ name: 'New name' })
 
-      const params = mockDatabase.updateActor.mock.calls[0][0]
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
       expect(params).not.toHaveProperty('iconUrl')
       expect(params).not.toHaveProperty('headerImageUrl')
     })
@@ -220,7 +234,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(303)
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({
           fields: [
             { name: 'Blog', value: 'https://blog.example' },
@@ -233,7 +247,7 @@ describe('POST /api/v1/accounts/profile', () => {
     it('clears the stored links when every row is emptied', async () => {
       await post({ 'fields[0][name]': '', 'fields[0][value]': '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ fields: [] })
       )
     })
@@ -258,9 +272,9 @@ describe('POST /api/v1/accounts/profile', () => {
     it('leaves the stored links alone when the form sends none', async () => {
       await post({ name: 'New name' })
 
-      expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
-        'fields'
-      )
+      expect(
+        mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      ).not.toHaveProperty('fields')
     })
 
     it('queues the link check with the stored and the submitted fields', async () => {
@@ -292,7 +306,7 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
   })
@@ -310,7 +324,7 @@ describe('POST /api/v1/accounts/profile', () => {
       const response = await post({ name: 'New name', iconUrl: STALE })
 
       expect(response.status).toBe(303)
-      const params = mockDatabase.updateActor.mock.calls[0][0]
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
       expect(params).toMatchObject({ name: 'New name' })
       expect(params).not.toHaveProperty('iconUrl')
     })
@@ -322,14 +336,14 @@ describe('POST /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('still lets the stale URL be cleared', async () => {
       mockCurrentActor.iconUrl = STALE
       await post({ iconUrl: '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ iconUrl: null })
       )
     })
@@ -341,7 +355,7 @@ describe('POST /api/v1/accounts/profile', () => {
     const aliasUrl = 'https://alias.llun.test/api/v1/files/abc.jpg'
     await post({ iconUrl: aliasUrl })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ iconUrl: aliasUrl })
     )
   })
@@ -350,7 +364,7 @@ describe('POST /api/v1/accounts/profile', () => {
     mockCurrentActor.headerImageUrl = HEADER_MEDIA_URL
     await post({ iconUrl: MEDIA_URL, headerImageUrl: '' })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ iconUrl: MEDIA_URL, headerImageUrl: null })
     )
   })
@@ -367,10 +381,10 @@ describe('POST /api/v1/accounts/profile', () => {
     ])('ignores %s', async (field, value) => {
       await post({ name: 'New name', [field]: value })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
-      expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
-        field
-      )
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+      expect(
+        mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      ).not.toHaveProperty(field)
     })
   })
 
@@ -378,7 +392,7 @@ describe('POST /api/v1/accounts/profile', () => {
     it('updates the name and summary', async () => {
       await post({ name: 'New name', summary: 'New summary' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'New name', summary: 'New summary' })
       )
       expect(publishActorUpdate).toHaveBeenCalledWith({
@@ -404,7 +418,7 @@ describe('POST /api/v1/accounts/profile', () => {
     ])('reads $description', async ({ fields, expected }) => {
       await post(fields)
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ manuallyApprovesFollowers: expected })
       )
     })
@@ -420,7 +434,7 @@ describe('POST /api/v1/accounts/profile', () => {
       async ({ submitted, expected }) => {
         await post({ postLineLimit: submitted })
 
-        expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
           expect.objectContaining({ postLineLimit: expected })
         )
       }
@@ -430,7 +444,7 @@ describe('POST /api/v1/accounts/profile', () => {
       mockCurrentActor.summary = 'Old bio'
       await post({ name: 'Same', summary: '' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ summary: '' })
       )
       expect(publishActorUpdate).toHaveBeenCalledTimes(1)
@@ -439,7 +453,7 @@ describe('POST /api/v1/accounts/profile', () => {
     it('sends no Update(Person) for a post line limit change alone', async () => {
       await post({ postLineLimit: '10' })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 
@@ -447,6 +461,27 @@ describe('POST /api/v1/accounts/profile', () => {
       mockCurrentActor.name = 'Same name'
       mockCurrentActor.summary = 'Same bio'
       await post({ name: 'Same name', summary: 'Same bio', postLineLimit: '5' })
+
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('sends an Update(Person) when a concurrent save changed the row after the pre-read, so the pre-read is stale', async () => {
+      // Pre-read: Old. Another save wrote New (and published it) before this
+      // one took the row lock. This save writes Old, which differs from the
+      // locked New, so remote servers must be told.
+      mockCurrentActor.name = 'Old'
+      mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+      await post({ name: 'Old', postLineLimit: '5' })
+
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends no Update(Person) when the row read under the lock already equals the saved one', async () => {
+      mockCurrentActor.name = 'Old'
+      mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+      await post({ name: 'New', postLineLimit: '5' })
 
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
@@ -484,6 +519,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     vi.clearAllMocks()
     mockSettings = undefined
     mockStoredActor = null
+    mockLockedBefore = undefined
     delete mockCurrentActor.iconUrl
     delete mockCurrentActor.headerImageUrl
     delete mockCurrentActor.fields
@@ -526,7 +562,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith({
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
       name: 'New name',
       summary: 'New bio',
@@ -595,7 +631,25 @@ describe('PATCH /api/v1/accounts/profile', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sends an Update(Person) when a concurrent save changed the row after the pre-read, so the pre-read is stale', async () => {
+    mockCurrentActor.name = 'Old'
+    mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+    await patch({ name: 'Old' })
+
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends no Update(Person) when the row read under the lock already equals the saved one', async () => {
+    mockCurrentActor.name = 'Old'
+    mockLockedBefore = { ...mockCurrentActor, name: 'New' }
+
+    await patch({ name: 'New' })
+
     expect(publishActorUpdate).not.toHaveBeenCalled()
   })
 
@@ -631,7 +685,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     mockCurrentActor.iconUrl = MEDIA_URL
     const response = await patch({ iconUrl: null })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ iconUrl: null })
     )
     expect((await response.json()).iconUrl).toBeNull()
@@ -644,16 +698,16 @@ describe('PATCH /api/v1/accounts/profile', () => {
     const response = await patch({ iconUrl: stale, name: 'New name' })
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.updateActor.mock.calls[0][0]).not.toHaveProperty(
-      'iconUrl'
-    )
+    expect(
+      mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+    ).not.toHaveProperty('iconUrl')
   })
 
   it('clears the bio with an empty summary and sends one Update', async () => {
     mockCurrentActor.summary = 'Old bio'
     const response = await patch({ summary: '' })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ summary: '' })
     )
     expect((await response.json()).summary).toBe('')
@@ -664,7 +718,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     mockCurrentActor.name = 'Old name'
     const response = await patch({ name: '' })
 
-    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+    expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
       expect.objectContaining({ name: '' })
     )
     expect((await response.json()).name).toBe('')
@@ -690,7 +744,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     it('sends no Update(Person) for a tab-only change', async () => {
       await patch({ showReplies: false, showMedia: false })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledTimes(1)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledTimes(1)
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 
@@ -703,7 +757,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     it('echoes the stored links for an empty body', async () => {
       const response = await patch({})
 
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
       expect((await response.json()).fields).toEqual([
         { name: 'Blog', value: 'https://blog.example', verifiedAt: null }
@@ -715,7 +769,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     const response = await patch({})
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     expect(publishActorUpdate).not.toHaveBeenCalled()
   })
 
@@ -726,7 +780,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
       inboxUrl: 'https://evil.example/inbox'
     })
 
-    const params = mockDatabase.updateActor.mock.calls[0][0]
+    const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
     expect(params).not.toHaveProperty('publicKey')
     expect(params).not.toHaveProperty('inboxUrl')
   })
@@ -777,7 +831,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
 
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: expect.any(String) })
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
     })
 
@@ -801,7 +855,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
 
       expect(longer.status).toBe(422)
       expect(name.status).toBe(422)
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
 
     it('accepts descriptions of exactly 1500 characters after trimming', async () => {
@@ -810,7 +864,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
       })
 
       expect(response.status).toBe(200)
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
         expect.objectContaining({ avatarDescription: 'a'.repeat(1500) })
       )
     })
@@ -820,7 +874,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
 
       expect(response.status).toBe(400)
       expect(await response.json()).toEqual({ error: 'Bad Request' })
-      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
     })
   })
 })

@@ -123,7 +123,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('updates display name and note and returns the credential account', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('display_name', 'New Name')
     form.set('note', 'New bio')
@@ -164,7 +164,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('trims avatar_description and header_description', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('avatar_description', '  Alt text  ')
     form.set('header_description', '\tHeader alt\n')
@@ -198,6 +198,33 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(publishActorUpdate).toHaveBeenCalledTimes(1)
   })
 
+  it('decides the Update from the row read under the save lock, not an earlier read', async () => {
+    const stored = await database.getActorFromId({ id: ACTOR1_ID })
+    if (!stored) throw new Error('actor not found')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
+    // A concurrent save left the name at 'Locked'; this save writes 'Saved'.
+    updateActor.mockResolvedValueOnce({
+      before: { ...stored, name: 'Locked' },
+      after: { ...stored, name: 'Saved' }
+    })
+    const form = new FormData()
+    form.set('display_name', 'Saved')
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+    expect(response.status).toBe(200)
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+
+    vi.mocked(publishActorUpdate).mockClear()
+    updateActor.mockResolvedValueOnce({
+      before: { ...stored, name: 'Saved' },
+      after: { ...stored, name: 'Saved' }
+    })
+    await PATCH(createRequest(form), { params: Promise.resolve({}) })
+    expect(publishActorUpdate).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
   it('sends exactly one Update(Person) for a change and none when it is saved again', async () => {
     const form = () => {
       const next = new FormData()
@@ -213,7 +240,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('persists source[quote_policy] as the default quote policy and echoes it in source', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('source[quote_policy]', 'followers')
 
@@ -244,7 +271,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     const saveMediaMock = saveMedia as jest.Mock
     // Unconfigured storage: saveMedia yields nothing, so no icon/header URL.
     saveMediaMock.mockResolvedValue(null)
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('display_name', 'With Avatar')
     form.set('avatar', await pngBlob(), 'avatar.png')
@@ -267,7 +294,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('unlocks the account when locked=false', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('locked', 'false')
 
@@ -286,7 +313,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts a JSON body with boolean locked', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -370,7 +397,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('ignores unknown/unexpected fields (no mass assignment)', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -411,7 +438,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('treats locked=on as locked (HTML checkbox form)', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('locked', 'on')
 
@@ -430,7 +457,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('treats locked=off as unlocked (HTML checkbox form)', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('locked', 'off')
 
@@ -453,7 +480,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     saveMediaMock
       .mockResolvedValueOnce({ url: 'https://llun.test/media/avatar.png' })
       .mockResolvedValueOnce({ url: 'https://llun.test/media/header.png' })
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
 
     const form = new FormData()
     form.set('avatar', await pngBlob(), 'avatar.png')
@@ -476,7 +503,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
 
   it('rejects an avatar file that fails media validation with 422', async () => {
     const saveMediaMock = saveMedia as jest.Mock
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     // text/plain is not an accepted media type, so MediaSchema rejects it.
     form.set(
@@ -501,7 +528,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   // stored if it was the header that failed.
   it('rejects unreadable bytes labelled as an image with 422, saving nothing', async () => {
     const saveMediaMock = saveMedia as jest.Mock
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('avatar', await pngBlob(), 'avatar.png')
     form.set(
@@ -555,7 +582,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
         url: 'https://llun.test/api/v1/files/medias/avatar-orphan.webp'
       })
       .mockRejectedValueOnce(new Error('S3 PutObject failed'))
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('avatar', await pngBlob(), 'avatar.png')
     form.set('header', await pngBlob(), 'header.png')
@@ -583,7 +610,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
 
   it('rejects an avatar over the admin-configured media.maxFileSize with 422', async () => {
     const saveMediaMock = saveMedia as jest.Mock
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     // The avatar blob below is 12 bytes.
     await database.setServerSettings([{ key: 'media.maxFileSize', value: 4 }])
     invalidateServerSettingsCache(database)
@@ -606,7 +633,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('rejects more than four profile fields with 422', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     for (let i = 0; i < 5; i += 1) {
       form.set(`fields_attributes[${i}][name]`, `n${i}`)
@@ -624,7 +651,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('rejects more than 100 attribution_domains with 422', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     for (let i = 0; i < 101; i += 1) {
       form.append('attribution_domains[]', `domain${i}.example.com`)
@@ -640,7 +667,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('rejects an attribution domain longer than 255 characters with 422', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.append('attribution_domains[]', 'a'.repeat(256))
 
@@ -681,7 +708,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('persists fields_attributes, bot, discoverable and source defaults (multipart)', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('fields_attributes[0][name]', 'Website')
     form.set('fields_attributes[0][value]', 'https://example.com')
@@ -738,7 +765,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('persists indexable and hide_collections flags (multipart)', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.set('indexable', 'true')
     form.set('hide_collections', 'true')
@@ -773,7 +800,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
       key: 'attribution_domains'
     }
   ])('$description', async ({ key }) => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.append(key, 'Blog.example.com ')
     form.append(key, 'news.example.com')
@@ -792,7 +819,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('deduplicates attribution_domains and drops empty/whitespace entries', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const form = new FormData()
     form.append('attribution_domains[]', 'blog.example.com')
     form.append('attribution_domains[]', 'BLOG.example.com')
@@ -813,7 +840,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts modern fields via a JSON body and clears attribution domains with []', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -850,7 +877,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts fields_attributes via a JSON body', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -877,7 +904,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('drops blank profile field rows but keeps a name with an empty value', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {
@@ -906,7 +933,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
   })
 
   it('accepts an empty JSON body as a no-op (200)', async () => {
-    const updateActor = vi.spyOn(database, 'updateActor')
+    const updateActor = vi.spyOn(database, 'updateActorWithPrevious')
     const req = new NextRequest(
       'https://llun.test/api/v1/accounts/update_credentials',
       {

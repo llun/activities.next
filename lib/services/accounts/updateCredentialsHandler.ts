@@ -386,65 +386,72 @@ export const updateCredentialsHandler = (
             ]
           : undefined
 
-      // The guard's actor is a partial one (no links, discovery flags or
-      // attribution domains), so changes are measured against the stored actor.
-      const before =
-        (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
-      const updatedActor = await database.updateActor({
-        actorId: currentActor.id,
-        ...(display_name !== undefined ? { name: display_name } : null),
-        ...(note !== undefined ? { summary: note } : null),
-        ...(manuallyApprovesFollowers !== undefined
-          ? { manuallyApprovesFollowers }
-          : null),
-        ...(botFlag !== undefined ? { bot: botFlag } : null),
-        ...(discoverableFlag !== undefined
-          ? { discoverable: discoverableFlag }
-          : null),
-        ...(indexableFlag !== undefined ? { indexable: indexableFlag } : null),
-        ...(hideCollectionsFlag !== undefined
-          ? { hideCollections: hideCollectionsFlag }
-          : null),
-        ...(attributionDomains !== undefined ? { attributionDomains } : null),
-        ...(fields !== undefined ? { fields } : null),
-        ...(source?.privacy !== undefined
-          ? { defaultPrivacy: source.privacy }
-          : null),
-        ...(sensitiveFlag !== undefined
-          ? { defaultSensitive: sensitiveFlag }
-          : null),
-        ...(source?.language !== undefined
-          ? { defaultLanguage: source.language }
-          : null),
-        ...(source?.quote_policy !== undefined
-          ? { defaultQuotePolicy: source.quote_policy }
-          : null),
-        ...(iconUrl !== undefined ? { iconUrl } : null),
-        ...(headerImageUrl !== undefined ? { headerImageUrl } : null),
-        ...(avatar_description !== undefined
-          ? { avatarDescription: avatar_description }
-          : null),
-        ...(header_description !== undefined
-          ? { headerDescription: header_description }
-          : null),
-        ...(showMediaFlag !== undefined ? { showMedia: showMediaFlag } : null),
-        ...(showMediaRepliesFlag !== undefined
-          ? { showMediaReplies: showMediaRepliesFlag }
-          : null),
-        ...(showFeaturedFlag !== undefined
-          ? { showFeatured: showFeaturedFlag }
-          : null)
-      })
+      // Changes are measured against the stored actor as read under the
+      // save's own row lock (`before`), not a read made earlier: a concurrent
+      // save may have committed in between.
+      const { before, after: updatedActor } =
+        await database.updateActorWithPrevious({
+          actorId: currentActor.id,
+          ...(display_name !== undefined ? { name: display_name } : null),
+          ...(note !== undefined ? { summary: note } : null),
+          ...(manuallyApprovesFollowers !== undefined
+            ? { manuallyApprovesFollowers }
+            : null),
+          ...(botFlag !== undefined ? { bot: botFlag } : null),
+          ...(discoverableFlag !== undefined
+            ? { discoverable: discoverableFlag }
+            : null),
+          ...(indexableFlag !== undefined
+            ? { indexable: indexableFlag }
+            : null),
+          ...(hideCollectionsFlag !== undefined
+            ? { hideCollections: hideCollectionsFlag }
+            : null),
+          ...(attributionDomains !== undefined ? { attributionDomains } : null),
+          ...(fields !== undefined ? { fields } : null),
+          ...(source?.privacy !== undefined
+            ? { defaultPrivacy: source.privacy }
+            : null),
+          ...(sensitiveFlag !== undefined
+            ? { defaultSensitive: sensitiveFlag }
+            : null),
+          ...(source?.language !== undefined
+            ? { defaultLanguage: source.language }
+            : null),
+          ...(source?.quote_policy !== undefined
+            ? { defaultQuotePolicy: source.quote_policy }
+            : null),
+          ...(iconUrl !== undefined ? { iconUrl } : null),
+          ...(headerImageUrl !== undefined ? { headerImageUrl } : null),
+          ...(avatar_description !== undefined
+            ? { avatarDescription: avatar_description }
+            : null),
+          ...(header_description !== undefined
+            ? { headerDescription: header_description }
+            : null),
+          ...(showMediaFlag !== undefined
+            ? { showMedia: showMediaFlag }
+            : null),
+          ...(showMediaRepliesFlag !== undefined
+            ? { showMediaReplies: showMediaRepliesFlag }
+            : null),
+          ...(showFeaturedFlag !== undefined
+            ? { showFeatured: showFeaturedFlag }
+            : null)
+        })
       // Only a change to what the federated Person carries is sent: this also
       // saves posting defaults, tab flags and alt texts, which remote servers
       // never see.
-      if (updatedActor && hasFederatedProfileChange(before, updatedActor)) {
+      if (
+        updatedActor &&
+        (!before || hasFederatedProfileChange(before, updatedActor))
+      ) {
         await publishActorUpdate({ actorId: currentActor.id })
       }
       if (fields !== undefined) {
         await queueProfileLinkVerification({
           actorId: currentActor.id,
-          before: before.fields,
+          before: before?.fields,
           after: fields,
           remote: false
         })

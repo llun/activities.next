@@ -247,6 +247,12 @@ export interface ActorDatabase {
     params: GetLocalActorsParams
   ): Promise<Mastodon.Account[]>
   updateActor(params: UpdateActorParams): Promise<Actor | null>
+  // updateActor, also returning the actor as read under the write's row lock
+  // (`before`; null when the actor does not exist) next to the saved one
+  // (`after`). Decide federation from these two, not from a pre-read.
+  updateActorWithPrevious(
+    params: UpdateActorParams
+  ): Promise<{ before: Actor | null; after: Actor | null }>
   // Atomically claims the actor for one inbound Move (Mastodon's nx key):
   // false when a different activity claimed it within `windowMs`.
   claimActorMove(params: ClaimActorMoveParams): Promise<boolean>

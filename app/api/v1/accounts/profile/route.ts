@@ -114,34 +114,37 @@ export const POST = traceApiRoute(
       }
     }
 
-    // The guard's actor is a partial one (no links, discovery flags or
-    // attribution domains), so changes are measured against the stored actor.
-    const before =
-      (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
-    const updatedActor = await database.updateActor({
-      actorId: currentActor.id,
-      ...safeParsed,
-      ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
-      ...(headerImageUrl.value !== undefined
-        ? { headerImageUrl: headerImageUrl.value }
-        : null),
-      ...(manuallyApprovesFollowers !== undefined
-        ? { manuallyApprovesFollowers }
-        : null),
-      ...(postLineLimit !== undefined ? { postLineLimit } : null),
-      ...(profileFields.status === 'ok'
-        ? { fields: profileFields.fields }
-        : null)
-    })
+    // Changes are measured against the stored actor as read under the save's
+    // own row lock (`before`), not a read made earlier: a concurrent save may
+    // have committed in between, and the guard's actor is a partial one anyway.
+    const { before, after: updatedActor } =
+      await database.updateActorWithPrevious({
+        actorId: currentActor.id,
+        ...safeParsed,
+        ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
+        ...(headerImageUrl.value !== undefined
+          ? { headerImageUrl: headerImageUrl.value }
+          : null),
+        ...(manuallyApprovesFollowers !== undefined
+          ? { manuallyApprovesFollowers }
+          : null),
+        ...(postLineLimit !== undefined ? { postLineLimit } : null),
+        ...(profileFields.status === 'ok'
+          ? { fields: profileFields.fields }
+          : null)
+      })
     // Only a change to what the federated Person carries is sent: this form
     // also saves the post line limit, which remote servers never see.
-    if (updatedActor && hasFederatedProfileChange(before, updatedActor)) {
+    if (
+      updatedActor &&
+      (!before || hasFederatedProfileChange(before, updatedActor))
+    ) {
       await publishActorUpdate({ actorId: currentActor.id })
     }
     if (profileFields.status === 'ok') {
       await queueProfileLinkVerification({
         actorId: currentActor.id,
-        before: before.fields,
+        before: before?.fields,
         after: profileFields.fields,
         remote: false
       })
@@ -229,7 +232,10 @@ export const PATCH = traceApiRoute(
     const { fields: submittedFields, ...rest } = parsed.data
 
     // The guard's actor is a partial one (no links, discovery flags or
-    // attribution domains), so compare and echo against the stored actor.
+    // attribution domains), so validate and echo against the stored actor. This
+    // read can be stale by the time of the write, so it only serves those
+    // checks: whether to federate is decided from the row read under the
+    // save's lock.
     const before =
       (await database.getActorFromId({ id: currentActor.id })) ?? currentActor
 
@@ -273,36 +279,37 @@ export const PATCH = traceApiRoute(
 
     let saved: Actor = before
     if (hasChange) {
-      const updatedActor = await database.updateActor({
-        actorId: currentActor.id,
-        ...(rest.name !== undefined ? { name: rest.name } : null),
-        ...(rest.summary !== undefined ? { summary: rest.summary } : null),
-        ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
-        ...(headerImageUrl.value !== undefined
-          ? { headerImageUrl: headerImageUrl.value }
-          : null),
-        ...(profileFields?.status === 'ok'
-          ? { fields: profileFields.fields }
-          : null),
-        ...(rest.avatarDescription !== undefined
-          ? { avatarDescription: rest.avatarDescription }
-          : null),
-        ...(rest.headerDescription !== undefined
-          ? { headerDescription: rest.headerDescription }
-          : null),
-        ...(rest.showReplies !== undefined
-          ? { showReplies: rest.showReplies }
-          : null),
-        ...(rest.showMedia !== undefined
-          ? { showMedia: rest.showMedia }
-          : null),
-        ...(rest.showGallery !== undefined
-          ? { showGallery: rest.showGallery }
-          : null),
-        ...(rest.showFitness !== undefined
-          ? { showFitness: rest.showFitness }
-          : null)
-      })
+      const { before: lockedBefore, after: updatedActor } =
+        await database.updateActorWithPrevious({
+          actorId: currentActor.id,
+          ...(rest.name !== undefined ? { name: rest.name } : null),
+          ...(rest.summary !== undefined ? { summary: rest.summary } : null),
+          ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
+          ...(headerImageUrl.value !== undefined
+            ? { headerImageUrl: headerImageUrl.value }
+            : null),
+          ...(profileFields?.status === 'ok'
+            ? { fields: profileFields.fields }
+            : null),
+          ...(rest.avatarDescription !== undefined
+            ? { avatarDescription: rest.avatarDescription }
+            : null),
+          ...(rest.headerDescription !== undefined
+            ? { headerDescription: rest.headerDescription }
+            : null),
+          ...(rest.showReplies !== undefined
+            ? { showReplies: rest.showReplies }
+            : null),
+          ...(rest.showMedia !== undefined
+            ? { showMedia: rest.showMedia }
+            : null),
+          ...(rest.showGallery !== undefined
+            ? { showGallery: rest.showGallery }
+            : null),
+          ...(rest.showFitness !== undefined
+            ? { showFitness: rest.showFitness }
+            : null)
+        })
       if (!updatedActor) {
         return apiResponse({
           req,
@@ -314,13 +321,16 @@ export const PATCH = traceApiRoute(
       saved = updatedActor
       // At most one Update(Person), and none for a save of tabs, alt texts
       // or unchanged values: remote servers never see those.
-      if (hasFederatedProfileChange(before, updatedActor)) {
+      if (
+        !lockedBefore ||
+        hasFederatedProfileChange(lockedBefore, updatedActor)
+      ) {
         await publishActorUpdate({ actorId: currentActor.id })
       }
       if (profileFields?.status === 'ok') {
         await queueProfileLinkVerification({
           actorId: currentActor.id,
-          before: before.fields,
+          before: (lockedBefore ?? before).fields,
           after: profileFields.fields,
           remote: false
         })

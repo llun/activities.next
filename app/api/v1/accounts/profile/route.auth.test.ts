@@ -13,7 +13,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: vi.fn().mockResolvedValue(null)
 }))
 
-const mockDatabase = { updateActor: vi.fn() }
+const mockDatabase = { updateActorWithPrevious: vi.fn() }
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -42,7 +42,7 @@ describe('PATCH /api/v1/accounts/profile without a session', () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toContain('/auth/signin')
-    expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
   })
 
   it('refuses a cross-site request before reading the session', async () => {
@@ -51,6 +51,6 @@ describe('PATCH /api/v1/accounts/profile without a session', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Forbidden' })
     expect(getServerAuthSession).not.toHaveBeenCalled()
-    expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+    expect(mockDatabase.updateActorWithPrevious).not.toHaveBeenCalled()
   })
 })
