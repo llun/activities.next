@@ -1,0 +1,40 @@
+app/(timeline)/[actor]/EditOwnedProfileButton.test.tsx
+  s_e25bf01aeb706e::t_26c94deda780be 46
+  s_e25bf01aeb706e::t_a030f50aa0af0c 1-45,47-94
+app/(timeline)/[actor]/page.test.tsx
+  s_e25bf01aeb706e::t_3e4f9e11766615 18-19,75-78,560-645
+  s_e25bf01aeb706e::t_9d50b889057263 81-83
+  s_e25bf01aeb706e::t_2c51a22362a847 79-80
+  s_e25bf01aeb706e::t_745fb42b7de9e4 646
+docs/features.md
+  s_e25bf01aeb706e::t_3e4f9e11766615 21,28
+app/(timeline)/settings/featured-hashtags/page.test.tsx
+  s_e25bf01aeb706e::t_a030f50aa0af0c 1-9,11
+  s_e25bf01aeb706e::t_57898cad2b91a5 10
+app/(timeline)/settings/featured-hashtags/page.tsx
+  s_e25bf01aeb706e::t_ed11982ea534b3 3-4
+app/(timeline)/[actor]/page.tsx
+  s_e25bf01aeb706e::t_ed11982ea534b3 38,373,375-376
+  s_e25bf01aeb706e::t_5c49f51bc1bfb4 187-195
+docs/architecture.md
+  s_e25bf01aeb706e::t_944ecf8e0be6ea 1652
+app/(timeline)/[actor]/EditOwnedProfileButton.tsx
+  s_e25bf01aeb706e::t_c1b8f3ed88aee4 1-46,48-53
+  s_e25bf01aeb706e::t_57898cad2b91a5 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f3e4768a7f86e7d309bf3af46285c9d739a09f9",
+  "prompts": {},
+  "sessions": {
+    "s_e25bf01aeb706e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a169cc-465f-7bc3-99e6-e34009ca0f6b",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
