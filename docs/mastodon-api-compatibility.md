@@ -519,8 +519,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   or a discard that itself fails) answers `503` as below, never `400`, and so
   does any failure after the post was saved or found by a repeat (such as
   serializing it for the response): a `400` tells a client nothing was kept,
-  and an edited resend under a new key would post it twice. Queueing `SendNoteJob` /
-  `ProcessFitnessFileJob` is the commit point, on every queue: a queue error
+  and an edited resend under a new key would post it twice. Queueing
+  `SendNoteJob` / `ProcessFitnessFileJob` is the commit point, on every queue: a queue error
   is ambiguous (the job may have been accepted, or run inline), so the post is
   kept, the key moves to `publish_failed`, and the route answers
   `503 Service Unavailable` (`{ error }`); the deprecated

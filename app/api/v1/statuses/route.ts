@@ -283,13 +283,14 @@ export const POST = traceApiRoute(
               existingStatus,
               currentActor.id
             )
-            if (existingMastodonStatus) {
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: existingMastodonStatus
-              })
+            if (!existingMastodonStatus) {
+              throw new Error('The saved status could not be serialized')
             }
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: existingMastodonStatus
+            })
           }
         }
 
@@ -655,7 +656,11 @@ export const POST = traceApiRoute(
         // with it). The client locks the draft under its key on a 503, where a
         // 400 would let an edit post it again under a new key.
         if (error instanceof StatusPublishFailedError || statusSaved) {
-          if (!(error instanceof StatusPublishFailedError)) {
+          const failure =
+            error instanceof StatusPublishFailedError
+              ? error
+              : new StatusPublishFailedError(Boolean(idempotencyKey))
+          if (failure !== error) {
             logger.error(
               { err: toLoggableError(error) },
               'createStatus: request failed after the status was saved'
@@ -664,12 +669,7 @@ export const POST = traceApiRoute(
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,
-            data: {
-              error: (error instanceof StatusPublishFailedError
-                ? error
-                : new StatusPublishFailedError(Boolean(idempotencyKey))
-              ).message
-            },
+            data: { error: failure.message },
             responseStatusCode: 503
           })
         }

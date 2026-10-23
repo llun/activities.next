@@ -1151,20 +1151,33 @@ describe('POST /api/v1/statuses', () => {
     }
   )
 
-  it('responds 503 when the replay of a kept key cannot be serialized', async () => {
-    const idempotencyKey = 'idem-key-replay-serialize'
-    const text = 'Replayed post that fails to serialize'
-    expect((await postStatus({ status: text }, idempotencyKey)).status).toBe(
-      200
-    )
-    vi.mocked(getMastodonStatus).mockRejectedValueOnce(
-      new Error('serialize failed')
-    )
-    expect((await postStatus({ status: text }, idempotencyKey)).status).toBe(
-      503
-    )
-    await expect(statusesWithText(text)).resolves.toHaveLength(1)
-  })
+  it.each([
+    {
+      description: 'serializing it throws',
+      fail: () =>
+        vi
+          .mocked(getMastodonStatus)
+          .mockRejectedValueOnce(new Error('serialize failed'))
+    },
+    {
+      description: 'it cannot be loaded for the response',
+      fail: () => vi.mocked(getMastodonStatus).mockResolvedValueOnce(null)
+    }
+  ])(
+    'responds 503 when the replay of a kept key fails because $description',
+    async ({ description, fail }) => {
+      const idempotencyKey = `idem-key-replay-${description}`
+      const text = `Replayed post, then ${description}`
+      expect((await postStatus({ status: text }, idempotencyKey)).status).toBe(
+        200
+      )
+      fail()
+      expect((await postStatus({ status: text }, idempotencyKey)).status).toBe(
+        503
+      )
+      await expect(statusesWithText(text)).resolves.toHaveLength(1)
+    }
+  )
 
   it('responds 503 when a failed create cannot be discarded, because the post stays', async () => {
     const idempotencyKey = 'idem-key-discard-fails'
