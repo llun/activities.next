@@ -155,10 +155,14 @@ export const POST = traceApiRoute(
 // stored value alone. As in the form above, only these keys are read; Zod
 // strips anything else (the key and inbox endpoints included).
 const DESCRIPTION_MAX_LENGTH = 1500
+const NAME_MAX_LENGTH = 255
+const SUMMARY_MAX_LENGTH = 500
 
 const ProfilePatchRequest = z.object({
-  name: z.string().max(255).optional(),
-  summary: z.string().max(500).optional(),
+  // The length caps are checked below, and only against a value that differs
+  // from the stored one, so an untouched long bio can be saved again.
+  name: z.string().optional(),
+  summary: z.string().optional(),
   fields: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
   iconUrl: z.string().nullable().optional(),
   headerImageUrl: z.string().nullable().optional(),
@@ -219,6 +223,23 @@ export const PATCH = traceApiRoute(
       )
     }
     const { fields: submittedFields, ...rest } = parsed.data
+
+    // Echo semantics, as for the image URLs: re-sending the stored value is
+    // not a proposal, so it is accepted even when it predates the cap.
+    if (
+      rest.name !== undefined &&
+      rest.name !== (currentActor.name ?? '') &&
+      rest.name.length > NAME_MAX_LENGTH
+    ) {
+      return invalid('Invalid name')
+    }
+    if (
+      rest.summary !== undefined &&
+      rest.summary !== (currentActor.summary ?? '') &&
+      rest.summary.length > SUMMARY_MAX_LENGTH
+    ) {
+      return invalid('Invalid summary')
+    }
 
     // Same validation and echo semantics as the form: a URL this instance
     // serves, an echo of the stored value is "no change", and null clears.

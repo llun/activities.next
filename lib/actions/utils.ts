@@ -127,6 +127,8 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
   const tags = getActorEmojiTags(person)
   return {
     type: person.type,
+    // Deliberately truthy: a remote document without a name or bio leaves the
+    // stored one alone, since `updateActor` now treats '' as "clear".
     ...(person.name ? { name: person.name } : {}),
     ...(person.summary ? { summary: person.summary } : {}),
     ...(iconUrl ? { iconUrl } : {}),

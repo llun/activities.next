@@ -289,8 +289,11 @@ export const updateActor = async (
   const currentTime = new Date()
   const columnUpdates = {
     ...(type ? { type } : null),
-    ...(name ? { name } : null),
-    ...(summary ? { summary } : null),
+    // `undefined` is "no change"; an empty string clears the display name or
+    // bio. Callers that must not wipe a stored value (a remote refresh whose
+    // document has none) leave the key out, as `getPersistableProfile` does.
+    ...(name !== undefined ? { name } : null),
+    ...(summary !== undefined ? { summary } : null),
     ...(publicKey ? { publicKey } : null)
   }
 

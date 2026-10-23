@@ -388,6 +388,16 @@ describe('POST /api/v1/accounts/profile', () => {
       }
     )
 
+    it('clears the bio when the form is saved with it empty', async () => {
+      mockCurrentActor.summary = 'Old bio'
+      await post({ name: 'Same', summary: '' })
+
+      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: '' })
+      )
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+    })
+
     it('sends no Update(Person) for a post line limit change alone', async () => {
       await post({ postLineLimit: '10' })
 
@@ -588,6 +598,28 @@ describe('PATCH /api/v1/accounts/profile', () => {
     )
   })
 
+  it('clears the bio with an empty summary and sends one Update', async () => {
+    mockCurrentActor.summary = 'Old bio'
+    const response = await patch({ summary: '' })
+
+    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: '' })
+    )
+    expect((await response.json()).summary).toBe('')
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the display name with an empty name and sends one Update', async () => {
+    mockCurrentActor.name = 'Old name'
+    const response = await patch({ name: '' })
+
+    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '' })
+    )
+    expect((await response.json()).name).toBe('')
+    expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+  })
+
   it('writes nothing for an empty body', async () => {
     const response = await patch({})
 
@@ -656,6 +688,29 @@ describe('PATCH /api/v1/accounts/profile', () => {
       expect(await response.json()).toEqual({ error: expect.any(String) })
       expect(mockDatabase.updateActor).not.toHaveBeenCalled()
       expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('accepts an unchanged name and bio longer than the caps', async () => {
+      mockCurrentActor.name = 'n'.repeat(300)
+      mockCurrentActor.summary = 's'.repeat(900)
+      const response = await patch({
+        name: 'n'.repeat(300),
+        summary: 's'.repeat(900),
+        showGallery: false
+      })
+
+      expect(response.status).toBe(200)
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
+    it('still enforces the caps on a changed long value', async () => {
+      mockCurrentActor.summary = 's'.repeat(900)
+      const longer = await patch({ summary: 's'.repeat(901) })
+      const name = await patch({ name: 'n'.repeat(256) })
+
+      expect(longer.status).toBe(422)
+      expect(name.status).toBe(422)
+      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
     })
 
     it('accepts descriptions of exactly 1500 characters after trimming', async () => {

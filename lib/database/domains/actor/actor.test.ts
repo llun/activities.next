@@ -480,6 +480,26 @@ describe('ActorDatabase', () => {
         expect(kept?.showGallery).toBe(false)
       })
 
+      it('clears the display name and bio with an empty string, and leaves them for undefined', async () => {
+        const username = `clear-text-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        await database.updateActor({
+          actorId,
+          name: 'Some name',
+          summary: 'Some bio'
+        })
+
+        await database.updateActor({ actorId, postLineLimit: 5 })
+        const kept = await database.getActorFromId({ id: actorId })
+        expect(kept).toMatchObject({ name: 'Some name', summary: 'Some bio' })
+
+        await database.updateActor({ actorId, name: '', summary: '' })
+        const cleared = await database.getActorFromId({ id: actorId })
+        expect(cleared?.name || '').toBe('')
+        expect(cleared?.summary || '').toBe('')
+      })
+
       it('persists and returns reading preferences', async () => {
         const username = `reading-pref-${crypto.randomUUID().slice(0, 8)}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`

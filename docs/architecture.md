@@ -1625,7 +1625,13 @@ legacy shape left to copy.
   `fields` (the profile links) must call it too, or remote servers keep the old profile until their own periodic
   re-fetch. Queueing is best effort and never fails the request: the profile is
   already saved. The profile link check still queues whenever the links
-  changed, whether or not an Update was sent. The object is `getPersonFromActor`, the same document the actor
+  changed, whether or not an Update was sent.
+  `updateActor` writes `name` and `summary` whenever they are not `undefined`, so an
+  empty string clears the display name or bio (profiles then show the username);
+  a caller that must not wipe a stored value leaves the key out, as remote
+  refresh does (`getPersistableProfile`). `PATCH /api/v1/accounts/profile` caps
+  name at 255 and bio at 500 characters only when the value differs from the
+  stored one. The object is `getPersonFromActor`, the same document the actor
   URL serves, and the audience is follower inboxes plus accepted relays, as in
   Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
   carried in the job so a retried job resends the same Update.
