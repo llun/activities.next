@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { toEpochMilliseconds } from '@/lib/database/kysely/normalize'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFixtures'
 import { seedDatabase } from '@/lib/stub/database'
@@ -52,14 +53,34 @@ const call = (accountId: string, query = '') =>
   )
 
 describe('GET /api/v1/accounts/:id/gallery/media', () => {
-  const { database, prepare } = getTestDatabaseWithInstance()
+  const { database, db, prepare } = getTestDatabaseWithInstance()
   let ids: Record<string, string> = {}
+
+  const ensureSortAt = async () => {
+    const rows = await db
+      .selectFrom('medias')
+      .select(['id', 'takenAt', 'createdAt', 'updatedAt'])
+      .where('sortAt', 'is', null)
+      .execute()
+    for (const row of rows) {
+      const ms =
+        [row.takenAt, row.createdAt, row.updatedAt]
+          .map(toEpochMilliseconds)
+          .find((value) => value !== null && !Number.isNaN(value)) ?? 0
+      await db
+        .updateTable('medias')
+        .set({ sortAt: new Date(ms) })
+        .where('id', '=', row.id)
+        .execute()
+    }
+  }
 
   beforeAll(async () => {
     await prepare()
     await database.migrate()
     await seedDatabase(database)
     ids = await seedGalleryRouteFixtures(database)
+    await ensureSortAt()
     mockDatabase = database
   })
 
@@ -395,6 +416,405 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
 
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: 'Unprocessable entity' })
+    })
+  })
+
+  describe('owner sorting and pagination', () => {
+    beforeAll(async () => {
+      await ensureSortAt()
+    })
+
+    it('orders by sort=taken_desc, sort=taken_asc, and sort=uploaded', async () => {
+      signIn(seedActor1.email)
+
+      const desc = await call(ACTOR1_ID, '?sort=taken_desc&include_total=true')
+      expect(desc.status).toBe(200)
+      const descBody = await desc.json()
+      expect(
+        descBody.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Added Egret', 'Grey Heron', 'Kingfisher', 'Red Fox', 'Lakes'])
+      expect(descBody.total).toBe(5)
+      expect(descBody.nextCursor).toBeNull()
+
+      const asc = await call(ACTOR1_ID, '?sort=taken_asc&include_total=true')
+      expect(asc.status).toBe(200)
+      const ascBody = await asc.json()
+      expect(
+        ascBody.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Lakes', 'Red Fox', 'Kingfisher', 'Grey Heron', 'Added Egret'])
+      expect(ascBody.total).toBe(5)
+      expect(ascBody.nextCursor).toBeNull()
+
+      const uploaded = await call(
+        ACTOR1_ID,
+        '?sort=uploaded&include_total=true'
+      )
+      expect(uploaded.status).toBe(200)
+      const uploadedBody = await uploaded.json()
+      expect(
+        uploadedBody.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Added Egret', 'Grey Heron', 'Lakes', 'Red Fox', 'Kingfisher'])
+      expect(uploadedBody.total).toBe(5)
+      expect(uploadedBody.nextMaxId).toBeNull()
+    })
+
+    it('pages with cursor on date sorts', async () => {
+      signIn(seedActor1.email)
+
+      const first = await (
+        await call(ACTOR1_ID, '?sort=taken_desc&limit=2&include_total=true')
+      ).json()
+      expect(first.items).toHaveLength(2)
+      expect(
+        first.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Added Egret', 'Grey Heron'])
+      expect(first.nextCursor).toEqual(expect.any(String))
+      expect(first.nextMaxId).toBeNull()
+      expect(first.total).toBe(5)
+
+      const second = await (
+        await call(
+          ACTOR1_ID,
+          `?sort=taken_desc&limit=2&cursor=${first.nextCursor}`
+        )
+      ).json()
+      expect(second.items).toHaveLength(2)
+      expect(
+        second.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Kingfisher', 'Red Fox'])
+      expect(second.nextCursor).toEqual(expect.any(String))
+      expect(second.nextMaxId).toBeNull()
+      expect(second).not.toHaveProperty('total')
+
+      const third = await (
+        await call(
+          ACTOR1_ID,
+          `?sort=taken_desc&limit=2&cursor=${second.nextCursor}`
+        )
+      ).json()
+      expect(third.items).toHaveLength(1)
+      expect(
+        third.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Lakes'])
+      expect(third.nextCursor).toBeNull()
+      expect(third.nextMaxId).toBeNull()
+      expect(third).not.toHaveProperty('total')
+    })
+  })
+
+  describe('owner filters', () => {
+    it('filters by taken_from and taken_to', async () => {
+      signIn(seedActor1.email)
+
+      const res2023 = await call(
+        ACTOR1_ID,
+        '?taken_from=2023-01-01&taken_to=2023-12-31&include_total=true'
+      )
+      expect(res2023.status).toBe(200)
+      const body2023 = await res2023.json()
+      expect(
+        body2023.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Red Fox'])
+      expect(body2023.total).toBe(1)
+
+      const res2024 = await call(
+        ACTOR1_ID,
+        '?taken_from=2024-01-01&taken_to=2024-12-31&include_total=true'
+      )
+      expect(res2024.status).toBe(200)
+      const body2024 = await res2024.json()
+      expect(
+        body2024.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Grey Heron', 'Kingfisher'])
+      expect(body2024.total).toBe(2)
+    })
+
+    it('filters by place', async () => {
+      signIn(seedActor1.email)
+
+      const resPlace = await call(ACTOR1_ID, '?place=River&include_total=true')
+      expect(resPlace.status).toBe(200)
+      const bodyPlace = await resPlace.json()
+      expect(
+        bodyPlace.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+      ).toEqual(['Kingfisher'])
+      expect(bodyPlace.total).toBe(1)
+
+      const resNone = await call(ACTOR1_ID, '?place=none')
+      expect(resNone.status).toBe(200)
+      const bodyNone = await resNone.json()
+      const noneNames = bodyNone.items.map(
+        (i: { subject: { name: string } | null }) => i.subject?.name
+      )
+      expect(noneNames).toContain('Lakes')
+      expect(noneNames).toContain('Added Egret')
+      expect(noneNames).not.toContain('Kingfisher')
+    })
+
+    it('filters by activity_id', async () => {
+      signIn(seedActor1.email)
+
+      const file = await database.createFitnessFile({
+        actorId: ACTOR1_ID,
+        path: 'fitness/route-test-activity.fit',
+        fileName: 'route-test-activity.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 100
+      })
+      await database.updateFitnessFileProcessingStatus(file!.id, 'completed')
+      await database.updateFitnessFileStatus(
+        file!.id,
+        `${ACTOR1_ID}/statuses/gallery-route-public`
+      )
+
+      try {
+        const resAct = await call(
+          ACTOR1_ID,
+          `?activity_id=${file!.id}&include_total=true`
+        )
+        expect(resAct.status).toBe(200)
+        const bodyAct = await resAct.json()
+        expect(
+          bodyAct.items.map(
+            (i: { subject: { name: string } | null }) => i.subject?.name
+          )
+        ).toEqual(['Lakes', 'Red Fox', 'Kingfisher'])
+        expect(bodyAct.total).toBe(3)
+
+        const resActNone = await call(ACTOR1_ID, '?activity_id=none')
+        expect(resActNone.status).toBe(200)
+        const bodyActNone = await resActNone.json()
+        const actNoneNames = bodyActNone.items.map(
+          (i: { subject: { name: string } | null }) => i.subject?.name
+        )
+        expect(actNoneNames).toContain('Added Egret')
+        expect(actNoneNames).toContain('Grey Heron')
+        expect(actNoneNames).not.toContain('Kingfisher')
+      } finally {
+        await database.deleteFitnessFile({ id: file!.id })
+      }
+    })
+
+    it('filters by album_id with total and inAlbumTotal', async () => {
+      signIn(seedActor1.email)
+
+      const album = await database.createGalleryAlbumWithinLimit({
+        actorId: ACTOR1_ID,
+        title: 'Route Test Album',
+        mediaIds: [ids.kingfisher, ids.fox],
+        limit: 100
+      })
+      if (album.status !== 'created') throw new Error('album not created')
+
+      try {
+        const resAlbum = await call(
+          ACTOR1_ID,
+          `?album_id=${album.album.id}&include_total=true`
+        )
+        expect(resAlbum.status).toBe(200)
+        const bodyAlbum = await resAlbum.json()
+        expect(bodyAlbum.total).toBe(5)
+        expect(bodyAlbum.inAlbumTotal).toBe(2)
+      } finally {
+        await database.deleteGalleryAlbum({
+          id: album.album.id,
+          actorId: ACTOR1_ID
+        })
+      }
+    })
+  })
+
+  describe('parameter validation', () => {
+    it.each([
+      ['cursor without date sort', '?cursor=1000:1'],
+      ['cursor with uploaded sort', '?sort=uploaded&cursor=1000:1']
+    ])('answers 422 for %s', async (_, query) => {
+      signIn(seedActor1.email)
+
+      const response = await call(ACTOR1_ID, query)
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'cursor is only supported for date sorts'
+      })
+    })
+
+    it('answers 422 for max_id with date sort', async () => {
+      signIn(seedActor1.email)
+
+      const response = await call(ACTOR1_ID, '?sort=taken_desc&max_id=123')
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'max_id cannot be used with date sort'
+      })
+    })
+
+    it('answers 422 for invalid cursor string', async () => {
+      signIn(seedActor1.email)
+
+      const response = await call(
+        ACTOR1_ID,
+        '?sort=taken_desc&cursor=not-a-cursor'
+      )
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'Invalid cursor'
+      })
+    })
+
+    it('answers 422 for a cursor media id beyond the integer range', async () => {
+      signIn(seedActor1.email)
+
+      const response = await call(
+        ACTOR1_ID,
+        '?sort=taken_desc&cursor=1704067200000:9999999999'
+      )
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: 'Invalid cursor' })
+    })
+
+    it('keeps place=none for "no place": a place named "none" is not reachable by name', async () => {
+      signIn(seedActor1.email)
+      const fox = await db
+        .selectFrom('medias')
+        .select(['id', 'placeName'])
+        .where('subjectName', '=', 'Red Fox')
+        .where('actorId', '=', ACTOR1_ID)
+        .executeTakeFirstOrThrow()
+      await db
+        .updateTable('medias')
+        .set({ placeName: 'none' })
+        .where('id', '=', fox.id)
+        .execute()
+
+      try {
+        const response = await call(ACTOR1_ID, '?place=none')
+        expect(response.status).toBe(200)
+        const noneNames = await names(response)
+        expect(noneNames).toContain('Lakes')
+        expect(noneNames).not.toContain('Red Fox')
+      } finally {
+        await db
+          .updateTable('medias')
+          .set({ placeName: fox.placeName })
+          .where('id', '=', fox.id)
+          .execute()
+      }
+    })
+
+    it('answers 422 for a cursor key beyond the range of a Date', async () => {
+      signIn(seedActor1.email)
+
+      const response = await call(
+        ACTOR1_ID,
+        '?sort=taken_desc&cursor=9000000000000000:1'
+      )
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: 'Invalid cursor' })
+    })
+
+    it('leaves total out unless include_total=true', async () => {
+      signIn(seedActor1.email)
+
+      const without = await (await call(ACTOR1_ID)).json()
+      expect(without).not.toHaveProperty('total')
+
+      const withTotal = await (
+        await call(ACTOR1_ID, '?include_total=true')
+      ).json()
+      expect(withTotal.total).toBe(5)
+    })
+
+    it.each([
+      ['an impossible calendar date', '?taken_from=2025-02-31', 'taken_from'],
+      ['a malformed date', '?taken_to=bad-date', 'taken_to']
+    ])('answers 422 for %s', async (_, query, param) => {
+      signIn(seedActor1.email)
+
+      const response = await call(ACTOR1_ID, query)
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: `Invalid ${param} date`
+      })
+    })
+
+    it('answers 422 when taken_from is after taken_to', async () => {
+      signIn(seedActor1.email)
+
+      const response = await call(
+        ACTOR1_ID,
+        '?taken_from=2025-10-10&taken_to=2025-10-01'
+      )
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'taken_from cannot be after taken_to'
+      })
+    })
+  })
+
+  describe('non-owner callers', () => {
+    it.each([
+      ['a logged-out caller', null],
+      ['a stranger', seedActor2.email],
+      ['a follower', seedActor3.email]
+    ])('drops owner-only params for %s', async (_, email) => {
+      signIn(email)
+      const baseline = await (await call(ACTOR1_ID)).json()
+
+      const response = await call(
+        ACTOR1_ID,
+        '?sort=taken_desc&cursor=1000:1&place=Somewhere&taken_from=2025-01-01&taken_to=2025-12-31&activity_id=act-1&album_id=alb-1'
+      )
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body).toEqual(baseline)
+      expect(body).not.toHaveProperty('total')
+      expect(body).not.toHaveProperty('nextCursor')
+      expect(body).not.toHaveProperty('inAlbumTotal')
+    })
+
+    it.each([
+      ['a logged-out caller', null],
+      ['a stranger', seedActor2.email]
+    ])(
+      'ignores malformed owner-only params for %s instead of rejecting them',
+      async (_, email) => {
+        signIn(email)
+        const baseline = await (await call(ACTOR1_ID)).json()
+
+        const response = await call(
+          ACTOR1_ID,
+          `?sort=bogus&place=&activity_id=&album_id=&taken_from=nope&include_total=maybe&cursor=${'9'.repeat(60)}`
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual(baseline)
+      }
+    )
+
+    it('still answers 422 to gear_id from a non-owner', async () => {
+      signIn(null)
+
+      expect((await call(ACTOR1_ID, '?gear_id=x')).status).toBe(422)
     })
   })
 })

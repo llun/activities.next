@@ -9,6 +9,7 @@ import type {
   GalleryGear,
   GalleryGearKind,
   GalleryHiddenLocation,
+  GalleryMediaSort,
   GallerySettings,
   GalleryShow,
   IucnCategory,
@@ -175,6 +176,8 @@ export interface GalleryMediaRow {
   // When the media was uploaded (`medias.createdAt`, epoch ms); set by the
   // gallery reads, absent on rows built by hand.
   uploadedAt?: number | null
+  // When it sorts by date (`medias.sortAt`, epoch ms); set by getGalleryMedia.
+  sortAt?: number | null
 }
 
 /**
@@ -252,6 +255,22 @@ export interface GetActorHasGalleryMediaParams {
   audience: GalleryAudience
 }
 
+export type GalleryMediaCursor = GalleryAlbumCursor // { key: sortAt epoch ms, mediaId: number }
+
+export interface GalleryMediaFilters {
+  // A toSubjectKey key.
+  subjectKey?: string
+  category?: MediaSubjectCategory
+  // toPlaceKey of the requested name; '' = no place. Owner only.
+  placeKey?: string
+  // YYYY-MM-DD inclusive. Owner only.
+  takenFrom?: string
+  // YYYY-MM-DD inclusive. Owner only.
+  takenTo?: string
+  // Fitness file id; null = not from an activity. Owner only.
+  activityId?: string | null
+}
+
 export interface GetGalleryMediaParams {
   actorId: string
   audience: GalleryAudience
@@ -263,6 +282,57 @@ export interface GetGalleryMediaParams {
   gearId?: string
   // Owner only (ignored for a viewer): which media to list.
   show?: GalleryShow
+  // Default 'uploaded'; a non-owner always gets 'uploaded'.
+  sort?: GalleryMediaSort
+  // Date sorts only.
+  cursor?: GalleryMediaCursor
+  filters?: GalleryMediaFilters
+}
+
+export interface CountGalleryMediaParams {
+  actorId: string
+  audience: GalleryAudience
+  show?: GalleryShow
+  gearId?: string
+  filters?: GalleryMediaFilters
+  albumId?: string
+  // The list's sort: a date sort leaves out rows without a `sortAt`, so the
+  // count must too.
+  sort?: GalleryMediaSort
+}
+
+// `inAlbum` is null without `albumId`.
+export interface GalleryMediaCount {
+  total: number
+  inAlbum: number | null
+}
+
+// Owner audience implied.
+export interface GetGalleryMediaFacetRowsParams {
+  actorId: string
+  show?: GalleryShow
+}
+
+export interface GalleryMediaFacetRows {
+  total: number
+  places: Array<{ placeName: string | null; count: number }>
+  months: Array<{ month: string; count: number }>
+  subjects: Array<{
+    subjectName: string | null
+    subjectScientificName: string | null
+    subjectCategory: MediaSubjectCategory | null
+    count: number
+  }>
+  // Distinct media in scope attached to an activity's post, route map included.
+  activityMediaCount: number
+  activityPhotos: Array<{
+    fitnessFileId: string
+    activityType: string | null
+    activityStartTime: number | null
+    totalDistanceMeters: number | null
+    mediaId: string
+    placeName: string | null
+  }>
 }
 
 export interface GetGalleryMediaByIdsParams {
@@ -313,6 +383,10 @@ export interface GalleryMediaDatabase {
   ): Promise<boolean>
   // Newest (highest id) first.
   getGalleryMedia(params: GetGalleryMediaParams): Promise<GalleryMediaRow[]>
+  countGalleryMedia(params: CountGalleryMediaParams): Promise<GalleryMediaCount>
+  getGalleryMediaFacetRows(
+    params: GetGalleryMediaFacetRowsParams
+  ): Promise<GalleryMediaFacetRows>
   // Re-applies the whole scope: an id outside it is simply absent. Newest
   // first.
   getGalleryMediaByIds(

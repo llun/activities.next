@@ -4,25 +4,28 @@ import { Images } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { getGalleryMedia, getGallerySubjects } from '@/lib/client'
+import { countGalleryMedia, getGalleryMedia } from '@/lib/client'
+import { GalleryMediaFilterBar } from '@/lib/components/gallery/filters/GalleryMediaFilterBar'
+import { GalleryMediaFilterEmpty } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
+import {
+  EMPTY_GALLERY_FILTERS,
+  type GalleryMediaFilterState,
+  countActiveFilters,
+  toGalleryMediaQuery
+} from '@/lib/components/gallery/filters/galleryMediaFilterState'
+import { useGalleryMediaFacets } from '@/lib/components/gallery/filters/useGalleryMediaFacets'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
-import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
-import { Select } from '@/lib/components/ui/select'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
+import type { GalleryShow } from '@/lib/types/database/gallery'
 import { cn } from '@/lib/utils'
 
 import { GalleryAlbumPickerTile } from './GalleryAlbumPickerTile'
-import {
-  filterPickerItems,
-  getPickerPlaceNames,
-  ignoreEnter
-} from './galleryAlbumPickerUi'
+import { scrollToResultsStart } from './galleryAlbumPickerUi'
 
-interface Props {
+export interface GalleryAlbumPickerProps {
   ownerId: string
   /** Media ids in the order they were picked; the first is the cover. */
   selected: string[]
@@ -40,25 +43,16 @@ interface Props {
   seedItems?: readonly GalleryItemEntity[]
   disabled?: boolean
   columns?: 4 | 5
+  albumId?: string
 }
 
 const PAGE_SIZE = 60
-// A date or place filter runs over the pages already loaded; while it leaves
-// few photos on screen the picker reads on by itself, this many pages at a time.
-const MIN_VISIBLE = 12
-const MAX_AUTO_PAGES = 5
-
-interface SubjectOption {
-  key: string
-  label: string
-}
 
 /**
- * The "From gallery" picker: the owner's own photos, newest upload first,
- * filtered by species (asked of the server), date and place (over the photos
- * loaded so far). It only reports what is ticked; the dialog saves.
+ * The "From gallery" picker: the owner's own photos, filtered and sorted by
+ * server queries via the filter bar.
  */
-export const GalleryAlbumPicker: FC<Props> = ({
+export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
   ownerId,
   selected,
   onChange,
@@ -67,18 +61,38 @@ export const GalleryAlbumPicker: FC<Props> = ({
   existingIds,
   seedItems,
   disabled = false,
-  columns = 4
+  columns = 4,
+  albumId
 }) => {
+  const [filters, setFilters] = useState<GalleryMediaFilterState>(
+    EMPTY_GALLERY_FILTERS
+  )
+  const show: GalleryShow = filters.notInAlbum ? 'not_in_album' : 'all'
+  const [facetsReloadKey, setFacetsReloadKey] = useState(0)
+  const { facets, error: facetsError } = useGalleryMediaFacets(
+    show,
+    facetsReloadKey
+  )
+  const retryFacets = useCallback(
+    () => setFacetsReloadKey((key) => key + 1),
+    []
+  )
+  // Menus open inside the dialog (when there is one), or they would sit
+  // outside its focus trap.
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null
+  )
+
   const [items, setItems] = useState<GalleryItemEntity[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [nextMaxId, setNextMaxId] = useState<string | null>(null)
+  const [total, setTotal] = useState<number | null>(null)
+  const [inAlbumTotal, setInAlbumTotal] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [subjects, setSubjects] = useState<SubjectOption[]>([])
-  const [subjectKey, setSubjectKey] = useState('')
-  const [place, setPlace] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  // The query the items on screen answer; null until the first answer lands.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+
   // Bumped by every restart so a slow answer to an older query is dropped.
   const generation = useRef(0)
   // Every photo this picker has shown, so a pick survives a filter change.
@@ -87,37 +101,74 @@ export const GalleryAlbumPicker: FC<Props> = ({
       (seedItems ?? []).map((item) => [item.mediaId, item])
     )
   )
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setPortalContainer(
+      rootRef.current?.closest<HTMLElement>('[role="dialog"]') ?? null
+    )
+  }, [])
 
   const isLoadingRef = useRef(isLoading)
   useEffect(() => {
     isLoadingRef.current = isLoading
   }, [isLoading])
 
+  const queryKey = useMemo(
+    () =>
+      JSON.stringify({
+        filters,
+        show,
+        ownerId,
+        albumId
+      }),
+    [filters, show, ownerId, albumId]
+  )
+
   const load = useCallback(
-    async (restart: boolean, cursor?: string) => {
+    async (restart: boolean, cursorParam?: string) => {
       const current = restart ? ++generation.current : generation.current
       isLoadingRef.current = true
       setIsLoading(true)
       setError(null)
+      if (restart) {
+        // The old query's tiles and cursors must not stay actionable, and a
+        // failed restart must retry as a restart.
+        setItems([])
+        setNextCursor(null)
+        setNextMaxId(null)
+        setTotal(null)
+        setInAlbumTotal(null)
+      }
       try {
+        const query = toGalleryMediaQuery(filters, new Date())
         const page = await getGalleryMedia(ownerId, {
           limit: PAGE_SIZE,
-          maxId: cursor,
-          subject: subjectKey || undefined,
-          show: 'all'
+          ...(restart ? { includeTotal: true } : {}),
+          show,
+          ...(albumId ? { albumId } : {}),
+          ...query,
+          ...(filters.sort === 'uploaded'
+            ? { maxId: cursorParam }
+            : { cursor: cursorParam })
         })
         if (current !== generation.current) return
         for (const item of page.items) seen.current.set(item.mediaId, item)
         setItems((existing) => {
           const base = restart ? [] : existing
-          const seen = new Set(base.map((item) => item.mediaId))
+          const seenIds = new Set(base.map((item) => item.mediaId))
           return [
             ...base,
-            ...page.items.filter((item) => !seen.has(item.mediaId))
+            ...page.items.filter((item) => !seenIds.has(item.mediaId))
           ]
         })
-        setNextMaxId(page.nextMaxId)
-        setHasLoadedOnce(true)
+        setNextMaxId(page.nextMaxId ?? null)
+        setNextCursor(page.nextCursor ?? null)
+        if (restart) {
+          setTotal(page.total ?? null)
+          setInAlbumTotal(page.inAlbumTotal ?? null)
+        }
+        setLoadedKey(queryKey)
       } catch (loadError) {
         if (current !== generation.current) return
         setError(
@@ -132,110 +183,26 @@ export const GalleryAlbumPicker: FC<Props> = ({
         }
       }
     },
-    [ownerId, subjectKey]
+    [ownerId, show, albumId, filters, queryKey]
   )
 
   useEffect(() => {
     void load(true)
   }, [load])
 
-  const placeNames = useMemo(() => getPickerPlaceNames(items), [items])
-  const visible = useMemo(
-    () => filterPickerItems(items, { place, from, to }),
-    [items, place, from, to]
-  )
-  const isClientFiltered = Boolean(place || from || to)
-  const canObserverLoad = !isClientFiltered || visible.length >= MIN_VISIBLE
+  const hasMore =
+    filters.sort === 'uploaded' ? Boolean(nextMaxId) : Boolean(nextCursor)
+  const cursorParam =
+    (filters.sort === 'uploaded' ? nextMaxId : nextCursor) ?? undefined
 
   const { loadMoreRef } = useLoadMoreOnVisible({
-    enabled: Boolean(nextMaxId) && !error && !isLoading && canObserverLoad,
+    enabled: hasMore && !error && !isLoading,
     onLoadMore: useCallback(() => {
-      if (!isLoadingRef.current && nextMaxId && canObserverLoad) {
-        void load(false, nextMaxId)
+      if (!isLoadingRef.current && cursorParam) {
+        void load(false, cursorParam)
       }
-    }, [load, nextMaxId, canObserverLoad])
+    }, [load, cursorParam])
   })
-
-  useEffect(() => {
-    let cancelled = false
-    getGallerySubjects(ownerId)
-      .then((response) => {
-        if (cancelled) return
-        setSubjects(
-          response.groups.flatMap((group) =>
-            group.subjects.map((subject) => ({
-              key: subject.key,
-              label: subject.name ?? subject.scientificName ?? 'Unnamed'
-            }))
-          )
-        )
-      })
-      .catch(() => {
-        // The species filter is a convenience; the picker works without it.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [ownerId])
-
-  // Keep reading while a client-side filter leaves the grid nearly empty.
-  const autoPages = useRef(0)
-  const prevFilterRef = useRef({ place, from, to, subjectKey })
-  useEffect(() => {
-    if (
-      prevFilterRef.current.place !== place ||
-      prevFilterRef.current.from !== from ||
-      prevFilterRef.current.to !== to ||
-      prevFilterRef.current.subjectKey !== subjectKey
-    ) {
-      prevFilterRef.current = { place, from, to, subjectKey }
-      autoPages.current = 0
-    }
-    if (!isClientFiltered) {
-      autoPages.current = 0
-      return
-    }
-    // The ref, not the render value: the restart effect above sets it
-    // synchronously, while `isLoading` is still false in this commit.
-    if (
-      isLoadingRef.current ||
-      error ||
-      !nextMaxId ||
-      visible.length >= MIN_VISIBLE ||
-      autoPages.current >= MAX_AUTO_PAGES
-    ) {
-      return
-    }
-    autoPages.current += 1
-    void load(false, nextMaxId)
-  }, [
-    isClientFiltered,
-    isLoading,
-    error,
-    nextMaxId,
-    visible.length,
-    load,
-    place,
-    from,
-    to,
-    subjectKey
-  ])
-
-  // Auto paging has stopped (budget used up) but older pages remain: let the
-  // user continue by hand. The ref is only updated in the effect above, which
-  // is always followed by a state change, so this render read is current.
-  // While loading, keep the button only if the user's own click started it, so
-  // it stays mounted (focus kept) but does not flash during the last auto page.
-  const [manualClicked, setManualClicked] = useState(false)
-  useEffect(() => {
-    if (!isLoading) setManualClicked(false)
-  }, [isLoading])
-  const showManualLoadMore =
-    Boolean(nextMaxId) &&
-    !error &&
-    !canObserverLoad &&
-    autoPages.current >= MAX_AUTO_PAGES &&
-    (!isLoading || manualClicked)
 
   const firstSelected = selected[0] ?? null
   useEffect(() => {
@@ -259,23 +226,36 @@ export const GalleryAlbumPicker: FC<Props> = ({
 
   const selectAllShown = () => {
     const room = capacity - selected.length
-    const additions = visible
+    const additions = items
       .map((item) => item.mediaId)
       .filter((id) => !selectedSet.has(id) && !existingSet.has(id))
       .slice(0, Math.max(room, 0))
     if (additions.length > 0) onChange([...selected, ...additions])
   }
 
-  const hasFilters = Boolean(subjectKey || isClientFiltered)
-  const clearFilters = () => {
-    setSubjectKey('')
-    setPlace('')
-    setFrom('')
-    setTo('')
+  const countDraft = useCallback(
+    (d: GalleryMediaFilterState) =>
+      countGalleryMedia(ownerId, {
+        ...toGalleryMediaQuery(d, new Date()),
+        show: d.notInAlbum ? 'not_in_album' : 'all',
+        albumId
+      }),
+    [ownerId, albumId]
+  )
+
+  const handleFilterChange = (next: GalleryMediaFilterState) => {
+    setFilters(next)
+    scrollToResultsStart(rootRef.current)
   }
 
+  const isCurrent = loadedKey === queryKey
   const isGalleryEmpty =
-    hasLoadedOnce && !isLoading && items.length === 0 && !hasFilters && !error
+    isCurrent &&
+    !isLoading &&
+    items.length === 0 &&
+    countActiveFilters(filters) === 0 &&
+    !filters.notInAlbum &&
+    !error
 
   if (isGalleryEmpty) {
     return (
@@ -304,77 +284,21 @@ export const GalleryAlbumPicker: FC<Props> = ({
   const skeletonCount = columns === 5 ? 5 : 4
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="min-w-0 space-y-1">
-          <Label htmlFor="album-picker-species" className="text-xs">
-            Species
-          </Label>
-          <Select
-            id="album-picker-species"
-            value={subjectKey}
-            onChange={(event) => setSubjectKey(event.target.value)}
-            disabled={disabled}
-            className="pointer-coarse:h-10"
-          >
-            <option value="">Any species</option>
-            {subjects.map((subject) => (
-              <option key={subject.key} value={subject.key}>
-                {subject.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="min-w-0 space-y-1">
-          <Label htmlFor="album-picker-place" className="text-xs">
-            Place
-          </Label>
-          <Select
-            id="album-picker-place"
-            value={place}
-            onChange={(event) => setPlace(event.target.value)}
-            disabled={disabled}
-            className="pointer-coarse:h-10"
-          >
-            <option value="">Any place</option>
-            {placeNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="min-w-0 space-y-1 max-sm:col-span-2">
-          <Label htmlFor="album-picker-from" className="text-xs">
-            Taken from
-          </Label>
-          <Input
-            id="album-picker-from"
-            type="date"
-            value={from}
-            max={to || undefined}
-            onChange={(event) => setFrom(event.target.value)}
-            onKeyDown={ignoreEnter}
-            disabled={disabled}
-            className="pointer-coarse:h-10"
-          />
-        </div>
-        <div className="min-w-0 space-y-1 max-sm:col-span-2">
-          <Label htmlFor="album-picker-to" className="text-xs">
-            Taken to
-          </Label>
-          <Input
-            id="album-picker-to"
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(event) => setTo(event.target.value)}
-            onKeyDown={ignoreEnter}
-            disabled={disabled}
-            className="pointer-coarse:h-10"
-          />
-        </div>
-      </div>
+    <div ref={rootRef} className="space-y-3">
+      <GalleryMediaFilterBar
+        idPrefix="album-picker"
+        filters={filters}
+        onChange={handleFilterChange}
+        facets={facets}
+        facetsError={facetsError}
+        onRetryFacets={retryFacets}
+        portalContainer={portalContainer}
+        showNotInAlbumToggle
+        total={total}
+        inAlbumTotal={inAlbumTotal}
+        countDraft={countDraft}
+        disabled={disabled}
+      />
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Button
@@ -386,7 +310,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
           disabled={
             disabled ||
             isFull ||
-            visible.every(
+            items.every(
               (item) =>
                 selectedSet.has(item.mediaId) || existingSet.has(item.mediaId)
             )
@@ -404,25 +328,13 @@ export const GalleryAlbumPicker: FC<Props> = ({
         >
           Clear selection
         </Button>
-        {hasFilters ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="pointer-coarse:h-10"
-            onClick={clearFilters}
-            disabled={disabled}
-          >
-            Clear filters
-          </Button>
-        ) : null}
       </div>
 
       <div role="status" className="sr-only">
         {isLoading && items.length > 0 ? 'Loading more photos' : ''}
       </div>
 
-      {isLoading && items.length === 0 ? (
+      {items.length === 0 && !error && (isLoading || !isCurrent) ? (
         <div
           className={cn(
             'grid grid-cols-3 gap-1',
@@ -439,7 +351,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             />
           ))}
         </div>
-      ) : visible.length > 0 ? (
+      ) : items.length > 0 ? (
         <ul
           className={cn(
             'grid grid-cols-3 gap-1',
@@ -447,7 +359,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
           )}
           aria-busy={isLoading}
         >
-          {visible.map((item, index) => (
+          {items.map((item, index) => (
             <li key={item.mediaId} className="min-w-0">
               <GalleryAlbumPickerTile
                 item={item}
@@ -474,33 +386,20 @@ export const GalleryAlbumPicker: FC<Props> = ({
             : null}
         </ul>
       ) : error ? null : (
-        <p className="text-muted-foreground py-6 text-center text-sm">
-          {nextMaxId
-            ? 'Nothing matches in the photos loaded so far.'
-            : 'No photos match these filters.'}
-        </p>
+        <GalleryMediaFilterEmpty
+          filters={filters}
+          facets={facets}
+          onChange={handleFilterChange}
+        />
       )}
 
-      {nextMaxId && !error ? (
+      {hasMore && !error ? (
         <div ref={loadMoreRef} aria-hidden="true" className="h-px" />
       ) : null}
 
-      {showManualLoadMore && nextMaxId ? (
-        <LoadMoreButton
-          isLoading={isLoading}
-          loadingText="Loading more photos"
-          onClick={() => {
-            setManualClicked(true)
-            void load(false, nextMaxId)
-          }}
-        >
-          Load more photos
-        </LoadMoreButton>
-      ) : null}
-
       {error ? <Alert title={error} /> : null}
-      {error && nextMaxId && items.length > 0 ? (
-        <LoadMoreButton onClick={() => void load(false, nextMaxId)}>
+      {error && cursorParam && items.length > 0 ? (
+        <LoadMoreButton onClick={() => void load(false, cursorParam)}>
           Try again
         </LoadMoreButton>
       ) : error && items.length === 0 ? (

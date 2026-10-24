@@ -1,9 +1,15 @@
 import type {
   GalleryIndexRow,
+  GalleryMediaCursor,
+  GalleryMediaFilters,
   GalleryMediaRow
 } from '@/lib/database/domains/gallery/types'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { Database } from '@/lib/database/types'
+import {
+  parseAlbumCursor,
+  toAlbumCursorString
+} from '@/lib/services/gallery/galleryAlbumQueries'
 import {
   type GalleryAudience,
   PUBLIC_GALLERY_AUDIENCE
@@ -17,6 +23,7 @@ import {
   GallerySubjectEntry,
   GallerySubjectGroupCategory,
   GallerySubjectsResponse,
+  toPlaceKey,
   toSubjectKey
 } from '@/lib/services/gallery/galleryEntities'
 import {
@@ -32,6 +39,8 @@ import {
   toCountryCode
 } from '@/lib/services/gallery/publicMediaDetails'
 import {
+  GALLERY_FILTER_NONE,
+  GalleryMediaSort,
   GallerySettings,
   GalleryShow,
   MEDIA_SUBJECT_CATEGORIES,
@@ -46,9 +55,7 @@ import {
 //
 // Subjects and the life list group in JS over one capped index read, keyed by
 // `toSubjectKey`, so both backends agree on what one subject is. Past the cap,
-// those responses say `truncated: true`. A subject or category page filters the
-// same index in JS but reads it in windows moved by the cursor, so it can reach
-// every photo and needs no `truncated` flag.
+// those responses say `truncated: true`.
 
 export const GALLERY_INDEX_CAP = 5000
 // Index windows (or short reads) one page request may scan before it answers
@@ -64,6 +71,7 @@ type GalleryQueryDatabase = Pick<
   | 'getGalleryMediaIndex'
   | 'getGalleryMapRows'
   | 'getGalleryAlbumItemSets'
+  | 'countGalleryMedia'
 >
 
 interface GalleryQueryBase {
@@ -85,6 +93,14 @@ export interface GetGalleryMediaPageParams extends GalleryQueryBase {
   // gallery). Ignored for every other audience, which only ever sees the
   // gallery.
   show?: GalleryShow
+  sort?: GalleryMediaSort
+  cursor?: string
+  place?: string
+  takenFrom?: string
+  takenTo?: string
+  activityId?: string
+  albumId?: string
+  includeTotal?: boolean
 }
 
 export const projectRows = async (
@@ -119,108 +135,112 @@ export const getGalleryMediaPage = async ({
   subjectKey,
   category,
   gearId,
-  show: requestedShow
+  show: requestedShow,
+  sort,
+  cursor,
+  place,
+  takenFrom,
+  takenTo,
+  activityId,
+  albumId,
+  includeTotal
 }: GetGalleryMediaPageParams): Promise<GalleryMediaPage> => {
   const empty: GalleryMediaPage = { items: [], nextMaxId: null }
   const pageSize = normalizePageLimit(limit)
   const viewer = toGalleryProjectionViewer(audience)
-  if (gearId !== undefined && viewer !== 'owner') return empty
-  // The database layer ignores `show` for a viewer too; dropping it here keeps
-  // that a second line of defence rather than the only one.
-  const show = viewer === 'owner' ? requestedShow : undefined
+  const isOwner = viewer === 'owner'
+  if (gearId !== undefined && !isOwner) return empty
+
+  const show = isOwner ? requestedShow : undefined
+  const effectiveSort: GalleryMediaSort = isOwner
+    ? (sort ?? 'uploaded')
+    : 'uploaded'
+  const effectiveCursor = isOwner ? cursor : undefined
+  const effectiveAlbumId = isOwner ? albumId : undefined
+  const effectiveIncludeTotal = isOwner ? Boolean(includeTotal) : false
+
+  const placeKey = isOwner
+    ? place === GALLERY_FILTER_NONE
+      ? ''
+      : place !== undefined
+        ? toPlaceKey(place)
+        : undefined
+    : undefined
+
+  const mappedActivityId = isOwner
+    ? activityId === GALLERY_FILTER_NONE
+      ? null
+      : activityId !== undefined
+        ? activityId
+        : undefined
+    : undefined
+
+  const filters: GalleryMediaFilters = {
+    ...(subjectKey !== undefined ? { subjectKey } : null),
+    ...(category !== undefined ? { category } : null),
+    ...(placeKey !== undefined ? { placeKey } : null),
+    ...(isOwner && takenFrom !== undefined ? { takenFrom } : null),
+    ...(isOwner && takenTo !== undefined ? { takenTo } : null),
+    ...(mappedActivityId !== undefined
+      ? { activityId: mappedActivityId }
+      : null)
+  }
+
+  const isDateSort =
+    effectiveSort === 'taken_desc' || effectiveSort === 'taken_asc'
+
+  let currentCursor: GalleryMediaCursor | undefined
+  if (isDateSort) {
+    if (effectiveCursor !== undefined) {
+      const parsed = parseAlbumCursor(effectiveCursor)
+      if (!parsed) return empty
+      currentCursor = parsed
+    }
+  } else {
+    if (maxId !== undefined && toMediaRowId(maxId) === null) return empty
+  }
 
   const settings = await database.getGallerySettings({ actorId: owner.id })
 
-  let rows: GalleryMediaRow[]
-  let resumeAfter: string | null = null
-  if (subjectKey !== undefined || category !== undefined) {
-    if (maxId !== undefined && toMediaRowId(maxId) === null) return empty
+  let currentMaxId: string | undefined = !isDateSort ? maxId : undefined
+  let resumeAfterCursor: GalleryMediaCursor | null = null
+  let resumeAfterMaxId: string | null = null
+  const rows: GalleryMediaRow[] = []
 
-    // The index is read one window of GALLERY_INDEX_CAP rows at a time, newest
-    // first, with the cursor pushed into SQL (`medias.id < cursor`), so a
-    // subject with few recent photos is still reachable past the first window.
-    // Windows are read until the page (plus the look-ahead row) is full or the
-    // index runs out.
-    const matches = (row: GalleryIndexRow): boolean =>
-      (subjectKey === undefined ||
-        toSubjectKey({
-          name: row.subjectName,
-          scientificName: row.subjectScientificName
-        }) === subjectKey) &&
-      (category === undefined || row.subjectCategory === category)
+  for (let reads = 0; reads < MAX_INDEX_WINDOWS; reads += 1) {
+    const batch = await database.getGalleryMedia({
+      actorId: owner.id,
+      audience,
+      sort: effectiveSort,
+      cursor: isDateSort ? currentCursor : undefined,
+      maxId: !isDateSort ? currentMaxId : undefined,
+      limit: pageSize + 1 - rows.length,
+      gearId,
+      show,
+      filters
+    })
+    if (batch.length === 0) break
+    rows.push(...batch)
+    if (rows.length > pageSize) break
 
-    rows = []
-    let cursor = maxId
-    let windows = 0
-    for (;;) {
-      const index = await database.getGalleryMediaIndex({
-        actorId: owner.id,
-        audience,
-        limit: GALLERY_INDEX_CAP,
-        show,
-        ...(cursor === undefined ? null : { maxId: cursor })
-      })
-      windows += 1
-      const ids = index.filter(matches).map((row) => row.id)
-
-      // Ids are requested in slices so a short read (a row dropped between the
-      // index read and the by-ids read) pulls the next matching ids of this
-      // window instead of skipping them. Gear is not in the index, so a gear
-      // filter on top of a subject filter is applied after the rows are read,
-      // over every matching id.
-      let offset = 0
-      while (rows.length <= pageSize && offset < ids.length) {
-        const needed = pageSize + 1 - rows.length
-        const slice =
-          gearId === undefined ? ids.slice(offset, offset + needed) : ids
-        offset = gearId === undefined ? offset + slice.length : ids.length
-        let windowRows = await database.getGalleryMediaByIds({
-          actorId: owner.id,
-          audience,
-          mediaIds: slice,
-          show
-        })
-        if (gearId !== undefined) {
-          windowRows = windowRows.filter(
-            ({ media }) =>
-              media.details?.cameraGearId === gearId ||
-              media.details?.lensGearId === gearId
-          )
-        }
-        rows.push(...windowRows.slice(0, needed))
+    const last = batch[batch.length - 1]
+    if (isDateSort) {
+      // Date orders skip NULL sortAt rows; never page on a made-up key.
+      if (last.sortAt == null) break
+      currentCursor = {
+        key: last.sortAt,
+        mediaId: Number(last.media.id)
       }
-
-      if (rows.length > pageSize || index.length < GALLERY_INDEX_CAP) break
-      cursor = index[index.length - 1].id
-      if (windows >= MAX_INDEX_WINDOWS) {
-        // A filter that matches little must not make one anonymous request
-        // scan the whole gallery: hand back what was found and let the client
-        // continue from the last scanned id.
-        resumeAfter = cursor
-        break
-      }
+    } else {
+      currentMaxId = last.media.id
     }
-  } else {
-    // Rows can be dropped after the SQL limit (a post that went away), so a
-    // short read is not proof of the end: keep reading from the last row
-    // returned until the look-ahead row shows up, a read comes back empty, or
-    // the read cap is reached.
-    rows = []
-    let cursor = maxId
-    for (let reads = 0; reads < MAX_INDEX_WINDOWS; reads += 1) {
-      const batch = await database.getGalleryMedia({
-        actorId: owner.id,
-        audience,
-        maxId: cursor,
-        limit: pageSize + 1 - rows.length,
-        gearId,
-        show
-      })
-      if (batch.length === 0) break
-      rows.push(...batch)
-      if (rows.length > pageSize) break
-      cursor = batch[batch.length - 1].media.id
-      if (reads === MAX_INDEX_WINDOWS - 1) resumeAfter = cursor
+
+    if (reads === MAX_INDEX_WINDOWS - 1) {
+      if (isDateSort) {
+        resumeAfterCursor = currentCursor ?? null
+      } else {
+        resumeAfterMaxId = currentMaxId ?? null
+      }
     }
   }
 
@@ -229,7 +249,7 @@ export const getGalleryMediaPage = async ({
   const items = await projectRows(database, pageRows, audience, settings)
 
   let counts: Map<string, number> | null = null
-  if (viewer === 'owner' && pageRows.length > 0) {
+  if (isOwner && pageRows.length > 0) {
     const sets = await database.getGalleryAlbumItemSets({
       actorId: owner.id,
       mediaIds: pageRows.map((row) => row.media.id)
@@ -242,6 +262,50 @@ export const getGalleryMediaPage = async ({
     }
   }
 
+  let nextMaxId: string | null
+  let nextCursor: string | null | undefined
+
+  if (isDateSort) {
+    nextMaxId = null
+    const lastRow = pageRows[pageRows.length - 1]
+    if (hasMore) {
+      nextCursor =
+        lastRow.sortAt != null
+          ? toAlbumCursorString({
+              key: lastRow.sortAt,
+              mediaId: Number(lastRow.media.id)
+            })
+          : null
+    } else {
+      nextCursor = resumeAfterCursor
+        ? toAlbumCursorString(resumeAfterCursor)
+        : null
+    }
+  } else {
+    nextMaxId = hasMore
+      ? pageRows[pageRows.length - 1].media.id
+      : resumeAfterMaxId
+  }
+
+  let total: number | undefined
+  let inAlbumTotal: number | undefined
+
+  if (effectiveIncludeTotal) {
+    const countResult = await database.countGalleryMedia({
+      actorId: owner.id,
+      audience,
+      show,
+      gearId,
+      filters,
+      albumId: effectiveAlbumId,
+      sort: effectiveSort
+    })
+    total = countResult.total
+    if (countResult.inAlbum !== null) {
+      inAlbumTotal = countResult.inAlbum
+    }
+  }
+
   return {
     items: pageRows.flatMap((row) => {
       const item = items.get(row.media.id)
@@ -251,7 +315,10 @@ export const getGalleryMediaPage = async ({
       }
       return [item]
     }),
-    nextMaxId: hasMore ? pageRows[pageRows.length - 1].media.id : resumeAfter
+    nextMaxId,
+    ...(nextCursor !== undefined ? { nextCursor } : null),
+    ...(total !== undefined ? { total } : null),
+    ...(inAlbumTotal !== undefined ? { inAlbumTotal } : null)
   }
 }
 

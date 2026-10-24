@@ -32,6 +32,28 @@ describe('GalleryAlbumPickerTile', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders "Uploaded <date>" for a dateless photo when showCaption is true', () => {
+    const item = buildGalleryItem('1', {
+      takenAt: null,
+      uploadedAt: '2025-10-03T10:00:00Z'
+    })
+    render(
+      <GalleryAlbumPickerTile
+        item={item}
+        index={0}
+        isSelected={false}
+        showCaption
+        onToggle={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', {
+        name: 'Select Photo 1, Uploaded 3 Oct 2025'
+      })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Uploaded 3 Oct 2025')).toBeInTheDocument()
+  })
+
   it('keeps the accessible name unchanged as "Select Photo 1" when showCaption is false or omitted', () => {
     const item = buildGalleryItem('1', {
       subject: { name: 'Common kingfisher' } as never,

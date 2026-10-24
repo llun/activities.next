@@ -1,6 +1,9 @@
 import type {
   GalleryIndexRow,
-  GalleryMapRow
+  GalleryMapRow,
+  GalleryMediaCount,
+  GalleryMediaCursor,
+  GalleryMediaRow
 } from '@/lib/database/domains/gallery/types'
 import {
   databaseBeforeAll,
@@ -13,7 +16,6 @@ import {
 } from '@/lib/services/gallery/galleryAudience'
 import {
   GALLERY_INDEX_CAP,
-  MAX_INDEX_WINDOWS,
   getGalleryLifeList,
   getGalleryMapPoints,
   getGalleryMediaPage,
@@ -23,6 +25,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import {
   DEFAULT_GALLERY_SETTINGS,
+  GALLERY_FILTER_NONE,
   MediaDetailsRecord
 } from '@/lib/types/database/gallery'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -1270,7 +1273,11 @@ describe('gallery queries at the index cap', () => {
           )
           .slice(0, limit)
     ),
-    getGalleryMapRows: vi.fn(async () => [])
+    getGalleryMapRows: vi.fn(async () => []),
+    countGalleryMedia: vi.fn(async (): Promise<GalleryMediaCount> => ({
+      total: 0,
+      inAlbum: null
+    }))
   })
 
   it.each([
@@ -1356,79 +1363,241 @@ describe('gallery queries at the index cap', () => {
     }
   )
 
-  it('reaches a subject past the first index window by moving the cursor', async () => {
-    const count = GALLERY_INDEX_CAP + 10
-    const rows = indexRows(count).map((row) => ({
-      ...row,
-      subjectName: row.id === '1' ? 'Rare Bird' : null,
-      subjectCategory: null
-    }))
-    const database = fakeDatabase(rows)
+  it('fills a full page for a subject from deep in the library', async () => {
+    const database = fakeDatabase([])
+    const mockRows = [
+      { media: { id: '100' } },
+      { media: { id: '50' } },
+      { media: { id: '10' } }
+    ]
+    database.getGalleryMedia.mockImplementation((async ({
+      limit
+    }: {
+      limit: number
+    }) => mockRows.slice(0, limit)) as never)
+
+    const page = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 2,
+      subjectKey: 'sci:alcedo atthis'
+    })
+
+    expect(database.getGalleryMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'owner',
+        audience: OWNER_GALLERY_AUDIENCE,
+        sort: 'uploaded',
+        filters: expect.objectContaining({
+          subjectKey: 'sci:alcedo atthis'
+        })
+      })
+    )
+    expect(page.items.map((item) => item.mediaId)).toEqual(['100', '50'])
+    expect(page.nextMaxId).toBe('50')
+  })
+
+  it.each(['taken_desc', 'taken_asc'] as const)(
+    'round-trips nextCursor with sort: %s',
+    async (sort) => {
+      const database = fakeDatabase([])
+      const rows = (sort === 'taken_desc'
+        ? [
+            { media: { id: '10' }, sortAt: 2000 },
+            { media: { id: '9' }, sortAt: 1900 },
+            { media: { id: '8' }, sortAt: 1800 }
+          ]
+        : [
+            { media: { id: '8' }, sortAt: 1800 },
+            { media: { id: '9' }, sortAt: 1900 },
+            { media: { id: '10' }, sortAt: 2000 }
+          ]) as unknown as GalleryMediaRow[]
+      database.getGalleryMedia.mockImplementation((async ({
+        cursor,
+        limit
+      }: {
+        cursor?: GalleryMediaCursor
+        limit: number
+      }) => {
+        let filtered = rows
+        if (cursor) {
+          filtered = rows.filter((r) =>
+            sort === 'taken_desc'
+              ? (r.sortAt ?? 0) < cursor.key ||
+                ((r.sortAt ?? 0) === cursor.key &&
+                  Number(r.media.id) < cursor.mediaId)
+              : (r.sortAt ?? 0) > cursor.key ||
+                ((r.sortAt ?? 0) === cursor.key &&
+                  Number(r.media.id) > cursor.mediaId)
+          )
+        }
+        return filtered.slice(0, limit)
+      }) as never)
+
+      const page1 = await getGalleryMediaPage({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        sort
+      })
+
+      const expectedPage1Ids = sort === 'taken_desc' ? ['10', '9'] : ['8', '9']
+      expect(page1.items.map((i) => i.mediaId)).toEqual(expectedPage1Ids)
+      expect(page1.nextMaxId).toBeNull()
+      expect(page1.nextCursor).toBe('1900:9')
+
+      const page2 = await getGalleryMediaPage({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        sort,
+        cursor: page1.nextCursor!
+      })
+
+      expect(database.getGalleryMedia).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          sort,
+          cursor: { key: 1900, mediaId: 9 }
+        })
+      )
+      const expectedPage2Ids = sort === 'taken_desc' ? ['8'] : ['10']
+      expect(page2.items.map((i) => i.mediaId)).toEqual(expectedPage2Ids)
+      expect(page2.nextMaxId).toBeNull()
+      expect(page2.nextCursor).toBeNull()
+    }
+  )
+
+  it('includes total and inAlbumTotal only on the first owner page with includeTotal', async () => {
+    const database = fakeDatabase([])
+    database.countGalleryMedia.mockResolvedValueOnce({
+      total: 42,
+      inAlbum: 5
+    })
+
+    const pageWithTotal = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 2,
+      includeTotal: true,
+      albumId: 'album-1'
+    })
+
+    expect(database.countGalleryMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'owner',
+        audience: OWNER_GALLERY_AUDIENCE,
+        albumId: 'album-1'
+      })
+    )
+    expect(pageWithTotal.total).toBe(42)
+    expect(pageWithTotal.inAlbumTotal).toBe(5)
+
+    database.countGalleryMedia.mockClear()
+    const pageWithoutTotal = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 2,
+      albumId: 'album-1'
+    })
+
+    expect(database.countGalleryMedia).not.toHaveBeenCalled()
+    expect(pageWithoutTotal).not.toHaveProperty('total')
+    expect(pageWithoutTotal).not.toHaveProperty('inAlbumTotal')
+  })
+
+  it('never gives non-owner total, inAlbumTotal, nextCursor, or owner filters', async () => {
+    const database = fakeDatabase([])
+    const mockRows = [
+      { media: { id: '1' }, sortAt: 1000 }
+    ] as unknown as GalleryMediaRow[]
+    database.getGalleryMedia.mockResolvedValue(mockRows as never)
+
+    const withOwnerParams = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: PUBLIC_GALLERY_AUDIENCE,
+      limit: 2,
+      sort: 'taken_desc',
+      cursor: '1000:1',
+      place: 'Paris',
+      takenFrom: '2024-01-01',
+      takenTo: '2024-12-31',
+      activityId: 'activity-1',
+      albumId: 'album-1',
+      includeTotal: true
+    })
+
+    expect(database.countGalleryMedia).not.toHaveBeenCalled()
+    expect(database.getGalleryMedia).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sort: 'uploaded',
+        cursor: undefined,
+        filters: {}
+      })
+    )
+    expect(withOwnerParams).not.toHaveProperty('total')
+    expect(withOwnerParams).not.toHaveProperty('inAlbumTotal')
+    expect(withOwnerParams).not.toHaveProperty('nextCursor')
+
+    database.getGalleryMedia.mockClear()
+    const withoutOwnerParams = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: PUBLIC_GALLERY_AUDIENCE,
+      limit: 2
+    })
+
+    expect(withOwnerParams).toEqual(withoutOwnerParams)
+  })
+
+  it('maps owner filters place and activityId including GALLERY_FILTER_NONE', async () => {
+    const database = fakeDatabase([])
 
     await getGalleryMediaPage({
       database,
       owner: { id: 'owner' },
       audience: OWNER_GALLERY_AUDIENCE,
-      limit: 30,
-      subjectKey: 'name:rare bird'
+      limit: 2,
+      place: GALLERY_FILTER_NONE,
+      activityId: GALLERY_FILTER_NONE,
+      takenFrom: '2024-01-01',
+      takenTo: '2024-12-31'
     })
 
-    expect(database.getGalleryMediaIndex).toHaveBeenCalledTimes(2)
-    expect(database.getGalleryMediaIndex).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ maxId: String(count - GALLERY_INDEX_CAP + 1) })
+    expect(database.getGalleryMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: {
+          placeKey: '',
+          activityId: null,
+          takenFrom: '2024-01-01',
+          takenTo: '2024-12-31'
+        }
+      })
     )
-    expect(database.getGalleryMediaByIds).toHaveBeenCalledWith(
-      expect.objectContaining({ mediaIds: ['1'] })
-    )
-  })
 
-  it('reads one window when the page is already full', async () => {
-    const database = fakeDatabase(indexRows(GALLERY_INDEX_CAP + 10))
-    database.getGalleryMediaByIds.mockImplementation((async ({
-      mediaIds
-    }: {
-      mediaIds: string[]
-    }) =>
-      mediaIds.map((id) => ({
-        media: { id }
-      }))) as never)
-
-    const page = await getGalleryMediaPage({
+    await getGalleryMediaPage({
       database,
       owner: { id: 'owner' },
       audience: OWNER_GALLERY_AUDIENCE,
       limit: 2,
-      category: 'bird'
+      place: 'Central Park',
+      activityId: 'activity-99'
     })
 
-    expect(database.getGalleryMediaIndex).toHaveBeenCalledTimes(1)
-    expect(page.nextMaxId).not.toBeNull()
-  })
-
-  const byIds = (dropped: string[] = []) =>
-    (async ({ mediaIds }: { mediaIds: string[] }) =>
-      mediaIds
-        .filter((id) => !dropped.includes(id))
-        .map((id) => ({ media: { id } }))) as never
-
-  it('requests the next matching ids when a by-ids read comes back short', async () => {
-    const database = fakeDatabase(indexRows(10))
-    // Even ids are birds (10, 8, 6, 4, 2); the read drops id 8.
-    database.getGalleryMediaByIds.mockImplementation(byIds(['8']))
-
-    const page = await getGalleryMediaPage({
-      database,
-      owner: { id: 'owner' },
-      audience: OWNER_GALLERY_AUDIENCE,
-      limit: 2,
-      category: 'bird'
-    })
-
-    expect(page.items.map((item) => item.mediaId)).toEqual(['10', '6'])
-    // 6 is the look-ahead row for a page of two, so 4 is for the next page.
-    expect(page.nextMaxId).toBe('6')
-    expect(database.getGalleryMediaByIds).toHaveBeenCalledTimes(2)
+    expect(database.getGalleryMedia).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filters: {
+          placeKey: 'central park',
+          activityId: 'activity-99'
+        }
+      })
+    )
   })
 
   it('keeps reading the recent grid when a row is dropped after the SQL limit', async () => {
@@ -1457,42 +1626,5 @@ describe('gallery queries at the index cap', () => {
 
     expect(page.items.map((item) => item.mediaId)).toEqual(['9', '7'])
     expect(page.nextMaxId).toBe('7')
-  })
-
-  it('stops after the window cap and hands back the last scanned id', async () => {
-    const count = GALLERY_INDEX_CAP * (MAX_INDEX_WINDOWS + 2)
-    const rows = indexRows(count).map((row) => ({
-      ...row,
-      subjectName: null,
-      subjectCategory: null
-    }))
-    const database = fakeDatabase(rows)
-
-    const page = await getGalleryMediaPage({
-      database,
-      owner: { id: 'owner' },
-      audience: PUBLIC_GALLERY_AUDIENCE,
-      limit: 30,
-      subjectKey: 'name:zzz'
-    })
-
-    expect(database.getGalleryMediaIndex).toHaveBeenCalledTimes(
-      MAX_INDEX_WINDOWS
-    )
-    expect(page.items).toEqual([])
-    expect(page.nextMaxId).toBe(
-      String(count - MAX_INDEX_WINDOWS * GALLERY_INDEX_CAP + 1)
-    )
-
-    const next = await getGalleryMediaPage({
-      database,
-      owner: { id: 'owner' },
-      audience: PUBLIC_GALLERY_AUDIENCE,
-      limit: 30,
-      subjectKey: 'name:zzz',
-      maxId: page.nextMaxId!
-    })
-    // Two windows remain, so the index ends before the cap and paging stops.
-    expect(next.nextMaxId).toBeNull()
   })
 })

@@ -272,6 +272,184 @@ describe('GalleryPagedGrid', () => {
     )
   })
 
+  it('pages with cursor when initialPage provides nextCursor', async () => {
+    getGalleryMediaMock.mockResolvedValue({
+      items: [buildGalleryItem('2')],
+      nextCursor: null,
+      nextMaxId: null
+    })
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={{
+          items: [buildGalleryItem('1')],
+          nextCursor: 'cur-100',
+          nextMaxId: 'id-999'
+        }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('12')
+    )
+    expect(getGalleryMediaMock).toHaveBeenCalledWith(
+      'actor-1',
+      expect.objectContaining({ cursor: 'cur-100' })
+    )
+    const options = getGalleryMediaMock.mock.calls[0][1]
+    expect(options.cursor).toBe('cur-100')
+    expect(options.maxId).toBeUndefined()
+  })
+
+  it('pages with cursor when nextCursor is returned from a loaded page', async () => {
+    getGalleryMediaMock
+      .mockResolvedValueOnce({
+        items: [buildGalleryItem('1')],
+        nextCursor: 'cur-page-1',
+        nextMaxId: null
+      })
+      .mockResolvedValueOnce({
+        items: [buildGalleryItem('2')],
+        nextCursor: null,
+        nextMaxId: null
+      })
+    render(<GalleryPagedGrid actorId="actor-1" />)
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('1')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('12')
+    )
+    expect(getGalleryMediaMock).toHaveBeenLastCalledWith(
+      'actor-1',
+      expect.objectContaining({ cursor: 'cur-page-1' })
+    )
+    const options = getGalleryMediaMock.mock.calls[1][1]
+    expect(options.cursor).toBe('cur-page-1')
+    expect(options.maxId).toBeUndefined()
+  })
+
+  it('calls onTotalChange with initialPage.total when initialPage is provided', () => {
+    const onTotalChange = vi.fn()
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={{
+          items: [buildGalleryItem('1')],
+          nextMaxId: null,
+          total: 42
+        }}
+        onTotalChange={onTotalChange}
+      />
+    )
+    expect(onTotalChange).toHaveBeenCalledTimes(1)
+    expect(onTotalChange).toHaveBeenCalledWith(42)
+  })
+
+  it('calls onTotalChange with null when initialPage is provided without total', () => {
+    const onTotalChange = vi.fn()
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={{
+          items: [buildGalleryItem('1')],
+          nextMaxId: null
+        }}
+        onTotalChange={onTotalChange}
+      />
+    )
+    expect(onTotalChange).toHaveBeenCalledTimes(1)
+    expect(onTotalChange).toHaveBeenCalledWith(null)
+  })
+
+  it('calls onTotalChange with page.total on first fetch, and not when paging', async () => {
+    const onTotalChange = vi.fn()
+    getGalleryMediaMock.mockResolvedValueOnce({
+      items: [buildGalleryItem('1')],
+      nextMaxId: 'id-2',
+      total: 100
+    })
+    render(<GalleryPagedGrid actorId="actor-1" onTotalChange={onTotalChange} />)
+    await waitFor(() => expect(onTotalChange).toHaveBeenCalledWith(100))
+    expect(onTotalChange).toHaveBeenCalledTimes(1)
+
+    getGalleryMediaMock.mockResolvedValueOnce({
+      items: [buildGalleryItem('2')],
+      nextMaxId: null,
+      total: 100
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('12')
+    )
+    expect(onTotalChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for the total on the first page only, and clears it when that page fails', async () => {
+    const onTotalChange = vi.fn()
+    getGalleryMediaMock
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ items: [buildGalleryItem('1')], total: 5 })
+    render(<GalleryPagedGrid actorId="actor-1" onTotalChange={onTotalChange} />)
+    await waitFor(() => expect(onTotalChange).toHaveBeenCalledWith(null))
+    expect(getGalleryMediaMock.mock.calls[0][1]).toMatchObject({
+      includeTotal: true
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(onTotalChange).toHaveBeenLastCalledWith(5))
+  })
+
+  it('renders custom emptyState when provided and there are no photos', async () => {
+    getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        emptyState={<div data-testid="custom-empty">Nothing here</div>}
+      />
+    )
+    expect(await screen.findByTestId('custom-empty')).toHaveTextContent(
+      'Nothing here'
+    )
+    expect(
+      screen.queryByText('No photos in your gallery yet')
+    ).not.toBeInTheDocument()
+  })
+
+  it('passes sort, albumId, and query options to getGalleryMedia', async () => {
+    getGalleryMediaMock.mockResolvedValue({
+      items: [buildGalleryItem('1')],
+      nextMaxId: null
+    })
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        sort="taken_desc"
+        albumId="alb-1"
+        query={{
+          place: 'Paris',
+          takenFrom: '2026-01-01',
+          takenTo: '2026-06-30'
+        }}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('1')
+    )
+    expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
+      limit: 24,
+      subject: undefined,
+      category: undefined,
+      gearId: undefined,
+      show: undefined,
+      sort: 'taken_desc',
+      albumId: 'alb-1',
+      place: 'Paris',
+      takenFrom: '2026-01-01',
+      takenTo: '2026-06-30'
+    })
+  })
+
   describe('editing from the grid', () => {
     const page = (show?: 'in_gallery' | 'hidden' | 'all') => (
       <GalleryPagedGrid

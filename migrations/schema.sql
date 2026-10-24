@@ -933,7 +933,8 @@ CREATE TABLE public.medias (
     "editVersion" integer DEFAULT 0 NOT NULL,
     "editedAt" timestamp with time zone,
     "editSaveId" character varying(36),
-    "galleryAddedAt" timestamp with time zone
+    "galleryAddedAt" timestamp with time zone,
+    "sortAt" timestamp with time zone
 );
 
 CREATE SEQUENCE public.medias_id_seq
@@ -2188,6 +2189,8 @@ CREATE INDEX "medias_accountId_originalMimeType_idx" ON public.medias USING btre
 CREATE INDEX "medias_actorId_createdAt_idx" ON public.medias USING btree ("actorId", "createdAt");
 
 CREATE INDEX "medias_actorId_originalMimeType_idx" ON public.medias USING btree ("actorId", "originalMimeType");
+
+CREATE INDEX "medias_actorId_sortAt_id_idx" ON public.medias USING btree ("actorId", "sortAt", id);
 
 CREATE INDEX moderation_actions_report_idx ON public.moderation_actions USING btree ("reportId");
 

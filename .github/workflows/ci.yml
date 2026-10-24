@@ -281,13 +281,14 @@ jobs:
   # map regeneration and heatmap jobs, the actor archive export and the
   # services over it, the gallery domain (gear with its limit and device keys,
   # gallery settings, the gallery media, index, map and gear-usage reads with
-  # their cursors, unposted media and adding it to the gallery, the lookup
-  # cache and its prune, the album suggestions' item read, the albums and their
-  # per-actor and per-album caps behind the actor row lock, the SQLite query
-  # plans of the gallery statements) with the account gallery, gallery gear,
-  # media and settings routes, the gallery album routes and the album page, the
-  # v2 media upload, note creation and the gallery lookup backfill (with its
-  # real place lookup) over it, the cached activity routes and route heatmap
+  # their cursors, media sortAt, filters, and facets, unposted media and adding
+  # it to the gallery, the lookup cache and its prune, the album suggestions'
+  # item read, the albums and their per-actor and per-album caps behind the
+  # actor row lock, the SQLite query plans of the gallery statements) with the
+  # account gallery, gallery gear, media and settings routes, the gallery album
+  # routes and the album page, the v2 media upload, note creation and the
+  # gallery lookup backfill (with its real place lookup) over it, the cached
+  # activity routes and route heatmap
   # domain (route upserts with their bounding box, chunked route reads, the
   # region count and bounds over countable activities, heatmaps by id, key and
   # share token, the pyramid subscribers and their progress mirror, the
@@ -412,6 +413,12 @@ jobs:
             lib/actions/createNote.visibility.test.ts \
             scripts/maintenance/backfillGalleryLookups.test.ts \
             scripts/maintenance/backfillGalleryLookups.nominatim.test.ts \
+            lib/database/migrate/addMediaSortAt.test.ts \
+            lib/database/domains/media/mediaSortAt.test.ts \
+            lib/database/domains/gallery/galleryMediaFilters.test.ts \
+            lib/database/domains/gallery/galleryMediaFacets.test.ts \
+            lib/services/gallery/galleryMediaFacets.test.ts \
+            'app/api/v1/gallery/media/facets/route.test.ts' \
             scripts/maintenance/backfillGifvMetadata.test.ts \
             scripts/maintenance/backfillMissingLikeActors.test.ts \
             scripts/maintenance/mediaEditReferences.test.ts \

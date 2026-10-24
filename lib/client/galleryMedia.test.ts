@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   addMediaToGallery,
+  countGalleryMedia,
   getGalleryLifeList,
   getGalleryMap,
   getGalleryMedia,
+  getGalleryMediaFacets,
   getGallerySubjects
 } from './galleryMedia'
 
@@ -59,6 +61,46 @@ describe('gallery media client module', () => {
       })
     })
 
+    it('sends the filter, sort and cursor options', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+
+      await getGalleryMedia(ACTOR_ID, {
+        cursor: '1700000000000:7',
+        sort: 'taken_asc',
+        place: 'none',
+        takenFrom: '2026-01-01',
+        takenTo: '2026-01-31',
+        activityId: 'file-1',
+        albumId: 'album-1',
+        includeTotal: true
+      })
+
+      const url = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://x.test'
+      )
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        cursor: '1700000000000:7',
+        sort: 'taken_asc',
+        place: 'none',
+        taken_from: '2026-01-01',
+        taken_to: '2026-01-31',
+        activity_id: 'file-1',
+        album_id: 'album-1',
+        include_total: 'true'
+      })
+    })
+
+    it('leaves include_total off unless asked', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+
+      await getGalleryMedia(ACTOR_ID, { includeTotal: false })
+
+      expect(fetchMock.mock.calls[0][0] as string).not.toContain(
+        'include_total'
+      )
+    })
+
     it('throws the API error message', async () => {
       fetchMock.mockResponseOnce(
         JSON.stringify({ error: 'gear_id is only available to the owner' }),
@@ -67,6 +109,56 @@ describe('gallery media client module', () => {
 
       await expect(getGalleryMedia(ACTOR_ID, { gearId: 'g' })).rejects.toThrow(
         'gear_id is only available to the owner'
+      )
+    })
+  })
+
+  describe('countGalleryMedia', () => {
+    it('asks for one item and returns the total', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ items: [], nextMaxId: null, total: 12 })
+      )
+
+      expect(await countGalleryMedia(ACTOR_ID, { place: 'Paris' })).toBe(12)
+
+      const url = new URL(
+        fetchMock.mock.calls[0][0] as string,
+        'https://x.test'
+      )
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        limit: '1',
+        include_total: 'true',
+        place: 'Paris'
+      })
+    })
+
+    it('is zero when the answer has no total', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+
+      expect(await countGalleryMedia(ACTOR_ID, {})).toBe(0)
+    })
+  })
+
+  describe('getGalleryMediaFacets', () => {
+    it.each([
+      [undefined, '/api/v1/gallery/media/facets'],
+      ['hidden' as const, '/api/v1/gallery/media/facets?show=hidden']
+    ])('requests show=%s', async (show, url) => {
+      const body = { total: 0 }
+      fetchMock.mockResponseOnce(JSON.stringify(body))
+
+      expect(await getGalleryMediaFacets({ show })).toEqual(body)
+      expect(fetchMock).toHaveBeenCalledWith(url, READ_INIT)
+    })
+
+    it('defaults to no options', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ total: 0 }))
+
+      await getGalleryMediaFacets()
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/gallery/media/facets',
+        READ_INIT
       )
     })
   })

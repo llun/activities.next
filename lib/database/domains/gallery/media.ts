@@ -1,5 +1,6 @@
 import { sql } from 'kysely'
 
+import { galleryMediaFilter } from '@/lib/database/domains/gallery/mediaFilters'
 import {
   type GalleryAttachmentRow,
   isPresent,
@@ -41,7 +42,9 @@ import {
 } from '@/lib/database/domains/media/rows'
 import type { Media } from '@/lib/database/domains/media/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
+import { timestampValue } from '@/lib/database/kysely/dialect'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
+import { pastKeyset } from '@/lib/database/kysely/keyset'
 import {
   galleryMediaIdRef,
   galleryMediaScope,
@@ -161,8 +164,13 @@ const toGalleryMediaRows = async (
     const uploadedAt = parseNullableTime(
       (row as { galleryUploadedAt?: unknown }).galleryUploadedAt
     )
+    const sortAt = parseNullableTime(
+      (row as { gallerySortAt?: unknown }).gallerySortAt
+    )
     const pick = picked.get(String(row.id))
-    if (pick) return [{ media: parseMediaRow(row), uploadedAt, ...pick }]
+    if (pick) {
+      return [{ media: parseMediaRow(row), uploadedAt, sortAt, ...pick }]
+    }
     // Only the owner's own Gallery additions are shown without a post.
     // Anything else here lost its last visible post between the two reads,
     // and is dropped rather than shown bare.
@@ -171,6 +179,7 @@ const toGalleryMediaRows = async (
         {
           media: parseMediaRow(row),
           uploadedAt,
+          sortAt,
           attachment: null,
           statusId: null,
           statusPublicId: null
@@ -203,31 +212,108 @@ export const getActorHasGalleryMedia = async (
 
 export const getGalleryMedia = async (
   db: Db,
-  { actorId, audience, maxId, limit, gearId, show }: GetGalleryMediaParams
+  {
+    actorId,
+    audience,
+    maxId,
+    limit,
+    gearId,
+    show,
+    sort,
+    cursor,
+    filters
+  }: GetGalleryMediaParams
 ): Promise<GalleryMediaRow[]> => {
   const size = normalizeLimit(limit)
   if (size === 0) return []
 
-  const maxRowId = toMaxRowId(maxId)
-  if (maxRowId === false) return []
+  const isOwner = audience?.kind === 'owner'
+  const effectiveSort = isOwner ? (sort ?? 'uploaded') : 'uploaded'
+  const effectiveCursor =
+    isOwner && (effectiveSort === 'taken_desc' || effectiveSort === 'taken_asc')
+      ? cursor
+      : undefined
 
-  const rows = await db
+  let maxRowId: number | null = null
+  if (effectiveSort === 'uploaded') {
+    const parsed = toMaxRowId(maxId)
+    if (parsed === false) return []
+    maxRowId = parsed
+  }
+
+  const filterExpr = await galleryMediaFilter(
+    db,
+    actorId,
+    audience,
+    filters,
+    gearId
+  )
+  if (filterExpr === false) return []
+
+  let qb = db
     .selectFrom('medias')
     .select(MEDIA_SELECT)
     .select('medias.createdAt as galleryUploadedAt')
+    .select('medias.sortAt as gallerySortAt')
     .where(galleryMediaScope(db, actorId, audience, { show }))
-    .$if(maxRowId !== null, (qb) => qb.where('medias.id', '<', maxRowId!))
-    .$if(gearId !== undefined, (qb) =>
-      qb.where((eb) =>
-        eb.or([
-          eb('medias.cameraGearId', '=', gearId!),
-          eb('medias.lensGearId', '=', gearId!)
+
+  if (filterExpr !== null) {
+    qb = qb.where(filterExpr)
+  }
+
+  // A row an old build inserted keeps a NULL sortAt until the backfill script
+  // runs; NULLs sort first on SQLite and last on PostgreSQL, so date orders
+  // leave them out on both (they still show under `uploaded`).
+  if (effectiveSort !== 'uploaded') {
+    qb = qb.where('medias.sortAt', 'is not', null)
+  }
+
+  if (effectiveSort === 'taken_desc') {
+    if (effectiveCursor) {
+      qb = qb.where((eb) =>
+        eb.and([
+          eb('medias.sortAt', '<=', timestampValue(effectiveCursor.key)),
+          pastKeyset(
+            eb,
+            {
+              createdAt: effectiveCursor.key,
+              tieBreaker: effectiveCursor.mediaId
+            },
+            '<',
+            'medias.id',
+            'medias.sortAt'
+          )
         ])
       )
-    )
-    .orderBy('medias.id', 'desc')
-    .limit(size)
-    .execute()
+    }
+    qb = qb.orderBy('medias.sortAt', 'desc').orderBy('medias.id', 'desc')
+  } else if (effectiveSort === 'taken_asc') {
+    if (effectiveCursor) {
+      qb = qb.where((eb) =>
+        eb.and([
+          eb('medias.sortAt', '>=', timestampValue(effectiveCursor.key)),
+          pastKeyset(
+            eb,
+            {
+              createdAt: effectiveCursor.key,
+              tieBreaker: effectiveCursor.mediaId
+            },
+            '>',
+            'medias.id',
+            'medias.sortAt'
+          )
+        ])
+      )
+    }
+    qb = qb.orderBy('medias.sortAt', 'asc').orderBy('medias.id', 'asc')
+  } else {
+    if (maxRowId !== null) {
+      qb = qb.where('medias.id', '<', maxRowId!)
+    }
+    qb = qb.orderBy('medias.id', 'desc')
+  }
+
+  const rows = await qb.limit(size).execute()
 
   return toGalleryMediaRows(db, actorId, audience, rows.map(asMediaRow))
 }
@@ -254,6 +340,7 @@ export const getGalleryMediaByIds = async (
       .selectFrom('medias')
       .select(MEDIA_SELECT)
       .select('medias.createdAt as galleryUploadedAt')
+      .select('medias.sortAt as gallerySortAt')
       .where('medias.id', 'in', chunk)
       .where(
         galleryMediaScope(db, actorId, audience, { show, requireInGallery })
