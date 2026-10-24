@@ -11,6 +11,7 @@ import {
   exportFollowingAccounts,
   exportLists,
   exportMutedAccounts,
+  exportPage,
   isExportFileName
 } from '@/lib/services/exports/accountExports'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -68,6 +69,10 @@ const createRemoteActor = async (
   if (!actor) throw new Error(`Failed to create remote actor ${username}`)
   return actor
 }
+
+// Rows of the id-paged files come in id order, which says nothing about age.
+const sortedLines = (csv: string) =>
+  csv.split('\n').filter(Boolean).sort().join('\n') + '\n'
 
 describe('accountExports', () => {
   describe('isExportFileName', () => {
@@ -274,11 +279,13 @@ describe('accountExports', () => {
         })
 
         const csv = await exportMutedAccounts(database, owner.id)
-        expect(csv).toBe(
-          'Account address,Hide notifications\n' +
-            'mute2@remote2.test,false\n' +
-            'mute1@remote1.test,true\n'
-        )
+        // The header first, then the rows in id order.
+        const [header, ...rows] = csv.split('\n').filter(Boolean)
+        expect(header).toBe('Account address,Hide notifications')
+        expect(rows.sort()).toEqual([
+          'mute1@remote1.test,true',
+          'mute2@remote2.test,false'
+        ])
       })
     })
   })
@@ -321,7 +328,7 @@ describe('accountExports', () => {
         })
 
         const csv = await exportBlockedDomains(database, owner.id)
-        expect(csv).toBe('botnet.org\nspammer.social\n')
+        expect(sortedLines(csv)).toBe('botnet.org\nspammer.social\n')
       })
     })
   })
@@ -532,7 +539,9 @@ describe('accountExports', () => {
         const domainCsv = await exportBlockedDomains(database, owner.id, {
           pageSize: 1
         })
-        expect(domainCsv).toBe('domain3.test\ndomain2.test\ndomain1.test\n')
+        expect(sortedLines(domainCsv)).toBe(
+          'domain1.test\ndomain2.test\ndomain3.test\n'
+        )
       })
     })
 
@@ -577,9 +586,140 @@ describe('accountExports', () => {
           .execute()
 
         const listCsv = await exportLists(database, owner.id, { pageSize: 1 })
-        expect(listCsv).toBe(
+        expect(sortedLines(listCsv)).toBe(
           'List 1,m1@remote.test\n' + 'List 2,m2@remote.test\n'
         )
+      })
+    })
+  })
+
+  describe('rows that change between two pages', () => {
+    const pageThrough = async (
+      database: Database,
+      file: 'muted_accounts.csv' | 'blocked_accounts.csv',
+      actorId: string,
+      between: () => Promise<void>
+    ) => {
+      let cursor: unknown = null
+      let text = ''
+      let first = true
+      do {
+        const page = await exportPage(file, database, actorId, cursor, 2)
+        text += page.text
+        // The cursor goes through JSON, as it does in the saved progress.
+        cursor = JSON.parse(JSON.stringify(page.next))
+        if (first && cursor) await between()
+        first = false
+      } while (cursor)
+      return text.split('\n').filter(Boolean)
+    }
+
+    it('exports each mute once when mutes are re-muted or removed between pages', async () => {
+      await withFreshDatabase(async (database) => {
+        const owner = await createAccount(database, 'owner')
+        const targets: Awaited<ReturnType<typeof createRemoteActor>>[] = []
+        for (let index = 1; index <= 7; index += 1) {
+          targets.push(
+            await createRemoteActor(database, `t${index}`, 'remote.test')
+          )
+        }
+        for (const target of targets) {
+          await database.createMute({
+            actorId: owner.id,
+            targetActorId: target.id,
+            notifications: false,
+            endsAt: null
+          })
+        }
+
+        const lines = await pageThrough(
+          database,
+          'muted_accounts.csv',
+          owner.id,
+          async () => {
+            // A re-mute moves a row by its updatedAt: a row from the first
+            // page, one not read yet, and one removed.
+            for (const target of [targets[0], targets[5]]) {
+              await new Promise((resolve) => setTimeout(resolve, 5))
+              await database.createMute({
+                actorId: owner.id,
+                targetActorId: target.id,
+                notifications: true,
+                endsAt: null
+              })
+            }
+            await database.deleteMute({
+              actorId: owner.id,
+              targetActorId: targets[2].id
+            })
+          }
+        )
+
+        const accounts = lines.slice(1).map((line) => line.split(',')[0])
+        expect(new Set(accounts).size).toBe(accounts.length)
+        // Seven mutes, minus the removed one if it was not read before.
+        const expected = targets
+          .filter((target) => target !== targets[2])
+          .map((target) => `${target.username}@remote.test`)
+        for (const account of expected) expect(accounts).toContain(account)
+      })
+    })
+
+    it('does not end the file when the last row of a page is deleted', async () => {
+      await withFreshDatabase(async (database, db) => {
+        const owner = await createAccount(database, 'owner')
+        const blocked: Awaited<ReturnType<typeof createRemoteActor>>[] = []
+        for (let index = 1; index <= 5; index += 1) {
+          const target = await createRemoteActor(
+            database,
+            `b${index}`,
+            'remote.test'
+          )
+          blocked.push(target)
+          await database.createBlock({
+            actorId: owner.id,
+            targetActorId: target.id,
+            uri: `${owner.id}/blocks/${index}`
+          })
+        }
+        // Equal timestamps: only the id tells the rows apart.
+        await db
+          .updateTable('blocks')
+          .set({ createdAt: new Date(1000) })
+          .where('actorId', '=', owner.id)
+          .execute()
+
+        let firstPage: string[] = []
+        const lines = await pageThrough(
+          database,
+          'blocked_accounts.csv',
+          owner.id,
+          async () => {
+            // Delete the two rows just read, whatever their order.
+            const read = await exportPage(
+              'blocked_accounts.csv',
+              database,
+              owner.id,
+              null,
+              2
+            )
+            firstPage = read.text.split('\n').filter(Boolean)
+            for (const line of firstPage) {
+              const target = blocked.find(
+                (candidate) => `${candidate.username}@remote.test` === line
+              )!
+              await database.deleteBlock({
+                actorId: owner.id,
+                targetActorId: target.id
+              })
+            }
+          }
+        )
+
+        expect(firstPage).toHaveLength(2)
+        // The two deleted rows were already written; the other three follow.
+        expect(lines).toHaveLength(5)
+        expect(new Set(lines).size).toBe(5)
       })
     })
   })

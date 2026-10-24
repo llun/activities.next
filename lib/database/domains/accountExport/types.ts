@@ -9,6 +9,7 @@ export type AccountExportTableName =
   | 'follows'
   | 'followers'
   | 'mutes'
+  | 'bookmarks'
   | 'blocks'
   | 'actor_domain_blocks'
   | 'account_notes'

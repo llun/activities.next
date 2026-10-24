@@ -132,21 +132,27 @@ const markFailed = async ({
   database,
   store,
   archive,
-  reason
+  reason,
+  onlyIfProgress
 }: {
   database: Database
   store: ArchiveObjectStore | null
   archive: AccountArchive
   reason: string
+  /** Fail it only while the cursor still reads as this (nobody saved since). */
+  onlyIfProgress?: string | null
 }) => {
-  await database.updateAccountArchive({
+  const failed = await database.updateAccountArchive({
     id: archive.id,
     onlyIfStatus: ['queued', 'running'],
+    ...(onlyIfProgress !== undefined ? { onlyIfProgress } : null),
     status: 'failed',
     error: reason,
     progress: null
   })
-  if (store) await discardUnfinishedArchive(store, archive)
+  // Nothing matched: another worker moved the export on, and what it is writing
+  // is not ours to throw away.
+  if (failed && store) await discardUnfinishedArchive(store, archive)
 }
 
 /**
@@ -195,7 +201,8 @@ const handleSliceFailure = async ({
       database,
       store,
       archive: current,
-      reason: FAILURE_MESSAGE
+      reason: FAILURE_MESSAGE,
+      onlyIfProgress: current.progress
     })
     return
   }

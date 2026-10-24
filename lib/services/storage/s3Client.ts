@@ -7,7 +7,9 @@ export type StorageS3ClientConfig = {
    * Fails a request that gets no answer for this long. Unset: the SDK default.
    * When set the client also makes a single attempt, so the call as a whole is
    * bounded by this time (the SDK would retry a timeout twice, tripling it);
-   * the caller's own retry is the retry.
+   * the caller must retry: the archive store's errors fail the slice, and the
+   * source-file reads rethrow transient errors so the slice fails and is
+   * redelivered.
    */
   requestTimeoutMs?: number
 }

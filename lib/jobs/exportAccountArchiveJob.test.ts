@@ -962,6 +962,46 @@ describe('exportAccountArchiveJob', () => {
       expect(after.status).toBe('running')
     })
 
+    it('keeps the export and its files when another worker saves while a third failure is recorded', async () => {
+      const id = await makeArchive(accountId)
+      await run(id, 0)
+      const base = (await database.getAccountArchive({ id }))!
+      const progress = parseProgress(base.progress)!
+      progress.failures = 2
+      await database.updateAccountArchive({
+        id,
+        progress: serializeProgress(progress)
+      })
+      vi.spyOn(database, 'getAccountExportRows').mockRejectedValue(
+        new Error('request timed out')
+      )
+      const original = database.updateAccountArchive.bind(database)
+      let moved = false
+      vi.spyOn(database, 'updateAccountArchive').mockImplementation(
+        async (params) => {
+          if (params.status === 'failed' && !moved) {
+            moved = true
+            // Between the failing worker's read and its write, the worker that
+            // took over saves its cursor.
+            const current = parseProgress(
+              (await database.getAccountArchive({ id }))!.progress
+            )!
+            current.failures = 0
+            await original({ id, progress: serializeProgress(current) })
+          }
+          return original(params)
+        }
+      )
+
+      await run(id, 1).catch(() => undefined)
+
+      expect(moved).toBe(true)
+      expect((await database.getAccountArchive({ id }))!.status).toBe('running')
+      await expect(
+        fs.stat(path.join(root, 'archives', id))
+      ).resolves.toBeTruthy()
+    })
+
     it('makes a delivery wait for the lease instead of dropping it', async () => {
       const id = await makeArchive(accountId)
       await run(id, 0)

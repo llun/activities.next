@@ -41,8 +41,10 @@ const S3_MAX_PARTS = 10000
  * Every S3 call of an export fails after this long, in total: the clients make
  * one attempt (no SDK retries, which would multiply it), and this is well under
  * the lease grace (`ARCHIVE_LEASE_GRACE_MS`), so a worker whose lease lapsed
- * cannot keep writing for long. A part must upload within it, so parts of up to
- * 80 MiB need a few MB/s.
+ * cannot keep writing for long. A part must upload within it: parts of up to
+ * 80 MiB need a few MB/s. On QStash the 30-second job is the tighter limit: a
+ * slice may still send a part in flight and then the tail, about two parts in
+ * 10 seconds, which is roughly 1.7 MB/s at 8 MiB parts.
  */
 export const ARCHIVE_S3_REQUEST_TIMEOUT_MS = 30 * 1000
 

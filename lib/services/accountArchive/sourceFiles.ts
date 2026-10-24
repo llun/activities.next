@@ -48,6 +48,32 @@ const getClient = (config: { region: string; endpoint?: string }) => {
 
 const errorName = (error: unknown) => (error as { name?: string }).name
 
+const TRANSIENT_ERROR_NAMES = new Set([
+  'TimeoutError',
+  'RequestTimeout',
+  'SlowDown',
+  'Throttling',
+  'ThrottlingException',
+  'RequestThrottled',
+  'ServiceUnavailable',
+  'InternalError'
+])
+
+/**
+ * An error that a later attempt can get past: a server error, throttling, a
+ * timeout, or a network failure with no answer at all. The clients of an export
+ * make a single attempt, so these must not be mistaken for a file that cannot
+ * be read: the error is rethrown, the slice fails and the queue retries it.
+ * A final answer (access denied, bad request) stays a skipped file.
+ */
+const isTransientStorageError = (error: unknown) => {
+  if (TRANSIENT_ERROR_NAMES.has(errorName(error) ?? '')) return true
+  const status = (error as { $metadata?: { httpStatusCode?: number } })
+    .$metadata?.httpStatusCode
+  if (status === undefined) return true
+  return status >= 500 || status === 429 || status === 408
+}
+
 const openLocal = async (
   root: string,
   relativePath: string,
@@ -114,6 +140,7 @@ const openObject = async (
     if (start > 0 && errorName(error) === 'InvalidRange') {
       return { ok: true, file: { stream: Readable.from([]), size: 0 } }
     }
+    if (isTransientStorageError(error)) throw error
     return {
       ok: false,
       reason:

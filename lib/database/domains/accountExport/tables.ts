@@ -75,6 +75,12 @@ export const ACCOUNT_EXPORT_TABLES: Record<
     scope: byColumn('actorId'),
     booleans: ['notifications']
   },
+  bookmarks: {
+    table: 'bookmarks',
+    columns: ['id', 'statusId', 'createdAt'],
+    key: ['id'],
+    scope: byColumn('actorId')
+  },
   blocks: {
     table: 'blocks',
     columns: ['id', 'targetActorId', 'createdAt'],

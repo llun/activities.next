@@ -1,5 +1,6 @@
 import path from 'path'
 
+import type { AccountExportCursor } from '@/lib/database/domains/accountExport/types'
 import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { StatusType, hasStatusBeenEdited } from '@/lib/types/domain/status'
@@ -331,36 +332,40 @@ export const likesStep: CollectorStep = {
   }
 }
 
+/** The bookmarks cursor: a keyset on the row id, so a deleted row cannot end it. */
+interface BookmarksCursor {
+  started?: boolean
+  after?: AccountExportCursor | null
+}
+
 export const bookmarksStep: CollectorStep = {
   name: 'bookmarks',
   async run(context, raw) {
     const { database, actor, stage } = context
-    const cursor = (raw ?? {}) as LikesCursor
+    const cursor = (raw ?? {}) as BookmarksCursor
     const entry = entryPath(actor.mastodonDir, 'bookmarks.json')
     if (!cursor.started) {
       await stage.append(entry, orderedCollectionHead('bookmarks.json'))
     }
 
-    const batch = await database.getBookmarks({
+    const page = await database.getAccountExportRows({
+      table: 'bookmarks',
       actorId: actor.id,
-      limit: context.pageSize,
-      ...(cursor.maxId ? { maxId: cursor.maxId } : null)
+      after: cursor.after ?? null,
+      limit: context.pageSize
     })
     await stage.appendJsonItems(
       entry,
-      batch.map((bookmark) => bookmark.statusId)
+      page.rows.map((row) => String(row.statusId))
     )
-    context.stats.bookmarks += batch.length
+    context.stats.bookmarks += page.rows.length
 
-    if (batch.length < context.pageSize) {
+    if (!page.next) {
       await stage.append(entry, orderedCollectionTail(stage.count(entry)))
       return 'done'
     }
     return {
-      cursor: {
-        started: true,
-        maxId: batch[batch.length - 1].id
-      } satisfies LikesCursor
+      cursor: { started: true, after: page.next } satisfies BookmarksCursor
     }
   }
 }

@@ -406,10 +406,11 @@ Export](maintenance.md#actor-archive-export)). It is built by
   for the others. The same data is also in `graph.json`. A file is written one
   database page at a time (`exportPage`), with the page cursor in the step's
   cursor, so a very long list is spread over slices instead of needing one. The
-  cursors survive edits between slices: a list is named by its id and creation
-  time (lists are ordered by both), and a page whose cursor row was deleted
-  continues from the nearest recent row that still exists instead of ending
-  the file.
+  cursors survive edits between slices: every file pages by a keyset on the
+  row id read through the account export reader (`getAccountExportRows`), not
+  by a row that has to still exist, so a deleted or re-muted row cannot end a
+  file, skip a row or repeat one. Rows come oldest id first, and a list member
+  carries its list's title.
 - **Nothing secret, by construction.** The collectors read through
   `lib/database/domains/accountExport/`, which selects an explicit column
   allowlist per table (`tables.ts`); `profile.json` lists an allowlist of the
@@ -476,8 +477,11 @@ Export](maintenance.md#actor-archive-export)). It is built by
   deleted only after the cursor that refers to the new one has been saved, so a
   checkpoint whose save never lands cannot damage the saved state. S3 calls of
   an export time out after 30 seconds in total, under the lease's grace (the
-  clients make a single attempt, because the SDK's retries would triple it and
-  outlive the lease; the slice retry is the retry): the client is
+  clients make a single attempt (on QStash the 30-second job is the tighter
+  limit and needs about 1.7 MB/s at 8 MiB parts), because the SDK's retries would triple it and
+  outlive the lease; the slice retry is the retry, and a transient error
+  reading a media or fitness file from storage fails the slice instead of
+  leaving the file out): the client is
   built with `throwOnRequestTimeout`, which the SDK needs to reject a stalled
   request (without it the handler only logs a warning), and the clients that
   read the media and fitness source files use the same timeout. Parts are
